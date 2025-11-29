@@ -1,0 +1,3 @@
+[submodule "FinanceToolkit"]
+	path = FinanceToolkit
+	url = https://github.com/prajoria/FinanceToolkit.git
