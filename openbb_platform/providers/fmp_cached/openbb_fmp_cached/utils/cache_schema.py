@@ -1753,6 +1753,9 @@ def create_equity_historical_table():
         volume BIGINT DEFAULT NULL,
         vwap DECIMAL(15,6) DEFAULT NULL,
         
+        -- Dividend data (from FMP /dividends endpoint)
+        dividend DECIMAL(15,6) DEFAULT NULL,
+        
         -- FMP-specific additional fields (from FMPEquityHistoricalData)
         change_amount DECIMAL(15,6) DEFAULT NULL,
         change_percent DECIMAL(12,6) DEFAULT NULL,

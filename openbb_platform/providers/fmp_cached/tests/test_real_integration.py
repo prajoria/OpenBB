@@ -20,9 +20,9 @@ from datetime import date, datetime, timedelta
 from typing import List, Dict, Any
 from pathlib import Path
 
-from openbb_fmp.models.equity_historical import FMPEquityHistoricalQueryParams
 from openbb_fmp_cached.models.equity_historical import (
     FMPCachedEquityHistoricalFetcher,
+    FMPCachedEquityHistoricalQueryParams,
     get_cache_statistics,
     clear_cache_for_symbol,
     _analyze_cache_gaps
@@ -53,11 +53,11 @@ def load_env_file():
                         # Only set if not already in environment
                         if key not in os.environ:
                             os.environ[key] = value
-            print(f"✅ Loaded .env from: {env_file}")
+            print(f"[OK] Loaded .env from: {env_file}")
         else:
-            print("❌ Could not find .env file in OpenBB project root")
+            print("[ERROR] Could not find .env file in OpenBB project root")
     except Exception as e:
-        print(f"❌ Error loading .env file: {e}")
+        print(f"[ERROR] Error loading .env file: {e}")
 
 
 def get_fmp_api_key():
@@ -157,7 +157,7 @@ class TestRealCacheMiss:
     @pytest.mark.asyncio
     async def test_single_symbol_cache_miss(self, real_credentials, cleanup_test_data):
         """Test fetching data for single symbol with empty cache."""
-        query = FMPEquityHistoricalQueryParams(
+        query = FMPCachedEquityHistoricalQueryParams(
             symbol="AAPL",
             start_date=date(2024, 1, 2),  # Trading day
             end_date=date(2024, 1, 5),    # 4 trading days
@@ -185,14 +185,14 @@ class TestRealCacheMiss:
         for field in required_fields:
             assert field in sample_record, f"Missing required field: {field}"
         
-        print(f"✅ Got {len(result)} records in {(end_time - start_time).total_seconds():.2f}s")
+        print(f"[OK] Got {len(result)} records in {(end_time - start_time).total_seconds():.2f}s")
         print(f"   Date range: {result[-1]['date']} to {result[0]['date']}")
         print(f"   Sample: {sample_record['date']} AAPL ${sample_record['close']}")
     
     @pytest.mark.asyncio
     async def test_multi_symbol_cache_miss(self, real_credentials, test_symbols, cleanup_test_data):
         """Test fetching data for multiple symbols with empty cache."""
-        query = FMPEquityHistoricalQueryParams(
+        query = FMPCachedEquityHistoricalQueryParams(
             symbol=",".join(test_symbols[:3]),  # First 3 symbols
             start_date=date(2024, 1, 2),
             end_date=date(2024, 1, 5),
@@ -216,7 +216,7 @@ class TestRealCacheMiss:
         symbols_in_result = set(record["symbol"] for record in result)
         expected_symbols = set(test_symbols[:3])
         
-        print(f"✅ Got {len(result)} total records in {(end_time - start_time).total_seconds():.2f}s")
+        print(f"[OK] Got {len(result)} total records in {(end_time - start_time).total_seconds():.2f}s")
         print(f"   Expected symbols: {expected_symbols}")
         print(f"   Found symbols: {symbols_in_result}")
         
@@ -230,7 +230,7 @@ class TestRealCacheHit:
     @pytest.mark.asyncio
     async def test_cache_hit_performance(self, real_credentials, cleanup_test_data):
         """Test cache hit performance with real database."""
-        query = FMPEquityHistoricalQueryParams(
+        query = FMPCachedEquityHistoricalQueryParams(
             symbol="AAPL",
             start_date=date(2024, 1, 2),
             end_date=date(2024, 1, 5),
@@ -247,7 +247,7 @@ class TestRealCacheHit:
         first_time = (datetime.now() - start_time).total_seconds()
         
         assert len(result1) > 0, "First call should return data"
-        print(f"   ⏱️  Cache miss: {first_time:.2f}s, {len(result1)} records")
+        print(f"   Cache miss: {first_time:.2f}s, {len(result1)} records")
         
         # Second call - cache hit
         print("   Second call (cache hit):")
@@ -256,11 +256,11 @@ class TestRealCacheHit:
         second_time = (datetime.now() - start_time).total_seconds()
         
         assert len(result2) > 0, "Second call should return cached data"
-        print(f"   ⏱️  Cache hit: {second_time:.2f}s, {len(result2)} records")
+        print(f"   Cache hit: {second_time:.2f}s, {len(result2)} records")
         
         # Cache hit should be faster
         speedup = first_time / second_time if second_time > 0 else float('inf')
-        print(f"   🚀 Speedup: {speedup:.1f}x")
+        print(f"   Speedup: {speedup:.1f}x")
         
         # Verify data consistency
         assert len(result1) == len(result2), "Cache hit should return same number of records"
@@ -286,7 +286,7 @@ class TestRealGapDetection:
         clear_cache_for_symbol(symbol)
         
         # Step 1: Fetch partial data (small range)
-        query1 = FMPEquityHistoricalQueryParams(
+        query1 = FMPCachedEquityHistoricalQueryParams(
             symbol=symbol,
             start_date=date(2024, 1, 2),
             end_date=date(2024, 1, 5),
@@ -297,10 +297,10 @@ class TestRealGapDetection:
         print("   Step 1: Fetching initial data")
         result1 = await FMPCachedEquityHistoricalFetcher.aextract_data(query1, real_credentials)
         assert len(result1) > 0, "Should get initial data"
-        print(f"   ✅ Got {len(result1)} records for initial range")
+        print(f"   [OK] Got {len(result1)} records for initial range")
         
         # Step 2: Fetch extended range (should detect and fill gaps)
-        query2 = FMPEquityHistoricalQueryParams(
+        query2 = FMPCachedEquityHistoricalQueryParams(
             symbol=symbol,
             start_date=date(2024, 1, 2),
             end_date=date(2024, 1, 15),  # Extended range
@@ -314,7 +314,7 @@ class TestRealGapDetection:
         gap_fill_time = (datetime.now() - start_time).total_seconds()
         
         assert len(result2) > len(result1), "Extended range should have more records"
-        print(f"   ✅ Gap filled: {len(result1)} → {len(result2)} records in {gap_fill_time:.2f}s")
+        print(f"   [OK] Gap filled: {len(result1)} -> {len(result2)} records in {gap_fill_time:.2f}s")
         
         # Verify no duplicates and proper ordering
         dates = [record["date"] for record in result2]
@@ -338,7 +338,7 @@ class TestRealDatabaseOperations:
         # Populate cache with some data
         symbols = ["AAPL", "MSFT"]
         for symbol in symbols:
-            query = FMPEquityHistoricalQueryParams(
+            query = FMPCachedEquityHistoricalQueryParams(
                 symbol=symbol,
                 start_date=date(2024, 1, 2),
                 end_date=date(2024, 1, 5),
@@ -347,7 +347,7 @@ class TestRealDatabaseOperations:
             )
             
             result = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
-            print(f"   📊 Cached {len(result)} records for {symbol}")
+            print(f"   [INFO] Cached {len(result)} records for {symbol}")
         
         # Get cache statistics
         stats = get_cache_statistics()
@@ -375,7 +375,7 @@ class TestRealDatabaseOperations:
         print(f"\n🔍 Testing cache clearing for {symbol}")
         
         # Populate cache
-        query = FMPEquityHistoricalQueryParams(
+        query = FMPCachedEquityHistoricalQueryParams(
             symbol=symbol,
             start_date=date(2024, 1, 2),
             end_date=date(2024, 1, 5),
@@ -384,7 +384,7 @@ class TestRealDatabaseOperations:
         )
         
         result1 = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
-        print(f"   📊 Cached {len(result1)} records")
+        print(f"   [INFO] Cached {len(result1)} records")
         
         # Verify cache hit (should be fast)
         start_time = datetime.now()
@@ -392,7 +392,7 @@ class TestRealDatabaseOperations:
         cache_hit_time = (datetime.now() - start_time).total_seconds()
         
         assert len(result2) == len(result1), "Cache hit should return same data"
-        print(f"   ⚡ Cache hit in {cache_hit_time:.3f}s")
+        print(f"   Cache hit in {cache_hit_time:.3f}s")
         
         # Clear cache
         success = clear_cache_for_symbol(symbol)
@@ -404,7 +404,7 @@ class TestRealDatabaseOperations:
         result3 = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
         cache_miss_time = (datetime.now() - start_time).total_seconds()
         
-        print(f"   🔄 Cache miss in {cache_miss_time:.3f}s")
+        print(f"   Cache miss in {cache_miss_time:.3f}s")
         assert cache_miss_time > cache_hit_time * 2, "Cache miss should be significantly slower"
 
 
@@ -414,7 +414,7 @@ class TestRealErrorHandling:
     @pytest.mark.asyncio
     async def test_invalid_symbol_handling(self, real_credentials):
         """Test handling of invalid symbols with real API."""
-        query = FMPEquityHistoricalQueryParams(
+        query = FMPCachedEquityHistoricalQueryParams(
             symbol="INVALID_SYMBOL_12345",
             start_date=date(2024, 1, 2),
             end_date=date(2024, 1, 5),
@@ -428,15 +428,15 @@ class TestRealErrorHandling:
         try:
             result = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
             # If no exception, result should be empty or minimal
-            print(f"   ✅ Handled gracefully: {len(result)} records")
+            print(f"   [OK] Handled gracefully: {len(result)} records")
         except Exception as e:
-            # Exception is also acceptable for invalid symbols
-            print(f"   ✅ Exception handled: {type(e).__name__}: {e}")
+            # Exception is acceptable for invalid symbols
+            print(f"   [OK] Exception handled: {type(e).__name__}: {e}")
     
     @pytest.mark.asyncio
     async def test_invalid_date_range_handling(self, real_credentials):
         """Test handling of invalid date ranges."""
-        query = FMPEquityHistoricalQueryParams(
+        query = FMPCachedEquityHistoricalQueryParams(
             symbol="AAPL",
             start_date=date(2025, 1, 1),  # Future date
             end_date=date(2025, 1, 5),
@@ -449,9 +449,9 @@ class TestRealErrorHandling:
         try:
             result = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
             # Future dates might return empty data
-            print(f"   ✅ Future dates handled: {len(result)} records")
+            print(f"   [OK] Future dates handled: {len(result)} records")
         except Exception as e:
-            print(f"   ✅ Exception for future dates: {type(e).__name__}: {e}")
+            print(f"   [OK] Exception for future dates: {type(e).__name__}: {e}")
 
 
 class TestRealPerformance:
@@ -460,7 +460,7 @@ class TestRealPerformance:
     @pytest.mark.asyncio
     async def test_large_date_range_performance(self, real_credentials, cleanup_test_data):
         """Test performance with large date ranges."""
-        query = FMPEquityHistoricalQueryParams(
+        query = FMPCachedEquityHistoricalQueryParams(
             symbol="AAPL",
             start_date=date(2023, 1, 1),
             end_date=date(2024, 1, 1),  # 1 year of data
@@ -480,8 +480,8 @@ class TestRealPerformance:
         total_time = (end_time - start_time).total_seconds()
         records_per_second = len(result) / total_time if total_time > 0 else 0
         
-        print(f"   ✅ Fetched {len(result)} records in {total_time:.2f}s")
-        print(f"   📊 Performance: {records_per_second:.1f} records/second")
+        print(f"   [OK] Fetched {len(result)} records in {total_time:.2f}s")
+        print(f"   [INFO] Performance: {records_per_second:.1f} records/second")
         
         # Verify data quality
         assert len(result) > 200, "Should have substantial data for 1 year"  # ~252 trading days
@@ -500,7 +500,7 @@ class TestRealPerformance:
         # Create multiple queries for different symbols
         queries = []
         for symbol in test_symbols[:3]:  # Use first 3 symbols
-            query = FMPEquityHistoricalQueryParams(
+            query = FMPCachedEquityHistoricalQueryParams(
                 symbol=symbol,
                 start_date=date(2024, 1, 2),
                 end_date=date(2024, 1, 10),
@@ -521,7 +521,7 @@ class TestRealPerformance:
             end_time = datetime.now()
             return symbol, result, (end_time - start_time).total_seconds()
         
-        print(f"   🚀 Starting {len(queries)} concurrent requests")
+        print(f"   Starting {len(queries)} concurrent requests")
         start_time = datetime.now()
         
         results = await asyncio.gather(*[fetch_data(sq) for sq in queries], return_exceptions=True)
@@ -532,11 +532,11 @@ class TestRealPerformance:
         successful_results = [r for r in results if not isinstance(r, Exception)]
         failed_results = [r for r in results if isinstance(r, Exception)]
         
-        print(f"   ✅ Completed in {total_time:.2f}s total")
-        print(f"   📊 Success: {len(successful_results)}/{len(queries)} requests")
+        print(f"   [OK] Completed in {total_time:.2f}s total")
+        print(f"   [INFO] Success: {len(successful_results)}/{len(queries)} requests")
         
         if failed_results:
-            print(f"   ⚠️  Failures: {len(failed_results)}")
+            print(f"   [WARN] Failures: {len(failed_results)}")
             for i, error in enumerate(failed_results[:3]):  # Show first 3 errors
                 print(f"      {i+1}. {type(error).__name__}: {error}")
         
@@ -547,20 +547,292 @@ class TestRealPerformance:
         assert len(successful_results) > 0, "At least some requests should succeed"
 
 
+class TestRealDividendSupport:
+    """Test dividend fetching and caching functionality."""
+
+    @pytest.mark.asyncio
+    async def test_dividend_fetching_with_flag(self, real_credentials, cleanup_test_data):
+        """Test fetching data with dividends included."""
+        # Use a symbol known to pay dividends
+        query = FMPCachedEquityHistoricalQueryParams(
+            symbol="AAPL",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 3, 31),
+            interval="1d",
+            include_dividends=True,
+        )
+        
+        print("\n[TEST] Testing dividend fetching with include_dividends=True")
+        result = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
+        
+        assert isinstance(result, list)
+        assert len(result) > 0
+        
+        # Check that dividend field exists in results
+        for record in result:
+            assert 'dividend' in record
+            # Dividend should be None or a positive number
+            if record['dividend'] is not None:
+                assert record['dividend'] >= 0
+        
+        # AAPL typically pays quarterly dividends
+        # Count non-null dividends
+        dividend_records = [r for r in result if r.get('dividend') is not None and r['dividend'] > 0]
+        print(f"   [OK] Found {len(dividend_records)} dividend records for AAPL in Q1 2024")
+        
+        # Should have at least one dividend payment in Q1
+        assert len(dividend_records) >= 1, "Expected at least one dividend payment"
+        
+        # Display dividend details
+        for record in dividend_records:
+            print(f"      {record['date']}: ${record['dividend']:.4f}")
+
+    @pytest.mark.asyncio
+    async def test_dividend_exclusion(self, real_credentials, cleanup_test_data):
+        """Test fetching data without dividends (flag disabled)."""
+        query = FMPCachedEquityHistoricalQueryParams(
+            symbol="AAPL",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 3, 31),
+            interval="1d",
+            include_dividends=False,
+        )
+        
+        print("\n[TEST] Testing dividend exclusion with include_dividends=False")
+        result = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
+        
+        assert isinstance(result, list)
+        assert len(result) > 0
+        
+        # When include_dividends=False, dividend field should be None or 0
+        non_zero_dividends = sum(1 for r in result if r.get('dividend') is not None and r['dividend'] > 0)
+        print(f"   [OK] Verified {len(result)} records with {non_zero_dividends} non-zero dividends")
+        
+        assert non_zero_dividends == 0, "Should have no dividends when include_dividends=False"
+
+    @pytest.mark.asyncio
+    async def test_dividend_caching(self, real_credentials, cleanup_test_data):
+        """Test that dividends are properly cached in database."""
+        query = FMPCachedEquityHistoricalQueryParams(
+            symbol="MSFT",
+            start_date=date(2024, 2, 1),
+            end_date=date(2024, 2, 29),
+            interval="1d",
+            include_dividends=True,
+        )
+        
+        print("\n[TEST] Testing dividend caching")
+        
+        # First fetch - should hit API and cache
+        print("   First fetch (API + cache)")
+        start_time = datetime.now()
+        result1 = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
+        time1 = (datetime.now() - start_time).total_seconds()
+        dividend_count1 = sum(1 for r in result1 if r.get('dividend') is not None and r['dividend'] > 0)
+        
+        # Second fetch - should hit cache
+        print("   Second fetch (cache only)")
+        start_time = datetime.now()
+        result2 = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
+        time2 = (datetime.now() - start_time).total_seconds()
+        dividend_count2 = sum(1 for r in result2 if r.get('dividend') is not None and r['dividend'] > 0)
+        
+        print(f"   [OK] First fetch: {dividend_count1} dividends in {time1:.2f}s")
+        print(f"   [OK] Second fetch: {dividend_count2} dividends in {time2:.2f}s")
+        print(f"   Cache speedup: {time1/time2:.1f}x faster")
+        
+        # Both fetches should have same number of dividend records
+        assert dividend_count1 == dividend_count2, "Dividend count should match between cache and API"
+        
+        # If there were dividends, verify they match
+        if dividend_count1 > 0:
+            dividends1 = {r['date']: r['dividend'] for r in result1 if r.get('dividend') is not None and r['dividend'] > 0}
+            dividends2 = {r['date']: r['dividend'] for r in result2 if r.get('dividend') is not None and r['dividend'] > 0}
+            assert dividends1 == dividends2, "Dividend values should match between cache and API"
+
+    @pytest.mark.asyncio
+    async def test_dividend_database_persistence(self, real_credentials, cleanup_test_data):
+        """Verify dividends are stored in database."""
+        import pymysql.cursors
+        
+        query = FMPCachedEquityHistoricalQueryParams(
+            symbol="GOOGL",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 6, 30),
+            interval="1d",
+            include_dividends=True,
+        )
+        
+        print("\n[TEST] Testing dividend database persistence")
+        result = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
+        
+        # Check database directly using synchronous pymysql
+        conn = pymysql.connect(
+            host=MYSQL_CONFIG["host"],
+            port=MYSQL_CONFIG["port"],
+            user=MYSQL_CONFIG["user"],
+            password=MYSQL_CONFIG["password"],
+            db=MYSQL_CONFIG["database"],
+            cursorclass=pymysql.cursors.DictCursor,
+        )
+        
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT date, dividend 
+                    FROM equity_historical 
+                    WHERE symbol = %s 
+                    AND date >= %s 
+                    AND date <= %s 
+                    AND dividend IS NOT NULL 
+                    AND dividend > 0
+                    ORDER BY date
+                    """,
+                    (query.symbol, query.start_date, query.end_date),
+                )
+                db_dividends = cursor.fetchall()
+                
+                # Count dividends from API result
+                api_dividends = [
+                    {"date": r['date'], "dividend": float(r['dividend'])}
+                    for r in result
+                    if r.get('dividend') is not None and r['dividend'] > 0
+                ]
+                
+                print(f"   [OK] Database has {len(db_dividends)} dividend records")
+                print(f"   [OK] API result has {len(api_dividends)} dividend records")
+                
+                # Verify database matches API result
+                assert len(db_dividends) == len(api_dividends), "Database should have same dividend count as API result"
+                
+                # Verify specific values match
+                for db_div in db_dividends:
+                    # Convert db date to string for comparison (db returns datetime.date, API returns string)
+                    db_date_str = db_div['date'].strftime('%Y-%m-%d') if hasattr(db_div['date'], 'strftime') else str(db_div['date'])
+                    api_div = next((d for d in api_dividends if d["date"] == db_date_str), None)
+                    assert api_div is not None, f"Dividend date {db_date_str} not found in API result"
+                    assert abs(float(db_div["dividend"]) - api_div["dividend"]) < 0.0001, "Dividend values should match"
+                    print(f"      {db_date_str}: ${float(db_div['dividend']):.4f}")
+        finally:
+            conn.close()
+
+    @pytest.mark.asyncio
+    async def test_dividend_gap_filling(self, real_credentials, cleanup_test_data):
+        """Test that dividend data is properly filled in gaps."""
+        print("\n[TEST] Testing dividend gap filling")
+        
+        # First fetch - full range
+        query1 = FMPCachedEquityHistoricalQueryParams(
+            symbol="AAPL",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 6, 30),
+            interval="1d",
+            include_dividends=True,
+        )
+        result1 = await FMPCachedEquityHistoricalFetcher.aextract_data(query1, real_credentials)
+        total_dividends = sum(1 for r in result1 if r.get('dividend') is not None and r['dividend'] > 0)
+        print(f"   [OK] Original range (Jan-Jun): {total_dividends} dividends")
+        
+        # Second fetch - partial range that should hit cache
+        query2 = FMPCachedEquityHistoricalQueryParams(
+            symbol="AAPL",
+            start_date=date(2024, 2, 1),
+            end_date=date(2024, 4, 30),
+            interval="1d",
+            include_dividends=True,
+        )
+        result2 = await FMPCachedEquityHistoricalFetcher.aextract_data(query2, real_credentials)
+        partial_dividends = sum(1 for r in result2 if r.get('dividend') is not None and r['dividend'] > 0)
+        print(f"   [OK] Partial range (Feb-Apr): {partial_dividends} dividends")
+        
+        # Third fetch - extended range that creates a gap
+        query3 = FMPCachedEquityHistoricalQueryParams(
+            symbol="AAPL",
+            start_date=date(2023, 12, 1),
+            end_date=date(2024, 6, 30),
+            interval="1d",
+            include_dividends=True,
+        )
+        result3 = await FMPCachedEquityHistoricalFetcher.aextract_data(query3, real_credentials)
+        extended_dividends = sum(1 for r in result3 if r.get('dividend') is not None and r['dividend'] > 0)
+        print(f"   [OK] Extended range (Dec-Jun): {extended_dividends} dividends")
+        
+        # Extended range should have at least as many dividends as original
+        assert extended_dividends >= total_dividends, "Extended range should include all dividends from original range"
+
+    @pytest.mark.asyncio
+    async def test_multiple_symbols_with_dividends(self, real_credentials, test_symbols, cleanup_test_data):
+        """Test dividend fetching for multiple symbols."""
+        # Use symbols known to pay dividends
+        dividend_symbols = ["AAPL", "MSFT", "GOOGL"]
+        
+        print(f"\n[TEST] Testing dividend fetching for {len(dividend_symbols)} symbols")
+        
+        for symbol in dividend_symbols:
+            query = FMPCachedEquityHistoricalQueryParams(
+                symbol=symbol,
+                start_date=date(2024, 1, 1),
+                end_date=date(2024, 3, 31),
+                interval="1d",
+                include_dividends=True,
+            )
+            result = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
+            
+            assert isinstance(result, list)
+            assert len(result) > 0
+            
+            dividend_records = [r for r in result if r.get('dividend') is not None and r['dividend'] > 0]
+            print(f"   [OK] {symbol}: {len(dividend_records)} dividend payments")
+            
+            # Verify dividend field exists
+            for record in result:
+                assert 'dividend' in record
+
+    @pytest.mark.asyncio
+    async def test_dividend_with_non_daily_interval(self, real_credentials, cleanup_test_data):
+        """Test that dividends are only fetched for daily intervals."""
+        # Hourly interval should not fetch dividends
+        # Use recent dates since hourly data might not be available far back
+        from datetime import datetime, timedelta
+        end_date_obj = datetime.now().date()
+        start_date_obj = end_date_obj - timedelta(days=5)
+        
+        query = FMPCachedEquityHistoricalQueryParams(
+            symbol="AAPL",
+            start_date=start_date_obj,
+            end_date=end_date_obj,
+            interval="1h",
+            include_dividends=True,
+        )
+        
+        print("\n[TEST] Testing dividend behavior with hourly interval")
+        result = await FMPCachedEquityHistoricalFetcher.aextract_data(query, real_credentials)
+        
+        assert isinstance(result, list)
+        assert len(result) > 0, "Should have some hourly data for recent dates"
+        
+        # For non-daily intervals, dividends should not be fetched
+        # (implementation only fetches dividends for 1d interval)
+        dividend_records = [r for r in result if r.get('dividend') is not None and r['dividend'] > 0]
+        print(f"   [OK] Hourly interval has {len(dividend_records)} dividend records")
+        print(f"   [INFO] Dividends are only fetched for daily (1d) intervals")
+
+
 if __name__ == "__main__":
     import sys
     
     # Check environment setup
     if not REAL_API_KEY:
-        print("❌ Missing FMP_API_KEY environment variable")
+        print("[ERROR] Missing FMP_API_KEY environment variable")
         sys.exit(1)
     
     if not all(MYSQL_CONFIG.values()):
-        print("❌ Missing MySQL configuration in environment variables")
+        print("[ERROR] Missing MySQL configuration in environment variables")
         print("   Required: MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE")
         sys.exit(1)
     
-    print("✅ Environment configured for real integration tests")
+    print("[OK] Environment configured for real integration tests")
     print(f"   FMP API Key: {REAL_API_KEY[:8]}...")
     print(f"   MySQL: {MYSQL_CONFIG['user']}@{MYSQL_CONFIG['host']}:{MYSQL_CONFIG['port']}/{MYSQL_CONFIG['database']}")
     

@@ -59,6 +59,11 @@ class FMPCachedEquityHistoricalQueryParams(EquityHistoricalQueryParams):
         "'splits_and_dividends' is adjusted for both splits and dividends. "
         "'unadjusted' is the raw, unadjusted data.",
     )
+    include_dividends: bool = Field(
+        default=True,
+        description="Include dividend data in the results. "
+        "When True, fetches dividend information from FMP and merges it with price data.",
+    )
 
 
 class FMPCachedEquityHistoricalData(EquityHistoricalData):
@@ -83,6 +88,10 @@ class FMPCachedEquityHistoricalData(EquityHistoricalData):
     vwap: Optional[float] = Field(
         default=None,
         description="Volume weighted average price.",
+    )
+    dividend: Optional[float] = Field(
+        default=None,
+        description="Dividend amount paid on this date (if any).",
     )
 
     @field_validator("change_percent", mode="before", check_fields=False)
@@ -230,6 +239,59 @@ class FMPCachedEquityHistoricalFetcher(
         
         logger.info(f"Returning {len(all_results)} total records for query")
         
+        # Fetch and merge dividends if requested
+        if query.include_dividends and query.interval == "1d":
+            try:
+                dividend_map = await _fetch_dividends_from_fmp(query, fmp_credentials, **kwargs)
+                
+                if dividend_map:
+                    # Merge dividends into the results
+                    for item in all_results:
+                        symbol = item.get("symbol")
+                        date = item.get("date")
+                        
+                        if symbol in dividend_map and date in dividend_map[symbol]:
+                            item["dividend"] = dividend_map[symbol][date]
+                            logger.debug(f"Added dividend {item['dividend']} for {symbol} on {date}")
+                        else:
+                            item["dividend"] = None
+                    
+                    logger.info(f"Merged dividends for {len(dividend_map)} symbols")
+                    
+                    # Update database with dividend data
+                    # Group by symbol to update each symbol's data
+                    symbol_data_map = {}
+                    for item in all_results:
+                        sym = item.get("symbol")
+                        if sym not in symbol_data_map:
+                            symbol_data_map[sym] = []
+                        symbol_data_map[sym].append(item)
+                    
+                    # Update database for each symbol
+                    for symbol, symbol_data in symbol_data_map.items():
+                        symbol_query = FMPCachedEquityHistoricalQueryParams(
+                            symbol=symbol,
+                            start_date=query.start_date,
+                            end_date=query.end_date,
+                            interval=query.interval,
+                            adjustment=query.adjustment
+                        )
+                        _store_in_database_cache(symbol_query, symbol_data)
+                        logger.debug(f"Updated database with dividends for {symbol}")
+                else:
+                    # No dividends found, set all to None
+                    for item in all_results:
+                        item["dividend"] = None
+            except Exception as e:
+                logger.warning(f"Failed to fetch/merge dividends: {e}")
+                # Set all dividends to None on error
+                for item in all_results:
+                    item["dividend"] = None
+        else:
+            # Dividends not requested or not applicable for this interval
+            for item in all_results:
+                item["dividend"] = None
+        
         # CRITICAL: Ensure we ALWAYS return dictionaries from aextract_data, never objects
         clean_results = []
         for item in all_results:
@@ -277,7 +339,7 @@ def _analyze_cache_gaps(query: FMPCachedEquityHistoricalQueryParams) -> Tuple[Li
     
     cache_query = """
     SELECT symbol, date, open, high, low, close, volume, 
-           change_amount, change_percent, vwap,
+           change_amount, change_percent, vwap, dividend,
            is_filled, fill_source_date, fill_type
     FROM equity_historical 
     WHERE symbol = %s 
@@ -315,6 +377,7 @@ def _analyze_cache_gaps(query: FMPCachedEquityHistoricalQueryParams) -> Tuple[Li
                 'change': float(row['change_amount']) if row['change_amount'] is not None else None,
                 'changePercent': float(row['change_percent']) if row['change_percent'] is not None else None,
                 'vwap': float(row['vwap']) if row['vwap'] is not None else None,
+                'dividend': float(row['dividend']) if row['dividend'] is not None else None,
             }
             
             # Add fill metadata if this record was filled
@@ -581,14 +644,15 @@ def _store_in_database_cache(query: FMPCachedEquityHistoricalQueryParams, fmp_da
 
     insert_query = """
     INSERT INTO equity_historical 
-    (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap, 
+    (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap, dividend,
      interval_type, adjustment_type, cached_at, is_valid, is_filled, fill_source_date, fill_type)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
     ON DUPLICATE KEY UPDATE
     open = new_values.open, high = new_values.high, low = new_values.low, 
     close = new_values.close, volume = new_values.volume, 
     change_amount = new_values.change_amount, change_percent = new_values.change_percent,
-    vwap = new_values.vwap, updated_at = CURRENT_TIMESTAMP, is_valid = new_values.is_valid,
+    vwap = new_values.vwap, dividend = new_values.dividend, 
+    updated_at = CURRENT_TIMESTAMP, is_valid = new_values.is_valid,
     is_filled = new_values.is_filled, fill_source_date = new_values.fill_source_date, 
     fill_type = new_values.fill_type
     """
@@ -601,7 +665,12 @@ def _store_in_database_cache(query: FMPCachedEquityHistoricalQueryParams, fmp_da
         if date_str:
             try:
                 if isinstance(date_str, str):
-                    date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    # Try parsing with time first (for intraday data)
+                    try:
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').date()
+                    except ValueError:
+                        # Fall back to date-only format (for daily data)
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
                 else:
                     date_obj = date_str
             except (ValueError, TypeError):
@@ -635,6 +704,7 @@ def _store_in_database_cache(query: FMPCachedEquityHistoricalQueryParams, fmp_da
             row.get('change'),
             row.get('changePercent'),
             row.get('vwap'),
+            row.get('dividend'),  # Add dividend field
             query.interval,
             query.adjustment,
             datetime.now(),
@@ -726,7 +796,7 @@ async def _fetch_from_fmp_direct(
     
     # Build query string
     query_str = get_querystring(
-        query.model_dump(), ["symbol", "adjustment", "interval"]
+        query.model_dump(), ["symbol", "adjustment", "interval", "include_dividends"]
     )
     
     # Handle multiple symbols
@@ -773,6 +843,73 @@ async def _fetch_from_fmp_direct(
         )
     
     return results
+
+
+async def _fetch_dividends_from_fmp(
+    query: FMPCachedEquityHistoricalQueryParams,
+    credentials: dict[str, str] | None,
+    **kwargs: Any
+) -> dict[str, dict[str, float]]:
+    """Fetch dividend data from FMP /dividends endpoint.
+    
+    Returns:
+        Dictionary mapping symbol -> {date: dividend_amount}
+    """
+    import asyncio
+    from warnings import warn
+    from openbb_core.provider.utils.helpers import amake_request, get_querystring
+    
+    async def response_callback(response, _):
+        """Handle FMP API response."""
+        if response.status != 200:
+            return []
+        data = await response.json()
+        return data if isinstance(data, list) else []
+    
+    api_key = credentials.get("fmp_api_key") if credentials else ""
+    if not api_key:
+        logger.warning("No API key provided, skipping dividend fetch")
+        return {}
+    
+    symbols = query.symbol.split(",")
+    dividend_map: dict[str, dict[str, float]] = {}
+    
+    async def get_dividends_for_symbol(symbol: str):
+        """Fetch dividends for a single symbol."""
+        # Build URL for dividends endpoint
+        base_url = "https://financialmodelingprep.com/stable/dividends"
+        
+        # Build query string with date range
+        query_str = get_querystring(
+            query.model_dump(), ["symbol", "adjustment", "interval", "include_dividends"]
+        )
+        url = f"{base_url}?symbol={symbol}&{query_str}&apikey={api_key}"
+        
+        try:
+            response = await amake_request(
+                url, response_callback=response_callback, **kwargs
+            )
+            
+            if response and isinstance(response, list):
+                # Create date -> dividend mapping for this symbol
+                symbol_dividends = {}
+                for div in response:
+                    div_date = div.get("date")
+                    div_amount = div.get("dividend")
+                    if div_date and div_amount:
+                        symbol_dividends[div_date] = float(div_amount)
+                
+                if symbol_dividends:
+                    dividend_map[symbol] = symbol_dividends
+                    logger.info(f"Fetched {len(symbol_dividends)} dividends for {symbol}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to fetch dividends for {symbol}: {e}")
+    
+    # Fetch dividends for all symbols
+    await asyncio.gather(*[get_dividends_for_symbol(s.strip()) for s in symbols])
+    
+    return dividend_map
 
 
 def get_cache_statistics(symbol: str = None) -> Dict[str, Any]:
