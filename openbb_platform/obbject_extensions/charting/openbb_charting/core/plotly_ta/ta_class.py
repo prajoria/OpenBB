@@ -576,6 +576,11 @@ class PlotlyTA(PltTA):
                     and "Fib" not in item.name
                     and item.name is not None
                 ):
+                    # Check if this is a trace type that supports hovertemplate
+                    # Candlestick objects don't support hovertemplate, only hovertext/hoverinfo
+                    trace_type = type(item).__name__
+                    supports_hovertemplate = trace_type not in ["Candlestick", "Ohlc"]
+                    
                     if (
                         "MA " in item.name
                         or "VWAP" in item.name
@@ -586,9 +591,11 @@ class PlotlyTA(PltTA):
                     ):
                         item.showlegend = True
                         item.hoverinfo = "y"
-                        item.hovertemplate = "%{fullData.name}:%{y}<extra></extra>"
+                        if supports_hovertemplate:
+                            item.hovertemplate = "%{fullData.name}:%{y}<extra></extra>"
                     else:
-                        item.hovertemplate = "%{y}<extra></extra>"
+                        if supports_hovertemplate:
+                            item.hovertemplate = "%{y}<extra></extra>"
             if item.name is None:
                 item.name = "SR Lines"
                 item.hoverinfo = "none"

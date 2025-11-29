@@ -1,0 +1,28 @@
+2025-11-15 10:29:31 - EquityScreenerTool - INFO - __init__:62 - Equity Screener Tool v1.0.0 initialized
+2025-11-15 10:29:31 - EquityScreenerTool - INFO - _log:163 - Sample data: Creating 45 days of data for AAPL
+2025-11-15 10:29:32 - EquityScreenerTool - INFO - _log:163 - Sample data complete: Successfully created 45 days of data for AAPL
+2025-11-15 10:30:18 - EquityScreenerTool - INFO - __init__:62 - Equity Screener Tool v1.0.0 initialized
+2025-11-15 10:30:18 - EquityScreenerTool - INFO - _log:163 - Data fetch: Fetching data for 1 symbols from 2024-11-01 to 2024-11-15
+2025-11-15 10:30:18 - EquityScreenerTool - INFO - _log:163 - No data: No data found for symbols ['AAPL']
+2025-11-15 10:40:27 - EquityScreenerTool - INFO - __init__:62 - Equity Screener Tool v1.0.0 initialized
+2025-11-15 10:40:27 - EquityScreenerTool - INFO - _log:163 - Data fetch: Fetching data for 1 symbols from 2024-10-01 to 2024-10-31
+2025-11-15 10:40:28 - EquityScreenerTool - INFO - _log:163 - No data: No data found for symbols ['AAPL']
+2025-11-15 10:40:47 - EquityScreenerTool - INFO - __init__:62 - Equity Screener Tool v1.0.0 initialized
+2025-11-15 10:40:47 - EquityScreenerTool - INFO - _log:163 - Data fetch: Fetching data for 1 symbols from 2025-11-01 to 2025-11-14
+2025-11-15 10:40:47 - EquityScreenerTool - INFO - _log:163 - Data retrieved: Retrieved 14 records for 1 symbols
+2025-11-15 10:40:47 - EquityScreenerTool - INFO - _log:163 - Data enrichment: Adding calculated metrics
+2025-11-15 10:40:47 - EquityScreenerTool - ERROR - _log:163 - Enrichment error: Expected numeric dtype, got object instead.
+2025-11-15 10:41:06 - EquityScreenerTool - INFO - __init__:62 - Equity Screener Tool v1.0.0 initialized
+2025-11-15 10:41:06 - EquityScreenerTool - INFO - _log:163 - Sample data: Creating 45 days of data for TSLA
+2025-11-15 10:41:06 - EquityScreenerTool - INFO - _log:163 - Sample data complete: Successfully created 45 days of data for TSLA
+2025-11-15 10:41:15 - EquityScreenerTool - INFO - __init__:62 - Equity Screener Tool v1.0.0 initialized
+2025-11-15 10:41:15 - EquityScreenerTool - INFO - _log:163 - Data fetch: Fetching data for 2 symbols from 2025-11-01 to 2025-11-14
+2025-11-15 10:41:15 - EquityScreenerTool - INFO - _log:163 - Data retrieved: Retrieved 28 records for 2 symbols
+2025-11-15 10:41:15 - EquityScreenerTool - INFO - _log:163 - Data enrichment: Adding calculated metrics
+2025-11-15 10:41:15 - EquityScreenerTool - ERROR - _log:163 - Enrichment error: Expected numeric dtype, got object instead.
+2025-11-15 10:41:15 - EquityScreenerTool - INFO - _log:163 - Export complete: Exported 28 records to equity_screener_2_symbols_20251115_104115.csv (10.2 KB)
+2025-11-15 10:41:43 - EquityScreenerTool - INFO - __init__:62 - Equity Screener Tool v1.0.0 initialized
+2025-11-15 10:41:43 - EquityScreenerTool - INFO - _log:163 - Data fetch: Fetching data for 2 symbols from 2025-11-01 to 2025-11-14
+2025-11-15 10:41:43 - EquityScreenerTool - INFO - _log:163 - Data retrieved: Retrieved 5 records for 2 symbols
+2025-11-15 10:41:43 - EquityScreenerTool - INFO - _log:163 - Data enrichment: Adding calculated metrics
+2025-11-15 10:41:43 - EquityScreenerTool - ERROR - _log:163 - Enrichment error: Expected numeric dtype, got object instead.
