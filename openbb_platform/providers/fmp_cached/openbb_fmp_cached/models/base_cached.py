@@ -73,5 +73,5 @@ def create_fallback_fetcher_class(original_fetcher_class: Type[Fetcher], endpoin
 # This function is kept for backward compatibility only
 def create_cached_fetcher_class(original_fetcher_class: Type[Fetcher], endpoint_name: str) -> Type[Fetcher]:
     """Deprecated: Use create_fallback_fetcher_class instead."""
-    logger.warning(f"create_cached_fetcher_class is deprecated for {endpoint_name}. Use dedicated database persistence in the specific model file.")
+    # logger.warning(f"create_cached_fetcher_class is deprecated for {endpoint_name}. Use dedicated database persistence in the specific model file.")
     return create_fallback_fetcher_class(original_fetcher_class, endpoint_name)

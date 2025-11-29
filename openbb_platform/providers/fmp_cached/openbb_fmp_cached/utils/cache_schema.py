@@ -18,6 +18,11 @@ def get_table_name(base_name: str) -> str:
     return base_name
 
 
+def should_auto_create() -> bool:
+    """Check if automatic database/table creation is enabled."""
+    return os.getenv("FMP_CACHE_AUTO_CREATE_DB", "true").lower() == "true"
+
+
 def create_analyst_estimates_table():
     """Create analyst_estimates table with common financial data columns."""
     table_name = get_table_name("analyst_estimates")

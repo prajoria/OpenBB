@@ -186,8 +186,26 @@ def execute_many(query: str, params_list: list) -> int:
             return cursor.rowcount
 
 
-def init_database():
-    """Initialize MySQL database and create tables if they don't exist."""
+def init_database(auto_create: bool = None):
+    """Initialize MySQL database and create tables if they don't exist.
+    
+    Args:
+        auto_create: If True, automatically create database and tables.
+                    If False, skip creation and use existing database.
+                    If None (default), use FMP_CACHE_AUTO_CREATE_DB environment variable.
+                    Defaults to True if environment variable is not set.
+    
+    Returns:
+        True if database/tables were created or already exist, False otherwise.
+    """
+    # Determine whether to auto-create based on explicit flag or environment variable
+    if auto_create is None:
+        auto_create = os.getenv("FMP_CACHE_AUTO_CREATE_DB", "true").lower() == "true"
+    
+    if not auto_create:
+        logger.info("Skipping database/table creation (FMP_CACHE_AUTO_CREATE_DB=false)")
+        return True
+    
     config = DatabaseConfig()
     temp_config = config.connection_params.copy()
     database_name = temp_config.pop("database", "openbb_fmp_cache")
@@ -197,9 +215,12 @@ def init_database():
     try:
         with connection.cursor() as cursor:
             cursor.execute(f"CREATE DATABASE IF NOT EXISTS {database_name}")
+            logger.info(f"Database '{database_name}' ready")
     finally:
         connection.close()
     
     # Now create tables in the target database
     from .cache_schema import create_all_tables
-    return create_all_tables()
+    result = create_all_tables()
+    logger.info("Database initialization complete")
+    return result
