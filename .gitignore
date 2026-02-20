@@ -58,6 +58,9 @@ obb/*
 # OpenBB Distribution
 !build/conda/installer/*.sh
 *.pkg
+
+# Tools local context (PII, credentials, paths)
+Tools/docs/CONTEXT_LOCAL.md
 *.exe
 build/conda/tmp
 # Windows virtual environment

@@ -16,13 +16,16 @@ analysis.  All scripts share a common infrastructure pattern.
 
 | Key               | Value                                                |
 |--------------------|------------------------------------------------------|
-| Repo               | `prajoria/OpenBB` (fork of OpenBB-finance/OpenBB)   |
+| Repo               | Fork of OpenBB-finance/OpenBB                        |
 | Branch             | `openbb_learning`                                    |
-| Python venv        | `.venv_win` (`I:\masterswork\git\OpenBB\.venv_win`)  |
-| MySQL database     | `openbb_fmp_cache_test` (localhost:3306)             |
-| MySQL credentials  | `fmp_user` / `fmp_password`                          |
-| Config source      | `~/.openbb_platform/user_settings.json` via `DatabaseConfig` |
-| Data directory     | `I:\masterswork\FinanceData\`                        |
+| Python venv        | `.venv_win` (project-local)                          |
+| MySQL database     | Configured via `DatabaseConfig`                      |
+| MySQL credentials  | Stored in `~/.openbb_platform/user_settings.json`   |
+| Data directory     | External (see `CONTEXT_LOCAL.md`)                    |
+
+> **Note:** Real paths, credentials, and account details are in
+> `Tools/docs/CONTEXT_LOCAL.md` (git-ignored).  See `rules/COLLABORATION_RULES.md`
+> for PII hygiene guidelines.
 
 ---
 
@@ -219,7 +222,7 @@ position row to the correct account.
 ### 5.6 CLI Arguments
 
 ```
---file / -f       Path to HTML file  (default: I:\masterswork\FinanceData\Portfolio Positions.html)
+--file / -f       Path to HTML file  (default: see DEFAULT_HTML_PATH in script)
 --database        Override MySQL database name
 --owner           Owner name for Account_Owner mapping  (prompted interactively if omitted)
 --dry-run         Parse and display only — skip DB write
@@ -354,8 +357,7 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
 - **Account_Owner table** — Added `Account_Owner` with `--owner` CLI arg and
   interactive fallback.  INSERT IGNORE on (account_name, owner).
 
-- **CSV export** — Added `--csv` flag.  Tested: 185 rows exported to
-  `I:\masterswork\FinanceData\portfolio_positions.csv`.
+- **CSV export** — Added `--csv` flag.  Tested with 185 rows.
 
 - **load_espp_plan.py** — Created (earlier in session)
   - Parses ESPP purchase history from TSV/CSV.
@@ -368,7 +370,7 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
 
 - **Documentation** — Created `Tools/docs/load_espp_plan.md`.
 
-- **Git** — Committed and pushed to `prajoria/OpenBB` branch `openbb_learning`.
+- **Git** — Committed and pushed to branch `openbb_learning`.
   Updated `.gitignore` with `.venv_win/` and `*.sql`.
 
 ---
@@ -377,7 +379,7 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 1 | Default HTML path is generic | Open | `DEFAULT_HTML_PATH` points to `Portfolio Positions.html` but real files use owner-specific names like `Portfolio Positions-Prashant.html`.  Consider removing the default or using glob patterns. |
+| 1 | Default HTML path is generic | Open | `DEFAULT_HTML_PATH` uses a generic name but real files may use owner-specific names.  Consider removing the default or using glob patterns. |
 | 2 | Center-container col-ids are brittle | Watch | Fidelity may change col-id values (`curVal`, `qty`, etc.) across DOM updates. |
 | 3 | Collapsed positions lack lot-level detail | By design | Collapsed rows only produce 1 summary row per position.  To get lot detail, user must expand positions in the browser before saving HTML. |
 | 4 | No automated tests | Open | Parser relies on real HTML fixtures.  Consider saving a sanitized HTML fragment for regression tests. |
@@ -390,41 +392,25 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
 
 ## 12. Environment Quick Reference
 
-```powershell
-# Activate venv
-& "I:\masterswork\git\OpenBB\.venv_win\Scripts\Activate.ps1"
+See `Tools/docs/CONTEXT_LOCAL.md` (git-ignored) for real paths, credentials,
+and copy-pasteable commands.
 
-# Run Fidelity parser (dry-run)
-python Tools/parse_fidelity_positions.py `
-    --file "I:\masterswork\FinanceData\Portfolio Positions-Prashant.html" `
-    --dry-run
+Generic usage patterns:
 
-# Run Fidelity parser (DB write)
-python Tools/parse_fidelity_positions.py `
-    --file "I:\masterswork\FinanceData\Portfolio Positions-Prashant.html" `
-    --owner Prashant
+```bash
+# Fidelity parser (dry-run)
+python Tools/parse_fidelity_positions.py --file <HTML_PATH> --dry-run
 
-# Run ESPP loader
-python Tools/load_espp_plan.py --file espp_data.tsv
+# Fidelity parser (DB write)
+python Tools/parse_fidelity_positions.py --file <HTML_PATH> --owner <OWNER>
 
-# Verify DB contents
-python -c "
-import pymysql
-conn = pymysql.connect(host='localhost', port=3306, user='fmp_user',
-    password='fmp_password', database='openbb_fmp_cache_test',
-    cursorclass=pymysql.cursors.DictCursor)
-with conn.cursor() as cur:
-    cur.execute('SELECT COUNT(*) AS n FROM Portfolio_Positions')
-    print('Portfolio_Positions:', cur.fetchone()['n'])
-    cur.execute('SELECT COUNT(*) AS n FROM ESPP_Plan')
-    print('ESPP_Plan:', cur.fetchone()['n'])
-    cur.execute('SELECT * FROM Account_Owner ORDER BY owner, account_name')
-    for r in cur.fetchall():
-        print(f\"  {r['owner']:15s} {r['account_name']}\")
-conn.close()
-"
+# ESPP loader
+python Tools/load_espp_plan.py --file <TSV_PATH>
+
+# Cost basis analyzer
+python Tools/share_cost_basis.py --file <TSV_PATH>
 ```
 
 ---
 
-*Last updated: 2026-02-19*
+*Last updated: 2026-02-20*
