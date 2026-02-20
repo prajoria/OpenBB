@@ -60,3 +60,8 @@ obb/*
 *.pkg
 *.exe
 build/conda/tmp
+# Windows virtual environment
+.venv_win/
+
+# Database backups
+*.sql
