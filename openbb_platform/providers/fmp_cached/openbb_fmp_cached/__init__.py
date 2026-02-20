@@ -28,6 +28,7 @@ from openbb_fmp.models.equity_gainers import FMPGainersFetcher
 # Import independent cached fetchers (with database persistence)
 from openbb_fmp_cached.models.analyst_estimates import FMPCachedAnalystEstimatesFetcher
 from openbb_fmp_cached.models.equity_historical import FMPCachedEquityHistoricalFetcher
+from openbb_fmp_cached.models.index_constituents import FMPCachedIndexConstituentsFetcher
 
 from openbb_fmp.models.equity_losers import FMPLosersFetcher
 from openbb_fmp.models.equity_most_active import FMPEquityActiveFetcher
@@ -55,7 +56,6 @@ from openbb_fmp.models.historical_market_cap import FmpHistoricalMarketCapFetche
 from openbb_fmp.models.historical_splits import FMPHistoricalSplitsFetcher
 from openbb_fmp.models.income_statement import FMPIncomeStatementFetcher
 from openbb_fmp.models.income_statement_growth import FMPIncomeStatementGrowthFetcher
-from openbb_fmp.models.index_constituents import FMPIndexConstituentsFetcher
 from openbb_fmp.models.index_historical import FMPIndexHistoricalFetcher
 from openbb_fmp.models.insider_trading import FMPInsiderTradingFetcher
 from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipFetcher
@@ -85,6 +85,7 @@ def create_all_cached_fetchers():
         "AnalystEstimates": FMPCachedAnalystEstimatesFetcher,
         "EquityHistorical": FMPCachedEquityHistoricalFetcher,
         "EtfHistorical": FMPCachedEquityHistoricalFetcher,
+        "IndexConstituents": FMPCachedIndexConstituentsFetcher,
     }
     
     # Fetchers that need fallback wrapping
@@ -136,7 +137,7 @@ def create_all_cached_fetchers():
         ("HistoricalSplits", FMPHistoricalSplitsFetcher),
         ("IncomeStatement", FMPIncomeStatementFetcher),
         ("IncomeStatementGrowth", FMPIncomeStatementGrowthFetcher),
-        ("IndexConstituents", FMPIndexConstituentsFetcher),
+
         ("IndexHistorical", FMPIndexHistoricalFetcher),
         ("InsiderTrading", FMPInsiderTradingFetcher),
         ("InstitutionalOwnership", FMPInstitutionalOwnershipFetcher),
