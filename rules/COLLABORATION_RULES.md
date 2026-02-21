@@ -1,7 +1,13 @@
 # Collaboration Rules
 
 > **Purpose:** Good practices for AI-assisted development sessions.
-> Add this file as context before starting any collaboration session.
+> Load this file plus the companion rules files at session startup.
+>
+> **Companion files (all in `rules/`):**
+> - `PROJECT_CONTEXT.md` — Project overview, architecture, current state
+> - `CODEBASE_MAP.md` — File inventory and navigation guide
+> - `DEVELOPMENT_RULES.md` — Technical coding standards and patterns
+> - `DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
 
 ---
 
@@ -70,13 +76,30 @@
 
 ## 5. Session Startup Checklist
 
-When beginning a new AI collaboration session, provide these as context:
+When beginning a new AI collaboration session, load these files as context:
 
-1. `Tools/docs/DESIGN.md` — Architecture, schemas, changelog
-2. `Tools/docs/CONTEXT_LOCAL.md` — Local paths, credentials, state
-3. `rules/COLLABORATION_RULES.md` — This file
-4. Current branch: `git branch --show-current`
-5. Any specific task or issue to work on
+1. `rules/PROJECT_CONTEXT.md` — Project overview, architecture, state
+2. `rules/CODEBASE_MAP.md` — File inventory and navigation
+3. `rules/DEVELOPMENT_RULES.md` — Technical coding standards
+4. `rules/COLLABORATION_RULES.md` — This file
+5. `rules/DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
+6. `Tools/docs/DESIGN.md` — Schemas, design decisions, changelog
+7. `Tools/docs/CONTEXT_LOCAL.md` — Local paths, credentials (git-ignored)
+8. Current branch: `git branch --show-current`
+9. Any specific task or issue to work on
+
+### Quick Verification Commands
+
+```powershell
+# Activate venv
+& ".venv_win\Scripts\Activate.ps1"
+
+# Verify branch
+git branch --show-current
+
+# Verify DB connectivity
+python -c "import pymysql; c=pymysql.connect(host='localhost',port=3306,user='fmp_user',password='fmp_password',database='openbb_fmp_cache_test'); print('DB OK'); c.close()"
+```
 
 ---
 
@@ -100,6 +123,22 @@ Before ending a session:
   confirm expected row counts.
 - **Re-import test** — After any persistence logic change, verify that
   running the import twice produces the same final row count (idempotency).
+- **Target database** — Portfolio data is in `openbb_fmp_cache_test`,
+  NOT the default `openbb_fmp_cache`.  Always verify which DB you're using.
+
+---
+
+## 8. Lessons Learned
+
+| Session | Lesson |
+|---------|--------|
+| 2026-02-20 | aiohttp is broken on Windows Python 3.12 — always use `requests` for sync HTTP |
+| 2026-02-20 | FMP `/full` endpoint ignores `start_date`/`end_date` — must use `from`/`to` |
+| 2026-02-20 | Always add client-side date filtering after FMP API calls as a safety net |
+| 2026-02-20 | One API call per symbol is simpler and faster than per-gap fetching |
+| 2026-02-20 | `sys.stdout.reconfigure(encoding="utf-8")` is mandatory on Windows |
+| 2026-02-20 | Set `FMP_CACHE_AUTO_CREATE_DB=false` to avoid 67-table creation overhead |
+| 2026-02-20 | Never let a single symbol failure kill the entire batch — wrap in try/except |
 
 ---
 

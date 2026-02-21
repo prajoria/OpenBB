@@ -336,6 +336,13 @@ class FMPCachedEquityHistoricalFetcher(
 
 def _analyze_cache_gaps(query: FMPCachedEquityHistoricalQueryParams) -> Tuple[List[Dict[str, Any]], List[Tuple[date, date]]]:
     """Analyze cache for gaps and return cached data + missing date ranges."""
+    import time as _time
+    _t0 = _time.time()
+    logger.info(
+        "Cache check: %s  %s -> %s  interval=%s  adj=%s",
+        query.symbol, query.start_date, query.end_date,
+        query.interval, query.adjustment,
+    )
     
     cache_query = """
     SELECT symbol, date, open, high, low, close, volume, 
@@ -399,10 +406,25 @@ def _analyze_cache_gaps(query: FMPCachedEquityHistoricalQueryParams) -> Tuple[Li
             query.interval
         )
         
+        _elapsed = _time.time() - _t0
+        if missing_ranges:
+            gap_days = sum((e - s).days + 1 for s, e in missing_ranges)
+            logger.info(
+                "Cache PARTIAL for %s: %d cached rows, %d gap(s) covering ~%d days  (%.2fs)",
+                query.symbol, len(cached_data), len(missing_ranges), gap_days, _elapsed,
+            )
+            for idx, (gs, ge) in enumerate(missing_ranges, 1):
+                logger.info("  gap %d: %s -> %s  (%d days)", idx, gs, ge, (ge - gs).days + 1)
+        else:
+            logger.info(
+                "Cache HIT for %s: %d rows, no gaps  (%.2fs)",
+                query.symbol, len(cached_data), _elapsed,
+            )
+        
         return cached_data, missing_ranges
         
     except Exception as e:
-        logger.error(f"Cache gap analysis error: {e}")
+        logger.error(f"Cache gap analysis error for {query.symbol}: {e}")
         # Return empty cache and full range as missing
         return [], [(query.start_date, query.end_date)]
 
@@ -488,36 +510,117 @@ def _is_trading_day(check_date: date, holidays: Set[date]) -> bool:
 
 
 def _get_basic_market_holidays(start_year: int, end_year: int) -> Set[date]:
-    """Get US market holidays from database for the given year range.
-    
-    This queries the market_holidays table to get actual market closure dates,
-    avoiding unnecessary API calls for known holidays.
+    """Get US stock market holidays for the given year range.
+
+    First tries the ``market_holidays`` database table.  If that fails (table
+    missing, empty, etc.) falls back to a comprehensive computed list covering
+    all NYSE/NASDAQ observed closures:
+
+        New Year's Day, MLK Day, Presidents' Day, Good Friday, Memorial Day,
+        Juneteenth (2022+), Independence Day, Labor Day, Thanksgiving,
+        Christmas, plus selected special closures.
     """
+    # ------------------------------------------------------------------
+    # 1. Try the database first
+    # ------------------------------------------------------------------
     try:
-        # Query database for holidays in the date range
         holiday_query = """
         SELECT holiday_date, holiday_name
         FROM market_holidays
         WHERE market = 'US'
-        AND year >= %s AND year <= %s
+          AND year >= %s AND year <= %s
         ORDER BY holiday_date
         """
-        
         results = execute_query(holiday_query, (start_year, end_year))
-        holidays = {row['holiday_date'] for row in results}
-        
-        logger.debug(f"Loaded {len(holidays)} market holidays from database for {start_year}-{end_year}")
-        return holidays
-        
+        if results:
+            holidays = {row['holiday_date'] for row in results}
+            logger.debug(
+                "Loaded %d market holidays from database for %d-%d",
+                len(holidays), start_year, end_year,
+            )
+            return holidays
     except Exception as e:
-        logger.warning(f"Failed to load holidays from database: {e}. Using basic fallback.")
-        # Fallback to basic holidays if database query fails
-        holidays = set()
-        for year in range(start_year, end_year + 1):
-            holidays.add(date(year, 1, 1))  # New Year's Day
-            holidays.add(date(year, 12, 25))  # Christmas
-            holidays.add(date(year, 7, 4))  # Independence Day
-        return holidays
+        logger.debug("market_holidays table unavailable (%s); using computed holidays", e)
+
+    # ------------------------------------------------------------------
+    # 2. Compute holidays (comprehensive fallback)
+    # ------------------------------------------------------------------
+    holidays: Set[date] = set()
+
+    def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
+        """Return the *n*-th occurrence of *weekday* in *month/year*."""
+        first = date(year, month, 1)
+        # offset to the first occurrence of weekday
+        offset = (weekday - first.weekday()) % 7
+        return first + timedelta(days=offset + 7 * (n - 1))
+
+    def _last_weekday(year: int, month: int, weekday: int) -> date:
+        """Return the last occurrence of *weekday* in *month/year*."""
+        # start from 5th week and back off
+        d = _nth_weekday(year, month, weekday, 4)
+        nxt = d + timedelta(weeks=1)
+        return nxt if nxt.month == month else d
+
+    def _easter(year: int) -> date:
+        """Anonymous Gregorian algorithm for Easter Sunday."""
+        a = year % 19
+        b, c = divmod(year, 100)
+        d, e = divmod(b, 4)
+        f = (b + 8) // 25
+        g = (b - f + 1) // 3
+        h = (19 * a + b - d - g + 15) % 30
+        i, k = divmod(c, 4)
+        l = (32 + 2 * e + 2 * i - h - k) % 7  # noqa: E741
+        m = (a + 11 * h + 22 * l) // 451
+        month = (h + l - 7 * m + 114) // 31
+        day = ((h + l - 7 * m + 114) % 31) + 1
+        return date(year, month, day)
+
+    def _observed(d: date) -> date:
+        """NYSE observed-date rule: Sat->Fri, Sun->Mon."""
+        if d.weekday() == 5:   # Saturday
+            return d - timedelta(days=1)
+        if d.weekday() == 6:   # Sunday
+            return d + timedelta(days=1)
+        return d
+
+    for year in range(start_year, end_year + 1):
+        # New Year's Day
+        holidays.add(_observed(date(year, 1, 1)))
+        # Martin Luther King Jr. Day — 3rd Monday in January
+        holidays.add(_nth_weekday(year, 1, 0, 3))  # Monday=0
+        # Presidents' Day — 3rd Monday in February
+        holidays.add(_nth_weekday(year, 2, 0, 3))
+        # Good Friday — Friday before Easter
+        holidays.add(_easter(year) - timedelta(days=2))
+        # Memorial Day — last Monday in May
+        holidays.add(_last_weekday(year, 5, 0))
+        # Juneteenth — June 19 (observed), starting 2022
+        if year >= 2022:
+            holidays.add(_observed(date(year, 6, 19)))
+        # Independence Day — July 4 (observed)
+        holidays.add(_observed(date(year, 7, 4)))
+        # Labor Day — 1st Monday in September
+        holidays.add(_nth_weekday(year, 9, 0, 1))
+        # Thanksgiving — 4th Thursday in November
+        holidays.add(_nth_weekday(year, 11, 3, 4))  # Thursday=3
+        # Christmas — December 25 (observed)
+        holidays.add(_observed(date(year, 12, 25)))
+
+    # Special closures
+    _specials = [
+        date(2018, 12, 5),  # George H.W. Bush funeral
+        date(2025, 1, 9),   # Jimmy Carter funeral
+    ]
+    for s in _specials:
+        if start_year <= s.year <= end_year:
+            holidays.add(s)
+
+    logger.debug(
+        "Computed %d market holidays for %d-%d (fallback)",
+        len(holidays), start_year, end_year,
+    )
+    return holidays
 
 
 # DEPRECATED: This function is no longer used. Holiday gaps are now excluded from 
@@ -716,16 +819,24 @@ def _store_in_database_cache(query: FMPCachedEquityHistoricalQueryParams, fmp_da
         batch_data.append(row_data)
     
     if not batch_data:
+        logger.info("Store: no valid rows to insert for %s (all filtered)", query.symbol)
         return
     
+    import time as _time
+    _t0 = _time.time()
     try:
         # Use executemany for better performance with autocommit
         # Execute batch insert using the existing utility
         rows_affected = execute_many(insert_query, batch_data)
-        logger.debug(f"Successfully stored {rows_affected} records for {query.symbol}")
+        _elapsed = _time.time() - _t0
+        logger.info(
+            "Stored %d rows for %s in MySQL cache  (%.2fs)  [%d input -> %d prepared -> %d affected]",
+            rows_affected, query.symbol, _elapsed,
+            len(fmp_data), len(batch_data), rows_affected,
+        )
     
     except Exception as e:
-        logger.warning(f"Failed to store data in equity_historical table: {e}")
+        logger.warning(f"Failed to store data in equity_historical table for {query.symbol}: {e}")
         raise
 async def _fetch_from_fmp_direct(
     query: FMPCachedEquityHistoricalQueryParams, 
@@ -842,6 +953,130 @@ async def _fetch_from_fmp_direct(
             f"{str(','.join(messages)).replace(',', ' ') if messages else 'No data found'}"
         )
     
+    return results
+
+
+def _fetch_from_fmp_sync(
+    query: FMPCachedEquityHistoricalQueryParams,
+    credentials: dict[str, str] | None,
+    timeout: int = 120,
+) -> list[dict]:
+    """Fetch data from FMP API using synchronous ``requests``.
+
+    This is the sync counterpart of ``_fetch_from_fmp_direct``.  It is useful
+    for scripts and CLI tools that don't need (or can't reliably use) an async
+    event loop (e.g. Windows + aiohttp ``CancelledError`` issues).
+
+    Returns a list of dicts with keys matching the FMP JSON response
+    (symbol, date, open, high, low, close, volume, change, changePercent, vwap …).
+    """
+    import requests as _requests
+    import time as _time
+    from warnings import warn
+
+    api_key = credentials.get("fmp_api_key") if credentials else ""
+    if not api_key:
+        raise ValueError("No FMP API key provided")
+
+    # Build base URL (same logic as _fetch_from_fmp_direct)
+    base_url = "https://financialmodelingprep.com/stable/"
+    if query.adjustment == "unadjusted":
+        base_url += "historical-price-eod/non-split-adjusted?"
+    elif query.adjustment == "splits_and_dividends":
+        base_url += "historical-price-eod/dividend-adjusted?"
+    elif query.interval == "1d":
+        base_url += "historical-price-eod/full?"
+    elif query.interval == "1m":
+        base_url += "historical-chart/1min?"
+    elif query.interval == "5m":
+        base_url += "historical-chart/5min?"
+    elif query.interval in ("60m", "1h"):
+        base_url += "historical-chart/1hour?"
+
+    # Date range for client-side filtering (FMP /full endpoint may ignore
+    # start_date/end_date and return ALL history — we filter after download).
+    req_start = query.start_date  # date object
+    req_end   = query.end_date    # date object
+
+    symbols = query.symbol.split(",")
+    results: list[dict] = []
+    messages: list[str] = []
+
+    for symbol in symbols:
+        symbol = symbol.strip()
+        # Use both `from`/`to` (FMP stable) and `start_date`/`end_date` (legacy)
+        # so the API filters server-side when it can.
+        url = (
+            f"{base_url}symbol={symbol}"
+            f"&from={req_start}&to={req_end}"
+            f"&apikey={api_key}"
+        )
+        safe_url = url.split("&apikey=")[0]  # strip key for logging
+        logger.info("FMP HTTP GET: %s  (timeout=%ds)", safe_url, timeout)
+
+        _t0 = _time.time()
+        resp = _requests.get(url, timeout=timeout)
+        _http_elapsed = _time.time() - _t0
+        logger.info(
+            "FMP response: HTTP %d, %s bytes  (%.2fs)",
+            resp.status_code, f"{len(resp.content):,}", _http_elapsed,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+
+        # Parse response -- FMP may return a list or {"historical": [...]}
+        if isinstance(body, dict):
+            err = body.get("Error Message", body.get("error"))
+            if err:
+                logger.warning("FMP error for %s: %s", symbol, err)
+                warn(f"FMP error for {symbol}: {err}")
+                messages.append(err)
+                continue
+            data = body.get("historical", [])
+        elif isinstance(body, list):
+            data = body
+        else:
+            data = []
+
+        if not data:
+            msg = f"No data found for {symbol}."
+            logger.warning(msg)
+            warn(msg)
+            messages.append(msg)
+        else:
+            # ----- client-side date filter (safety net) --------------------
+            raw_len = len(data)
+            filtered: list[dict] = []
+            for d in data:
+                ds = d.get("date", "")[:10]
+                if ds:
+                    try:
+                        row_date = date.fromisoformat(ds)
+                        if req_start <= row_date <= req_end:
+                            d["symbol"] = symbol
+                            filtered.append(d)
+                    except ValueError:
+                        d["symbol"] = symbol
+                        filtered.append(d)
+                else:
+                    d["symbol"] = symbol
+                    filtered.append(d)
+
+            dates = [d.get("date", "")[:10] for d in filtered if d.get("date")]
+            first = min(dates) if dates else "?"
+            last = max(dates) if dates else "?"
+            logger.info(
+                "FMP returned %d rows for %s, %d after date filter  (%s -> %s)",
+                raw_len, symbol, len(filtered), first, last,
+            )
+            results.extend(filtered)
+
+    if not results:
+        from openbb_core.provider.utils.errors import EmptyDataError
+        raise EmptyDataError(
+            " ".join(messages) if messages else "No data found"
+        )
+
     return results
 
 
