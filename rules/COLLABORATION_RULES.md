@@ -3,11 +3,12 @@
 > **Purpose:** Good practices for AI-assisted development sessions.
 > Load this file plus the companion rules files at session startup.
 >
-> **Companion files (all in `rules/`):**
-> - `PROJECT_CONTEXT.md` — Project overview, architecture, current state
-> - `CODEBASE_MAP.md` — File inventory and navigation guide
-> - `DEVELOPMENT_RULES.md` — Technical coding standards and patterns
-> - `DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
+> **Companion files:**
+> - `context/PROJECT_CONTEXT.md` — Project overview, architecture, current state
+> - `context/CODEBASE_MAP.md` — File inventory and navigation guide
+> - `context/DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
+> - `context/openbb/` — OpenBB platform architecture deep-dives
+> - `rules/DEVELOPMENT_RULES.md` — Technical coding standards and patterns
 
 ---
 
@@ -78,11 +79,12 @@
 
 When beginning a new AI collaboration session, load these files as context:
 
-1. `rules/PROJECT_CONTEXT.md` — Project overview, architecture, state
-2. `rules/CODEBASE_MAP.md` — File inventory and navigation
-3. `rules/DEVELOPMENT_RULES.md` — Technical coding standards
-4. `rules/COLLABORATION_RULES.md` — This file
-5. `rules/DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
+1. `context/PROJECT_CONTEXT.md` — Project overview, architecture, state
+2. `context/CODEBASE_MAP.md` — File inventory and navigation
+3. `context/DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
+4. `context/openbb/ARCHITECTURE.md` — OpenBB platform architecture
+5. `rules/DEVELOPMENT_RULES.md` — Technical coding standards
+6. `rules/COLLABORATION_RULES.md` — This file
 6. `Tools/docs/DESIGN.md` — Schemas, design decisions, changelog
 7. `Tools/docs/CONTEXT_LOCAL.md` — Local paths, credentials (git-ignored)
 8. Current branch: `git branch --show-current`
