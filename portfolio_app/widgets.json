@@ -1,0 +1,436 @@
+{
+  "portfolio_positions": {
+    "name": "Portfolio Positions",
+    "description": "Current portfolio positions with gain/loss analysis, filterable by owner, account, and snapshot date.",
+    "category": "Portfolio",
+    "subCategory": "Positions",
+    "searchCategory": "Portfolio",
+    "type": "table",
+    "widgetId": "portfolio_positions",
+    "endpoint": "/portfolio/positions",
+    "gridData": { "w": 40, "h": 18 },
+    "params": [
+      {
+        "paramName": "owner",
+        "label": "Owner",
+        "description": "Filter by owner name.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_owners",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "account",
+        "label": "Account",
+        "description": "Filter by account name.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_accounts",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 400 }
+      },
+      {
+        "paramName": "snapshot_date",
+        "label": "Snapshot Date",
+        "description": "Filter by snapshot date (YYYY-MM-DD). Defaults to latest.",
+        "type": "date",
+        "value": null,
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "symbol", "headerName": "Symbol", "cellDataType": "text", "pinned": "left", "renderFn": "cellOnClick", "renderFnParams": { "actionType": "groupBy", "groupByParamName": "symbol" } },
+          { "field": "description", "headerName": "Description", "cellDataType": "text" },
+          { "field": "account_name", "headerName": "Account", "cellDataType": "text" },
+          { "field": "owner", "headerName": "Owner", "cellDataType": "text" },
+          { "field": "quantity", "headerName": "Qty", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "avg_cost_basis", "headerName": "Avg Cost", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "cost_basis_total", "headerName": "Cost Basis", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "current_value", "headerName": "Current Value", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_gain_loss", "headerName": "Gain/Loss", "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "pct_gain_loss", "headerName": "Return %", "cellDataType": "number", "formatterFn": "percent", "renderFn": "greenRed" },
+          { "field": "term", "headerName": "Term", "cellDataType": "text" },
+          { "field": "acquired", "headerName": "Acquired", "cellDataType": "date", "formatterFn": "none" },
+          { "field": "share_source", "headerName": "Source", "cellDataType": "text" },
+          { "field": "snapshot_date", "headerName": "Snapshot", "cellDataType": "date", "formatterFn": "none" }
+        ]
+      }
+    },
+    "source": ["Portfolio App"]
+  },
+
+  "portfolio_summary": {
+    "name": "Portfolio Summary",
+    "description": "Aggregated portfolio summary grouped by symbol with total gain/loss.",
+    "category": "Portfolio",
+    "subCategory": "Overview",
+    "searchCategory": "Portfolio",
+    "type": "table",
+    "widgetId": "portfolio_summary",
+    "endpoint": "/portfolio/summary",
+    "gridData": { "w": 40, "h": 15 },
+    "params": [
+      {
+        "paramName": "owner",
+        "label": "Owner",
+        "description": "Filter by owner.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_owners",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "account",
+        "label": "Account",
+        "description": "Filter by account name.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_accounts",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 400 }
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "symbol", "headerName": "Symbol", "cellDataType": "text", "pinned": "left", "renderFn": "cellOnClick", "renderFnParams": { "actionType": "groupBy", "groupByParamName": "symbol" } },
+          { "field": "description", "headerName": "Description", "cellDataType": "text" },
+          { "field": "total_quantity", "headerName": "Total Qty", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_cost_basis", "headerName": "Cost Basis", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_current_value", "headerName": "Current Value", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_gain_loss", "headerName": "Gain/Loss", "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "pct_return", "headerName": "Return %", "cellDataType": "number", "formatterFn": "percent", "renderFn": "greenRed" }
+        ]
+      }
+    },
+    "source": ["Portfolio App"]
+  },
+
+  "portfolio_allocation": {
+    "name": "Account Allocation",
+    "description": "Portfolio allocation breakdown by account with owner mapping.",
+    "category": "Portfolio",
+    "subCategory": "Overview",
+    "searchCategory": "Portfolio",
+    "type": "table",
+    "widgetId": "portfolio_allocation",
+    "endpoint": "/portfolio/allocation",
+    "gridData": { "w": 20, "h": 12 },
+    "params": [
+      {
+        "paramName": "owner",
+        "label": "Owner",
+        "description": "Filter by owner.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_owners",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 300 }
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "account_name", "headerName": "Account", "cellDataType": "text", "pinned": "left" },
+          { "field": "owner", "headerName": "Owner", "cellDataType": "text" },
+          { "field": "num_symbols", "headerName": "# Symbols", "cellDataType": "number" },
+          { "field": "total_value", "headerName": "Value", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_cost_basis", "headerName": "Cost Basis", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_gain_loss", "headerName": "Gain/Loss", "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "pct_return", "headerName": "Return %", "cellDataType": "number", "formatterFn": "percent", "renderFn": "greenRed" }
+        ]
+      }
+    },
+    "source": ["Portfolio App"]
+  },
+
+  "portfolio_cost_basis": {
+    "name": "Cost Basis Detail",
+    "description": "Per-lot cost basis analysis with short/long-term classification.",
+    "category": "Portfolio",
+    "subCategory": "Tax",
+    "searchCategory": "Portfolio",
+    "type": "table",
+    "widgetId": "portfolio_cost_basis",
+    "endpoint": "/portfolio/cost_basis",
+    "gridData": { "w": 40, "h": 18 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Filter by ticker symbol.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "account",
+        "label": "Account",
+        "description": "Filter by account.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_accounts",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 400 }
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "symbol", "headerName": "Symbol", "cellDataType": "text", "pinned": "left" },
+          { "field": "account_name", "headerName": "Account", "cellDataType": "text" },
+          { "field": "acquired", "headerName": "Acquired", "cellDataType": "date", "formatterFn": "none" },
+          { "field": "term", "headerName": "Term", "cellDataType": "text" },
+          { "field": "quantity", "headerName": "Qty", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "avg_cost_basis", "headerName": "Avg Cost", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "cost_basis_total", "headerName": "Cost Basis", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "current_value", "headerName": "Current Value", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_gain_loss", "headerName": "Gain/Loss", "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "pct_gain_loss", "headerName": "Return %", "cellDataType": "number", "formatterFn": "percent", "renderFn": "greenRed" },
+          { "field": "share_source", "headerName": "Source", "cellDataType": "text" },
+          { "field": "grant_date", "headerName": "Grant Date", "cellDataType": "date", "formatterFn": "none" },
+          { "field": "transfer_avail_date", "headerName": "Transfer Avail", "cellDataType": "date", "formatterFn": "none" }
+        ]
+      }
+    },
+    "source": ["Portfolio App"]
+  },
+
+  "portfolio_tax_summary": {
+    "name": "Tax Summary",
+    "description": "Short-term vs long-term gain/loss breakdown by account.",
+    "category": "Portfolio",
+    "subCategory": "Tax",
+    "searchCategory": "Portfolio",
+    "type": "table",
+    "widgetId": "portfolio_tax_summary",
+    "endpoint": "/portfolio/tax_summary",
+    "gridData": { "w": 40, "h": 12 },
+    "params": [
+      {
+        "paramName": "owner",
+        "label": "Owner",
+        "description": "Filter by owner.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_owners",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 300 }
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "account_name", "headerName": "Account", "cellDataType": "text", "pinned": "left" },
+          { "field": "owner", "headerName": "Owner", "cellDataType": "text" },
+          { "field": "term", "headerName": "Term", "cellDataType": "text" },
+          { "field": "num_lots", "headerName": "# Lots", "cellDataType": "number" },
+          { "field": "total_quantity", "headerName": "Total Qty", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_cost_basis", "headerName": "Cost Basis", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_current_value", "headerName": "Current Value", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_gain_loss", "headerName": "Gain/Loss", "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "pct_return", "headerName": "Return %", "cellDataType": "number", "formatterFn": "percent", "renderFn": "greenRed" }
+        ]
+      }
+    },
+    "source": ["Portfolio App"]
+  },
+
+  "portfolio_performance": {
+    "name": "Performance Ranking",
+    "description": "Portfolio symbols ranked by percent return — top gainers and losers.",
+    "category": "Portfolio",
+    "subCategory": "Overview",
+    "searchCategory": "Portfolio",
+    "type": "table",
+    "widgetId": "portfolio_performance",
+    "endpoint": "/portfolio/performance",
+    "gridData": { "w": 20, "h": 15 },
+    "params": [
+      {
+        "paramName": "owner",
+        "label": "Owner",
+        "description": "Filter by owner.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_owners",
+        "value": "",
+        "optional": true,
+        "show": true,
+        "style": { "popupWidth": 300 }
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "symbol", "headerName": "Symbol", "cellDataType": "text", "pinned": "left", "renderFn": "cellOnClick", "renderFnParams": { "actionType": "groupBy", "groupByParamName": "symbol" } },
+          { "field": "description", "headerName": "Description", "cellDataType": "text" },
+          { "field": "total_quantity", "headerName": "Qty", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_cost_basis", "headerName": "Cost Basis", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_current_value", "headerName": "Value", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_gain_loss", "headerName": "Gain/Loss", "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "pct_return", "headerName": "Return %", "cellDataType": "number", "formatterFn": "percent", "renderFn": "greenRed" }
+        ]
+      }
+    },
+    "source": ["Portfolio App"]
+  },
+
+  "portfolio_snapshots": {
+    "name": "Snapshot History",
+    "description": "All imported snapshots with totals — for tracking portfolio value over time.",
+    "category": "Portfolio",
+    "subCategory": "Trends",
+    "searchCategory": "Portfolio",
+    "type": "table",
+    "widgetId": "portfolio_snapshots",
+    "endpoint": "/portfolio/snapshots",
+    "gridData": { "w": 40, "h": 12 },
+    "params": [],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "snapshot_date", "headerName": "Snapshot", "cellDataType": "date", "formatterFn": "none", "pinned": "left" },
+          { "field": "lots", "headerName": "Lots", "cellDataType": "number" },
+          { "field": "stocks", "headerName": "Stocks", "cellDataType": "number" },
+          { "field": "accounts", "headerName": "Accounts", "cellDataType": "number" },
+          { "field": "total_cost_basis", "headerName": "Cost Basis", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_current_value", "headerName": "Current Value", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "total_gain_loss", "headerName": "Gain/Loss", "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" }
+        ]
+      }
+    },
+    "source": ["Portfolio App"]
+  },
+
+  "equity_historical": {
+    "name": "Price History (Cache)",
+    "description": "Historical daily equity prices from the local cache database.",
+    "category": "Equity",
+    "subCategory": "Price",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "equity_historical",
+    "endpoint": "/equity/historical",
+    "gridData": { "w": 40, "h": 18 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker symbol.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "MSFT",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "start_date",
+        "label": "Start Date",
+        "description": "Start date (YYYY-MM-DD).",
+        "type": "date",
+        "value": null,
+        "optional": true,
+        "show": true
+      },
+      {
+        "paramName": "end_date",
+        "label": "End Date",
+        "description": "End date (YYYY-MM-DD).",
+        "type": "date",
+        "value": null,
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "date", "headerName": "Date", "cellDataType": "date", "formatterFn": "none", "pinned": "left" },
+          { "field": "symbol", "headerName": "Symbol", "cellDataType": "text" },
+          { "field": "open", "headerName": "Open", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "high", "headerName": "High", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "low", "headerName": "Low", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "close", "headerName": "Close", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "volume", "headerName": "Volume", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "change_percent", "headerName": "Change %", "cellDataType": "number", "formatterFn": "normalizedPercent", "renderFn": "greenRed" }
+        ]
+      }
+    },
+    "source": ["FMP Cache"]
+  },
+
+  "espp_purchases": {
+    "name": "ESPP Purchases",
+    "description": "ESPP purchase history with discount analysis and qualified disposition dates.",
+    "category": "Portfolio",
+    "subCategory": "ESPP",
+    "searchCategory": "Portfolio",
+    "type": "table",
+    "widgetId": "espp_purchases",
+    "endpoint": "/espp/purchases",
+    "gridData": { "w": 40, "h": 15 },
+    "params": [],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "purchase_date", "headerName": "Purchase Date", "cellDataType": "date", "formatterFn": "none", "pinned": "left" },
+          { "field": "symbol", "headerName": "Symbol", "cellDataType": "text" },
+          { "field": "purchase_quantity", "headerName": "Qty", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "purchase_price", "headerName": "Purchase Price", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "purchase_value", "headerName": "Total Value", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "fmv_offering_start", "headerName": "FMV Offering Start", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "fmv_purchase_date", "headerName": "FMV Purchase Date", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "discount_pct", "headerName": "Discount %", "cellDataType": "number", "formatterFn": "percent" },
+          { "field": "bargain_element", "headerName": "Bargain Element", "cellDataType": "number", "formatterFn": "none" },
+          { "field": "offering_period_start", "headerName": "Offering Start", "cellDataType": "date", "formatterFn": "none" },
+          { "field": "offering_period_end", "headerName": "Offering End", "cellDataType": "date", "formatterFn": "none" },
+          { "field": "qualified_disposition_date", "headerName": "Qualified Disp. Date", "cellDataType": "date", "formatterFn": "none" },
+          { "field": "purchase_deposit_to", "headerName": "Deposited To", "cellDataType": "text" }
+        ]
+      }
+    },
+    "source": ["Portfolio App"]
+  }
+}

@@ -1,0 +1,15 @@
+# Portfolio App — Requirements
+#
+# Install into the .venv_openbb environment:
+#   pip install -r portfolio_app/requirements.txt
+
+# --- OpenBB Platform (full install from PyPI) ---
+openbb[all]
+openbb-platform-api
+
+# --- Portfolio app dependencies ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pymysql>=1.1.0
+httpx>=0.27.0
+python-dotenv>=1.0.0
