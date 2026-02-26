@@ -1,15 +1,15 @@
 """
 OpenBB API Client — proxy helper for calling the OpenBB Platform API.
 
-The Portfolio App runs on a separate port (:6902) and calls back to the
-OpenBB Platform API (:6901) for market data like live quotes, historical
+The Portfolio App runs on a separate port (:6903) and calls back to the
+OpenBB Platform API (:6902) for market data like live quotes, historical
 prices, and fundamentals.  Both services use self-signed HTTPS certs,
 so we set verify=False for inter-service calls.
 
 Usage:
     from openbb_client import OpenBBClient
 
-    obb = OpenBBClient()  # defaults to https://127.0.0.1:6901
+    obb = OpenBBClient()  # defaults to https://127.0.0.1:6902
     quote = await obb.get("/api/v1/equity/price/quote", symbol="MSFT")
 """
 
@@ -27,7 +27,7 @@ class OpenBBClient:
 
     def __init__(self, base_url: Optional[str] = None):
         self.base_url = base_url or os.getenv(
-            "OPENBB_API_URL", "https://127.0.0.1:6901"
+            "OPENBB_API_URL", "https://127.0.0.1:6902"
         )
 
     async def get(

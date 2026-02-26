@@ -9,8 +9,8 @@ The FMP Cached Provider supports several environment variables to control its be
 Controls whether the database and tables are automatically created.
 
 **Values:**
-- `true` (default) - Automatically create database and tables if they don't exist
-- `false` - Skip database/table creation, use existing database
+- `true` - Automatically create database and tables if they don't exist
+- `false` (default) - Skip database/table creation, use existing database
 
 **Usage:**
 

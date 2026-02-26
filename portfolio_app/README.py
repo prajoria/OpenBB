@@ -6,7 +6,7 @@
 #
 # Architecture:
 #   ┌──────────────┐       ┌──────────────────┐
-#   │  OpenBB API  │ :6900 │  Portfolio App    │ :6901
+#   │  OpenBB API  │ :6902 │  Portfolio App    │ :6903
 #   │  (market     │◄──────│  (positions,      │
 #   │   data)      │ httpx │   allocation,     │
 #   └──────────────┘       │   cost basis)     │

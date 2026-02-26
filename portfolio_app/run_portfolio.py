@@ -1,9 +1,9 @@
 """
-Run the Portfolio App on port 6901.
+Run the Portfolio App on port 6903.
 
 Usage:
     python portfolio_app/run_portfolio.py
-    python portfolio_app/run_portfolio.py --port 6901
+    python portfolio_app/run_portfolio.py --port 6903
 """
 
 import argparse
@@ -20,7 +20,7 @@ if str(app_dir) not in sys.path:
 def main():
     parser = argparse.ArgumentParser(description="Run Portfolio App")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=6902)
+    parser.add_argument("--port", type=int, default=6903)
     parser.add_argument("--reload", action="store_true", default=False)
     parser.add_argument("--no-ssl", action="store_true", default=False,
                         help="Disable HTTPS (use HTTP instead)")
@@ -36,7 +36,7 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"  Portfolio App starting on {scheme}://{args.host}:{args.port}")
-    print(f"  OpenBB API expected on {os.getenv('OPENBB_API_URL', 'https://127.0.0.1:6901')}")
+    print(f"  OpenBB API expected on {os.getenv('OPENBB_API_URL', 'https://127.0.0.1:6902')}")
     print(f"  Docs: {scheme}://{args.host}:{args.port}/docs")
     if use_ssl:
         print(f"  SSL: {ssl_certfile}")

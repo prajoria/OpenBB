@@ -6,7 +6,37 @@
     "tabs": {
       "overview": {
         "id": "overview",
-        "name": "Overview",
+        "name": "All Positions",
+        "layout": [
+          {
+            "i": "portfolio_positions",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 20,
+            "state": {}
+          },
+          {
+            "i": "portfolio_allocation",
+            "x": 0,
+            "y": 20,
+            "w": 20,
+            "h": 12,
+            "state": {}
+          },
+          {
+            "i": "portfolio_performance",
+            "x": 20,
+            "y": 20,
+            "w": 20,
+            "h": 12,
+            "state": {}
+          }
+        ]
+      },
+      "summary": {
+        "id": "summary",
+        "name": "Summary",
         "layout": [
           {
             "i": "portfolio_summary",
@@ -30,20 +60,6 @@
             "y": 14,
             "w": 20,
             "h": 12,
-            "state": {}
-          }
-        ]
-      },
-      "positions": {
-        "id": "positions",
-        "name": "Positions",
-        "layout": [
-          {
-            "i": "portfolio_positions",
-            "x": 0,
-            "y": 0,
-            "w": 40,
-            "h": 22,
             "state": {}
           }
         ]

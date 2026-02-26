@@ -1104,7 +1104,7 @@ test = ["pytest"]
 [[package]]
 name = "courlan"
 version = "1.3.2"
-description = "Clean, filter and sample URLs to optimize data collection – includes spam, content type and language filters."
+description = "Clean, filter and sample URLs to optimize data collection â€“ includes spam, content type and language filters."
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
@@ -1348,7 +1348,7 @@ test-randomorder = ["pytest-randomly"]
 [[package]]
 name = "curl-adapter"
 version = "1.2.0"
-description = "A curl HTTP adapter switch for requests library — make browser-like requests with custom TLS fingerprints."
+description = "A curl HTTP adapter switch for requests library â€” make browser-like requests with custom TLS fingerprints."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]

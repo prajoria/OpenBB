@@ -1,8 +1,12 @@
 <#
 .SYNOPSIS
     Setup script for the Portfolio App.
-    Creates .venv_openbb, installs OpenBB from PyPI, and installs
-    portfolio app dependencies.
+    Uses .venv_win (the project-level from-source virtual environment)
+    and installs portfolio app dependencies into it.
+
+    NOTE: .venv_openbb is a SEPARATE environment for running the
+    OpenBB Platform from PyPI (pre-built packages). This app runs
+    from the OpenBB source tree and uses .venv_win.
 
 .USAGE
     .\portfolio_app\setup.ps1
@@ -16,7 +20,7 @@ if (-not (Test-Path "$projectRoot\portfolio_app")) {
     $projectRoot = $PWD.Path
 }
 
-$venvDir = Join-Path $projectRoot ".venv_openbb"
+$venvDir = Join-Path $projectRoot ".venv_win"
 $requirementsFile = Join-Path $projectRoot "portfolio_app\requirements.txt"
 
 Write-Host ""
@@ -64,12 +68,12 @@ Write-Host "  Setup complete!" -ForegroundColor Green
 Write-Host "" -ForegroundColor Green
 Write-Host "  To run the services:" -ForegroundColor Green
 Write-Host "" -ForegroundColor Green
-Write-Host "  Terminal 1 (OpenBB API on :6900):" -ForegroundColor White
-Write-Host "    .venv_openbb\Scripts\openbb-api --host 127.0.0.1 --port 6900" -ForegroundColor DarkGray
+Write-Host "  Terminal 1 (OpenBB API on :6902):" -ForegroundColor White
+Write-Host "    .venv_win\Scripts\openbb-api --host 127.0.0.1 --port 6902" -ForegroundColor DarkGray
 Write-Host "" -ForegroundColor Green
-Write-Host "  Terminal 2 (Portfolio App on :6901):" -ForegroundColor White
-Write-Host "    .venv_openbb\Scripts\python portfolio_app\run_portfolio.py" -ForegroundColor DarkGray
+Write-Host "  Terminal 2 (Portfolio App on :6903):" -ForegroundColor White
+Write-Host "    .venv_win\Scripts\python portfolio_app\run_portfolio.py" -ForegroundColor DarkGray
 Write-Host "" -ForegroundColor Green
-Write-Host "  Then connect OpenBB Workspace to http://127.0.0.1:6901" -ForegroundColor White
+Write-Host "  Then connect OpenBB Workspace to http://127.0.0.1:6902" -ForegroundColor White
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""

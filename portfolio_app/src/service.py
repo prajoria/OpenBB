@@ -21,6 +21,70 @@ def positions_detail(
     return df
 
 
+def refresh_market_values(
+    positions_df: pd.DataFrame,
+    prices_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Recalculate current_value, total_gain_loss, pct_gain_loss using live prices.
+
+    For each position lot:
+      - current_value  = quantity × latest_close
+      - total_gain_loss = current_value − cost_basis_total
+      - pct_gain_loss   = (total_gain_loss / cost_basis_total) × 100
+
+    If a symbol has no entry in prices_df, the original DB snapshot values
+    are kept as a fallback.  A ``price_date`` column is added so the user
+    can see how recent the price is (NaT when falling back to snapshot).
+
+    Parameters
+    ----------
+    positions_df : DataFrame
+        Raw positions with snapshot-era values.
+    prices_df : DataFrame
+        Must have columns: symbol, close, price_date.
+
+    Returns
+    -------
+    DataFrame with refreshed value columns.
+    """
+    if positions_df.empty:
+        return positions_df
+
+    df = positions_df.copy()
+
+    if prices_df.empty:
+        # No prices available → keep DB values, mark price_date as NaT
+        df["price_date"] = pd.NaT
+        return df
+
+    # Build a symbol → (close, price_date) lookup
+    price_map = prices_df.set_index("symbol")[["close", "price_date"]]
+
+    # Map latest price to each row; NaN where symbol has no price data
+    df["_latest_price"] = df["symbol"].map(price_map["close"])
+    df["price_date"] = df["symbol"].map(price_map["price_date"])
+
+    # Only overwrite rows that have a valid latest price
+    has_price = df["_latest_price"].notna()
+
+    df.loc[has_price, "current_value"] = (
+        df.loc[has_price, "quantity"] * df.loc[has_price, "_latest_price"]
+    ).round(4)
+
+    df.loc[has_price, "total_gain_loss"] = (
+        df.loc[has_price, "current_value"] - df.loc[has_price, "cost_basis_total"]
+    ).round(4)
+
+    cost = df.loc[has_price, "cost_basis_total"].replace(0, float("nan"))
+    df.loc[has_price, "pct_gain_loss"] = (
+        (df.loc[has_price, "total_gain_loss"] / cost) * 100
+    ).round(2).fillna(0)
+
+    df = df.drop(columns=["_latest_price"])
+    return df
+
+
 def summary_by_symbol(
     df: pd.DataFrame,
     account: str | None = None,

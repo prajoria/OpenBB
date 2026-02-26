@@ -355,6 +355,12 @@ class StaticCommandRunner:
                     if chart and obbject.results:
                         if "extra_params" not in kwargs_copy:
                             kwargs_copy["extra_params"] = {}
+                        elif not isinstance(kwargs_copy["extra_params"], dict):
+                            # Convert dataclass/model instances (e.g. ExtraParams subclass)
+                            # to a plain dict so item assignment works below.
+                            kwargs_copy["extra_params"] = cls._extract_params(
+                                kwargs_copy, "extra_params"
+                            )
                         # Restore any kwargs passed that were removed by the ParametersBuilder
                         for k in kwargs_copy.copy():
                             if k == "chart":

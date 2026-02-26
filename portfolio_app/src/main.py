@@ -10,7 +10,7 @@ Run:
     python run_portfolio.py
 
 Or from project root:
-    .venv_openbb/Scripts/python portfolio_app/run_portfolio.py
+    .venv_win/Scripts/python portfolio_app/run_portfolio.py
 """
 
 import json
@@ -38,10 +38,13 @@ from data import (  # noqa: E402
     get_distinct_symbols,
     get_equity_historical_df,
     get_espp_df,
+    get_latest_prices_df,
     get_positions_df,
 )
 from openbb_client import OpenBBClient  # noqa: E402
 import service  # noqa: E402
+
+import pandas as pd  # noqa: E402
 
 LOG = logging.getLogger("portfolio_app")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(message)s")
@@ -70,10 +73,10 @@ app.add_middleware(
         "https://localhost:3000",
         "http://127.0.0.1:1420",
         "https://127.0.0.1:1420",
-        "http://127.0.0.1:6901",
-        "https://127.0.0.1:6901",
         "http://127.0.0.1:6902",
         "https://127.0.0.1:6902",
+        "http://127.0.0.1:6903",
+        "https://127.0.0.1:6903",
         "tauri://localhost",
     ],
     allow_credentials=True,
@@ -81,8 +84,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenBB API client (for calling the other service)
+# OpenBB API client (for calling the other service — quotes, fundamentals)
 obb_client = OpenBBClient()
+
+
+def _fetch_latest_prices(symbols: list[str]) -> pd.DataFrame:
+    """Fetch latest market prices from the fmp_cached equity_historical table.
+
+    Uses ``get_latest_prices_df()`` which reads the equity_historical cache
+    maintained by the ``openbb_fmp_cached`` provider — a direct DB read,
+    no HTTP round-trip needed.
+
+    Returns a DataFrame with columns: symbol, close, price_date.
+    Returns an empty DataFrame when no data is available, which causes
+    ``refresh_market_values`` to keep the original snapshot values.
+    """
+    if not symbols:
+        return pd.DataFrame(columns=["symbol", "close", "price_date"])
+    return get_latest_prices_df(symbols)
+
 
 # --------------------------------------------------------------------------- #
 #  Metadata endpoints (required by OpenBB Workspace)
@@ -140,6 +160,9 @@ async def portfolio_positions(
 ):
     """Current portfolio positions with gain/loss analysis."""
     df = get_positions_df(snapshot_date=snapshot_date)
+    symbols = df["symbol"].unique().tolist() if not df.empty else []
+    prices = _fetch_latest_prices(symbols)
+    df = service.refresh_market_values(df, prices)
     result = service.positions_detail(df, account=account, owner=owner)
     return df_to_records(result)
 
@@ -153,6 +176,9 @@ async def portfolio_summary(
 ):
     """Aggregated portfolio summary grouped by symbol."""
     df = get_positions_df()
+    symbols = df["symbol"].unique().tolist() if not df.empty else []
+    prices = _fetch_latest_prices(symbols)
+    df = service.refresh_market_values(df, prices)
     result = service.summary_by_symbol(df, account=account, owner=owner)
     return df_to_records(result)
 
@@ -165,6 +191,9 @@ async def portfolio_allocation(
 ):
     """Portfolio allocation by account with owner info."""
     df = get_positions_df()
+    symbols = df["symbol"].unique().tolist() if not df.empty else []
+    prices = _fetch_latest_prices(symbols)
+    df = service.refresh_market_values(df, prices)
     result = service.allocation_by_account(df, owner=owner)
     return df_to_records(result)
 
@@ -178,6 +207,9 @@ async def portfolio_cost_basis(
 ):
     """Per-lot cost basis detail with short/long-term classification."""
     df = get_positions_df()
+    symbols = df["symbol"].unique().tolist() if not df.empty else []
+    prices = _fetch_latest_prices(symbols)
+    df = service.refresh_market_values(df, prices)
     result = service.cost_basis_lots(df, symbol=symbol, account=account)
     return df_to_records(result)
 
@@ -190,6 +222,9 @@ async def portfolio_tax_summary(
 ):
     """Tax summary: short-term vs long-term gains/losses by account."""
     df = get_positions_df()
+    symbols = df["symbol"].unique().tolist() if not df.empty else []
+    prices = _fetch_latest_prices(symbols)
+    df = service.refresh_market_values(df, prices)
     result = service.tax_summary(df, owner=owner)
     return df_to_records(result)
 
@@ -202,6 +237,9 @@ async def portfolio_performance(
 ):
     """Top gainers and losers by percent return."""
     df = get_positions_df()
+    symbols = df["symbol"].unique().tolist() if not df.empty else []
+    prices = _fetch_latest_prices(symbols)
+    df = service.refresh_market_values(df, prices)
     result = service.performance_ranking(df, owner=owner)
     return df_to_records(result)
 

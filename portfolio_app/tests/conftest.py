@@ -3,6 +3,20 @@ Shared pytest fixtures — built from generated mock data.
 
 All data is synthetic (anonymized symbols, accounts, owners, values).
 Fixtures are auto-generated on first run if JSON files are missing.
+
+Virtual Environment Policy
+--------------------------
+.venv_win     — Project-level venv for running from OpenBB SOURCE code.
+                This is the environment used by portfolio_app and all
+                tests.  OpenBB packages are installed from the local
+                source tree (editable / dev installs).
+
+.venv_openbb  — Separate venv for running the OpenBB Platform from
+                pre-built PyPI packages (out-of-the-box install).
+                Do NOT use this for portfolio_app development or tests.
+
+When running tests:
+    .venv_win\\Scripts\\python -m pytest portfolio_app/tests/ -v
 """
 
 import sys
@@ -65,6 +79,17 @@ def espp_df() -> pd.DataFrame:
 def equity_hist_df() -> pd.DataFrame:
     """Equity historical daily OHLCV fixture."""
     return pd.DataFrame(load_equity_historical())
+
+
+@pytest.fixture
+def prices_df(equity_hist_df) -> pd.DataFrame:
+    """Latest close price per symbol — mirrors ``get_latest_prices_df()``."""
+    if equity_hist_df.empty:
+        return pd.DataFrame(columns=["symbol", "close", "price_date"])
+    idx = equity_hist_df.groupby("symbol")["date"].idxmax()
+    latest = equity_hist_df.loc[idx, ["symbol", "close", "date"]].copy()
+    latest = latest.rename(columns={"date": "price_date"})
+    return latest.reset_index(drop=True)
 
 
 @pytest.fixture

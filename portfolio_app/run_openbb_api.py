@@ -1,14 +1,14 @@
 """
-Run the OpenBB Platform API on port 6901 with HTTPS.
+Run the OpenBB Platform API on port 6902 with HTTPS.
 
 This is the standard OpenBB API — provides market data endpoints
 (/api/v1/equity/price/quote, /api/v1/equity/price/historical, etc.)
 
-The Portfolio App (port 6902) calls this API for live market data.
+The Portfolio App (port 6903) calls this API for live market data.
 
 Usage:
     python portfolio_app/run_openbb_api.py
-    python portfolio_app/run_openbb_api.py --port 6901
+    python portfolio_app/run_openbb_api.py --port 6902
     python portfolio_app/run_openbb_api.py --no-ssl
 """
 
@@ -20,7 +20,7 @@ from pathlib import Path
 def main():
     parser = argparse.ArgumentParser(description="Run OpenBB Platform API")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=6901)
+    parser.add_argument("--port", type=int, default=6902)
     parser.add_argument("--no-ssl", action="store_true", default=False,
                         help="Disable HTTPS (use HTTP instead)")
     args = parser.parse_args()

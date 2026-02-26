@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4aa"/>
+      <stop offset="100%" style="stop-color:#00b4d8"/>
+    </linearGradient>
+    <linearGradient id="bar1" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4aa;stop-opacity:0.6"/>
+      <stop offset="100%" style="stop-color:#00d4aa"/>
+    </linearGradient>
+    <linearGradient id="bar2" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#00b4d8;stop-opacity:0.6"/>
+      <stop offset="100%" style="stop-color:#00b4d8"/>
+    </linearGradient>
+    <linearGradient id="line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ff6b6b"/>
+      <stop offset="50%" style="stop-color:#ffd93d"/>
+      <stop offset="100%" style="stop-color:#00d4aa"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded rectangle -->
+  <rect x="0" y="0" width="512" height="512" rx="80" ry="80" fill="url(#bg)"/>
+
+  <!-- Border glow -->
+  <rect x="4" y="4" width="504" height="504" rx="78" ry="78" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.3"/>
+
+  <!-- Dashboard frame -->
+  <rect x="60" y="80" width="392" height="352" rx="16" ry="16" fill="#0f1729" stroke="#1e3a5f" stroke-width="2"/>
+
+  <!-- Title bar -->
+  <rect x="60" y="80" width="392" height="40" rx="16" ry="16" fill="#152238"/>
+  <rect x="60" y="104" width="392" height="16" fill="#152238"/>
+
+  <!-- Title bar dots -->
+  <circle cx="88" cy="100" r="6" fill="#ff5f57"/>
+  <circle cx="108" cy="100" r="6" fill="#febc2e"/>
+  <circle cx="128" cy="100" r="6" fill="#28c840"/>
+
+  <!-- Title text "MED" -->
+  <text x="256" y="106" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="bold" fill="#00d4aa" text-anchor="middle" letter-spacing="4">MASTERS EQUITY</text>
+
+  <!-- Chart area background -->
+  <rect x="80" y="135" width="175" height="130" rx="8" ry="8" fill="#0a1628" stroke="#1e3a5f" stroke-width="1"/>
+
+  <!-- Grid lines in chart -->
+  <line x1="95" y1="165" x2="240" y2="165" stroke="#1e3a5f" stroke-width="0.5"/>
+  <line x1="95" y1="195" x2="240" y2="195" stroke="#1e3a5f" stroke-width="0.5"/>
+  <line x1="95" y1="225" x2="240" y2="225" stroke="#1e3a5f" stroke-width="0.5"/>
+
+  <!-- Candlestick-style price line -->
+  <polyline points="95,230 115,215 130,220 145,195 160,180 175,190 190,170 205,155 220,160 235,145"
+    fill="none" stroke="url(#line-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Glow effect on line -->
+  <polyline points="95,230 115,215 130,220 145,195 160,180 175,190 190,170 205,155 220,160 235,145"
+    fill="none" stroke="#00d4aa" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.15"/>
+
+  <!-- Area fill under line -->
+  <polygon points="95,230 115,215 130,220 145,195 160,180 175,190 190,170 205,155 220,160 235,145 235,255 95,255"
+    fill="url(#bar1)" opacity="0.15"/>
+
+  <!-- Up arrow indicator -->
+  <polygon points="238,140 244,150 232,150" fill="#00d4aa"/>
+
+  <!-- Right panel: Bar chart -->
+  <rect x="270" y="135" width="175" height="130" rx="8" ry="8" fill="#0a1628" stroke="#1e3a5f" stroke-width="1"/>
+
+  <!-- Bar chart bars -->
+  <rect x="290" y="215" width="16" height="40" rx="2" ry="2" fill="url(#bar1)" opacity="0.7"/>
+  <rect x="314" y="195" width="16" height="60" rx="2" ry="2" fill="url(#bar2)" opacity="0.8"/>
+  <rect x="338" y="205" width="16" height="50" rx="2" ry="2" fill="url(#bar1)" opacity="0.7"/>
+  <rect x="362" y="175" width="16" height="80" rx="2" ry="2" fill="url(#bar2)" opacity="0.9"/>
+  <rect x="386" y="185" width="16" height="70" rx="2" ry="2" fill="url(#bar1)" opacity="0.8"/>
+  <rect x="410" y="155" width="16" height="100" rx="2" ry="2" fill="url(#bar2)"/>
+
+  <!-- Bottom panels -->
+  <!-- Metrics panel -->
+  <rect x="80" y="280" width="110" height="130" rx="8" ry="8" fill="#0a1628" stroke="#1e3a5f" stroke-width="1"/>
+
+  <!-- Metric rows -->
+  <rect x="92" y="295" width="40" height="6" rx="3" fill="#1e3a5f"/>
+  <rect x="145" y="295" width="30" height="6" rx="3" fill="#00d4aa"/>
+
+  <rect x="92" y="313" width="50" height="6" rx="3" fill="#1e3a5f"/>
+  <rect x="145" y="313" width="25" height="6" rx="3" fill="#00b4d8"/>
+
+  <rect x="92" y="331" width="35" height="6" rx="3" fill="#1e3a5f"/>
+  <rect x="145" y="331" width="35" height="6" rx="3" fill="#00d4aa"/>
+
+  <rect x="92" y="349" width="45" height="6" rx="3" fill="#1e3a5f"/>
+  <rect x="145" y="349" width="20" height="6" rx="3" fill="#ffd93d"/>
+
+  <rect x="92" y="367" width="30" height="6" rx="3" fill="#1e3a5f"/>
+  <rect x="145" y="367" width="28" height="6" rx="3" fill="#00d4aa"/>
+
+  <rect x="92" y="385" width="42" height="6" rx="3" fill="#1e3a5f"/>
+  <rect x="145" y="385" width="32" height="6" rx="3" fill="#00b4d8"/>
+
+  <!-- Profile panel -->
+  <rect x="205" y="280" width="110" height="130" rx="8" ry="8" fill="#0a1628" stroke="#1e3a5f" stroke-width="1"/>
+
+  <!-- Donut chart -->
+  <circle cx="260" cy="340" r="35" fill="none" stroke="#1e3a5f" stroke-width="10"/>
+  <circle cx="260" cy="340" r="35" fill="none" stroke="#00d4aa" stroke-width="10"
+    stroke-dasharray="77 143" stroke-dashoffset="0" transform="rotate(-90 260 340)"/>
+  <circle cx="260" cy="340" r="35" fill="none" stroke="#00b4d8" stroke-width="10"
+    stroke-dasharray="44 176" stroke-dashoffset="-77" transform="rotate(-90 260 340)"/>
+  <circle cx="260" cy="340" r="35" fill="none" stroke="#ffd93d" stroke-width="10"
+    stroke-dasharray="33 187" stroke-dashoffset="-121" transform="rotate(-90 260 340)"/>
+
+  <!-- Mini stat labels below donut -->
+  <rect x="220" y="390" width="20" height="5" rx="2" fill="#00d4aa"/>
+  <rect x="248" y="390" width="20" height="5" rx="2" fill="#00b4d8"/>
+  <rect x="276" y="390" width="20" height="5" rx="2" fill="#ffd93d"/>
+
+  <!-- Table panel -->
+  <rect x="330" y="280" width="115" height="130" rx="8" ry="8" fill="#0a1628" stroke="#1e3a5f" stroke-width="1"/>
+
+  <!-- Table header -->
+  <rect x="340" y="290" width="95" height="14" rx="3" fill="#152238"/>
+
+  <!-- Table rows -->
+  <rect x="340" y="312" width="40" height="5" rx="2" fill="#1e3a5f"/>
+  <rect x="395" y="312" width="30" height="5" rx="2" fill="#00d4aa"/>
+
+  <rect x="340" y="327" width="55" height="5" rx="2" fill="#1e3a5f"/>
+  <rect x="395" y="327" width="25" height="5" rx="2" fill="#ff6b6b"/>
+
+  <rect x="340" y="342" width="35" height="5" rx="2" fill="#1e3a5f"/>
+  <rect x="395" y="342" width="35" height="5" rx="2" fill="#00d4aa"/>
+
+  <rect x="340" y="357" width="48" height="5" rx="2" fill="#1e3a5f"/>
+  <rect x="395" y="357" width="20" height="5" rx="2" fill="#00b4d8"/>
+
+  <rect x="340" y="372" width="30" height="5" rx="2" fill="#1e3a5f"/>
+  <rect x="395" y="372" width="30" height="5" rx="2" fill="#00d4aa"/>
+
+  <rect x="340" y="387" width="42" height="5" rx="2" fill="#1e3a5f"/>
+  <rect x="395" y="387" width="22" height="5" rx="2" fill="#ffd93d"/>
+
+  <!-- "M" monogram at bottom -->
+  <text x="256" y="460" font-family="Georgia,serif" font-size="32" font-weight="bold" fill="url(#accent)" text-anchor="middle" opacity="0.6">M</text>
+</svg>

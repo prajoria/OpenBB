@@ -65,6 +65,8 @@ Tools/docs/CONTEXT_LOCAL.md
 build/conda/tmp
 # Windows virtual environment
 .venv_win/
+.venv_openbb/
+.venv_openbb_master/
 
 # Database backups
 *.sql

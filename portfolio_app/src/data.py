@@ -1,10 +1,26 @@
-"""
-Data layer for the Portfolio App.
+"""Data layer for the Portfolio App.
 
 Fetches raw data from MySQL into pandas DataFrames.
-SQL queries are simple SELECTs with JOINs — no aggregation logic.
+
+──────────────────────────────────────────────────────────────────────
+ DATA ACCESS POLICY  (read this before adding any new queries)
+──────────────────────────────────────────────────────────────────────
+ • **Portfolio tables** — ``Portfolio_Positions``, ``Account_Owner``,
+   ``ESPP_Plan`` — may be queried directly via the portfolio ``db``
+   module (``from db import query``).
+
+ • **Market / price data** (``equity_historical`` and any other tables
+   owned by the ``openbb_fmp_cached`` provider) must **NEVER** be
+   accessed with raw SQL.  Always go through the provider's API
+   functions:
+       - ``get_equity_historical_sync()``  — full OHLCV history
+       - ``get_latest_prices_sync()``      — most-recent close
+   These functions handle gap detection, automatic FMP API fetching,
+   and cache storage transparently.
+──────────────────────────────────────────────────────────────────────
+
 All business logic (grouping, aggregation, computed columns) belongs
-in the API layer using DataFrame operations.
+in the service layer using DataFrame operations.
 """
 
 import logging
@@ -15,6 +31,18 @@ import numpy as np
 import pandas as pd
 
 from db import query
+
+# fmp_cached provider API — gap-detect + auto-fetch + cache pipeline.
+# NEVER import execute_query / fmp_query here for equity_historical;
+# use only the high-level sync helpers below.
+try:
+    from openbb_fmp_cached.models.equity_historical import (
+        get_equity_historical_sync,
+        get_latest_prices_sync,
+    )
+    _HAS_FMP_CACHED = True
+except ImportError:
+    _HAS_FMP_CACHED = False
 
 logger = logging.getLogger(__name__)
 
@@ -140,21 +168,137 @@ def get_equity_historical_df(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Fetch cached historical equity prices."""
-    sql = """
-        SELECT symbol, date, open, high, low, close, volume, change_percent
-        FROM equity_historical
-        WHERE symbol = %s
+    """Fetch historical equity prices via the fmp_cached provider API.
+
+    Uses ``get_equity_historical_sync`` which runs the full
+    gap-detect → FMP API fetch → cache store pipeline so stale or
+    missing data is automatically refreshed.
+
+    Returns an empty DataFrame when the fmp_cached provider is not
+    installed (equity_historical must never be queried with raw SQL).
     """
-    params: list = [symbol]
-    if start_date:
-        sql += " AND date >= %s"
-        params.append(start_date)
-    if end_date:
-        sql += " AND date <= %s"
-        params.append(end_date)
-    sql += " ORDER BY date DESC LIMIT 2000"
-    return _to_df(query(sql, tuple(params)))
+    if not _HAS_FMP_CACHED:
+        logger.warning(
+            "fmp_cached provider not available — cannot fetch equity "
+            "historical data for %s",
+            symbol,
+        )
+        return pd.DataFrame()
+
+    rows = get_equity_historical_sync(
+        symbol,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return _to_df(_normalise_fmp_rows(rows))
+
+
+def get_latest_prices_df(
+    symbols: Optional[list[str]] = None,
+    *,
+    as_of_date=None,
+    verbose: bool = False,
+    progress_callback: Optional[callable] = None,
+) -> pd.DataFrame:
+    """Get the most recent close price for every requested symbol.
+
+    Uses ``get_latest_prices_sync`` from the fmp_cached provider API
+    which runs the full gap-detect → FMP-fetch → cache-store pipeline.
+
+    Parameters
+    ----------
+    symbols : list[str] | None
+        Ticker symbols to look up.  If ``None``, derives the list from
+        ``Portfolio_Positions`` (a portfolio table we may query directly).
+    as_of_date : date | str | None
+        Return the most-recent close on or before this date.
+        Accepts ``datetime.date`` or ``'YYYY-MM-DD'`` string.
+        Defaults to today when ``None``.
+    verbose : bool
+        If ``True``, print per-symbol progress to stdout.
+    progress_callback : callable | None
+        Called as ``progress_callback(i, total, symbol, result_row)``
+        after each symbol is processed.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``symbol``, ``close``, ``price_date``.
+    """
+    import time as _time
+
+    if not _HAS_FMP_CACHED:
+        logger.warning(
+            "fmp_cached provider not available — cannot fetch latest prices",
+        )
+        return pd.DataFrame(columns=["symbol", "close", "price_date"])
+
+    if not symbols:
+        # Derive symbols from Portfolio_Positions (portfolio table — OK)
+        sym_rows = query(
+            "SELECT DISTINCT symbol FROM Portfolio_Positions ORDER BY symbol"
+        )
+        symbols = [r["symbol"] for r in sym_rows]
+        if not symbols:
+            return pd.DataFrame(columns=["symbol", "close", "price_date"])
+
+    total = len(symbols)
+    if verbose:
+        date_label = str(as_of_date) if as_of_date else "today"
+        print(f"Fetching latest prices for {total} symbols (as of {date_label}) ...")
+
+    all_rows: list[dict] = []
+    t0 = _time.perf_counter()
+
+    for i, sym in enumerate(symbols, 1):
+        sym_t0 = _time.perf_counter()
+        rows = get_latest_prices_sync([sym], as_of_date=as_of_date)
+        elapsed = _time.perf_counter() - sym_t0
+
+        row = rows[0] if rows else None
+        if verbose:
+            if row:
+                print(
+                    f"  [{i}/{total}] {sym:<8s} → "
+                    f"${row.get('close', 0):>10,.2f}  "
+                    f"({row.get('price_date', '?')})  "
+                    f"[{elapsed:.1f}s]"
+                )
+            else:
+                print(f"  [{i}/{total}] {sym:<8s} → NO DATA  [{elapsed:.1f}s]")
+
+        if progress_callback:
+            progress_callback(i, total, sym, row)
+
+        all_rows.extend(rows)
+
+    if verbose:
+        wall = _time.perf_counter() - t0
+        print(
+            f"Done — {len(all_rows)}/{total} prices fetched "
+            f"in {wall:.1f}s"
+        )
+
+    return _to_df(_normalise_fmp_rows(all_rows))
+
+
+def _normalise_fmp_rows(rows: list) -> list[dict]:
+    """Convert Decimal / date values returned by fmp_cached DictCursor."""
+    from datetime import date, datetime
+    from decimal import Decimal
+
+    result = []
+    for row in (rows or []):
+        d = {}
+        for col, val in row.items():
+            if isinstance(val, Decimal):
+                d[col] = float(val)
+            elif isinstance(val, (date, datetime)):
+                d[col] = val.isoformat()
+            else:
+                d[col] = val
+        result.append(d)
+    return result
 
 
 def check_db() -> bool:

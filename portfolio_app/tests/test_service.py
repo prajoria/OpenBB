@@ -486,3 +486,141 @@ class TestEdgeCases:
         result = service.summary_by_symbol(df)
         assert len(result) == 1
         assert result.iloc[0]["total_quantity"] == 15
+
+
+# =========================================================================== #
+#  Tests — refresh_market_values
+# =========================================================================== #
+
+class TestRefreshMarketValues:
+    """Tests for live price recalculation of positions."""
+
+    @pytest.fixture
+    def simple_positions(self) -> pd.DataFrame:
+        """3 lots across 2 symbols with known snapshot values."""
+        return pd.DataFrame([
+            {
+                "symbol": "ACME", "quantity": 10,
+                "cost_basis_total": 1000.0,
+                "current_value": 1200.0,          # stale snapshot value
+                "total_gain_loss": 200.0,
+                "pct_gain_loss": 20.0,
+            },
+            {
+                "symbol": "ACME", "quantity": 5,
+                "cost_basis_total": 600.0,
+                "current_value": 650.0,
+                "total_gain_loss": 50.0,
+                "pct_gain_loss": 8.33,
+            },
+            {
+                "symbol": "BOLT", "quantity": 20,
+                "cost_basis_total": 2000.0,
+                "current_value": 1800.0,
+                "total_gain_loss": -200.0,
+                "pct_gain_loss": -10.0,
+            },
+        ])
+
+    @pytest.fixture
+    def prices(self) -> pd.DataFrame:
+        """Latest prices: ACME=150, BOLT=80."""
+        return pd.DataFrame([
+            {"symbol": "ACME", "close": 150.0, "price_date": "2026-02-22"},
+            {"symbol": "BOLT", "close": 80.0, "price_date": "2026-02-21"},
+        ])
+
+    def test_recalculates_current_value(self, simple_positions, prices):
+        result = service.refresh_market_values(simple_positions, prices)
+        # ACME lot 1: 10 × 150 = 1500
+        assert result.iloc[0]["current_value"] == 1500.0
+        # ACME lot 2: 5 × 150 = 750
+        assert result.iloc[1]["current_value"] == 750.0
+        # BOLT: 20 × 80 = 1600
+        assert result.iloc[2]["current_value"] == 1600.0
+
+    def test_recalculates_gain_loss(self, simple_positions, prices):
+        result = service.refresh_market_values(simple_positions, prices)
+        # ACME lot 1: 1500 - 1000 = 500
+        assert result.iloc[0]["total_gain_loss"] == 500.0
+        # ACME lot 2: 750 - 600 = 150
+        assert result.iloc[1]["total_gain_loss"] == 150.0
+        # BOLT: 1600 - 2000 = -400
+        assert result.iloc[2]["total_gain_loss"] == -400.0
+
+    def test_recalculates_pct_gain_loss(self, simple_positions, prices):
+        result = service.refresh_market_values(simple_positions, prices)
+        # ACME lot 1: (500 / 1000) × 100 = 50.0
+        assert result.iloc[0]["pct_gain_loss"] == 50.0
+        # ACME lot 2: (150 / 600) × 100 = 25.0
+        assert result.iloc[1]["pct_gain_loss"] == 25.0
+        # BOLT: (-400 / 2000) × 100 = -20.0
+        assert result.iloc[2]["pct_gain_loss"] == -20.0
+
+    def test_adds_price_date_column(self, simple_positions, prices):
+        result = service.refresh_market_values(simple_positions, prices)
+        assert "price_date" in result.columns
+        assert result.iloc[0]["price_date"] == "2026-02-22"
+        assert result.iloc[2]["price_date"] == "2026-02-21"
+
+    def test_fallback_when_no_price(self, simple_positions):
+        """Symbols not in prices_df keep their original DB values."""
+        partial_prices = pd.DataFrame([
+            {"symbol": "ACME", "close": 150.0, "price_date": "2026-02-22"},
+            # No BOLT price — should keep DB snapshot values
+        ])
+        result = service.refresh_market_values(simple_positions, partial_prices)
+        # ACME recalculated
+        assert result.iloc[0]["current_value"] == 1500.0
+        # BOLT keeps original snapshot value
+        assert result.iloc[2]["current_value"] == 1800.0
+        assert result.iloc[2]["total_gain_loss"] == -200.0
+        assert result.iloc[2]["pct_gain_loss"] == -10.0
+
+    def test_fallback_price_date_is_nat(self, simple_positions):
+        """Symbols without live price get NaT price_date."""
+        partial_prices = pd.DataFrame([
+            {"symbol": "ACME", "close": 150.0, "price_date": "2026-02-22"},
+        ])
+        result = service.refresh_market_values(simple_positions, partial_prices)
+        assert pd.isna(result.iloc[2]["price_date"])
+
+    def test_empty_positions(self, prices):
+        empty = pd.DataFrame()
+        result = service.refresh_market_values(empty, prices)
+        assert result.empty
+
+    def test_empty_prices(self, simple_positions):
+        empty_prices = pd.DataFrame()
+        result = service.refresh_market_values(simple_positions, empty_prices)
+        # Original values preserved
+        assert result.iloc[0]["current_value"] == 1200.0
+        assert "price_date" in result.columns
+
+    def test_zero_cost_basis_no_divide_by_zero(self):
+        """RSU-style lot with zero cost should get pct_gain_loss = 0."""
+        pos = pd.DataFrame([{
+            "symbol": "ACME", "quantity": 5,
+            "cost_basis_total": 0.0,
+            "current_value": 0.0,
+            "total_gain_loss": 0.0,
+            "pct_gain_loss": 0.0,
+        }])
+        prices = pd.DataFrame([
+            {"symbol": "ACME", "close": 100.0, "price_date": "2026-02-22"},
+        ])
+        result = service.refresh_market_values(pos, prices)
+        assert result.iloc[0]["current_value"] == 500.0
+        assert result.iloc[0]["total_gain_loss"] == 500.0
+        assert result.iloc[0]["pct_gain_loss"] == 0.0  # not inf/nan
+
+    def test_does_not_mutate_input(self, simple_positions, prices):
+        """refresh_market_values should not modify the input DataFrames."""
+        original_values = simple_positions["current_value"].tolist()
+        service.refresh_market_values(simple_positions, prices)
+        assert simple_positions["current_value"].tolist() == original_values
+
+    def test_no_extra_columns_leaked(self, simple_positions, prices):
+        """Internal _latest_price column should be dropped."""
+        result = service.refresh_market_values(simple_positions, prices)
+        assert "_latest_price" not in result.columns

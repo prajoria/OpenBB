@@ -85,6 +85,17 @@ def _equity_df(*a, **kw):
     return pd.DataFrame(_EQUITY_HIST)
 
 
+def _latest_prices_df(*a, **kw):
+    """Latest close per symbol from equity_historical fixture."""
+    eh = pd.DataFrame(_EQUITY_HIST)
+    if eh.empty:
+        return pd.DataFrame(columns=["symbol", "close", "price_date"])
+    idx = eh.groupby("symbol")["date"].idxmax()
+    latest = eh.loc[idx, ["symbol", "close", "date"]].copy()
+    latest = latest.rename(columns={"date": "price_date"})
+    return latest.reset_index(drop=True)
+
+
 def _check_db():
     return True
 
@@ -101,11 +112,12 @@ def _distinct_owners():
     return [{"label": o, "value": o} for o in _OWNERS]
 
 
-DATA_PATCHES = {
+SYNC_PATCHES = {
     "main.get_positions_df": _positions_df,
     "main.get_all_snapshots_df": _snapshots_df,
     "main.get_espp_df": _espp_df,
     "main.get_equity_historical_df": _equity_df,
+    "main.get_latest_prices_df": _latest_prices_df,
     "main.check_db": _check_db,
     "main.get_distinct_symbols": _distinct_symbols,
     "main.get_distinct_accounts": _distinct_accounts,
@@ -122,10 +134,10 @@ def client():
 @pytest.fixture(autouse=True)
 def mock_data_layer():
     """Auto-mock all data-layer functions for every test."""
-    patches = [patch(k, side_effect=v) for k, v in DATA_PATCHES.items()]
-    mocks = [p.start() for p in patches]
+    all_patches = [patch(k, side_effect=v) for k, v in SYNC_PATCHES.items()]
+    mocks = [p.start() for p in all_patches]
     yield mocks
-    for p in patches:
+    for p in all_patches:
         p.stop()
 
 
@@ -410,7 +422,7 @@ class TestHealthEndpoint:
     def test_healthy(self, client):
         with patch("main.obb_client") as mock_obb:
             mock_obb.health = AsyncMock(return_value=True)
-            mock_obb.base_url = "https://127.0.0.1:6901"
+            mock_obb.base_url = "https://127.0.0.1:6902"
             r = client.get("/health")
             assert r.status_code == 200
             body = r.json()
@@ -422,7 +434,7 @@ class TestHealthEndpoint:
         with patch("main.check_db", return_value=False):
             with patch("main.obb_client") as mock_obb:
                 mock_obb.health = AsyncMock(return_value=True)
-                mock_obb.base_url = "https://127.0.0.1:6901"
+                mock_obb.base_url = "https://127.0.0.1:6902"
                 r = client.get("/health")
                 assert r.json()["status"] == "degraded"
                 assert r.json()["database"] is False

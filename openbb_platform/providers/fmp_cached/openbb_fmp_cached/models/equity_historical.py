@@ -1216,3 +1216,271 @@ def clean_old_cache(days_old: int = 30) -> int:
     except Exception as e:
         logger.error(f"Failed to clean old cache: {e}")
         return 0
+
+
+# --------------------------------------------------------------------------- #
+#  Synchronous latest-price helper (gap-detect + auto-fetch + cache)
+# --------------------------------------------------------------------------- #
+
+def _load_fmp_credentials() -> dict[str, str]:
+    """Load FMP API key from OpenBB user settings.
+
+    Returns a dict like ``{"fmp_api_key": "..."}`` or an empty dict
+    if the key cannot be resolved.
+    """
+    try:
+        from openbb_core.app.service.user_service import UserService
+
+        user_service = UserService()
+        user_settings = user_service.default_user_settings
+        fmp_api_key = getattr(user_settings.credentials, "fmp_api_key", None)
+        if fmp_api_key:
+            key_value = (
+                fmp_api_key.get_secret_value()
+                if hasattr(fmp_api_key, "get_secret_value")
+                else str(fmp_api_key)
+            )
+            return {"fmp_api_key": key_value}
+    except Exception as exc:
+        logger.warning("Could not load FMP credentials from user settings: %s", exc)
+    return {}
+
+
+def get_latest_prices_sync(
+    symbols: list[str],
+    *,
+    as_of_date: date | str | None = None,
+    lookback_days: int = 14,
+    credentials: dict[str, str] | None = None,
+) -> list[dict]:
+    """Return the most-recent close price per symbol using the full
+    gap-detect → fetch → cache pipeline (synchronous).
+
+    This mirrors the logic of ``FMPCachedEquityHistoricalFetcher.aextract_data``
+    but is fully synchronous — it uses ``_analyze_cache_gaps``,
+    ``_fetch_from_fmp_sync``, and ``_store_in_database_cache``.
+
+    Parameters
+    ----------
+    symbols : list[str]
+        Ticker symbols to look up.
+    as_of_date : date | str | None
+        Return the most-recent close on or before this date.
+        Defaults to today when ``None``.
+    lookback_days : int
+        Calendar days to look back from *as_of_date*.  Default 14
+        covers weekends + holidays comfortably.
+    credentials : dict | None
+        ``{"fmp_api_key": "..."}`` — loaded from user settings if omitted.
+
+    Returns
+    -------
+    list[dict]
+        One dict per symbol: ``{"symbol", "close", "price_date"}``.
+        Symbols with no data are silently omitted.
+    """
+    if not symbols:
+        return []
+
+    creds = credentials or _load_fmp_credentials()
+
+    # Resolve as_of_date
+    if as_of_date is None:
+        end_date_resolved = datetime.now().date()
+    elif isinstance(as_of_date, str):
+        end_date_resolved = datetime.strptime(as_of_date, "%Y-%m-%d").date()
+    else:
+        end_date_resolved = as_of_date
+
+    today = end_date_resolved
+    start = today - timedelta(days=lookback_days)
+
+    # Ensure the database exists
+    try:
+        init_database()
+    except Exception as exc:
+        logger.warning("init_database() failed: %s — continuing anyway", exc)
+
+    latest: dict[str, dict] = {}  # symbol → {close, price_date}
+
+    for sym in symbols:
+        sym = sym.strip()
+        if not sym:
+            continue
+
+        query = FMPCachedEquityHistoricalQueryParams(
+            symbol=sym,
+            start_date=start,
+            end_date=today,
+            interval="1d",
+            adjustment="splits_only",
+        )
+
+        try:
+            cached_data, missing_ranges = _analyze_cache_gaps(query)
+        except Exception as exc:
+            logger.warning("Cache analysis failed for %s: %s", sym, exc)
+            cached_data, missing_ranges = [], [(start, today)]
+
+        # Fetch any gaps via the synchronous FMP HTTP helper
+        if missing_ranges and creds:
+            for gap_start, gap_end in missing_ranges:
+                gap_query = FMPCachedEquityHistoricalQueryParams(
+                    symbol=sym,
+                    start_date=gap_start,
+                    end_date=gap_end,
+                    interval="1d",
+                    adjustment="splits_only",
+                )
+                try:
+                    logger.info(
+                        "Fetching gap for %s: %s → %s", sym, gap_start, gap_end,
+                    )
+                    gap_data = _fetch_from_fmp_sync(gap_query, creds)
+                    if gap_data:
+                        _store_in_database_cache(gap_query, gap_data)
+                        logger.info(
+                            "Cached %d rows for gap %s %s→%s",
+                            len(gap_data), sym, gap_start, gap_end,
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "Gap fetch/store failed for %s (%s→%s): %s",
+                        sym, gap_start, gap_end, exc,
+                    )
+
+            # Re-read cache after filling gaps
+            try:
+                cached_data, _ = _analyze_cache_gaps(query)
+            except Exception:
+                pass  # keep whatever we had before
+
+        # Pick the most-recent close on or before as_of_date
+        if cached_data:
+            # cached_data rows have 'date' as str 'YYYY-MM-DD' and 'close' as float
+            cutoff = today.isoformat()  # 'YYYY-MM-DD'
+            eligible = [r for r in cached_data if r.get("date", "") <= cutoff]
+            if not eligible:
+                eligible = cached_data  # fallback: use all if none match
+            best = max(eligible, key=lambda r: r.get("date", ""))
+            close_val = best.get("close")
+            if close_val is not None:
+                latest[sym] = {
+                    "symbol": sym,
+                    "close": float(close_val),
+                    "price_date": best["date"],
+                }
+
+    result = list(latest.values())
+    logger.info(
+        "get_latest_prices_sync: %d symbols requested, %d prices returned",
+        len(symbols), len(result),
+    )
+    return result
+
+
+def get_equity_historical_sync(
+    symbol: str,
+    *,
+    start_date: date | str | None = None,
+    end_date: date | str | None = None,
+    interval: str = "1d",
+    adjustment: str = "splits_only",
+    credentials: dict[str, str] | None = None,
+) -> list[dict]:
+    """Return cached historical OHLCV data for *symbol* using the full
+    gap-detect → fetch → cache pipeline (synchronous).
+
+    This is the sync counterpart of
+    ``FMPCachedEquityHistoricalFetcher.aextract_data`` and should be used
+    whenever callers need historical price data without running an async
+    event loop.
+
+    Parameters
+    ----------
+    symbol : str
+        Single ticker symbol.
+    start_date, end_date : date | str | None
+        Date range.  Defaults to 1 year ago → today.
+    interval : str
+        ``"1d"`` (default), ``"1h"``, etc.
+    adjustment : str
+        ``"splits_only"`` (default), ``"splits_and_dividends"``, ``"unadjusted"``.
+    credentials : dict | None
+        ``{"fmp_api_key": "..."}`` — loaded from user settings if omitted.
+
+    Returns
+    -------
+    list[dict]
+        FMP-format dicts: ``{symbol, date, open, high, low, close, volume,
+        change, changePercent, vwap, dividend}``.
+    """
+    creds = credentials or _load_fmp_credentials()
+    today = datetime.now().date()
+
+    # Resolve dates
+    if isinstance(start_date, str):
+        start_date = date.fromisoformat(start_date)
+    if isinstance(end_date, str):
+        end_date = date.fromisoformat(end_date)
+    _start = start_date or (today - relativedelta(years=1))
+    _end = end_date or today
+
+    # Ensure the database exists
+    try:
+        init_database()
+    except Exception as exc:
+        logger.warning("init_database() failed: %s — continuing anyway", exc)
+
+    query = FMPCachedEquityHistoricalQueryParams(
+        symbol=symbol.strip(),
+        start_date=_start,
+        end_date=_end,
+        interval=interval,
+        adjustment=adjustment,
+    )
+
+    try:
+        cached_data, missing_ranges = _analyze_cache_gaps(query)
+    except Exception as exc:
+        logger.warning("Cache analysis failed for %s: %s", symbol, exc)
+        cached_data, missing_ranges = [], [(_start, _end)]
+
+    # Fill gaps via synchronous FMP HTTP helper
+    if missing_ranges and creds:
+        for gap_start, gap_end in missing_ranges:
+            gap_query = FMPCachedEquityHistoricalQueryParams(
+                symbol=symbol.strip(),
+                start_date=gap_start,
+                end_date=gap_end,
+                interval=interval,
+                adjustment=adjustment,
+            )
+            try:
+                logger.info(
+                    "Fetching gap for %s: %s → %s", symbol, gap_start, gap_end,
+                )
+                gap_data = _fetch_from_fmp_sync(gap_query, creds)
+                if gap_data:
+                    _store_in_database_cache(gap_query, gap_data)
+                    logger.info(
+                        "Cached %d rows for gap %s %s→%s",
+                        len(gap_data), symbol, gap_start, gap_end,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Gap fetch/store failed for %s (%s→%s): %s",
+                    symbol, gap_start, gap_end, exc,
+                )
+
+        # Re-read cache after filling gaps
+        try:
+            cached_data, _ = _analyze_cache_gaps(query)
+        except Exception:
+            pass  # keep whatever we had before
+
+    logger.info(
+        "get_equity_historical_sync: %s returned %d records (%s → %s)",
+        symbol, len(cached_data), _start, _end,
+    )
+    return cached_data
