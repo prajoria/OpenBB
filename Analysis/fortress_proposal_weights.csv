@@ -1,0 +1,17 @@
+proposal,pillar,ticker,name,asset_type,sector,style,region,strategy_bucket,target_weight_pct,role
+Fortress,Bedrock,VTI,Vanguard Total Stock Market ETF,ETF,Broad Market,Core Index,US,Core ETF,20.0,US total market core
+Fortress,Bedrock,VOO,Vanguard S&P 500 ETF,ETF,Broad Market,Core Index,US,Core ETF,15.0,US large-cap core
+Fortress,Bedrock,VT,Vanguard Total World Stock ETF,ETF,Broad Market,Global Core,Global,Core ETF,7.0,Global equity anchor
+Fortress,Bedrock,SPYM,SPDR Portfolio S&P 500 High Dividend ETF,ETF,Broad Market,Large Cap Blend,US,Core ETF,3.0,Low-cost S&P complement
+Fortress,Fuel,SCHD,Schwab U.S. Dividend Equity ETF,ETF,Dividend Equity,Income Quality,US,Income ETF,8.0,Dividend stability
+Fortress,Fuel,VIG,Vanguard Dividend Appreciation ETF,ETF,Dividend Equity,Dividend Growth,US,Income ETF,7.0,Dividend growth quality
+Fortress,Fuel,DGRO,iShares Core Dividend Growth ETF,ETF,Dividend Equity,Dividend Growth,US,Income ETF,5.0,Broad dividend growth
+Fortress,Shield,GLD,SPDR Gold Shares,ETF,Commodities,Gold,Global,Inflation Hedge,4.0,Liquid gold hedge
+Fortress,Shield,IAU,iShares Gold Trust,ETF,Commodities,Gold,Global,Inflation Hedge,3.0,Low-cost gold hedge
+Fortress,Shield,SGLN,abrdn Physical Gold Shares ETF,ETF,Commodities,Gold,Global,Inflation Hedge,3.0,Physical gold allocation
+Fortress,Escape,VXUS,Vanguard Total International Stock ETF,ETF,International Equity,International Broad,Global ex-US,International ETF,6.0,Broad global diversification
+Fortress,Escape,VEA,Vanguard FTSE Developed Markets ETF,ETF,International Equity,Developed Markets,Developed ex-US,International ETF,5.0,Developed market stability
+Fortress,Escape,VWO,Vanguard FTSE Emerging Markets ETF,ETF,International Equity,Emerging Markets,Emerging Markets,International ETF,4.0,Emerging market growth
+Fortress,Rocket,SMH,VanEck Semiconductor ETF,ETF,Technology,Semiconductors,Global,Growth ETF,4.0,High-conviction semiconductor growth
+Fortress,Rocket,SOXX,iShares Semiconductor ETF,ETF,Technology,Semiconductors,US,Growth ETF,3.0,US chip ecosystem growth
+Fortress,Rocket,QQQM,Invesco NASDAQ 100 ETF,ETF,Technology,Large Cap Growth,US,Growth ETF,3.0,Broad tech growth exposure

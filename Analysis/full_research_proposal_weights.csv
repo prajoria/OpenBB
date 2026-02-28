@@ -1,0 +1,17 @@
+proposal,pillar,ticker,name,asset_type,sector,style,region,strategy_bucket,target_weight_pct,role
+FullResearch,Research,MSFT,Microsoft,Stock,Technology,Quality Growth,US,Core Equity,10.0,Core quality
+FullResearch,Research,AAPL,Apple,Stock,Technology,Quality Growth,US,Core Equity,8.0,Core growth
+FullResearch,Research,GOOGL,Alphabet,Stock,Communication Services,Quality Growth,US,Core Equity,8.0,Core growth
+FullResearch,Research,AMZN,Amazon,Stock,Consumer Discretionary,Growth,US,Satellite Equity,7.0,Growth
+FullResearch,Research,META,Meta Platforms,Stock,Communication Services,Growth,US,Satellite Equity,6.0,Growth
+FullResearch,Research,NVDA,NVIDIA,Stock,Technology,High Growth,US,Satellite Equity,3.0,Tactical high growth
+FullResearch,Research,V,Visa,Stock,Financials,Quality Compounder,US,Core Equity,6.0,High-margin compounder
+FullResearch,Research,MA,Mastercard,Stock,Financials,Quality Compounder,US,Core Equity,5.0,High-margin compounder
+FullResearch,Research,JNJ,Johnson & Johnson,Stock,Healthcare,Defensive,US,Defensive Equity,6.0,Defensive quality
+FullResearch,Research,UNH,UnitedHealth,Stock,Healthcare,Defensive Growth,US,Defensive Equity,4.0,Defensive quality
+FullResearch,Research,PG,Procter & Gamble,Stock,Consumer Staples,Defensive,US,Defensive Equity,5.0,Defensive quality
+FullResearch,Research,XLI,Industrial Select Sector SPDR,ETF,Industrials,Sector,US,Sector ETF,5.0,Sector diversification
+FullResearch,Research,XLU,Utilities Select Sector SPDR,ETF,Utilities,Sector Defensive,US,Sector ETF,4.0,Defensive diversification
+FullResearch,Research,XLE,Energy Select Sector SPDR,ETF,Energy,Sector,US,Sector ETF,4.0,Inflation/cycle hedge
+FullResearch,Research,VXUS,Vanguard Total International Stock ETF,ETF,International Equity,International Broad,Global ex-US,International ETF,7.0,Geographic diversification
+FullResearch,Research,CASH,Cash / Money Market,Cash,Cash,Liquidity,N/A,Liquidity,12.0,Optionality and drawdown buffer
