@@ -1,18 +1,19 @@
-# Phase 6: Decision, Execution, and Monitoring
+# Phase 7: Decision, Execution, and Monitoring
 
 ## Objective
-Convert analysis into an actionable, auditable trade decision and maintenance process.
+Convert all prior phases into an actionable, auditable trade decision and maintenance process.
 
 ## Decision Engine (scored)
 
 ### Composite Score
 | Block | Weight |
 |---|---:|
-| Business quality (Phase 1) | 10% |
-| Fundamentals (Phase 2) | 30% |
-| Technical timing (Phase 3) | 20% |
-| Valuation (Phase 4) | 25% |
-| Risk fit (Phase 5) | 15% |
+| Business quality (Phase 1) | 8% |
+| Fundamentals (Phase 2) | 25% |
+| Technical timing (Phase 3) | 15% |
+| Valuation (Phase 4) | 20% |
+| Risk fit (Phase 5) | 12% |
+| Relative market & peer score (Phase 6) | 20% |
 
 Total score = weighted average (0–5 scale).
 
@@ -27,9 +28,9 @@ Total score = weighted average (0–5 scale).
 ## Execution KPIs
 | KPI | Why it matters | Rule |
 |---|---|---|
-| Entry quality (`R` basis) | Standardizes reward-to-risk | Enter only if expected payoff ≥ 2R |
+| Entry quality (`R` basis) | Standardizes reward-to-risk | Enter only if expected payoff >= 2R |
 | Slippage | Real execution cost | Keep below defined bps budget |
-| Stop distance (ATR-based) | Volatility-aware risk control | Initial stop = 1.5–2.5 × ATR |
+| Stop distance (ATR-based) | Volatility-aware risk control | Initial stop = 1.5–2.5 x ATR |
 | Time stop | Prevent dead-money traps | Reassess if thesis not working in defined window |
 
 ## Monitoring KPIs (post-entry)
@@ -37,7 +38,8 @@ Total score = weighted average (0–5 scale).
 |---|---|---|
 | Thesis KPI set (top 5) | Quarterly | Any 2 degrade for 2 consecutive periods |
 | Technical regime (50/200 DMA, ADX) | Weekly | Regime flip from bullish to bearish |
-| Valuation gap vs fair value | Monthly | Close MOS gap or move to overvaluation |
+| Relative rank vs peers | Monthly | Falls below peer median for 2 consecutive windows |
+| Valuation gap vs fair value | Monthly | MOS closes or flips to overvaluation |
 | Risk budget usage | Daily/weekly | Breach of position or portfolio limits |
 
 ## Programmatic Skeleton
@@ -52,20 +54,21 @@ def decision_label(score: float) -> str:
         return "Hold/Watch"
     return "Avoid/Sell"
 
-# Example: combine block scores
 block_scores = {
     "business_quality": 4.0,
     "fundamentals": 3.8,
     "technicals": 3.6,
     "valuation": 4.2,
     "risk_fit": 3.5,
+    "relative_peer_score": 3.9,
 }
 weights = {
-    "business_quality": 0.10,
-    "fundamentals": 0.30,
-    "technicals": 0.20,
-    "valuation": 0.25,
-    "risk_fit": 0.15,
+    "business_quality": 0.08,
+    "fundamentals": 0.25,
+    "technicals": 0.15,
+    "valuation": 0.20,
+    "risk_fit": 0.12,
+    "relative_peer_score": 0.20,
 }
 
 total = sum(block_scores[k] * weights[k] for k in block_scores)
@@ -78,8 +81,8 @@ print(total, label)
 2. Top 3 bullish drivers
 3. Top 3 invalidation risks
 4. Fair value range and margin of safety
-5. Entry plan, stop, and size
-6. Review date and KPI trigger list
+5. Peer-relative verdict (where target ranks and why)
+6. Entry plan, stop, size, and review triggers
 
 ## Exit Criteria
 - Decision and score saved in repository

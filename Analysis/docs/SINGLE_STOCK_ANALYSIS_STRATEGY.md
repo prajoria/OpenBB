@@ -18,7 +18,8 @@ Audience: new joiners who are strong in Python/software engineering and want a p
 - Phase 3 — Technical Analysis & Timing: [PHASE_3_TECHNICAL_ANALYSIS_AND_TIMING.md](phases/PHASE_3_TECHNICAL_ANALYSIS_AND_TIMING.md)
 - Phase 4 — Valuation & Fair Value: [PHASE_4_VALUATION_AND_FAIR_VALUE.md](phases/PHASE_4_VALUATION_AND_FAIR_VALUE.md)
 - Phase 5 — Risk & Portfolio Context: [PHASE_5_RISK_AND_PORTFOLIO_CONTEXT.md](phases/PHASE_5_RISK_AND_PORTFOLIO_CONTEXT.md)
-- Phase 6 — Decision, Execution & Monitoring: [PHASE_6_DECISION_EXECUTION_AND_MONITORING.md](phases/PHASE_6_DECISION_EXECUTION_AND_MONITORING.md)
+- Phase 6 — Market Segment, ETF Benchmark & Peer Relative Analysis: [PHASE_6_MARKET_SEGMENT_ETF_PEER_RELATIVE_ANALYSIS.md](phases/PHASE_6_MARKET_SEGMENT_ETF_PEER_RELATIVE_ANALYSIS.md)
+- Phase 7 — Decision, Execution & Monitoring: [PHASE_7_DECISION_EXECUTION_AND_MONITORING.md](phases/PHASE_7_DECISION_EXECUTION_AND_MONITORING.md)
 
 ## End-to-End Workflow
 
@@ -29,7 +30,8 @@ Audience: new joiners who are strong in Python/software engineering and want a p
 | Phase 3 | Technical setup sheet | >= 4/6 bullish timing conditions |
 | Phase 4 | Fair-value range + MOS | Margin of safety and sensitivity completed |
 | Phase 5 | Risk-fit and sizing suggestion | Position fits portfolio risk budget |
-| Phase 6 | Final decision memo | Buy/Hold/Sell + execution + monitoring triggers |
+| Phase 6 | Segment ETF + peer-relative scorecard | Relative score >= 3.5 and no major weakness vs peers |
+| Phase 7 | Final decision memo | Buy/Hold/Sell + execution + monitoring triggers |
 
 ## Core KPI Families (used across phases)
 
@@ -38,6 +40,7 @@ Audience: new joiners who are strong in Python/software engineering and want a p
 - Technical KPIs: trend (SMA/ADX), momentum (RSI/MACD), volatility (ATR/Bollinger), volume confirmation (OBV/breakout ratio).
 - Valuation KPIs: P/E, EV/EBITDA, P/FCF, DCF fair value, margin of safety, Piotroski, Altman.
 - Risk KPIs: Sharpe/Sortino/Alpha, VaR/CVaR, Max Drawdown, Beta/correlation.
+- Relative KPIs: peer/ETF return rank, Sharpe rank, drawdown and tail-risk rank, rolling relative strength.
 
 Each phase document now includes:
 - Metric definition in plain English
@@ -82,7 +85,8 @@ START_DATE_TECHNICALS = "2024-01-01"
 - `Analysis/<ticker>/03_technicals.ipynb`
 - `Analysis/<ticker>/04_valuation.ipynb`
 - `Analysis/<ticker>/05_risk.md`
-- `Analysis/<ticker>/06_decision_memo.md`
+- `Analysis/<ticker>/06_relative_analysis.ipynb`
+- `Analysis/<ticker>/07_decision_memo.md`
 
 ## Final Output Requirement (for each ticker)
 
@@ -95,6 +99,6 @@ A single decision memo containing:
 
 ---
 
-Version: 2.0  
-Updated: 2026-02-27  
+Version: 2.1  
+Updated: 2026-02-28  
 Owner: Research Engineering / Quantamental Team

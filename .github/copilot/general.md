@@ -56,3 +56,8 @@ For deeper project context, read these as needed:
 - **Never commit credentials** — DB passwords, API keys, tokens
 - Use placeholder values (`<OWNER>`, `<DB_PASSWORD>`, `<ACCOUNT_NUMBER>`) in docs
 - Sensitive local context lives in `Tools/docs/CONTEXT_LOCAL.md` (git-ignored)
+
+## Output Style Rule
+
+- Never use emoji characters in code string literals, code comments, logging messages, notebook print/output strings, or generated source snippets.
+- Use plain ASCII text for status or progress messages (for example, `Added source directories` instead of emoji-prefixed text).
