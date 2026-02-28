@@ -28,14 +28,15 @@ from openbb_fmp.models.equity_gainers import FMPGainersFetcher
 # Import independent cached fetchers (with database persistence)
 from openbb_fmp_cached.models.analyst_estimates import FMPCachedAnalystEstimatesFetcher
 from openbb_fmp_cached.models.equity_historical import FMPCachedEquityHistoricalFetcher
+from openbb_fmp_cached.models.equity_peers import FMPCachedEquityPeersFetcher
+from openbb_fmp_cached.models.equity_profile import FMPCachedEquityProfileFetcher
+from openbb_fmp_cached.models.equity_quote import FMPCachedEquityQuoteFetcher
 from openbb_fmp_cached.models.index_constituents import FMPCachedIndexConstituentsFetcher
+from openbb_fmp_cached.models.key_metrics import FMPCachedKeyMetricsFetcher
 
 from openbb_fmp.models.equity_losers import FMPLosersFetcher
 from openbb_fmp.models.equity_most_active import FMPEquityActiveFetcher
 from openbb_fmp.models.equity_ownership import FMPEquityOwnershipFetcher
-from openbb_fmp.models.equity_peers import FMPEquityPeersFetcher
-from openbb_fmp.models.equity_profile import FMPEquityProfileFetcher
-from openbb_fmp.models.equity_quote import FMPEquityQuoteFetcher
 from openbb_fmp.models.equity_screener import FMPEquityScreenerFetcher
 from openbb_fmp.models.esg_score import FMPEsgScoreFetcher
 from openbb_fmp.models.etf_countries import FMPEtfCountriesFetcher
@@ -60,7 +61,6 @@ from openbb_fmp.models.index_historical import FMPIndexHistoricalFetcher
 from openbb_fmp.models.insider_trading import FMPInsiderTradingFetcher
 from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipFetcher
 from openbb_fmp.models.key_executives import FMPKeyExecutivesFetcher
-from openbb_fmp.models.key_metrics import FMPKeyMetricsFetcher
 from openbb_fmp.models.market_snapshots import FMPMarketSnapshotsFetcher
 from openbb_fmp.models.nport_disclosure import FMPNportDisclosureFetcher
 from openbb_fmp.models.price_performance import FMPPricePerformanceFetcher
@@ -84,8 +84,12 @@ def create_all_cached_fetchers():
     dedicated_fetchers = {
         "AnalystEstimates": FMPCachedAnalystEstimatesFetcher,
         "EquityHistorical": FMPCachedEquityHistoricalFetcher,
+        "EquityInfo": FMPCachedEquityProfileFetcher,
+        "EquityPeers": FMPCachedEquityPeersFetcher,
+        "EquityQuote": FMPCachedEquityQuoteFetcher,
         "EtfHistorical": FMPCachedEquityHistoricalFetcher,
         "IndexConstituents": FMPCachedIndexConstituentsFetcher,
+        "KeyMetrics": FMPCachedKeyMetricsFetcher,
     }
     
     # Fetchers that need fallback wrapping
@@ -112,11 +116,8 @@ def create_all_cached_fetchers():
         ("EconomicCalendar", FMPEconomicCalendarFetcher),
         ("EquityActive", FMPEquityActiveFetcher),
         ("EquityOwnership", FMPEquityOwnershipFetcher),
-        ("EquityPeers", FMPEquityPeersFetcher),
-        ("EquityInfo", FMPEquityProfileFetcher),
         ("EquityGainers", FMPGainersFetcher),
         ("EquityLosers", FMPLosersFetcher),
-        ("EquityQuote", FMPEquityQuoteFetcher),
         ("EquityScreener", FMPEquityScreenerFetcher),
         ("EsgScore", FMPEsgScoreFetcher),
         ("EtfCountries", FMPEtfCountriesFetcher),
@@ -142,7 +143,6 @@ def create_all_cached_fetchers():
         ("InsiderTrading", FMPInsiderTradingFetcher),
         ("InstitutionalOwnership", FMPInstitutionalOwnershipFetcher),
         ("KeyExecutives", FMPKeyExecutivesFetcher),
-        ("KeyMetrics", FMPKeyMetricsFetcher),
         ("MarketSnapshots", FMPMarketSnapshotsFetcher),
         ("NportDisclosure", FMPNportDisclosureFetcher),
         ("PricePerformance", FMPPricePerformanceFetcher),
