@@ -12,16 +12,26 @@ This is a **personal finance data platform** built on a fork of OpenBB (branch: 
 - **`Tools/` scripts** — CLI utilities that parse brokerage exports and persist to MySQL
 - **OpenBB platform** — Provides the router, provider interface, data models, and extension system
 
-## Core Context Files
+## Mandatory Pre-Collaboration Step
 
-When you need deeper context, read these files:
+**Before starting any coding, analysis, or notebook work**, load these rules files
+into your context. They contain critical standards, patterns, and domain knowledge:
+
+1. `rules/COLLABORATION_RULES.md` — PII hygiene, git workflow, session checklists
+2. `rules/DEVELOPMENT_RULES.md` — Technical coding standards and patterns
+3. `rules/FINANCETOOLKIT_RULES.md` — FinanceToolkit library API, architecture, usage patterns
+
+Read these rules files **first** in every new session. Do not proceed with code
+changes until you have reviewed them.
+
+## Additional Context Files
+
+For deeper project context, read these as needed:
 
 - `context/PROJECT_CONTEXT.md` — Project overview, architecture, current state
 - `context/CODEBASE_MAP.md` — File inventory and navigation guide
 - `context/DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
 - `context/openbb/ARCHITECTURE.md` — OpenBB platform architecture
-- `rules/DEVELOPMENT_RULES.md` — Technical coding standards
-- `rules/COLLABORATION_RULES.md` — PII hygiene, git workflow, session checklists
 - `Tools/docs/DESIGN.md` — Schemas, design decisions, changelog
 
 ## Technology Stack
