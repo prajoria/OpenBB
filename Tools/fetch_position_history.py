@@ -103,6 +103,50 @@ def _is_cusip(symbol: str) -> bool:
     return bool(symbol) and symbol[0].isdigit()
 
 
+def ensure_market_holidays(start_year: int, end_year: int, database: str | None = None) -> None:
+    """Ensure US market_holidays rows exist for the requested year range.
+
+    This runs as a pre-step to improve cache gap detection accuracy and avoid
+    unnecessary API lookups for market-closed dates.
+    """
+    import pymysql
+    from openbb_fmp_cached.utils.database import DatabaseConfig
+
+    try:
+        from populate_market_holidays import compute_us_holidays
+    except Exception as e:
+        print(f"  WARNING: Could not import holiday pre-step helper: {e}")
+        return
+
+    rows = compute_us_holidays(start_year, end_year)
+    if not rows:
+        return
+
+    config = DatabaseConfig()
+    params = config.connection_params
+    if database:
+        params["database"] = database
+
+    conn = pymysql.connect(**params)
+    try:
+        with conn.cursor() as cur:
+            sql = """
+                INSERT INTO market_holidays (holiday_date, market, holiday_name)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE holiday_name = VALUES(holiday_name)
+            """
+            cur.executemany(sql, rows)
+            conn.commit()
+            print(
+                f"  Holiday pre-step: ensured {len(rows)} US market_holidays rows "
+                f"for {start_year}-{end_year} in {params.get('database')}"
+            )
+    except Exception as e:
+        print(f"  WARNING: Holiday pre-step failed: {e}")
+    finally:
+        conn.close()
+
+
 def get_portfolio_symbols(database: str = None) -> list[str]:
     """Read distinct stock symbols from Portfolio_Positions, filtering out
     non-fetchable entries (CUSIPs, cash, OTC/delisted).
@@ -315,7 +359,7 @@ def main():
         "--years",
         type=int,
         default=5,
-        help="Number of years of history to fetch (default: 10)",
+        help="Number of years of history to fetch (default: 5)",
     )
     parser.add_argument(
         "--database",
@@ -326,6 +370,11 @@ def main():
         "--dry-run",
         action="store_true",
         help="Show plan only — do not make API calls",
+    )
+    parser.add_argument(
+        "--skip-holiday-prestep",
+        action="store_true",
+        help="Skip market_holidays pre-step (not recommended)",
     )
     args = parser.parse_args()
 
@@ -343,10 +392,14 @@ def main():
     end_date = datetime.now().date()
     start_date = end_date - timedelta(days=args.years * 365)
 
+    if not args.skip_holiday_prestep:
+        ensure_market_holidays(start_date.year, end_date.year, args.database)
+
     # Print plan
     print(f"\n  Date range:    {start_date} -> {end_date} ({args.years} years)")
     print(f"  Interval:      1d (daily)")
     print(f"  Provider:      fmp_cached (auto-caching)")
+    print(f"  Holiday prep:  {'enabled' if not args.skip_holiday_prestep else 'skipped'}")
     print(f"  Symbols:       {len(symbols)}")
     if skipped:
         print(f"  Skipped:       {len(skipped)}")

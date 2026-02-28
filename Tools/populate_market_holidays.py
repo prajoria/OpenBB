@@ -19,6 +19,7 @@ NYSE/NASDAQ observed holidays:
 
 import os
 import sys
+import argparse
 from datetime import date, timedelta
 
 # ---------------------------------------------------------------------------
@@ -115,8 +116,40 @@ def main():
     import pymysql
     from openbb_fmp_cached.utils.database import DatabaseConfig
 
-    start_year = 2016
-    end_year = 2026
+    parser = argparse.ArgumentParser(
+        description="Populate US market_holidays table (idempotent upsert with optional range rebuild)."
+    )
+    parser.add_argument(
+        "--start-year",
+        type=int,
+        default=2016,
+        help="Start year to populate (default: 2016)",
+    )
+    parser.add_argument(
+        "--end-year",
+        type=int,
+        default=2026,
+        help="End year to populate (default: 2026)",
+    )
+    parser.add_argument(
+        "--database",
+        default=None,
+        help="Target MySQL database (default: from DatabaseConfig)",
+    )
+    parser.add_argument(
+        "--no-rebuild-range",
+        action="store_true",
+        help="Do not clear existing rows in range before upsert",
+    )
+    args = parser.parse_args()
+
+    start_year = args.start_year
+    end_year = args.end_year
+
+    if start_year > end_year:
+        raise ValueError("start-year must be <= end-year")
+
+    rebuild_range = not args.no_rebuild_range
 
     print("=" * 60)
     print("  POPULATE market_holidays TABLE")
@@ -136,9 +169,23 @@ def main():
     # Connect to database
     config = DatabaseConfig()
     params = config.connection_params
+    if args.database:
+        params["database"] = args.database
+
+    print(f"\n  Target DB: {params.get('database')}")
+    print(f"  Rebuild range: {'YES' if rebuild_range else 'NO'}")
     conn = pymysql.connect(**params)
     try:
         with conn.cursor() as cur:
+            if rebuild_range:
+                delete_sql = """
+                    DELETE FROM market_holidays
+                    WHERE market = 'US'
+                      AND YEAR(holiday_date) BETWEEN %s AND %s
+                """
+                cur.execute(delete_sql, (start_year, end_year))
+                print(f"\n  Deleted {cur.rowcount} existing US rows in {start_year}-{end_year}")
+
             # Upsert (idempotent)
             sql = """
                 INSERT INTO market_holidays (holiday_date, market, holiday_name)
@@ -152,9 +199,9 @@ def main():
 
             # Verify
             cur.execute(
-                "SELECT year, COUNT(*) as cnt "
+                "SELECT YEAR(holiday_date) AS year, COUNT(*) as cnt "
                 "FROM market_holidays WHERE market='US' "
-                "GROUP BY year ORDER BY year"
+                "GROUP BY YEAR(holiday_date) ORDER BY YEAR(holiday_date)"
             )
             print(f"\n  {'Year':<6s} {'Holidays':>8s}")
             print(f"  {'----':<6s} {'--------':>8s}")
