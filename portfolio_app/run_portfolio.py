@@ -26,6 +26,8 @@ def main():
                         help="Disable HTTPS (use HTTP instead)")
     args = parser.parse_args()
 
+    os.environ["PORTFOLIO_DATABASE"] = "openbb_fmp_cache_test"
+
     import uvicorn
 
     portfolio_dir = app_dir.parent  # portfolio_app/
@@ -37,6 +39,7 @@ def main():
     print(f"\n{'='*60}")
     print(f"  Portfolio App starting on {scheme}://{args.host}:{args.port}")
     print(f"  OpenBB API expected on {os.getenv('OPENBB_API_URL', 'https://127.0.0.1:6902')}")
+    print(f"  Database: {os.getenv('PORTFOLIO_DATABASE')}")
     print(f"  Docs: {scheme}://{args.host}:{args.port}/docs")
     if use_ssl:
         print(f"  SSL: {ssl_certfile}")

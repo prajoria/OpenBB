@@ -25,24 +25,13 @@ in the service layer using DataFrame operations.
 
 import logging
 import math
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from db import query
-
-# fmp_cached provider API — gap-detect + auto-fetch + cache pipeline.
-# NEVER import execute_query / fmp_query here for equity_historical;
-# use only the high-level sync helpers below.
-try:
-    from openbb_fmp_cached.models.equity_historical import (
-        get_equity_historical_sync,
-        get_latest_prices_sync,
-    )
-    _HAS_FMP_CACHED = True
-except ImportError:
-    _HAS_FMP_CACHED = False
 
 logger = logging.getLogger(__name__)
 
@@ -168,29 +157,36 @@ def get_equity_historical_df(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Fetch historical equity prices via the fmp_cached provider API.
-
-    Uses ``get_equity_historical_sync`` which runs the full
-    gap-detect → FMP API fetch → cache store pipeline so stale or
-    missing data is automatically refreshed.
-
-    Returns an empty DataFrame when the fmp_cached provider is not
-    installed (equity_historical must never be queried with raw SQL).
-    """
-    if not _HAS_FMP_CACHED:
-        logger.warning(
-            "fmp_cached provider not available — cannot fetch equity "
-            "historical data for %s",
+    """Fetch historical equity prices from the local cache database only."""
+    sql = """
+        SELECT
+            date,
             symbol,
-        )
-        return pd.DataFrame()
+            open,
+            high,
+            low,
+            close,
+            volume,
+            change_percent
+        FROM equity_historical
+        WHERE symbol = %s
+    """
+    params: list = [symbol]
 
-    rows = get_equity_historical_sync(
-        symbol,
-        start_date=start_date,
-        end_date=end_date,
-    )
-    return _to_df(_normalise_fmp_rows(rows))
+    if start_date:
+        sql += " AND date >= %s"
+        params.append(start_date)
+    if end_date:
+        sql += " AND date <= %s"
+        params.append(end_date)
+
+    sql += " ORDER BY date"
+
+    try:
+        return _to_df(query(sql, tuple(params)))
+    except Exception as exc:
+        logger.warning("Cache-only historical lookup failed for %s: %s", symbol, exc)
+        return pd.DataFrame()
 
 
 def get_latest_prices_df(
@@ -225,14 +221,6 @@ def get_latest_prices_df(
     pd.DataFrame
         Columns: ``symbol``, ``close``, ``price_date``.
     """
-    import time as _time
-
-    if not _HAS_FMP_CACHED:
-        logger.warning(
-            "fmp_cached provider not available — cannot fetch latest prices",
-        )
-        return pd.DataFrame(columns=["symbol", "close", "price_date"])
-
     if not symbols:
         # Derive symbols from Portfolio_Positions (portfolio table — OK)
         sym_rows = query(
@@ -242,44 +230,43 @@ def get_latest_prices_df(
         if not symbols:
             return pd.DataFrame(columns=["symbol", "close", "price_date"])
 
-    total = len(symbols)
-    if verbose:
-        date_label = str(as_of_date) if as_of_date else "today"
-        print(f"Fetching latest prices for {total} symbols (as of {date_label}) ...")
+    # Cache-only mode for app runtime: use last available cached close on or
+    # before the as_of_date (default = yesterday) and never trigger live fetches.
+    if as_of_date is None:
+        cutoff = date.today() - timedelta(days=1)
+    elif isinstance(as_of_date, datetime):
+        cutoff = as_of_date.date()
+    elif isinstance(as_of_date, date):
+        cutoff = as_of_date
+    elif isinstance(as_of_date, str):
+        cutoff = date.fromisoformat(as_of_date)
+    else:
+        raise ValueError("as_of_date must be None, date, datetime, or YYYY-MM-DD string")
 
-    all_rows: list[dict] = []
-    t0 = _time.perf_counter()
+    placeholders = ", ".join(["%s"] * len(symbols))
+    sql = f"""
+        SELECT eh.symbol, eh.close, eh.date AS price_date
+        FROM equity_historical eh
+        INNER JOIN (
+            SELECT symbol, MAX(date) AS max_date
+            FROM equity_historical
+            WHERE symbol IN ({placeholders})
+              AND date <= %s
+            GROUP BY symbol
+        ) latest
+          ON eh.symbol = latest.symbol
+         AND eh.date = latest.max_date
+        ORDER BY eh.symbol
+    """
 
-    for i, sym in enumerate(symbols, 1):
-        sym_t0 = _time.perf_counter()
-        rows = get_latest_prices_sync([sym], as_of_date=as_of_date)
-        elapsed = _time.perf_counter() - sym_t0
+    params = tuple(symbols) + (cutoff,)
+    try:
+        rows = query(sql, params)
+    except Exception as exc:
+        logger.warning("Cache-only latest price lookup failed: %s", exc)
+        return pd.DataFrame(columns=["symbol", "close", "price_date"])
 
-        row = rows[0] if rows else None
-        if verbose:
-            if row:
-                print(
-                    f"  [{i}/{total}] {sym:<8s} → "
-                    f"${row.get('close', 0):>10,.2f}  "
-                    f"({row.get('price_date', '?')})  "
-                    f"[{elapsed:.1f}s]"
-                )
-            else:
-                print(f"  [{i}/{total}] {sym:<8s} → NO DATA  [{elapsed:.1f}s]")
-
-        if progress_callback:
-            progress_callback(i, total, sym, row)
-
-        all_rows.extend(rows)
-
-    if verbose:
-        wall = _time.perf_counter() - t0
-        print(
-            f"Done — {len(all_rows)}/{total} prices fetched "
-            f"in {wall:.1f}s"
-        )
-
-    return _to_df(_normalise_fmp_rows(all_rows))
+    return _to_df(rows)
 
 
 def _normalise_fmp_rows(rows: list) -> list[dict]:

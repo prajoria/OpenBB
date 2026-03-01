@@ -32,6 +32,7 @@ load_dotenv(_project_root / ".env", override=True)
 from data import (  # noqa: E402
     check_db,
     df_to_records,
+    filter_df,
     get_all_snapshots_df,
     get_distinct_accounts,
     get_distinct_owners,
@@ -41,6 +42,7 @@ from data import (  # noqa: E402
     get_latest_prices_df,
     get_positions_df,
 )
+from db import DBConfig  # noqa: E402
 from openbb_client import OpenBBClient  # noqa: E402
 import service  # noqa: E402
 
@@ -104,6 +106,19 @@ def _fetch_latest_prices(symbols: list[str]) -> pd.DataFrame:
     return get_latest_prices_df(symbols)
 
 
+def _refresh_filtered_positions(
+    df: pd.DataFrame,
+    account: Optional[str] = None,
+    owner: Optional[str] = None,
+    symbol: Optional[str] = None,
+) -> pd.DataFrame:
+    """Filter positions first, then refresh market values for remaining symbols only."""
+    filtered = filter_df(df, account=account, owner=owner, symbol=symbol)
+    symbols = filtered["symbol"].unique().tolist() if not filtered.empty else []
+    prices = _fetch_latest_prices(symbols)
+    return service.refresh_market_values(filtered, prices)
+
+
 # --------------------------------------------------------------------------- #
 #  Metadata endpoints (required by OpenBB Workspace)
 # --------------------------------------------------------------------------- #
@@ -160,10 +175,8 @@ async def portfolio_positions(
 ):
     """Current portfolio positions with gain/loss analysis."""
     df = get_positions_df(snapshot_date=snapshot_date)
-    symbols = df["symbol"].unique().tolist() if not df.empty else []
-    prices = _fetch_latest_prices(symbols)
-    df = service.refresh_market_values(df, prices)
-    result = service.positions_detail(df, account=account, owner=owner)
+    df = _refresh_filtered_positions(df, account=account, owner=owner)
+    result = service.positions_detail(df)
     return df_to_records(result)
 
 
@@ -176,10 +189,8 @@ async def portfolio_summary(
 ):
     """Aggregated portfolio summary grouped by symbol."""
     df = get_positions_df()
-    symbols = df["symbol"].unique().tolist() if not df.empty else []
-    prices = _fetch_latest_prices(symbols)
-    df = service.refresh_market_values(df, prices)
-    result = service.summary_by_symbol(df, account=account, owner=owner)
+    df = _refresh_filtered_positions(df, account=account, owner=owner)
+    result = service.summary_by_symbol(df)
     return df_to_records(result)
 
 
@@ -191,10 +202,8 @@ async def portfolio_allocation(
 ):
     """Portfolio allocation by account with owner info."""
     df = get_positions_df()
-    symbols = df["symbol"].unique().tolist() if not df.empty else []
-    prices = _fetch_latest_prices(symbols)
-    df = service.refresh_market_values(df, prices)
-    result = service.allocation_by_account(df, owner=owner)
+    df = _refresh_filtered_positions(df, owner=owner)
+    result = service.allocation_by_account(df)
     return df_to_records(result)
 
 
@@ -207,10 +216,8 @@ async def portfolio_cost_basis(
 ):
     """Per-lot cost basis detail with short/long-term classification."""
     df = get_positions_df()
-    symbols = df["symbol"].unique().tolist() if not df.empty else []
-    prices = _fetch_latest_prices(symbols)
-    df = service.refresh_market_values(df, prices)
-    result = service.cost_basis_lots(df, symbol=symbol, account=account)
+    df = _refresh_filtered_positions(df, account=account, symbol=symbol)
+    result = service.cost_basis_lots(df)
     return df_to_records(result)
 
 
@@ -222,10 +229,8 @@ async def portfolio_tax_summary(
 ):
     """Tax summary: short-term vs long-term gains/losses by account."""
     df = get_positions_df()
-    symbols = df["symbol"].unique().tolist() if not df.empty else []
-    prices = _fetch_latest_prices(symbols)
-    df = service.refresh_market_values(df, prices)
-    result = service.tax_summary(df, owner=owner)
+    df = _refresh_filtered_positions(df, owner=owner)
+    result = service.tax_summary(df)
     return df_to_records(result)
 
 
@@ -237,10 +242,8 @@ async def portfolio_performance(
 ):
     """Top gainers and losers by percent return."""
     df = get_positions_df()
-    symbols = df["symbol"].unique().tolist() if not df.empty else []
-    prices = _fetch_latest_prices(symbols)
-    df = service.refresh_market_values(df, prices)
-    result = service.performance_ranking(df, owner=owner)
+    df = _refresh_filtered_positions(df, owner=owner)
+    result = service.performance_ranking(df)
     return df_to_records(result)
 
 
@@ -331,6 +334,7 @@ async def health():
     return {
         "status": "ok" if db_ok else "degraded",
         "database": db_ok,
+        "database_name": DBConfig().database,
         "openbb_api": obb_ok,
         "openbb_api_url": obb_client.base_url,
     }
