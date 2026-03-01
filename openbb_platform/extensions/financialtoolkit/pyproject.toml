@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "openbb-financialtoolkit"
+version = "0.1.0"
+description = "FinancialToolkit extension for OpenBB"
+authors = ["OpenBB Team <hello@openbb.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "openbb_financialtoolkit" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+openbb-core = "^1.5.8"
+financetoolkit = { path = "../../../FinanceToolkit", develop = true }
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."openbb_core_extension"]
+financialtoolkit = "openbb_financialtoolkit.financialtoolkit_router:router"
