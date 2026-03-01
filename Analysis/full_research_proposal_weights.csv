@@ -1,46 +1,46 @@
-"proposal","pillar","ticker","name","asset_type","sector","style","region","strategy_bucket","target_weight_pct","role"
-"FullResearch","Research","XLV","Health Care Select Sector SPDR Fund","ETF","Healthcare","Defensive Growth","US","Sector ETF Basket","2.32","Healthcare anchor with diversified blue-chip exposure"
-"FullResearch","Research","VHT","Vanguard Health Care ETF","ETF","Healthcare","Defensive Growth","US","Sector ETF Basket","2.22","Broader healthcare coverage with biotech tilt"
-"FullResearch","Research","IHF","iShares U.S. Healthcare Providers ETF","ETF","Healthcare","Provider Focus","US","Sector ETF Basket","2.22","Healthcare services and insurers exposure"
-"FullResearch","Research","IHI","iShares U.S. Medical Devices ETF","ETF","Healthcare","Innovation Tilt","US","Sector ETF Basket","2.22","Medical devices growth exposure"
-"FullResearch","Research","XHS","SPDR S&P Health Care Services ETF","ETF","Healthcare","Balanced Services","US","Sector ETF Basket","2.22","Balanced health services allocation"
-"FullResearch","Research","XLP","Consumer Staples Select Sector SPDR Fund","ETF","Consumer Staples","Defensive","US","Sector ETF Basket","2.22","Staples stability and low volatility anchor"
-"FullResearch","Research","VDC","Vanguard Consumer Staples ETF","ETF","Consumer Staples","Defensive","US","Sector ETF Basket","2.22","Broad low-cost staples exposure"
-"FullResearch","Research","FSTA","Fidelity MSCI Consumer Staples Index ETF","ETF","Consumer Staples","Defensive","US","Sector ETF Basket","2.22","Low-cost staples diversification"
-"FullResearch","Research","RHS","Invesco S&P 500 Equal Weight Consumer Staples ETF","ETF","Consumer Staples","Equal Weight","US","Sector ETF Basket","2.22","Equal-weight staples diversification"
-"FullResearch","Research","KXI","iShares Global Consumer Staples ETF","ETF","Consumer Staples","Global Defensive","Global","Sector ETF Basket","2.22","Global consumer staples diversification"
-"FullResearch","Research","XLI","Industrial Select Sector SPDR Fund","ETF","Industrials","Cyclical Core","US","Sector ETF Basket","2.22","Broad industrial benchmark exposure"
-"FullResearch","Research","VIS","Vanguard Industrials ETF","ETF","Industrials","Cyclical Core","US","Sector ETF Basket","2.22","Low-cost broad industrial exposure"
-"FullResearch","Research","FIDU","Fidelity MSCI Industrials Index ETF","ETF","Industrials","Mid-Small Tilt","US","Sector ETF Basket","2.22","Industrial exposure with mid/small tilt"
-"FullResearch","Research","PPA","Invesco Aerospace & Defense ETF","ETF","Industrials","Defense Tilt","US","Sector ETF Basket","2.22","Aerospace and defense growth tilt"
-"FullResearch","Research","ITA","iShares U.S. Aerospace & Defense ETF","ETF","Industrials","Defense Tilt","US","Sector ETF Basket","2.22","High-momentum aerospace defense exposure"
-"FullResearch","Research","XLE","Energy Select Sector SPDR Fund","ETF","Energy","Cyclical Core","US","Sector ETF Basket","2.22","Energy majors and integrated producers"
-"FullResearch","Research","VDE","Vanguard Energy ETF","ETF","Energy","Cyclical Core","US","Sector ETF Basket","2.22","Broader energy exposure including smaller names"
-"FullResearch","Research","IEO","iShares U.S. Oil & Gas Exploration & Production ETF","ETF","Energy","Exploration Tilt","US","Sector ETF Basket","2.22","Exploration and production upside tilt"
-"FullResearch","Research","XOP","SPDR S&P Oil & Gas Exploration & Production ETF","ETF","Energy","Equal Weight","US","Sector ETF Basket","2.22","Equal-weight high-beta energy exposure"
-"FullResearch","Research","OIH","VanEck Oil Services ETF","ETF","Energy","Services Tilt","US","Sector ETF Basket","2.22","Oilfield services cycle exposure"
-"FullResearch","Research","XLU","Utilities Select Sector SPDR Fund","ETF","Utilities","Defensive Yield","US","Sector ETF Basket","2.22","Defensive utility blue-chip basket"
-"FullResearch","Research","VPU","Vanguard Utilities ETF","ETF","Utilities","Defensive Yield","US","Sector ETF Basket","2.22","Broad utilities diversification"
-"FullResearch","Research","FUTY","Fidelity MSCI Utilities Index ETF","ETF","Utilities","Defensive Yield","US","Sector ETF Basket","2.22","Low-fee utility exposure"
-"FullResearch","Research","IDU","iShares U.S. Utilities ETF","ETF","Utilities","Defensive Yield","US","Sector ETF Basket","2.22","Utilities defensive diversification"
-"FullResearch","Research","UTES","Virtus Reaves Utilities ETF","ETF","Utilities","Active Yield","US","Sector ETF Basket","2.22","Actively managed utility income tilt"
-"FullResearch","Research","XLF","Financial Select Sector SPDR Fund","ETF","Financials","Cyclical Core","US","Sector ETF Basket","2.22","US financial sector anchor"
-"FullResearch","Research","VFH","Vanguard Financials ETF","ETF","Financials","Cyclical Core","US","Sector ETF Basket","2.22","Broad financial subsector diversification"
-"FullResearch","Research","IYF","iShares U.S. Financials ETF","ETF","Financials","Balanced","US","Sector ETF Basket","2.22","Balanced large and mid financials"
-"FullResearch","Research","KBWB","Invesco KBW Bank ETF","ETF","Financials","Bank Focus","US","Sector ETF Basket","2.22","Bank-heavy cyclical exposure"
-"FullResearch","Research","EUFN","iShares MSCI Europe Financials ETF","ETF","Financials","Global Diversifier","Europe","Sector ETF Basket","2.22","European financial diversification"
-"FullResearch","Research","VNQ","Vanguard Real Estate ETF","ETF","Real Estate","REIT Core","US","Sector ETF Basket","2.22","Broad US REIT core exposure"
-"FullResearch","Research","SCHH","Schwab U.S. REIT ETF","ETF","Real Estate","REIT Core","US","Sector ETF Basket","2.22","Highly liquid US REIT basket"
-"FullResearch","Research","XLRE","Real Estate Select Sector SPDR Fund","ETF","Real Estate","REIT Core","US","Sector ETF Basket","2.22","S&P real estate sector allocation"
-"FullResearch","Research","IYR","iShares U.S. Real Estate ETF","ETF","Real Estate","Commercial Tilt","US","Sector ETF Basket","2.22","Commercial REIT tilt diversification"
-"FullResearch","Research","RWR","SPDR Dow Jones REIT ETF","ETF","Real Estate","REIT Core","US","Sector ETF Basket","2.22","US REIT index diversification"
-"FullResearch","Research","XLB","Materials Select Sector SPDR Fund","ETF","Materials","Cyclical Core","US","Sector ETF Basket","2.22","US materials large-cap anchor"
-"FullResearch","Research","VAW","Vanguard Materials ETF","ETF","Materials","Cyclical Core","US","Sector ETF Basket","2.22","Broad low-cost materials exposure"
-"FullResearch","Research","MXI","iShares Global Materials ETF","ETF","Materials","Global Diversifier","Global","Sector ETF Basket","2.22","Global materials diversification"
-"FullResearch","Research","IYM","iShares U.S. Basic Materials ETF","ETF","Materials","Cyclical Core","US","Sector ETF Basket","2.22","US basic materials exposure"
-"FullResearch","Research","PICK","iShares MSCI Global Metals & Mining Producers ETF","ETF","Materials","Mining Tilt","Global","Sector ETF Basket","2.22","Metals and mining upside tilt"
-"FullResearch","Research","XLK","Technology Select Sector SPDR Fund","ETF","Technology","Growth Core","US","Sector ETF Basket","2.22","US large-cap technology core"
-"FullResearch","Research","VGT","Vanguard Information Technology ETF","ETF","Technology","Growth Core","US","Sector ETF Basket","2.22","Broad tech growth exposure"
-"FullResearch","Research","FTEC","Fidelity MSCI Information Technology Index ETF","ETF","Technology","Growth Core","US","Sector ETF Basket","2.22","Low-cost technology diversification"
-"FullResearch","Research","IYW","iShares U.S. Technology ETF","ETF","Technology","Growth Core","US","Sector ETF Basket","2.22","Liquid broad US technology exposure"
-"FullResearch","Research","SOXX","iShares Semiconductor ETF","ETF","Technology","Semiconductor Tilt","US","Sector ETF Basket","2.22","Semiconductor growth accelerator"
+proposal,pillar,ticker,name,asset_type,sector,style,region,strategy_bucket,target_weight_pct,role,target_weight_pct_seed,category
+FullResearch,Research,XLV,Health Care Select Sector SPDR Fund,ETF,Healthcare,Defensive Growth,US,Sector ETF Basket,2.2,Healthcare anchor with diversified blue-chip exposure,2.2,Health Core
+FullResearch,Research,VHT,Vanguard Health Care ETF,ETF,Healthcare,Defensive Growth,US,Sector ETF Basket,2.2,Broader healthcare coverage with biotech tilt,2.2,Health Core
+FullResearch,Research,IHF,iShares U.S. Healthcare Providers ETF,ETF,Healthcare,Provider Focus,US,Sector ETF Basket,2.2,Healthcare services and insurers exposure,2.2,Health Core
+FullResearch,Research,IHI,iShares U.S. Medical Devices ETF,ETF,Healthcare,Innovation Tilt,US,Sector ETF Basket,2.2,Medical devices growth exposure,2.2,Health Core
+FullResearch,Research,XHS,SPDR S&P Health Care Services ETF,ETF,Healthcare,Balanced Services,US,Sector ETF Basket,2.2,Balanced health services allocation,2.2,Health Core
+FullResearch,Research,XLP,Consumer Staples Select Sector SPDR Fund,ETF,Consumer Staples,Defensive,US,Sector ETF Basket,1.0,Staples stability and low volatility anchor,1.0,Staples
+FullResearch,Research,VDC,Vanguard Consumer Staples ETF,ETF,Consumer Staples,Defensive,US,Sector ETF Basket,1.0,Broad low-cost staples exposure,1.0,Staples
+FullResearch,Research,FSTA,Fidelity MSCI Consumer Staples Index ETF,ETF,Consumer Staples,Defensive,US,Sector ETF Basket,1.0,Low-cost staples diversification,1.0,Staples
+FullResearch,Research,RHS,Invesco S&P 500 Equal Weight Consumer Staples ETF,ETF,Consumer Staples,Equal Weight,US,Sector ETF Basket,1.0,Equal-weight staples diversification,1.0,Staples
+FullResearch,Research,KXI,iShares Global Consumer Staples ETF,ETF,Consumer Staples,Global Defensive,Global,Sector ETF Basket,1.0,Global consumer staples diversification,1.0,Staples
+FullResearch,Research,XLI,Industrial Select Sector SPDR Fund,ETF,Industrials,Cyclical Core,US,Sector ETF Basket,2.5,Broad industrial benchmark exposure,2.5,Industrial Growth
+FullResearch,Research,VIS,Vanguard Industrials ETF,ETF,Industrials,Cyclical Core,US,Sector ETF Basket,2.5,Low-cost broad industrial exposure,2.5,Industrial Growth
+FullResearch,Research,FIDU,Fidelity MSCI Industrials Index ETF,ETF,Industrials,Mid-Small Tilt,US,Sector ETF Basket,2.5,Industrial exposure with mid/small tilt,2.5,Industrial Growth
+FullResearch,Research,PPA,Invesco Aerospace & Defense ETF,ETF,Industrials,Defense Tilt,US,Sector ETF Basket,2.5,Aerospace and defense growth tilt,2.5,Industrial Growth
+FullResearch,Research,ITA,iShares U.S. Aerospace & Defense ETF,ETF,Industrials,Defense Tilt,US,Sector ETF Basket,2.5,High-momentum aerospace defense exposure,2.5,Industrial Growth
+FullResearch,Research,XLE,Energy Select Sector SPDR Fund,ETF,Energy,Cyclical Core,US,Sector ETF Basket,2.0,Energy majors and integrated producers,2.0,Energy Upside
+FullResearch,Research,VDE,Vanguard Energy ETF,ETF,Energy,Cyclical Core,US,Sector ETF Basket,2.0,Broader energy exposure including smaller names,2.0,Energy Upside
+FullResearch,Research,IEO,iShares U.S. Oil & Gas Exploration & Production ETF,ETF,Energy,Exploration Tilt,US,Sector ETF Basket,2.0,Exploration and production upside tilt,2.0,Energy Upside
+FullResearch,Research,XOP,SPDR S&P Oil & Gas Exploration & Production ETF,ETF,Energy,Equal Weight,US,Sector ETF Basket,2.0,Equal-weight high-beta energy exposure,2.0,Energy Upside
+FullResearch,Research,OIH,VanEck Oil Services ETF,ETF,Energy,Services Tilt,US,Sector ETF Basket,2.0,Oilfield services cycle exposure,2.0,Energy Upside
+FullResearch,Research,XLU,Utilities Select Sector SPDR Fund,ETF,Utilities,Defensive Yield,US,Sector ETF Basket,1.0,Defensive utility blue-chip basket,1.0,Utilities
+FullResearch,Research,VPU,Vanguard Utilities ETF,ETF,Utilities,Defensive Yield,US,Sector ETF Basket,1.0,Broad utilities diversification,1.0,Utilities
+FullResearch,Research,FUTY,Fidelity MSCI Utilities Index ETF,ETF,Utilities,Defensive Yield,US,Sector ETF Basket,1.0,Low-fee utility exposure,1.0,Utilities
+FullResearch,Research,IDU,iShares U.S. Utilities ETF,ETF,Utilities,Defensive Yield,US,Sector ETF Basket,1.0,Utilities defensive diversification,1.0,Utilities
+FullResearch,Research,UTES,Virtus Reaves Utilities ETF,ETF,Utilities,Active Yield,US,Sector ETF Basket,1.0,Actively managed utility income tilt,1.0,Utilities
+FullResearch,Research,XLF,Financial Select Sector SPDR Fund,ETF,Financials,Cyclical Core,US,Sector ETF Basket,3.0,US financial sector anchor,3.0,Cyclical Leaders
+FullResearch,Research,VFH,Vanguard Financials ETF,ETF,Financials,Cyclical Core,US,Sector ETF Basket,3.0,Broad financial subsector diversification,3.0,Cyclical Leaders
+FullResearch,Research,IYF,iShares U.S. Financials ETF,ETF,Financials,Balanced,US,Sector ETF Basket,3.0,Balanced large and mid financials,3.0,Cyclical Leaders
+FullResearch,Research,KBWB,Invesco KBW Bank ETF,ETF,Financials,Bank Focus,US,Sector ETF Basket,3.0,Bank-heavy cyclical exposure,3.0,Cyclical Leaders
+FullResearch,Research,EUFN,iShares MSCI Europe Financials ETF,ETF,Financials,Global Diversifier,Europe,Sector ETF Basket,3.0,European financial diversification,3.0,Cyclical Leaders
+FullResearch,Research,VNQ,Vanguard Real Estate ETF,ETF,Real Estate,REIT Core,US,Sector ETF Basket,1.5,Broad US REIT core exposure,1.5,Real Estate
+FullResearch,Research,SCHH,Schwab U.S. REIT ETF,ETF,Real Estate,REIT Core,US,Sector ETF Basket,1.5,Highly liquid US REIT basket,1.5,Real Estate
+FullResearch,Research,XLRE,Real Estate Select Sector SPDR Fund,ETF,Real Estate,REIT Core,US,Sector ETF Basket,1.5,S&P real estate sector allocation,1.5,Real Estate
+FullResearch,Research,IYR,iShares U.S. Real Estate ETF,ETF,Real Estate,Commercial Tilt,US,Sector ETF Basket,1.5,Commercial REIT tilt diversification,1.5,Real Estate
+FullResearch,Research,RWR,SPDR Dow Jones REIT ETF,ETF,Real Estate,REIT Core,US,Sector ETF Basket,1.5,US REIT index diversification,1.5,Real Estate
+FullResearch,Research,XLB,Materials Select Sector SPDR Fund,ETF,Materials,Cyclical Core,US,Sector ETF Basket,1.8,US materials large-cap anchor,1.8,Materials/Mining
+FullResearch,Research,VAW,Vanguard Materials ETF,ETF,Materials,Cyclical Core,US,Sector ETF Basket,1.8,Broad low-cost materials exposure,1.8,Materials/Mining
+FullResearch,Research,MXI,iShares Global Materials ETF,ETF,Materials,Global Diversifier,Global,Sector ETF Basket,1.8,Global materials diversification,1.8,Materials/Mining
+FullResearch,Research,IYM,iShares U.S. Basic Materials ETF,ETF,Materials,Cyclical Core,US,Sector ETF Basket,1.8,US basic materials exposure,1.8,Materials/Mining
+FullResearch,Research,PICK,iShares MSCI Global Metals & Mining Producers ETF,ETF,Materials,Mining Tilt,Global,Sector ETF Basket,1.8,Metals and mining upside tilt,1.8,Materials/Mining
+FullResearch,Research,XLK,Technology Select Sector SPDR Fund,ETF,Technology,Growth Core,US,Sector ETF Basket,5.0,US large-cap technology core,5.0,Growth Engines
+FullResearch,Research,VGT,Vanguard Information Technology ETF,ETF,Technology,Growth Core,US,Sector ETF Basket,5.0,Broad tech growth exposure,5.0,Growth Engines
+FullResearch,Research,FTEC,Fidelity MSCI Information Technology Index ETF,ETF,Technology,Growth Core,US,Sector ETF Basket,5.0,Low-cost technology diversification,5.0,Growth Engines
+FullResearch,Research,IYW,iShares U.S. Technology ETF,ETF,Technology,Growth Core,US,Sector ETF Basket,5.0,Liquid broad US technology exposure,5.0,Growth Engines
+FullResearch,Research,SOXX,iShares Semiconductor ETF,ETF,Technology,Semiconductor Tilt,US,Sector ETF Basket,5.0,Semiconductor growth accelerator,5.0,Growth Engines
