@@ -4,14 +4,14 @@ from openbb_core.provider.abstract.provider import Provider
 
 # Import original FMP fetchers  
 from openbb_fmp.models.available_indices import FMPAvailableIndicesFetcher
-from openbb_fmp.models.balance_sheet import FMPBalanceSheetFetcher
+from openbb_fmp_cached.models.balance_sheet import FMPCachedBalanceSheetFetcher
 from openbb_fmp.models.balance_sheet_growth import FMPBalanceSheetGrowthFetcher
 from openbb_fmp.models.calendar_dividend import FMPCalendarDividendFetcher
 from openbb_fmp.models.calendar_earnings import FMPCalendarEarningsFetcher
 from openbb_fmp.models.calendar_events import FMPCalendarEventsFetcher
 from openbb_fmp.models.calendar_ipo import FMPCalendarIpoFetcher
 from openbb_fmp.models.calendar_splits import FMPCalendarSplitsFetcher
-from openbb_fmp.models.cash_flow import FMPCashFlowStatementFetcher
+from openbb_fmp_cached.models.cash_flow import FMPCachedCashFlowStatementFetcher
 from openbb_fmp.models.cash_flow_growth import FMPCashFlowStatementGrowthFetcher
 from openbb_fmp.models.company_filings import FMPCompanyFilingsFetcher
 from openbb_fmp.models.company_news import FMPCompanyNewsFetcher
@@ -46,7 +46,7 @@ from openbb_fmp.models.etf_info import FMPEtfInfoFetcher
 from openbb_fmp.models.etf_search import FMPEtfSearchFetcher
 from openbb_fmp.models.etf_sectors import FMPEtfSectorsFetcher
 from openbb_fmp.models.executive_compensation import FMPExecutiveCompensationFetcher
-from openbb_fmp.models.financial_ratios import FMPFinancialRatiosFetcher
+from openbb_fmp_cached.models.financial_ratios import FMPCachedFinancialRatiosFetcher
 from openbb_fmp.models.forward_ebitda_estimates import FMPForwardEbitdaEstimatesFetcher
 from openbb_fmp.models.forward_eps_estimates import FMPForwardEpsEstimatesFetcher
 from openbb_fmp.models.government_trades import FMPGovernmentTradesFetcher
@@ -55,7 +55,7 @@ from openbb_fmp.models.historical_employees import FMPHistoricalEmployeesFetcher
 from openbb_fmp.models.historical_eps import FMPHistoricalEpsFetcher
 from openbb_fmp.models.historical_market_cap import FmpHistoricalMarketCapFetcher
 from openbb_fmp.models.historical_splits import FMPHistoricalSplitsFetcher
-from openbb_fmp.models.income_statement import FMPIncomeStatementFetcher
+from openbb_fmp_cached.models.income_statement import FMPCachedIncomeStatementFetcher
 from openbb_fmp.models.income_statement_growth import FMPIncomeStatementGrowthFetcher
 from openbb_fmp.models.index_historical import FMPIndexHistoricalFetcher
 from openbb_fmp.models.insider_trading import FMPInsiderTradingFetcher
@@ -88,21 +88,23 @@ def create_all_cached_fetchers():
         "EquityPeers": FMPCachedEquityPeersFetcher,
         "EquityQuote": FMPCachedEquityQuoteFetcher,
         "EtfHistorical": FMPCachedEquityHistoricalFetcher,
+        "FinancialRatios": FMPCachedFinancialRatiosFetcher,
         "IndexConstituents": FMPCachedIndexConstituentsFetcher,
+        "IncomeStatement": FMPCachedIncomeStatementFetcher,
         "KeyMetrics": FMPCachedKeyMetricsFetcher,
+        "BalanceSheet": FMPCachedBalanceSheetFetcher,
+        "CashFlowStatement": FMPCachedCashFlowStatementFetcher,
     }
     
     # Fetchers that need fallback wrapping
     fetcher_mapping = [
         ("AvailableIndices", FMPAvailableIndicesFetcher),
-        ("BalanceSheet", FMPBalanceSheetFetcher),
         ("BalanceSheetGrowth", FMPBalanceSheetGrowthFetcher),
         ("CalendarDividend", FMPCalendarDividendFetcher),
         ("CalendarEarnings", FMPCalendarEarningsFetcher),
         ("CalendarEvents", FMPCalendarEventsFetcher),
         ("CalendarIpo", FMPCalendarIpoFetcher),
         ("CalendarSplits", FMPCalendarSplitsFetcher),
-        ("CashFlowStatement", FMPCashFlowStatementFetcher),
         ("CashFlowStatementGrowth", FMPCashFlowStatementGrowthFetcher),
         ("CompanyFilings", FMPCompanyFilingsFetcher),
         ("CompanyNews", FMPCompanyNewsFetcher),
@@ -128,7 +130,6 @@ def create_all_cached_fetchers():
         ("EtfSearch", FMPEtfSearchFetcher),
         ("EtfSectors", FMPEtfSectorsFetcher),
         ("ExecutiveCompensation", FMPExecutiveCompensationFetcher),
-        ("FinancialRatios", FMPFinancialRatiosFetcher),
         ("ForwardEbitdaEstimates", FMPForwardEbitdaEstimatesFetcher),
         ("ForwardEpsEstimates", FMPForwardEpsEstimatesFetcher),
         ("HistoricalDividends", FMPHistoricalDividendsFetcher),
@@ -136,7 +137,6 @@ def create_all_cached_fetchers():
         ("HistoricalEps", FMPHistoricalEpsFetcher),
         ("HistoricalMarketCap", FmpHistoricalMarketCapFetcher),
         ("HistoricalSplits", FMPHistoricalSplitsFetcher),
-        ("IncomeStatement", FMPIncomeStatementFetcher),
         ("IncomeStatementGrowth", FMPIncomeStatementGrowthFetcher),
 
         ("IndexHistorical", FMPIndexHistoricalFetcher),
