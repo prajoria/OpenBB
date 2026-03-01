@@ -2246,8 +2246,11 @@ class DocstringGenerator:
 
                     # Add parameter to docstring
                     param_section += f"{create_indent(0)}{param_name} : {type_str}\n"
-                    if description.strip() and description.strip() != '""':
-                        param_section += f"{create_indent(1)}{description}\n"
+                    description_text = str(description or "").strip()
+                    if description_text and description_text != '""':
+                        param_section += (
+                            f"{create_indent(1)}{description_text}\n"
+                        )
 
                 result_doc += param_section + "\n"
 

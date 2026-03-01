@@ -37,8 +37,10 @@ def create_fallback_fetcher_class(original_fetcher_class: Type[Fetcher], endpoin
         @staticmethod
         async def aextract_data(query, credentials, **kwargs):
             """Extract data with credential translation only - no database persistence."""
-            print(f"⚠️  FALLBACK: Using fallback implementation for endpoint: {endpoint_name}")
-            print(f"   Consider implementing dedicated database persistence in the specific model file")
+            logger.info(
+                "Using fallback fetcher implementation for endpoint=%s",
+                endpoint_name,
+            )
             
             # Fix credential mapping: fmp_cached_api_key -> fmp_api_key
             if credentials and 'fmp_cached_api_key' in credentials:
@@ -49,9 +51,12 @@ def create_fallback_fetcher_class(original_fetcher_class: Type[Fetcher], endpoin
                 translated_credentials = credentials
             
             try:
-                # Direct FMP API call with credential translation only
-                raw_data = await original_fetcher_class.aextract_data(query, translated_credentials, **kwargs)
-                return original_fetcher_class.transform_data(query, raw_data, **kwargs)
+                # Return raw extracted data; OpenBB runtime will call transform_data.
+                return await original_fetcher_class.aextract_data(
+                    query,
+                    translated_credentials,
+                    **kwargs,
+                )
                 
             except Exception as e:
                 logger.error(f"Failed to fetch data from FMP for {endpoint_name}: {e}")
