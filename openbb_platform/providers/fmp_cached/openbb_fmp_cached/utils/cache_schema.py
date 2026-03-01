@@ -5072,6 +5072,34 @@ def create_treasury_rates_table():
     return execute_query(query)
 
 
+def create_complementary_market_yields_table():
+    """Create complementary_market_yields table for TNX and similar series."""
+    table_name = get_table_name("complementary_market_yields")
+    query = f"""
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+        symbol VARCHAR(50) DEFAULT NULL,
+        date DATE DEFAULT NULL,
+        close DECIMAL(15,6) DEFAULT NULL,
+        data_json JSON DEFAULT NULL,
+        additional_fields JSON DEFAULT NULL,
+
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_valid BOOLEAN DEFAULT TRUE,
+
+        INDEX idx_symbol (symbol),
+        INDEX idx_date (date),
+        INDEX idx_symbol_date (symbol, date),
+        INDEX idx_cached_at (cached_at),
+        INDEX idx_is_valid (is_valid),
+        UNIQUE KEY unique_symbol_date (symbol, date)
+
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
+
+
 def create_world_news_table():
     """Create world_news table with common financial data columns."""
     query = """
@@ -5425,6 +5453,9 @@ FLATTENED_TABLES = {
     },
     "treasury_rates": {
         "schema": create_treasury_rates_table
+    },
+    "complementary_market_yields": {
+        "schema": create_complementary_market_yields_table
     },
     "world_news": {
         "schema": create_world_news_table
