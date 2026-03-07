@@ -68,13 +68,38 @@ def _positions_df(*a, **kw):
     return pd.DataFrame(_POSITIONS)
 
 
-def _snapshots_df(*a, **kw):
-    cols = [
-        "account_name", "symbol", "quantity",
-        "cost_basis_total", "current_value", "total_gain_loss",
-        "snapshot_date",
-    ]
-    return pd.DataFrame(_POSITIONS)[cols]
+def _basket_df(*a, **kw):
+    df = _LATEST_POS_DF.copy()
+    grouped = (
+        df.groupby(["symbol", "description"], as_index=False)
+        .agg(
+            total_quantity=("quantity", "sum"),
+            total_cost_basis=("cost_basis_total", "sum"),
+            total_current_value=("current_value", "sum"),
+            total_gain_loss=("total_gain_loss", "sum"),
+            snapshot_date=("snapshot_date", "first"),
+        )
+    )
+    total_value = grouped["total_current_value"].sum()
+    grouped["pct_return"] = (
+        (grouped["total_gain_loss"] / grouped["total_cost_basis"].replace(0, float("nan"))) * 100
+    ).round(2).fillna(0)
+    grouped["portfolio_weight_pct"] = (
+        grouped["total_current_value"] / total_value * 100 if total_value else 0
+    )
+    return grouped
+
+
+def _basket_snapshots_df(*a, **kw):
+    df = pd.DataFrame(_POSITIONS)
+    return (
+        df.groupby(["snapshot_date", "symbol"], as_index=False)
+        .agg(
+            total_cost_basis=("cost_basis_total", "sum"),
+            total_current_value=("current_value", "sum"),
+            total_gain_loss=("total_gain_loss", "sum"),
+        )
+    )
 
 
 def _espp_df(*a, **kw):
@@ -105,19 +130,18 @@ def _distinct_symbols():
 
 
 def _distinct_accounts():
-    return [{"label": a, "value": a} for a in _ACCOUNTS]
+    return []
 
 
 def _distinct_owners():
-    return [{"label": o, "value": o} for o in _OWNERS]
+    return []
 
 
 SYNC_PATCHES = {
-    "main.get_positions_df": _positions_df,
-    "main.get_all_snapshots_df": _snapshots_df,
+    "main.get_portfolio_basket_df": _basket_df,
+    "main.get_all_basket_snapshots_df": _basket_snapshots_df,
     "main.get_espp_df": _espp_df,
     "main.get_equity_historical_df": _equity_df,
-    "main.get_latest_prices_df": _latest_prices_df,
     "main.check_db": _check_db,
     "main.get_distinct_symbols": _distinct_symbols,
     "main.get_distinct_accounts": _distinct_accounts,
@@ -173,12 +197,12 @@ class TestMetadataEndpoints:
     def test_get_accounts(self, client):
         r = client.get("/get_accounts")
         assert r.status_code == 200
-        assert len(r.json()) == len(_ACCOUNTS)
+        assert r.json() == []
 
     def test_get_owners(self, client):
         r = client.get("/get_owners")
         assert r.status_code == 200
-        assert len(r.json()) == len(_OWNERS)
+        assert r.json() == []
 
 
 # =========================================================================== #
@@ -187,130 +211,55 @@ class TestMetadataEndpoints:
 
 
 class TestPositionsEndpoint:
-    def test_returns_list(self, client):
+    def test_blocked(self, client):
         r = client.get("/portfolio/positions")
-        assert r.status_code == 200
-        data = r.json()
-        assert isinstance(data, list)
-        # Patched get_positions_df returns ALL 160 rows (both snapshots);
-        # endpoint sorts but doesn't filter by snapshot itself.
-        assert len(data) == len(_POSITIONS)
-
-    def test_sorted_by_value(self, client):
-        r = client.get("/portfolio/positions")
-        values = [row["current_value"] for row in r.json()]
-        assert values == sorted(values, reverse=True)
-
-    def test_filter_by_account(self, client):
-        r = client.get(f"/portfolio/positions?account={_ONE_ACCOUNT}")
-        data = r.json()
-        assert len(data) > 0
-        assert all(row["account_name"] == _ONE_ACCOUNT for row in data)
-
-    def test_filter_by_owner(self, client):
-        r = client.get(f"/portfolio/positions?owner={_ONE_OWNER}")
-        data = r.json()
-        assert len(data) > 0
-        assert all(row["owner"] == _ONE_OWNER for row in data)
-
-    def test_no_match_returns_empty(self, client):
-        r = client.get("/portfolio/positions?account=NonExistent9999")
-        assert r.json() == []
+        assert r.status_code == 403
 
 
 class TestSummaryEndpoint:
-    def test_returns_aggregated(self, client):
+    def test_returns_basket_rows(self, client):
         r = client.get("/portfolio/summary")
         assert r.status_code == 200
         data = r.json()
         symbols = {row["symbol"] for row in data}
-        # Aggregated by symbol — fewer rows than raw positions
         assert len(symbols) > 0
-        assert len(data) <= len(_POSITIONS)
+        assert len(data) == len(_SYMBOLS)
 
-    def test_has_pct_return(self, client):
+    def test_has_weight_and_return(self, client):
         r = client.get("/portfolio/summary")
         for row in r.json():
             assert "pct_return" in row
+            assert "portfolio_weight_pct" in row
             assert isinstance(row["pct_return"], (int, float))
 
-    def test_filter_by_owner(self, client):
-        r = client.get(f"/portfolio/summary?owner={_ONE_OWNER}")
+    def test_filter_by_symbol(self, client):
+        r = client.get(f"/portfolio/summary?symbol={_ONE_SYMBOL}")
         data = r.json()
-        assert len(data) > 0
+        assert len(data) == 1
+        assert data[0]["symbol"] == _ONE_SYMBOL
 
-    def test_sorted_by_value_desc(self, client):
+    def test_sorted_by_weight_desc(self, client):
         r = client.get("/portfolio/summary")
-        values = [row["total_current_value"] for row in r.json()]
-        assert values == sorted(values, reverse=True)
+        weights = [row["portfolio_weight_pct"] for row in r.json()]
+        assert weights == sorted(weights, reverse=True)
 
 
 class TestAllocationEndpoint:
-    def test_returns_by_account(self, client):
+    def test_blocked(self, client):
         r = client.get("/portfolio/allocation")
-        assert r.status_code == 200
-        data = r.json()
-        accounts = {row["account_name"] for row in data}
-        assert len(accounts) > 0
-
-    def test_has_num_symbols(self, client):
-        r = client.get("/portfolio/allocation")
-        for row in r.json():
-            assert "num_symbols" in row
-            assert row["num_symbols"] >= 1
-
-    def test_filter_by_owner(self, client):
-        r = client.get(f"/portfolio/allocation?owner={_ONE_OWNER}")
-        data = r.json()
-        assert len(data) > 0
-        assert all(row["owner"] == _ONE_OWNER for row in data)
+        assert r.status_code == 403
 
 
 class TestCostBasisEndpoint:
-    def test_returns_lots(self, client):
+    def test_blocked(self, client):
         r = client.get("/portfolio/cost_basis")
-        assert r.status_code == 200
-        data = r.json()
-        assert len(data) == len(_POSITIONS)  # one row per lot
-
-    def test_filter_by_symbol(self, client):
-        r = client.get(f"/portfolio/cost_basis?symbol={_ONE_SYMBOL}")
-        data = r.json()
-        assert len(data) > 0
-        assert all(row["symbol"] == _ONE_SYMBOL for row in data)
-
-    def test_filter_by_account(self, client):
-        r = client.get(f"/portfolio/cost_basis?account={_ONE_ACCOUNT}")
-        data = r.json()
-        assert len(data) > 0
-        assert all(row["account_name"] == _ONE_ACCOUNT for row in data)
-
-    def test_sorted_by_symbol_acquired(self, client):
-        r = client.get("/portfolio/cost_basis")
-        data = r.json()
-        keys = [(row["symbol"], row.get("acquired") or "") for row in data]
-        assert keys == sorted(keys)
+        assert r.status_code == 403
 
 
 class TestTaxSummaryEndpoint:
-    def test_returns_grouped(self, client):
+    def test_blocked(self, client):
         r = client.get("/portfolio/tax_summary")
-        assert r.status_code == 200
-        data = r.json()
-        assert len(data) > 0
-        for row in data:
-            assert "term" in row
-            assert row["term"].strip() != ""
-
-    def test_has_pct_return(self, client):
-        r = client.get("/portfolio/tax_summary")
-        for row in r.json():
-            assert "pct_return" in row
-
-    def test_filter_by_owner(self, client):
-        r = client.get(f"/portfolio/tax_summary?owner={_ONE_OWNER}")
-        data = r.json()
-        assert all(row["owner"] == _ONE_OWNER for row in data)
+        assert r.status_code == 403
 
 
 class TestPerformanceEndpoint:
@@ -321,10 +270,10 @@ class TestPerformanceEndpoint:
         pcts = [row["pct_return"] for row in data]
         assert pcts == sorted(pcts, reverse=True)
 
-    def test_excludes_zero_cost(self, client):
+    def test_has_basket_weight(self, client):
         r = client.get("/portfolio/performance")
         data = r.json()
-        assert all(row["total_cost_basis"] > 0 for row in data)
+        assert all("portfolio_weight_pct" in row for row in data)
 
 
 class TestSnapshotsEndpoint:
@@ -342,9 +291,9 @@ class TestSnapshotsEndpoint:
     def test_has_totals(self, client):
         r = client.get("/portfolio/snapshots")
         for row in r.json():
-            assert "lots" in row
+            assert "stocks" in row
             assert "total_current_value" in row
-            assert row["lots"] > 0
+            assert row["stocks"] > 0
 
 
 class TestEsppEndpoint:

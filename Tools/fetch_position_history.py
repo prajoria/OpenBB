@@ -2,10 +2,15 @@
 Fetch Daily Equity History for Portfolio Positions
 
 Reads distinct stock symbols from the Portfolio_Positions table and fetches
-10 years of daily price history via the OpenBB fmp_cached provider.
+daily price history via the OpenBB fmp_cached provider.
 
 The fmp_cached provider automatically caches data in MySQL with intelligent
 gap detection — subsequent runs only fetch missing date ranges.
+
+Important:
+    This script pre-caches market price data (equity_historical) used by the
+    Portfolio App. Portfolio tables themselves (Portfolio_Positions,
+    Account_Owner, ESPP_Plan) must be populated by their own loaders.
 
 Usage:
     python Tools/fetch_equity_history.py --dry-run     # plan only, no API calls
@@ -147,7 +152,7 @@ def ensure_market_holidays(start_year: int, end_year: int, database: str | None 
         conn.close()
 
 
-def get_portfolio_symbols(database: str = None) -> list[str]:
+def get_portfolio_symbols(database: str = None) -> tuple[list[str], list[tuple[str, str]]]:
     """Read distinct stock symbols from Portfolio_Positions, filtering out
     non-fetchable entries (CUSIPs, cash, OTC/delisted).
 
@@ -183,6 +188,76 @@ def get_portfolio_symbols(database: str = None) -> list[str]:
             tickers.append(s)
 
     return tickers, skipped
+
+
+def _connect(database: str | None = None):
+    """Get a DictCursor pymysql connection using DatabaseConfig defaults."""
+    import pymysql
+    from openbb_fmp_cached.utils.database import DatabaseConfig
+
+    config = DatabaseConfig()
+    params = config.connection_params
+    if database:
+        params["database"] = database
+    return pymysql.connect(**params, cursorclass=pymysql.cursors.DictCursor)
+
+
+def _previous_trading_day(ref_date: datetime.date) -> datetime.date:
+    """Return previous weekday date (Mon->Fri), suitable as default freshness target."""
+    d = ref_date - timedelta(days=1)
+    while d.weekday() >= 5:  # 5=Sat, 6=Sun
+        d -= timedelta(days=1)
+    return d
+
+
+def check_portfolio_app_readiness(symbols: list[str], database: str | None = None) -> dict:
+    """Check whether Portfolio App required data is present and recent.
+
+    Validates:
+      1) required tables have rows (Portfolio_Positions, Account_Owner, ESPP_Plan)
+      2) each symbol has a cached latest close in equity_historical
+      3) latest close date is at least the previous trading day
+    """
+    target_date = _previous_trading_day(datetime.now().date())
+    readiness: dict = {
+        "target_date": str(target_date),
+        "table_counts": {},
+        "missing_price_symbols": [],
+        "stale_price_symbols": [],
+    }
+
+    if not symbols:
+        return readiness
+
+    conn = _connect(database)
+    try:
+        with conn.cursor() as cur:
+            for table_name in ("Portfolio_Positions", "Account_Owner", "ESPP_Plan"):
+                cur.execute(f"SELECT COUNT(*) AS c FROM {table_name}")
+                readiness["table_counts"][table_name] = cur.fetchone()["c"]
+
+            placeholders = ", ".join(["%s"] * len(symbols))
+            sql = f"""
+                SELECT symbol, MAX(date) AS max_date
+                FROM equity_historical
+                WHERE symbol IN ({placeholders})
+                GROUP BY symbol
+            """
+            cur.execute(sql, tuple(symbols))
+            rows = cur.fetchall()
+            max_by_symbol = {r["symbol"]: r["max_date"] for r in rows}
+
+            for sym in symbols:
+                max_date = max_by_symbol.get(sym)
+                if max_date is None:
+                    readiness["missing_price_symbols"].append(sym)
+                    continue
+                if max_date < target_date:
+                    readiness["stale_price_symbols"].append((sym, str(max_date)))
+    finally:
+        conn.close()
+
+    return readiness
 
 
 def _resolve_api_key() -> str | None:
@@ -438,6 +513,34 @@ def main():
         print(f"  Failed ({len(stats['failed'])}):")
         for sym, err in stats["failed"]:
             print(f"    {sym:<10s} {err}")
+
+    readiness = check_portfolio_app_readiness(symbols, args.database)
+    print(f"\n  Portfolio App readiness (DB/cache)")
+    print(f"    Freshness target date: {readiness['target_date']}")
+    for table_name, count in readiness["table_counts"].items():
+        print(f"    {table_name:<20s} rows={count}")
+
+    missing = readiness["missing_price_symbols"]
+    stale = readiness["stale_price_symbols"]
+    print(f"    Missing cached prices: {len(missing)}")
+    if missing:
+        for sym in missing[:20]:
+            print(f"      - {sym}")
+        if len(missing) > 20:
+            print(f"      ... and {len(missing) - 20} more")
+
+    print(f"    Stale cached prices:   {len(stale)}")
+    if stale:
+        for sym, max_date in stale[:20]:
+            print(f"      - {sym}: last cached date {max_date}")
+        if len(stale) > 20:
+            print(f"      ... and {len(stale) - 20} more")
+
+    if not missing and not stale:
+        print("    Status: READY (cache coverage is current for portfolio symbols)")
+    else:
+        print("    Status: PARTIAL (see missing/stale symbols above)")
+
     print(f"{'=' * 70}")
 
 

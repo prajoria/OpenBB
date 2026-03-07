@@ -5,9 +5,12 @@ Fetches raw data from MySQL into pandas DataFrames.
 ──────────────────────────────────────────────────────────────────────
  DATA ACCESS POLICY  (read this before adding any new queries)
 ──────────────────────────────────────────────────────────────────────
- • **Portfolio tables** — ``Portfolio_Positions``, ``Account_Owner``,
-   ``ESPP_Plan`` — may be queried directly via the portfolio ``db``
-   module (``from db import query``).
+ • **Sanitized API portfolio table** — ``portfolio_basket`` — is the
+     only table that should be used by API endpoints for portfolio holdings.
+
+ • **Raw portfolio tables** — ``Portfolio_Positions``, ``Account_Owner``,
+     ``ESPP_Plan`` — contain sensitive lot-level data and must not be
+     exposed by API endpoints.
 
  • **Market / price data** (``equity_historical`` and any other tables
    owned by the ``openbb_fmp_cached`` provider) must **NEVER** be
@@ -139,6 +142,47 @@ def get_all_snapshots_df() -> pd.DataFrame:
     return _to_df(query(sql))
 
 
+def get_portfolio_basket_df(snapshot_date: Optional[str] = None) -> pd.DataFrame:
+    """Fetch symbol-level sanitized portfolio basket rows."""
+    sql = """
+        SELECT
+            snapshot_date,
+            symbol,
+            description,
+            total_quantity,
+            total_cost_basis,
+            total_current_value,
+            total_gain_loss,
+            pct_return,
+            portfolio_weight_pct
+        FROM portfolio_basket
+    """
+    params: list = []
+    if snapshot_date:
+        sql += " WHERE DATE(snapshot_date) = %s"
+        params.append(snapshot_date)
+    else:
+        sql += " WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM portfolio_basket)"
+
+    sql += " ORDER BY portfolio_weight_pct DESC, symbol"
+    return _to_df(query(sql, tuple(params)))
+
+
+def get_all_basket_snapshots_df() -> pd.DataFrame:
+    """Fetch all symbol-level basket rows across snapshots."""
+    sql = """
+        SELECT
+            snapshot_date,
+            symbol,
+            total_cost_basis,
+            total_current_value,
+            total_gain_loss
+        FROM portfolio_basket
+        ORDER BY snapshot_date
+    """
+    return _to_df(query(sql))
+
+
 def get_espp_df() -> pd.DataFrame:
     """Fetch all ESPP purchase records."""
     sql = """
@@ -222,9 +266,9 @@ def get_latest_prices_df(
         Columns: ``symbol``, ``close``, ``price_date``.
     """
     if not symbols:
-        # Derive symbols from Portfolio_Positions (portfolio table — OK)
+        # Derive symbols from sanitized basket table
         sym_rows = query(
-            "SELECT DISTINCT symbol FROM Portfolio_Positions ORDER BY symbol"
+            "SELECT DISTINCT symbol FROM portfolio_basket ORDER BY symbol"
         )
         symbols = [r["symbol"] for r in sym_rows]
         if not symbols:
@@ -303,17 +347,15 @@ def check_db() -> bool:
 
 def get_distinct_symbols() -> list[dict]:
     """Distinct ticker symbols for widget dropdowns."""
-    rows = query("SELECT DISTINCT symbol FROM Portfolio_Positions ORDER BY symbol")
+    rows = query("SELECT DISTINCT symbol FROM portfolio_basket ORDER BY symbol")
     return [{"value": r["symbol"], "label": r["symbol"]} for r in rows]
 
 
 def get_distinct_accounts() -> list[dict]:
-    """Distinct account names for widget dropdowns."""
-    rows = query("SELECT DISTINCT account_name FROM Portfolio_Positions ORDER BY account_name")
-    return [{"value": r["account_name"], "label": r["account_name"]} for r in rows]
+    """Account-level options are disabled in API to avoid exposing raw holdings metadata."""
+    return []
 
 
 def get_distinct_owners() -> list[dict]:
-    """Distinct owners for widget dropdowns."""
-    rows = query("SELECT DISTINCT owner FROM Account_Owner ORDER BY owner")
-    return [{"value": r["owner"], "label": r["owner"]} for r in rows]
+    """Owner-level options are disabled in API to avoid exposing raw holdings metadata."""
+    return []

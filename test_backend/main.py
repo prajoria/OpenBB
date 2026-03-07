@@ -23,7 +23,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -210,7 +210,7 @@ if not _loaded_via_openbb_api:
 async def get_symbols():
     """Return distinct symbols for autocomplete."""
     rows = _query(
-        "SELECT DISTINCT symbol FROM Portfolio_Positions ORDER BY symbol"
+        "SELECT DISTINCT symbol FROM portfolio_basket ORDER BY symbol"
     )
     return [
         {"value": r["symbol"], "label": r["symbol"]}
@@ -220,19 +220,24 @@ async def get_symbols():
 
 @app.get("/get_accounts", include_in_schema=False)
 async def get_accounts():
-    """Return distinct account names for autocomplete."""
-    rows = _query(
-        "SELECT DISTINCT account_name FROM Portfolio_Positions ORDER BY account_name"
-    )
-    return [
-        {"value": r["account_name"], "label": r["account_name"]}
-        for r in rows
-    ]
+    """Account-level options are disabled to avoid exposing raw holdings metadata."""
+    return []
 
 
 # --------------------------------------------------------------------------- #
 #  Widget Endpoints
 # --------------------------------------------------------------------------- #
+
+
+def _raw_positions_blocked() -> None:
+    """Raise an explicit policy error for raw holdings endpoints."""
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "Raw lot-level portfolio access is disabled in API. "
+            "Use a local Python script for Portfolio_Positions access."
+        ),
+    )
 
 # ── 1. Portfolio Positions Summary ────────────────────────────────────────── #
 
@@ -241,69 +246,42 @@ async def portfolio_positions(
     account: Optional[str] = Query(None, description="Filter by account name"),
     snapshot_date: Optional[str] = Query(None, description="Filter by snapshot date (YYYY-MM-DD)"),
 ):
-    """Current portfolio positions with gain/loss analysis."""
-    sql = """
-        SELECT
-            pp.account_name,
-            ao.owner,
-            pp.symbol,
-            pp.description,
-            pp.quantity,
-            pp.avg_cost_basis,
-            pp.cost_basis_total,
-            pp.current_value,
-            pp.total_gain_loss,
-            pp.pct_gain_loss,
-            pp.term,
-            pp.acquired,
-            pp.share_source,
-            pp.snapshot_date
-        FROM Portfolio_Positions pp
-        LEFT JOIN Account_Owner ao ON pp.account_name = ao.account_name
-        WHERE 1=1
-    """
-    params = []
-    if account:
-        sql += " AND pp.account_name = %s"
-        params.append(account)
-    if snapshot_date:
-        sql += " AND DATE(pp.snapshot_date) = %s"
-        params.append(snapshot_date)
-    else:
-        # Default: latest snapshot
-        sql += " AND pp.snapshot_date = (SELECT MAX(snapshot_date) FROM Portfolio_Positions)"
-    sql += " ORDER BY pp.current_value DESC"
-    return _query(sql, tuple(params))
+    """Blocked: raw lot-level positions cannot be served via API."""
+    _raw_positions_blocked()
 
 
 # ── 2. Portfolio Summary by Symbol ───────────────────────────────────────── #
 
 @app.get("/portfolio/summary")
 async def portfolio_summary(
-    account: Optional[str] = Query(None, description="Filter by account name"),
+    snapshot_date: Optional[str] = Query(None, description="Filter by snapshot date (YYYY-MM-DD)"),
+    symbol: Optional[str] = Query(None, description="Filter by ticker symbol"),
 ):
-    """Aggregated portfolio summary grouped by symbol."""
+    """Sanitized symbol-level portfolio summary grouped by symbol."""
     sql = """
         SELECT
-            pp.symbol,
-            pp.description,
-            SUM(pp.quantity) AS total_quantity,
-            SUM(pp.cost_basis_total) AS total_cost_basis,
-            SUM(pp.current_value) AS total_current_value,
-            SUM(pp.total_gain_loss) AS total_gain_loss,
-            CASE
-                WHEN SUM(pp.cost_basis_total) > 0
-                THEN ROUND(SUM(pp.total_gain_loss) / SUM(pp.cost_basis_total) * 100, 2)
-                ELSE 0
-            END AS pct_return
-        FROM Portfolio_Positions pp
-        WHERE pp.snapshot_date = (SELECT MAX(snapshot_date) FROM Portfolio_Positions)
+            snapshot_date,
+            symbol,
+            description,
+            total_quantity,
+            total_cost_basis,
+            total_current_value,
+            total_gain_loss,
+            pct_return,
+            portfolio_weight_pct
+        FROM portfolio_basket
+        WHERE 1=1
     """
     params = []
-    if account:
-        sql += " AND pp.account_name = %s"
-        params.append(account)
-    sql += " GROUP BY pp.symbol, pp.description ORDER BY total_current_value DESC"
+    if snapshot_date:
+        sql += " AND DATE(snapshot_date) = %s"
+        params.append(snapshot_date)
+    else:
+        sql += " AND snapshot_date = (SELECT MAX(snapshot_date) FROM portfolio_basket)"
+    if symbol:
+        sql += " AND symbol = %s"
+        params.append(symbol)
+    sql += " ORDER BY portfolio_weight_pct DESC, symbol"
     return _query(sql, tuple(params))
 
 
@@ -311,27 +289,8 @@ async def portfolio_summary(
 
 @app.get("/portfolio/allocation")
 async def portfolio_allocation():
-    """Portfolio allocation by account with owner info."""
-    sql = """
-        SELECT
-            pp.account_name,
-            ao.owner,
-            COUNT(DISTINCT pp.symbol) AS num_symbols,
-            SUM(pp.current_value) AS total_value,
-            SUM(pp.cost_basis_total) AS total_cost_basis,
-            SUM(pp.total_gain_loss) AS total_gain_loss,
-            CASE
-                WHEN SUM(pp.cost_basis_total) > 0
-                THEN ROUND(SUM(pp.total_gain_loss) / SUM(pp.cost_basis_total) * 100, 2)
-                ELSE 0
-            END AS pct_return
-        FROM Portfolio_Positions pp
-        LEFT JOIN Account_Owner ao ON pp.account_name = ao.account_name
-        WHERE pp.snapshot_date = (SELECT MAX(snapshot_date) FROM Portfolio_Positions)
-        GROUP BY pp.account_name, ao.owner
-        ORDER BY total_value DESC
-    """
-    return _query(sql)
+    """Blocked: account allocation requires raw position metadata."""
+    _raw_positions_blocked()
 
 
 # ── 4. Cost Basis Analysis ────────────────────────────────────────────────── #
@@ -340,31 +299,8 @@ async def portfolio_allocation():
 async def portfolio_cost_basis(
     symbol: Optional[str] = Query(None, description="Filter by symbol"),
 ):
-    """Per-lot cost basis detail with short/long-term classification."""
-    sql = """
-        SELECT
-            pp.symbol,
-            pp.account_name,
-            pp.acquired,
-            pp.term,
-            pp.quantity,
-            pp.avg_cost_basis,
-            pp.cost_basis_total,
-            pp.current_value,
-            pp.total_gain_loss,
-            pp.pct_gain_loss,
-            pp.share_source,
-            pp.grant_date,
-            pp.transfer_avail_date
-        FROM Portfolio_Positions pp
-        WHERE pp.snapshot_date = (SELECT MAX(snapshot_date) FROM Portfolio_Positions)
-    """
-    params = []
-    if symbol:
-        sql += " AND pp.symbol = %s"
-        params.append(symbol)
-    sql += " ORDER BY pp.symbol, pp.acquired"
-    return _query(sql, tuple(params))
+    """Blocked: lot-level cost basis cannot be served via API."""
+    _raw_positions_blocked()
 
 
 # ── 5. Equity Historical Prices ──────────────────────────────────────────── #
@@ -418,54 +354,29 @@ async def espp_purchases():
 
 @app.get("/portfolio/tax_summary")
 async def portfolio_tax_summary():
-    """Tax summary: short-term vs long-term gains/losses by account."""
-    sql = """
-        SELECT
-            pp.account_name,
-            ao.owner,
-            pp.term,
-            COUNT(*) AS num_lots,
-            SUM(pp.quantity) AS total_quantity,
-            SUM(pp.cost_basis_total) AS total_cost_basis,
-            SUM(pp.current_value) AS total_current_value,
-            SUM(pp.total_gain_loss) AS total_gain_loss,
-            CASE
-                WHEN SUM(pp.cost_basis_total) > 0
-                THEN ROUND(SUM(pp.total_gain_loss) / SUM(pp.cost_basis_total) * 100, 2)
-                ELSE 0
-            END AS pct_return
-        FROM Portfolio_Positions pp
-        LEFT JOIN Account_Owner ao ON pp.account_name = ao.account_name
-        WHERE pp.snapshot_date = (SELECT MAX(snapshot_date) FROM Portfolio_Positions)
-            AND pp.term != ''
-        GROUP BY pp.account_name, ao.owner, pp.term
-        ORDER BY pp.account_name, pp.term
-    """
-    return _query(sql)
+    """Blocked: tax summary endpoint uses raw lots and is disabled."""
+    _raw_positions_blocked()
 
 
 # ── 8. Portfolio Performance (top gainers/losers) ─────────────────────────── #
 
 @app.get("/portfolio/performance")
 async def portfolio_performance():
-    """Top gainers and losers by percent return."""
+    """Top gainers and losers by percent return from sanitized basket."""
     sql = """
         SELECT
-            pp.symbol,
-            pp.description,
-            SUM(pp.quantity) AS total_quantity,
-            SUM(pp.cost_basis_total) AS total_cost_basis,
-            SUM(pp.current_value) AS total_current_value,
-            SUM(pp.total_gain_loss) AS total_gain_loss,
-            CASE
-                WHEN SUM(pp.cost_basis_total) > 0
-                THEN ROUND(SUM(pp.total_gain_loss) / SUM(pp.cost_basis_total) * 100, 2)
-                ELSE 0
-            END AS pct_return
-        FROM Portfolio_Positions pp
-        WHERE pp.snapshot_date = (SELECT MAX(snapshot_date) FROM Portfolio_Positions)
-        GROUP BY pp.symbol, pp.description
-        HAVING SUM(pp.cost_basis_total) > 0
+            snapshot_date,
+            symbol,
+            description,
+            total_quantity,
+            total_cost_basis,
+            total_current_value,
+            total_gain_loss,
+            pct_return,
+            portfolio_weight_pct
+        FROM portfolio_basket
+        WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM portfolio_basket)
+          AND total_cost_basis > 0
         ORDER BY pct_return DESC
     """
     return _query(sql)

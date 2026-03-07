@@ -18,6 +18,7 @@ import os
 from typing import Any, Dict, Optional
 
 import httpx
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,11 @@ class OpenBBClient:
         )
 
     async def get(
-        self, path: str, timeout: float = 30.0, **params: Any
+        self, path: str, **params: Any
     ) -> Optional[Dict]:
         """GET request to the OpenBB API. Returns parsed JSON or None on error."""
         url = f"{self.base_url}{path}"
+        timeout = float(params.pop("timeout", 30.0))
         try:
             async with httpx.AsyncClient(verify=False) as client:
                 resp = await client.get(url, params=params, timeout=timeout)
@@ -66,7 +68,7 @@ class OpenBBClient:
 
     async def get_df(
         self, path: str, timeout: float = 30.0, **params: Any
-    ) -> "pd.DataFrame":
+    ) -> pd.DataFrame:
         """GET request to the OpenBB API, returning results as a DataFrame.
 
         Extracts the ``results`` key from the standard OpenBB response

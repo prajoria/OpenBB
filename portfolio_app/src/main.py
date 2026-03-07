@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -33,20 +33,16 @@ from data import (  # noqa: E402
     check_db,
     df_to_records,
     filter_df,
-    get_all_snapshots_df,
+    get_all_basket_snapshots_df,
     get_distinct_accounts,
     get_distinct_owners,
     get_distinct_symbols,
     get_equity_historical_df,
     get_espp_df,
-    get_latest_prices_df,
-    get_positions_df,
+    get_portfolio_basket_df,
 )
 from db import DBConfig  # noqa: E402
 from openbb_client import OpenBBClient  # noqa: E402
-import service  # noqa: E402
-
-import pandas as pd  # noqa: E402
 
 LOG = logging.getLogger("portfolio_app")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(message)s")
@@ -88,35 +84,6 @@ app.add_middleware(
 
 # OpenBB API client (for calling the other service — quotes, fundamentals)
 obb_client = OpenBBClient()
-
-
-def _fetch_latest_prices(symbols: list[str]) -> pd.DataFrame:
-    """Fetch latest market prices from the fmp_cached equity_historical table.
-
-    Uses ``get_latest_prices_df()`` which reads the equity_historical cache
-    maintained by the ``openbb_fmp_cached`` provider — a direct DB read,
-    no HTTP round-trip needed.
-
-    Returns a DataFrame with columns: symbol, close, price_date.
-    Returns an empty DataFrame when no data is available, which causes
-    ``refresh_market_values`` to keep the original snapshot values.
-    """
-    if not symbols:
-        return pd.DataFrame(columns=["symbol", "close", "price_date"])
-    return get_latest_prices_df(symbols)
-
-
-def _refresh_filtered_positions(
-    df: pd.DataFrame,
-    account: Optional[str] = None,
-    owner: Optional[str] = None,
-    symbol: Optional[str] = None,
-) -> pd.DataFrame:
-    """Filter positions first, then refresh market values for remaining symbols only."""
-    filtered = filter_df(df, account=account, owner=owner, symbol=symbol)
-    symbols = filtered["symbol"].unique().tolist() if not filtered.empty else []
-    prices = _fetch_latest_prices(symbols)
-    return service.refresh_market_values(filtered, prices)
 
 
 # --------------------------------------------------------------------------- #
@@ -165,85 +132,87 @@ async def get_owners():
 #  Portfolio Endpoints
 # --------------------------------------------------------------------------- #
 
+
+def _raw_positions_blocked() -> None:
+    """Raise an explicit policy error for raw holdings endpoints."""
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "Raw lot-level portfolio access is disabled in API. "
+            "Use a local Python script for Portfolio_Positions access."
+        ),
+    )
+
 # ── 1. Positions detail ──────────────────────────────────────────────────── #
 
 @app.get("/portfolio/positions")
 async def portfolio_positions(
-    account: Optional[str] = Query(None, description="Filter by account name"),
-    owner: Optional[str] = Query(None, description="Filter by owner"),
-    snapshot_date: Optional[str] = Query(None, description="Filter by snapshot date (YYYY-MM-DD)"),
+    account: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
+    owner: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
+    snapshot_date: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
 ):
-    """Current portfolio positions with gain/loss analysis."""
-    df = get_positions_df(snapshot_date=snapshot_date)
-    df = _refresh_filtered_positions(df, account=account, owner=owner)
-    result = service.positions_detail(df)
-    return df_to_records(result)
+    """Blocked: raw lot-level positions cannot be served via API."""
+    _raw_positions_blocked()
 
 
 # ── 2. Summary by symbol ─────────────────────────────────────────────────── #
 
 @app.get("/portfolio/summary")
 async def portfolio_summary(
-    account: Optional[str] = Query(None, description="Filter by account name"),
-    owner: Optional[str] = Query(None, description="Filter by owner"),
+    snapshot_date: Optional[str] = Query(None, description="Filter by snapshot date (YYYY-MM-DD)"),
+    symbol: Optional[str] = Query(None, description="Filter by ticker symbol"),
 ):
-    """Aggregated portfolio summary grouped by symbol."""
-    df = get_positions_df()
-    df = _refresh_filtered_positions(df, account=account, owner=owner)
-    result = service.summary_by_symbol(df)
-    return df_to_records(result)
+    """Sanitized symbol-level portfolio summary from portfolio_basket."""
+    df = get_portfolio_basket_df(snapshot_date=snapshot_date)
+    if symbol:
+        df = filter_df(df, symbol=symbol)
+    if not df.empty and "portfolio_weight_pct" in df.columns:
+        df = df.sort_values("portfolio_weight_pct", ascending=False).reset_index(drop=True)
+    return df_to_records(df)
 
 
 # ── 3. Account allocation ────────────────────────────────────────────────── #
 
 @app.get("/portfolio/allocation")
 async def portfolio_allocation(
-    owner: Optional[str] = Query(None, description="Filter by owner"),
+    owner: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
 ):
-    """Portfolio allocation by account with owner info."""
-    df = get_positions_df()
-    df = _refresh_filtered_positions(df, owner=owner)
-    result = service.allocation_by_account(df)
-    return df_to_records(result)
+    """Blocked: account allocation requires raw position metadata."""
+    _raw_positions_blocked()
 
 
 # ── 4. Cost basis lots ───────────────────────────────────────────────────── #
 
 @app.get("/portfolio/cost_basis")
 async def portfolio_cost_basis(
-    symbol: Optional[str] = Query(None, description="Filter by symbol"),
-    account: Optional[str] = Query(None, description="Filter by account"),
+    symbol: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
+    account: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
 ):
-    """Per-lot cost basis detail with short/long-term classification."""
-    df = get_positions_df()
-    df = _refresh_filtered_positions(df, account=account, symbol=symbol)
-    result = service.cost_basis_lots(df)
-    return df_to_records(result)
+    """Blocked: lot-level cost basis cannot be served via API."""
+    _raw_positions_blocked()
 
 
 # ── 5. Tax summary ───────────────────────────────────────────────────────── #
 
 @app.get("/portfolio/tax_summary")
 async def portfolio_tax_summary(
-    owner: Optional[str] = Query(None, description="Filter by owner"),
+    owner: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
 ):
-    """Tax summary: short-term vs long-term gains/losses by account."""
-    df = get_positions_df()
-    df = _refresh_filtered_positions(df, owner=owner)
-    result = service.tax_summary(df)
-    return df_to_records(result)
+    """Blocked: tax summary endpoint uses raw lots and is disabled."""
+    _raw_positions_blocked()
 
 
 # ── 6. Performance (top gainers/losers) ───────────────────────────────────── #
 
 @app.get("/portfolio/performance")
 async def portfolio_performance(
-    owner: Optional[str] = Query(None, description="Filter by owner"),
+    snapshot_date: Optional[str] = Query(None, description="Filter by snapshot date (YYYY-MM-DD)"),
 ):
-    """Top gainers and losers by percent return."""
-    df = get_positions_df()
-    df = _refresh_filtered_positions(df, owner=owner)
-    result = service.performance_ranking(df)
+    """Symbol performance ranking from sanitized basket data."""
+    df = get_portfolio_basket_df(snapshot_date=snapshot_date)
+    if df.empty:
+        return []
+    result = df.sort_values("pct_return", ascending=False).reset_index(drop=True)
     return df_to_records(result)
 
 
@@ -251,9 +220,21 @@ async def portfolio_performance(
 
 @app.get("/portfolio/snapshots")
 async def portfolio_snapshots():
-    """All available snapshot dates with totals — for building trendlines."""
-    df = get_all_snapshots_df()
-    result = service.snapshot_totals(df)
+    """All available basket snapshots with total portfolio values."""
+    df = get_all_basket_snapshots_df()
+    if df.empty:
+        return []
+    result = (
+        df.groupby("snapshot_date", as_index=False)
+        .agg(
+            stocks=("symbol", "nunique"),
+            total_cost_basis=("total_cost_basis", "sum"),
+            total_current_value=("total_current_value", "sum"),
+            total_gain_loss=("total_gain_loss", "sum"),
+        )
+        .sort_values("snapshot_date")
+        .reset_index(drop=True)
+    )
     return df_to_records(result)
 
 
@@ -285,10 +266,14 @@ async def market_quote(
     provider: Optional[str] = Query(None, description="Data provider (e.g. fmp, yfinance)"),
 ):
     """Get a live equity quote by proxying to the OpenBB Platform API."""
-    params = {"symbol": symbol}
     if provider:
-        params["provider"] = provider
-    data = await obb_client.get("/api/v1/equity/price/quote", **params)
+        data = await obb_client.get(
+            "/api/v1/equity/price/quote",
+            symbol=symbol,
+            provider=provider,
+        )
+    else:
+        data = await obb_client.get("/api/v1/equity/price/quote", symbol=symbol)
     if data is None:
         return JSONResponse(
             status_code=502,
@@ -305,14 +290,15 @@ async def market_historical(
     provider: Optional[str] = Query(None, description="Data provider (e.g. fmp, yfinance)"),
 ):
     """Get historical prices by proxying to the OpenBB Platform API."""
-    params = {"symbol": symbol}
+    request_kwargs: dict[str, str] = {"symbol": symbol}
     if start_date:
-        params["start_date"] = start_date
+        request_kwargs["start_date"] = start_date
     if end_date:
-        params["end_date"] = end_date
+        request_kwargs["end_date"] = end_date
     if provider:
-        params["provider"] = provider
-    data = await obb_client.get("/api/v1/equity/price/historical", **params)
+        request_kwargs["provider"] = provider
+
+    data = await obb_client.get("/api/v1/equity/price/historical", **request_kwargs)
     if data is None:
         return JSONResponse(
             status_code=502,

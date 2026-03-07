@@ -142,6 +142,7 @@ except ImportError:
 # Default HTML path
 # ---------------------------------------------------------------------------
 DEFAULT_HTML_PATH = r"I:\masterswork\FinanceData\Portfolio Positions.html"
+DEFAULT_FORTRESS_CSV_PATH = r"I:\masterswork\git\OpenBB\Analysis\FortressFinal.csv"
 
 # ---------------------------------------------------------------------------
 # Parsing helpers
@@ -625,6 +626,7 @@ CREATE TABLE IF NOT EXISTS Portfolio_Positions (
     -- Snapshot identification
     snapshot_date      DATETIME      NULL,              -- "As of" timestamp from the HTML page
     account_name       VARCHAR(100)  NOT NULL DEFAULT '',-- Account: "Individual - TOD (X65957336)"
+    basket_name        VARCHAR(200)  NOT NULL DEFAULT '',-- Basket name for basket-derived rows
 
     -- Stock identification
     symbol             VARCHAR(20)   NOT NULL,          -- Ticker symbol, CUSIP, or fund code
@@ -649,17 +651,18 @@ CREATE TABLE IF NOT EXISTS Portfolio_Positions (
     created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     -- Index on snapshot for fast delete-before-reimport
-    INDEX idx_snapshot (snapshot_date)
+    INDEX idx_snapshot (snapshot_date),
+    INDEX idx_account_basket (account_name, basket_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
 INSERT_SQL = """
 INSERT INTO Portfolio_Positions
-    (snapshot_date, account_name, symbol, description, acquired, term,
+    (snapshot_date, account_name, basket_name, symbol, description, acquired, term,
      total_gain_loss, pct_gain_loss, current_value, quantity,
      avg_cost_basis, cost_basis_total,
      transfer_avail_date, share_source, grant_date)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 CREATE_ACCOUNT_OWNER_SQL = """
@@ -676,6 +679,517 @@ INSERT_ACCOUNT_OWNER_SQL = """
 INSERT IGNORE INTO Account_Owner (account_name, owner)
 VALUES (%s, %s)
 """
+
+CREATE_PORTFOLIO_BASKET_SQL = """
+CREATE TABLE IF NOT EXISTS portfolio_basket (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    snapshot_date        DATETIME       NOT NULL,
+    symbol               VARCHAR(20)    NOT NULL,
+    description          VARCHAR(200)   NOT NULL DEFAULT '',
+    total_quantity       DECIMAL(14,4)  NOT NULL DEFAULT 0,
+    total_cost_basis     DECIMAL(14,4)  NOT NULL DEFAULT 0,
+    total_current_value  DECIMAL(14,4)  NOT NULL DEFAULT 0,
+    total_gain_loss      DECIMAL(14,4)  NOT NULL DEFAULT 0,
+    pct_return           DECIMAL(8,2)   NOT NULL DEFAULT 0,
+    portfolio_weight_pct DECIMAL(8,4)   NOT NULL DEFAULT 0,
+    created_at           TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_snapshot_symbol (snapshot_date, symbol),
+    INDEX idx_basket_snapshot (snapshot_date),
+    INDEX idx_basket_symbol (symbol)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+INSERT_PORTFOLIO_BASKET_SQL = """
+INSERT INTO portfolio_basket
+    (snapshot_date, symbol, description, total_quantity, total_cost_basis,
+     total_current_value, total_gain_loss, pct_return, portfolio_weight_pct)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+"""
+
+CREATE_BASKET_INTENDED_WEIGHT_SQL = """
+CREATE TABLE IF NOT EXISTS basket_intended_weight (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    import_date          DATETIME       NOT NULL,
+    basket_name          VARCHAR(200)   NOT NULL,
+    symbol               VARCHAR(20)    NOT NULL,
+    description          VARCHAR(255)   NOT NULL DEFAULT '',
+    target_weight_pct    DECIMAL(8,4)   NOT NULL DEFAULT 0,
+    proposal             VARCHAR(120)   NOT NULL DEFAULT '',
+    pillar               VARCHAR(120)   NOT NULL DEFAULT '',
+    asset_type           VARCHAR(120)   NOT NULL DEFAULT '',
+    sector               VARCHAR(120)   NOT NULL DEFAULT '',
+    style                VARCHAR(120)   NOT NULL DEFAULT '',
+    region               VARCHAR(120)   NOT NULL DEFAULT '',
+    strategy_bucket      VARCHAR(120)   NOT NULL DEFAULT '',
+    role                 VARCHAR(255)   NOT NULL DEFAULT '',
+    owner                VARCHAR(100)   NOT NULL DEFAULT '',
+    created_at           TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_biw_basket_date (basket_name, import_date),
+    INDEX idx_biw_symbol (symbol)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+INSERT_BASKET_INTENDED_WEIGHT_SQL = """
+INSERT INTO basket_intended_weight
+    (import_date, basket_name, symbol, description, target_weight_pct,
+     proposal, pillar, asset_type, sector, style, region, strategy_bucket, role, owner)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+"""
+
+
+def persist_basket_intended_weight_csv(
+    csv_path: str,
+    basket_name: str,
+    database: Optional[str] = None,
+    owner: str = "",
+) -> dict:
+    """Import intended basket weights from a preprocessed CSV file."""
+    source_df = pd.read_csv(csv_path)
+    if source_df.empty:
+        raise ValueError(f"CSV has no rows: {csv_path}")
+
+    required_cols = {"ticker", "target_weight_pct"}
+    missing = [c for c in required_cols if c not in source_df.columns]
+    if missing:
+        raise ValueError(
+            f"CSV missing required columns: {missing}. Found: {list(source_df.columns)}"
+        )
+
+    import_dt = datetime.now().replace(microsecond=0)
+    basket_label = _clean_text(basket_name) or "Fortress"
+
+    df = source_df.copy()
+    df["symbol"] = df["ticker"].astype(str).str.strip().str.upper()
+    if "name" in df.columns:
+        df["description"] = df["name"].astype(str).fillna("").str.strip()
+    else:
+        df["description"] = ""
+    df["target_weight_pct"] = pd.to_numeric(df["target_weight_pct"], errors="coerce").fillna(0.0)
+
+    string_cols = [
+        "proposal",
+        "pillar",
+        "asset_type",
+        "sector",
+        "style",
+        "region",
+        "strategy_bucket",
+        "role",
+    ]
+    for col in string_cols:
+        if col not in df.columns:
+            df[col] = ""
+        else:
+            df[col] = df[col].fillna("").astype(str).str.strip()
+
+    df = df[df["symbol"].ne("")].copy()
+    if df.empty:
+        raise ValueError("CSV has no valid symbol rows after normalization")
+
+    conn = get_connection(database)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(CREATE_BASKET_INTENDED_WEIGHT_SQL)
+
+            inserted = 0
+            for _, row in df.iterrows():
+                cur.execute(
+                    INSERT_BASKET_INTENDED_WEIGHT_SQL,
+                    (
+                        import_dt,
+                        basket_label,
+                        row["symbol"],
+                        row["description"],
+                        float(row["target_weight_pct"]),
+                        row["proposal"],
+                        row["pillar"],
+                        row["asset_type"],
+                        row["sector"],
+                        row["style"],
+                        row["region"],
+                        row["strategy_bucket"],
+                        row["role"],
+                        owner or "",
+                    ),
+                )
+                inserted += cur.rowcount
+
+            cur.execute(
+                "SELECT COUNT(*) AS cnt FROM basket_intended_weight WHERE basket_name = %s",
+                (basket_label,),
+            )
+            basket_total_rows = int(cur.fetchone()["cnt"])
+
+        db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        return {
+            "database": db_name,
+            "basket_name": basket_label,
+            "import_date": import_dt,
+            "inserted": inserted,
+            "csv_rows": int(len(df)),
+            "unique_symbols": int(df["symbol"].nunique()),
+            "target_weight_sum_pct": float(df["target_weight_pct"].sum()),
+            "basket_total_rows": basket_total_rows,
+        }
+    finally:
+        conn.close()
+
+
+def build_basket_drift_report(
+    basket_name: str,
+    database: Optional[str] = None,
+) -> tuple[pd.DataFrame, dict]:
+    """Build intended-vs-actual drift report for a basket.
+
+    Uses the latest import_date for basket_intended_weight and the latest
+    snapshot_date for the same basket in Portfolio_Positions.
+
+    Actual weights are computed *within the basket only*:
+        symbol_current_value / basket_total_current_value * 100
+    """
+    basket_label = _clean_text(basket_name) or "Fortress"
+
+    conn = get_connection(database)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(CREATE_BASKET_INTENDED_WEIGHT_SQL)
+            cur.execute(CREATE_PORTFOLIO_BASKET_SQL)
+
+            cur.execute(
+                """
+                SELECT MAX(import_date) AS latest_import_date
+                FROM basket_intended_weight
+                WHERE basket_name = %s
+                """,
+                (basket_label,),
+            )
+            latest_import = cur.fetchone()["latest_import_date"]
+            if latest_import is None:
+                raise ValueError(
+                    f"No intended-weight data found for basket '{basket_label}'"
+                )
+
+            cur.execute(
+                """
+                SELECT MAX(snapshot_date) AS latest_snapshot_date
+                FROM Portfolio_Positions
+                WHERE basket_name = %s
+                """,
+                (basket_label,),
+            )
+            latest_snapshot = cur.fetchone()["latest_snapshot_date"]
+            if latest_snapshot is None:
+                raise ValueError(
+                    f"No Portfolio_Positions rows found for basket '{basket_label}'"
+                )
+
+            cur.execute(
+                """
+                WITH basket_actual AS (
+                    SELECT
+                        p.snapshot_date,
+                        p.symbol,
+                        MAX(p.description) AS actual_description,
+                        ROUND(SUM(p.current_value), 4) AS actual_total_current_value,
+                        ROUND(SUM(p.cost_basis_total), 4) AS actual_total_cost_basis,
+                        ROUND(SUM(p.total_gain_loss), 4) AS actual_total_gain_loss,
+                        CASE
+                            WHEN SUM(p.cost_basis_total) > 0
+                            THEN ROUND(SUM(p.total_gain_loss) / SUM(p.cost_basis_total) * 100, 2)
+                            ELSE 0
+                        END AS actual_pct_return
+                    FROM Portfolio_Positions p
+                    WHERE p.snapshot_date = %s
+                      AND p.basket_name = %s
+                    GROUP BY p.snapshot_date, p.symbol
+                ),
+                basket_totals AS (
+                    SELECT
+                        snapshot_date,
+                        SUM(actual_total_current_value) AS basket_total_value
+                    FROM basket_actual
+                    GROUP BY snapshot_date
+                )
+                SELECT
+                    iw.symbol AS symbol,
+                    iw.description AS intended_description,
+                    iw.target_weight_pct AS intended_weight_pct,
+                    CASE
+                        WHEN COALESCE(bt.basket_total_value, 0) > 0
+                        THEN ROUND(COALESCE(ba.actual_total_current_value, 0) / bt.basket_total_value * 100, 4)
+                        ELSE 0
+                    END AS actual_weight_pct,
+                    COALESCE(ba.actual_description, '') AS actual_description,
+                    COALESCE(ba.actual_total_current_value, 0) AS actual_total_current_value,
+                    COALESCE(ba.actual_total_cost_basis, 0) AS actual_total_cost_basis,
+                    COALESCE(ba.actual_total_gain_loss, 0) AS actual_total_gain_loss,
+                    COALESCE(ba.actual_pct_return, 0) AS actual_pct_return
+                FROM basket_intended_weight iw
+                LEFT JOIN basket_actual ba
+                  ON ba.symbol = iw.symbol
+                LEFT JOIN basket_totals bt
+                  ON bt.snapshot_date = ba.snapshot_date
+                WHERE iw.basket_name = %s
+                  AND iw.import_date = %s
+                ORDER BY ABS(
+                    (
+                        CASE
+                            WHEN COALESCE(bt.basket_total_value, 0) > 0
+                            THEN ROUND(COALESCE(ba.actual_total_current_value, 0) / bt.basket_total_value * 100, 4)
+                            ELSE 0
+                        END
+                    ) - iw.target_weight_pct
+                ) DESC,
+                         iw.symbol ASC
+                """,
+                (latest_snapshot, basket_label, basket_label, latest_import),
+            )
+            rows = cur.fetchall()
+
+        df = pd.DataFrame(rows)
+        if df.empty:
+            raise ValueError(
+                f"No comparable rows for basket '{basket_label}' at import {latest_import}"
+            )
+
+        df["description"] = df["actual_description"].where(
+            df["actual_description"].astype(str).str.strip().ne(""),
+            df["intended_description"],
+        )
+        df["drift_pct"] = (df["actual_weight_pct"] - df["intended_weight_pct"]).round(4)
+        df["abs_drift_pct"] = df["drift_pct"].abs().round(4)
+        df["missing_in_actual"] = (df["actual_total_current_value"].astype(float) <= 0).astype(int)
+
+        summary = {
+            "basket_name": basket_label,
+            "latest_import_date": latest_import,
+            "latest_snapshot_date": latest_snapshot,
+            "rows": int(len(df)),
+            "symbols_missing_in_actual": int(df["missing_in_actual"].sum()),
+            "intended_weight_sum_pct": float(df["intended_weight_pct"].sum()),
+            "actual_weight_sum_pct": float(df["actual_weight_pct"].sum()),
+            "max_abs_drift_pct": float(df["abs_drift_pct"].max()),
+            "avg_abs_drift_pct": float(df["abs_drift_pct"].mean()),
+        }
+
+        display_cols = [
+            "symbol",
+            "description",
+            "intended_weight_pct",
+            "actual_weight_pct",
+            "drift_pct",
+            "abs_drift_pct",
+            "missing_in_actual",
+            "actual_pct_return",
+        ]
+        return df[display_cols].copy(), summary
+    finally:
+        conn.close()
+
+
+def _build_portfolio_basket_rows(df: pd.DataFrame) -> list[dict]:
+    """Build symbol-level aggregated basket rows with portfolio weights."""
+    if df.empty:
+        return []
+
+    grouped = (
+        df.groupby("symbol", as_index=False)
+        .agg(
+            description=("description", "first"),
+            total_quantity=("quantity", "sum"),
+            total_cost_basis=("cost_basis_total", "sum"),
+            total_current_value=("current_value", "sum"),
+            total_gain_loss=("total_gain_loss", "sum"),
+        )
+    )
+
+    total_portfolio_value = float(grouped["total_current_value"].sum())
+    if total_portfolio_value > 0:
+        grouped["portfolio_weight_pct"] = (
+            grouped["total_current_value"] / total_portfolio_value * 100
+        )
+    else:
+        grouped["portfolio_weight_pct"] = 0.0
+
+    cost = grouped["total_cost_basis"].replace(0, float("nan"))
+    grouped["pct_return"] = ((grouped["total_gain_loss"] / cost) * 100).round(2).fillna(0)
+
+    for col in (
+        "total_quantity",
+        "total_cost_basis",
+        "total_current_value",
+        "total_gain_loss",
+        "portfolio_weight_pct",
+    ):
+        grouped[col] = grouped[col].astype(float)
+
+    return grouped.to_dict(orient="records")
+
+
+def _ensure_portfolio_positions_schema(cur) -> None:
+    """Apply additive schema migrations for Portfolio_Positions."""
+    cur.execute("SHOW COLUMNS FROM Portfolio_Positions LIKE 'basket_name'")
+    if cur.fetchone() is None:
+        cur.execute(
+            "ALTER TABLE Portfolio_Positions "
+            "ADD COLUMN basket_name VARCHAR(200) NOT NULL DEFAULT '' AFTER account_name"
+        )
+        cur.execute(
+            "ALTER TABLE Portfolio_Positions "
+            "ADD INDEX idx_account_basket (account_name, basket_name)"
+        )
+
+
+def _rebuild_portfolio_basket_for_snapshot(cur, snapshot_value) -> tuple[int, int]:
+    """Rebuild portfolio_basket rows for one snapshot from Portfolio_Positions."""
+    cur.execute(
+        "DELETE FROM portfolio_basket WHERE snapshot_date = %s",
+        (snapshot_value,),
+    )
+    deleted_basket = cur.rowcount
+
+    cur.execute(
+        """
+        INSERT INTO portfolio_basket
+            (snapshot_date, symbol, description, total_quantity, total_cost_basis,
+             total_current_value, total_gain_loss, pct_return, portfolio_weight_pct)
+        SELECT
+            pp.snapshot_date,
+            pp.symbol,
+            MAX(pp.description) AS description,
+            ROUND(SUM(pp.quantity), 4) AS total_quantity,
+            ROUND(SUM(pp.cost_basis_total), 4) AS total_cost_basis,
+            ROUND(SUM(pp.current_value), 4) AS total_current_value,
+            ROUND(SUM(pp.total_gain_loss), 4) AS total_gain_loss,
+            CASE
+                WHEN SUM(pp.cost_basis_total) > 0
+                THEN ROUND(SUM(pp.total_gain_loss) / SUM(pp.cost_basis_total) * 100, 2)
+                ELSE 0
+            END AS pct_return,
+            CASE
+                WHEN totals.total_value > 0
+                THEN ROUND(SUM(pp.current_value) / totals.total_value * 100, 4)
+                ELSE 0
+            END AS portfolio_weight_pct
+        FROM Portfolio_Positions pp
+        JOIN (
+            SELECT snapshot_date, SUM(current_value) AS total_value
+            FROM Portfolio_Positions
+            WHERE snapshot_date = %s
+            GROUP BY snapshot_date
+        ) totals
+          ON totals.snapshot_date = pp.snapshot_date
+        WHERE pp.snapshot_date = %s
+        GROUP BY pp.snapshot_date, pp.symbol, totals.total_value
+        """,
+        (snapshot_value, snapshot_value),
+    )
+    inserted_basket = cur.rowcount
+    return deleted_basket, inserted_basket
+
+
+def persist_basket_positions_to_mysql(
+    basket_positions_df: pd.DataFrame,
+    owner: str,
+    database: Optional[str] = None,
+) -> dict:
+    """Persist basket-derived rows into Portfolio_Positions."""
+    if basket_positions_df.empty:
+        return {
+            "database": database or "",
+            "deleted": 0,
+            "inserted": 0,
+            "total_rows": 0,
+            "stocks": 0,
+            "deleted_basket": 0,
+            "inserted_basket": 0,
+            "total_basket_rows": 0,
+        }
+
+    conn = get_connection(database)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(CREATE_TABLE_SQL)
+            _ensure_portfolio_positions_schema(cur)
+            cur.execute(CREATE_ACCOUNT_OWNER_SQL)
+            cur.execute(CREATE_PORTFOLIO_BASKET_SQL)
+
+            basket_accounts = [
+                str(a)
+                for a in basket_positions_df["account_name"].dropna().astype(str).unique().tolist()
+            ]
+
+            for account_name in basket_accounts:
+                cur.execute(INSERT_ACCOUNT_OWNER_SQL, (account_name, owner))
+
+            deleted = 0
+            deleted_basket = 0
+            inserted_basket = 0
+
+            snapshot_values = [
+                s for s in basket_positions_df["snapshot_date"].dropna().unique().tolist() if s is not None
+            ]
+
+            if basket_accounts and snapshot_values:
+                placeholders_accounts = ", ".join(["%s"] * len(basket_accounts))
+                placeholders_snapshots = ", ".join(["%s"] * len(snapshot_values))
+                delete_sql = (
+                    "DELETE FROM Portfolio_Positions "
+                    f"WHERE snapshot_date IN ({placeholders_snapshots}) "
+                    f"AND account_name IN ({placeholders_accounts})"
+                )
+                cur.execute(delete_sql, (*snapshot_values, *basket_accounts))
+                deleted = cur.rowcount
+
+            inserted = 0
+            for _, row in basket_positions_df.iterrows():
+                snapshot_val = row.get("snapshot_date")
+                cur.execute(
+                    INSERT_SQL,
+                    (
+                        snapshot_val,
+                        row["account_name"],
+                        row.get("basket_name", "") or "",
+                        row["symbol"],
+                        row.get("description", "") or "",
+                        None,
+                        "",
+                        float(row.get("total_gain_loss", 0.0) or 0.0),
+                        float(row.get("pct_gain_loss", 0.0) or 0.0),
+                        float(row.get("current_value", 0.0) or 0.0),
+                        float(row.get("quantity", 0.0) or 0.0),
+                        float(row.get("avg_cost_basis", 0.0) or 0.0),
+                        float(row.get("cost_basis_total", 0.0) or 0.0),
+                        None,
+                        "Basket Group",
+                        None,
+                    ),
+                )
+                inserted += cur.rowcount
+
+            for snapshot_val in snapshot_values:
+                d_count, i_count = _rebuild_portfolio_basket_for_snapshot(cur, snapshot_val)
+                deleted_basket += d_count
+                inserted_basket += i_count
+
+            cur.execute("SELECT COUNT(*) AS cnt FROM Portfolio_Positions")
+            total_rows = cur.fetchone()["cnt"]
+            cur.execute("SELECT COUNT(*) AS cnt FROM portfolio_basket")
+            total_basket_rows = cur.fetchone()["cnt"]
+
+        db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        return {
+            "database": db_name,
+            "deleted": deleted,
+            "inserted": inserted,
+            "total_rows": total_rows,
+            "stocks": int(basket_positions_df["symbol"].nunique()),
+            "deleted_basket": deleted_basket,
+            "inserted_basket": inserted_basket,
+            "total_basket_rows": total_basket_rows,
+        }
+    finally:
+        conn.close()
 
 
 def get_connection(database: Optional[str] = None):
@@ -704,8 +1218,13 @@ def get_connection(database: Optional[str] = None):
     )
 
 
-def persist_to_mysql(df: pd.DataFrame, owner: str = "",
-                     database: Optional[str] = None) -> dict:
+def persist_to_mysql(
+    df: pd.DataFrame,
+    owner: str = "",
+    database: Optional[str] = None,
+    *,
+    merge_snapshot: bool = False,
+) -> dict:
     """Persist a snapshot to MySQL.
 
     Strategy: DELETE all rows with the same ``snapshot_date``, then INSERT
@@ -721,7 +1240,9 @@ def persist_to_mysql(df: pd.DataFrame, owner: str = "",
     try:
         with conn.cursor() as cur:
             cur.execute(CREATE_TABLE_SQL)
+            _ensure_portfolio_positions_schema(cur)
             cur.execute(CREATE_ACCOUNT_OWNER_SQL)
+            cur.execute(CREATE_PORTFOLIO_BASKET_SQL)
 
             # Populate Account_Owner
             if owner and "account_name" in df.columns:
@@ -733,15 +1254,33 @@ def persist_to_mysql(df: pd.DataFrame, owner: str = "",
             if "snapshot_date" in df.columns and df["snapshot_date"].notna().any():
                 snap_val = df["snapshot_date"].dropna().iloc[0]
 
-            # Delete previous import of this snapshot (idempotent re-import)
+            # Delete previous import of this snapshot.
+            # Default behavior assumes one HTML file is a complete snapshot.
             if snap_val is not None:
-                cur.execute(
-                    "DELETE FROM Portfolio_Positions WHERE snapshot_date = %s",
-                    (snap_val,),
-                )
-                deleted = cur.rowcount
+                imported_accounts = []
+                if "account_name" in df.columns:
+                    imported_accounts = [
+                        str(a) for a in df["account_name"].dropna().astype(str).unique().tolist()
+                    ]
+
+                if merge_snapshot and imported_accounts:
+                    placeholders = ", ".join(["%s"] * len(imported_accounts))
+                    delete_sql = (
+                        "DELETE FROM Portfolio_Positions "
+                        "WHERE snapshot_date = %s "
+                        f"AND account_name IN ({placeholders})"
+                    )
+                    cur.execute(delete_sql, (snap_val, *imported_accounts))
+                    deleted = cur.rowcount
+                else:
+                    cur.execute(
+                        "DELETE FROM Portfolio_Positions WHERE snapshot_date = %s",
+                        (snap_val,),
+                    )
+                    deleted = cur.rowcount
             else:
                 deleted = 0
+                imported_accounts = []
 
             # Insert all rows
             inserted = 0
@@ -754,6 +1293,7 @@ def persist_to_mysql(df: pd.DataFrame, owner: str = "",
                 cur.execute(INSERT_SQL, (
                     snapshot,
                     row["account_name"],
+                    row.get("basket_name", "") or "",
                     row["symbol"],
                     row["description"],
                     acquired,
@@ -770,8 +1310,17 @@ def persist_to_mysql(df: pd.DataFrame, owner: str = "",
                 ))
                 inserted += cur.rowcount
 
+            if snap_val is not None:
+                # Rebuild basket for the full snapshot across all accounts currently in DB.
+                deleted_basket, inserted_basket = _rebuild_portfolio_basket_for_snapshot(cur, snap_val)
+            else:
+                deleted_basket = 0
+                inserted_basket = 0
+
             cur.execute("SELECT COUNT(*) AS cnt FROM Portfolio_Positions")
             total = cur.fetchone()["cnt"]
+            cur.execute("SELECT COUNT(*) AS cnt FROM portfolio_basket")
+            total_basket = cur.fetchone()["cnt"]
 
         db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
         return {
@@ -780,6 +1329,9 @@ def persist_to_mysql(df: pd.DataFrame, owner: str = "",
             "inserted": inserted,
             "total_rows": total,
             "stocks": df["symbol"].nunique(),
+            "deleted_basket": deleted_basket,
+            "inserted_basket": inserted_basket,
+            "total_basket_rows": total_basket,
         }
     finally:
         conn.close()
@@ -788,6 +1340,208 @@ def persist_to_mysql(df: pd.DataFrame, owner: str = "",
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Basket portfolio parser (summary export)
+# ---------------------------------------------------------------------------
+
+def _clean_text(value: Optional[str]) -> str:
+    """Normalize whitespace for extracted HTML text."""
+    if not value:
+        return ""
+    return " ".join(value.replace("\xa0", " ").split()).strip()
+
+
+def _extract_center_cell_text(center_row: Optional[Tag], col_id: str) -> str:
+    """Extract cell text from a center-grid row by AG Grid col-id."""
+    if center_row is None:
+        return ""
+    node = center_row.select_one(f"div[col-id='{col_id}']")
+    if node is None:
+        return ""
+    return _clean_text(node.get_text(" ", strip=True))
+
+
+def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Extract basket groups from Fidelity Basket Portfolios HTML."""
+    with open(html_path, "r", encoding="utf-8", errors="ignore") as f:
+        soup = BeautifulSoup(f, "html.parser")
+
+    snapshot_ts = _extract_snapshot_timestamp(soup)
+
+    pinned_container = soup.select_one("div.ag-pinned-left-cols-container")
+    if pinned_container is None:
+        raise ValueError("Could not find pinned-left grid container in HTML")
+
+    center_container = soup.select_one("div.ag-center-cols-container")
+    center_rows_by_index: dict[str, Tag] = {}
+    if center_container is not None:
+        for center_row in center_container.select("div[role='row'][row-index]"):
+            row_index = center_row.get("row-index")
+            if row_index is not None:
+                center_rows_by_index[str(row_index)] = center_row
+
+    rows = pinned_container.select("div[role='row']")
+
+    current_source_account = ""
+    current_source_account_number = ""
+    current_basket: Optional[dict] = None
+    basket_rows: list[dict] = []
+    basket_positions_rows: list[dict] = []
+
+    for row in rows:
+        classes = set(row.get("class", []))
+
+        if "posweb-row-account" in classes:
+            primary = row.select_one(".posweb-cell-account_primary")
+            secondary = row.select_one(".posweb-cell-account_secondary")
+            current_source_account = _clean_text(primary.get_text(" ", strip=True) if primary else "")
+            current_source_account_number = _clean_text(secondary.get_text(" ", strip=True) if secondary else "")
+            continue
+
+        if "posweb-row-basket_group" in classes:
+            if current_basket is not None:
+                current_basket["basket_complete"] = False
+                current_basket["basket_end_marker"] = "not_found"
+                current_basket["positions_parsed"] = len(current_basket["symbols"])
+                basket_rows.append(current_basket)
+
+            basket_name_node = row.select_one(".posweb-cell-group-info_primary_name span")
+            if basket_name_node is None:
+                basket_name_node = row.select_one(".posweb-cell-group-info_primary_name")
+            basket_name = _clean_text(basket_name_node.get_text(" ", strip=True) if basket_name_node else "")
+
+            positions_text_node = row.select_one(".posweb-cell-group-text_curval")
+            positions_text = _clean_text(
+                positions_text_node.get_text(" ", strip=True) if positions_text_node else ""
+            )
+            match = re.search(r"(\d+)\s+positions", positions_text, flags=re.IGNORECASE)
+            declared_positions = int(match.group(1)) if match else None
+
+            current_basket = {
+                "owner": owner,
+                "source_account": current_source_account,
+                "source_account_number": current_source_account_number,
+                "account_name": f"{owner}:{basket_name}" if basket_name else f"{owner}:UNKNOWN",
+                "basket_name": basket_name,
+                "positions_declared": declared_positions,
+                "positions_declared_text": positions_text,
+                "positions_parsed": 0,
+                "basket_complete": False,
+                "basket_end_marker": "",
+                "symbols": [],
+            }
+            continue
+
+        if "posweb-row-basket" in classes and current_basket is not None:
+            row_index = str(row.get("row-index", ""))
+            center_row = center_rows_by_index.get(row_index)
+
+            symbol_node = row.select_one(".posweb-cell-symbol-name_container .posweb-cell-symbol-name")
+            if symbol_node is None:
+                symbol_node = row.select_one(".posweb-cell-symbol-name_container span")
+            symbol_text = _clean_text(symbol_node.get_text(" ", strip=True) if symbol_node else "")
+            if not symbol_text:
+                continue
+
+            description_node = row.select_one("p.posweb-cell-symbol-description")
+            description_text = _clean_text(
+                description_node.get_text(" ", strip=True) if description_node else ""
+            )
+
+            if symbol_text.lower() == "basket total":
+                current_basket["basket_complete"] = True
+                current_basket["basket_end_marker"] = "Basket Total"
+                current_basket["positions_parsed"] = len(current_basket["symbols"])
+                basket_rows.append(current_basket)
+                current_basket = None
+            else:
+                quantity_text = _extract_center_cell_text(center_row, "qty")
+                current_value_text = _extract_center_cell_text(center_row, "curVal")
+                avg_cost_text = _extract_center_cell_text(center_row, "cstBasShr")
+                cost_basis_total_text = _extract_center_cell_text(center_row, "cstBasTot")
+                total_gl_text = _extract_center_cell_text(center_row, "totGL")
+                total_gl_pct_text = _extract_center_cell_text(center_row, "totGLPct")
+
+                quantity = parse_quantity(quantity_text) if quantity_text else 0.0
+                current_value = parse_currency(current_value_text) if current_value_text else 0.0
+                avg_cost_basis = parse_currency(avg_cost_text) if avg_cost_text else 0.0
+                cost_basis_total = parse_currency(cost_basis_total_text) if cost_basis_total_text else 0.0
+                total_gain_loss = parse_currency(total_gl_text) if total_gl_text else 0.0
+                pct_gain_loss = parse_percent(total_gl_pct_text) if total_gl_pct_text else 0.0
+
+                current_basket["symbols"].append(
+                    {
+                        "symbol": symbol_text,
+                        "description": description_text,
+                        "quantity": quantity,
+                        "current_value": current_value,
+                        "avg_cost_basis": avg_cost_basis,
+                        "cost_basis_total": cost_basis_total,
+                        "total_gain_loss": total_gain_loss,
+                        "pct_gain_loss": pct_gain_loss,
+                        "snapshot_date": snapshot_ts,
+                    }
+                )
+
+    if current_basket is not None:
+        current_basket["basket_complete"] = False
+        current_basket["basket_end_marker"] = "not_found"
+        current_basket["positions_parsed"] = len(current_basket["symbols"])
+        basket_rows.append(current_basket)
+
+    for basket in basket_rows:
+        for idx, position in enumerate(basket.get("symbols", []), start=1):
+            basket_positions_rows.append(
+                {
+                    "owner": basket["owner"],
+                    "source_account": basket["source_account"],
+                    "source_account_number": basket["source_account_number"],
+                    "account_name": basket["account_name"],
+                    "basket_name": basket["basket_name"],
+                    "symbol": position["symbol"],
+                    "description": position.get("description", ""),
+                    "quantity": position.get("quantity", 0.0),
+                    "current_value": position.get("current_value", 0.0),
+                    "avg_cost_basis": position.get("avg_cost_basis", 0.0),
+                    "cost_basis_total": position.get("cost_basis_total", 0.0),
+                    "total_gain_loss": position.get("total_gain_loss", 0.0),
+                    "pct_gain_loss": position.get("pct_gain_loss", 0.0),
+                    "snapshot_date": position.get("snapshot_date"),
+                    "position_index": idx,
+                }
+            )
+
+    summary_records = [
+        {
+            "owner": b["owner"],
+            "source_account": b["source_account"],
+            "source_account_number": b["source_account_number"],
+            "account_name": b["account_name"],
+            "basket_name": b["basket_name"],
+            "positions_declared": b["positions_declared"],
+            "positions_parsed": b["positions_parsed"],
+            "basket_complete": b["basket_complete"],
+            "basket_end_marker": b["basket_end_marker"],
+            "snapshot_date": snapshot_ts,
+        }
+        for b in basket_rows
+    ]
+
+    summary_df = pd.DataFrame(summary_records)
+    positions_df = pd.DataFrame(basket_positions_rows)
+    return summary_df, positions_df
+
+
+def export_basket_groups_to_excel(
+    summary_df: pd.DataFrame,
+    positions_df: pd.DataFrame,
+    output_path: str,
+) -> None:
+    """Export basket summary and positions into an XLSX workbook."""
+    with pd.ExcelWriter(output_path) as writer:
+        summary_df.to_excel(writer, sheet_name="basket_summary", index=False)
+        positions_df.to_excel(writer, sheet_name="basket_positions", index=False)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -819,11 +1573,154 @@ def main():
         default=None,
         help="Also save DataFrame to this CSV path",
     )
+    parser.add_argument(
+        "--merge-snapshot",
+        action="store_true",
+        default=False,
+        help=(
+            "Merge into existing snapshot by deleting only matching accounts. "
+            "Default is full snapshot replace by as-of date."
+        ),
+    )
+    parser.add_argument(
+        "--parse-baskets",
+        action="store_true",
+        default=False,
+        help="Parse Fidelity Basket Portfolios HTML and export basket summary XLSX",
+    )
+    parser.add_argument(
+        "--basket-owner",
+        default="Ras",
+        help="Owner label for basket parsing mode (default: Ras)",
+    )
+    parser.add_argument(
+        "--basket-output",
+        default=None,
+        help="Output XLSX path for basket parsing mode",
+    )
+    parser.add_argument(
+        "--import-baskets",
+        action="store_true",
+        default=False,
+        help="When used with --parse-baskets, also import parsed baskets into Portfolio_Positions",
+    )
+    parser.add_argument(
+        "--import-basket-csv",
+        default=None,
+        help=(
+            "Import preprocessed intended-weight CSV directly into basket_intended_weight "
+            "(skips HTML parsing)"
+        ),
+    )
+    parser.add_argument(
+        "--basket-name",
+        default="Fortress",
+        help="Basket name label for --import-basket-csv (default: Fortress)",
+    )
+    parser.add_argument(
+        "--csv-owner",
+        default="",
+        help="Optional owner label for --import-basket-csv",
+    )
+    parser.add_argument(
+        "--drift-report",
+        action="store_true",
+        default=False,
+        help="Compare latest intended weights vs latest portfolio_basket actual weights",
+    )
+    parser.add_argument(
+        "--drift-output",
+        default=None,
+        help="Optional CSV output path for --drift-report",
+    )
     args = parser.parse_args()
+
+    if args.import_basket_csv:
+        csv_path = args.import_basket_csv
+        if csv_path.strip().lower() in {"default", "fortress"}:
+            csv_path = DEFAULT_FORTRESS_CSV_PATH
+
+        if not os.path.exists(csv_path):
+            print(f"CSV file not found: {csv_path}")
+            sys.exit(1)
+
+        print(f"Importing intended-weight CSV: {csv_path}")
+        stats = persist_basket_intended_weight_csv(
+            csv_path=csv_path,
+            basket_name=args.basket_name,
+            database=args.database,
+            owner=args.csv_owner,
+        )
+
+        print(f"Imported intended weights into database: {stats['database']}")
+        print(f"  Basket:            {stats['basket_name']}")
+        print(f"  Import date:       {stats['import_date']}")
+        print(f"  CSV rows:          {stats['csv_rows']}")
+        print(f"  Inserted:          {stats['inserted']}")
+        print(f"  Unique symbols:    {stats['unique_symbols']}")
+        print(f"  Weight sum (%):    {stats['target_weight_sum_pct']:.4f}")
+        print(f"  Basket total rows: {stats['basket_total_rows']}")
+        return
+
+    if args.drift_report:
+        report_df, summary = build_basket_drift_report(
+            basket_name=args.basket_name,
+            database=args.database,
+        )
+        print("Basket drift report")
+        print(f"  Basket:              {summary['basket_name']}")
+        print(f"  Intended import:     {summary['latest_import_date']}")
+        print(f"  Actual snapshot:     {summary['latest_snapshot_date']}")
+        print(f"  Symbols:             {summary['rows']}")
+        print(f"  Missing in actual:   {summary['symbols_missing_in_actual']}")
+        print(f"  Intended sum (%):    {summary['intended_weight_sum_pct']:.4f}")
+        print(f"  Actual sum (%):      {summary['actual_weight_sum_pct']:.4f}")
+        print(f"  Max abs drift (%):   {summary['max_abs_drift_pct']:.4f}")
+        print(f"  Avg abs drift (%):   {summary['avg_abs_drift_pct']:.4f}")
+
+        top = report_df.sort_values("abs_drift_pct", ascending=False).head(15)
+        print("\nTop drift symbols")
+        print(top.to_string(index=False))
+
+        if args.drift_output:
+            report_df.to_csv(args.drift_output, index=False)
+            print(f"\nSaved drift CSV: {args.drift_output}")
+        return
 
     if not os.path.exists(args.file):
         print(f"File not found: {args.file}")
         sys.exit(1)
+
+    if args.parse_baskets:
+        owner = _clean_text(args.basket_owner) or "Ras"
+        output_path = args.basket_output
+        if not output_path:
+            base_dir = os.path.dirname(args.file)
+            output_path = os.path.join(base_dir, f"basket_parse_review_{owner}.xlsx")
+
+        summary_df, positions_df = extract_basket_groups(args.file, owner=owner)
+        export_basket_groups_to_excel(summary_df, positions_df, output_path)
+
+        print(f"Basket parse complete for owner: {owner}")
+        print(f"Baskets found: {len(summary_df)}")
+        print(f"Output XLSX: {output_path}")
+        if not summary_df.empty:
+            cols = ["account_name", "basket_name", "positions_declared", "positions_parsed"]
+            print(summary_df[cols].to_string(index=False))
+
+        if args.import_baskets:
+            print("\nImporting parsed baskets into Portfolio_Positions ...")
+            stats = persist_basket_positions_to_mysql(
+                basket_positions_df=positions_df,
+                owner=owner,
+                database=args.database,
+            )
+            print(f"Imported baskets into database: {stats['database']}")
+            print(f"  Deleted (prior): {stats['deleted']}")
+            print(f"  Inserted:        {stats['inserted']}")
+            print(f"  Total rows:      {stats['total_rows']}")
+            print(f"  Basket rows:     {stats['total_basket_rows']}")
+        return
 
     print(f"Parsing: {args.file}")
     df = extract_positions(args.file)
@@ -852,7 +1749,12 @@ def main():
     print(f"Owner: {owner}")
 
     print(f"Writing {len(df)} row(s) to Portfolio_Positions table ...")
-    stats = persist_to_mysql(df, owner=owner, database=args.database)
+    stats = persist_to_mysql(
+        df,
+        owner=owner,
+        database=args.database,
+        merge_snapshot=args.merge_snapshot,
+    )
 
     print(f"\n{'='*50}")
     print(f"  Done — database: {stats['database']}")
