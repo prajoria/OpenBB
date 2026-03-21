@@ -28,18 +28,29 @@
 
 ---
 
-## 2. rules/ — Session Context & Standards
+## 2. context/ — Session Context & Safety Standards
 
 | File | Purpose |
 |------|---------|
 | `PROJECT_CONTEXT.md` | Project overview, architecture, stack, current state |
 | `CODEBASE_MAP.md` | This file — file inventory and navigation |
-| `DEVELOPMENT_RULES.md` | Technical coding standards, patterns, gotchas |
+| `CLAUDE_CODE_RULES.md` | **Comprehensive development guidelines & safety rules** |
+| `SAFETY_STANDARDS.md` | **Pre-deployment safety validation checklist** |
+| `DOMAIN_KNOWLEDGE.md` | Finance & tax domain concepts for financial calculations |
+| `DEVELOPMENT_EVOLUTION_SUMMARY.md` | Project evolution and technical decisions |
+| `openbb/` | OpenBB platform architecture deep-dives |
+
+## 3. rules/ — Legacy Rules (migrated to context/)
+
+| File | Purpose |
+|------|---------|
+| `DEVELOPMENT_RULES.md` | Technical coding standards and patterns |
 | `COLLABORATION_RULES.md` | PII hygiene, git workflow, session checklists |
+| `FINANCETOOLKIT_RULES.md` | FinanceToolkit library integration patterns |
 
 ---
 
-## 3. fmp_cached Provider
+## 4. fmp_cached Provider
 
 Located at `openbb_platform/providers/fmp_cached/`.
 

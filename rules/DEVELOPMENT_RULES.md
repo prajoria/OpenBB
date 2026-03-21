@@ -235,4 +235,44 @@ Log detailed diagnostics at DEBUG level.
 
 ---
 
-*Last updated: 2026-02-20*
+## 11. Quick Safety Checklist
+
+Before committing any code changes, verify:
+
+### **🔐 Privacy & Security**
+- [ ] No PII in logs or API responses
+- [ ] Raw portfolio data stays in local MySQL only
+- [ ] Input sanitization on all user inputs
+- [ ] API responses use synthetic data only
+
+### **💰 Financial Accuracy**
+- [ ] Tax calculations match IRS formulas (ESPP, cost basis)
+- [ ] Currency parsing handles all formats (`$123.45`, `($67.89)`, `--`)
+- [ ] Decimal precision used for financial calculations
+- [ ] Portfolio weights sum to 100% ± 0.01%
+
+### **🛠️ Technical Quality**
+- [ ] Type hints and Pydantic models used
+- [ ] Database operations are idempotent
+- [ ] Error handling includes retry logic
+- [ ] Windows encoding fix: `sys.stdout.reconfigure(encoding="utf-8")`
+
+### **🧪 Testing**
+- [ ] Dry-run tested before database writes
+- [ ] Idempotency verified (script runnable twice)
+- [ ] Performance targets met (response times)
+- [ ] Privacy transformation tested
+
+### **📋 Documentation**
+- [ ] Context files updated if architecture changed
+- [ ] Sensitive data sanitized from examples
+- [ ] Commit message follows imperative format
+- [ ] Changelog entry added if significant change
+
+**🛡️ For comprehensive safety rules, see:**
+- `context/CLAUDE_CODE_RULES.md` - Complete development safety framework
+- `context/SAFETY_STANDARDS.md` - Pre-deployment validation checklist
+
+---
+
+*Last updated: 2026-03-06*

@@ -156,14 +156,36 @@ provider caching.
 
 | File | Purpose | Committed? |
 |------|---------|------------|
-| `rules/PROJECT_CONTEXT.md` | This file — project overview | Yes |
-| `rules/CODEBASE_MAP.md` | File inventory and navigation guide | Yes |
+| `context/PROJECT_CONTEXT.md` | This file — project overview | Yes |
+| `context/CODEBASE_MAP.md` | File inventory and navigation guide | Yes |
+| `context/CLAUDE_CODE_RULES.md` | **Comprehensive development guidelines & safety rules** | Yes |
+| `context/SAFETY_STANDARDS.md` | **Pre-deployment safety validation checklist** | Yes |
+| `context/DOMAIN_KNOWLEDGE.md` | Finance & tax domain concepts | Yes |
 | `rules/DEVELOPMENT_RULES.md` | Technical coding standards | Yes |
-| `rules/DOMAIN_KNOWLEDGE.md` | Finance & tax domain concepts | Yes |
 | `rules/COLLABORATION_RULES.md` | PII hygiene, git workflow, checklists | Yes |
+| `rules/FINANCETOOLKIT_RULES.md` | FinanceToolkit integration patterns | Yes |
 | `Tools/docs/DESIGN.md` | Architecture, schemas, changelog | Yes |
+| `Tools/docs/portfolio_basket_privacy_strategy.md` | **Privacy transformation strategy** | Yes |
 | `Tools/docs/CONTEXT_LOCAL.md` | Local paths, credentials, state | No (git-ignored) |
+
+### **🛡️ Safety Rules Framework**
+
+This project implements comprehensive **"Safe Rules for Checking"** across 8 categories:
+
+1. **🔐 Privacy & Security** - PII protection, data sanitization, access controls
+2. **🏗️ Technical Architecture** - Database safety, API design, error handling
+3. **💰 Financial Domain** - Tax calculations, market data validation, precision rules
+4. **🧪 Testing & Validation** - Test safety, privacy testing, integration validation
+5. **🚀 Performance & Resources** - Response times, memory limits, caching safety
+6. **🔧 Platform Compatibility** - Windows workarounds, API integration safety
+7. **📋 Operational Standards** - Monitoring, health checks, configuration safety
+8. **⚠️ Known Issues** - Platform-specific workarounds and safe practices
+
+**Key Safety Documents:**
+- `context/CLAUDE_CODE_RULES.md` - Complete development safety framework
+- `context/SAFETY_STANDARDS.md` - Pre-deployment validation checklist
+- `Tools/docs/portfolio_basket_privacy_strategy.md` - Privacy transformation rules
 
 ---
 
-*Last updated: 2026-02-20*
+*Last updated: 2026-03-06*

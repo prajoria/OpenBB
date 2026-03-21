@@ -81,14 +81,25 @@ When beginning a new AI collaboration session, load these files as context:
 
 1. `context/PROJECT_CONTEXT.md` — Project overview, architecture, state
 2. `context/CODEBASE_MAP.md` — File inventory and navigation
-3. `context/DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
-4. `context/openbb/ARCHITECTURE.md` — OpenBB platform architecture
-5. `rules/DEVELOPMENT_RULES.md` — Technical coding standards
-6. `rules/COLLABORATION_RULES.md` — This file
-6. `Tools/docs/DESIGN.md` — Schemas, design decisions, changelog
-7. `Tools/docs/CONTEXT_LOCAL.md` — Local paths, credentials (git-ignored)
-8. Current branch: `git branch --show-current`
-9. Any specific task or issue to work on
+3. `context/CLAUDE_CODE_RULES.md` — **Comprehensive development guidelines & safety rules**
+4. `context/SAFETY_STANDARDS.md` — **Pre-deployment safety validation checklist**
+5. `context/DOMAIN_KNOWLEDGE.md` — Finance & tax domain concepts
+6. `rules/DEVELOPMENT_RULES.md` — Technical coding standards
+7. `rules/COLLABORATION_RULES.md` — This file
+8. `rules/FINANCETOOLKIT_RULES.md` — FinanceToolkit integration patterns
+9. `Tools/docs/DESIGN.md` — Schemas, design decisions, changelog
+10. `Tools/docs/portfolio_basket_privacy_strategy.md` — **Privacy transformation strategy**
+11. `Tools/docs/CONTEXT_LOCAL.md` — Local paths, credentials (git-ignored)
+12. Current branch: `git branch --show-current`
+13. Any specific task or issue to work on
+
+### **🛡️ Critical Safety Note**
+This project implements comprehensive **"Safe Rules for Checking"** - always validate changes against:
+- **Privacy protection rules** (no PII exposure)
+- **Financial calculation accuracy** (tax compliance, precision)
+- **Technical safety standards** (performance, security, validation)
+
+Refer to the complete safety framework in `context/CLAUDE_CODE_RULES.md` and validation checklist in `context/SAFETY_STANDARDS.md`.
 
 ### Quick Verification Commands
 
