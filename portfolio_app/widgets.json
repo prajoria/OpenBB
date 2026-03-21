@@ -398,6 +398,420 @@
     "source": ["FMP Cache"]
   },
 
+  "stock_context": {
+    "name": "Stock Context",
+    "description": "Phase 0 — Lightweight symbol resolver. Sets the anchor for all downstream analysis widgets. Must be placed on the dashboard for sequential loading to work.",
+    "category": "Equity",
+    "subCategory": "Analysis",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "stock_context",
+    "endpoint": "/stock/context",
+    "gridData": { "w": 40, "h": 5 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker to analyse — changing this refreshes all downstream widgets.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "CLS",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": false,
+        "columnsDefs": [
+          { "field": "symbol",      "headerName": "Symbol",      "cellDataType": "text", "pinned": "left" },
+          { "field": "sector",      "headerName": "Sector",      "cellDataType": "text" },
+          { "field": "last_price",  "headerName": "Price",       "cellDataType": "number", "formatterFn": "none" },
+          { "field": "peers",       "headerName": "Peers",       "cellDataType": "text" },
+          { "field": "sector_etfs", "headerName": "Sector ETFs", "cellDataType": "text" }
+        ]
+      }
+    },
+    "source": ["OpenBB / FMP"]
+  },
+
+  "stock_profile": {
+    "name": "Stock Profile",
+    "description": "Phase 1 — Company profile, live quote, sector/industry, peer count. Loads after Stock Context.",
+    "category": "Equity",
+    "subCategory": "Analysis",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "stock_profile",
+    "endpoint": "/stock/profile",
+    "gridData": { "w": 40, "h": 10 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker symbol to analyse.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "CLS",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "benchmark",
+        "label": "Benchmark",
+        "description": "Benchmark ticker (e.g. SPY).",
+        "type": "text",
+        "value": "SPY",
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": false,
+        "columnsDefs": [
+            { "field": "symbol",      "headerName": "Symbol",      "cellDataType": "text",   "pinned": "left" },
+            { "field": "name",        "headerName": "Name",        "cellDataType": "text" },
+            { "field": "sector",      "headerName": "Sector",      "cellDataType": "text" },
+            { "field": "industry",    "headerName": "Industry",    "cellDataType": "text" },
+            { "field": "market_cap",  "headerName": "Mkt Cap",     "cellDataType": "number", "formatterFn": "int" },
+            { "field": "last_price",  "headerName": "Price",       "cellDataType": "number", "formatterFn": "none" },
+            { "field": "change_pct",  "headerName": "Chg %",       "cellDataType": "number", "formatterFn": "normalizedPercent", "renderFn": "greenRed" },
+            { "field": "volume",      "headerName": "Volume",      "cellDataType": "number", "formatterFn": "int" },
+            { "field": "peer_count",  "headerName": "# Peers",     "cellDataType": "number" },
+            { "field": "peers",       "headerName": "Peers",       "cellDataType": "text" },
+            { "field": "sector_etfs", "headerName": "Sector ETFs", "cellDataType": "text" },
+            { "field": "employees",   "headerName": "Employees",   "cellDataType": "number", "formatterFn": "int" },
+            { "field": "ceo",         "headerName": "CEO",         "cellDataType": "text" },
+            { "field": "website",     "headerName": "Website",     "cellDataType": "text" }
+          ]
+      }
+    },
+    "source": ["OpenBB / FMP"]
+  },
+
+  "stock_fundamentals": {
+    "name": "Stock Fundamentals",
+    "description": "Phase 2 — 5-year fundamental KPIs: revenue growth, margins, ROIC, D/E, current ratio.",
+    "category": "Equity",
+    "subCategory": "Analysis",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "stock_fundamentals",
+    "endpoint": "/stock/fundamentals",
+    "gridData": { "w": 20, "h": 14 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker symbol to analyse.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "CLS",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "lookback_years",
+        "label": "Lookback (years)",
+        "description": "Years of annual history to fetch.",
+        "type": "text",
+        "value": "5",
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": false,
+        "columnsDefs": [
+          { "field": "metric", "headerName": "Metric", "cellDataType": "text", "pinned": "left" },
+          { "field": "value",  "headerName": "Value",  "cellDataType": "text" }
+        ]
+      }
+    },
+    "source": ["OpenBB / FMP"]
+  },
+
+  "stock_technicals": {
+    "name": "Stock Technicals",
+    "description": "Phase 3 — Technical indicators: RSI(14), ADX(14), ATR, OBV, MACD signal, Bollinger %.",
+    "category": "Equity",
+    "subCategory": "Analysis",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "stock_technicals",
+    "endpoint": "/stock/technicals",
+    "gridData": { "w": 20, "h": 10 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker symbol to analyse.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "CLS",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "lookback_years",
+        "label": "Lookback (years)",
+        "description": "Years of daily history for indicator calculation.",
+        "type": "text",
+        "value": "1",
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": false,
+        "columnsDefs": [
+          { "field": "indicator", "headerName": "Indicator", "cellDataType": "text", "pinned": "left" },
+          { "field": "value",     "headerName": "Value",     "cellDataType": "text" }
+        ]
+      }
+    },
+    "source": ["OpenBB / FMP"]
+  },
+
+  "stock_valuation": {
+    "name": "Stock Valuation",
+    "description": "Phase 4 — Valuation ratios: P/E, EV/EBITDA, P/FCF, P/S, Earnings Yield, WACC, Piotroski, Altman Z.",
+    "category": "Equity",
+    "subCategory": "Analysis",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "stock_valuation",
+    "endpoint": "/stock/valuation",
+    "gridData": { "w": 20, "h": 14 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker symbol to analyse.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "CLS",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "lookback_years",
+        "label": "Lookback (years)",
+        "description": "Years of annual ratio history.",
+        "type": "text",
+        "value": "5",
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": false,
+        "columnsDefs": [
+          { "field": "metric", "headerName": "Metric", "cellDataType": "text", "pinned": "left" },
+          { "field": "value",  "headerName": "Value",  "cellDataType": "text" }
+        ]
+      }
+    },
+    "source": ["OpenBB / FMP"]
+  },
+
+  "stock_risk": {
+    "name": "Stock Risk Metrics",
+    "description": "Phase 5 — Risk metrics: Sharpe, Sortino, Beta, Jensen Alpha, VaR 95%, CVaR 95%, Max Drawdown, Ulcer Index.",
+    "category": "Equity",
+    "subCategory": "Analysis",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "stock_risk",
+    "endpoint": "/stock/risk",
+    "gridData": { "w": 20, "h": 12 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker symbol to analyse.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "CLS",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "benchmark",
+        "label": "Benchmark",
+        "description": "Benchmark ticker for Beta/Alpha.",
+        "type": "text",
+        "value": "SPY",
+        "optional": true,
+        "show": true
+      },
+      {
+        "paramName": "lookback_years",
+        "label": "Lookback (years)",
+        "description": "Years of daily history.",
+        "type": "text",
+        "value": "1",
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": false,
+        "columnsDefs": [
+          { "field": "metric", "headerName": "Metric", "cellDataType": "text", "pinned": "left" },
+          { "field": "value",  "headerName": "Value",  "cellDataType": "text" }
+        ]
+      }
+    },
+    "source": ["OpenBB / FMP"]
+  },
+
+  "stock_relative": {
+    "name": "Peer Relative Analysis",
+    "description": "Phase 6 — Return, volatility, Sharpe, VaR, CVaR, Max Drawdown across the stock, peers, and sector ETFs.",
+    "category": "Equity",
+    "subCategory": "Analysis",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "stock_relative",
+    "endpoint": "/stock/relative",
+    "gridData": { "w": 40, "h": 16 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker symbol to analyse.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "CLS",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "benchmark",
+        "label": "Benchmark",
+        "description": "Benchmark ticker (e.g. SPY).",
+        "type": "text",
+        "value": "SPY",
+        "optional": true,
+        "show": true
+      },
+      {
+        "paramName": "lookback_years",
+        "label": "Lookback (years)",
+        "description": "Years of daily history.",
+        "type": "text",
+        "value": "1",
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": true,
+        "columnsDefs": [
+          { "field": "symbol",        "headerName": "Symbol",        "cellDataType": "text",   "pinned": "left" },
+          { "field": "Annual Return", "headerName": "Annual Return", "cellDataType": "number", "formatterFn": "normalizedPercent", "renderFn": "greenRed" },
+          { "field": "Volatility",    "headerName": "Volatility",    "cellDataType": "number", "formatterFn": "normalizedPercent" },
+          { "field": "Sharpe",        "headerName": "Sharpe",        "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "VaR 95%",       "headerName": "VaR 95%",       "cellDataType": "number", "formatterFn": "normalizedPercent", "renderFn": "greenRed" },
+          { "field": "CVaR 95%",      "headerName": "CVaR 95%",      "cellDataType": "number", "formatterFn": "normalizedPercent", "renderFn": "greenRed" },
+          { "field": "Max Drawdown",  "headerName": "Max DD",        "cellDataType": "number", "formatterFn": "normalizedPercent", "renderFn": "greenRed" }
+        ]
+      }
+    },
+    "source": ["OpenBB / FMP"]
+  },
+
+  "stock_decision": {
+    "name": "Decision Score",
+    "description": "Phase 7 — 6-dimension composite score (0-5 each) with weighted total and decision label (Strong Buy / Buy / Hold / Avoid).",
+    "category": "Equity",
+    "subCategory": "Analysis",
+    "searchCategory": "Equity",
+    "type": "table",
+    "widgetId": "stock_decision",
+    "endpoint": "/stock/decision",
+    "gridData": { "w": 20, "h": 10 },
+    "params": [
+      {
+        "paramName": "symbol",
+        "label": "Symbol",
+        "description": "Ticker symbol to analyse.",
+        "type": "endpoint",
+        "optionsEndpoint": "/get_symbols",
+        "value": "CLS",
+        "show": true,
+        "style": { "popupWidth": 300 }
+      },
+      {
+        "paramName": "benchmark",
+        "label": "Benchmark",
+        "description": "Benchmark ticker (e.g. SPY).",
+        "type": "text",
+        "value": "SPY",
+        "optional": true,
+        "show": true
+      },
+      {
+        "paramName": "lookback_years",
+        "label": "Lookback (years)",
+        "description": "Years for technicals and risk.",
+        "type": "text",
+        "value": "1",
+        "optional": true,
+        "show": true
+      },
+      {
+        "paramName": "lookback_years_fundamentals",
+        "label": "Fundamental Lookback (years)",
+        "description": "Years for fundamental history.",
+        "type": "text",
+        "value": "5",
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "",
+      "table": {
+        "showAll": true,
+        "enableAdvanced": false,
+        "columnsDefs": [
+          { "field": "symbol",               "headerName": "Symbol",          "cellDataType": "text",   "pinned": "left" },
+          { "field": "business_quality",     "headerName": "Biz Quality",     "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "fundamentals",         "headerName": "Fundamentals",    "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "technicals",           "headerName": "Technicals",      "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "valuation",            "headerName": "Valuation",       "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "risk_fit",             "headerName": "Risk Fit",        "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "relative_peer_score",  "headerName": "Peer Relative",   "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "total_score",          "headerName": "Total Score",     "cellDataType": "number", "formatterFn": "none", "renderFn": "greenRed" },
+          { "field": "decision",             "headerName": "Decision",        "cellDataType": "text" }
+        ]
+      }
+    },
+    "source": ["OpenBB / FMP"]
+  },
+
   "espp_purchases": {
     "name": "ESPP Purchases",
     "description": "ESPP purchase history with discount analysis and qualified disposition dates.",

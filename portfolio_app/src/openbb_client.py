@@ -49,7 +49,7 @@ class OpenBBClient:
             logger.warning("OpenBB API not reachable at %s", self.base_url)
             return None
         except Exception as e:
-            logger.error("OpenBB API request failed: %s", e)
+            logger.error("OpenBB API request failed: %s", e, exc_info=True)
             return None
 
     async def post(
