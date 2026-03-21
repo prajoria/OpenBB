@@ -1,0 +1,24 @@
+proposal,pillar,ticker,name,asset_type,sector,style,region,strategy_bucket,target_weight_pct,role
+HybridFortress,Bedrock,VTI,Vanguard Total Stock Market ETF,ETF,Broad Market,Core Index,US,Core ETF,10.0,US total market core anchor
+HybridFortress,Rocket,VUG,Vanguard Growth ETF,ETF,Technology,Large Cap Growth,US,Growth ETF,10.0,US growth factor core sleeve
+HybridFortress,Bedrock,VT,Vanguard Total World Stock ETF,ETF,Broad Market,Global Core,Global,Core ETF,10.0,Global equity anchor
+HybridFortress,Bedrock,VOO,Vanguard S&P 500 ETF,ETF,Broad Market,Core Index,US,Core ETF,10.0,US large-cap beta core
+HybridFortress,Fuel,SPYM,SPDR Portfolio S&P 500 High Dividend ETF,ETF,Dividend Equity,Large Cap Value,US,Income ETF,8.0,High-dividend income tilt
+HybridFortress,Rocket,SOXX,iShares Semiconductor ETF,ETF,Technology,Semiconductors,US,Growth ETF,6.0,Semiconductor cycle growth sleeve
+HybridFortress,Fuel,VIG,Vanguard Dividend Appreciation ETF,ETF,Dividend Equity,Dividend Growth,US,Income ETF,5.0,Quality dividend growth core
+HybridFortress,Fuel,SCHD,Schwab U.S. Dividend Equity ETF,ETF,Dividend Equity,Income Quality,US,Income ETF,5.0,Dividend quality and cash-flow stability
+HybridFortress,Fuel,DGRO,iShares Core Dividend Growth ETF,ETF,Dividend Equity,Dividend Growth,US,Income ETF,5.0,Broad dividend growth diversification
+HybridFortress,Research,VNQ,Vanguard Real Estate ETF,ETF,Real Estate,REIT Core,US,Sector ETF,4.0,REIT inflation and income diversifier
+HybridFortress,Escape,VXUS,Vanguard Total International Stock ETF,ETF,International Equity,International Broad,Global ex-US,International ETF,4.0,International diversification sleeve
+HybridFortress,Rocket,SCHG,Schwab U.S. Large-Cap Growth ETF,ETF,Technology,Large Cap Growth,US,Growth ETF,3.5,Low-cost US growth complement
+HybridFortress,Escape,VWO,Vanguard FTSE Emerging Markets ETF,ETF,International Equity,Emerging Markets,Emerging Markets,International ETF,3.0,Emerging market growth beta
+HybridFortress,Escape,VEA,Vanguard FTSE Developed Markets ETF,ETF,International Equity,Developed Markets,Developed ex-US,International ETF,3.0,Developed ex-US diversification
+HybridFortress,Rocket,SMH,VanEck Semiconductor ETF,ETF,Technology,Semiconductors,Global,Growth ETF,3.0,Higher-conviction semiconductor tilt
+HybridFortress,Research,XLF,Financial Select Sector SPDR Fund,ETF,Financials,Cyclical Core,US,Sector ETF,2.0,Financials cycle and rates sensitivity sleeve
+HybridFortress,Research,XLU,Utilities Select Sector SPDR Fund,ETF,Utilities,Defensive Yield,US,Sector ETF,2.0,Defensive low-volatility ballast
+HybridFortress,Research,XLK,Technology Select Sector SPDR Fund,ETF,Technology,Growth Core,US,Sector ETF,2.0,Mega-cap technology sector satellite
+HybridFortress,Research,ITA,iShares U.S. Aerospace & Defense ETF,ETF,Industrials,Defense Tilt,US,Sector ETF,2.0,Defense and aerospace thematic sleeve
+HybridFortress,Shield,IAU,iShares Gold Trust,ETF,Commodities,Gold,Global,Inflation Hedge,1.5,Gold hedge for tail-risk and inflation
+HybridFortress,Rocket,QQQM,Invesco NASDAQ 100 ETF,ETF,Technology,Large Cap Growth,US,Growth ETF,1.0,Nasdaq growth satellite
+HybridFortress,Research,XLE,Energy Select Sector SPDR Fund,ETF,Energy,Cyclical Value,US,Sector ETF,0.0,Watchlist slot for energy cycle exposure
+HybridFortress,Research,XLV,Health Care Select Sector SPDR Fund,ETF,Health Care,Defensive Growth,US,Sector ETF,0.0,Watchlist slot for defensive healthcare exposure

@@ -1,0 +1,1 @@
+"""FinancialToolkit ratios domain."""

@@ -1,0 +1,1 @@
+"""FinancialToolkit economics domain."""
