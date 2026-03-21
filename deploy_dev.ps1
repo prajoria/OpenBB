@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Deploy the OpenBB Platform dev environment into .venv_openbb.
+    Deploy the OpenBB Platform dev environment into .venv_win.
 
     Installs the full OpenBB Platform from the local source tree
     (core + all providers/extensions + community extras) and the
@@ -8,11 +8,11 @@
     links so code changes take effect immediately.
 
     portfolio_app is NOT included -- it runs as a side-service in its
-    own venv (.venv_win).
+    own venv (.venv_openbb).
 
 .DESCRIPTION
     Steps (fully non-interactive):
-      1. Create .venv_openbb if it does not exist
+      1. Create .venv_win if it does not exist
       2. Install/upgrade pip + poetry inside the venv
       3. poetry install -E all  (core + all providers/extensions from source)
       4. pip install -e providers/fmp_cached  (custom, not in upstream pyproject)
@@ -25,7 +25,7 @@
 
 $ErrorActionPreference = "Continue"
 $RepoRoot     = $PSScriptRoot
-$VenvDir      = Join-Path $RepoRoot ".venv_openbb"
+$VenvDir      = Join-Path $RepoRoot ".venv_win"
 $PlatformDir  = Join-Path $RepoRoot "openbb_platform"
 $FmpCachedDir = Join-Path $PlatformDir "providers\fmp_cached"
 
@@ -44,10 +44,10 @@ function Write-Info($msg) {
     Write-Host "        $msg" -ForegroundColor DarkGray
 }
 
-$steps = 6
+$steps = 8
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "  OpenBB Dev Environment -- deploy into .venv_openbb" -ForegroundColor Cyan
+Write-Host "  OpenBB Dev Environment -- deploy into .venv_win" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -172,13 +172,51 @@ if ($LASTEXITCODE -eq 0) { Write-Ok $r } else { Write-Host "        FAIL: openbb
 $r = & $Python -W ignore -c "from openbb import obb; print('openbb obb router OK')" 2>$null
 if ($LASTEXITCODE -eq 0) { Write-Ok $r } else { Write-Host "        FAIL: obb router" -ForegroundColor Red; $allOk = $false }
 
+# -- 7. Start OpenBB API Server -------------------------------------------
+if ($allOk) {
+    Write-Step 7 $steps "Starting OpenBB API Server (HTTPS on port 6902)"
+    Write-Info "Using certificates: $CertFile, $KeyFile"
+
+    # Start the API server in the background
+    Write-Host "        Starting uvicorn server..." -ForegroundColor Yellow
+    $serverJob = Start-Job -ScriptBlock {
+        param($PythonPath, $CertFile, $KeyFile, $PlatformDir)
+        Set-Location $PlatformDir
+        & $PythonPath -m uvicorn openbb_core.api.rest_api:app --host 127.0.0.1 --port 6902 --ssl-certfile $CertFile --ssl-keyfile $KeyFile
+    } -ArgumentList $Python, $CertFile, $KeyFile, $PlatformDir
+
+    # Give it a moment to start
+    Start-Sleep -Seconds 3
+
+    # Test if the server is running
+    try {
+        $response = Invoke-WebRequest -Uri "https://127.0.0.1:6902/docs" -Method Get -SkipCertificateCheck -TimeoutSec 5 -ErrorAction Stop
+        if ($response.StatusCode -eq 200) {
+            Write-Ok "OpenBB API server is running on https://127.0.0.1:6902"
+            Write-Info "API docs available at: https://127.0.0.1:6902/docs"
+            Write-Info "Background job ID: $($serverJob.Id)"
+        } else {
+            Write-Host "        Server responded with status: $($response.StatusCode)" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "        Server may still be starting up (this is normal)" -ForegroundColor Yellow
+        Write-Info "Check manually: https://127.0.0.1:6902/docs"
+        Write-Info "Background job ID: $($serverJob.Id)"
+    }
+} else {
+    Write-Step 7 $steps "Skipping server start due to installation errors"
+}
+
 Write-Host ""
 if ($allOk) {
     Write-Host "================================================================" -ForegroundColor Green
-    Write-Host "  Deploy complete -- .venv_openbb is ready." -ForegroundColor Green
-    Write-Host "  Activate:  .\.venv_openbb\Scripts\Activate.ps1" -ForegroundColor Green
-    Write-Host "  Start API (HTTP):  python -m uvicorn openbb_core.api.rest_api:app --host 127.0.0.1 --port 6902" -ForegroundColor Green
-    Write-Host "  Start API (HTTPS): python -m uvicorn openbb_core.api.rest_api:app --host 127.0.0.1 --port 6902 --ssl-certfile certs/cert.pem --ssl-keyfile certs/key.pem" -ForegroundColor Green
+    Write-Host "  Deploy complete -- .venv_win is ready and API is running!" -ForegroundColor Green
+    Write-Host "  OpenBB API:        https://127.0.0.1:6902" -ForegroundColor Green
+    Write-Host "  API Documentation: https://127.0.0.1:6902/docs" -ForegroundColor Green
+    Write-Host "  Background Job ID: $($serverJob.Id)" -ForegroundColor Green
+    Write-Host "" -ForegroundColor Green
+    Write-Host "  To stop the server: Stop-Job $($serverJob.Id)" -ForegroundColor Green
+    Write-Host "  To activate venv:   .\.venv_win\Scripts\Activate.ps1" -ForegroundColor Green
     Write-Host "================================================================" -ForegroundColor Green
 } else {
     Write-Host "================================================================" -ForegroundColor Red
