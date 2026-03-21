@@ -1,6 +1,7 @@
 """MCP Server Settings model."""
 
 import json
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -280,6 +281,20 @@ the exact same operations available to REST clients.""",
         return f"{self.__class__.__name__}\n\n" + "\n".join(
             f"{k}: {v}" for k, v in self.model_dump().items()
         )
+
+    @classmethod
+    def get_default_assets_dir(cls) -> Path:
+        """Return the path to the bundled assets directory.
+
+        Uses the location of this file to locate the assets/ directory
+        that is shipped with the openbb_mcp_server package.
+
+        Returns
+        -------
+        Path
+            Absolute path to the ``openbb_mcp_server/assets/`` directory.
+        """
+        return Path(__file__).parent.parent / "assets"
 
     def update(self, incoming: "MCPSettings"):
         """Update current settings."""

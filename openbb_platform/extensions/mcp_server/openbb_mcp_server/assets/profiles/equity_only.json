@@ -1,0 +1,15 @@
+{
+  "_comment": "Equity-only OpenBB MCP profile — only equity tools active, discovery disabled for a fixed lean toolset. Copy to ~/.openbb_platform/mcp_settings.json to use.",
+  "OPENBB_MCP_NAME": "OpenBB MCP (Equity)",
+  "OPENBB_MCP_DESCRIPTION": "OpenBB equity tools only. Access to stock prices, fundamentals, estimates, earnings, ownership, and news.",
+  "OPENBB_MCP_DEFAULT_TOOL_CATEGORIES": ["equity"],
+  "OPENBB_MCP_ALLOWED_TOOL_CATEGORIES": ["equity"],
+  "OPENBB_MCP_ENABLE_TOOL_DISCOVERY": false,
+  "OPENBB_MCP_DESCRIBE_RESPONSES": false,
+  "OPENBB_MCP_UVICORN_CONFIG": {
+    "host": "127.0.0.1",
+    "port": 8001
+  },
+  "OPENBB_MCP_CACHE_EXPIRATION_SECONDS": 300,
+  "_note": "Discovery is disabled for a minimal, fixed toolset. Use the 'full' profile to enable hot-swapping of tool categories."
+}
