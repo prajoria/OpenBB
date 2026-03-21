@@ -41,6 +41,81 @@ def test_performance_service_capabilities_include_ratios() -> None:
     assert {"risk_adjusted_return", "sharpe_ratio", "sortino_ratio", "information_ratio"}.issubset(commands)
 
 
+def test_performance_service_capabilities_include_extended_commands() -> None:
+    """Performance service should expose all Phase-6 extended commands."""
+    result = PerformanceService.capabilities()
+
+    commands = {item.command for item in result}
+    expected = {
+        "alpha", "beta", "capm", "jensens_alpha",
+        "treynor_ratio", "m2_ratio", "tracking_error",
+        "compound_growth_rate", "fama_french", "factor_correlations",
+    }
+    assert expected.issubset(commands), f"Missing: {expected - commands}"
+
+
+def test_performance_generic_wrapper(monkeypatch) -> None:
+    """_performance_generic should call the named method and return records."""
+
+    class StubPerformance:
+        """Stub performance controller with a single test method."""
+
+        @staticmethod
+        def get_alpha(**_kwargs):
+            return pd.DataFrame({"AAPL": [0.05, 0.07]}, index=["2024", "2025"])
+
+    monkeypatch.setattr(
+        PerformanceService,
+        "_performance_controller",
+        lambda **_kwargs: StubPerformance(),
+    )
+
+    result = PerformanceService.alpha(symbols=["AAPL"])
+
+    assert isinstance(result, list)
+    assert len(result) == 2
+
+
+def test_performance_beta_wrapper(monkeypatch) -> None:
+    """beta() wrapper should delegate to get_beta and return records."""
+
+    class StubPerformance:
+        @staticmethod
+        def get_beta(**_kwargs):
+            return pd.DataFrame({"AAPL": [1.1]}, index=["2024"])
+
+    monkeypatch.setattr(
+        PerformanceService,
+        "_performance_controller",
+        lambda **_kwargs: StubPerformance(),
+    )
+
+    result = PerformanceService.beta(symbols=["AAPL"])
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+
+
+def test_performance_capm_wrapper(monkeypatch) -> None:
+    """capm() should delegate to get_capital_asset_pricing_model."""
+
+    class StubPerformance:
+        @staticmethod
+        def get_capital_asset_pricing_model(**_kwargs):
+            return pd.DataFrame({"AAPL": [0.09]}, index=["2024"])
+
+    monkeypatch.setattr(
+        PerformanceService,
+        "_performance_controller",
+        lambda **_kwargs: StubPerformance(),
+    )
+
+    result = PerformanceService.capm(symbols=["AAPL"])
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+
+
 def test_discovery_service_capabilities_include_screen_search() -> None:
     """Discovery service should expose screen and search capabilities."""
     result = DiscoveryService.capabilities()

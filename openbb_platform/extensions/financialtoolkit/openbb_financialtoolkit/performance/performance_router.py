@@ -139,3 +139,363 @@ def information_ratio(
         lag=lag,
     )
     return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate alpha (excess return vs benchmark).",
+            code=["obb.financialtoolkit.performance.alpha(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def alpha(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate alpha (excess return relative to benchmark)."""
+    records = PerformanceService.alpha(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate beta (systematic risk).",
+            code=["obb.financialtoolkit.performance.beta(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def beta(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate beta (systematic risk relative to benchmark)."""
+    records = PerformanceService.beta(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate CAPM expected return.",
+            code=["obb.financialtoolkit.performance.capm(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def capm(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate Capital Asset Pricing Model (CAPM) expected return."""
+    records = PerformanceService.capm(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate Jensen's Alpha.",
+            code=["obb.financialtoolkit.performance.jensens_alpha(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def jensens_alpha(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate Jensen's alpha."""
+    records = PerformanceService.jensens_alpha(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate Treynor ratio.",
+            code=["obb.financialtoolkit.performance.treynor_ratio(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def treynor_ratio(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate Treynor ratio (excess return per unit of systematic risk)."""
+    records = PerformanceService.treynor_ratio(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate M2 ratio.",
+            code=["obb.financialtoolkit.performance.m2_ratio(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def m2_ratio(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate M2 (Modigliani-Modigliani) ratio."""
+    records = PerformanceService.m2_ratio(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate tracking error.",
+            code=["obb.financialtoolkit.performance.tracking_error(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def tracking_error(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate tracking error vs benchmark."""
+    records = PerformanceService.tracking_error(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate compound growth rate (CAGR).",
+            code=["obb.financialtoolkit.performance.compound_growth_rate(symbols=['AAPL'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL"]}),
+    ],
+)
+def compound_growth_rate(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate Compound Annual Growth Rate (CAGR)."""
+    records = PerformanceService.compound_growth_rate(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate Fama-French three-factor model.",
+            code=["obb.financialtoolkit.performance.fama_french(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def fama_french(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate Fama-French three-factor model exposures."""
+    records = PerformanceService.fama_french(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
+
+
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Calculate factor correlations.",
+            code=["obb.financialtoolkit.performance.factor_correlations(symbols=['AAPL','MSFT'])"],
+        ),
+        APIEx(parameters={"symbols": ["AAPL", "MSFT"]}),
+    ],
+)
+def factor_correlations(
+    symbols: list[str],
+    api_key: str = "",
+    start_date: str | None = None,
+    end_date: str | None = None,
+    quarterly: bool = False,
+    period: Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None = None,
+    rounding: int | None = None,
+    growth: bool = False,
+    lag: PositiveInt = 1,
+) -> OBBject[list[Data]]:
+    """Calculate factor correlations (Fama-French factors vs portfolio returns)."""
+    records = PerformanceService.factor_correlations(
+        symbols=validate_symbols(symbols),
+        api_key=api_key,
+        start_date=start_date,
+        end_date=end_date,
+        quarterly=quarterly,
+        period=period,
+        rounding=rounding,
+        growth=growth,
+        lag=lag,
+    )
+    return OBBject(results=records_to_data(records))
