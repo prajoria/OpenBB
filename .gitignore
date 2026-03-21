@@ -70,3 +70,18 @@ build/conda/tmp
 
 # Database backups
 *.sql
+
+# Local session logs (fetch history, portfolio app runtime)
+logs/
+portfolio_app/logs/
+
+# Claude Code local config (settings, sessions — machine-specific)
+.claude/
+
+# GitHub Copilot instructions (generated, not for version control)
+.github/copilot-instructions.md
+
+# Local setup tooling scripts
+setup_copilot_claud/
+setup_playwright_mcp/
+vscode-extension/
