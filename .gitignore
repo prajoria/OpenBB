@@ -85,3 +85,9 @@ portfolio_app/logs/
 setup_copilot_claud/
 setup_playwright_mcp/
 vscode-extension/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/

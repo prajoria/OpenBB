@@ -18,9 +18,12 @@ router = Router(prefix="/ratios", description="FinancialToolkit financial ratios
 # Common type alias used across all ratio commands
 _PERIOD = Literal["daily", "weekly", "monthly", "quarterly", "yearly"] | None
 
+_MCP_RATIOS = {"mcp_config": {"tags": ["financialtoolkit", "ratios"], "describe_responses": False}}
+
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="List available ratios commands.",
@@ -36,6 +39,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Collect all financial ratios via FinanceToolkit.",
@@ -74,6 +78,7 @@ def collect_all(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Collect efficiency ratios via FinanceToolkit.",
@@ -112,6 +117,7 @@ def efficiency(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Collect liquidity ratios via FinanceToolkit.",
@@ -150,6 +156,7 @@ def liquidity(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Collect profitability ratios via FinanceToolkit.",
@@ -188,6 +195,7 @@ def profitability(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Collect solvency ratios via FinanceToolkit.",
@@ -226,6 +234,7 @@ def solvency(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Collect valuation ratios via FinanceToolkit.",
@@ -267,6 +276,7 @@ def valuation(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get asset turnover ratio.",
@@ -298,6 +308,7 @@ def asset_turnover(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get current ratio.",
@@ -329,6 +340,7 @@ def current_ratio(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get quick ratio.",
@@ -360,6 +372,7 @@ def quick_ratio(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get return on equity.",
@@ -391,6 +404,7 @@ def return_on_equity(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get return on assets.",
@@ -422,6 +436,7 @@ def return_on_assets(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get return on invested capital.",
@@ -453,6 +468,7 @@ def return_on_invested_capital(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get price-to-earnings ratio.",
@@ -484,6 +500,7 @@ def price_to_earnings(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get price-to-book ratio.",
@@ -515,6 +532,7 @@ def price_to_book(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get debt-to-equity ratio.",
@@ -546,6 +564,7 @@ def debt_to_equity(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get gross margin.",
@@ -577,6 +596,7 @@ def gross_margin(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get net profit margin.",
@@ -608,6 +628,7 @@ def net_profit_margin(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RATIOS,
     examples=[
         PythonEx(
             description="Get free cash flow yield.",

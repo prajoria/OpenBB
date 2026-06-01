@@ -13,9 +13,12 @@ from openbb_financialtoolkit.discovery.discovery_service import DiscoveryService
 
 router = Router(prefix="/discovery", description="FinancialToolkit discovery tools.")
 
+_MCP_DISC = {"mcp_config": {"tags": ["financialtoolkit", "discovery"], "describe_responses": False}}
+
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_DISC,
     examples=[
         PythonEx(
             description="List discovery commands for FinancialToolkit wrapper.",
@@ -31,6 +34,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_DISC,
     examples=[
         PythonEx(
             description="Run FinanceToolkit stock screener wrapper.",
@@ -75,6 +79,7 @@ def screen(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_DISC,
     examples=[
         PythonEx(
             description="Search instruments using FinanceToolkit discovery wrapper.",

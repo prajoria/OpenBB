@@ -4,6 +4,28 @@ This is the master playbook for analyzing one stock symbol end-to-end with a rep
 
 Audience: new joiners who are strong in Python/software engineering and want a practical, senior-trader style framework for financial analysis.
 
+## Implementation Status Summary
+
+The notebook `Analysis/00. single_stock_analysis_playbook_template.ipynb` implements the core pipeline. Each phase document now includes a detailed status table. High-level summary:
+
+| Phase | Plan Completeness | Key Gaps |
+|-------|------------------|----------|
+| Phase 1 | ~40% | Missing: revenue geography/segment, insider/institutional ownership, analyst revisions, qualitative gate |
+| Phase 2 | ~55% | Missing: 5Y CAGR (only YoY), quarterly data, Interest Coverage, Net Debt/EBITDA, cash quality KPIs, phase gate |
+| Phase 3 | ~35% | Missing: SMA 50/200, Stochastic, MACD in scoring, BB in scoring, multi-timeframe, trade checklist |
+| Phase 4 | ~50% | Missing: DCF intrinsic valuation, Margin of Safety, sensitivity analysis, historical multiples |
+| Phase 5 | ~75% | All 8 core risk KPIs implemented. Missing: position sizing, stress scenarios, correlation vs holdings |
+| Phase 6 | ~60% | Core relative table + visuals done. Missing: Sortino/Beta per peer, rolling strength, 4-block scoring |
+| Phase 7 | ~55% | Scoring engine + export done. Missing: execution KPIs, monitoring cadence, handoff template |
+
+**Cross-cutting gaps:**
+- FinanceToolkit is imported but never called (all data via OpenBB `fmp_cached`/`fmp`)
+- No per-phase gates (proceed/reject) — all phases run unconditionally
+- No quarterly fundamental comparison
+- No DCF / intrinsic valuation
+
+---
+
 ## How to Use This Playbook
 
 1. Start with this file to understand flow and standards.
@@ -23,15 +45,15 @@ Audience: new joiners who are strong in Python/software engineering and want a p
 
 ## End-to-End Workflow
 
-| Stage | What you produce | Gate to next stage |
-|---|---|---|
-| Phase 1 | Business quality note + red flags | Business is understandable; no fatal risk discovered |
-| Phase 2 | 5-year KPI scorecard | Weighted score >= 3.5 / 5.0 |
-| Phase 3 | Technical setup sheet | >= 4/6 bullish timing conditions |
-| Phase 4 | Fair-value range + MOS | Margin of safety and sensitivity completed |
-| Phase 5 | Risk-fit and sizing suggestion | Position fits portfolio risk budget |
-| Phase 6 | Segment ETF + peer-relative scorecard | Relative score >= 3.5 and no major weakness vs peers |
-| Phase 7 | Final decision memo | Buy/Hold/Sell + execution + monitoring triggers |
+| Stage | What you produce | Gate to next stage | Notebook Implementation |
+|---|---|---|---|
+| Phase 1 | Business quality note + red flags | Business is understandable; no fatal risk discovered | Partial: profile/quote/peers only, no gate |
+| Phase 2 | 5-year KPI scorecard | Weighted score >= 3.5 / 5.0 | Partial: 9 KPIs extracted, no per-phase score/gate |
+| Phase 3 | Technical setup sheet | >= 4/6 bullish timing conditions | Partial: 6 indicators computed, only 3 in scoring, no gate |
+| Phase 4 | Fair-value range + MOS | Margin of safety and sensitivity completed | Partial: multiples extracted, no DCF/MOS/sensitivity |
+| Phase 5 | Risk-fit and sizing suggestion | Position fits portfolio risk budget | Good: 8 risk KPIs, no sizing logic |
+| Phase 6 | Segment ETF + peer-relative scorecard | Relative score >= 3.5 and no major weakness vs peers | Good: relative table + visuals, simplified scoring, no gate |
+| Phase 7 | Final decision memo | Buy/Hold/Sell + execution + monitoring triggers | Good: scoring + export, no execution/monitoring KPIs |
 
 ## Core KPI Families (used across phases)
 
@@ -51,24 +73,49 @@ Each phase document now includes:
 
 ## Standard Environment Setup
 
+### Currently used in notebook (Cell 3)
 ```python
 import os
-import sys
+import warnings
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from dotenv import load_dotenv
 
-sys.path.insert(0, r"I:\masterswork\git\OpenBB\FinanceToolkit")
+warnings.filterwarnings("ignore")
 
 from openbb import obb
-from financetoolkit import Toolkit
+import openbb
+from financetoolkit import Toolkit  # imported but not actively used
 
-load_dotenv(r"I:\masterswork\git\OpenBB\.env")
-API_KEY = os.getenv("FMP_API_KEY")
+load_dotenv(r"I:\masterswork\git\OpenBB\.env", override=True)
+fmp_api_key = os.getenv("FMP_API_KEY") or os.getenv("FMP_API")
 
-SYMBOL = "CLS"  # replace with incoming ticker
-BENCHMARK = "SPY"
-START_DATE_FUNDAMENTALS = "2021-01-01"
-START_DATE_TECHNICALS = "2024-01-01"
+if fmp_api_key:
+    obb.user.credentials.fmp_api_key = fmp_api_key
+    obb.user.credentials.fmp_cached_api_key = fmp_api_key
 ```
+
+### Configuration (Cell 5)
+```python
+SYMBOL = "CLS"          # replace with incoming ticker
+BENCHMARK = "SPY"
+today = pd.Timestamp.today().normalize()
+START_DATE_FUNDAMENTALS = (today - pd.DateOffset(years=5)).strftime("%Y-%m-%d")
+START_DATE_TECHNICALS = (today - pd.DateOffset(years=1)).strftime("%Y-%m-%d")
+END_DATE = today.strftime("%Y-%m-%d")
+
+PRIMARY_PROVIDER = "fmp_cached"
+FALLBACK_PROVIDER = "fmp"
+RISK_FREE_RATE = 0.02
+
+obb.user.preferences.output_type = "dataframe"
+```
+
+Note: The notebook uses dynamic date computation (today - 5yr / today - 1yr) rather than hardcoded dates. Provider is `fmp_cached` with `fmp` fallback via `call_obb()` wrapper.
 
 ## Quality Standards for New Joiners
 
@@ -99,6 +146,7 @@ A single decision memo containing:
 
 ---
 
-Version: 2.1  
-Updated: 2026-02-28  
-Owner: Research Engineering / Quantamental Team
+Version: 2.2  
+Updated: 2026-03-22  
+Owner: Research Engineering / Quantamental Team  
+Last consistency check: 2026-03-22 (vs notebook `00. single_stock_analysis_playbook_template.ipynb`)

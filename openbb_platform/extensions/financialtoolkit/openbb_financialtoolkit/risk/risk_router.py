@@ -15,9 +15,12 @@ from openbb_financialtoolkit.risk.risk_service import RiskService
 
 router = Router(prefix="/risk", description="FinancialToolkit risk tools.")
 
+_MCP_RISK = {"mcp_config": {"tags": ["financialtoolkit", "risk"], "describe_responses": False}}
+
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RISK,
     examples=[
         PythonEx(
             description="List scaffolded risk commands for FinancialToolkit wrapper.",
@@ -33,6 +36,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RISK,
     examples=[
         PythonEx(
             description="Calculate Value at Risk via FinanceToolkit.",
@@ -75,6 +79,7 @@ def var(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RISK,
     examples=[
         PythonEx(
             description="Calculate Conditional Value at Risk via FinanceToolkit.",
@@ -117,6 +122,7 @@ def cvar(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RISK,
     examples=[
         PythonEx(
             description="Calculate Entropic Value at Risk via FinanceToolkit.",
@@ -157,6 +163,7 @@ def evar(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_RISK,
     examples=[
         PythonEx(
             description="Calculate GARCH volatility metric via FinanceToolkit.",

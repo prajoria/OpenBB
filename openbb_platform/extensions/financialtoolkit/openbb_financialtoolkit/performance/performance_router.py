@@ -15,9 +15,12 @@ from openbb_financialtoolkit.performance.performance_service import PerformanceS
 
 router = Router(prefix="/performance", description="FinancialToolkit performance tools.")
 
+_MCP_PERF = {"mcp_config": {"tags": ["financialtoolkit", "performance"], "describe_responses": False}}
+
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="List performance commands for FinancialToolkit wrapper.",
@@ -33,6 +36,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate Sharpe ratio using FinanceToolkit wrapper.",
@@ -71,6 +75,7 @@ def sharpe_ratio(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate Sortino ratio using FinanceToolkit wrapper.",
@@ -107,6 +112,7 @@ def sortino_ratio(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate Information ratio using FinanceToolkit wrapper.",
@@ -143,6 +149,7 @@ def information_ratio(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate alpha (excess return vs benchmark).",
@@ -179,6 +186,7 @@ def alpha(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate beta (systematic risk).",
@@ -215,6 +223,7 @@ def beta(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate CAPM expected return.",
@@ -251,6 +260,7 @@ def capm(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate Jensen's Alpha.",
@@ -287,6 +297,7 @@ def jensens_alpha(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate Treynor ratio.",
@@ -323,6 +334,7 @@ def treynor_ratio(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate M2 ratio.",
@@ -359,6 +371,7 @@ def m2_ratio(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate tracking error.",
@@ -395,6 +408,7 @@ def tracking_error(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate compound growth rate (CAGR).",
@@ -431,6 +445,7 @@ def compound_growth_rate(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate Fama-French three-factor model.",
@@ -467,6 +482,7 @@ def fama_french(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_PERF,
     examples=[
         PythonEx(
             description="Calculate factor correlations.",

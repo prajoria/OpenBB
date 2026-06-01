@@ -567,5 +567,82 @@
     "content": "Generate a global macro trade idea based on the current macro environment.\n\nStep 1: Run `macro_dashboard` to assess current economic conditions: growth, inflation, policy.\nStep 2: Run `yield_curve_analysis` to understand rate environment and curve positioning.\nStep 3: Analyze USD strength using major currency pairs from `currency_price_historical`.\nStep 4: Check commodity trends for inflation and growth signals.\nStep 5: Identify the dominant macro regime (reflation, disinflation, risk-on, risk-off).\nStep 6: Formulate 2-3 trade ideas that express the macro view: (a) rates/duration, (b) equity region/sector, (c) currency, (d) commodity.\nStep 7: For each trade idea, identify: instrument, entry level, target, stop, and time horizon.\nStep 8: Assess correlation between the proposed trades — ideally uncorrelated.\nStep 9: Report: Macro Thesis, Regime Classification, Trade Ideas with Levels, Risk Scenarios, and Portfolio Sizing Framework.",
     "arguments": [],
     "tags": ["macro", "global", "trade_idea", "multi_asset"]
+  },
+  {
+    "name": "portfolio_stock_deep_dive",
+    "description": "Run all 7 phases of stock analysis for a single symbol using the portfolio extension (profile → fundamentals → technicals → valuation → risk → relative → decision).",
+    "content": "Perform a comprehensive 7-phase stock analysis on {symbol} using the portfolio extension tools.\n\nPhase 0 — Context: Call `stock_context` with symbol={symbol} to anchor the symbol, identify sector, peers, and sector ETFs.\nPhase 1 — Profile: Call `stock_profile` with symbol={symbol}, benchmark={benchmark} to get company overview, quote, and peer count.\nPhase 2 — Fundamentals: Call `stock_fundamentals` with symbol={symbol} to get 5-year KPIs: revenue growth, margins, ROIC, leverage.\nPhase 3 — Technicals: Call `stock_technicals` with symbol={symbol} to get RSI(14), ADX(14), ATR(14), OBV, MACD signal, and Bollinger %.\nPhase 4 — Valuation: Call `stock_valuation` with symbol={symbol} to get P/E, EV/EBITDA, P/FCF, P/S, and earnings yield.\nPhase 5 — Risk: Call `stock_risk` with symbol={symbol}, benchmark={benchmark} to get Sharpe, Sortino, Beta, Alpha, VaR 95%, CVaR 95%, Max Drawdown, Ulcer Index.\nPhase 6 — Relative: Call `stock_relative` with symbol={symbol}, benchmark={benchmark} to get peer-relative return and risk comparison table.\nPhase 7 — Decision: Call `stock_decision` with symbol={symbol}, benchmark={benchmark} to get the composite decision score across all 6 dimensions.\n\nSynthesize all phase outputs into a structured report: Company Overview, Fundamental Quality, Technical Posture, Valuation Assessment, Risk Profile, Peer Ranking, and Final Decision Score with Recommendation.",
+    "arguments": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "description": "Stock ticker symbol (e.g., CLS, AAPL, MSFT)"
+      },
+      {
+        "name": "benchmark",
+        "type": "str",
+        "description": "Benchmark ticker for risk and relative comparison",
+        "default": "SPY"
+      }
+    ],
+    "tags": ["portfolio", "stock_analysis", "decision"]
+  },
+  {
+    "name": "financialtoolkit_performance_scorecard",
+    "description": "Calculate a full performance scorecard (Sharpe, Sortino, Alpha, Beta, Treynor, Information Ratio) for a list of symbols and format as a comparison table.",
+    "content": "Calculate a performance scorecard for the following symbols: {symbols}.\n\nStep 1: Call `financialtoolkit_performance_sharpe_ratio` with symbols={symbols}, start_date={start_date} to get Sharpe ratios.\nStep 2: Call `financialtoolkit_performance_sortino_ratio` with symbols={symbols}, start_date={start_date} to get Sortino ratios.\nStep 3: Call `financialtoolkit_performance_alpha` with symbols={symbols}, start_date={start_date} to get alpha vs benchmark.\nStep 4: Call `financialtoolkit_performance_beta` with symbols={symbols}, start_date={start_date} to get systematic risk (beta).\nStep 5: Call `financialtoolkit_performance_treynor_ratio` with symbols={symbols}, start_date={start_date} to get Treynor ratios.\nStep 6: Call `financialtoolkit_performance_information_ratio` with symbols={symbols}, start_date={start_date} to get information ratios.\nStep 7: Combine all metrics into a comparison table with symbols as rows and metrics as columns.\nStep 8: Rank symbols by Sharpe ratio (highest to lowest) and highlight the best and worst performers.\nStep 9: Provide a 2-3 sentence interpretation of the scorecard — which symbol has the best risk-adjusted return, which has the highest systematic risk, which is the most benchmark-uncorrelated.",
+    "arguments": [
+      {
+        "name": "symbols",
+        "type": "str",
+        "description": "Comma-separated list of ticker symbols (e.g., AAPL,MSFT,GOOG,AMZN)"
+      },
+      {
+        "name": "start_date",
+        "type": "str",
+        "description": "Start date for the analysis period in YYYY-MM-DD format",
+        "default": "2024-01-01"
+      }
+    ],
+    "tags": ["financialtoolkit", "performance", "scorecard", "comparison"]
+  },
+  {
+    "name": "financialtoolkit_valuation_screen",
+    "description": "Screen stocks by market cap / P/E / sector using FinanceToolkit discovery, then enrich with valuation ratios and DCF intrinsic value.",
+    "content": "Run a quantitative valuation screen to find undervalued opportunities.\n\nStep 1: Call `financialtoolkit_discovery_screen` with market_cap_higher={market_cap_min}, is_etf=False to get an initial universe of stocks.\nStep 2: Filter to only stocks in sector={sector} if provided (check the sector field in the results).\nStep 3: For the top 10 results by market cap, call `financialtoolkit_ratios_valuation` with those symbols to get P/E, P/B, EV/EBITDA, P/FCF, and earnings yield.\nStep 4: Filter to stocks with P/E below {pe_max} and positive earnings yield.\nStep 5: For the filtered candidates, call `financialtoolkit_models_intrinsic_value` to estimate DCF intrinsic value (use conservative assumptions: growth_rate=0.05, perpetual_growth_rate=0.025, wacc=0.10).\nStep 6: Calculate the margin of safety as (intrinsic_value - current_price) / intrinsic_value.\nStep 7: Rank by margin of safety (highest first) and present a table with: symbol, P/E, P/B, EV/EBITDA, intrinsic value, current price, margin of safety.\nStep 8: Highlight the top 3 candidates as potential value opportunities, noting any risks or caveats.",
+    "arguments": [
+      {
+        "name": "market_cap_min",
+        "type": "int",
+        "description": "Minimum market capitalization filter in dollars",
+        "default": 1000000000
+      },
+      {
+        "name": "pe_max",
+        "type": "float",
+        "description": "Maximum price-to-earnings ratio filter",
+        "default": 25.0
+      },
+      {
+        "name": "sector",
+        "type": "str",
+        "description": "Sector filter (e.g., Technology, Healthcare, Financials). Leave empty for all sectors.",
+        "default": ""
+      }
+    ],
+    "tags": ["financialtoolkit", "valuation", "screening", "discovery"]
+  },
+  {
+    "name": "fmp_cached_portfolio_refresh",
+    "description": "Check cache coverage for a symbol using the fmp_cached provider and compare freshness vs live FMP data.",
+    "content": "Check the fmp_cached data coverage and freshness for {symbol}.\n\nStep 1: Call `equity_price_historical` with symbol={symbol}, provider=fmp_cached to retrieve cached price history. Note the most recent date in the results.\nStep 2: Call `equity_price_historical` with symbol={symbol}, provider=fmp, limit=5 to get the 5 most recent live prices from FMP.\nStep 3: Compare the most recent cached date vs the most recent live date. Report the data lag in calendar days.\nStep 4: Call `equity_fundamental_overview` with symbol={symbol}, provider=fmp_cached to check fundamental data freshness.\nStep 5: Report a cache health summary: (a) price history lag, (b) fundamental data availability, (c) whether a cache refresh is recommended.\nStep 6: If the price data is stale by more than 5 trading days, suggest running the cache update pipeline for {symbol}.",
+    "arguments": [
+      {
+        "name": "symbol",
+        "type": "str",
+        "description": "Stock ticker symbol to check (e.g., CLS, AAPL)"
+      }
+    ],
+    "tags": ["portfolio", "fmp_cached", "cache", "data_quality"]
   }
 ]

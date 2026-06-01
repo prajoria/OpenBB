@@ -309,6 +309,133 @@ async def get_series_id(
         return results
 
 
+async def get_entity_submissions(cik: str, use_cache: bool = True) -> dict:
+    """Fetch full entity JSON from data.sec.gov/submissions/CIK{cik}.json.
+
+    Parameters
+    ----------
+    cik : str
+        10-digit zero-padded CIK number.
+    use_cache : bool
+        Whether to use the SQLite response cache. Defaults to True.
+
+    Returns
+    -------
+    dict
+        Full submissions JSON for the entity including metadata and filing lists.
+    """
+    url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+    response: dict | list[dict] = {}
+    if use_cache is True:
+        cache_dir = f"{get_user_cache_directory()}/http/sec_entity"
+        async with CachedSession(
+            cache=SQLiteBackend(cache_dir, expire_after=3600 * 24)
+        ) as session:
+            try:
+                await session.delete_expired_responses()
+                response = await amake_request(url, headers=HEADERS, session=session)  # type: ignore
+            finally:
+                await session.close()
+    else:
+        response = await amake_request(url, headers=HEADERS)  # type: ignore
+    return response  # type: ignore
+
+
+async def search_13f_holders(
+    cusip: str,
+    start_date: str,
+    end_date: str,
+    limit: int = 100,
+    use_cache: bool = True,
+) -> list[dict]:
+    """Search EDGAR for 13F-HR filers holding a given CUSIP.
+
+    Paginates through efts.sec.gov/LATEST/search-index for 13F-HR filings that
+    mention the specified CUSIP and returns metadata about each matching filer.
+
+    Parameters
+    ----------
+    cusip : str
+        The 9-character CUSIP to search for.
+    start_date : str
+        ISO-format start date for the search window (e.g. '2024-01-01').
+    end_date : str
+        ISO-format end date for the search window (e.g. '2024-03-31').
+    limit : int
+        Maximum number of filer results to return. Defaults to 100.
+    use_cache : bool
+        Whether to use the SQLite response cache. Defaults to True.
+
+    Returns
+    -------
+    list[dict]
+        Each item has keys: filer_name, filer_cik, file_date, period_ending,
+        accession_number, primary_doc_url.
+    """
+    results: list[dict] = []
+    batch = 100
+    offset = 0
+
+    base_url = (
+        "https://efts.sec.gov/LATEST/search-index"
+        f'?q="{cusip}"&forms=13F-HR'
+        f"&dateRange=custom&startdt={start_date}&enddt={end_date}"
+    )
+
+    while len(results) < limit:
+        url = base_url + f"&from={offset}&count={min(batch, limit - len(results))}"
+        response: dict | list[dict] = {}
+        if use_cache is True:
+            cache_dir = f"{get_user_cache_directory()}/http/sec_13f_holders"
+            async with CachedSession(
+                cache=SQLiteBackend(cache_dir, expire_after=3600 * 24)
+            ) as session:
+                try:
+                    await session.delete_expired_responses()
+                    response = await amake_request(url, headers=HEADERS, session=session, response_callback=sec_callback)  # type: ignore
+                finally:
+                    await session.close()
+        else:
+            response = await amake_request(url, headers=HEADERS, response_callback=sec_callback)  # type: ignore
+
+        if not isinstance(response, dict):
+            break
+
+        hits = response.get("hits", {})
+        items = hits.get("hits", [])
+        total = hits.get("total", {}).get("value", 0)
+
+        for item in items:
+            src = item.get("_source", {})
+            ciks = src.get("ciks", [])
+            names = src.get("display_names", [])
+            adsh = src.get("adsh", "")
+            filer_cik = ciks[0] if ciks else ""
+            filer_name = names[0].split("(")[0].strip() if names else ""
+            primary_doc_url = (
+                f"https://www.sec.gov/Archives/edgar/data/{int(filer_cik)}"
+                + f"/{adsh.replace('-', '')}/{adsh}.txt"
+                if filer_cik and adsh
+                else ""
+            )
+            results.append(
+                {
+                    "filer_name": filer_name,
+                    "filer_cik": filer_cik,
+                    "file_date": src.get("file_date"),
+                    "period_ending": src.get("period_ending"),
+                    "accession_number": adsh,
+                    "primary_doc_url": primary_doc_url,
+                }
+            )
+
+        offset += len(items)
+        if offset >= total or not items:
+            break
+
+    return results
+
+
 async def get_nport_candidates(symbol: str, use_cache: bool = True) -> list[dict]:
     """Get a list of all NPORT-P filings for a given fund's symbol."""
     results = []

@@ -13,9 +13,12 @@ from openbb_financialtoolkit.options.options_service import OptionsService
 
 router = Router(prefix="/options", description="FinancialToolkit options tools.")
 
+_MCP_OPT = {"mcp_config": {"tags": ["financialtoolkit", "options"], "describe_responses": False}}
+
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_OPT,
     examples=[
         PythonEx(
             description="List scaffolded options commands for FinancialToolkit wrapper.",
@@ -31,6 +34,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_OPT,
     examples=[
         PythonEx(
             description="Calculate options Greeks via FinanceToolkit wrapper.",

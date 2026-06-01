@@ -175,21 +175,28 @@ const ExtensionSelector = ({
 		setCustomPackages((prev) => prev.filter((p) => p !== pkg));
 	};
 
-	// Load extensions from GitHub
+	// Load extensions from local assets (fork) with GitHub fallback
 	useEffect(() => {
 		const fetchExtensions = async () => {
 			setLoading(true);
 			try {
+				// Try local assets first (includes fork-specific providers like fmp_cached),
+				// fall back to upstream GitHub if local files are unavailable.
+				const localBase = "/assets/extensions";
+				const remoteBase = "https://raw.githubusercontent.com/OpenBB-finance/OpenBB/refs/heads/main/assets/extensions";
+
+				async function fetchWithFallback(filename: string): Promise<Response> {
+					try {
+						const localRes = await fetch(`${localBase}/${filename}`);
+						if (localRes.ok) return localRes;
+					} catch { /* local not available, fall through */ }
+					return fetch(`${remoteBase}/${filename}`);
+				}
+
 				const [providersRes, routersRes, obbjectsRes] = await Promise.all([
-					fetch(
-						"https://raw.githubusercontent.com/OpenBB-finance/OpenBB/refs/heads/main/assets/extensions/provider.json",
-					),
-					fetch(
-						"https://raw.githubusercontent.com/OpenBB-finance/OpenBB/refs/heads/main/assets/extensions/router.json",
-					),
-					fetch(
-						"https://raw.githubusercontent.com/OpenBB-finance/OpenBB/refs/heads/main/assets/extensions/obbject.json",
-					),
+					fetchWithFallback("provider.json"),
+					fetchWithFallback("router.json"),
+					fetchWithFallback("obbject.json"),
 				]);
 
 				if (!providersRes.ok || !routersRes.ok || !obbjectsRes.ok) {

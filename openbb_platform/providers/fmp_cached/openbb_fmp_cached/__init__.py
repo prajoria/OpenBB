@@ -59,7 +59,7 @@ from openbb_fmp_cached.models.income_statement import FMPCachedIncomeStatementFe
 from openbb_fmp.models.income_statement_growth import FMPIncomeStatementGrowthFetcher
 from openbb_fmp.models.index_historical import FMPIndexHistoricalFetcher
 from openbb_fmp.models.insider_trading import FMPInsiderTradingFetcher
-from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipFetcher
+from openbb_fmp_cached.models.institutional_ownership import FMPCachedInstitutionalOwnershipFetcher
 from openbb_fmp.models.key_executives import FMPKeyExecutivesFetcher
 from openbb_fmp.models.market_snapshots import FMPMarketSnapshotsFetcher
 from openbb_fmp.models.nport_disclosure import FMPNportDisclosureFetcher
@@ -91,6 +91,7 @@ def create_all_cached_fetchers():
         "FinancialRatios": FMPCachedFinancialRatiosFetcher,
         "IndexConstituents": FMPCachedIndexConstituentsFetcher,
         "IncomeStatement": FMPCachedIncomeStatementFetcher,
+        "InstitutionalOwnership": FMPCachedInstitutionalOwnershipFetcher,
         "KeyMetrics": FMPCachedKeyMetricsFetcher,
         "BalanceSheet": FMPCachedBalanceSheetFetcher,
         "CashFlowStatement": FMPCachedCashFlowStatementFetcher,
@@ -141,7 +142,6 @@ def create_all_cached_fetchers():
 
         ("IndexHistorical", FMPIndexHistoricalFetcher),
         ("InsiderTrading", FMPInsiderTradingFetcher),
-        ("InstitutionalOwnership", FMPInstitutionalOwnershipFetcher),
         ("KeyExecutives", FMPKeyExecutivesFetcher),
         ("MarketSnapshots", FMPMarketSnapshotsFetcher),
         ("NportDisclosure", FMPNportDisclosureFetcher),

@@ -14,7 +14,7 @@
       {
         "backgroundThrottling": "disabled",
         "acceptFirstMouse": true,
-        "visible": false,
+        "visible": true,
         "resizable": true,
         "title": "Open Data Platform",
         "width": 1024,

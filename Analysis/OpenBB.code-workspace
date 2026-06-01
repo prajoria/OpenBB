@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../copilot-api"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.py": "python"
+		},
+		"python.languageServer": "Pylance",
+		"workbench.editorAssociations": {
+			"*.md": "vscode.markdown.preview.editor"
+		}
+	}
+}

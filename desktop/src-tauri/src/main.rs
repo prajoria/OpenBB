@@ -92,6 +92,20 @@ fn get_process_logs_history(
 }
 
 async fn check_and_apply_update(app: AppHandle, always_prompt: bool) {
+    // Skip auto-update in debug/dev builds — the updater requires signed production artifacts.
+    #[cfg(debug_assertions)]
+    {
+        log::debug!("Skipping update check in dev build");
+        if always_prompt {
+            app.dialog()
+                .message("Update checking is disabled in development builds.")
+                .title("Dev Mode")
+                .kind(tauri_plugin_dialog::MessageDialogKind::Info)
+                .show(|_| {});
+        }
+        return;
+    }
+
     let show_error = |app: &AppHandle, title: &str, message: String| {
         app.dialog()
             .message(message)
@@ -771,10 +785,15 @@ fn main() {
             if !install_state.is_installed {
                 log::info!("Installation is INVALID - showing window and navigating to setup");
                 if let Some(window) = handle.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.eval("localStorage.clear(); console.log('localStorage cleared due to INVALID installation');");
-                    let _ = window.eval("window.location.href = '/setup'");
+                    let window_clone = window.clone();
+                    // Delay show slightly to let webview initialize
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        let _ = window_clone.show();
+                        let _ = window_clone.set_focus();
+                        let _ = window_clone.eval("localStorage.clear(); console.log('localStorage cleared due to INVALID installation');");
+                        let _ = window_clone.eval("window.location.href = '/setup'");
+                    });
                 }
             } else {
                 // VALID INSTALLATION

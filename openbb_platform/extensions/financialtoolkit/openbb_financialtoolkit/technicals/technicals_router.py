@@ -12,9 +12,12 @@ from openbb_financialtoolkit.technicals.technicals_service import TechnicalsServ
 
 router = Router(prefix="/technicals", description="FinancialToolkit technical indicators.")
 
+_MCP_TECH = {"mcp_config": {"tags": ["financialtoolkit", "technicals"], "describe_responses": False}}
+
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="List available technicals commands.",
@@ -30,6 +33,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Collect all technical indicators.",
@@ -62,6 +66,7 @@ def collect_all(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Collect momentum indicators.",
@@ -96,6 +101,7 @@ def momentum(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Collect overlap indicators.",
@@ -130,6 +136,7 @@ def overlap(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Collect volatility indicators.",
@@ -164,6 +171,7 @@ def volatility(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Collect breadth indicators.",
@@ -198,6 +206,7 @@ def breadth(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate RSI.",
@@ -227,6 +236,7 @@ def rsi(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate MACD.",
@@ -259,6 +269,7 @@ def macd(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate Bollinger Bands.",
@@ -289,6 +300,7 @@ def bollinger_bands(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate Simple Moving Average.",
@@ -318,6 +330,7 @@ def moving_average(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate Exponential Moving Average.",
@@ -347,6 +360,7 @@ def ema(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate Average True Range.",
@@ -376,6 +390,7 @@ def atr(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate Stochastic Oscillator.",
@@ -408,6 +423,7 @@ def stochastic(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate Ichimoku Cloud.",
@@ -440,6 +456,7 @@ def ichimoku(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate Average Directional Index.",
@@ -468,6 +485,7 @@ def adx(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Calculate On Balance Volume.",
@@ -496,6 +514,7 @@ def obv(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_TECH,
     examples=[
         PythonEx(
             description="Get support and resistance levels.",

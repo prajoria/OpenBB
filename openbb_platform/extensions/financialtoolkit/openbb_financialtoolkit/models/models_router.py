@@ -13,9 +13,12 @@ from openbb_financialtoolkit.models.models_service import ModelsService
 
 router = Router(prefix="/models", description="FinancialToolkit company model tools.")
 
+_MCP_MODELS = {"mcp_config": {"tags": ["financialtoolkit", "models"], "describe_responses": False}}
+
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_MODELS,
     examples=[
         PythonEx(
             description="List scaffolded models commands for FinancialToolkit wrapper.",
@@ -31,6 +34,7 @@ def capabilities() -> OBBject[list[DomainCapability]]:
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_MODELS,
     examples=[
         PythonEx(
             description="Calculate Altman Z-Score using FinanceToolkit wrapper.",
@@ -70,6 +74,7 @@ def altman_z_score(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_MODELS,
     examples=[
         PythonEx(
             description="Calculate Piotroski score using FinanceToolkit wrapper.",
@@ -101,6 +106,7 @@ def piotroski_score(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_MODELS,
     examples=[
         PythonEx(
             description="Run Dupont analysis using FinanceToolkit wrapper.",
@@ -140,6 +146,7 @@ def dupont(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_MODELS,
     examples=[
         PythonEx(
             description="Calculate WACC using FinanceToolkit wrapper.",
@@ -181,6 +188,7 @@ def wacc(
 
 @router.command(
     methods=["GET"],
+    openapi_extra=_MCP_MODELS,
     examples=[
         PythonEx(
             description="Calculate intrinsic valuation (DCF) using FinanceToolkit wrapper.",

@@ -225,7 +225,8 @@ async def _get_universe_history(universe: tuple, start: str, end: str):
 #  Metadata / widget registry endpoints
 # --------------------------------------------------------------------------- #
 
-@router.get("/portfolio/widgets.json", include_in_schema=False)
+@router.get("/portfolio/widgets.json", include_in_schema=False,
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_widgets():
     """Serve widgets.json — detected and merged by openbb_platform_api."""
     p = _ASSETS_DIR / "widgets.json"
@@ -233,7 +234,8 @@ async def portfolio_widgets():
         return JSONResponse(content=json.load(f))
 
 
-@router.get("/portfolio/apps.json", include_in_schema=False)
+@router.get("/portfolio/apps.json", include_in_schema=False,
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_apps():
     """Serve apps.json — detected and merged by openbb_platform_api."""
     p = _ASSETS_DIR / "apps.json"
@@ -245,17 +247,20 @@ async def portfolio_apps():
 #  Option-list helpers (for widget dropdowns)
 # --------------------------------------------------------------------------- #
 
-@router.get("/portfolio/get_symbols", include_in_schema=False)
+@router.get("/portfolio/get_symbols", include_in_schema=False,
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def get_symbols():
     return get_distinct_symbols()
 
 
-@router.get("/portfolio/get_accounts", include_in_schema=False)
+@router.get("/portfolio/get_accounts", include_in_schema=False,
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def get_accounts():
     return get_distinct_accounts()
 
 
-@router.get("/portfolio/get_owners", include_in_schema=False)
+@router.get("/portfolio/get_owners", include_in_schema=False,
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def get_owners():
     return get_distinct_owners()
 
@@ -275,7 +280,8 @@ def _raw_positions_blocked() -> None:
     )
 
 
-@router.get("/portfolio/positions")
+@router.get("/portfolio/positions",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_positions(
     account: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
     owner: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
@@ -285,7 +291,8 @@ async def portfolio_positions(
     _raw_positions_blocked()
 
 
-@router.get("/portfolio/summary")
+@router.get("/portfolio/summary",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_summary(
     snapshot_date: Optional[str] = Query(None, description="Filter by snapshot date (YYYY-MM-DD)"),
     symbol: Optional[str] = Query(None, description="Filter by ticker symbol"),
@@ -299,7 +306,8 @@ async def portfolio_summary(
     return df_to_records(df)
 
 
-@router.get("/portfolio/allocation")
+@router.get("/portfolio/allocation",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_allocation(
     owner: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
 ):
@@ -307,7 +315,8 @@ async def portfolio_allocation(
     _raw_positions_blocked()
 
 
-@router.get("/portfolio/cost_basis")
+@router.get("/portfolio/cost_basis",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_cost_basis(
     symbol: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
     account: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
@@ -316,7 +325,8 @@ async def portfolio_cost_basis(
     _raw_positions_blocked()
 
 
-@router.get("/portfolio/tax_summary")
+@router.get("/portfolio/tax_summary",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_tax_summary(
     owner: Optional[str] = Query(None, description="Unused; raw endpoint disabled"),
 ):
@@ -324,7 +334,8 @@ async def portfolio_tax_summary(
     _raw_positions_blocked()
 
 
-@router.get("/portfolio/performance")
+@router.get("/portfolio/performance",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_performance(
     snapshot_date: Optional[str] = Query(None, description="Filter by snapshot date (YYYY-MM-DD)"),
 ):
@@ -336,7 +347,8 @@ async def portfolio_performance(
     return df_to_records(result)
 
 
-@router.get("/portfolio/snapshots")
+@router.get("/portfolio/snapshots",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def portfolio_snapshots():
     """All available basket snapshots with total portfolio values."""
     df = get_all_basket_snapshots_df()
@@ -360,7 +372,8 @@ async def portfolio_snapshots():
 #  ESPP
 # --------------------------------------------------------------------------- #
 
-@router.get("/espp/purchases")
+@router.get("/espp/purchases",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def espp_purchases():
     """ESPP purchase history with discount and tax analysis."""
     return df_to_records(get_espp_df())
@@ -370,7 +383,8 @@ async def espp_purchases():
 #  Equity historical prices (from cache DB)
 # --------------------------------------------------------------------------- #
 
-@router.get("/equity/historical")
+@router.get("/equity/historical",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def equity_historical(
     symbol: str = Query("MSFT", description="Ticker symbol"),
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
@@ -384,7 +398,8 @@ async def equity_historical(
 #  Market data via OpenBB SDK (no HTTP proxy)
 # --------------------------------------------------------------------------- #
 
-@router.get("/market/quote")
+@router.get("/market/quote",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def market_quote(
     symbol: str = Query("MSFT", description="Ticker symbol"),
     provider: Optional[str] = Query(None, description="Data provider (e.g. fmp, yfinance)"),
@@ -397,7 +412,8 @@ async def market_quote(
     return df_to_records(df)
 
 
-@router.get("/market/historical")
+@router.get("/market/historical",
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def market_historical(
     symbol: str = Query("MSFT", description="Ticker symbol"),
     start_date: Optional[str] = Query(None, description="Start date"),
@@ -420,7 +436,8 @@ async def market_historical(
 #  Single-Stock Analysis Endpoints  (Phase 0-7)
 # --------------------------------------------------------------------------- #
 
-@router.get("/stock/context")
+@router.get("/stock/context",
+            openapi_extra={"mcp_config": {"tags": ["portfolio", "financialtoolkit"]}})
 async def stock_context(
     symbol: str = Query("CLS", description="Ticker symbol"),
 ):
@@ -438,7 +455,8 @@ async def stock_context(
     }]
 
 
-@router.get("/stock/profile")
+@router.get("/stock/profile",
+            openapi_extra={"mcp_config": {"tags": ["portfolio", "financialtoolkit"]}})
 async def stock_profile(
     symbol: str = Query("CLS", description="Ticker symbol"),
     benchmark: str = Query("SPY", description="Benchmark ticker"),
@@ -457,7 +475,8 @@ async def stock_profile(
     return [summary]
 
 
-@router.get("/stock/fundamentals")
+@router.get("/stock/fundamentals",
+            openapi_extra={"mcp_config": {"tags": ["portfolio", "financialtoolkit"]}})
 async def stock_fundamentals(
     symbol: str = Query("CLS", description="Ticker symbol"),
     lookback_years: int = Query(5, description="Years of annual history"),
@@ -469,7 +488,8 @@ async def stock_fundamentals(
     return [{"metric": k, "value": _fmt_kpi(k, v)} for k, v in kpis.items()]
 
 
-@router.get("/stock/technicals")
+@router.get("/stock/technicals",
+            openapi_extra={"mcp_config": {"tags": ["portfolio", "financialtoolkit"]}})
 async def stock_technicals(
     symbol: str = Query("CLS", description="Ticker symbol"),
     lookback_years: int = Query(1, description="Years of daily history"),
@@ -488,7 +508,8 @@ async def stock_technicals(
     return [{"indicator": k, "value": _fmt_kpi(k, v)} for k, v in kpis.items()]
 
 
-@router.get("/stock/valuation")
+@router.get("/stock/valuation",
+            openapi_extra={"mcp_config": {"tags": ["portfolio", "financialtoolkit"]}})
 async def stock_valuation(
     symbol: str = Query("CLS", description="Ticker symbol"),
     lookback_years: int = Query(5, description="Years of annual history"),
@@ -503,7 +524,8 @@ async def stock_valuation(
     return [{"metric": k, "value": _fmt_kpi(k, v)} for k, v in kpis.items()]
 
 
-@router.get("/stock/risk")
+@router.get("/stock/risk",
+            openapi_extra={"mcp_config": {"tags": ["portfolio", "financialtoolkit"]}})
 async def stock_risk(
     symbol: str = Query("CLS", description="Ticker symbol"),
     benchmark: str = Query("SPY", description="Benchmark ticker"),
@@ -525,7 +547,8 @@ async def stock_risk(
     return [{"metric": k, "value": _fmt_kpi(k, v)} for k, v in kpis.items()]
 
 
-@router.get("/stock/relative")
+@router.get("/stock/relative",
+            openapi_extra={"mcp_config": {"tags": ["portfolio", "financialtoolkit"]}})
 async def stock_relative(
     symbol: str = Query("CLS", description="Ticker symbol"),
     benchmark: str = Query("SPY", description="Benchmark ticker"),
@@ -554,7 +577,8 @@ async def stock_relative(
     return df_out.to_dict(orient="records")
 
 
-@router.get("/stock/decision")
+@router.get("/stock/decision",
+            openapi_extra={"mcp_config": {"tags": ["portfolio", "financialtoolkit"]}})
 async def stock_decision(
     symbol: str = Query("CLS", description="Ticker symbol"),
     benchmark: str = Query("SPY", description="Benchmark ticker"),
@@ -618,7 +642,8 @@ async def stock_decision(
 #  Health check
 # --------------------------------------------------------------------------- #
 
-@router.get("/portfolio/health", include_in_schema=False)
+@router.get("/portfolio/health", include_in_schema=False,
+            openapi_extra={"mcp_config": {"tags": ["portfolio"]}})
 async def health():
     """Health check — reports DB connectivity."""
     db_ok = check_db()
