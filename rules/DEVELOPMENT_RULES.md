@@ -213,7 +213,27 @@ Log detailed diagnostics at DEBUG level.
 
 ---
 
-## 9. Git Practices
+## 9. Git Issues vs Beads Tasks
+
+**GitHub issues are for explicit user requests only.** Do not automatically create GitHub issues during development.
+
+| Use GitHub Issues (`gh issue create`) | Use Beads Tasks (`bd create`) |
+|---|---|
+| User explicitly asks to create a GitHub issue | Implementation sub-tasks during development |
+| Tracking work that needs external visibility | Test failures discovered during a session |
+| Feature specs, design docs, phase deliverables | Bugs found mid-implementation |
+| Work items discussed and approved with the user | Local investigation / debugging tasks |
+
+**Rules:**
+1. **Never auto-create GitHub issues** while implementing features — use `bd create` instead
+2. **Never start working on the next task** after completing one until beads tasks have been created for the local development work and shown to the user
+3. **Test failures → beads bugs only** — `bd create --type=bug --title="..."`, not GitHub issues
+4. **One beads issue per logical unit of work** — claim it before starting, close it when done
+5. **At session end:** report open beads, git status, and proposed next steps — do not auto-commit or auto-push
+
+---
+
+## 11. Git Practices
 
 - **Branch:** `openbb_learning` (never commit to `main`).
 - **Commit messages:** Imperative mood, brief subject.
@@ -224,7 +244,49 @@ Log detailed diagnostics at DEBUG level.
 
 ---
 
-## 10. Code Style
+## 12. Diagrams
+
+**Always use Mermaid for diagrams in documentation.** Do not use ASCII art diagrams.
+
+- Use `flowchart TD` or `flowchart LR` for architecture and flow diagrams
+- Use `sequenceDiagram` for request/response and interaction flows
+- Use `graph TD` for dependency graphs
+- Wrap in fenced code blocks with the `mermaid` language tag:
+
+````markdown
+```mermaid
+flowchart TD
+    A[Start] --> B[End]
+```
+````
+
+Mermaid renders natively in GitHub, VS Code (with the Mermaid extension), and most modern documentation tools. ASCII diagrams do not.
+
+---
+
+## 13. Paths in Documentation
+
+**Always use repo-relative paths in documentation and design docs.** Never use absolute paths.
+
+| ❌ Wrong (absolute) | ✅ Correct (relative) |
+|---|---|
+| `I:\masterswork\git\OpenBB\Analysis\stock_analysis.py` | `Analysis/stock_analysis.py` |
+| `I:\masterswork\git\OpenBB\.venv_win\Scripts\python.exe` | `.venv_win\Scripts\python.exe` |
+| `C:\Users\daaji\.openbb_platform\user_settings.json` | `~/.openbb_platform/user_settings.json` |
+
+**Exception:** Shell setup snippets (e.g., `.claude/settings.json` MCP config, `.vscode/mcp.json`) that require absolute paths for the OS to resolve the executable — document these with a note that the path must be updated per machine:
+
+```json
+{
+  "command": "ABSOLUTE_PATH_TO_REPO\\.venv_win\\Scripts\\python.exe"
+}
+```
+
+This keeps docs portable and avoids leaking local machine paths into committed files.
+
+---
+
+## 14. Code Style
 
 - Follow existing code patterns in the file you're modifying.
 - Use type hints for function signatures.
@@ -235,7 +297,7 @@ Log detailed diagnostics at DEBUG level.
 
 ---
 
-## 11. Quick Safety Checklist
+## 15. Quick Safety Checklist
 
 Before committing any code changes, verify:
 

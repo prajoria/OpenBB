@@ -91,3 +91,6 @@ vscode-extension/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Temporary scratch files
+temp/

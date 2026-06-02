@@ -9,6 +9,10 @@
 		{
 			"name": "awesome-agent-skills",
 			"path": "../../awesome-agent-skills"
+		},
+		{
+			"name": "adk-python",
+			"path": "../../adk-python"
 		}
 	],
 	"settings": {
