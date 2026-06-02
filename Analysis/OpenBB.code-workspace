@@ -5,6 +5,10 @@
 		},
 		{
 			"path": "../../copilot-api"
+		},
+		{
+			"name": "awesome-agent-skills",
+			"path": "../../awesome-agent-skills"
 		}
 	],
 	"settings": {
