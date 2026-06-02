@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "openbb-agents": {
+      "command": "I:\\masterswork\\git\\OpenBB\\.venv_win\\Scripts\\python.exe",
+      "args": ["-m", "openbb_agents.mcp_server"],
+      "cwd": "I:\\masterswork\\git\\OpenBB",
+      "env": {
+        "PYTHONPATH": "I:\\masterswork\\git\\OpenBB\\openbb_platform\\extensions\\agents"
+      }
+    }
+  }
+}
