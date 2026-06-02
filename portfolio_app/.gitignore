@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# SSL certs (generated per-machine)
+cert.pem
+key.pem
+
+# Generated test fixtures (regenerate via: python -m tests.mock_data_generator)
+tests/fixtures/*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
