@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "openbb-fmp-cached"
+version = "1.0.0"
+description = "FMP Cached extension for OpenBB with MySQL caching support"
+authors = ["OpenBB Team <hello@openbb.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "openbb_fmp_cached" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+openbb-core = "^1.5.1"
+openbb-fmp = "^1.5.1"
+aiomysql = "^0.2.0"
+sqlalchemy = "^2.0.0"
+asyncio = "^3.4.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."openbb_provider_extension"]
+fmp_cached = "openbb_fmp_cached:fmp_cached_provider"
