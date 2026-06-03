@@ -4,8 +4,8 @@ from typing import Any
 
 from openbb_financialtoolkit.adapters.mapper import to_records
 from openbb_financialtoolkit.common.enums import CoverageStatus
+from openbb_financialtoolkit.common.validators import resolve_api_key
 from openbb_financialtoolkit.exceptions import (
-    FinancialToolkitConfigurationError,
     FinancialToolkitExecutionError,
 )
 from openbb_financialtoolkit.discovery.discovery_models import DomainCapability
@@ -32,10 +32,8 @@ class DiscoveryService:
 
     @staticmethod
     def _discovery_controller(api_key: str) -> Any:
-        if not api_key:
-            raise FinancialToolkitConfigurationError(
-                "Discovery endpoints require an API key."
-            )
+        # Shared, consistent credential contract (fails loudly if no key).
+        resolved_key = resolve_api_key(api_key)
 
         try:
             from financetoolkit import Discovery  # pylint: disable=import-outside-toplevel
@@ -44,7 +42,7 @@ class DiscoveryService:
                 "financetoolkit discovery dependency is unavailable."
             ) from exc
 
-        return Discovery(api_key=api_key)
+        return Discovery(api_key=resolved_key)
 
     @staticmethod
     def screen(

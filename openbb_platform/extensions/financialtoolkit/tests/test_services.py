@@ -124,8 +124,10 @@ def test_discovery_service_capabilities_include_screen_search() -> None:
     assert {"screen", "search"}.issubset(commands)
 
 
-def test_discovery_controller_requires_api_key() -> None:
+def test_discovery_controller_requires_api_key(monkeypatch) -> None:
     """Discovery service should require api key for controller creation."""
+    # Ensure no ambient FMP_API_KEY leaks in and satisfies the resolver.
+    monkeypatch.delenv("FMP_API_KEY", raising=False)
     try:
         DiscoveryService._discovery_controller(api_key="")
         assert False, "Expected FinancialToolkitConfigurationError"
