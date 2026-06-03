@@ -5,3 +5,6 @@
 	path = third_party/adk-python
 	url = https://github.com/prajoria/adk-python.git
 	branch = main
+[submodule "third_party/awesome-quant"]
+	path = third_party/awesome-quant
+	url = https://github.com/prajoria/awesome-quant
