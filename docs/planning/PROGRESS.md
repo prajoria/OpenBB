@@ -1,6 +1,6 @@
 # Development Progress — OpenBB Learning & Personal Finance Platform
 
-> **Repository:** `I:\masterswork\git\OpenBB` (fork of openbb-finance/OpenBB)
+> **Repository:** `<repo-root>` (fork of openbb-finance/OpenBB)
 > **Branch:** `openbb_learning`
 > **Author:** Prashant Rajoria
 > **Period:** November 2025 – March 2026 (49 commits)

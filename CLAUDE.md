@@ -168,16 +168,20 @@ Configure data provider API keys in `~/.openbb_platform/user_settings.json`:
 }
 ```
 
-**Active credentials** (already configured — do not hardcode in source):
-- `fmp_api_key` and `fmp_cached_api_key`: set in `C:\Users\daaji\.openbb_platform\user_settings.json`
-- Also available as `FMP_API_KEY` in `.env` (repo root: `I:\masterswork\git\OpenBB\.env`)
-- OpenBB reads `user_settings.json` automatically on import; `.env` is loaded via `python-dotenv` when needed
+**Credentials** (configure once — never hardcode key values in source or docs):
+- `fmp_api_key` and `fmp_cached_api_key`: set in `~/.openbb_platform/user_settings.json`
+  (the platform resolves this per-user path automatically)
+- Optionally also available as `FMP_API_KEY` in a `.env` file at the repo root
+  (`<repo-root>/.env`)
+- OpenBB reads `user_settings.json` automatically on import; `.env` is loaded via
+  `python-dotenv` when needed
+- Keep `.env` and `user_settings.json` gitignored — they must never be committed
 
 **How to load `.env` in scripts or notebooks:**
 ```python
 from dotenv import load_dotenv
 import os
-load_dotenv("I:/masterswork/git/OpenBB/.env")   # or load_dotenv() if CWD is repo root
+load_dotenv()   # run from the repo root so .env is found, or pass an explicit path
 # openbb reads user_settings.json automatically — no manual credential setting needed
 from openbb import obb
 ```
@@ -185,24 +189,31 @@ from openbb import obb
 ### Python Environment
 - **Supported**: Python 3.10 - 3.13
 - **Package Manager**: Poetry (for dependency management)
-- **Virtual Environment**: **Always use `.venv_win`** for all Python execution in this repo on Windows.
+- **Virtual Environment**: Use the project venv for all Python execution in this repo.
+  On Windows this checkout uses `.venv_win`; on other platforms use your local
+  `.venv` equivalent. Paths below are shown repo-relative — resolve them against
+  your own repo root.
 
-#### `.venv_win` — the canonical development environment
+#### Project venv — the canonical development environment
 ```
-Location:  I:\masterswork\git\OpenBB\.venv_win\
-Python:    I:\masterswork\git\OpenBB\.venv_win\Scripts\python.exe
-pip:       I:\masterswork\git\OpenBB\.venv_win\Scripts\pip.exe
-pytest:    I:\masterswork\git\OpenBB\.venv_win\Scripts\python.exe -m pytest
+Python:    .venv_win\Scripts\python.exe
+pip:       .venv_win\Scripts\pip.exe
+pytest:    .venv_win\Scripts\python.exe -m pytest
 ```
 
-**IMPORTANT:** Never use the system Python (`C:\Users\daaji\AppData\Local\Programs\Python\Python312\python.exe`) for running OpenBB code. It has a different (newer) set of extensions installed that does not match the editable installs in `.venv_win`.
+**IMPORTANT:** Never use the system/global Python interpreter for running OpenBB
+code. It typically has a different (newer) set of extensions installed that does
+not match the editable installs in the project venv. Always invoke the
+project-venv interpreter (the repo-relative `.venv_win\Scripts\python.exe` above,
+or your platform's equivalent — referred to as `$PYTHON` elsewhere).
 
-All `python`, `pip`, and `pytest` commands in this CLAUDE.md should be run with the `.venv_win` interpreter, e.g.:
+All `python`, `pip`, and `pytest` commands in this CLAUDE.md should be run with the
+project-venv interpreter, e.g.:
 ```bash
 # Activate (PowerShell)
 .\.venv_win\Scripts\Activate.ps1
 
-# Or use explicit path (always works without activation)
+# Or use the repo-relative path (always works without activation)
 .venv_win\Scripts\python.exe -m pytest Analysis/tests/ -m "not integration"
 .venv_win\Scripts\python.exe -m pytest Analysis/tests/ -m "integration"
 ```
@@ -278,9 +289,14 @@ bd close <id>         # Complete work
 
 ### Rules
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+> These conventions apply to AI agents and contributors working **in this fork**,
+> which has adopted Beads as its tracker. Contributors who do not use Beads should
+> substitute their own task tracker — the intent is "use a real issue tracker, not
+> scattered TODOs," not a mandate of one specific tool.
+
+- Prefer `bd` for task tracking in this fork — avoid ad-hoc markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- Use `bd remember` for persistent knowledge rather than loose MEMORY.md files
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
 
