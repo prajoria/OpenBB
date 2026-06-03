@@ -40,3 +40,4 @@ The full list of 24 extensions lives in the architecture index.
 → [extensions/ architecture](../../architecture/extensions/README.md)
 
 → Related design: [02 Conventions](../02-conventions.md) · [03 Recipes](../03-recipes.md) · [04 Gotchas](../04-gotchas.md)
+→ Upstream: `third_party/openbb-docs/content/odp/python/developer/extension_types/router.md`, `extensions/data-processing/{technical,quantitative,econometrics}.mdx`

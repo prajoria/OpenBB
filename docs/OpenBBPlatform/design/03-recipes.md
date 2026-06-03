@@ -6,6 +6,11 @@
 > Each recipe ends with the **rebuild + verify** step that catches the silent failures.
 > Last verified: 2026-06-02.
 
+> **Upstream how-to (canonical):** `third_party/openbb-docs/content/odp/python/developer/`
+> — `extension_types/provider.md`, `extension_types/router.md`, `how-to/http_requests.mdx`,
+> `how-to/validators.mdx`, `how-to/examples.mdx`. These cover the public API; the recipes
+> below add this fork's rebuild/verify discipline and gotcha cross-links.
+
 ---
 
 ## Recipe A — Add a provider integration for an existing standard model

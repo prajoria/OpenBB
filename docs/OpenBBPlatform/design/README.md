@@ -12,6 +12,12 @@
 This tree mirrors the source layout (`core/`, `providers/`, `extensions/`,
 `obbject_extensions/`) symmetrically with the architecture tree.
 
+> **Complementary upstream docs.** The official OpenBB developer guides live in the vendored
+> submodule `third_party/openbb-docs/content/odp/python/developer/` (published at
+> [docs.openbb.co](https://docs.openbb.co/platform/developer)). Where this tree gives
+> fork-specific *why/how-to-change*, the upstream `how-to/` and `extension_types/` guides
+> give the canonical public-API version. Map: [INDEX upstream section](../INDEX.md#third-tree--upstream-docs-as-a-complementary-memory-bank).
+
 ---
 
 ## Read order for a new agent

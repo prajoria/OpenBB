@@ -2,6 +2,11 @@
 
 [← core/ overview](./README.md) · [Docs home](../README.md)
 
+> **Upstream reference (user-facing config — not duplicated here):**
+> `third_party/openbb-docs/content/odp/python/settings/` — `user_settings/{api_keys,defaults,preferences}.mdx`,
+> `environment_variables.mdx`, `system_settings.mdx`. Output container:
+> `basic_usage/response_model.mdx`. See [INDEX upstream map](../../INDEX.md#third-tree--upstream-docs-as-a-complementary-memory-bank).
+
 Covers `core/openbb_core/app/model/` and `core/openbb_core/app/service/` — the result
 container, the credential/settings models, and the services that load them.
 

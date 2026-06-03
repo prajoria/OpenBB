@@ -47,3 +47,4 @@ The core is the only thing that must be present for the platform to run. It owns
 | FastAPI assembly, REST↔Python sharing | [API Server](../../architecture/core/api-server.md) |
 
 → Related design: [02 Conventions](../02-conventions.md) · [03 Recipes](../03-recipes.md) · [04 Gotchas](../04-gotchas.md)
+→ Upstream: `third_party/openbb-docs/content/odp/python/developer/architecture_overview.mdx`, `developer/standardization.mdx`, `extensions/openbb-core.mdx`

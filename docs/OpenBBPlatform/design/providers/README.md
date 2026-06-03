@@ -47,3 +47,4 @@ The full 34-provider quick-ref table (auth, async/sync, models, notes) lives in 
 architecture index. → [providers/ architecture](../../architecture/providers/README.md)
 
 → Related design: [02 Conventions](../02-conventions.md) · [03 Recipes](../03-recipes.md) · [04 Gotchas](../04-gotchas.md)
+→ Upstream: `third_party/openbb-docs/content/odp/python/developer/extension_types/provider.md`, `developer/standardization.mdx`, `developer/how-to/http_requests.mdx`

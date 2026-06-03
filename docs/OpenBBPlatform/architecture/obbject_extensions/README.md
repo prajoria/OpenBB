@@ -1,6 +1,10 @@
 # obbject_extensions/ — OBBject Accessors
 
-[← Docs home](../README.md) · Related: [Models & Settings § OBBject](../core/models-and-settings.md#1-obbject--the-universal-result-container) · [extensions/ overview](../extensions/README.md)
+[← Docs home](../README.md) · Related: [Models & Settings § OBBject](../core/models-and-settings.md#1-obbject--the-universal-result-container) · [extensions/ overview](../extensions/README.md) · Design: [obbject_extensions/ design](../../design/obbject_extensions/README.md)
+
+> **Upstream reference:** `third_party/openbb-docs/content/odp/python/developer/extension_types/`
+> — `obbject.md` (accessors), `charting.md` (the charting Views), `plugins.md`
+> (on-command-output callbacks). Charting usage: `extensions/infrastructure/openbb-charting/`.
 
 ---
 

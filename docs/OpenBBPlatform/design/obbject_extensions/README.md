@@ -38,3 +38,4 @@ pattern) is documented in the architecture counterpart.
 → [obbject_extensions/ architecture](../../architecture/obbject_extensions/README.md)
 
 → Related design: [00 Principles](../00-principles.md) · [01 Decisions](../01-decisions.md)
+→ Upstream: `third_party/openbb-docs/content/odp/python/developer/extension_types/{obbject,charting,plugins}.md`

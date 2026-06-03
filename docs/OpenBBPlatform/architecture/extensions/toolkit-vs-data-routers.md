@@ -2,6 +2,10 @@
 
 [← extensions/ overview](./README.md) · [Docs home](../README.md) · Related: [Request Lifecycle](../02-request-lifecycle.md)
 
+> **Upstream reference:** toolkit endpoint catalogs in
+> `third_party/openbb-docs/content/odp/python/extensions/data-processing/{technical,quantitative,econometrics}.mdx`;
+> command/router mechanics in `developer/extension_types/router.md`.
+
 ---
 
 Both flavors register as `Router` objects and appear identically under `obb.` to the user.

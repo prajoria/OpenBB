@@ -5,6 +5,11 @@
 > How to pass pre-commit, write provider tests with VCR cassettes, and run the test tiers.
 > Last verified: 2026-06-02.
 
+> **Upstream how-to (canonical):**
+> `third_party/openbb-docs/content/odp/python/developer/how-to/tests.mdx` documents
+> `Fetcher.test`, `pytest_recorder` cassettes, integration-test generators, and `tuna`
+> import profiling. This page adds the fork's pre-commit gates and project-venv commands.
+
 ---
 
 ## Pre-commit gates

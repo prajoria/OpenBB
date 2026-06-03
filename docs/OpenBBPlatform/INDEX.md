@@ -46,6 +46,53 @@ Each tree **mirrors the source folder layout** so navigation is mechanical: sour
 
 ---
 
+## Third tree — upstream docs as a complementary memory bank
+
+The official OpenBB documentation is vendored as a **git submodule** at
+`third_party/openbb-docs/` (origin `OpenBB-finance/openbb-docs`, published at
+[docs.openbb.co](https://docs.openbb.co)). Treat it as a **complementary, canonical
+reference** that sits alongside this bank — not a replacement:
+
+| | This memory bank (`docs/OpenBBPlatform/`) | Upstream docs (`third_party/openbb-docs/`) |
+|---|---|---|
+| Audience | AI agents + maintainers of **this fork** | end users + upstream developers |
+| Style | code-anchored (file→symbol), "last verified" dated, fork-aware (`fmp_cached`, Analysis) | conceptual, user-facing, version-published |
+| Strength | *why* + *how-to-change* + gotchas, grounded in current source | *what the public API is* + settings/install/FAQ/Workspace/MCP |
+| Authority | reconstructed from code (may lag) | upstream source of truth for the public contract |
+
+**When to reach for upstream instead of (or after) this bank:**
+
+- User-facing **settings** JSON/env keys → `third_party/openbb-docs/content/odp/python/settings/`
+- **Installation / Docker / build** → `.../odp/python/installation.mdx`
+- **REST API ops** (auth, CORS, HTTPS) → `.../odp/python/quickstart/rest_api.mdx`
+- **MCP server** + **Workspace** widgets → `.../odp/python/quickstart/{mcp,workspace}.mdx`, `.../extensions/interface/`
+- **FAQs / errors / license (AGPL)** → `.../odp/python/faqs/`
+- Canonical **developer concepts** (parallel to this bank) → `.../odp/python/developer/`
+
+### Concept → upstream-doc map (developer subtree)
+
+| Concept (this bank) | Upstream counterpart (`content/odp/python/`) |
+|---|---|
+| [System Overview](./architecture/01-system-overview.md) · [Request Lifecycle](./architecture/02-request-lifecycle.md) | `developer/architecture_overview.mdx` |
+| [P1 Standardize contract](./design/00-principles.md#p1--standardize-the-contract-not-the-source) · [standard models](./architecture/core/provider-framework.md) | `developer/standardization.mdx` |
+| [Provider Framework](./architecture/core/provider-framework.md) · [Recipes A](./design/03-recipes.md) | `developer/extension_types/provider.md` |
+| [extensions/ (router)](./architecture/extensions/README.md) | `developer/extension_types/router.md` |
+| [obbject_extensions/](./architecture/obbject_extensions/README.md) | `developer/extension_types/obbject.md`, `charting.md`, `plugins.md` |
+| [3 plugin types](./architecture/01-system-overview.md#the-three-plugin-types) | `developer/extension_types/index.md`, `from_fastapi.md` |
+| [05 Quality & Testing (VCR)](./design/05-quality-and-testing.md) | `developer/how-to/tests.mdx` |
+| [Conventions § model config / validators](./design/02-conventions.md) | `developer/how-to/validators.mdx` |
+| [fmp/fred HTTP helpers](./architecture/providers/fmp.md) | `developer/how-to/http_requests.mdx` |
+| [AnnotatedResult (fred)](./architecture/providers/fred.md) · [GLOSSARY](./GLOSSARY.md) | `developer/how-to/annotated_results.mdx` |
+| [Conventions § examples (APIEx/PythonEx)](./design/02-conventions.md) | `developer/how-to/examples.mdx` |
+| [Toolkit vs Data Routers](./architecture/extensions/toolkit-vs-data-routers.md) | `extensions/data-processing/{technical,quantitative,econometrics}.mdx` |
+| [Models & Settings § credentials/settings](./architecture/core/models-and-settings.md) | `settings/**`, `basic_usage/query_parameters.mdx` |
+| [OBBject](./architecture/core/models-and-settings.md) | `basic_usage/response_model.mdx` |
+
+> The submodule is pinned to commit `78c73a902a`. To read it locally:
+> `git submodule update --init third_party/openbb-docs`.
+
+---
+
 ## Directory map — symmetric structure
 
 Source folder → its architecture doc → its design doc.

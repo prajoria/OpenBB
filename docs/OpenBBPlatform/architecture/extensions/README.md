@@ -186,5 +186,6 @@ bundle (ruff, pylint, mypy, pydocstyle, black, bandit, codespell, pre-commit, py
 - [Toolkit vs Data Routers](./toolkit-vs-data-routers.md) — the two command flavors compared.
 
 → Design counterpart: [extensions/ design](../../design/extensions/README.md) · Add one: [Recipes D](../../design/03-recipes.md#recipe-d--add-a-new-extension-command-namespace)
+→ Upstream: `third_party/openbb-docs/content/odp/python/developer/extension_types/router.md`, `extensions/data-processing/{technical,quantitative,econometrics}.mdx`, `extensions/interface/{openbb-api,openbb-mcp}.mdx`
 
 [← Memory Bank Index](../../INDEX.md) · [← Docs home](../README.md)

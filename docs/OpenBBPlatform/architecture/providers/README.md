@@ -167,5 +167,6 @@ same shape (auth · extract style · raw shape · models · gotchas).
 - [fred deep dive](./fred.md) — economic time-series provider.
 
 → Design counterpart: [providers/ design](../../design/providers/README.md) · Add one: [Recipes A](../../design/03-recipes.md#recipe-a--add-a-provider-integration-for-an-existing-standard-model)
+→ Upstream: `third_party/openbb-docs/content/odp/python/extensions/providers/index.mdx` (install + key names), `developer/extension_types/provider.md` (how to build), `faqs/data_providers.mdx`
 
 [← Memory Bank Index](../../INDEX.md) · [← Docs home](../README.md)

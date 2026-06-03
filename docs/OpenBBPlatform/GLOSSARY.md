@@ -5,6 +5,10 @@
 Every domain term maps to the **code symbol** that implements it and the **doc** that
 explains it. Last verified: 2026-06-02.
 
+> **Upstream glossary-equivalent:** the canonical conceptual definitions live in
+> `third_party/openbb-docs/content/odp/python/developer/` (architecture_overview, standardization,
+> extension_types) and `basic_usage/`. This table additionally pins each term to its **code symbol**.
+
 | Term | Meaning | Implemented by | Doc |
 |---|---|---|---|
 | **`obb`** | The static Python SDK object; instance of a generated class tree. | `openbb/package/*.py` (generated), composed by `create_app` | [App Runtime](./architecture/core/app-runtime.md) |

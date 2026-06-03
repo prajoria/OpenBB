@@ -6,6 +6,11 @@
 > pre-commit gates. Following them is what makes a new provider/command/model "just work."
 > Last verified: 2026-06-02.
 
+> **Upstream reference:** standardization rules (lower_snake_case, `__alias_dict__`, null/
+> decimal normalization) are documented canonically in
+> `third_party/openbb-docs/content/odp/python/developer/standardization.mdx`; validators in
+> `developer/how-to/validators.mdx`.
+
 ---
 
 ## Naming & layout

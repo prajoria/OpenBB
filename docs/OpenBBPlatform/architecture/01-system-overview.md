@@ -2,6 +2,11 @@
 
 [← Docs home](./README.md) · Next: [02 — Request Lifecycle →](./02-request-lifecycle.md)
 
+> **Upstream reference:** the canonical conceptual version is
+> `third_party/openbb-docs/content/odp/python/developer/architecture_overview.mdx`
+> ([docs.openbb.co](https://docs.openbb.co/platform/developer)). See the
+> [INDEX upstream map](../INDEX.md#third-tree--upstream-docs-as-a-complementary-memory-bank).
+
 ---
 
 ## What OpenBB Platform is

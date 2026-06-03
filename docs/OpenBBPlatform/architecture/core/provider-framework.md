@@ -1,6 +1,11 @@
 # core/ — Provider Framework
 
-[← core/ overview](./README.md) · [Docs home](../README.md)
+[← core/ overview](./README.md) · [Docs home](../README.md) · Design: [providers/ design](../../design/providers/README.md)
+
+> **Upstream reference:** `third_party/openbb-docs/content/odp/python/developer/` —
+> `extension_types/provider.md` (building a provider), `standardization.mdx` (standard
+> models / aliases), `how-to/http_requests.mdx` (the HTTP helpers fetchers use),
+> `how-to/annotated_results.mdx` (`AnnotatedResult`). See [INDEX map](../../INDEX.md#third-tree--upstream-docs-as-a-complementary-memory-bank).
 
 Covers `core/openbb_core/provider/` — the abstractions every data source implements:
 `Fetcher`, `QueryParams`, `Data`, `Provider`, the standard models, the registry, and the

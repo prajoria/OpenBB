@@ -11,6 +11,12 @@ This documentation tree mirrors the on-disk module layout of
 `openbb_platform/` so you can navigate from a concept to the code that implements it.
 Code lives at `openbb_platform/`; these docs only describe it. **Last verified: 2026-06-02.**
 
+> **Complementary upstream docs.** The official OpenBB documentation is vendored at
+> `third_party/openbb-docs/` (published at [docs.openbb.co](https://docs.openbb.co)). It is
+> the canonical *user/developer* reference; this tree is the fork-specific, code-anchored
+> *agent* reference. See the [INDEX upstream map](../INDEX.md#third-tree--upstream-docs-as-a-complementary-memory-bank)
+> for the concept→upstream-doc table.
+
 ---
 
 ## Document map
