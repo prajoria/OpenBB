@@ -74,23 +74,37 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# CORS origins are environment-driven so localhost/tauri dev entries never
+# leak into a public deployment. Set PORTFOLIO_CORS_ORIGINS to a comma-
+# separated list to override. The default below is a LOCAL DEV allow-list
+# (desktop/Tauri + OpenBB Pro); do NOT use it for a publicly exposed service,
+# especially with allow_credentials=True, which would let credentialed
+# cross-origin requests come from any listed origin.
+_DEFAULT_DEV_ORIGINS = [
+    "https://pro.openbb.co",
+    "http://pro.openbb.co",
+    "http://localhost:1420",
+    "https://localhost:1420",
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "http://127.0.0.1:1420",
+    "https://127.0.0.1:1420",
+    "http://127.0.0.1:6902",
+    "https://127.0.0.1:6902",
+    "http://127.0.0.1:6903",
+    "https://127.0.0.1:6903",
+    "tauri://localhost",
+]
+_cors_env = os.getenv("PORTFOLIO_CORS_ORIGINS", "").strip()
+_cors_origins = (
+    [o.strip() for o in _cors_env.split(",") if o.strip()]
+    if _cors_env
+    else _DEFAULT_DEV_ORIGINS
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://pro.openbb.co",
-        "http://pro.openbb.co",
-        "http://localhost:1420",
-        "https://localhost:1420",
-        "http://localhost:3000",
-        "https://localhost:3000",
-        "http://127.0.0.1:1420",
-        "https://127.0.0.1:1420",
-        "http://127.0.0.1:6902",
-        "https://127.0.0.1:6902",
-        "http://127.0.0.1:6903",
-        "https://127.0.0.1:6903",
-        "tauri://localhost",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS", "HEAD"],
     allow_headers=["*"],

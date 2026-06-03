@@ -25,8 +25,13 @@ class DBConfig:
     def __init__(self):
         self.host = os.getenv("MYSQL_HOST", "localhost")
         self.port = int(os.getenv("MYSQL_PORT", "3306"))
-        self.user = os.getenv("MYSQL_USER", "fmp_user")
-        self.password = os.getenv("MYSQL_PASSWORD", "fmp_password")
+        # Credentials are REQUIRED — no hardcoded defaults. A committed
+        # fallback password (formerly "fmp_password") is a security smell:
+        # if the env var is unset the app would silently connect with a
+        # known literal credential. Fail fast instead.
+        self.user = os.getenv("MYSQL_USER")
+        self.password = os.getenv("MYSQL_PASSWORD")
+        self._require_credentials()
         # Portfolio data lives in the test database; allow override via
         # PORTFOLIO_DATABASE → MYSQL_TEST_DATABASE → MYSQL_DATABASE
         self.database = os.getenv(
@@ -35,6 +40,20 @@ class DBConfig:
                        os.getenv("MYSQL_DATABASE", "openbb_fmp_cache_test"))
         )
         self.charset = "utf8mb4"
+
+    def _require_credentials(self) -> None:
+        """Fail fast if MySQL credentials are not configured."""
+        missing = [
+            name
+            for name, val in (("MYSQL_USER", self.user), ("MYSQL_PASSWORD", self.password))
+            if not val
+        ]
+        if missing:
+            raise ValueError(
+                "Missing MySQL credential(s): "
+                f"{', '.join(missing)}. Set them via environment variables "
+                "(or a .env file). No default credentials are provided."
+            )
 
     @property
     def params(self) -> Dict[str, Any]:
