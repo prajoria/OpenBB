@@ -7,9 +7,11 @@ from openbb_core.app.service.user_service import UserService
 from openbb_sec.models.cik_map import SecCikMapFetcher
 from openbb_sec.models.company_filings import SecCompanyFilingsFetcher
 from openbb_sec.models.compare_company_facts import SecCompareCompanyFactsFetcher
+from openbb_sec.models.edgar_full_text_search import SecEdgarFullTextSearchFetcher
 from openbb_sec.models.equity_ftd import SecEquityFtdFetcher
 from openbb_sec.models.equity_search import SecEquitySearchFetcher
 from openbb_sec.models.form_13FHR import SecForm13FHRFetcher
+from openbb_sec.models.form_13f_holdings import SecForm13FHoldingsFetcher
 from openbb_sec.models.htm_file import SecHtmFileFetcher
 from openbb_sec.models.insider_trading import SecInsiderTradingFetcher
 from openbb_sec.models.institutions_search import SecInstitutionsSearchFetcher
@@ -18,11 +20,14 @@ from openbb_sec.models.management_discussion_analysis import (
     SecManagementDiscussionAnalysisFetcher,
 )
 from openbb_sec.models.nport_disclosure import SecNportDisclosureFetcher
+from openbb_sec.models.ownership_changes import SecOwnershipChangesFetcher
 from openbb_sec.models.rss_litigation import SecRssLitigationFetcher
 from openbb_sec.models.schema_files import SecSchemaFilesFetcher
+from openbb_sec.models.sec_entity_info import SecEntityInfoFetcher
 from openbb_sec.models.sec_filing import SecFilingFetcher
 from openbb_sec.models.sic_search import SecSicSearchFetcher
 from openbb_sec.models.symbol_map import SecSymbolMapFetcher
+from openbb_sec.models.xbrl_company_concept import SecXbrlCompanyConceptFetcher
 
 test_credentials = UserService().default_user_settings.credentials.dict()
 
@@ -235,3 +240,64 @@ def test_sec_htm_file_fetcher(credentials=test_credentials):
     fetcher = SecHtmFileFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
+
+
+@pytest.mark.record_http
+def test_sec_entity_info_fetcher(credentials=test_credentials):
+    """Test the SEC Entity Info fetcher."""
+    params = {"symbol": "MSFT", "use_cache": False}
+
+    fetcher = SecEntityInfoFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_sec_edgar_full_text_search_fetcher(credentials=test_credentials):
+    """Test the SEC EDGAR Full-Text Search fetcher."""
+    params = {"query": "share repurchase", "forms": "10-K", "limit": 10}
+
+    fetcher = SecEdgarFullTextSearchFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_sec_xbrl_company_concept_fetcher(credentials=test_credentials):
+    """Test the SEC XBRL Company Concept fetcher."""
+    params = {"symbol": "MSFT", "fact": "Revenues", "use_cache": False}
+
+    fetcher = SecXbrlCompanyConceptFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_sec_form_13f_holdings_fetcher(credentials=test_credentials):
+    """Test the SEC Form 13F Holdings (reverse 13F) fetcher."""
+    params = {
+        "symbol": "MSFT",
+        "date": date(2024, 9, 30),
+        "limit": 10,
+        "use_cache": False,
+    }
+
+    fetcher = SecForm13FHoldingsFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_sec_ownership_changes_fetcher(credentials=test_credentials):
+    """Test the SEC Ownership Changes fetcher."""
+    params = {
+        "symbol": "MSFT",
+        "date": date(2024, 9, 30),
+        "limit": 20,
+        "use_cache": False,
+    }
+
+    fetcher = SecOwnershipChangesFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
