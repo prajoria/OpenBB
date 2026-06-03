@@ -7,7 +7,6 @@ __pycache__/
 venv*/
 venv
 .vscode
-*.ipynb
 env/
 venv/
 !notebooks/jupyter/.gitkeep
@@ -59,8 +58,49 @@ obb/*
 # OpenBB Distribution
 !build/conda/installer/*.sh
 *.pkg
+
+# Tools local context (PII, credentials, paths)
+Tools/docs/CONTEXT_LOCAL.md
 *.exe
 build/conda/tmp
+# Windows virtual environment
+.venv_win/
+.venv_openbb/
+.venv_openbb_master/
+
+# Database backups
+*.sql
+
+# Local session logs (fetch history, portfolio app runtime)
+logs/
+portfolio_app/logs/
+
+# Claude Code local config (machine-specific) — ignore the personal bits but
+# keep shared, version-controlled command definitions tracked.
+.claude/*
+!.claude/commands/
+.claude/settings.local.json
+.claude/sessions/
+
+# GitHub Copilot instructions (generated, not for version control)
+.github/copilot-instructions.md
+
+# Local setup tooling scripts
+setup_copilot_claud/
+setup_playwright_mcp/
+vscode-extension/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+
+# Temporary scratch files
+temp/
+
+# Local data — single backup unit, never committed (see branch-decomposition plan)
+data/
 
 # MCP client config — machine-specific, use .mcp.json.example as template
 .mcp.json
