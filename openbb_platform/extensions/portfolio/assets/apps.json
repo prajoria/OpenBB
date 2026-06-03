@@ -1,0 +1,100 @@
+[
+  {
+    "name": "Portfolio Overview",
+    "description": "Portfolio positions, allocation, and performance at a glance.",
+    "allowCustomization": true,
+    "tabs": {
+      "overview": {
+        "id": "overview",
+        "name": "Overview",
+        "layout": [
+          { "i": "portfolio_summary", "x": 0, "y": 0, "w": 40, "h": 14, "state": {} },
+          { "i": "portfolio_allocation", "x": 0, "y": 14, "w": 20, "h": 12, "state": {} },
+          { "i": "portfolio_performance", "x": 20, "y": 14, "w": 20, "h": 12, "state": {} }
+        ]
+      },
+      "positions": {
+        "id": "positions",
+        "name": "Positions",
+        "layout": [
+          { "i": "portfolio_positions", "x": 0, "y": 0, "w": 40, "h": 22, "state": {} }
+        ]
+      },
+      "cost_basis": {
+        "id": "cost_basis",
+        "name": "Cost Basis & Tax",
+        "layout": [
+          { "i": "portfolio_cost_basis", "x": 0, "y": 0, "w": 40, "h": 16, "state": {} },
+          { "i": "portfolio_tax_summary", "x": 0, "y": 16, "w": 40, "h": 10, "state": {} }
+        ]
+      },
+      "trends": {
+        "id": "trends",
+        "name": "Trends",
+        "layout": [
+          { "i": "portfolio_snapshots", "x": 0, "y": 0, "w": 40, "h": 12, "state": {} },
+          { "i": "equity_historical", "x": 0, "y": 12, "w": 40, "h": 14, "state": { "params": { "symbol": "MSFT" } } }
+        ]
+      },
+      "espp": {
+        "id": "espp",
+        "name": "ESPP",
+        "layout": [
+          { "i": "espp_purchases", "x": 0, "y": 0, "w": 40, "h": 18, "state": {} }
+        ]
+      },
+      "stock_analysis": {
+        "id": "stock_analysis",
+        "name": "Stock Analysis",
+        "layout": [
+          { "i": "stock_context",      "x": 0,  "y": 0,  "w": 40, "h": 5,  "state": { "params": { "symbol": "CLS" } } },
+          { "i": "stock_profile",      "x": 0,  "y": 5,  "w": 40, "h": 10, "state": { "params": { "symbol": "CLS" } } },
+          { "i": "stock_fundamentals", "x": 0,  "y": 15, "w": 20, "h": 14, "state": { "params": { "symbol": "CLS" } } },
+          { "i": "stock_valuation",    "x": 20, "y": 15, "w": 20, "h": 14, "state": { "params": { "symbol": "CLS" } } },
+          { "i": "stock_technicals",   "x": 0,  "y": 29, "w": 20, "h": 10, "state": { "params": { "symbol": "CLS" } } },
+          { "i": "stock_risk",         "x": 20, "y": 29, "w": 20, "h": 10, "state": { "params": { "symbol": "CLS" } } },
+          { "i": "stock_relative",     "x": 0,  "y": 39, "w": 40, "h": 16, "state": { "params": { "symbol": "CLS" } } },
+          { "i": "stock_decision",     "x": 0,  "y": 55, "w": 20, "h": 10, "state": { "params": { "symbol": "CLS" } } }
+        ]
+      }
+    },
+    "groups": [
+      {
+        "name": "Symbol",
+        "type": "param",
+        "paramName": "symbol",
+        "defaultValue": "MSFT",
+        "widgetIds": ["portfolio_cost_basis", "equity_historical"]
+      },
+      {
+        "name": "Owner",
+        "type": "param",
+        "paramName": "owner",
+        "defaultValue": "",
+        "widgetIds": [
+          "portfolio_positions",
+          "portfolio_summary",
+          "portfolio_allocation",
+          "portfolio_performance",
+          "portfolio_tax_summary"
+        ]
+      },
+      {
+        "name": "Analysis Symbol",
+        "type": "param",
+        "paramName": "symbol",
+        "defaultValue": "CLS",
+        "widgetIds": [
+          "stock_context",
+          "stock_profile",
+          "stock_fundamentals",
+          "stock_technicals",
+          "stock_valuation",
+          "stock_risk",
+          "stock_relative",
+          "stock_decision"
+        ]
+      }
+    ]
+  }
+]

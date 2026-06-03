@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "openbb-portfolio"
+version = "1.0.0"
+description = "Portfolio management extension for OpenBB Platform — serves portfolio, ESPP, and stock-analysis widgets via the OpenBB Workspace custom backend."
+authors = ["OpenBB Team <hello@openbb.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "openbb_portfolio" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+openbb-core = "^1.5.8"
+pymysql = ">=1.1.0"
+python-dotenv = ">=1.0.0"
+pandas = ">=1.3"
+numpy = ">=1.21"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# ── Design note ────────────────────────────────────────────────────────────────
+# This extension does NOT register an openbb_core_extension entry point because
+# the portfolio routes (/portfolio/*, /stock/*, /espp/*) live outside the
+# /api/v1/ prefix tree managed by the core router auto-discovery mechanism.
+#
+# Instead, the extension is integrated via the openbb-api --app pattern:
+#
+#   openbb-api --app openbb_platform/extensions/portfolio/launch.py
+#
+# The launch.py script imports the standard OpenBB Platform FastAPI app and
+# includes the portfolio APIRouter, which registers:
+#   - All portfolio / stock / espp route handlers
+#   - /portfolio/widgets.json   (detected and merged by openbb_platform_api)
+#   - /portfolio/apps.json      (detected and merged by openbb_platform_api)
+# ──────────────────────────────────────────────────────────────────────────────
