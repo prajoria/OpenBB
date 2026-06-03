@@ -319,9 +319,17 @@ def _safe_parse_date(val) -> Optional[dateType]:
 # ---------------------------------------------------------------------------
 
 def _get_db_config() -> Dict[str, Any]:
-    """Read MySQL connection config from OpenBB user_settings.json or defaults."""
+    """Read MySQL connection config from OpenBB user_settings.json or env vars.
+
+    User and password have no hardcoded defaults; they must be supplied via
+    ``user_settings.json`` (``mysql_user``/``mysql_password``) or the
+    ``DB_USER``/``DB_PASSWORD`` environment variables. Raises ``ValueError``
+    when missing rather than falling back to a committed credential pair.
+    """
     settings_path = os.path.expanduser("~/.openbb_platform/user_settings.json")
-    host, port, user, password = "localhost", 3306, "fmp_user", "fmp_password"
+    host, port = "localhost", 3306
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASSWORD")
     try:
         if os.path.exists(settings_path):
             with open(settings_path, "r") as f:
@@ -333,6 +341,14 @@ def _get_db_config() -> Dict[str, Any]:
                 password = creds.get("mysql_password", password)
     except Exception:
         pass
+    missing = [n for n, v in (("user", user), ("password", password)) if not v]
+    if missing:
+        raise ValueError(
+            "Missing MySQL credential(s): "
+            f"{', '.join(missing)}. Configure 'mysql_user'/'mysql_password' in "
+            "~/.openbb_platform/user_settings.json or set DB_USER/DB_PASSWORD. "
+            "No default credentials are provided."
+        )
     return {"host": host, "port": port, "user": user, "password": password}
 
 

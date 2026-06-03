@@ -16,6 +16,27 @@ class DatabaseConfig:
     def __init__(self):
         """Initialize database configuration from user settings."""
         self.config = self._load_config()
+        self._require_credentials()
+
+    def _require_credentials(self) -> None:
+        """Fail fast when DB user/password are not configured.
+
+        Credentials must be supplied via OpenBB ``user_settings.json`` or the
+        ``DB_USER``/``DB_PASSWORD`` environment variables. We never ship a
+        default credential pair in source.
+        """
+        missing = [
+            field for field in ("user", "password")
+            if not self.config.get(field)
+        ]
+        if missing:
+            raise ValueError(
+                "Missing MySQL credential(s): "
+                f"{', '.join(missing)}. Configure them in "
+                "~/.openbb_platform/user_settings.json (e.g. 'mysql_user', "
+                "'mysql_password') or via the DB_USER/DB_PASSWORD environment "
+                "variables. No default credentials are provided."
+            )
     
     def _load_config(self) -> Dict[str, Any]:
         """Load database configuration from OpenBB user settings, with environment variable fallback."""
@@ -24,11 +45,14 @@ class DatabaseConfig:
         is_test_mode = os.getenv("FMP_CACHE_TEST_MODE", "false").lower() == "true"
         test_database = "openbb_fmp_cache_test" if is_test_mode else "openbb_fmp_cache"
         
+        # No hardcoded credential defaults: user/password must come from
+        # OpenBB user_settings.json or environment variables. We fail fast
+        # (see _require_credentials) if they are missing.
         default_config = {
             "host": "localhost",
             "port": 3306,
-            "user": "fmp_user",
-            "password": "fmp_password",
+            "user": None,
+            "password": None,
             "database": test_database,
             "charset": "utf8mb4",
             "test_mode": is_test_mode

@@ -12,21 +12,22 @@ def load_db_config():
     """Load database configuration from OpenBB user settings."""
     settings_path = Path.home() / ".openbb_platform" / "user_settings.json"
     
-    # Default configuration
+    # Base configuration; user/password have no hardcoded defaults and must
+    # come from user_settings.json or the DB_USER/DB_PASSWORD env vars.
     config = {
         "host": "localhost",
         "port": 3306,
-        "user": "fmp_user",
-        "password": "fmp_password",
+        "user": os.getenv("DB_USER"),
+        "password": os.getenv("DB_PASSWORD"),
         "database": "openbb_fmp_cache"
     }
-    
+
     try:
         if settings_path.exists():
             with open(settings_path, 'r') as f:
                 settings = json.load(f)
                 credentials = settings.get("credentials", {})
-                
+
                 config.update({
                     "host": credentials.get("mysql_host", config["host"]),
                     "port": int(credentials.get("mysql_port", config["port"])),
@@ -36,8 +37,14 @@ def load_db_config():
                 })
     except Exception as e:
         print(f"⚠️  Could not load OpenBB settings: {e}")
-        print("Using default configuration")
-    
+
+    missing = [n for n in ("user", "password") if not config.get(n)]
+    if missing:
+        raise ValueError(
+            f"Missing MySQL credential(s): {', '.join(missing)}. Set them in "
+            "~/.openbb_platform/user_settings.json or DB_USER/DB_PASSWORD."
+        )
+
     return config
 
 # Load database configuration

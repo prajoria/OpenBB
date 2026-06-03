@@ -181,41 +181,43 @@ class EquityScreenerTool:
             return False
 
 
-    def fetch_screener_data(self, symbols: Union[str, List[str]], start_date: str, end_date: str, 
+    def fetch_screener_data(self, symbols: Union[str, List[str]], start_date: str, end_date: str,
                            filters: Optional[Dict[str, Any]] = None) -> Optional[pd.DataFrame]:
-    """Fetch equity screener data from the database."""
-    try:
-        print(f"🔍 Fetching screener data for {symbol} from {start_date} to {end_date}")
-        
-        # Parse dates
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-        
-        # Query the database
-        query = """
-            SELECT * FROM equity_screener 
-            WHERE symbol = %s 
-            AND date BETWEEN %s AND %s 
-            AND is_valid = TRUE
-            ORDER BY date DESC
-        """
-        
-        result = execute_query(query, (symbol, start_dt, end_dt))
-        
-        if not result:
-            print(f"📭 No data found for {symbol} in the specified date range")
+        """Fetch equity screener data from the database."""
+        # Accept either a single symbol or a list; this helper queries one symbol.
+        symbol = symbols if isinstance(symbols, str) else symbols[0]
+        try:
+            print(f"🔍 Fetching screener data for {symbol} from {start_date} to {end_date}")
+
+            # Parse dates
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+            # Query the database
+            query = """
+                SELECT * FROM equity_screener
+                WHERE symbol = %s
+                AND date BETWEEN %s AND %s
+                AND is_valid = TRUE
+                ORDER BY date DESC
+            """
+
+            result = execute_query(query, (symbol, start_dt, end_dt))
+
+            if not result:
+                print(f"📭 No data found for {symbol} in the specified date range")
+                return None
+
+            # Convert to DataFrame using cache manager
+            db_manager = get_database_manager()
+            df = db_manager.to_dataframe(result)
+
+            print(f"✅ Found {len(df)} records with {len(df.columns)} columns")
+            return df
+
+        except Exception as e:
+            print(f"❌ Error fetching data: {e}")
             return None
-        
-        # Convert to DataFrame using cache manager
-        db_manager = get_database_manager()
-        df = db_manager.to_dataframe(result)
-        
-        print(f"✅ Found {len(df)} records with {len(df.columns)} columns")
-        return df
-        
-    except Exception as e:
-        print(f"❌ Error fetching data: {e}")
-        return None
 
 
 def display_screener_summary(df: pd.DataFrame, symbol: str):
