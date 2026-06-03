@@ -175,7 +175,7 @@ The agents extension exposes a **single set of tools** (portfolio queries, analy
     "openbb-agents": {
       "command": ".venv_win\\Scripts\\python.exe",
       "args": ["-m", "openbb_agents.mcp_server"],
-      "cwd": "I:\\masterswork\\git\\OpenBB"
+      "cwd": "REPO_ROOT"
     }
   }
 }
@@ -205,9 +205,9 @@ Raw PII (account numbers, dollar amounts) never leaves the machine — the MCP s
   "servers": {
     "openbb-agents": {
       "type": "stdio",
-      "command": "I:\\masterswork\\git\\OpenBB\\.venv_win\\Scripts\\python.exe",
+      "command": "REPO_ROOT\\.venv_win\\Scripts\\python.exe",
       "args": ["-m", "openbb_agents.mcp_server"],
-      "cwd": "I:\\masterswork\\git\\OpenBB"
+      "cwd": "REPO_ROOT"
     }
   }
 }

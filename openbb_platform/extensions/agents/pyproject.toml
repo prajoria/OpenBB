@@ -9,8 +9,11 @@ description = "Google ADK agents extension for OpenBB"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    # ADK from local fork — install with: pip install -e I:/masterswork/git/adk-python
-    # Listed here as a soft reference; install separately before this package
+    # ADK from the prajoria/adk-python fork, vendored as a git submodule at
+    # third_party/adk-python. Install separately before this package:
+    #   git submodule update --init third_party/adk-python
+    #   pip install -e third_party/adk-python
+    # (see README for the non-submodule git+https alternative)
     "litellm>=1.40",
     "mcp>=1.0",
     "pymysql>=1.1",

@@ -19,14 +19,22 @@ API, and plain Python — with a single shared tool layer.
 
 ## Install
 
-The extension depends on a local fork of `google-adk`. Install it first, then
-the extension in editable mode:
+The extension depends on a fork of `google-adk`
+([`prajoria/adk-python`](https://github.com/prajoria/adk-python)). Install it
+first, then the extension in editable mode.
+
+The fork is vendored as a git submodule at `third_party/adk-python` to avoid
+machine-specific paths. Initialize the submodule, then install both packages:
 
 ```bash
 # from repo root, inside .venv_win
-.venv_win\Scripts\pip.exe install -e I:/masterswork/git/adk-python
+git submodule update --init third_party/adk-python
+.venv_win\Scripts\pip.exe install -e third_party/adk-python
 .venv_win\Scripts\pip.exe install -e openbb_platform/extensions/agents
 ```
+
+> If you prefer not to use the submodule, install the fork directly:
+> `pip install -e "git+https://github.com/prajoria/adk-python@main#egg=google-adk"`
 
 ## Configuration
 
@@ -46,6 +54,10 @@ LiteLLM endpoint and uses whatever responds. Override via env vars:
 ```bash
 .venv_win\Scripts\python.exe -m openbb_agents.mcp_server
 ```
+
+Configure your MCP client by copying `.mcp.json.example` (at the repo root) to
+`.mcp.json` and replacing `${workspaceFolder}` with your local checkout path.
+`.mcp.json` is gitignored so machine-specific paths never get committed.
 
 ## Layout
 
