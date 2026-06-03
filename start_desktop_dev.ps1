@@ -20,7 +20,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$OpenBBRoot = "I:\masterswork\git\OpenBB"
+# This script lives at the repo root, so derive the root from its own location.
+$OpenBBRoot = $PSScriptRoot
 
 # ── 1. Refresh PATH ──────────────────────────────────────────────────────────
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +

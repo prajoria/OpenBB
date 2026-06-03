@@ -1,21 +1,16 @@
 {
   "include": [
-    "openbb_platform",
-    "FinanceToolkit/financetoolkit",
-    "openbb_ft_examples"
+    "openbb_platform"
   ],
   "extraPaths": [
-    "./FinanceToolkit",
-    "./FinanceToolkit/financetoolkit",
     "./openbb_platform",
     "./openbb_platform/core",
-    "./openbb_platform/providers/fmp",
-    "./openbb_platform/providers/fmp_cached"
+    "./openbb_platform/providers/fmp"
   ],
   "typeCheckingMode": "basic",
   "useLibraryCodeForTypes": true,
   "reportMissingImports": true,
   "reportMissingTypeStubs": false,
   "pythonVersion": "3.11",
-  "pythonPlatform": "Linux"
+  "pythonPlatform": "Windows"
 }

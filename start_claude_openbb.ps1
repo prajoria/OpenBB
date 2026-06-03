@@ -22,10 +22,11 @@ param(
     [string]$Focus = "general",
 
     [Parameter()]
-    [bool]$UseProxy = $true
+    [bool]$UseProxy = $false
 )
 
-$OpenBBRoot = "i:\masterswork\git\OpenBB"
+# This script lives at the repo root, so derive the root from its own location.
+$OpenBBRoot = $PSScriptRoot
 Set-Location $OpenBBRoot
 
 $focusContext = switch ($Focus) {
@@ -67,23 +68,6 @@ if ($UseProxy) {
     }
 }
 
-switch ($Focus) {
-    "api" {
-        & claude --dangerously-skip-permissions
-    }
-    "desktop" {
-        & claude --dangerously-skip-permissions
-    }
-    "cli" {
-        & claude --dangerously-skip-permissions
-    }
-    "providers" {
-        & claude --dangerously-skip-permissions
-    }
-    "deploy" {
-        & claude --dangerously-skip-permissions
-    }
-    default {
-        & claude --dangerously-skip-permissions
-    }
-}
+# All focus areas launch the same CLI; the focus only tailors the opening
+# context message passed to Claude so the parameter actually does something.
+& claude --dangerously-skip-permissions --append-system-prompt $focusContext

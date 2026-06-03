@@ -75,8 +75,12 @@ build/conda/tmp
 logs/
 portfolio_app/logs/
 
-# Claude Code local config (settings, sessions — machine-specific)
-.claude/
+# Claude Code local config (machine-specific) — ignore the personal bits but
+# keep shared, version-controlled command definitions tracked.
+.claude/*
+!.claude/commands/
+.claude/settings.local.json
+.claude/sessions/
 
 # GitHub Copilot instructions (generated, not for version control)
 .github/copilot-instructions.md
