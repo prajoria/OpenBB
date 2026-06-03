@@ -8,3 +8,7 @@
 [submodule "third_party/awesome-quant"]
 	path = third_party/awesome-quant
 	url = https://github.com/prajoria/awesome-quant
+[submodule "third_party/openbb-docs"]
+	path = third_party/openbb-docs
+	url = https://github.com/OpenBB-finance/openbb-docs
+	branch = main
