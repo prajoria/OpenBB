@@ -139,13 +139,39 @@ except ImportError:
     pass
 
 # ---------------------------------------------------------------------------
-# Default HTML path
+# Default HTML / CSV paths (portable: env override, else repo-relative).
+# These are intentionally NOT machine-specific absolute paths so the script
+# runs on any checkout and in CI. Override via FIDELITY_HTML_PATH /
+# FORTRESS_CSV_PATH or the --html / --fortress-csv CLI args.
 # ---------------------------------------------------------------------------
-DEFAULT_HTML_PATH = r"I:\masterswork\FinanceData\Portfolio Positions.html"
-DEFAULT_FORTRESS_CSV_PATH = r"I:\masterswork\git\OpenBB\Analysis\FortressFinal.csv"
+DEFAULT_HTML_PATH = os.environ.get(
+    "FIDELITY_HTML_PATH", "Portfolio Positions.html"
+)
+DEFAULT_FORTRESS_CSV_PATH = os.environ.get(
+    "FORTRESS_CSV_PATH",
+    os.path.join(PROJECT_ROOT, "Analysis", "FortressFinal.csv"),
+)
 
 # ---------------------------------------------------------------------------
 # Parsing helpers
+
+
+def mask_account_number(val: str) -> str:
+    """Mask a brokerage account number, keeping only the last 4 digits.
+
+    Privacy: real account identifiers must never be propagated into rows,
+    CSV/parquet artifacts, or anything that could land in version control.
+    We mask at extraction time so downstream consumers can only ever see the
+    masked form. e.g. ``Z12345678`` -> ``****5678``. Empty/short values are
+    returned fully masked.
+    """
+    if not val:
+        return ""
+    digits = re.sub(r"\D", "", val)
+    if len(digits) <= 4:
+        return "****"
+    return "****" + digits[-4:]
+
 # ---------------------------------------------------------------------------
 
 def parse_currency(val: str) -> float:
@@ -164,7 +190,10 @@ def parse_currency(val: str) -> float:
     negative = cleaned.startswith("-") or "(" in cleaned
     cleaned = re.sub(r"[+$,()A-Za-z\s]", "", cleaned)
     try:
-        result = float(cleaned)
+        # ``cleaned`` may still carry a leading '-' (the regex strips +/$/()
+        # but not '-'); use the magnitude so the ``negative`` flag is the sole
+        # source of sign and never gets double-applied.
+        result = abs(float(cleaned))
         return -result if negative else result
     except ValueError:
         return 0.0
@@ -1396,7 +1425,10 @@ def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.
             primary = row.select_one(".posweb-cell-account_primary")
             secondary = row.select_one(".posweb-cell-account_secondary")
             current_source_account = _clean_text(primary.get_text(" ", strip=True) if primary else "")
-            current_source_account_number = _clean_text(secondary.get_text(" ", strip=True) if secondary else "")
+            # Mask at extraction time — never propagate the real account number.
+            current_source_account_number = mask_account_number(
+                _clean_text(secondary.get_text(" ", strip=True) if secondary else "")
+            )
             continue
 
         if "posweb-row-basket_group" in classes:

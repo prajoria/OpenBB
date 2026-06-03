@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
 
-$repoRoot = "I:\masterswork\git\OpenBB"
+# Derive the repo root from this script's location (Tools/scheduler/ -> repo root)
+# so the scheduled task is portable across machines/checkouts.
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $scriptPath = Join-Path $repoRoot "Tools\fetch_position_history.py"
 $logDir = Join-Path $repoRoot "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
