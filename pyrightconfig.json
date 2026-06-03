@@ -1,0 +1,16 @@
+{
+  "include": [
+    "openbb_platform"
+  ],
+  "extraPaths": [
+    "./openbb_platform",
+    "./openbb_platform/core",
+    "./openbb_platform/providers/fmp"
+  ],
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Windows"
+}

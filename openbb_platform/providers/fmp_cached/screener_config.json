@@ -1,0 +1,43 @@
+{
+  "database": {
+    "timeout": 30,
+    "retry_attempts": 3,
+    "batch_size": 100
+  },
+  "export": {
+    "default_format": "csv",
+    "include_metadata": true,
+    "precision": 4,
+    "compression": "gzip"
+  },
+  "analysis": {
+    "calculate_returns": true,
+    "include_technical_indicators": true,
+    "risk_metrics": true,
+    "volatility_window": 20
+  },
+  "screening": {
+    "min_market_cap": 1000000000,
+    "min_volume": 100000,
+    "max_pe_ratio": 50,
+    "min_roe": 0.05,
+    "exclude_sectors": ["Utilities"],
+    "min_current_ratio": 1.0
+  },
+  "data_quality": {
+    "min_records_required": 1,
+    "max_null_percentage": 80,
+    "validate_data_integrity": true
+  },
+  "performance": {
+    "enable_caching": true,
+    "parallel_processing": true,
+    "max_workers": 4
+  },
+  "output": {
+    "display_max_rows": 50,
+    "precision_display": 2,
+    "show_technical_analysis": true,
+    "include_charts": false
+  }
+}

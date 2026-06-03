@@ -1,3 +1,7 @@
 [submodule "FinanceToolkit"]
 	path = FinanceToolkit
 	url = https://github.com/prajoria/FinanceToolkit.git
+[submodule "third_party/adk-python"]
+	path = third_party/adk-python
+	url = https://github.com/prajoria/adk-python.git
+	branch = main
