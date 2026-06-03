@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "openbb-agents": {
+      "command": "python",
+      "args": ["-m", "openbb_agents.mcp_server"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/openbb_platform/extensions/agents"
+      }
+    }
+  }
+}

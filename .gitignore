@@ -61,3 +61,6 @@ obb/*
 *.pkg
 *.exe
 build/conda/tmp
+
+# MCP client config — machine-specific, use .mcp.json.example as template
+.mcp.json
