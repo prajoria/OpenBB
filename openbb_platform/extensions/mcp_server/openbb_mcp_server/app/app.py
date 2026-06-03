@@ -299,9 +299,22 @@ def create_mcp_server(
         **fastmcp_kwargs,
     )
 
+    # Resolve system prompt file: user-provided path takes priority,
+    # then fall back to the bundled assets/system_prompt.txt.
+    _system_prompt_file = settings.system_prompt_file
+    if not _system_prompt_file:
+        _bundled_system_prompt = (
+            MCPSettings.get_default_assets_dir() / "system_prompt.txt"
+        )
+        if _bundled_system_prompt.exists():
+            _system_prompt_file = str(_bundled_system_prompt)
+            logger.debug(
+                "Using bundled system prompt: %s", _system_prompt_file
+            )
+
     # Add system prompt if configured
-    if settings.system_prompt_file:
-        system_prompt_content = _read_system_prompt_file(settings.system_prompt_file)
+    if _system_prompt_file:
+        system_prompt_content = _read_system_prompt_file(_system_prompt_file)
         if system_prompt_content:
 
             def system_prompt_func() -> str:
@@ -327,11 +340,23 @@ def create_mcp_server(
                 return system_prompt_func()
 
     # Load the prompts json file, if added to the settings configuration.
+    # User-provided path takes priority; fall back to bundled assets/server_prompts.json.
     prompts_json: list = []
 
-    if settings.server_prompts_file:
+    _server_prompts_file = settings.server_prompts_file
+    if not _server_prompts_file:
+        _bundled_prompts = (
+            MCPSettings.get_default_assets_dir() / "server_prompts.json"
+        )
+        if _bundled_prompts.exists():
+            _server_prompts_file = str(_bundled_prompts)
+            logger.debug(
+                "Using bundled server prompts: %s", _server_prompts_file
+            )
+
+    if _server_prompts_file:
         try:
-            with open(settings.server_prompts_file, encoding="utf-8") as f:
+            with open(_server_prompts_file, encoding="utf-8") as f:
                 prompts_json = json.load(f) or []
         except Exception as e:  # pylint: disable=broad-except
             logger.error("Failed to load prompts from JSON file: %s", e)

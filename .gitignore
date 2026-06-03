@@ -101,3 +101,6 @@ temp/
 
 # Local data — single backup unit, never committed (see branch-decomposition plan)
 data/
+
+# MCP client config — machine-specific, use .mcp.json.example as template
+.mcp.json

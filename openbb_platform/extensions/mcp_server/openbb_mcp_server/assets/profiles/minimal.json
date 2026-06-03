@@ -1,0 +1,14 @@
+{
+  "_comment": "Minimal OpenBB MCP profile — admin/discovery tools only, load categories on demand. Useful for multi-tenant or resource-constrained deployments. Copy to ~/.openbb_platform/mcp_settings.json to use.",
+  "OPENBB_MCP_NAME": "OpenBB MCP (Minimal)",
+  "OPENBB_MCP_DESCRIPTION": "OpenBB MCP in minimal mode. Only admin and discovery tools are active by default. Use available_categories() and activate_tools() to load data tools on demand.",
+  "OPENBB_MCP_DEFAULT_TOOL_CATEGORIES": [],
+  "OPENBB_MCP_ENABLE_TOOL_DISCOVERY": true,
+  "OPENBB_MCP_DESCRIBE_RESPONSES": false,
+  "OPENBB_MCP_UVICORN_CONFIG": {
+    "host": "127.0.0.1",
+    "port": 8001
+  },
+  "OPENBB_MCP_CACHE_EXPIRATION_SECONDS": 60,
+  "_note": "Start by calling available_categories() to see what tool groups exist, then activate_tools() to enable what you need. No data tools are pre-loaded so context windows stay small."
+}
