@@ -61,13 +61,14 @@ def test_regulators_sec_institutions_search(params, headers):
 @pytest.mark.parametrize(
     "params",
     [
-        ({"query": "2022", "provider": "sec", "url": "", "use_cache": None}),
+        ({"provider": "sec"}),
         (
             {
-                "query": "",
                 "provider": "sec",
-                "url": "https://xbrl.fasb.org/us-gaap/2014/entire/",
-                "use_cache": None,
+                "taxonomy": "us-gaap",
+                "year": 2024,
+                "component": "soi",
+                "category": None,
             }
         ),
     ],
@@ -130,51 +131,6 @@ def test_regulators_sec_sic_search(params, headers):
 
     query_str = get_querystring(params, [])
     url = f"http://0.0.0.0:8000/api/v1/regulators/sec/sic_search?{query_str}"
-    result = requests.get(url, headers=headers, timeout=10)
-    assert isinstance(result, requests.Response)
-    assert result.status_code == 200
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        ({"query": "grain", "provider": "cftc"}),
-    ],
-)
-@pytest.mark.integration
-def test_regulators_cftc_cot_search(params, headers):
-    """Test the CFTC COT search endpoint."""
-    params = {p: v for p, v in params.items() if v}
-
-    query_str = get_querystring(params, [])
-    url = f"http://0.0.0.0:8000/api/v1/regulators/cftc/cot_search?{query_str}"
-    result = requests.get(url, headers=headers, timeout=10)
-    assert isinstance(result, requests.Response)
-    assert result.status_code == 200
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        (
-            {
-                "id": "045601",
-                "report_type": "legacy",
-                "start_date": "2023-01-01",
-                "end_date": "2023-06-06",
-                "futures_only": False,
-                "provider": "cftc",
-            }
-        ),
-    ],
-)
-@pytest.mark.integration
-def test_regulators_cftc_cot(params, headers):
-    """Test the CFTC COT endpoint."""
-    params = {p: v for p, v in params.items() if v}
-
-    query_str = get_querystring(params, [])
-    url = f"http://0.0.0.0:8000/api/v1/regulators/cftc/cot?{query_str}"
     result = requests.get(url, headers=headers, timeout=10)
     assert isinstance(result, requests.Response)
     assert result.status_code == 200

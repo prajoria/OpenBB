@@ -89,7 +89,9 @@ export default function ApiKeysPage() {
 						});
 					}
 				} catch (e) {
-					throw new Error(`Invalid JSON file: ${e}`);
+					const err = new Error(`Invalid JSON file: ${e}`);
+					(err as unknown as Record<string, unknown>).cause = e;
+					throw err;
 				}
 			} else if (extension === "env") {
 				// Parse .env file
@@ -129,7 +131,7 @@ export default function ApiKeysPage() {
 
 			if (newKeys.length > 0) {
 				setImportedKeys(newKeys);
-				setSelectedKeys(new Set(newKeys.map((k) => k.key))); // Pre-select all
+				setSelectedKeys(new Set(newKeys.map((k) => k.key)));
 				setIsImportConfirmModalOpen(true);
 			} else {
 				setError("No new keys found in the imported file.");

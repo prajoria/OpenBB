@@ -110,14 +110,13 @@ def test_functions(get_charting_functions_list):
     assert get_charting_functions_list.call_count >= 1
 
 
-@patch("openbb_charting.charting.Charting._handle_backend")
-def test_handle_backend(mock_handle_backend, obbject):
-    """Test _handle_backend method."""
-    # Act -> _handle backend is called in the constructor
-    _ = Charting(obbject)
+@patch("openbb_charting.core.backend.Backend")
+def test_backend_init(mock_backend_cls, obbject):
+    """Test Backend is initialized in the constructor."""
+    obj = Charting(obbject)
 
-    # Assert
-    mock_handle_backend.assert_called_once()
+    mock_backend_cls.assert_called_once_with(obj._charting_settings)
+    assert obj._backend == mock_backend_cls.return_value
 
 
 def test_get_chart_function(obbject):
@@ -136,18 +135,20 @@ def test_get_chart_function(obbject):
 
 
 @patch("openbb_charting.charting.Charting._get_chart_function")
-@patch("openbb_charting.charting.Chart")
-def test_show(_, mock_get_chart_function, obbject):
+def test_show(mock_get_chart_function, obbject):
     """Test show method."""
     # Arrange
     mock_function = MagicMock()
     mock_get_chart_function.return_value = mock_function
     mock_fig = MagicMock()
+    mock_fig.show = MagicMock(
+        return_value=MagicMock(to_plotly_json=MagicMock(return_value={}))
+    )
     mock_function.return_value = (mock_fig, {"content": "mock_content"})
     obj = Charting(obbject)
 
     # Act
-    obj.show()
+    obj.show(render=False)
 
     # Assert
     mock_get_chart_function.assert_called_once()
@@ -156,19 +157,21 @@ def test_show(_, mock_get_chart_function, obbject):
 
 @patch("openbb_charting.charting.Charting._prepare_data_as_df")
 @patch("openbb_charting.charting.Charting._get_chart_function")
-@patch("openbb_charting.charting.Chart")
-def test_to_chart(_, mock_get_chart_function, mock_prepare_data_as_df, obbject):
+def test_to_chart(mock_get_chart_function, mock_prepare_data_as_df, obbject):
     """Test to_chart method."""
     # Arrange
     mock_prepare_data_as_df.return_value = (mock_dataframe, True)
     mock_function = MagicMock()
     mock_get_chart_function.return_value = mock_function
     mock_fig = MagicMock()
+    mock_fig.show = MagicMock(
+        return_value=MagicMock(to_plotly_json=MagicMock(return_value={}))
+    )
     mock_function.return_value = (mock_fig, {"content": "mock_content"})
     obj = Charting(obbject)
 
     # Act
-    obj.to_chart()
+    obj.to_chart(render=False)
 
     # Assert
     mock_get_chart_function.assert_called_once()

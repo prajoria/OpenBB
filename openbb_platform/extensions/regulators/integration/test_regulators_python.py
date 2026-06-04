@@ -53,20 +53,14 @@ def test_regulators_sec_institutions_search(params, obb):
 @pytest.mark.parametrize(
     "params",
     [
+        ({"provider": "sec"}),
         (
             {
-                "query": "2022",
                 "provider": "sec",
-                "url": None,
-                "use_cache": None,
-            }
-        ),
-        (
-            {
-                "query": "",
-                "provider": "sec",
-                "url": "https://xbrl.fasb.org/us-gaap/2014/entire/",
-                "use_cache": None,
+                "taxonomy": "us-gaap",
+                "year": 2024,
+                "component": "soi",
+                "category": None,
             }
         ),
     ],
@@ -77,7 +71,7 @@ def test_regulators_sec_schema_files(params, obb):
     result = obb.regulators.sec.schema_files(**params)
     assert result
     assert isinstance(result, OBBject)
-    assert len(result.results.files) > 0
+    assert len(result.results) > 0
 
 
 @pytest.mark.parametrize(
@@ -118,45 +112,6 @@ def test_regulators_sec_rss_litigation(params, obb):
 def test_regulators_sec_sic_search(params, obb):
     """Test the SEC SIC search endpoint."""
     result = obb.regulators.sec.sic_search(**params)
-    assert result
-    assert isinstance(result, OBBject)
-    assert len(result.results) > 0
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        ({"query": "grain", "provider": "cftc"}),
-    ],
-)
-@pytest.mark.integration
-def test_regulators_cftc_cot_search(params, obb):
-    """Test the CFTC COT search endpoint."""
-    result = obb.regulators.cftc.cot_search(**params)
-    assert result
-    assert isinstance(result, OBBject)
-    assert len(result.results) > 0
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        (
-            {
-                "id": "045601",
-                "report_type": "legacy",
-                "start_date": "2023-01-01",
-                "end_date": "2023-06-06",
-                "futures_only": False,
-                "provider": "cftc",
-            }
-        ),
-    ],
-)
-@pytest.mark.integration
-def test_regulators_cftc_cot(params, obb):
-    """Test the CFTC COT endpoint."""
-    result = obb.regulators.cftc.cot(**params)
     assert result
     assert isinstance(result, OBBject)
     assert len(result.results) > 0

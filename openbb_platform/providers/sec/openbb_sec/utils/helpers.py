@@ -49,8 +49,17 @@ async def get_all_companies(use_cache: bool = True) -> DataFrame:
     else:
         response = await amake_request(url, headers=SEC_HEADERS)  # type: ignore
 
-    df = DataFrame(response).transpose()
+    if not response or not isinstance(response, dict):
+        raise OpenBBError(
+            "Empty or invalid response from SEC company tickers endpoint."
+        )
+
+    df = DataFrame.from_dict(response, orient="index")
     cols = ["cik", "symbol", "name"]
+    if len(df.columns) != len(cols):
+        raise OpenBBError(
+            f"Unexpected SEC response format. Expected {len(cols)} fields, got {len(df.columns)}: {df.columns.tolist()}"
+        )
     df.columns = cols
     return df.astype(str)
 
@@ -168,14 +177,17 @@ async def cik_map(cik: str | int, use_cache: bool = True) -> str:
 
 def get_schema_filelist(query: str = "", url: str = "", use_cache: bool = True) -> list:
     """Get a list of schema files from the SEC website."""
-    from pandas import read_html  # pylint: disable=import-outside-toplevel
+    # pylint: disable=import-outside-toplevel
+    from io import StringIO  # noqa
+    from pandas import read_html
 
     results: list = []
     url = url if url else f"https://xbrl.fasb.org/us-gaap/{query}"
     _url = url
     _url = url + "/" if query else _url
     response = make_request(_url)
-    data = read_html(response.content)[0]["Name"].dropna()
+    content = response.text
+    data = read_html(StringIO(content))[0]["Name"].dropna()
     if len(data) > 0:
         data.iloc[0] = url if not query else url + "/"
         results = data.to_list()

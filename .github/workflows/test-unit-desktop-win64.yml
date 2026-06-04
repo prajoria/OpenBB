@@ -22,10 +22,10 @@ jobs:
     env:
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Cache vcpkg
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.VCPKG_ROOT }}
           key: ${{ runner.os }}-vcpkg-${{ hashFiles('desktop/**/vcpkg.json') }}
@@ -43,24 +43,24 @@ jobs:
 
       - name: Install OpenSSL using vcpkg
         working-directory: ${{ github.workspace }}
-        run: ${{ env.VCPKG_ROOT }}/vcpkg install openssl:x64-windows-static --vcpkg-root ${{ env.VCPKG_ROOT }}
+        run: ${{ env.VCPKG_ROOT }}/vcpkg install openssl:x64-windows --vcpkg-root ${{ env.VCPKG_ROOT }}
         env:
-          VCPKG_DEFAULT_TRIPLET: x64-windows-static
+          VCPKG_DEFAULT_TRIPLET: x64-windows
 
       - name: Set OpenSSL env
         shell: bash
         run: |
-          echo "OPENSSL_DIR=${{ env.VCPKG_ROOT }}/installed/x64-windows-static" >> $GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=${{ env.VCPKG_ROOT }}/installed/x64-windows-static/include" >> $GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=${{ env.VCPKG_ROOT }}/installed/x64-windows-static/lib" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=${{ env.VCPKG_ROOT }}/installed/x64-windows" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=${{ env.VCPKG_ROOT }}/installed/x64-windows/include" >> $GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=${{ env.VCPKG_ROOT }}/installed/x64-windows/lib" >> $GITHUB_ENV
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: lts/*
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1
         with:
           toolchain: stable
           profile: minimal
@@ -68,7 +68,7 @@ jobs:
           override: true
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -78,7 +78,7 @@ jobs:
             windows-x64-cargo-registry-
 
       - name: Cache cargo build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: desktop/target
           key: windows-x64-cargo-build-${{ hashFiles('desktop/**/Cargo.lock') }}
@@ -95,7 +95,7 @@ jobs:
         run: cargo test --all
 
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: desktop/node_modules
           key: windows-x64-node-modules-${{ hashFiles('desktop/**/package-lock.json') }}

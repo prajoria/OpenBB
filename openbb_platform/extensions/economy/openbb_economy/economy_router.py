@@ -2,11 +2,8 @@
 
 # pylint: disable=unused-argument
 
-from typing import Annotated
-
-from fastapi import Body
 from openbb_core.app.model.command_context import CommandContext
-from openbb_core.app.model.example import APIEx
+from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.provider_interface import (
     ExtraParams,
@@ -79,6 +76,14 @@ async def calendar(
                 "provider": "oecd",
             },
         ),
+        PythonEx(
+            description="Get the latest reported weightings of a country's CPI basket, from IMF.",
+            code=[
+                "res = obb.economy.cpi("
+                + "provider='imf', country='CAN', transform='weight_percent', expenditure='all', limit=1)",
+                "print(res.model_dump(include='results')['results'])",
+            ],
+        ),
     ],
 )
 async def cpi(
@@ -87,10 +92,7 @@ async def cpi(
     standard_params: StandardParams,
     extra_params: ExtraParams,
 ) -> OBBject:
-    """Get Consumer Price Index (CPI).
-
-    Returns either the rescaled index value, or a rate of change (inflation).
-    """
+    """Get Consumer Price Index (CPI) data by country."""
     return await OBBject.from_query(Query(**locals()))
 
 
@@ -346,7 +348,7 @@ async def available_indicators(
         APIEx(parameters={"provider": "econdb", "symbol": "PCOCO"}),
         APIEx(
             description="Enter the country as the full name, or iso code."
-            + " Use `available_indicators()` to get a list of supported indicators from EconDB.",
+            + " Use `/economy/available_indicators` to get a list of supported indicators from EconDB.",
             parameters={
                 "symbol": "CPI",
                 "country": "united_states,jp",
@@ -358,44 +360,29 @@ async def available_indicators(
             parameters={"provider": "econdb", "symbol": "main", "country": "eu"},
         ),
         APIEx(
-            description="When the provider is 'imf', the absence of a symbol will default to 'irfcl_top_lines'."
-            + " Use 'IRFCL' to get all the data from the set of indicators.",
-            parameters={"provider": "imf"},
-        ),
-        APIEx(
-            description="When the provider is 'imf', complete tables are returned by using a 'preset'."
-            + " Refer to the function's docstring for descriptions of each preset."
-            + " When no country is supplied, the data is returned for all countries.",
-            parameters={"provider": "imf", "symbol": "gold_reserves"},
-        ),
-        APIEx(
-            description="When the provider is 'imf', multiple countries and symbols can be supplied."
-            + " Enter countries as a two-letter ISO country code, or the country name in lower_snake_case.",
+            description="IMF indicators are identified by their dataflow and indicator code."
+            + " Use `/economy/available_indicators` to get and search a list of supported indicators symbols."
+            + " This example gets gold reserves held by countries, measured in Fine Troy Ounces.",
             parameters={
                 "provider": "imf",
-                "symbol": "RAFA_USD,RAPFA_USD,RAFA_RAPFA_RO",
-                "country": "us,china,jp,4f,gb",
-                "start_date": "2010-01-01",
-                "end_date": "2020-12-31",
-                "frequency": "annual",
+                "symbol": "IL::RGV_REVS",
+                "country": "*",
+                "frequency": "month",
+                "limit": 1,
+                "start_date": "2025-09-30",
             },
         ),
         APIEx(
-            description=(
-                "When the provider is 'imf', additional presets return the core Financial Soundness Indicators."
-                "\n    'fsi_core' -  Core FSIs"
-                "\n    'fsi_encouraged_set' - Encouraged Set of FSIs,"
-                "\n    'fsi_core_underlying' - Underlying data for the Core FSIs."
-                "\n    'fsi_other' - Additional/Other FSIs that are not in the Core or Encouraged Set."
-                "\n    'fsi_all' - all FSI data for a single country."
-            ),
+            description="IMF symbols can also be used for retrieving entire presentation tables."
+            + " This example gets the Direct Investment Position (DIP) table."
+            + " Use `/imf_utils/list_tables` to get a list of supported presentation table symbols.",
             parameters={
                 "provider": "imf",
-                "symbol": "fsi_encouraged_set",
-                "country": "us,fr,gb",
-                "start_date": "2022-01-01",
-                "end_date": "2023-12-31",
+                "symbol": "DIP::H_DIP_INDICATOR",
+                "country": "BRA",
                 "frequency": "annual",
+                "limit": 2,
+                "pivot": True,
             },
         ),
     ],
@@ -709,37 +696,6 @@ async def direction_of_trade(
             },
         ),
     ],
-    response_model=list | dict,
-    openapi_extra={
-        "widget_config": {
-            "type": "multi_file_viewer",
-            "name": "FOMC PDF Document Viewer",
-            "description": "Current and historical FOMC PDF materials.",
-            "gridData": {
-                "w": 30,
-                "h": 27,
-            },
-            "refetchInterval": False,
-            "endpoint": f"{api_prefix}/economy/fomc_documents/download",
-            "params": [
-                {
-                    "type": "endpoint",
-                    "paramName": "url",
-                    "optionsEndpoint": f"{api_prefix}/economy/fomc_documents",
-                    "optionsParams": {
-                        "document_type": "$document_type",
-                        "year": "$year",
-                        "pdf_only": True,
-                        "as_choices": True,
-                        "provider": "federal_reserve",
-                    },
-                    "show": False,
-                    "multiSelect": True,
-                    "roles": ["fileSelector"],
-                },
-            ],
-        }
-    },
 )
 async def fomc_documents(
     cc: CommandContext,
@@ -748,78 +704,45 @@ async def fomc_documents(
     extra_params: ExtraParams,
 ) -> OBBject:
     """
-    Get FOMC documents by year and document type.
+    Get lists of FOMC documents by year and document type.
 
     Source: https://www.federalreserve.gov/monetarypolicy/fomc_historical.htm
 
     Source: https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
-
-    This function does not return the typical OBBject response.
-
-    The response is `list[dict[str, str]]` of FOMC documents and their URLs.
-
-    Each dictionary entry has keys: `date`, `url`, `doc_type`, and `doc_format`.
-
-    If `as_choices` is True, the response is a list of valid Workspace parameter choices.
-    Keys, `label` and `value`, correspond with the `doc_type` + `date`, and the `url`, respectively.
     """
-    results = await OBBject.from_query(Query(**locals()))
-
-    return results.results.content  # type: ignore
+    return await OBBject.from_query(Query(**locals()))
 
 
-# This endpoint is used to download FOMC documents in Workspace.
-# This is not included in the OpenAPI schema or Python SDK.
-
-
-# pylint: disable=protected-access
-@router._api_router.post(
-    "/fomc_documents/download",
-    include_in_schema=False,
-    openapi_extra={},
+@router.command(
+    model="TotalFactorProductivity",
+    examples=[
+        APIEx(parameters={"provider": "federal_reserve"}),
+        APIEx(
+            description="Get summary data instead of the default quarterly time series.",
+            parameters={"provider": "federal_reserve", "frequency": "summary"},
+        ),
+    ],
 )
-async def fomc_documents_download(params: Annotated[dict, Body()]) -> list:
+async def total_factor_productivity(
+    cc: CommandContext,
+    provider_choices: ProviderChoices,
+    standard_params: StandardParams,
+    extra_params: ExtraParams,
+) -> OBBject:
+    """Total Factor Productivity (TFP)
+
+    A real-time, quarterly series on total factor productivity (TFP) for the U.S. business sector,
+    adjusted for variations in factor utilization - labor effort and capital's workweek.
+
+    The utilization adjustments follows Basu, Fernald, and Kimball (BFK, 2006).
+    Using relative prices and input-output information, the series is also decomposed into separate TFP
+    and utilization-adjusted TFP series for equipment investment (including consumer durables) and "consumption"
+    (defined as business output less equipment and consumer durables).
+
+    Labor includes an adjustment for "quality" or composition.
+    Capital services are also adjusted for changes in composition over time
+    (e.g. computers, other equipment, structures, and inventories).
+
+    Source: https://www.frbsf.org/research-and-insights/data-and-indicators/total-factor-productivity-tfp/
     """
-    Download FOMC documents from the Federal Reserve's website.
-
-    This function does not return the typical OBBject response.
-
-    The response is a `dict[str, Any]` with keys `filename`, `content`, and `data_format`.
-    """
-    # pylint: disable=import-outside-toplevel
-    import base64  # noqa
-    from io import BytesIO
-    from openbb_core.provider.utils.helpers import make_request
-
-    urls = params.get("url", [])
-
-    results: list = []
-    for url in urls:
-        try:
-            response = make_request(url)
-            response.raise_for_status()
-            pdf = (
-                base64.b64encode(BytesIO(response.content).getvalue()).decode("utf-8")
-                if isinstance(response.content, bytes)
-                else response.content
-            )
-            results.append(
-                {
-                    "content": pdf,
-                    "data_format": {
-                        "data_type": "pdf",
-                        "filename": url.split("/")[-1],
-                    },
-                }
-            )
-        except Exception as exc:
-            results.append(
-                {
-                    "error_type": "download_error",
-                    "content": f"{exc.__class__.__name__}: {exc.args[0]}",
-                    "filename": url.split("/")[-1],
-                }
-            )
-            continue
-
-    return results
+    return await OBBject.from_query(Query(**locals()))

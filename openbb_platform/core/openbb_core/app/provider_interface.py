@@ -186,10 +186,13 @@ class ProviderInterface(metaclass=SingletonMeta):
         inc_json_schema_extra = getattr(incoming.default, "json_schema_extra", {})
 
         def split_desc(desc: str) -> str:
-            """Split field description."""
+            """Split field description, removing provider tags and multiple items text."""
             item = desc.split(" (provider: ")
             detail = item[0] if item else ""
-            return detail
+            # Also remove "Multiple comma separated items allowed." for comparison
+            detail = detail.replace(" Multiple comma separated items allowed.", "")
+            detail = detail.replace("Multiple comma separated items allowed.", "")
+            return detail.strip()
 
         def merge_json_schema_extra(curr: dict, inc: dict) -> dict:
             """Merge json schema extra."""
@@ -212,10 +215,12 @@ class ProviderInterface(metaclass=SingletonMeta):
         curr_detail = split_desc(curr_desc)
         inc_detail = split_desc(inc_desc)
 
-        curr_title = getattr(current.default, "title", "")
-        inc_title = getattr(incoming.default, "title", "")
-        providers = ",".join([curr_title, inc_title])
-        formatted_prov = providers.replace(",", ", ")
+        curr_title = getattr(current.default, "title", "") or ""
+        inc_title = getattr(incoming.default, "title", "") or ""
+        # Filter out empty titles and join
+        provider_list = [t for t in [curr_title, inc_title] if t]
+        providers = ",".join(provider_list)
+        formatted_prov = ", ".join(provider_list)
 
         if SequenceMatcher(None, curr_detail, inc_detail).ratio() > 0.8:
             new_desc = f"{curr_detail} (provider: {formatted_prov})"
@@ -280,6 +285,27 @@ class ProviderInterface(metaclass=SingletonMeta):
                         + ", ".join(providers)  # type: ignore[arg-type]
                         + "."
                     )
+
+        # Auto-derive choices from Literal annotation for provider-specific fields
+        # when no explicit choices are already declared for this provider.
+        # This makes Literal annotations equivalent to manually declared choices,
+        # so providers only need to declare the type annotation.
+        if provider_name and provider_name not in choices:
+            _ann = annotation
+            _origin = get_origin(_ann)
+            # Unwrap Optional[Literal[...]] = Union[Literal[...], None]
+            if _origin is Union:
+                _inner = [a for a in get_args(_ann) if a is not type(None)]
+                if len(_inner) == 1:
+                    _ann = _inner[0]
+                    _origin = get_origin(_ann)
+            if _origin is Literal:
+                _literal_args = list(get_args(_ann))
+                if _literal_args:
+                    choices[provider_name] = {
+                        "choices": _literal_args,
+                    }
+
         provider_field = (
             f"(provider: {provider_name})" if provider_name != "openbb" else ""
         )
@@ -351,6 +377,9 @@ class ProviderInterface(metaclass=SingletonMeta):
         """Extract parameters from map."""
         standard: dict[str, TupleFieldType] = {}
         extra: dict[str, TupleFieldType] = {}
+        standard_fields = (
+            providers.get("openbb", {}).get("QueryParams", {}).get("fields", {})
+        )
 
         for provider_name, model_details in providers.items():
             if provider_name == "openbb":
@@ -364,8 +393,36 @@ class ProviderInterface(metaclass=SingletonMeta):
                     )
             else:
                 for name, field in model_details["QueryParams"]["fields"].items():
-                    if name not in providers["openbb"]["QueryParams"]["fields"]:
-                        s_name = to_snake_case(name)
+                    s_name = to_snake_case(name)
+
+                    if name in standard_fields:
+                        # Provider redefines a standard field - merge descriptions
+                        # Check if descriptions differ before merging
+                        standard_desc = standard_fields[name].description or ""
+                        provider_desc = field.description or ""
+
+                        if provider_desc and provider_desc != standard_desc:
+                            # Create a field with provider-specific description
+                            incoming = cls._create_field(
+                                s_name,
+                                field,
+                                provider_name,
+                                query=True,
+                                force_optional=False,
+                            )
+                            # Merge into the standard field
+                            if s_name in standard:
+                                current = DataclassField(*standard[s_name])
+                                updated = cls._merge_fields(
+                                    current, incoming, query=True
+                                )
+                                standard[s_name] = (
+                                    updated.name,
+                                    updated.annotation,
+                                    updated.default,
+                                )
+                    else:
+                        # Extra field not in standard - add to extra params
                         incoming = cls._create_field(
                             s_name,
                             field,
@@ -493,7 +550,7 @@ class ProviderInterface(metaclass=SingletonMeta):
         -------
         @dataclass
         class CompanyNews(ProviderChoices):
-            provider: Literal["benzinga", "polygon"]
+            provider: Literal["provider_a", "provider_b"]
         """
         result: dict = {}
 
@@ -515,6 +572,24 @@ class ProviderInterface(metaclass=SingletonMeta):
             )
 
         return result
+
+    @staticmethod
+    def _fields_to_pydantic(
+        fields: list[TupleFieldType],
+    ) -> dict[str, tuple[type | None, Any]]:
+        """Convert dataclass fields to pydantic fields.
+
+        Parameters
+        ----------
+        fields : list[TupleFieldType]
+            List of (name, annotation, default) tuples.
+
+        Returns
+        -------
+        dict[str, tuple[type | None, Any]]
+            Dictionary mapping field names to (annotation, default) tuples.
+        """
+        return {name: (annotation, default) for name, annotation, default in fields}
 
     def _generate_data_dc(
         self, map_: MapType
@@ -541,15 +616,15 @@ class ProviderInterface(metaclass=SingletonMeta):
             extra: dict
             standard, extra = self._extract_data(providers)
             result[model_name] = {
-                "standard": make_dataclass(
-                    cls_name=model_name,
-                    fields=list(standard.values()),  # type: ignore[arg-type]
-                    bases=(StandardData,),
+                "standard": create_model(  # type: ignore
+                    model_name,
+                    __base__=StandardData,
+                    **self._fields_to_pydantic(list(standard.values())),  # type: ignore
                 ),
-                "extra": make_dataclass(
-                    cls_name=model_name,
-                    fields=list(extra.values()),  # type: ignore[arg-type]
-                    bases=(ExtraData,),
+                "extra": create_model(
+                    model_name,
+                    __base__=ExtraData,
+                    **self._fields_to_pydantic(list(extra.values())),  # type: ignore
                 ),
             }
 
@@ -565,8 +640,9 @@ class ProviderInterface(metaclass=SingletonMeta):
             standard = dataclasses["standard"]
             extra = dataclasses["extra"]
 
-            fields = standard.model_fields.copy()
-            fields.update(extra.model_fields)
+            fields = getattr(standard, "model_fields", {}).copy()
+            extra_fields = getattr(extra, "model_fields", {}).copy()
+            fields.update(extra_fields)
 
             fields_dict: dict[str, tuple[Any, Any]] = {}
 

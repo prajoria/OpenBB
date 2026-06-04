@@ -148,7 +148,7 @@ def plot_port_info_map(data: list[ImfPortInfoData]):
 
         return "".join(html_parts)
 
-    df.loc[:, "hover_html"] = df.apply(generate_hover_html, axis=1)
+    df["hover_html"] = df.apply(generate_hover_html, axis=1)
 
     fig = px.scatter_map(
         df,
@@ -157,7 +157,7 @@ def plot_port_info_map(data: list[ImfPortInfoData]):
         custom_data=df[["hover_html"]],
         size="marker_size",
         size_max=max_size,
-        color_discrete_sequence=["fuchsia"],
+        color_discrete_sequence=["#7F7F7F"],
         opacity=0.4,
         height=600,
         width=600,

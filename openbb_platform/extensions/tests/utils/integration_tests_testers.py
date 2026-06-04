@@ -7,16 +7,12 @@ from collections.abc import Callable
 from typing import (
     Any,
     Literal,
-    get_type_hints,
 )
 
 from openbb_core.app.provider_interface import ProviderInterface
 from openbb_core.app.router import CommandMap
 
-from .integration_tests_generator import (
-    find_extensions,
-    get_test_params_data_processing,
-)
+from .integration_tests_generator import find_extensions
 
 
 def get_integration_tests(
@@ -34,6 +30,8 @@ def get_integration_tests(
 
     for extension in find_extensions(filter_charting_ext):
         integration_folder = os.path.join(extension, "integration")
+        if not os.path.exists(integration_folder):
+            continue
         for file in os.listdir(integration_folder):
             if file.endswith(file_end):
                 file_path = os.path.join(integration_folder, file)
@@ -261,9 +259,10 @@ def check_integration_tests(
     for route, _ in cm.map.items():
         for function in processing_functions:
             if route.replace("/", "_")[1:] == function.replace("test_", ""):
-                hints = get_type_hints(cm.map[route])
+                sig = inspect.signature(cm.map[route])
+                param_names = list(sig.parameters.keys()) + ["return"]
                 processing_command_params = [
-                    {k: "" for k in get_test_params_data_processing(hints)}
+                    {k: "" for k in param_names}
                 ]
                 if (
                     not processing_command_params
@@ -314,7 +313,11 @@ def check_missing_integration_tests(test_type: Literal["api", "python"]) -> list
         if route not in tested_functions:
             # TODO: See how to handle edge cases that are excluded from the schema
             # on purpose. This is currently on the econometrics router.
-            if test_type == "api" and "econometrics" in route:
+            if (
+                test_type == "api"
+                and "econometrics" in route
+                or route.endswith(".json")
+            ):
                 continue
             missing_integration_tests.append(
                 f"Missing {test_type} integration test for route {route}"

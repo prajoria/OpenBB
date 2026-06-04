@@ -19,8 +19,8 @@ use tauri_plugin_dialog::DialogExt;
 extern crate winapi;
 
 use crate::tauri_handlers::startup::{
-    abort_installation, get_installation_status, install_conda, install_to_directory,
-    setup_python_environment,
+    abort_installation, create_default_backend_services, get_installation_status, install_conda,
+    install_to_directory, setup_python_environment,
 };
 
 use crate::tauri_handlers::environments::{
@@ -56,8 +56,9 @@ use crate::tauri_handlers::helpers::{
 use tauri_plugin_updater::UpdaterExt;
 
 use crate::utils::process_monitor::{
-    GetProcessLogsRequest, LogEntry, LogStorage, RunningProcesses, get_log_storage,
-    get_process_logs, init_process_monitoring, register_process, unregister_process,
+    GetProcessLogsRequest, LogEntry, LogStorage, RunningProcesses, clear_process_logs,
+    get_log_storage, get_process_logs, init_process_monitoring, register_process,
+    unregister_process,
 };
 
 use crate::uninstall::uninstall_application;
@@ -89,6 +90,11 @@ fn get_process_logs_history(
 ) -> Vec<LogEntry> {
     let request = GetProcessLogsRequest { process_id, count };
     get_process_logs(&state.0.clone(), request)
+}
+
+#[tauri::command]
+fn clear_process_logs_history(state: State<ProcessLogState>, process_id: String) -> bool {
+    clear_process_logs(&state.0, &process_id)
 }
 
 async fn check_and_apply_update(app: AppHandle, always_prompt: bool) {
@@ -526,6 +532,7 @@ fn main() {
             register_process_monitoring,
             unregister_process_monitoring,
             get_process_logs_history,
+            clear_process_logs_history,
             open_jupyter_logs_window,
             update_jupyter_status,
             open_backend_logs_window,
@@ -538,7 +545,8 @@ fn main() {
             uninstall_application,
             quit_application,
             generate_self_signed_cert,
-            update_openbb_settings
+            update_openbb_settings,
+            create_default_backend_services
         ])
         .setup(|app_handle| {
             let install_state = check_installation_on_startup();

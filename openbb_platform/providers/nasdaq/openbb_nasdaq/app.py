@@ -278,7 +278,6 @@ def main():
                 "category": "Equity",
                 "subCategory": "Calendar",
                 "type": "table",
-                "searchCategory": "Equity",
                 "widgetId": "nasdaq_earnings_calendar",
                 "refetchInterval": False,
                 "params": [
@@ -325,6 +324,10 @@ def main():
                                     "groupByParamName": "symbol",
                                 },
                             },
+                            {
+                                "field": "name",
+                                "pinned": "left",
+                            },
                         ],
                     }
                 },
@@ -354,7 +357,6 @@ def main():
                 "category": "Equity",
                 "subCategory": "Calendar",
                 "type": "table",
-                "searchCategory": "Equity",
                 "widgetId": "nasdaq_dividends_calendar",
                 "refetchInterval": False,
                 "params": [
@@ -395,6 +397,10 @@ def main():
                                     "groupByParamName": "symbol2",
                                 },
                             },
+                            {
+                                "field": "name",
+                                "pinned": "left",
+                            },
                         ],
                     }
                 },
@@ -424,7 +430,6 @@ def main():
                 "category": "Equity",
                 "subCategory": "Dividends",
                 "type": "table",
-                "searchCategory": "Equity",
                 "widgetId": "nasdaq_historical_dividends",
                 "refetchInterval": False,
                 "params": [
@@ -491,7 +496,6 @@ def main():
                 "category": "Equity",
                 "subCategory": "Calendar",
                 "type": "table",
-                "searchCategory": "Equity",
                 "widgetId": "nasdaq_ipo_calendar",
                 "refetchInterval": False,
                 "params": [
@@ -560,6 +564,10 @@ def main():
                                     "groupByParamName": "symbol3",
                                 },
                             },
+                            {
+                                "field": "name",
+                                "pinned": "left",
+                            },
                         ],
                     }
                 },
@@ -589,7 +597,6 @@ def main():
                 "category": "Economy",
                 "subCategory": "Calendar",
                 "type": "table",
-                "searchCategory": "Equity",
                 "widgetId": "nasdaq_economic_calendar",
                 "refetchInterval": False,
                 "params": [
@@ -600,7 +607,7 @@ def main():
                             {"label": "China", "value": "china"},
                             {"label": "Hong Kong", "value": "hong_kong"},
                             {"label": "Japan", "value": "japan"},
-                            {"label": "Singapore", "value": "signapore"},
+                            {"label": "Singapore", "value": "singapore"},
                             {"label": "South Korea", "value": "south_korea"},
                             {"label": "India", "value": "india"},
                             {"label": "Russia", "value": "russia"},

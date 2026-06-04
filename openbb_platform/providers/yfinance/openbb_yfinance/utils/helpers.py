@@ -83,16 +83,10 @@ async def get_custom_screener(
     """Get a custom screener."""
     # pylint: disable=import-outside-toplevel
     from openbb_core.provider.utils.helpers import (  # noqa
-        get_requests_session,
         safe_fromtimestamp,
     )
-    from curl_adapter import CurlCffiAdapter
     from pytz import timezone
     from yfinance.data import YfData
-
-    session = get_requests_session()
-    session.mount("https://", CurlCffiAdapter())
-    session.mount("http://", CurlCffiAdapter())
 
     params_dict = {
         "corsDomain": "finance.yahoo.com",
@@ -100,7 +94,7 @@ async def get_custom_screener(
         "lang": "en-US",
         "region": region,
     }
-    _data = YfData(session=session)
+    _data = YfData()
     results: list = []
     body = body.copy()
     response = _data.post(
@@ -157,9 +151,7 @@ async def get_defined_screener(
     """Get a predefined screener."""
     # pylint: disable=import-outside-toplevel
     import yfinance as yf  # noqa
-    from curl_adapter import CurlCffiAdapter
     from openbb_core.provider.utils.helpers import (
-        get_requests_session,
         safe_fromtimestamp,
     )
     from pytz import timezone
@@ -170,15 +162,11 @@ async def get_defined_screener(
         )
 
     results: list = []
-    session = get_requests_session()
-    session.mount("https://", CurlCffiAdapter())
-    session.mount("http://", CurlCffiAdapter())
 
     offset = 0
 
     response = yf.screen(
-        name,
-        session=session,
+        name,  # type: ignore
         size=250,
         offset=offset,
     )
@@ -194,8 +182,7 @@ async def get_defined_screener(
             break
         offset = len(results)
         res = yf.screen(
-            name,
-            session=session,
+            name,  # type: ignore
             size=250,
             offset=offset,
         )
@@ -250,19 +237,13 @@ def get_futures_data() -> "DataFrame":
 def get_futures_symbols(symbol: str) -> list:
     """Get the list of futures symbols from the continuation symbol."""
     # pylint: disable=import-outside-toplevel
-    from openbb_core.provider.utils.helpers import get_requests_session  # noqa
-    from curl_adapter import CurlCffiAdapter
     from yfinance.data import YfData
 
     _symbol = symbol.upper() + "%3DF"
     URL = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{_symbol}"
     params = {"modules": "futuresChain"}
 
-    session = get_requests_session()
-    session.mount("https://", CurlCffiAdapter())
-    session.mount("http://", CurlCffiAdapter())
-
-    response: dict = YfData(session=session).get_raw_json(url=URL, params=params)
+    response: dict = YfData().get_raw_json(url=URL, params=params)
     futures_symbols: list = []
 
     if "quoteSummary" in response:
@@ -305,8 +286,8 @@ async def get_futures_quotes(symbols: list) -> "DataFrame":
 
     df = DataFrame([d.model_dump() for d in data])  # type: ignore
     prices = df[["symbol", "bid", "ask", "prev_close"]].copy()
-    prices.loc[:, "price"] = round((prices.ask + prices.bid) / 2, 2)
-    prices.price = prices.price.fillna(prices.prev_close)
+    prices["price"] = round((prices.ask + prices.bid) / 2, 2)
+    prices["price"] = prices.price.fillna(prices.prev_close)
     prices["expiration"] = [get_expiration_month(symbol) for symbol in prices.symbol]
 
     return prices[["expiration", "price"]]  # type: ignore
@@ -406,7 +387,7 @@ async def get_futures_curve(  # pylint: disable=too-many-return-statements
         flattened_data = flattened_data.sort_values(
             by=["date", "expiration"]
         ).reset_index(drop=True)
-        flattened_data.loc[:, "date"] = flattened_data["date"].dt.strftime("%Y-%m-%d")
+        flattened_data["date"] = flattened_data["date"].dt.strftime("%Y-%m-%d")
 
         return flattened_data
 
@@ -516,8 +497,6 @@ def yf_download(  # pylint: disable=too-many-positional-arguments
     """Get yFinance OHLC data for any ticker and interval available."""
     # pylint: disable=import-outside-toplevel
     from datetime import datetime, timedelta  # noqa
-    from curl_adapter import CurlCffiAdapter
-    from openbb_core.provider.utils.helpers import get_requests_session
     from pandas import DataFrame, concat, to_datetime
     import yfinance as yf
 
@@ -541,12 +520,13 @@ def yf_download(  # pylint: disable=too-many-positional-arguments
     if adjusted is False:
         kwargs.update(dict(auto_adjust=False, back_adjust=False, period=period))
 
-    session = kwargs.pop("session", None) or get_requests_session()
-    session.mount("https://", CurlCffiAdapter())
-    session.mount("http://", CurlCffiAdapter())
-
-    if session.proxies:
+    # Note: Proxy support via kwargs["proxy"] is preserved if provided.
+    # yfinance>=0.2.66 manages its own curl_cffi sessions internally.
+    # If a session was passed in kwargs, extract proxy info before removing it.
+    session = kwargs.pop("session", None)
+    if session and hasattr(session, "proxies") and session.proxies:
         kwargs["proxy"] = session.proxies
+
     try:
         data = yf.download(
             tickers=symbol,
@@ -562,24 +542,30 @@ def yf_download(  # pylint: disable=too-many-positional-arguments
             rounding=rounding,
             group_by=group_by,
             threads=False,
-            session=session,
             **kwargs,
         )
-        if hasattr(data.index, "tz") and data.index.tz is not None:
-            data = data.tz_convert(None)
+        if hasattr(data.index, "tz") and data.index.tz is not None:  # type: ignore
+            data = data.tz_convert(None)  # type: ignore
 
     except ValueError as exc:
         raise EmptyDataError() from exc
 
     tickers = symbol.split(",")
     if len(tickers) == 1:
-        data = data.get(symbol, DataFrame())
+        if hasattr(data.columns, "levels"):
+            try:
+                if symbol in data.columns.get_level_values(0):
+                    data = data[symbol]  # type: ignore
+                elif symbol in data.columns.get_level_values(1):
+                    data = data.xs(symbol, level=1, axis=1)  # type: ignore
+            except (KeyError, IndexError):
+                pass
     elif len(tickers) > 1:
         _data = DataFrame()
         for ticker in tickers:
-            temp = data[ticker].copy().dropna(how="all")
+            temp = data[ticker].copy().dropna(how="all")  # type: ignore
             if len(temp) > 0:
-                temp.loc[:, "symbol"] = ticker
+                temp["symbol"] = ticker
                 temp = temp.reset_index().rename(
                     columns={"Date": "date", "Datetime": "date", "index": "date"}
                 )
@@ -589,11 +575,14 @@ def yf_download(  # pylint: disable=too-many-positional-arguments
             _data = _data.set_index(index_keys).sort_index()
             data = _data
 
-    if data.empty:
+    if data.empty:  # type: ignore
         raise EmptyDataError()
 
-    data = data.reset_index()
-    data = data.rename(columns={"Date": "date", "Datetime": "date"})
+    if hasattr(data.columns, "levels") and len(data.columns.names) > 1:
+        data.columns = [col[0] if isinstance(col, tuple) else col for col in data.columns]  # type: ignore
+
+    data = data.reset_index()  # type: ignore
+    data = data.rename(columns={"Date": "date", "Datetime": "date", "index": "date"})
     data["date"] = data["date"].apply(to_datetime)
     data = data[data["Open"] > 0]
 

@@ -20,15 +20,18 @@ jobs:
       run:
         working-directory: desktop
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Install OpenSSL 3
+        run: brew install openssl@3
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: lts/*
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1
         with:
           toolchain: stable
           profile: minimal
@@ -39,7 +42,7 @@ jobs:
         run: rustup target add aarch64-apple-darwin
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -49,7 +52,7 @@ jobs:
             macos-arm64-cargo-registry-
 
       - name: Cache cargo build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: desktop/target
           key: macos-arm64-cargo-build-${{ hashFiles('desktop/**/Cargo.lock') }}
@@ -66,7 +69,7 @@ jobs:
         run: cargo test --all
 
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: desktop/node_modules
           key: macos-arm64-node-modules-${{ hashFiles('desktop/**/package-lock.json') }}

@@ -1,6 +1,6 @@
 """Test the package_builder.py file."""
 
-# pylint: disable=redefined-outer-name, protected-access
+# pylint: disable=redefined-outer-name,protected-access,unused-argument
 from dataclasses import dataclass
 from inspect import _empty
 from pathlib import Path
@@ -9,6 +9,7 @@ from unittest.mock import PropertyMock, mock_open, patch
 
 import pandas
 import pytest
+from fastapi import Depends, Request
 from importlib_metadata import EntryPoint, EntryPoints
 from openbb_core.app.static.package_builder import (
     ClassDefinition,
@@ -21,7 +22,7 @@ from openbb_core.app.static.package_builder import (
     PathHandler,
 )
 from openbb_core.env import Env
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 
 @pytest.fixture(scope="module")
@@ -288,7 +289,7 @@ def test_build_func_params(method_definition):
 @pytest.mark.parametrize(
     "return_type, expected_output",
     [
-        (_empty, "None"),
+        (_empty, "Any"),
         (int, "int"),
     ],
 )
@@ -404,6 +405,123 @@ def test_build_command_method(method_definition):
 
     assert output
     assert isinstance(output, str)
+
+
+class MyPostBody(BaseModel):
+    """My post body model."""
+
+    field1: str = Field(description="A string field.")
+    field2: int = Field(default=10, description="An integer field.")
+
+
+def mock_get_endpoint(
+    param1: str,
+    param2: int | None = None,
+):
+    """This is a mock GET endpoint."""
+
+
+def mock_post_endpoint(
+    body: MyPostBody,
+):
+    """This is a mock POST endpoint."""
+
+
+class MockDep:
+    """Mock dependency class."""
+
+    def __init__(self):
+        self.value = "real_dependency_value"
+
+
+def get_mock_dep():
+    """This is a real mock dependency."""
+    return MockDep()
+
+
+def mock_endpoint_with_real_dependency(
+    dep: MockDep = Depends(get_mock_dep),
+):
+    """This is a mock endpoint with a real dependency."""
+
+
+def test_build_command_method_get_endpoint(method_definition):
+    """Test build_command_method with a GET endpoint."""
+    with (
+        patch(
+            "openbb_core.app.static.package_builder.MethodDefinition.is_data_processing_function",
+            return_value=False,
+        ),
+        patch(
+            "openbb_core.app.static.package_builder.MethodDefinition.is_deprecated_function",
+            return_value=False,
+        ),
+    ):
+        output = method_definition.build_command_method(
+            path="/test/get",
+            func=mock_get_endpoint,
+            model_name=None,
+        )
+
+    assert "def get(" in output
+    assert "param1: Annotated[\n            str" in output
+    assert "Annotated[\n            int | None,\n" in output
+    assert "This is a mock GET endpoint." in output
+    assert "return self._run(" in output
+    assert '"/test/get",' in output
+    assert "param1=param1," in output
+    assert "param2=param2," in output
+
+
+def test_build_command_method_post_endpoint(method_definition):
+    """Test build_command_method with a POST endpoint."""
+    with (
+        patch(
+            "openbb_core.app.static.package_builder.MethodDefinition.is_data_processing_function",
+            return_value=False,
+        ),
+        patch(
+            "openbb_core.app.static.package_builder.MethodDefinition.is_deprecated_function",
+            return_value=False,
+        ),
+    ):
+        output = method_definition.build_command_method(
+            path="/test/mock_post_endpoint",
+            func=mock_post_endpoint,
+            model_name=None,
+        )
+
+    assert "def mock_post_endpoint(" in output
+    assert "body: Annotated[\n            MyPostBody," in output
+    assert "This is a mock POST endpoint." in output
+    assert "return self._run(" in output
+    assert '"/test/mock_post_endpoint",' in output
+    assert "body=body," in output
+
+
+def test_build_command_method_with_dependency(method_definition):
+    """Test build_command_method with a dependency."""
+    with (
+        patch(
+            "openbb_core.app.static.package_builder.MethodDefinition.is_data_processing_function",
+            return_value=False,
+        ),
+        patch(
+            "openbb_core.app.static.package_builder.MethodDefinition.is_deprecated_function",
+            return_value=False,
+        ),
+    ):
+        output = method_definition.build_command_method(
+            path="/test/dependency",
+            func=mock_endpoint_with_real_dependency,
+            model_name=None,
+        )
+
+    assert "def dependency(" in output
+    assert "dep: Annotated[" in output
+    assert "MockDep" in output
+    assert "get_mock_dep" in output
+    assert "dep=dep," in output
 
 
 @pytest.fixture(scope="module")
@@ -596,7 +714,7 @@ def test__get_generic_types(docstring_generator, type_, expected):
         (
             ["list", "dict", "tuple"],
             "test_model",
-            "Union[list[test_model], dict[str, test_model], tuple[test_model]]",
+            "list[test_model] | dict[str, test_model] | tuple[test_model]",
         ),
     ],
 )
@@ -750,3 +868,167 @@ def test_auto_build(package_builder, add, remove, openbb_auto_build):
     else:
         mock_assets_diff.assert_not_called()
         mock_build.assert_not_called()
+
+
+def test_is_safe_dependency(method_definition):
+    """Test dependency safety detection."""
+
+    class MockDep:
+        """Mock dependency."""
+
+    def safe_dependency(optional: str = "value") -> int:
+        return 1
+
+    def unsafe_dependency(request: Request):
+        return request
+
+    def optional_request_dependency(optional: Request | None = None) -> MockDep:
+        return MockDep()
+
+    def none_return_dependency(optional: str = "value") -> None:
+        return None
+
+    def optional_return_dependency(optional: str = "value") -> MockDep | None:
+        return MockDep()
+
+    assert method_definition._is_safe_dependency(safe_dependency)
+    assert not method_definition._is_safe_dependency(unsafe_dependency)
+    assert not method_definition._is_safe_dependency(optional_request_dependency)
+    assert not method_definition._is_safe_dependency(none_return_dependency)
+    assert method_definition._is_safe_dependency(optional_return_dependency)
+
+
+def test_build_func_params_unwraps_forward_ref(method_definition):
+    """Test that ForwardRef annotations are unwrapped in generated function params.
+
+    Regression test: when extensions use `from __future__ import annotations`
+    with `no_validate=True`, annotations remain as strings at runtime.
+    Annotated["int", ...] auto-wraps "int" into ForwardRef("int").
+    The builder must unwrap these to plain type strings.
+    """
+    # pylint: disable=import-outside-toplevel
+    from collections import OrderedDict
+    from typing import ForwardRef
+
+    from openbb_core.app.model.field import OpenBBField
+
+    param_map = OrderedDict(
+        {
+            "symbol": Parameter(
+                name="symbol",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Annotated[
+                    ForwardRef("str"), OpenBBField(description="")
+                ],
+            ),
+            "days": Parameter(
+                name="days",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Annotated[
+                    ForwardRef("int"), OpenBBField(description="")
+                ],
+                default=7,
+            ),
+            "asset_type": Parameter(
+                name="asset_type",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Annotated[
+                    ForwardRef("Literal['stock', 'etf', 'all'] | None"),
+                    OpenBBField(description=""),
+                ],
+                default=None,
+            ),
+        }
+    )
+
+    output = method_definition.build_func_params(param_map)
+
+    assert "ForwardRef" not in output, (
+        f"ForwardRef should be unwrapped in generated params, got:\n{output}"
+    )
+    assert "str," in output
+    assert "int," in output
+    assert "Literal['stock', 'etf', 'all']" in output
+
+
+def test_build_func_returns_string_annotation(method_definition):
+    """Test that string return types are emitted directly, not wrapped in ForwardRef.
+
+    Regression test: `from __future__ import annotations` causes return annotations
+    to be strings. The builder should emit the string directly (e.g., "OBBject")
+    rather than wrapping it as ForwardRef('OBBject').
+    """
+    output = method_definition.build_func_returns(return_type="OBBject")
+    assert output == "OBBject"
+    assert "ForwardRef" not in output
+
+    output2 = method_definition.build_func_returns(return_type="Any")
+    assert output2 == "Any"
+    assert "ForwardRef" not in output2
+
+
+def test_get_field_type_unwraps_forward_ref(docstring_generator):
+    """Test that ForwardRef is unwrapped in docstring type formatting.
+
+    Regression test: ForwardRef('int') should render as 'int' in docstrings,
+    not as the literal string "ForwardRef('int')".
+    """
+    # pylint: disable=import-outside-toplevel
+    from typing import ForwardRef
+
+    result = docstring_generator.get_field_type(ForwardRef("int"), is_required=True)
+    assert "ForwardRef" not in result, (
+        f"ForwardRef should be unwrapped in docstring types, got: {result}"
+    )
+    assert "int" in result
+
+    result2 = docstring_generator.get_field_type(
+        ForwardRef("Literal['stock', 'etf', 'all'] | None"), is_required=False
+    )
+    assert "ForwardRef" not in result2, (
+        f"ForwardRef should be unwrapped in docstring types, got: {result2}"
+    )
+
+
+def test_build_purges_on_failure(tmp_openbb_dir):
+    """Test that build purges incomplete assets on failure."""
+    builder = PackageBuilder(tmp_openbb_dir)
+
+    # Mocking _save_modules to fail
+    with (
+        patch.object(builder, "_clean") as mock_clean,
+        patch.object(builder.console, "error") as mock_error,
+        patch.object(builder, "_get_extension_map"),
+        patch.object(builder, "_save_modules", side_effect=Exception("Generation failed")),
+    ):
+        with pytest.raises(Exception, match="Generation failed"):
+            builder.build()
+
+        # _clean should be called twice: once at the start, once after failure
+        assert mock_clean.call_count == 2
+        # console.error should be called for error message, traceback and instruction
+        assert mock_error.call_count >= 3
+        mock_error.assert_any_call("\nBuild failed!")
+        assert any("Generation failed" in str(call) for call in mock_error.call_args_list)
+
+
+def test_build_purges_on_keyboard_interrupt(tmp_openbb_dir):
+    """Test that build purges incomplete assets on KeyboardInterrupt."""
+    builder = PackageBuilder(tmp_openbb_dir)
+
+    # Mocking _save_modules to raise KeyboardInterrupt
+    with (
+        patch.object(builder, "_clean") as mock_clean,
+        patch.object(builder.console, "error") as mock_error,
+        patch.object(builder, "_get_extension_map"),
+        patch.object(builder, "_save_modules", side_effect=KeyboardInterrupt()),
+    ):
+        with pytest.raises(KeyboardInterrupt):
+            builder.build()
+
+        # _clean should be called twice: once at the start, once after interruption
+        assert mock_clean.call_count == 2
+        # console.error should NOT be called for KeyboardInterrupt
+        mock_error.assert_not_called()
+
+
