@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "openbb-backtest"
+version = "0.1.0"
+description = "Backtesting engine extension for OpenBB"
+authors = ["OpenBB Team <hello@openbb.co>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "openbb_backtest" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+openbb-core = "^1.5.8"
+numpy = "*"
+pandas = "*"
+# Heavy runtime deps are intentionally declared but installed on demand during
+# component implementation (event-driven / vectorized engines):
+#   numba, exchange-calendars, empyrical-reloaded, pyfolio-reloaded,
+#   alphalens-reloaded, quantstats, zipline-reloaded, bt, ffn
+# See docs/designs/backtest-design/01-scaffolding.md.
+
+[tool.poetry.extras]
+# vectorbt  -> Commons-Clause, opt-in, MUST stay non-vendored
+# backtrader -> GPL-3.0, opt-in
+# gpu        -> cupy + spectre, opt-in GPU backend (component 13)
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."openbb_core_extension"]
+backtest = "openbb_backtest.backtest_router:router"
