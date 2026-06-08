@@ -123,3 +123,15 @@ openbb_platform/providers/fmp_cached/equity_screener_*.csv
 # Local quant-strategies clones (tools/quant_scraper, QUANT_REPO_PATH)
 /quant_repos/
 **/.scrape_state.json
+
+# Editor / IDE workspace files (machine-specific)
+*.code-workspace
+
+# Generated build lock
+openbb_platform/core/openbb/.build.lock
+
+# Runtime logs
+*.log
+
+# Stray/junk scratch files
+C*nb_code.txt
