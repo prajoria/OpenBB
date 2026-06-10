@@ -65,7 +65,7 @@ openbb-econometrics = { version = "^1.7.2", optional = true }
 openbb-quantitative = { version = "^1.6.2", optional = true }
 openbb-technical = { version = "^1.6.2", optional = true }
 openbb-mcp-server = { version = "^1.4.1", optional = true }
-openbb-portfolio = { path = "extensions/portfolio", develop = true, optional = true }
+openbb-portfolio-custom = { path = "extensions/portfolio", develop = true, optional = true }
 
 [tool.poetry.extras]
 alpha_vantage = ["openbb-alpha-vantage"]
@@ -79,7 +79,7 @@ famafrench = ["openbb-famafrench"]
 finra = ["openbb-finra"]
 finviz = ["openbb-finviz"]
 mcp_server = ["openbb-mcp-server"]
-portfolio = ["openbb-portfolio"]
+portfolio = ["openbb-portfolio-custom"]
 nasdaq = ["openbb-nasdaq"]
 multpl = ["openbb-multpl"]
 quantitative = ["openbb-quantitative"]
