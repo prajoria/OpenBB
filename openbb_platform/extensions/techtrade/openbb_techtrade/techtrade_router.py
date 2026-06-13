@@ -22,7 +22,9 @@ from importlib.metadata import PackageNotFoundError, version
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
-router = Router(prefix="", description="Segment-aware technical-indicator trading engine.")
+router = Router(
+    prefix="", description="Segment-aware technical-indicator trading engine."
+)
 
 
 def _include_subrouters() -> None:
