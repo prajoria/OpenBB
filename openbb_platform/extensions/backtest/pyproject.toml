@@ -10,6 +10,9 @@ packages = [{ include = "openbb_backtest" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 openbb-core = "^1.5.8"
+# pydantic-settings backs BacktestSettings (settings.py); it is a hard top-level
+# import, not lazy — must be declared so a clean env resolves it.
+pydantic-settings = ">=2.0,<3"
 numpy = "*"
 pandas = "*"
 # scipy powers the closed-form overfitting statistics (validation/stats.py:
@@ -17,6 +20,9 @@ pandas = "*"
 # Hierarchical Risk Parity clustering (strategies/risk_parity.py: linkage +
 # quasi-diagonalization).
 scipy = "*"
+# pyarrow is the parquet engine the on-disk bundle store uses
+# (data/bundle.py: to_parquet / read_parquet) — required, not optional.
+pyarrow = ">=14"
 # Heavy runtime deps are intentionally declared but installed on demand during
 # component implementation (event-driven / vectorized engines):
 #   numba, exchange-calendars, empyrical-reloaded, pyfolio-reloaded,

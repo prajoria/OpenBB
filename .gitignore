@@ -100,7 +100,9 @@ vscode-extension/
 temp/
 
 # Local data — single backup unit, never committed (see branch-decomposition plan)
-data/
+# Anchored to repo root so it does NOT swallow source packages named "data"
+# (e.g. openbb_backtest/data/ — trading calendars + bundle ingest).
+/data/
 
 # MCP client config — machine-specific, use .mcp.json.example as template
 .mcp.json
