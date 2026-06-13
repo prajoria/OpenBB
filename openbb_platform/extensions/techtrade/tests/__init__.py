@@ -1,0 +1,1 @@
+"""techtrade extension test suite."""
