@@ -104,3 +104,34 @@ data/
 
 # MCP client config — machine-specific, use .mcp.json.example as template
 .mcp.json
+
+# Analysis exports and generated artifacts (contain portfolio/position data)
+Analysis/exports/
+Analysis/Fortress*.csv
+Analysis/Fortress*.xlsx
+Analysis/fortress_*.csv
+Analysis/full_research_proposal_weights.csv
+Analysis/proposal_comparison_all_positions.csv
+Analysis/FortressFinal*.csv
+Analysis/financial_data.xlsx
+
+# fmp_cached provider test/debug artifacts
+openbb_platform/providers/fmp_cached/entity_test_results_*.json
+openbb_platform/providers/fmp_cached/equity_screener_*.csv
+
+
+# Local quant-strategies clones (tools/quant_scraper, QUANT_REPO_PATH)
+/quant_repos/
+**/.scrape_state.json
+
+# Editor / IDE workspace files (machine-specific)
+*.code-workspace
+
+# Generated build lock
+openbb_platform/core/openbb/.build.lock
+
+# Runtime logs
+*.log
+
+# Stray/junk scratch files
+C*nb_code.txt

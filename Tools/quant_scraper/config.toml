@@ -1,0 +1,19 @@
+[source]
+# Raw markdown URL of the awesome-quant README.
+readme_url = "https://raw.githubusercontent.com/wilsonfreitas/awesome-quant/master/README.md"
+
+[clone]
+# Clone target is read from the QUANT_REPO_PATH env var in the repo-root .env.
+# This key is an optional fallback used only if QUANT_REPO_PATH is unset.
+target_dir = ""
+shallow = true          # git clone --depth 1
+update_existing = true  # git pull on dirs that already exist; else clone
+parallelism = 8         # number of concurrent git workers
+
+[filter]
+# Owner/repo slugs to skip (case-insensitive). Substring or exact match.
+exclude = [
+  # "owner/repo",
+]
+# If non-empty, ONLY clone repos whose owner is in this list (optional allowlist).
+include_owners = []
