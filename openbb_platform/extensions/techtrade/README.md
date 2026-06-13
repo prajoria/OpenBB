@@ -35,3 +35,26 @@ git submodule update --init openbb_platform/extensions/techtrade/external/pandas
 
 Smoke-tested by `tests/unit/test_pandas_ta_classic_smoke.py` (`import pandas_ta_classic`,
 `df.ta.rsi()`, and a candlestick pattern on sample OHLCV).
+
+## Testing & determinism
+
+The engine is deterministic and the test suite is fully offline (no API key, no
+network). Run the unit + golden tests locally with:
+
+```bash
+.venv_win\Scripts\python.exe -m pytest openbb_platform/extensions/techtrade/tests -m "not integration" -q
+```
+
+- **Golden fixtures** live under `tests/golden/fixtures/`. A reusable helper,
+  `openbb_techtrade.testing.assert_matches_golden`, locks deterministic engine
+  outputs against committed JSON within a tight float tolerance. Regenerate a
+  fixture only after a *reviewed* behavioral change by setting
+  `TECHTRADE_REGEN_GOLDEN=1` — never blindly.
+- **Lint + type gates** (ruff line-length 122 + mypy) run in CI via
+  `general-linting.yml`; the unit suite — including the golden locks and the
+  submodule-pin drift guard — runs via `test-unit-platform.yml`. No techtrade-
+  specific workflow YAML is added; the harness rides the existing platform CI.
+- **Submodule-pin discipline (§19):** `tests/unit/test_submodule_pin.py` fails CI
+  if the vendored `pandas-ta-classic` pin drifts from the recorded commit. Bumping
+  the submodule requires updating `EXPECTED_PIN` in that test and the pin in this
+  README together, in the same reviewed PR.
