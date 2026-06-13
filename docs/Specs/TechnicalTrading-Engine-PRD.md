@@ -922,6 +922,10 @@ decisions — it narrates and orchestrates the deterministic tools.
 > **How to use this section.** Each question has an **Answer:** placeholder — write your
 > decision inline after the marker. A `Recommendation:` line records the working group's
 > default *suggestion*; it is **not** decided until you fill in **Answer:**.
+>
+> **Status: all Q1–Q9 resolved.** Q2/Q3/Q4/Q5/Q8 were resolved earlier (commit
+> `b7778265c`); Q1/Q6/Q7/Q9 are resolved here (#64). No question remains "decision
+> pending".
 
 **Q1 — Repo consolidation / cross-repo references.**
 This engine is specified in `OpenBBTechnical`, but the companion PRDs, `quant_repos/`, and
@@ -929,7 +933,12 @@ This engine is specified in `OpenBBTechnical`, but the companion PRDs, `quant_re
 in `OpenBBTechnical` and depend on `openbb-backtest` as an installed package, (b) merge the
 two checkouts, or (c) build both engines in the same checkout?
 - *Recommendation:* (a) — keep checkouts separate; depend on `openbb-backtest` as a package.
-- **Answer:** _(decision pending)_
+- **Answer:** Superseded by reality: `openbb-backtest` has been **merged into this
+  `OpenBBTechnical` checkout** (`openbb_platform/extensions/backtest`, 431-test suite
+  green here). So `openbb-techtrade` develops in the same checkout and imports
+  `openbb_backtest` as an installed, in-tree editable package — no cross-repo
+  reference. The sibling `OpenBB` checkout remains a read-only reference for
+  `quant_repos/` study material only. Gates #82 (validation bridge).
 
 **Q2 — Segment taxonomy.**
 GICS **sectors** (11) only, or also allow GICS **industry groups** / sub-industries and
@@ -965,13 +974,21 @@ Daily bars only in v1 (streaming deferred to P8), or include hourly from the sta
 Use a configurable abstract notional for sizing (privacy-safe), or integrate with
 `portfolio_app` holdings when run locally?
 - *Recommendation:* Abstract notional by default; optional local `portfolio_app` integration.
-- **Answer:** _(decision pending)_
+- **Answer:** Abstract notional by default. Sizing inputs are an explicit, privacy-safe
+  `account_size` (Decimal notional) + `risk_per_trade` fraction on the sizing config;
+  no holdings are read implicitly. Optional local `portfolio_app` integration may supply
+  the notional when run locally, but is never required and never the default. Gates #76
+  (risk-based sizing).
 
 **Q7 — Relationship to `openbb-quant`.**
 Is `openbb-techtrade` standalone, or a sub-surface of the broader `openbb-quant` proposal
 (alongside `openbb-backtest`)?
 - *Recommendation:* Standalone extension; `openbb-quant` may orchestrate it.
-- **Answer:** _(decision pending)_
+- **Answer:** Standalone OpenBB extension. `openbb-techtrade` ships and is consumed on
+  its own (`obb.techtrade.*`) with no hard dependency on any `openbb-quant` umbrella.
+  A future `openbb-quant` orchestration layer may *compose* techtrade alongside
+  `openbb-backtest`, but techtrade does not depend on it and must remain independently
+  installable/removable (see #85's core-unchanged-when-removed test).
 
 **Q8 — Candlestick patterns in scoring.**
 Treat the 62 candlestick patterns as a scoring family (extra votes) or as confirmation-only
@@ -987,7 +1004,12 @@ for richer conditional formatting / charts? And is the per-workbook
 "research/paper — not investment advice" disclaimer sufficient?
 - *Recommendation:* `openpyxl` default in core, `xlsxwriter` as an optional engine;
   disclaimer required on the `Recommendations` sheet of every export.
-- **Answer:** _(decision pending)_
+- **Answer:** `openpyxl` is the default, core export engine (matches the existing screener
+  tool and avoids a heavy dependency); `xlsxwriter` is an optional engine selectable via
+  `ExportConfig.engine` for richer conditional formatting/charts. A
+  "research/paper output — not investment advice" disclaimer is **required** on the
+  `Recommendations` sheet of every workbook and is asserted by the golden-xlsx test.
+  Gates #81 (Excel export).
 
 ---
 
