@@ -522,15 +522,12 @@ Run with the project venv:
 
 ## 13. Open questions
 
-1. **Extension name** — `openbb-quant` vs folding into existing `quantitative`?
-   (Proposal: separate extension to keep `quantitative`'s low-level stats focus clean.)
-2. **Backtest engine default** — ship only the pure-pandas engine in core and gate
-   `vectorbt`/`pybroker` as extras? (Proposal: yes — minimize required deps.)
-3. **Optimizer dependency** — standardize on `Riskfolio-Lib` (broadest) or
-   `PyPortfolioOpt` (lightest)? (Proposal: `PyPortfolioOpt` core, `Riskfolio-Lib`
-   extra.)
-4. **Strategy params typing** — keep `params: dict` for flexibility, or generate typed
-   per-strategy params models? (Proposal: `dict` in v1, typed models in a later pass.)
+> **Moved.** All open questions for the quant/backtest workstream — including the four
+> that previously lived here (extension name, backtest engine default, optimizer
+> dependency, strategy params typing) — are now consolidated in a single answer
+> location: **[`Backtesting-Engine-PRD.md` §19](./Backtesting-Engine-PRD.md#19-open-questions--decisions-needed)**.
+> The four questions formerly listed here are **Q7–Q10** in PRD §19.2; answer them inline
+> there after each `**Answer:**` marker so every decision lives in one document.
 
 ---
 

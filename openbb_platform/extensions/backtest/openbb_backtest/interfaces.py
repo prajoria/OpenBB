@@ -65,6 +65,10 @@ class DataFeed(Protocol):
         """Return trading sessions in ``[start, end]``."""
         ...
 
+    def as_of(self, symbol: str, field: str, when: pd.Timestamp) -> float | None:
+        """Return the latest point-in-time ``field`` value at ``when`` (or ``None``)."""
+        ...
+
 
 @runtime_checkable
 class Broker(Protocol):

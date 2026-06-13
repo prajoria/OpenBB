@@ -721,20 +721,79 @@ Each ships with a validated test and a tear sheet so users have working starting
 
 ## 19. Open Questions / Decisions Needed
 
-1. **Engine of record for `engine="auto"`** — default to event-driven (correct) and use
-   vectorized only when the strategy is provably stateless? (Recommended: yes.)
-2. **vectorbt packaging** — confirmed non-commercial, so vectorbt is usable; ship it only
-   as a **non-vendored** optional extra (user installs). Do we even need it given the
-   in-house vectorized engine, or include it purely for sweep speed? (Recommended:
-   include as optional extra only.)
-3. **Calendar source of truth** — fully retire `market_holidays` for backtests, or keep a
-   reconciliation check between it and `exchange_calendars`?
-4. **Intraday scope in v1** — daily-only first, or include hourly/minute from the start?
-5. **Relationship to `openbb-quant`** — is `openbb-backtest` a sub-component of the broader
-   `openbb-quant` proposal, or a standalone extension that `openbb-quant` depends on?
-   (Recommended: standalone engine; `openbb-quant` consumes it.)
-6. **Universe definitions** — reuse `equity_screener` cache for universe construction, or
-   maintain explicit symbol lists?
+> **How to use this section.** Every open decision for the quant/backtest workstream is
+> consolidated here so there is a single place to v. Each question has an **Answer:**
+> placeholder — write your decision inline after the `**Answer:**` marker (and add any
+> rationale you want preserved). A `Recommendation:` line records the working group's
+> default *suggestion*; it is **not** decided until you fill in **Answer:**.
+>
+> Questions are grouped by source: **Q1–Q6** are native to this PRD (`openbb-backtest`);
+> **Q7–Q10** are carried over from the companion
+> [`Quant-Analysis-Module-Proposal.md`](./Quant-Analysis-Module-Proposal.md) §13 (the
+> broader `openbb-quant` surface) so all decisions live in one document. The companion
+> doc now points here.
+
+### 19.1 Backtesting engine (`openbb-backtest`)
+
+**Q1 — Engine of record for `engine="auto"`.**
+Default to event-driven (correct) and use the vectorized path only when the strategy is
+provably stateless?
+- *Recommendation:* Yes.
+- **Answer:** Yes, I agree. Correctness is more important.
+
+**Q2 — vectorbt packaging.**
+Confirmed non-commercial, so vectorbt is usable; ship it only as a **non-vendored**
+optional extra (user installs). Do we even need it given the in-house vectorized engine,
+or include it purely for sweep speed?
+- *Recommendation:* Include as an optional extra only.
+- **Answer:** Agree, Include as an optional extra only.
+
+**Q3 — Calendar source of truth.**
+Fully retire `market_holidays` for backtests, or keep a reconciliation check between it
+and `exchange_calendars`?
+- *Recommendation:* (none recorded — needs a call.)
+- **Answer:** Use exchange_calendars
+
+**Q4 — Intraday scope in v1.**
+Daily-only first, or include hourly/minute from the start?
+- *Recommendation:* (none recorded — needs a call.)
+- **Answer:** Daily only.
+
+**Q5 — Relationship to `openbb-quant`.**
+Is `openbb-backtest` a sub-component of the broader `openbb-quant` proposal, or a
+standalone extension that `openbb-quant` depends on?
+- *Recommendation:* Standalone engine; `openbb-quant` consumes it.
+- **Answer:** Yes, `openbb-quant` consumes it. another branch work is happening.
+
+**Q6 — Universe definitions.**
+Reuse the `equity_screener` cache for universe construction, or maintain explicit symbol
+lists?
+- *Recommendation:* (none recorded — needs a call.)
+- **Answer:** ReUse cache and enhance as needed.
+
+### 19.2 Broader quant module (`openbb-quant`, carried from companion §13)
+
+**Q7 — Extension name.**
+`openbb-quant` as a new extension, vs folding into the existing `quantitative` extension?
+- *Recommendation:* Separate extension, to keep `quantitative`'s low-level stats focus
+  clean.
+- **Answer:** Separate extension
+
+**Q8 — Backtest engine default (companion view).**
+Ship only the pure-pandas engine in core and gate `vectorbt`/`pybroker` as extras?
+*(Related to Q2; answer them consistently.)*
+- *Recommendation:* Yes — minimize required deps.
+- **Answer:** Yes — minimize required deps.
+
+**Q9 — Optimizer dependency.**
+Standardize on `Riskfolio-Lib` (broadest) or `PyPortfolioOpt` (lightest)?
+- *Recommendation:* `PyPortfolioOpt` in core, `Riskfolio-Lib` as an extra.
+- **Answer:** Agree
+
+**Q10 — Strategy params typing.**
+Keep `params: dict` for flexibility, or generate typed per-strategy params models?
+- *Recommendation:* `dict` in v1, typed models in a later pass.
+- **Answer:**make typed
 
 ---
 

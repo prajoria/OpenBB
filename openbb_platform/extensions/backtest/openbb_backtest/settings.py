@@ -17,9 +17,11 @@ class BacktestSettings(BaseSettings):
 
     default_calendar: str = "XNYS"
     default_engine: str = "auto"
+    default_provider: str = "fmp_cached"
     reconcile_tolerance: float = 1e-6
     seed: int = 0
     export_dir: str = "Analysis/exports"
+    bundle_root: str = ".openbb_backtest/bundles"
 
 
 DEFAULT_SETTINGS = BacktestSettings()

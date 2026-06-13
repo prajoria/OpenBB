@@ -1,9 +1,12 @@
 """Top-level backtest router.
 
-Sub-routers (run / factor / validate / bundle) are added by later components and
-imported lazily inside :func:`_include_subrouters` so that heavy dependencies
-(zipline, numba) stay out of ``import openbb`` time. Until those sub-routers
-exist this module exposes only metadata commands.
+Assembles the public ``obb.backtest.*`` surface. The four sub-routers -- engine
+(``run`` / ``sweep`` / ``reconcile``), factor (``pipeline`` / ``factor_eval``),
+validation (``validate`` / ``tearsheet``) and bundle (``bundle.ingest`` /
+``bundle.list``) -- are attached at import inside :func:`_include_subrouters`;
+each keeps its heavy numeric/IO dependencies out of ``import openbb`` time by
+importing them lazily inside the command bodies. This module also exposes the
+``about`` metadata command.
 
 See ``docs/designs/backtest-design/01-scaffolding.md`` and ``09-api-surface.md``.
 """

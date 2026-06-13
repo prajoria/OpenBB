@@ -12,6 +12,11 @@ python = ">=3.10,<3.14"
 openbb-core = "^1.5.8"
 numpy = "*"
 pandas = "*"
+# scipy powers the closed-form overfitting statistics (validation/stats.py:
+# the Deflated Sharpe Ratio's inverse-normal expected-max benchmark) and the
+# Hierarchical Risk Parity clustering (strategies/risk_parity.py: linkage +
+# quasi-diagonalization).
+scipy = "*"
 # Heavy runtime deps are intentionally declared but installed on demand during
 # component implementation (event-driven / vectorized engines):
 #   numba, exchange-calendars, empyrical-reloaded, pyfolio-reloaded,
@@ -29,3 +34,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.plugins."openbb_core_extension"]
 backtest = "openbb_backtest.backtest_router:router"
+
+# Third-party packages advertise Strategy classes under this group; they are
+# auto-discovered + registered by openbb_backtest.strategies.discovery.load_plugins().
+[tool.poetry.plugins."openbb_backtest_strategies"]
