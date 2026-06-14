@@ -2,14 +2,49 @@
 
 **GitHub:** [#73](https://github.com/prajoria/OpenBB/issues/73) · **Phase:** P2 · **Sprint:** 2 · **Size:** L
 **Depends on:** [#72](https://github.com/prajoria/OpenBB/issues/72) (pandas-ta-classic → IndicatorPanel adapter, **CLOSED**)
-**Source PRD:** `OpenBBTechnical/docs/Specs/TechnicalTrading-Engine-PRD.md` §8, §11, §19
+**Source PRD:** [`docs/Specs/TechnicalTrading-Engine-PRD.md`](../../Specs/TechnicalTrading-Engine-PRD.md) §8, §11, §19
 **Scope:** Add the OpenBB `technical`-extension adapter, a single reuse-first **selector**, a
 **parity oracle** test, and a bulk multiprocessing **Strategy** path to the `openbb-techtrade`
 indicator engine.
 
-> **Repo note:** the implementation lives in the `OpenBBTechnical` checkout
-> (`openbb_platform/extensions/techtrade/`); the PRD is there too. This design doc lives in the
-> sibling `OpenBB` repo per the team convention (`docs/designs/quant_trading/`, one doc per issue).
+> **Repo note:** code and docs live in the same `OpenBBTechnical` checkout. Implementation:
+> [`../../../openbb_platform/extensions/techtrade/`](../../../openbb_platform/extensions/techtrade/).
+> This design doc lives under `docs/designs/quant_trading/` (one doc per issue).
+
+---
+
+## What this is
+
+This issue builds the **indicator layer** of techtrade: the part that turns raw OHLCV price bars
+into a panel of named technical-indicator readings (RSI, MACD, ADX, ATR, Bollinger %B, …) that
+every later stage votes on. It is foundational — nothing downstream (confluence voting, signals,
+sizing, orders) can run until there is one trustworthy `IndicatorPanel` to read from.
+
+Four ideas in the title, in plain terms:
+
+- **Adapter** — OpenBB ships a maintained `technical` extension that already computes many of these
+  indicators. Rather than re-derive them, this issue adds a thin wrapper (`technical_adapter.py`)
+  that calls `technical`'s functions and converts their output into techtrade's `IndicatorPanel`
+  shape. *Reuse the library that is already there.*
+- **Reuse-first selector** — some indicators are best taken from `technical`, others only exist in
+  the older `pandas-ta-classic` path. The **selector** is the single source of truth that decides,
+  per indicator, *which* engine produces it (`SOURCE_TABLE`). Centralizing that decision in one
+  module kills the "same indicator computed two different ways" duplication risk (PRD §19).
+- **Parity oracle** — a test that computes the *same* indicator both ways (classic vs `technical`,
+  and optionally `tulipy`) and asserts they agree within a tolerance. This is how we prove the
+  adapter is faithful and that swapping engines did not silently change the numbers.
+- **Bulk strategy** — a multiprocessing path (`bulk.py`) that runs the *same* selector across a pool
+  of symbols in parallel, so screening hundreds of movers stays fast. Critically, bulk output is
+  **identical** to single-symbol output (PRD §11 parity) — it is the same computation, just
+  parallelized.
+
+The defining posture (locked in §0, **D1**) is that `openbb-technical` is a **hard dependency**:
+it is *authoritative* for the indicators it covers, so techtrade pulls it in unconditionally and
+regenerates the #72 golden fixture for the covered keys. (Contrast [#82](./82-backtest-bridge-validate.md),
+where `openbb-backtest` is deliberately a *soft/optional* dependency — validation is opt-in, but
+indicators are not.) The output of this step — an authoritative, parity-checked `IndicatorPanel`
+per symbol — is the input that the [#74 confluence engine](./74-confluence-voting-score.md) collapses
+into a single directional score.
 
 ---
 
