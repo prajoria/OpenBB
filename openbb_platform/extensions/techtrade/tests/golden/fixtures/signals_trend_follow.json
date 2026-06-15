@@ -1,0 +1,158 @@
+[
+  {
+    "as_of": "2024-01-12",
+    "direction": "long",
+    "rank_in_segment": 1,
+    "score": 0.8832000000000001,
+    "segment": "Information Technology",
+    "symbol": "AAA",
+    "votes": [
+      {
+        "family": "trend",
+        "name": "macd_hist",
+        "vote": 1.0,
+        "weight": 0.4
+      },
+      {
+        "family": "trend",
+        "name": "ema_cross",
+        "vote": 1.0,
+        "weight": 0.4
+      },
+      {
+        "family": "momentum",
+        "name": "rsi",
+        "vote": 0.6,
+        "weight": 0.25
+      },
+      {
+        "family": "momentum",
+        "name": "stoch",
+        "vote": 1.0,
+        "weight": 0.25
+      },
+      {
+        "family": "volatility",
+        "name": "bb_pctb",
+        "vote": 0.8400000000000001,
+        "weight": 0.2
+      },
+      {
+        "family": "volume",
+        "name": "obv_slope",
+        "vote": 1.0,
+        "weight": 0.15
+      },
+      {
+        "family": "volume",
+        "name": "cmf",
+        "vote": 1.0,
+        "weight": 0.15
+      }
+    ]
+  },
+  {
+    "as_of": "2024-01-12",
+    "direction": "flat",
+    "rank_in_segment": 2,
+    "score": -0.1,
+    "segment": "Information Technology",
+    "symbol": "BBB",
+    "votes": [
+      {
+        "family": "trend",
+        "name": "macd_hist",
+        "vote": 0.5,
+        "weight": 0.4
+      },
+      {
+        "family": "trend",
+        "name": "ema_cross",
+        "vote": -1.0,
+        "weight": 0.4
+      },
+      {
+        "family": "momentum",
+        "name": "rsi",
+        "vote": 0.0,
+        "weight": 0.25
+      },
+      {
+        "family": "momentum",
+        "name": "stoch",
+        "vote": 0.0,
+        "weight": 0.25
+      },
+      {
+        "family": "volatility",
+        "name": "bb_pctb",
+        "vote": 0.0,
+        "weight": 0.2
+      },
+      {
+        "family": "volume",
+        "name": "obv_slope",
+        "vote": 0.0,
+        "weight": 0.15
+      },
+      {
+        "family": "volume",
+        "name": "cmf",
+        "vote": 0.0,
+        "weight": 0.15
+      }
+    ]
+  },
+  {
+    "as_of": "2024-01-12",
+    "direction": "short",
+    "rank_in_segment": 3,
+    "score": -0.6460000000000001,
+    "segment": "Information Technology",
+    "symbol": "CCC",
+    "votes": [
+      {
+        "family": "trend",
+        "name": "macd_hist",
+        "vote": -1.0,
+        "weight": 0.4
+      },
+      {
+        "family": "trend",
+        "name": "ema_cross",
+        "vote": -1.0,
+        "weight": 0.4
+      },
+      {
+        "family": "momentum",
+        "name": "rsi",
+        "vote": -0.6,
+        "weight": 0.25
+      },
+      {
+        "family": "momentum",
+        "name": "stoch",
+        "vote": -1.0,
+        "weight": 0.25
+      },
+      {
+        "family": "volatility",
+        "name": "bb_pctb",
+        "vote": -0.8,
+        "weight": 0.2
+      },
+      {
+        "family": "volume",
+        "name": "obv_slope",
+        "vote": -1.0,
+        "weight": 0.15
+      },
+      {
+        "family": "volume",
+        "name": "cmf",
+        "vote": -1.0,
+        "weight": 0.15
+      }
+    ]
+  }
+]
