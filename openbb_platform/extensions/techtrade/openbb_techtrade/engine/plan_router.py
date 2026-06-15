@@ -4,9 +4,10 @@ The plan face of ``obb.techtrade.*``. :func:`plan` runs the #75 signal chain ove
 symbol set or a GICS segment and assembles one #77 :class:`~openbb_techtrade.models.TradePlan`
 per ranked signal -- each carrying the #76-sized levels, the broker-ready order legs, and an inline
 :class:`~openbb_techtrade.models.Recommendation`. :func:`orders` materializes a single plan's order
-list (accepting an in-memory plan or one round-tripped through JSON). Both are auto-wired onto
-``obb.techtrade.*`` by the lazy sub-router include in ``techtrade_router._include_subrouters``
-(which already lists this module).
+list (accepting an in-memory plan or one round-tripped through JSON). :func:`simulate` (#78)
+paper-fills a set of order legs against a forward OHLCV window and returns the realized FillList.
+All are auto-wired onto ``obb.techtrade.*`` by the lazy sub-router include in
+``techtrade_router._include_subrouters`` (which already lists this module).
 
 The commands are **thin**: each maps its arguments to a pure helper in
 :mod:`~openbb_techtrade.engine.plan` (:func:`build_plans` / :func:`materialize_orders`) and wraps the
@@ -15,8 +16,8 @@ bare ``OBBject`` (no parametrized model) so the static package builder renders a
 return annotation -- see ``techtrade_router`` and ``package_builder.build_func_returns``. The
 conceptual ``list[TradePlan]`` / ``list[Order]`` payload types are documented in the docstrings.
 
-This router also hosts ``scan`` (#79) and ``simulate`` (#78) once those ship; only ``plan`` and
-``orders`` land in #77.
+This router also hosts ``scan`` (#79) once it ships; ``plan`` / ``orders`` land in #77 and
+``simulate`` in #78.
 
 Note: this module deliberately does **not** use ``from __future__ import annotations``. The
 ``orders`` command takes a ``plan: TradePlan`` model parameter, and the static package builder must
@@ -27,7 +28,7 @@ generated package -- mirroring ``quantitative_router``'s ``data: list[Data]`` co
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
-from openbb_techtrade.models import TradePlan
+from openbb_techtrade.models import Order, TradePlan
 
 router = Router(prefix="", description="Assemble per-symbol technical trade plans and orders.")
 
@@ -96,3 +97,32 @@ def orders(plan: TradePlan) -> OBBject:
     from openbb_techtrade.engine.plan import materialize_orders
 
     return OBBject(results=materialize_orders(plan))
+
+
+@router.command(methods=["GET"])
+def simulate(orders: list[Order], bars: list) -> OBBject:
+    """Paper-fill a set of order legs against a forward OHLCV window (PRD §14.1, issue #78).
+
+    Drives the #78 :class:`~openbb_techtrade.execution.broker.PaperBroker` over ``bars`` (whose
+    first row is the next-bar-open session *t+1*): fills the ``entry`` leg at ``bars[0]`` open with
+    adverse slippage, then walks the contingent ``exit_stop`` / ``exit_target`` / ``exit_time`` legs
+    bar-by-bar, taking the first triggered exit with a conservative stop-wins tie-break. The signal
+    bar *t* is never read, so the result is no-look-ahead by construction. An empty order list (a
+    flat plan) yields an empty FillList.
+
+    Parameters
+    ----------
+    orders : list[Order]
+        The canonical #77 order legs to simulate (entry first, then contingent exits).
+    bars : list
+        The forward OHLCV window starting at *t+1*; each bar carries ``open`` / ``high`` / ``low``
+        and a ``timestamp`` or ``date``.
+
+    Returns
+    -------
+    OBBject
+        OBBject whose ``results`` is a list[Fill] -- the FillList (empty for a flat plan).
+    """
+    from openbb_techtrade.execution.broker import simulate as simulate_orders
+
+    return OBBject(results=simulate_orders(orders, bars))

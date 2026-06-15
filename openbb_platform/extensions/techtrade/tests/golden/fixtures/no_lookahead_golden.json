@@ -1,0 +1,22 @@
+[
+  {
+    "commission": "0",
+    "order_ref": "GOLD:entry",
+    "price": "121.4607",
+    "quantity": "263",
+    "side": "buy",
+    "slippage": "15.9641",
+    "symbol": "GOLD",
+    "timestamp": "2024-01-16T21:00:00+00:00"
+  },
+  {
+    "commission": "0",
+    "order_ref": "GOLD:exit_stop",
+    "price": "117.5412",
+    "quantity": "263",
+    "side": "sell",
+    "slippage": "15.4644",
+    "symbol": "GOLD",
+    "timestamp": "2024-01-17T21:00:00+00:00"
+  }
+]
