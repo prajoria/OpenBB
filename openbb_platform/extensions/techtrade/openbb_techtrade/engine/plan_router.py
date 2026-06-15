@@ -126,3 +126,56 @@ def simulate(orders: list[Order], bars: list) -> OBBject:
     from openbb_techtrade.execution.broker import simulate as simulate_orders
 
     return OBBject(results=simulate_orders(orders, bars))
+
+
+@router.command(methods=["GET"])
+def scan(
+    metric: str = "pct_change",
+    top_n: int = 10,
+    preset: str = "trend_follow",
+    risk: float | None = None,
+    as_of: str | None = None,
+    simulate: bool = True,
+    limit: int | None = None,
+) -> OBBject:
+    """Screen all 11 GICS sectors into a cross-segment ranked plan list (PRD §9.2, issue #79).
+
+    The one-call orchestrator: ranks each sector's top ``top_n`` movers by ``metric``, runs them
+    through the #75 signals -> #76 rules/sizing -> #77 orders chain, optionally paper-fills via #78,
+    then returns the actionable plans **cross-segment ranked** by ``|signal.score|`` descending
+    (symbol, then segment, tie-break). ``metric`` selects *which movers* per sector enter the chain;
+    it is **not** the cross-segment plan-rank key. ``as_of`` is snapped once to the last ``XNYS``
+    session (look-ahead-free) and threaded to every sector. ``simulate=False`` returns the order
+    skeletons only; ``limit`` slices the top of the ranked list. Skipped sectors / symbols (transient
+    fetch failures) surface in ``OBBject.warnings`` rather than aborting the scan.
+
+    Parameters
+    ----------
+    metric : str, optional
+        Mover rank metric (``pct_change`` / ``volume`` / ``gap`` / ``rel_volume``). Defaults to
+        ``"pct_change"``.
+    top_n : int, optional
+        Per-segment mover cap. Defaults to ``10`` (up to ``11 x top_n`` plans returned, sorted).
+    preset : str, optional
+        Confluence/rule preset. Defaults to ``"trend_follow"``.
+    risk : float | None, optional
+        Risk-per-trade fraction for #76 sizing; ``None`` uses the chain default ``0.01``.
+    as_of : str | None, optional
+        ISO date to scan as of; snapped to the most recent session. Defaults to today when ``None``.
+    simulate : bool, optional
+        Run #78 fills inline when forward bars are available. Defaults to ``True``.
+    limit : int | None, optional
+        Optional global top-of-list slice after the cross-segment sort. Defaults to ``None``.
+
+    Returns
+    -------
+    OBBject
+        OBBject whose ``results`` is a list[TradePlan], cross-segment ranked (empty when no
+        actionable setup is found).
+    """
+    from openbb_techtrade.engine.scan import scan_segments
+
+    return OBBject(results=scan_segments(
+        metric=metric, top_n=top_n, preset=preset, risk=risk,
+        as_of=as_of, simulate=simulate, limit=limit,
+    ))
