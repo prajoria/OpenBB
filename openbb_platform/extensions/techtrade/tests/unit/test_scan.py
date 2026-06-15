@@ -266,3 +266,32 @@ def test_scan_segments_is_deterministic():
     a = scan_segments(**kw)
     b = scan_segments(**kw)
     assert [p.model_dump() for p in a] == [p.model_dump() for p in b]
+
+
+def test_scan_module_is_composition_only_no_chain_math_imports():
+    """Assert scan.py composes the chain engines and re-implements none of their math (§19/L4).
+
+    scan owns only the fan-out + the final rank; every chain-math module (indicators / confluence /
+    rules / orders) must be reached THROUGH movers/plan/broker, never imported directly into scan.
+    Parsed from the AST (real ``import`` statements only) so the §19 boundary is pinned precisely --
+    the module docstring may *name* those modules to explain the boundary without tripping the guard.
+    """
+    import ast
+    import inspect
+
+    import openbb_techtrade.engine.scan as scan_mod
+
+    tree = ast.parse(inspect.getsource(scan_mod))
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imported.update(alias.name.split("."))
+        elif isinstance(node, ast.ImportFrom):
+            imported.update((node.module or "").split("."))
+            for alias in node.names:
+                imported.update(alias.name.split("."))
+
+    forbidden = {"indicators", "indicators_technical", "confluence", "rules", "orders"}
+    leaked = forbidden & imported
+    assert not leaked, f"scan.py must not import chain-math module(s) {leaked} (§19 composition-only)"
