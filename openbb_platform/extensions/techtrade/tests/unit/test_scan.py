@@ -15,6 +15,8 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+import pytest
+from openbb_techtrade.engine.movers import list_movers
 from openbb_techtrade.engine.plan import build_plans
 from openbb_techtrade.engine.scan import _rank_key, scan_segments
 from openbb_techtrade.models import MoverSignal, TradePlan
@@ -115,8 +117,7 @@ def _bar(open_, high, low, close):
 # Two movers fetched for EVERY sector (the fetcher is segment-blind), with per-(symbol,segment)
 # scores so the same symbol gets a deterministic score in each sector it surfaces in.
 def _all_signals(score_aaa: float, score_bbb: float) -> dict:
-    from openbb_techtrade.engine.movers import list_movers as _lm  # local import: avoid top cycle
-    segments = [ml.segment for ml in _lm(
+    segments = [ml.segment for ml in list_movers(
         segment=None, candidate_fetcher=_candidate_fetcher(
             {"symbol": "AAA", "pct_change": 0.05, "volume": 100},
             {"symbol": "BBB", "pct_change": 0.03, "volume": 200},
@@ -192,7 +193,6 @@ def test_scan_segments_skip_and_continue_on_segment_build_failure():
             raise RuntimeError("synthetic mover/panel failure")
         return [signals[(s, segment)] for s in (symbols or []) if (s, segment) in signals]
 
-    import pytest
     with pytest.warns(UserWarning, match="Energy"):
         plans = scan_segments(
             as_of=_AS_OF, simulate=False,
@@ -222,6 +222,36 @@ def test_scan_segments_simulate_attaches_fills_when_bars_supplied():
     )
     assert plans[0].simulated_fills, "expected fills attached for AAA"
     assert plans[0].simulated_fills[0].order_ref == "AAA:entry"
+
+
+def test_scan_segments_skip_and_continue_on_per_symbol_fill_failure():
+    """Assert a broker raising for one symbol drops its fills (plan unchanged) and warns (Q-E)."""
+    signals = _all_signals(score_aaa=0.90, score_bbb=0.50)
+
+    class _BoomBroker:  # structural BrokerInterface whose submit raises
+        def submit(self, order, bar):
+            raise RuntimeError("synthetic broker failure")
+
+        def cancel(self, order_ref):  # pragma: no cover - never reached
+            return None
+
+        def positions(self):  # pragma: no cover - never reached
+            return []
+
+    with pytest.warns(UserWarning, match="skipped fills for 'AAA'"):
+        plans = scan_segments(
+            as_of=_AS_OF, simulate=True, limit=1,
+            candidate_fetcher=_candidate_fetcher(
+                {"symbol": "AAA", "pct_change": 0.05, "volume": 100},
+            ),
+            signal_fetcher=_signal_fetcher_for(signals),
+            level_fetcher=_level_fetcher(),
+            bars={"AAA": [_bar("121.40", "122", "120.0", "121")]},
+            broker=_BoomBroker(),
+        )
+    # the plan still ranks (fills are post-rank) but carries no fills after the skip
+    assert plans[0].symbol == "AAA"
+    assert plans[0].simulated_fills == []
 
 
 def test_scan_segments_rank_is_identical_with_and_without_simulate():

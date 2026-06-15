@@ -38,11 +38,12 @@ from decimal import Decimal
 
 from openbb_techtrade.engine.movers import list_movers, resolve_session
 from openbb_techtrade.engine.plan import build_plans
-from openbb_techtrade.execution.broker import simulate as simulate_orders
+from openbb_techtrade.execution.broker import (
+    BrokerInterface,
+    simulate as simulate_orders,
+)
 from openbb_techtrade.models import MoverSignal, TradePlan
 
-#: Default risk fraction (mirrors plan.build_plans' 0.01) used when ``risk`` is left ``None``.
-_DEFAULT_RISK = 0.01
 #: Rounding epsilon for the rank key; matches ``testing.DEFAULT_TOL`` so float noise never reorders.
 _RANK_EPSILON = 9
 
@@ -83,7 +84,7 @@ def scan_segments(
     signal_fetcher: Callable[..., list[MoverSignal]] | None = None,
     level_fetcher: Callable[..., tuple[Decimal, float]] | None = None,
     bars: dict[str, list] | None = None,
-    broker: object | None = None,
+    broker: BrokerInterface | None = None,
 ) -> list[TradePlan]:
     """Screen all 11 GICS sectors and return cross-segment ranked ``TradePlan``s (PRD §9.2, #79).
 
@@ -111,8 +112,9 @@ def scan_segments(
     risk : float | None, optional
         Risk-per-trade fraction fed to the #76 sizing; ``None`` uses the chain default ``0.01``.
     as_of : date | str | None, optional
-        Requested date, snapped **once** parent-side to the last ``XNYS`` session and threaded down
-        (no per-sector re-snap -> no look-ahead drift). Defaults to today when ``None``.
+        Requested date, snapped **once** parent-side to the last ``XNYS`` session and threaded down.
+        Downstream engines re-snap idempotently (snapping a session yields itself), so every sector
+        scores as of the same session -- no look-ahead drift. Defaults to today when ``None``.
     simulate : bool, optional
         Run #78 fills inline when ``True`` (and a forward window is available); ``False`` returns the
         order skeletons only. Ranking is pre-fill, so the order is identical either way. Defaults to
@@ -129,7 +131,7 @@ def scan_segments(
     bars : dict[str, list] | None, optional
         Per-symbol forward (``t+1...``) OHLCV windows for the fill simulation. When ``None`` no fills
         are produced (the live forward-bar fetcher is a follow-up; the skeleton is still ranked).
-    broker : object | None, optional
+    broker : BrokerInterface | None, optional
         Broker forwarded to ``simulate``; ``None`` uses the default ``PaperBroker``.
 
     Returns
@@ -139,7 +141,8 @@ def scan_segments(
         (symbol, segment tie-break); ``[]`` when no actionable plan is found.
     """
     session = resolve_session(as_of, "XNYS")
-    risk_fraction = risk if risk is not None else _DEFAULT_RISK
+    # Forward ``risk`` only when set, so the chain default (``build_plans`` risk=0.01) stays single-sourced.
+    risk_kwargs = {"risk": risk} if risk is not None else {}
 
     mover_lists = list_movers(
         segment=None, metric=metric, top_n=top_n, as_of=session,
@@ -154,8 +157,8 @@ def scan_segments(
         try:
             segment_plans = build_plans(
                 symbols=symbols, segment=mover_list.segment, preset=preset,
-                risk=risk_fraction, as_of=session,
-                signal_fetcher=signal_fetcher, level_fetcher=level_fetcher,
+                as_of=session, signal_fetcher=signal_fetcher, level_fetcher=level_fetcher,
+                **risk_kwargs,
             )
         except Exception as exc:  # noqa: BLE001 - skip-and-continue isolation (design Q-E)
             warnings.warn(
@@ -164,15 +167,16 @@ def scan_segments(
             continue
         plans.extend(segment_plans)
 
-    if simulate and bars is not None:
-        plans = [_with_fills(plan, bars, broker) for plan in plans]
-
+    # Filter to actionable (non-flat) plans before simulating, so fills run only on plans we return.
     actionable = [plan for plan in plans if plan.orders]
+    if simulate and bars is not None:
+        actionable = [_with_fills(plan, bars, broker) for plan in actionable]
+
     ranked = sorted(actionable, key=_rank_key)
     return ranked[:limit] if limit is not None else ranked
 
 
-def _with_fills(plan: TradePlan, bars: dict[str, list], broker: object | None) -> TradePlan:
+def _with_fills(plan: TradePlan, bars: dict[str, list], broker: BrokerInterface | None) -> TradePlan:
     """Return ``plan`` with paper fills attached for its symbol's forward window (skip on failure).
 
     Looks up the plan's symbol in ``bars``; when a non-empty forward window and order list are both
@@ -187,7 +191,7 @@ def _with_fills(plan: TradePlan, bars: dict[str, list], broker: object | None) -
         The plan whose orders to fill.
     bars : dict[str, list]
         Per-symbol forward (``t+1...``) OHLCV windows.
-    broker : object | None
+    broker : BrokerInterface | None
         Broker forwarded to ``simulate`` (``None`` -> default ``PaperBroker``).
 
     Returns

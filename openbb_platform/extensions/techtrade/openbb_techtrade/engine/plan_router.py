@@ -1,4 +1,4 @@
-"""Engine sub-router: ``plan`` + ``orders`` (PRD §9.2, issue #77).
+"""Engine sub-router: ``plan`` + ``orders`` + ``simulate`` + ``scan`` (PRD §9.2, issues #77-#79).
 
 The plan face of ``obb.techtrade.*``. :func:`plan` runs the #75 signal chain over an explicit
 symbol set or a GICS segment and assembles one #77 :class:`~openbb_techtrade.models.TradePlan`
@@ -6,18 +6,18 @@ per ranked signal -- each carrying the #76-sized levels, the broker-ready order 
 :class:`~openbb_techtrade.models.Recommendation`. :func:`orders` materializes a single plan's order
 list (accepting an in-memory plan or one round-tripped through JSON). :func:`simulate` (#78)
 paper-fills a set of order legs against a forward OHLCV window and returns the realized FillList.
-All are auto-wired onto ``obb.techtrade.*`` by the lazy sub-router include in
-``techtrade_router._include_subrouters`` (which already lists this module).
+:func:`scan` (#79) screens all 11 GICS sectors through the same chain and returns the actionable
+plans cross-segment ranked by conviction. All are auto-wired onto ``obb.techtrade.*`` by the lazy
+sub-router include in ``techtrade_router._include_subrouters`` (which already lists this module).
 
 The commands are **thin**: each maps its arguments to a pure helper in
-:mod:`~openbb_techtrade.engine.plan` (:func:`build_plans` / :func:`materialize_orders`) and wraps the
-result in an ``OBBject``, exactly mirroring ``signals_router`` -> ``build_signals``. Each returns a
-bare ``OBBject`` (no parametrized model) so the static package builder renders a valid, importable
-return annotation -- see ``techtrade_router`` and ``package_builder.build_func_returns``. The
-conceptual ``list[TradePlan]`` / ``list[Order]`` payload types are documented in the docstrings.
-
-This router also hosts ``scan`` (#79) once it ships; ``plan`` / ``orders`` land in #77 and
-``simulate`` in #78.
+:mod:`~openbb_techtrade.engine.plan` (:func:`build_plans` / :func:`materialize_orders`),
+:mod:`~openbb_techtrade.execution.broker` (:func:`simulate`), or
+:mod:`~openbb_techtrade.engine.scan` (:func:`scan_segments`) and wraps the result in an ``OBBject``,
+exactly mirroring ``signals_router`` -> ``build_signals``. Each returns a bare ``OBBject`` (no
+parametrized model) so the static package builder renders a valid, importable return annotation --
+see ``techtrade_router`` and ``package_builder.build_func_returns``. The conceptual
+``list[TradePlan]`` / ``list[Order]`` payload types are documented in the docstrings.
 
 Note: this module deliberately does **not** use ``from __future__ import annotations``. The
 ``orders`` command takes a ``plan: TradePlan`` model parameter, and the static package builder must
@@ -163,7 +163,11 @@ def scan(
     as_of : str | None, optional
         ISO date to scan as of; snapped to the most recent session. Defaults to today when ``None``.
     simulate : bool, optional
-        Run #78 fills inline when forward bars are available. Defaults to ``True``.
+        Request inline #78 fills. Defaults to ``True``. NOTE (v1): the live command does not yet
+        fetch forward (``t+1...``) bars, so no fills are attached over the HTTP surface regardless of
+        this flag -- the ranked order skeletons are returned either way. The live forward-bar fetcher
+        is a tracked follow-up; the ``scan_segments`` ``bars=`` seam already fills when a window is
+        supplied (exercised offline).
     limit : int | None, optional
         Optional global top-of-list slice after the cross-segment sort. Defaults to ``None``.
 

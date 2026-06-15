@@ -155,8 +155,8 @@ No-look-ahead golden: bar-t signal fills at t+1 only (`tests/golden/` + unit ass
 
 ### #79 — `engine/scan.py` (+ `scan` command on `plan_router`)
 ```python
-def scan(metric="pct_change", top_n=10, *, preset="trend_follow", as_of=None,
-         ...fetchers...) -> list[TradePlan]: ...   # screener→signals→rules→orders→fills, cross-segment ranked
+def scan_segments(metric="pct_change", top_n=10, *, preset="trend_follow", as_of=None,
+                  ...fetchers...) -> list[TradePlan]: ...   # screener→signals→rules→orders→fills, cross-segment ranked
 @router.command(methods=["GET"])
 def scan(metric="pct_change", top_n=10, preset="trend_follow", as_of=None) -> OBBject: ...
 ```
