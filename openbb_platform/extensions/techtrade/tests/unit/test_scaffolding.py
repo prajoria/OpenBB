@@ -29,3 +29,21 @@ def test_router_exposes_about():
     # `router.api_router.routes`, each with a `.path` like "/about".
     paths = {getattr(route, "path", None) for route in router.api_router.routes}
     assert "/about" in paths
+
+
+def test_static_package_imports_model_typed_command_params():
+    """Generated static package must import every model used as a command-parameter type.
+
+    Regression for the #77 ``orders(plan: TradePlan)`` command: under
+    ``from __future__ import annotations`` the parameter annotation stringizes to
+    ``"TradePlan"``, which the package builder renders into the generated signature but
+    -- lacking a ``__module__`` on a bare string -- never emits an import for, so
+    ``import openbb.package.techtrade`` raises ``NameError: name 'TradePlan' is not
+    defined``. The fix is to keep ``plan_router`` free of future-annotations (matching
+    ``quantitative_router``'s ``data: list[Data]`` convention) so the annotation resolves
+    to the real class and its import is generated.
+    """
+    from openbb_core.app.static.package_builder import ImportDefinition
+
+    code = ImportDefinition.build("/techtrade")
+    assert "TradePlan" in code
