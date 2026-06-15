@@ -170,7 +170,23 @@ or global. This is the most important open question — it defines what "best se
   meaning (opt-i, ≤ `11×top_n` plans, all returned sorted) with an optional global `limit=` top-slice
   (opt-iii); `metric=` is the **mover** `rank_metric` selecting *which* movers per sector, **not** the
   cross-segment plan-rank key — see §3.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
+
+  1. **`|score|` descending as the rank key — correct.** Conviction magnitude is the right universal
+     ordering: it's direction-neutral (a strong short is as notable as a strong long), and it's the
+     same quantity the entry threshold already gates on. Using `risk_reward` or a fill-dependent
+     metric would couple ranking to simulation, breaking the `simulate=False` equivalence (C3).
+
+  2. **Flat plans rank last / filtered — correct.** Interleaving `HOLD/FLAT` rows with actionable
+     plans would bury the signal. Filtering sub-threshold plans from the ranked list (while still
+     including them in the export) is clean.
+
+  3. **`top_n` per-segment + global `limit=` — correct.** Per-segment `top_n` preserves sector
+     diversity (you always see the best from each sector). The optional global `limit=` lets the
+     caller say "give me the top 10 overall" without changing the per-sector discovery.
+
+  4. **`metric=` is the mover rank metric, not the plan rank key — important clarification.**
+     This prevents confusion between the two ranking stages (candidate selection vs. final ordering).
 
 #### Q-B — orchestration shape: loop `plan(segment=…)` ×11, or fan out once over the union?
 
@@ -182,20 +198,34 @@ B2's throughput requires reusing #77's per-symbol body rather than re-walking it
   reusable `engine.plan.build_plans_for_symbols(symbols, as_of, preset, risk) -> list[TradePlan]` seam
   called by **both** `plan` and `scan`. **Open:** if #77 only exposes the `plan` *command* (no shared
   builder), fall back to **B1** for v1 and file a follow-up to factor the seam — see §2.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — B2 preferred, B1 fallback acceptable.**
 
-#### Q-C — does `scan` run `simulate` (#78) inline (fills), or stop at orders?
-
-The scope says "…→ orders → **fills**", so should each returned `TradePlan` carry `simulated_fills`,
-and how does that pull #78's *t+1* bar-data requirement into `scan`? Settles the bar seam, an opt-out,
-and whether ranking depends on fills.
+  B2 is strictly better: one `as_of` snap (no per-sector re-snap leaking look-ahead), one spawn
+  pool (shared across 11×N symbols), and a shared builder seam that `plan` and `scan` both call.
+  The cost is that #77 must expose `build_plans_for_symbols` as a reusable function (not just
+  the command). This is a reasonable ask — the function already exists internally in `plan`, it
+  just needs to be factored to the module level. If #77 doesn't expose it in time, B1 (loop
+  `plan(segment=...)` ×11) is a correct fallback that can be optimized later. The follow-up
+  issue is the right mechanism for tracking the seam extraction.
 
 - **Recommendation:** Include fills inline per **L6** (`simulate` runs so `simulated_fills` is
   populated). **C1:** forward the same injectable `bars=` / `ohlcv_fetcher=` seam #78 exposes (live
   default `fmp_cached`, offline in tests) — yes. **C2:** add `simulate: bool = True` so the order
   skeleton can be returned without bar data — yes, default `True`. **C3:** rank on `signal.score`
   (**pre-fill**) so the order is identical with or without `simulate` — see §3 / §5.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — fills inline + `simulate` opt-out + pre-fill ranking.**
+
+  1. **Fills inline (L6) — correct.** The scope explicitly says "→ orders → fills" and L6 locks
+     `simulated_fills` as populated. Stopping at orders would leave the pipeline incomplete.
+
+  2. **`simulate: bool = True` — good UX.** A dry-run mode (`simulate=False`) is useful for quick
+     scans where the user just wants the signal + orders without waiting for bar data fetch +
+     fill simulation. Default `True` matches the acceptance spec.
+
+  3. **Rank on pre-fill `signal.score` (C3) — essential.** If ranking depended on fills, then
+     `simulate=True` and `simulate=False` would produce different orderings, breaking the
+     determinism guarantee. Pre-fill ranking means the order is identical regardless of the
+     simulate flag — the fills just add detail, they don't change the ranking.
 
 #### Q-D — determinism mechanics (what exactly makes `scan` reproducible)
 
@@ -208,7 +238,23 @@ key and that no per-segment re-snap leaks look-ahead.
   `GICS_SECTOR_ETFS` insertion order (L1); total-order tie-break `key = (-round(|score|, 9), symbol,
   segment)` (`segment` closes the order since a symbol can appear in two sector ETFs); seed the
   integration fixture offline via the `candidate_fetcher` / `ohlcv_fetcher` / `bars=` seams — see §5.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
+
+  1. **Snap `as_of` once parent-side — critical.** If each sector iteration snapped `as_of`
+     independently, a scan spanning midnight could mix two session dates (sector 1 gets
+     Friday's data, sector 11 gets Monday's). Snapping once in the parent and threading the
+     resolved date everywhere eliminates this look-ahead/time-travel risk.
+
+  2. **GICS insertion order — deterministic and natural.** Using `GICS_SECTOR_ETFS` dict
+     insertion order is stable (Python 3.7+), readable, and doesn't require an arbitrary sort.
+
+  3. **Tie-break `(-round(|score|, 9), symbol, segment)` — total order confirmed.** The
+     `segment` suffix handles multi-ETF membership (a symbol in both XLK and XLC). Rounding
+     to 9 decimals is sufficient — `|score|` is a weighted sum of `[-1,+1]` votes, so the
+     meaningful precision is well within 9 decimal places.
+
+  4. **Offline fixture via injectable seams — reuses established pattern.** This is the same
+     `candidate_fetcher` / `ohlcv_fetcher` injection used by `movers` and `plan` tests.
 
 #### Q-E — failure isolation + performance across 11 sectors
 
@@ -221,7 +267,21 @@ skip-and-continue or fail whole — and should skipped symbols surface as warnin
   abort; aborting because one of ~110 symbols 404s is hostile. **Open:** surface skipped symbols in
   `OBBject.warnings`. For performance, reuse the **#73 spawn pool** exactly once over the union (Q-B
   B2); keep the integration test on a small offline fixture so CI cost is bounded — see §2 / §5.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — skip-and-continue + warnings.**
+
+  1. **Skip-and-continue — the only sane choice.** A market scan hitting ~110 symbols across
+     11 sectors will inevitably encounter transient 404s, symbol delistings, or data gaps.
+     Aborting the entire scan because one symbol failed is hostile to the user. The precedent
+     is already established: `movers._default_candidate_fetcher` wraps each source in
+     `try/except: continue`, and `_resolve_filter_universe` degrades to no-filter on failure.
+
+  2. **Surface skipped symbols in `OBBject.warnings` — confirmed.** The user should know what
+     was dropped so they can investigate if needed. A compact warning like
+     `"Skipped DELISTED (Information Technology): 404 symbol not found"` provides enough
+     context without cluttering the output.
+
+  3. **#73 spawn pool reuse — correct for performance.** One pool across the union (B2)
+     amortizes the thread/process setup cost. The bounded offline fixture keeps CI fast.
 
 ---
 

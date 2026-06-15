@@ -68,7 +68,15 @@ discipline applies throughout: orders planned on today's bar are meant to fill o
 > Confirm we may make the one-line `models.py` change (out of #77's "no new models" remit, so flagged).
 >
 > - **Recommendation:** option (i) — make `recommendation: Recommendation | None = None` in `models.py`, so #77 ships the plan skeleton and [#80](https://github.com/prajoria/OpenBB/issues/80) populates `recommendation`.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — option (i).**
+>
+>   Option (i) is the only honest separation. `recommendation` is derived from the **realized paper
+>   fill** (#78), which hasn't happened yet at #77's stage. Forcing a placeholder (ii) would produce
+>   half-true narrative strings that #80 must overwrite — a leaky abstraction and a golden-churn risk.
+>   Gating on #80 (iii) breaks the issue DAG. Making the field `Optional[None]` is a one-line edit
+>   that mirrors the existing `simulated_fills`/`validation` downstream-fill pattern — it's the
+>   established convention. The plan skeleton (signal + rule + size + orders) is exactly what the
+>   issue acceptance names.
 
 > **Q-B — side mapping (confirm the 4-side table).** Direction drives both legs:
 >
@@ -82,7 +90,13 @@ discipline applies throughout: orders planned on today's bar are meant to fill o
 > `TradePlan` (carrying the `flat` signal) with `orders = []` so `scan`/export rows stay symbol-complete.
 >
 > - **Recommendation:** still emit the `TradePlan` (carrying the `flat` signal) with `orders = []` so `scan`/export rows stay symbol-complete.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — emit `TradePlan` with `orders = []`.**
+>
+>   The 4-side table is correct. Emitting a flat `TradePlan` (rather than omitting the plan entirely)
+>   is the right choice: `scan` (#79) and `export` (#81) expect one row per screened symbol. Omitting
+>   flat symbols would create "holes" in the Excel workbook and break the deterministic row count.
+>   The flat plan carries the signal (score, votes), which is valuable context — it tells the reader
+>   *why* the system chose not to trade, preserving the transparency principle.
 
 > **Q-C — `order_type` & resting vs. event-driven per intent.** `exit_stop` (a price) → `order_type="stop"`
 > + `stop_price`; `exit_target` (a price) → `order_type="limit"` + `limit_price`. But **`exit_time`
@@ -99,7 +113,23 @@ discipline applies throughout: orders planned on today's bar are meant to fill o
 > Recommend it stays a preset/rule knob, **default `market`** (L4), offset deferred unless a preset sets it.
 >
 > - **Recommendation:** option (a) — materialize **all four** exits as `Order` rows now (`exit_time`/`exit_signal` as `market` rows, triggers carried by the `EntryExitRule` and realized at [#78](https://github.com/prajoria/OpenBB/issues/78)); for Q-C', keep the entry-limit offset a preset/rule knob, **default `market`**, offset deferred unless a preset sets it.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — option (a) for exits; default `market` entry.**
+>
+>   1. **Materialize all four exits — correct.** This is the only reading that ever *uses* the
+>      `exit_time` / `exit_signal` intent enum members. Under option (b), those two enum values
+>      would be defined but never produced by #77 — dead code. Materializing them as `market`
+>      rows with `None` prices is clean: they represent *intention to exit* even though the
+>      *trigger* is temporal/signal-based, not price-based. #78 can iterate the order list and
+>      act on each intent uniformly.
+>
+>   2. **Event-driven exits as `market` type — pragmatic.** `exit_time` (bars elapsed) and
+>      `exit_signal` (opposite cross) have no natural order type. `market` with `None` prices
+>      is the correct representation: "exit at market when this condition triggers."
+>
+>   3. **Entry default `market`, limit-offset as preset knob — correct.** Market-on-open is the
+>      simplest, most realistic entry for daily-bar trading. A limit offset adds a parameter
+>      (basis points) that's preset-specific — keeping it out of the default avoids premature
+>      complexity.
 
 > **Q-D — `risk=…` param shape.** Maps to [#76](https://github.com/prajoria/OpenBB/issues/76)'s sizing config (`account_size` + `risk_per_trade`),
 > which fixes `position_size`. What does `plan(risk=…)` accept?
@@ -112,7 +142,13 @@ discipline applies throughout: orders planned on today's bar are meant to fill o
 > defaulting `account_size` to normalized notional. Confirm the param name (`risk`) and default.
 >
 > - **Recommendation:** accept **(i) a float shorthand OR (ii) the #76 `SizingConfig`** (float → `risk_per_trade`), defaulting `account_size` to normalized notional.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — dual-mode `risk=` param.**
+>
+>   This is the right UX tradeoff. The common case is simple: `risk=0.01` means "risk 1% per trade"
+>   with the default abstract notional. Exposing the full `SizingConfig` for power users who want to
+>   change `account_size` is correct but shouldn't be required for the 90% case. Detecting whether
+>   `risk` is a `float` or a `dict`/`SizingConfig` is trivial — `isinstance` dispatch. The param name
+>   `risk` is clean and CLI-friendly; confirm it stays as-is.
 
 > **Q-E — `plan(segment=…)` fan-out & return shape.** `segment` reuses [#70](https://github.com/prajoria/OpenBB/issues/70) movers → [#73](https://github.com/prajoria/OpenBB/issues/73) bulk
 > panels → [#75](https://github.com/prajoria/OpenBB/issues/75) signals → one `TradePlan` per symbol. `symbols=[…]` plans an explicit list.
@@ -120,7 +156,13 @@ discipline applies throughout: orders planned on today's bar are meant to fill o
 > Confirm: list-always (no scalar special-case), and `symbols` **xor** `segment` is required (one of the two).
 >
 > - **Recommendation:** return `OBBject[list[TradePlan]]` list-always (single symbol ⇒ length-1 list, no scalar special-case), with `symbols` **xor** `segment` required (one of the two).
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — list-always, `symbols` xor `segment`.**
+>
+>   List-always is the correct contract for pipeline composition. `scan` (#79) concatenates plans
+>   from multiple segments — if `plan` returned a scalar for single-symbol, `scan` would need type-
+>   dispatch to handle both shapes. List-always means every consumer can write `for p in plans:`
+>   unconditionally. The `xor` requirement prevents ambiguous inputs (both provided or neither) and
+>   matches the `movers`/`signals` command pattern already established.
 
 > **Q-F — where pre-fill prices come from.** Entry is `market` (no price). `exit_stop`/`exit_target` need
 > prices, derived from an **entry reference**; pre-fill we don't know the realized next-bar-open, so the
@@ -131,7 +173,16 @@ discipline applies throughout: orders planned on today's bar are meant to fill o
 > #78/#80 reconcile and report any drift (keeps #77 deterministic and offline-testable).
 >
 > - **Recommendation:** #77 freezes planned levels off the `as_of` reference bar; [#78](https://github.com/prajoria/OpenBB/issues/78)/[#80](https://github.com/prajoria/OpenBB/issues/80) reconcile and report any drift (keeps #77 deterministic and offline-testable).
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — freeze planned levels; report drift downstream.**
+>
+>   This is the right boundary. #77 is a pure mapper — it takes levels from #76 and maps them onto
+>   `Order` fields. If it tried to adjust for a realized fill price it doesn't have yet, it would
+>   need to predict the fill (look-ahead). Freezing the planned levels keeps #77 deterministic and
+>   golden-testable with no network dependency. The drift between planned reference ($100) and
+>   realized fill ($100.15) is real but small (slippage-order). #80 reports the *actual* R:R from
+>   actual levels (§14.2), so the reader sees honest numbers. The "freeze + report" discipline is
+>   also consistent with how professional execution systems work — planned and realized are two
+>   separate records, both visible.
 
 ---
 

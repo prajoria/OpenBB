@@ -50,35 +50,126 @@ Why it lives in this pipeline: the confluence engine from [#74](https://github.c
 Should presets ship as Python modules exposing a config object, or as YAML/JSON data files loaded at import?
 
 - **Recommendation:** Ship each preset as a Python module exposing a `ConfluenceConfig`/weights object — type-safe, importable without a loader, and mirroring #74's config object (no YAML/JSON data-file path).
-- **Answer:** _(pending approval)_
+- **Answer:** Follow recommendation. Python modules are clearly the right choice here for several reasons:
+
+  1. **Type safety at import time.** A preset module exports a `ConfluenceConfig` object — any typo
+     in a field name or wrong type is caught by the IDE and type-checker before the code runs. A
+     YAML/JSON file would need a runtime loader, a schema validator, and error handling for malformed
+     files — all unnecessary complexity for 3 static presets.
+
+  2. **Consistency with #74.** `ConfluenceConfig` is already a frozen dataclass. Presets being Python
+     objects that instantiate that same class means the registry (`PRESETS` dict) is just
+     `{"trend_follow": trend_follow.CONFIG, ...}` — no deserialization step, no schema drift.
+
+  3. **No loader dependency.** YAML requires `pyyaml`; JSON requires parsing + validation. Python
+     modules are free — they're just imports. For 3 presets that change rarely, a data-file approach
+     adds a dependency and a failure mode with zero benefit.
+
+  4. **Testability.** Golden tests can import the preset directly and assert on its fields. No
+     fixture-file management, no path resolution.
+
+  YAML/JSON would only make sense if presets were user-authored, numerous, or loaded dynamically at
+  runtime (e.g., a plugin system). None of those apply here.
 
 #### Q-B — Exact per-preset reweighting
 
 §12.3 specifies only a qualitative tilt; the numeric per-family weights and extra knobs (ADX gate, vol regime) are undefined.
 
 - **Recommendation:** Adopt the §3.1 candidate weight tilts as the starting point (`trend_follow` pinned to the L3 base; `mean_revert` and `breakout` tilting from it), pending brainstorm on the normalization / regime-flip / strict-ADX sub-points.
-- **Answer:** _(pending approval)_
+- **Answer:** Follow recommendation with notes on the three sub-points:
+
+  1. **Normalization (preserve 0.85 sum):** Presets should preserve the `0.85` additive ceiling from
+     the base weights. This was a deliberate Q-B decision in #74 — volume confirmation is needed for
+     High conviction. If `mean_revert` renormalized to `1.0`, its scores would be systematically
+     higher than `trend_follow` scores, breaking cross-preset comparability. Keep the sum at `0.85`
+     across all presets so `score` means the same thing regardless of which preset produced it.
+
+  2. **Regime flip (`mean_revert` volatility vote):** The `mean_revert` preset needs more than just
+     a weight bump on volatility — it needs the %B vote to flip sign (price at upper band = bearish
+     mean-revert signal, not bullish breakout). This is correctly identified as a **behavioural knob
+     on #74's config** (`regime_threshold` / regime mode), not a weight. The preset module should set
+     this knob explicitly, e.g. a `vol_regime="range"` or equivalent `ConfluenceConfig` field. Without
+     this, `mean_revert` would just be `trend_follow` with different weights — same directional
+     interpretation, which defeats the purpose.
+
+  3. **Strict ADX (`breakout` gate at 30):** Sound. Raising the ADX gate from 20→30 means the
+     `breakout` preset only trusts MACD when there's a strong directional trend, filtering out
+     choppy/sideways breakout fakes. This is a threshold change on `ConfluenceConfig.adx_gate`,
+     cleanly separate from weight tilts. The proposed §3.1 candidate table is a reasonable starting
+     point — ship it un-tuned and let a future `openbb-backtest` study validate.
 
 #### Q-C — Universe resolution + `rank_in_segment`
 
 How does the command turn `symbols=` vs `segment=` into a ranked universe, and does ranking use signed `score` or `|score|`?
 
 - **Recommendation:** Resolve a `segment` internally via movers/screener (#70) and rank by signed `score` descending (most-long first); surface the `|score|` conviction-ranking alternative for brainstorm before locking.
-- **Answer:** _(pending approval)_
+- **Answer:** Follow recommendation — use **signed score descending** as the default ranking.
+
+  1. **Signed score is the right default.** The primary use case is "show me the strongest buy
+     setups in this sector." A signed-score ranking puts the most-bullish signals at rank 1, which
+     is what a long-biased trader expects. It's also what the downstream stages consume — entry/exit
+     rules (#76) and order generation (#77) act on directional signals, not on conviction magnitude.
+
+  2. **`|score|` ranking mixes longs and shorts unhelpfully.** If rank 1 is a strong short (-0.9)
+     and rank 2 is a strong long (+0.85), the ranking says "these are both high conviction" but
+     gives no directional coherence. A user scanning the top-5 would see an interleaved mix of
+     buy/sell signals — confusing for the common case.
+
+  3. **`|score|` is trivially derivable.** Any consumer that wants conviction-ranked output can
+     `sorted(signals, key=lambda s: abs(s.score), reverse=True)` in one line. There's no need to
+     bake it into the command when the signed ranking is more useful by default.
+
+  4. **Segment resolution via movers (#70):** Correct. Reusing the existing movers/screener
+     pipeline means the `segment=` path doesn't reinvent universe construction. The symbols list
+     flows naturally into `build_panels_bulk` → `score_panel` → rank.
 
 #### Q-D — Custom `weights=` override shape
 
 What shape does the override take, and how is it validated — merge over the preset or replace it, renormalize or require an exact sum?
 
 - **Recommendation:** Accept a dict `{family: weight}` that **merges** over the selected preset (partial override); validate the additive trio together and validate `volume` separately as a multiplier; leave renormalize-vs-require-exact-sum as the open part.
-- **Answer:** _(pending approval)_
+- **Answer:** Follow recommendation with a resolution on the open renormalization sub-point:
+
+  1. **Merge over preset (not replace):** Correct. A partial override like `weights={"trend": 0.5}`
+     should change only trend and leave momentum/volatility/volume at the preset's values. Full
+     replacement would force the user to specify all four families every time — tedious and
+     error-prone. Merge is the expected UX for an override.
+
+  2. **Validate additive trio and volume separately:** Correct. Volume is a multiplier strength
+     `k ∈ [0, 1]`, not an additive weight — it has different semantics and bounds. Lumping it into
+     an additive-sum check would be a type error. Validate: each additive weight `≥ 0`, volume
+     `∈ [0, 1]`, unknown keys → `ValueError`.
+
+  3. **Renormalize vs require exact sum — resolve: require exact sum (0.85).** Renormalization is
+     dangerous because it silently changes the user's intent. If someone passes
+     `{"trend": 0.6, "momentum": 0.4}` (sum = 1.0 with volatility 0.20 from preset), renormalizing
+     would scale all three weights down — the user typed `0.6` but gets `0.50`. That's surprising.
+     Instead: after merging, check that `w_trend + w_momentum + w_volatility == 0.85` (within
+     floating-point tolerance). If not, raise a `ValueError` with the actual sum and a hint. This
+     is explicit, predictable, and prevents accidental score-scale changes. Advanced users who want
+     a different ceiling can pass all three additive weights intentionally.
 
 #### Q-E — Provider / fetch seam
 
 Should the panel stage reuse the #72 injectable `ohlcv_fetcher` plus #73 `build_panels_bulk`?
 
 - **Recommendation:** Yes — reuse the #72 injectable `ohlcv_fetcher` and forward it as a seam into the #73 `build_panels_bulk` panel stage, keeping `compute_signals` fully offline-testable.
-- **Answer:** _(pending approval)_
+- **Answer:** Follow recommendation. This is the obvious right answer:
+
+  1. **Reuse, don't reinvent.** #72 already solved the "how do I get OHLCV data" problem with an
+     injectable fetcher interface. #73 already solved "how do I build indicator panels in bulk."
+     The signals command's job is orchestration — it should compose these existing pieces, not
+     build its own fetch/panel pipeline.
+
+  2. **Offline testability is the key property.** By forwarding the `ohlcv_fetcher` seam,
+     `compute_signals` can be tested with a fake fetcher returning seeded fixture data. The
+     golden-score test (§5.1) depends on this — without the seam, every test would hit the
+     network and scores would vary with live data. The seam is what makes deterministic golden
+     locks possible.
+
+  3. **Consistent with the module-boundary discipline.** The doc's own §1 boundary rules state
+     `signals.py` imports `engine.bulk` (#73). This answer just confirms that the existing
+     `ohlcv_fetcher` parameter is threaded through rather than dropped. No new interface needed.
 
 ---
 

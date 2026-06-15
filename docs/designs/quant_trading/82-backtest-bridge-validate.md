@@ -89,7 +89,22 @@ actionable error when absent.** Sub-questions to settle:
   `[validation]` extra, lazily `import openbb_backtest` inside bridge function bodies, and raise a
   leaf `TechtradeDependencyError(OpenBBError)` (with a `pip install 'openbb-techtrade[validation]'`
   hint) when it is absent.
-- **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — soft/optional + `[validation]` extra + leaf error.**
+>
+>   1. **Soft/optional is the only viable posture.** The issue explicitly requires "graceful
+>      degradation" and "core still works." A hard dependency would break `import openbb_techtrade`
+>      when backtest is absent — the opposite of the requirement. This is the deliberate contrast
+>      with #73 (hard dep on `openbb-technical`).
+>
+>   2. **`[validation]` extra — correct.** Discoverable (`pip install openbb-techtrade[validation]`)
+>      and still optional. The alternative (entirely undeclared) forces users to hunt through docs
+>      to learn that `openbb-backtest` exists.
+>
+>   3. **Leaf `TechtradeDependencyError(OpenBBError)` — correct.** Importing
+>      `openbb_backtest.errors.OptionalDependencyError` is exactly what fails when backtest is
+>      absent. The error *must* come from techtrade's own code. Subclassing `OpenBBError` means
+>      existing `except OpenBBError` handlers catch it. The pip-install hint in the message is
+>      actionable — the user can copy-paste it.
 
 **Q-B — The translation: `TradePlan` → what `validate` actually accepts (the core unknown).**
 The **real** entrypoint (grounded below in §3) is
@@ -129,7 +144,28 @@ Also unresolved under Q-B:
   fold window as `start = as_of − 5y`, `end = as_of`; use `universe = [plan.symbol]`; and call
   backtest's `validate` by **direct function import**. Document the historical-recompute look-ahead
   caveat (cf. `analysis_bridge`).
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — B2 (registered `techtrade_confluence` SignalStrategy).**
+
+  1. **B2 is the only faithful option.** B1 proxies a different strategy (`mean_reversion`)
+     that is *not* the confluence rule — validating a proxy tells you nothing about the actual
+     signal. B3 changes `openbb-backtest`'s API (out of scope). B2 registers a strategy that
+     *is* the confluence rule, parameterized by the plan's `EntryExitRule` thresholds.
+
+  2. **Entry-point group discovery — clean coupling.** The `openbb_backtest_strategies`
+     entry-point group means backtest auto-discovers `techtrade_confluence` *only when both
+     packages are installed*. No hard import, no registration boilerplate.
+
+  3. **`start = as_of − 5y` default horizon — reasonable.** 5 years of daily bars gives
+     ~1260 sessions, enough for meaningful WFO/CPCV folds. Making `horizon_years` a param
+     lets the caller adjust for thinly-traded instruments or different regimes.
+
+  4. **Direct function import (not `obb.backtest.validate`) — correct.** Mirrors #73's
+     `technical_adapter` pattern. Avoids `openbb.build()` dependency in tests.
+
+  5. **Document the look-ahead caveat — essential.** The registered strategy recomputes
+     indicators historically, so the panel indicators use the full history (including the
+     validation period). This is the same caveat the `analysis_bridge` carries. Documenting
+     it prevents users from over-interpreting the validation result.
 
 **Q-C — Method + thresholds flow.**
 `validate(plan, method="wfo"|"cpcv")` maps **1:1** onto backtest's `method` (identical
@@ -141,7 +177,19 @@ for callers who want to tighten the robust band.
 - **Recommendation:** forward `method` unchanged (1:1 `Literal`, default `wfo`); rely on
   **backtest's default thresholds** as the single source of truth (L5), exposing an optional
   `thresholds` pass-through for callers who want a tighter robust band.
-- **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — forward `method` unchanged + backtest's default thresholds.**
+>
+>   1. **1:1 `method` forwarding — correct.** The `Literal["wfo","cpcv"]` is identical on both
+>      sides. No remapping, no translation — the bridge is transparent.
+>
+>   2. **Backtest's default thresholds as single source of truth (L5) — correct.** The verdict
+>      gate lives inside `openbb_backtest.validation.build_validation_report`. If techtrade
+>      hardcoded its own thresholds, the two could drift silently. Using backtest's defaults
+>      means the verdict is always consistent with backtest's own tests.
+>
+>   3. **Optional `thresholds` pass-through — correct.** Power users who want a tighter robust
+>      band (`pbo_robust=0.15` instead of `0.20`) can pass it through. The bridge doesn't
+>      interpret the thresholds — it forwards them verbatim to backtest.
 
 **Q-D — Attaching the verdict + return type.**
 Set `plan.validation = report` where `report` **is** a `ValidationReport` (a `Data` subclass,
@@ -156,7 +204,21 @@ also returning it. Confirm: `OBBject[ValidationReport]` as the return, plan upda
 - **Recommendation:** return `OBBject[ValidationReport]` (the verdict) and attach via the immutable
   `plan.model_copy(update={"validation": report})`; since `ValidationReport` is a `Data` subclass it
   satisfies the `Data | None` field without techtrade importing the backtest type at module load.
-- **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — `OBBject[ValidationReport]` + immutable `model_copy`.**
+>
+>   1. **`OBBject[ValidationReport]` return — correct.** The command produces a verdict;
+>      returning it as `OBBject[ValidationReport]` is the standard OpenBB pattern. The caller
+>      can read `result.results.verdict` directly.
+>
+>   2. **`model_copy(update={"validation": report})` — correct immutable discipline.** Mutation
+>      would break Pydantic's frozen-model guarantee if `TradePlan` is frozen. `model_copy`
+>      returns a new instance with the field updated — the same pattern backtest uses in
+>      `sanitize_result` and `tearsheet`.
+>
+>   3. **`ValidationReport` (a `Data` subclass) satisfies `Data | None` — correct.** No
+>      runtime import of `ValidationReport` at module load. The type is only needed inside
+>      the bridge function body (lazy import, Q-F). The field's `Data` typing is the
+>      abstraction that makes this work.
 
 **Q-E — The tuning gate is NOT in #82 scope.**
 §15's rule — *a `tune` result becomes a default only if the verdict is `robust`* — lives in
@@ -168,7 +230,11 @@ verdict, attach it). State this explicitly so reviewers don't expect the gate he
   verdict is `robust`) **out of #82 scope**; #82 delivers only the plumbing (produce the verdict
   and attach it to `TradePlan.validation`), and [#83](https://github.com/prajoria/OpenBB/issues/83)
   (tuneta adapter + tune, gated by validation) consumes that verdict.
-- **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — tuning gate is out of #82 scope.**
+>
+>   Clear scope boundary. #82 produces the verdict and attaches it; #83 consumes the verdict
+>   to gate tuning. Mixing both in one issue would conflate plumbing with policy. The
+>   `TradePlan.validation: Data | None` field is the clean interface between the two.
 
 **Q-F — Import isolation (discipline, enforced by test).**
 All `openbb_backtest` imports are **lazy, inside bridge function bodies** — never at module top
@@ -182,7 +248,12 @@ techtrade's non-validation surface must import and run identically whether or no
   level), enforced by the [#85](https://github.com/prajoria/OpenBB/issues/85)
   (core-unchanged-when-removed) test, so the non-validation surface imports and runs identically
   with or without backtest installed.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — all imports lazy and in-body, enforced by test.**
+
+  This is the enforcement mechanism that makes Q-A's soft dependency *real*. Without the test,
+  a future contributor could add a top-level `from openbb_backtest import ...` and silently break
+  the degradation guarantee. The #85 core-unchanged-when-removed test catches this at CI time.
+  Lazy in-body imports are a small readability cost for a large correctness guarantee.
 
 ---
 

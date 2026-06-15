@@ -94,7 +94,29 @@ flip the sign of the volatility vote (continue vs mean-revert).
 
 - **Recommendation:** Use piecewise-linear ramps with a deadband; treat ADX as a *continuous* damp;
   reuse ADX as the regime proxy (no new module) so %B is votable from the panel alone — see §2.
-- **Answer:** Follow recommendation. The recommendation is solid, industry-aligned, and specifically avoids the two common pitfalls: hard binary thresholds (fragile) and over-engineered regime models (overfit-prone).
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
+
+  **Verdict:** The recommendation is industry-aligned and avoids the two common pitfalls: hard binary
+  thresholds (fragile, cliff-edge behaviour) and over-engineered regime models (overfit-prone, adds
+  scope).
+
+  **Piecewise-linear ramps with deadband** — standard in quantitative multi-factor scoring (AQR-style
+  signal construction, QTradeX, Catalyst). The deadband (e.g. RSI 45–55 → vote = 0) prevents
+  whipsawing when an indicator hovers near its midpoint — borrowed from control-systems engineering
+  and widely adopted in algo trading.
+
+  **ADX as continuous damp** — `damp = min(adx / adx_gate, 1.0)` is smoother and more robust than a
+  hard on/off gate at ADX = 20. Professional systems (Kaufman adaptive, Kestner quantitative methods)
+  treat ADX as a continuous scaling factor. No cliff, no parameter sensitivity at the gate threshold.
+
+  **ADX as regime proxy (Option 1)** — reusing an existing panel key to distinguish trend vs range
+  regime for the %B vote is pragmatic. A dedicated regime detector (HMM, Markov-switching) would be
+  academically superior but adds a module, dependencies, and overfitting risk — all for a v1 that
+  should prioritize simplicity. ADX-as-regime is the industry-standard "good enough" approach.
+
+  **One flag:** the `regime_threshold` (proposed 25) is distinct from `adx_gate` (20). Document this
+  clearly in `ConfluenceConfig` — one gates MACD strength, the other flips %B interpretation. They
+  serve different purposes and should not be conflated.
 
 #### Q-B — Volume confirmation-multiplier formula + the 0.85 ceiling
 
@@ -107,17 +129,36 @@ interacts with the final clip.
 - **Recommendation:** `volume_confirmation = 1 + k·sign(raw)·vol_vote` with `vol_vote ∈ [-1,1]` and
   `k=0.5` → range `[0.5,1.5]`; leave the `0.85` additive ceiling in place (do **not** renormalize) —
   see §3.
-- **Answer:** Yes, it's well-designed. Here's why:
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
 
-1. It encodes a real trading principle. "Don't trust a move without volume" is one of the oldest rules in technical analysis (Dow Theory, ~1900s). Making volume necessary for high conviction is correct. A breakout on low/divergent volume frequently fails.
+  **Verdict:** The formula is well-designed, bounded, and encodes a real trading principle.
 
-2. The multiplier is bounded and safe. With k=0.5, the range is [0.5, 1.5] — it can halve or amplify by 50%, but the final clip(-1, +1) guarantees no runaway. Symmetric and predictable.
+  1. **Encodes Dow Theory volume confirmation.** "Don't trust a move without volume" is one of the
+     oldest rules in technical analysis (~1900s). Making volume *necessary* for High conviction is
+     correct — a breakout on low/divergent volume frequently fails.
 
-3. Neutral when absent. If volume data is missing (warm-up period, no OBV/CMF), the multiplier defaults to 1.0 — the score is unchanged. No penalty, no bonus. This is important for short-history stocks.
+  2. **Bounded and safe.** With `k=0.5`, the multiplier range is `[0.5, 1.5]` — it can halve or
+     amplify by 50%, but the final `clip(-1, +1)` guarantees no runaway. Symmetric and predictable.
 
-4. The sign-agreement trick is elegant. sign(raw) · vol_vote is a one-line way to encode "same direction = amplify, opposite = damp" without branching logic. It's the kind of thing you'd see in production quant systems.
+  3. **Neutral when absent.** If volume data is missing (warm-up period, no OBV/CMF), the multiplier
+     defaults to `1.0` — the score is unchanged. No penalty, no bonus. Critical for short-history
+     stocks where volume indicators haven't warmed up.
 
-5. The 0.85 ceiling is defensible. Not renormalizing creates a deliberate asymmetry: indicators alone can give you a signal, but you need volume to give you conviction. This matches how experienced traders actually think — "I like the setup, but I want to see volume confirm before I size up."
+  4. **Sign-agreement trick is elegant.** `sign(raw) · vol_vote` is a one-line encoding of "same
+     direction = amplify, opposite = damp" without branching logic. This is the kind of compact,
+     auditable formulation found in production quant systems.
+
+  5. **The 0.85 ceiling is intentional and defensible.** Not renormalizing creates a deliberate
+     asymmetry: indicators alone can give you a signal, but you need volume to give you *conviction*.
+     Without volume confirmation, max `|raw| = 0.85` — just barely High (≥ 0.70). With volume
+     divergence, max `|score| = 0.85 × 0.5 = 0.425` — only Medium. This matches how experienced
+     traders think: "I like the setup, but I want to see volume confirm before I size up."
+
+  **One open detail:** The `obv_slope → vol_vote` squashing function still needs specifying. OBV slope
+  is unbounded (could be 50,000 or 0.3 depending on the stock). Recommend `tanh(obv_slope / scale)`
+  with a lookback-relative scale over `sign(obv_slope)` — the former preserves magnitude information
+  while staying bounded. This is a detail to nail down during implementation, but doesn't undermine
+  the formula itself.
 
 #### Q-C — Normalization when indicators are absent (warm-up)
 
@@ -129,22 +170,36 @@ on warm-up — short-history symbols either score weaker (fixed-n) or full-scale
 
 - **Recommendation:** Renormalize over the **present** indicators per family; if a family is entirely
   absent, leave it at `0` (do **not** rescale sibling family weights) — see §3.
-- **Answer:** Yes — and it's the safer of the two designs. Here's the reasoning:
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
 
-1. Renormalize within a family: Correct.
+  **Verdict:** This is the safer of the two designs. It produces honest scores that degrade gracefully
+  with less data.
 
-If you have two momentum indicators and one is missing, the one that is present is your best available information for that family. Penalizing the score just because you have less data is a false signal — a weak score should mean "indicators disagree" or "indicators are neutral," not "I don't have enough data yet."
+  1. **Renormalize *within* a family: Correct.** If you have two momentum indicators and one is
+     missing, the one that *is* present is your best available information for that family. Penalizing
+     the score because you have less data is a **false signal** — a weak score should mean "indicators
+     disagree" or "indicators are neutral," not "I don't have enough data yet." With fixed-n, a
+     30-day-old stock with a screaming RSI buy signal would look like a lukewarm signal just because
+     Stochastic hasn't warmed up. That's misleading.
 
-With fixed-n, a 30-day-old stock with a screaming RSI buy signal would look like a lukewarm signal just because Stochastic hasn't warmed up. That's misleading.
+  2. **Do NOT rescale *across* families: Correct.** If volatility's only voter (`bb_pctb`) is NaN,
+     redistributing its `0.20` weight to trend and momentum would inflate those families — trend alone
+     could push `score` to `±0.50` instead of `±0.40`. The score *means something different* depending
+     on how many families are present, which breaks cross-symbol and cross-time comparability. Leaving
+     the absent family at `0` says: "I have less information, so I'm less confident — and I'm honest
+     about it." A stock with only 30 days of data *should* score lower than one with 200 days, all
+     else equal.
 
-2. Do NOT rescale across trend families: Also correct.
-3. Volume neutrality is preserved.
+  3. **Volume neutrality is preserved.** The volume multiplier already defaults to `1.0` when the
+     volume family is absent (Q-B). Combined with Q-C's "leave absent family at 0," a warm-up stock
+     with no volume data gets no amplification/damping *and* no artificial inflation from rescaling.
+     The system degrades gracefully.
 
-The volume multiplier already defaults to 1.0 when the volume family is absent (Q-B scenario 4). Combined with Q-C's "leave absent family at 0," a warm-up stock with no volume data gets:
-
-No volume amplification/damping (multiplier = 1.0)
-No artificial inflation from rescaling
-The system degrades gracefully.
+  **Edge case noted:** If trend (the heaviest family at `0.40`) is entirely absent on warm-up, the max
+  `|raw|` drops from `0.85` to `0.45`. Even with volume confirmation at `1.5×`, max score is `0.675`
+  — **below High conviction** (`0.70`). A stock that only has momentum + volatility data can *never*
+  reach High conviction. This is arguably correct (you shouldn't be highly confident with that little
+  data), but should be documented explicitly in the implementation.
 #### Q-D — Per-family voter roster + intra-family `n_indicators`
 
 Which panel keys are *voters* vs *gates/inputs*? Is `adx` a voter or only a gate on `macd_hist`? Do
@@ -155,61 +210,48 @@ roster directly scales each vote's weight.
 
 - **Recommendation:** trend voters `{macd_hist (adx-gated), ema_cross}` (n=2); momentum `{rsi, stoch}`
   combined (n=2); volatility `{bb_pctb}` (n=1, kc/atr are levels) — see §2.
-- **Answer:** 1. ADX as gate, not voter — Correct
-ADX measures trend strength, not direction. ADX = 50 just means "strong trend" — it doesn't tell you if it's up or down. Giving it a directional vote would be nonsensical.
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
 
-Using it as a gate/dampener on macd_hist is the right role: "I have a MACD signal, but how much should I trust it?" ADX answers that.
+  **Verdict:** The roster correctly separates directional signals (voters) from context/gates (ADX,
+  ATR), derived signals (`ema_cross`, stoch cross) from raw inputs (`ema_fast`, `stoch_k`), and
+  bounded indicators (%B) from unbounded levels (KC prices). The voter count (2/2/1) produces sensible
+  per-vote weights and avoids correlation double-counting.
 
-If ADX were a voter (n=3), each trend vote would get 0.40/3 = 0.133 weight instead of 0.40/2 = 0.20. The MACD and EMA cross signals — which actually carry directional information — would each be weaker. Bad trade.
+  1. **ADX as gate, not voter — Correct.** ADX measures trend *strength*, not *direction*. ADX = 50
+     means "strong trend" — it doesn't tell you up or down. Giving it a directional vote would be
+     nonsensical. Using it as a gate/dampener on `macd_hist` is the right role: "I have a MACD signal,
+     but how much should I trust it?" If ADX *were* a voter (n=3), each trend vote would get
+     `0.40/3 = 0.133` instead of `0.40/2 = 0.20` — diluting the actual directional signals.
 
-2. ema_fast/ema_slow only through ema_cross — Correct
-ema_fast = 142.50 and ema_slow = 138.20 are raw price levels. They don't mean "bullish" or "bearish" on their own. What matters is their relationship:
+  2. **`ema_fast`/`ema_slow` only through `ema_cross` — Correct.** Raw EMA values are price levels
+     ("EMA(20) = $142.50") — they carry no directional meaning without context. Only their
+     *relationship* (`ema_fast − ema_slow > 0` → golden cross) produces a directional signal. Voting
+     them separately would be meaningless and would inflate n to 3, diluting `macd_hist` to `0.133`.
 
-If you let ema_fast and ema_slow vote separately, what would their votes even be? "EMA(20) is $142.50, therefore... bullish?" That's meaningless without context.
+  3. **Stoch K/D as one combined vote — Correct.** %K and %D are designed as a pair; the signal comes
+     from their cross (`sign(stoch_k − stoch_d)`). Splitting into two separate votes (n=3 for
+     momentum) would: (a) dilute RSI's weight from `0.125` to `0.083`, and (b) double-count — %K and
+     %D are highly correlated (D is just smoothed K), so they'd almost always vote the same direction.
 
-Making them vote through ema_cross is the only sensible approach. It also keeps n=2, preserving the weight of each trend voter at 0.20.
+  4. **Volatility: only `bb_pctb` (n=1) — Correct, with a flag.** One indicator carries the entire
+     `0.20` volatility weight. The alternatives are worse: ATR has no direction (L9); KC levels can't
+     form a directional vote without `close` in the panel; dropping volatility wastes a family. `bb_pctb`
+     alone is the least-bad option for v1. The resulting per-vote weight (`0.20`) matches `macd_hist`
+     (`0.20`) and exceeds `rsi` (`0.125`) — appropriate for a family workhorse.
 
-3. Stoch K/D as one combined vote — Correct
-Stochastic %K and %D are designed as a pair. The signal comes from their cross:
+  **Weight distribution summary:**
 
-%K crosses above %D → bullish
-%K crosses below %D → bearish
-Splitting them into two separate votes (n=3 for momentum) would:
+  | Family | Weight | n voters | Per-vote weight | Voters |
+  |---|---|---|---|---|
+  | Trend | 0.40 | 2 | 0.20 | `macd_hist` (ADX-gated), `ema_cross` |
+  | Momentum | 0.25 | 2 | 0.125 | `rsi`, `stoch` (K/D combined) |
+  | Volatility | 0.20 | 1 | 0.20 | `bb_pctb` |
+  | Volume | 0.15 | — | multiplier | `obv_slope`, `cmf` → formula |
 
-Dilute RSI's weight from 0.25/2 = 0.125 to 0.25/3 = 0.083
-Create redundancy — %K and %D are highly correlated (D is just a smoothed K), so they'd almost always vote the same direction, double-counting
-One combined vote sign(stoch_k - stoch_d) is cleaner and avoids correlation bias.
-
-4. Volatility: only bb_pctb votes (n=1) — Correct, but notable
-This means one indicator carries the entire 0.20 volatility weight. That's a lot of power for one voter. But the alternatives are worse:
-
-Alternative	Problem
-Let ATR vote	ATR has no direction (L9) — it's just "how volatile is this?"
-Let KC levels vote	Panel has no close price to compare against — can't compute "price above/below KC"
-Add KC %position (like %B)	Requires panel redesign (#73 scope change)
-Set n=0, drop volatility	Loses 0.20 weight entirely — wastes a family
-So bb_pctb alone at n=1 is the least-bad option given the current panel design. It gets full 0.20 weight, which is significant but not unreasonable — Bollinger %B is a well-established, information-rich indicator.
-
-The Weight Distribution Result
-Family	Weight	n voters	Per-vote weight	Total family votes
-Trend	0.40	2	0.20 each	macd_hist(gated) + ema_cross
-Momentum	0.25	2	0.125 each	rsi + stoch
-Volatility	0.20	1	0.20	bb_pctb alone
-Volume	0.15	—	multiplier	obv_slope + cmf → formula
-Notice: bb_pctb (0.20) has the same per-vote weight as macd_hist (0.20) and more than rsi (0.125). That feels right — these are the workhorses of their respective families.
-
-One Thing Worth Flagging
-Volatility is a single point of failure. If bb_pctb is NaN (warm-up), the entire volatility family goes to zero (per Q-C). With the other families, losing one voter still leaves one to carry the weight. Volatility has no backup.
-
-This isn't a flaw in the recommendation — it's an inherent limitation of the current panel. The doc acknowledges this: KC keys can't vote without close. A future panel extension adding kc_pctb (Keltner %B) would give volatility a second voter and reduce this fragility. But for v1, bb_pctb alone is the right call.
-
-Verdict
-The recommendation is sound. It correctly separates:
-
-Directional signals (voters) from context/gates (ADX, ATR)
-Derived signals (ema_cross, stoch cross) from raw inputs (ema_fast, stoch_k)
-Bounded indicators (%B) from unbounded levels (KC prices)
-The voter count (2/2/1) produces sensible per-vote weights, avoids correlation double-counting, and keeps each family's power aligned with its information content.
+  **Flag: volatility single point of failure.** If `bb_pctb` is NaN (warm-up), the entire volatility
+  family goes to zero (per Q-C). Unlike trend or momentum, there's no backup voter. A future panel
+  extension adding `kc_pctb` (Keltner %B) would give volatility a second voter — recommend filing
+  this as a follow-up enhancement issue.
 
 #### Q-E — Where weights + shape params live (config seam)
 
@@ -222,22 +264,25 @@ plugs into, and threshold duplication risks drift.
 - **Recommendation:** Frozen `ConfluenceConfig` + `DEFAULT_CONFLUENCE`; `direction_threshold`
   **defaults from** `EntryExitRule.entry_threshold` (0.4) but is overridable; presets are alternate
   `ConfluenceConfig` instances — see §3.
-- **Answer:** Follow recommendation. The design is sound and well-structured:
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
 
-1. **Frozen dataclass:** Standard, correct — matches the existing `IndicatorConfig` / `DEFAULT_CONFIG`
-   pattern in the codebase. Immutability guarantees same config → same score (determinism §17), makes
-   configs hashable for cache keys and audit trails, and defaults baked in means `score_panel(panel)`
-   works with zero config out of the box.
+  **Verdict:** The design is sound, well-structured, and consistent with existing codebase patterns.
 
-2. **`direction_threshold` defaults to 0.4, overridable:** A pragmatic compromise between coupling
-   (always reading from `EntryExitRule`, which would break confluence's pure/standalone boundary) and
-   full duplication (separate values that could drift). Drift risk is mitigated because presets (#75)
-   override both configs together as a bundle, and golden tests lock the behavior.
+  1. **Frozen dataclass — Correct.** Matches the existing `IndicatorConfig` / `DEFAULT_CONFIG` pattern.
+     Immutability guarantees same config → same score (determinism §17), makes configs hashable for
+     cache keys and audit trails, and defaults baked in means `score_panel(panel)` works with zero
+     config out of the box.
 
-3. **Presets as full alternate `ConfluenceConfig` instances:** Simple, auditable, testable. Each preset
-   is a complete, self-contained config — no inheritance chains, no partial-override merge logic. For
-   v1 with 3 presets, explicit full configs are more readable than DRY partial overrides. One argument
-   swap (`config=PRESET_MEAN_REVERT`) changes everything.
+  2. **`direction_threshold` defaults to 0.4, overridable — Correct.** A pragmatic compromise between
+     coupling (always reading from `EntryExitRule`, which would break confluence's pure/standalone
+     boundary) and full duplication (separate values that could drift). Drift risk is mitigated because
+     presets (#75) override both configs together as a bundle, and golden tests lock the behavior.
+
+  3. **Presets as full alternate `ConfluenceConfig` instances — Correct.** Simple, auditable, testable.
+     Each preset is a complete, self-contained config — no inheritance chains, no partial-override merge
+     logic. For v1 with 3 presets, explicit full configs are more readable than DRY partial overrides.
+     One argument swap (`config=PRESET_MEAN_REVERT`) changes everything. Golden tests can lock each
+     preset independently.
 
 ---
 

@@ -84,7 +84,31 @@ today, so this is a genuine model addition. These two inputs gate all sizing (L2
 - **Recommendation:** add a new leaf `SizingConfig(Data)` with
   `account_size: Decimal = Decimal("100000")` and `risk_per_trade: float = 0.01`; keep the optional
   `portfolio_app` hook out of the model (opt-in, supplied at the call site only).
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
+
+  **Verdict:** A separate `SizingConfig` is the correct home for these two fields.
+
+  1. **Separation of concerns.** `EntryExitRule` owns level/threshold parameters (stop multiplier,
+     R-target, holding bars). `SizingConfig` owns capital-allocation parameters (how much to risk).
+     These are conceptually independent — you might use the same entry/exit rules with a $50K account
+     or a $500K account. Mixing them onto one model conflates risk parameters with capital parameters.
+
+  2. **Privacy boundary is clean.** By isolating `account_size` on its own model, it's easy to audit
+     what touches personal capital data. The model defaults to an abstract notional ($100K), and
+     personal values only flow in via explicit call-site injection. This satisfies §4.7 (Principle 7)
+     by construction.
+
+  3. **`Decimal("100000")` default is sensible.** It's a round number that makes mental math easy
+     (1% risk = $1,000 budget). Not so small that share counts are tiny, not so large that they're
+     unrealistic for paper trading.
+
+  4. **`risk_per_trade = 0.01` (1%) is standard.** The "1% rule" is the most widely cited
+     risk-management guideline in trading education (Van Tharp, Mark Douglas). Conservative enough
+     to survive a losing streak, meaningful enough to produce non-trivial position sizes.
+
+  5. **`portfolio_app` hook out of the model — correct.** This is an opt-in integration path, not a
+     core dependency. It should never be `import`ed by `rules.py` or appear in `SizingConfig`'s field
+     list. A caller that wants real account data can read it externally and pass it as `account_size`.  
 
 #### Q-B — Decimal discipline at the float→Decimal boundary
 
@@ -97,7 +121,34 @@ paper fill realizes it?
   round levels to cents `Decimal("0.01")` with `ROUND_HALF_EVEN`; floor qty with `ROUND_FLOOR`; carry
   `entry = ref_price` (as_of close) as a **reference**, re-stamped at the
   [#78 fill](./78-paperbroker-fill-sim.md).
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
+
+  **Verdict:** The quantization strategy is correct and avoids every common float-money pitfall.
+
+  1. **`Decimal(str(float))` at the boundary — correct.** This is the canonical Python idiom for
+     converting float to Decimal without introducing binary-float artifacts. `Decimal(str(2.50))`
+     gives `Decimal("2.5")`, not `Decimal("2.4999999999999998")`. Doing it once at the top of
+     `apply()` means the entire body is pure-Decimal — no float money can leak.
+
+  2. **Cents quantization with `ROUND_HALF_EVEN` — correct.** Banker's rounding (`ROUND_HALF_EVEN`)
+     is the standard for financial computation (IEEE 754, SEC rules). It eliminates systematic
+     rounding bias. Quantizing to `Decimal("0.01")` matches US equity tick sizes. For sub-penny
+     instruments (some ETFs, forex), the tick could be parameterized later, but `0.01` is the right
+     v1 default.
+
+  3. **`ROUND_FLOOR` for qty — correct.** You never want to round *up* a share count — that would
+     exceed the risk budget. Floor is the only safe direction. `1000 / 3 = 333.33… → 333 shares` —
+     the remaining $1 of budget is unused rather than over-allocated.
+
+  4. **`entry = ref_price` as a reference, re-stamped at #78 fill — correct.** This is the key
+     insight of the pre-fill boundary (L8). #76 uses the as_of close as a *planning* price to
+     compute stop/target distances. The *realized* entry (next-bar open or fill price) is set by #78,
+     which may shift the levels accordingly. This avoids look-ahead bias — the plan says "if we
+     enter around $100, stop at $95" rather than pretending we filled at exactly $100.
+
+  **One note:** document explicitly that stop/target distances are **absolute** (computed from
+  `ref_price`) and may need re-anchoring when #78 supplies a realized fill price that differs from
+  `ref_price`. The re-anchoring logic belongs in #78, not here — but the contract should be clear.
 
 #### Q-C — Long / short / flat handling + the entry gate
 
@@ -109,7 +160,30 @@ two thresholds risk disagreeing.
 - **Recommendation:** sign-fold on `direction` (`sign=+1` long, `−1` short); `flat` → **no levels,
   size 0, no trade**; entry gate = `|score| ≥ rule.entry_threshold` **and** `direction != "flat"`,
   asserting consistency with the upstream [#74](./74-confluence-voting-score.md) resolution in a test.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
+
+  **Verdict:** The sign-fold is clean and the dual-gate is a correct defensive choice.
+
+  1. **Sign-fold (`sign = +1` / `−1`) — correct.** Collapsing long/short into a single sign variable
+     eliminates branching in the level formulas. `stop = entry − sign · R` and
+     `target = entry + sign · target_r_multiple · R` handle both directions in one expression. This
+     is less error-prone than separate if/else branches and makes the code trivially auditable.
+
+  2. **`flat` → no trade — correct.** A flat signal means the confluence engine has no directional
+     conviction. Producing levels or a share count would be nonsensical. Returning a zero-quantity
+     "skip" result (not an exception) is the right contract — downstream (#77) can simply filter
+     out zero-qty results without error handling.
+
+  3. **Dual entry gate (`|score| ≥ threshold` AND `direction != flat`) — correct and defensive.**
+     In theory, these should always agree: #74's `bucket_direction` uses the same `entry_threshold`
+     to assign direction, so `|score| ≥ 0.4` ⇔ `direction ≠ flat`. But checking both is a valid
+     **defense-in-depth** against config drift (e.g., if someone overrides `direction_threshold` on
+     `ConfluenceConfig` to a different value than `EntryExitRule.entry_threshold`). The consistency
+     assertion in the test suite catches any such drift at test time.
+
+  4. **No `ValueError` on flat — good.** `flat` is a normal outcome, not an error. The system should
+     process a batch of signals where some are flat without crashing. A zero-qty `RuleResult` is the
+     clean way to represent "no trade recommended."
 
 #### Q-D — Sizing edge-cases (ATR guard, floor, fractional shares)
 
@@ -120,7 +194,30 @@ guard)? Floor to whole shares? Are fractional shares ever allowed? What if
 - **Recommendation:** `ATR ≤ 0` or non-finite → **size 0, no trade** (no division); `floor` to whole
   shares (`ROUND_FLOOR`); no fractional shares in v1; treat `qty == 0` as a valid "skip" outcome, not
   an error.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
+
+  **Verdict:** Every edge case is handled correctly and defensively.
+
+  1. **`ATR ≤ 0` or `NaN` → size 0, no trade — correct.** This is a division guard. `ATR = 0` means
+     the stock has had zero price movement (impossible in practice, but possible from bad data or a
+     just-IPO'd stock with one bar). `ATR = NaN` means the indicator hasn't warmed up. In both cases,
+     you cannot compute a meaningful stop distance, so the only safe answer is "no trade." Returning
+     `qty = 0` (not raising an exception) keeps batch processing clean.
+
+  2. **Floor to whole shares — correct.** `risk_budget / risk_per_share` rarely divides evenly.
+     Rounding up would exceed the risk budget (e.g., 334 shares at $3/share risk = $1,002 budget,
+     but you only allocated $1,000). Floor is the only safe rounding direction for sizing. The unused
+     $1–2 of budget is negligible vs. the alternative of over-risking.
+
+  3. **No fractional shares in v1 — correct.** Fractional shares are a broker-specific feature
+     (Robinhood, IBKR fractional). The paper fill simulator (#78) doesn't need them, and supporting
+     them adds complexity to the Decimal math (different quantization). Whole shares are universally
+     understood and simpler. Can be extended later if needed.
+
+  4. **`qty == 0` as a valid skip — correct.** This happens when `risk_budget < risk_per_share`
+     (e.g., $1,000 budget but ATR × mult = $1,200 per-share risk — the stock is too volatile for
+     the account size). It's not an error; it's the sizing system correctly saying "you can't afford
+     even one share at this risk level." Downstream should handle this the same as a flat signal.
 
 #### Q-E — The #76 ↔ #77 ↔ #78 seam
 
@@ -132,7 +229,37 @@ triggers evaluated over a bar sequence?
   (levels + size + per-share risk only); [#77](./77-order-generation-tradeplan.md) materializes the
   `Order` list; [#78](./78-paperbroker-fill-sim.md) evaluates opposite-cross / time-stop bar-by-bar.
   Make `RuleResult` a new `Data` model (not a plain dataclass) for OBBject-friendly serialization.
-- **Answer:** _(pending approval)_
+- **Answer (Review):** ✅ **Approved — follow recommendation.**
+
+  **Verdict:** The three-way split (#76 levels/size → #77 orders → #78 fills) is the right
+  separation of concerns.
+
+  1. **#76 returns levels + size, NOT orders — correct.** The rules engine is a pure math function:
+     given a directional signal and volatility, compute price levels and a share count. It has no
+     concept of order types (limit, market, stop-loss), order lifecycle, or execution. Emitting
+     `Order` objects here would couple the rules engine to the order model and blur the boundary with
+     #77. Keeping #76 pure means it can be tested with simple Decimal assertions.
+
+  2. **Temporal exits stay as carried parameters — correct.** `exit_on_opposite` and
+     `max_holding_bars` are not computable from a single bar's data. They require iterating over a
+     bar sequence ("has the signal flipped?" / "have 20 bars passed?"). This is inherently the
+     simulator's job (#78), not the rules engine's. #76 correctly just passes these fields through as
+     part of the rule config, to be consumed downstream.
+
+  3. **`RuleResult` as a `Data` model — correct.** Using OpenBB's `Data` base (not a plain
+     `@dataclass`) makes the result OBBject-serializable, meaning it can flow through the standard
+     `OBBject` response pipeline if exposed via a command. It also inherits the dict-like interface
+     that other models use, keeping the techtrade type system consistent.
+
+  4. **Clean pipeline composition.** The chain is:
+     ```
+     #74 (confluence) → MoverSignal (score + direction + votes)
+     #76 (rules)      → RuleResult  (entry/stop/target + qty + risk_per_share)
+     #77 (orders)     → Order list  (buy/sell orders with types and levels)
+     #78 (fills)      → Fill list   (simulated executions over bar sequence)
+     ```
+     Each step transforms one struct into the next, with no back-references. This is easy to test,
+     easy to debug, and easy to extend.
 
 ---
 

@@ -82,9 +82,17 @@ mirrors its math; the leaf-`models.py` standalone guarantee pushes toward the la
 > installed) buys back the §19 guarantee without the hard dependency. **But this is the central
 > choice — confirm before any code.**
 >
-> - **Answer:** _(pending approval)_
-
-> **Q-B — where does the "next bar" OHLCV come from at simulate time?**
+> - **Answer (Review):** ✅ **Approved — A2 (techtrade-local PaperBroker).**
+>
+>   This is the right call given three hard constraints: (1) `models.py` is a deliberate leaf with no
+>   `openbb_backtest` import, (2) Q7 requires techtrade to be independently installable, and (3) the
+>   #85 core-unchanged-when-removed test enforces this. A hard import (A1) would break all three.
+>   The ~20 lines of duplicated slippage/commission math is a small price for clean decoupling, and
+>   the parity test (the #73 oracle pattern) neutralizes the §19 duplication concern — if the formulas
+>   diverge, the test catches it. A3 (soft-import fallback) adds two code paths for zero user benefit
+>   in v1. A2 also lets techtrade define its own `BrokerInterface` Protocol matching §14.1 exactly
+>   (`submit(order, bar) -> Fill | None`), rather than adapting to backtest's different `Broker.fill`
+>   signature.
 > `Order` carries `symbol` but **no bars**. To fill at *t+1* the broker needs bar *t+1*'s
 > open/high/low. Two seams (recommend supporting both):
 > - **B1 — explicit `bars=`**: `simulate(orders, bars=...)` takes the OHLCV window
@@ -103,7 +111,14 @@ mirrors its math; the leaf-`models.py` standalone guarantee pushes toward the la
 >   that the golden + backtest bridge use, and an injectable `ohlcv_fetcher=` (B2) for the live
 >   `fmp_cached` path; take `as_of` as an **explicit** `simulate` param (do not retrofit `Order`),
 >   resolving *t+1* via the `movers.resolve_session` calendar snap.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — both seams + explicit `as_of`.**
+>
+>   Supporting both `bars=` and `ohlcv_fetcher=` is the right design: `bars=` makes the golden test
+>   deterministic by construction (the test *controls* the data), while `ohlcv_fetcher=` provides the
+>   live path without hardcoding it. Taking `as_of` explicitly (rather than retrofitting `Order`) is
+>   correct — `Order` is a pure level/intent model that shouldn't carry temporal context. Calendar
+>   resolution via `movers.resolve_session` reuses existing infrastructure and keeps *t+1* computation
+>   in one place.
 
 > **Q-C — `BrokerInterface` exact shape + the `Bar` / `PositionSnapshot` types.**
 > §14.1 lists `submit` / `cancel` / `positions`. v1 batch sim only *needs* `submit`.
@@ -122,7 +137,18 @@ mirrors its math; the leaf-`models.py` standalone guarantee pushes toward the la
 >   Protocol *is* the live contract, and define **minimal techtrade-local** `Bar`/`PositionSnapshot`
 >   in `models.py` (consistent with the recommended Q-A=A2, keeping the leaf free of an
 >   `openbb_backtest` import).
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — full Protocol (C1) + local types.**
+>
+>   1. **Full Protocol — correct.** Shipping all three methods (`submit`/`cancel`/`positions`) means
+>      the Protocol *is* the live broker contract from day one. A future Alpaca/IBKR integration can
+>      implement `BrokerInterface` and slot in without Protocol changes. If only `submit` shipped (C2),
+>      adding `cancel`/`positions` later would be a breaking Protocol change affecting all
+>      implementations. `cancel` as a no-op and `positions` returning the internal book are cheap.
+>
+>   2. **Local `Bar`/`PositionSnapshot` — correct under Q-A=A2.** If techtrade defines its own
+>      `PaperBroker`, it needs its own input/output types. Importing backtest's `Bar` would reintroduce
+>      the coupling A2 was chosen to avoid. The local types are minimal (OHLCV Decimal + tz-aware
+>      timestamp; symbol + signed qty + market value) and serve as the Protocol's typed contract.
 
 > **Q-D — `fill_model=` param shape + the config model.**
 > The issue's signature is `simulate(orders, fill_model=...)`. Proposed: a single techtrade
@@ -139,7 +165,14 @@ mirrors its math; the leaf-`models.py` standalone guarantee pushes toward the la
 >   signature) bundling `commission` / `slippage` / `fill`, defaulting to zero-commission +
 >   `fixed_bps` value 5 (L5); under the recommended Q-A=A2 these are techtrade-local re-declarations
 >   cross-checked by the §5.3 parity test.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — single nested `FillModel` Data.**
+>
+>   A single `fill_model` handle is better UX than three flat params. The user passes one object
+>   that says "here's how fills work" rather than separately configuring commission kind, slippage
+>   kind, and fill kind. It also matches the issue signature (`simulate(orders, fill_model=...)`).
+>   Defaults of zero-commission + 5 bps fixed slippage are standard for equity paper trading —
+>   conservative enough to be realistic, simple enough to be the v1 default. The parity test against
+>   backtest's equivalents (§5.3) catches any formula drift.
 
 > **Q-E — intrabar stop/target evaluation, conservative tie-break, and the forward walk.**
 > A `TradePlan` (#77) emits an **entry** order plus contingent **stop** / **target** / **time**
@@ -161,7 +194,25 @@ mirrors its math; the leaf-`models.py` standalone guarantee pushes toward the la
 >   stop-wins tie-break**; on a triggered exit fill stop→`stop_price ± slip`, target→`limit_price ∓
 >   slip` (E1); walk the full `t+1 .. t+1+max_holding_bars` window and stop at the **first** exit
 >   (E2), with entry-only single-fill available as an explicit lighter mode.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — conservative tie-break + full walk + single-fill option.**
+>
+>   1. **Intrabar stop/target against high/low — correct.** Using only open/close would miss most
+>      intraday stop/target triggers on daily bars. High/low is the standard approach for daily-bar
+>      backtesting (Zipline, Backtrader, QuantConnect all do this).
+>
+>   2. **Conservative tie-break (stop wins) — correct and industry standard.** When both stop and
+>      target are touched in the same bar, you don't know which happened first. Assuming the stop
+>      (the worse outcome) is the conservative/honest choice. This prevents overstating strategy
+>      performance. Every serious backtesting framework uses this convention.
+>
+>   3. **Exit fill at level ± slippage (E1) — correct.** Stop fills at `stop_price + adverse_slip`
+>      (longs fill lower, shorts fill higher), target fills at `limit_price - adverse_slip`. This
+>      is more realistic than filling at the bar open or close. Slippage on the exit mirrors the
+>      entry treatment.
+>
+>   4. **Full walk with single-fill option (E2) — correct.** The full walk is needed for realistic
+>      simulation. The entry-only lighter mode (`simulate=False` equivalent) is useful for dry runs
+>      and the `scan` command's `simulate=False` mode (Q-C in #79).
 
 > **Q-F — `Decimal` discipline + tz-aware timestamp source.**
 > `price`/`commission`/`slippage`/`quantity` are `Decimal` (L6). `Fill.timestamp` is a **tz-aware
@@ -175,7 +226,19 @@ mirrors its math; the leaf-`models.py` standalone guarantee pushes toward the la
 >   the fill timestamp from the supplied *t+1* `Bar.timestamp` when present, else localize a date-only
 >   daily bar to **16:00 `America/New_York` → UTC**, so the golden test can assert an exact
 >   deterministic tz-aware `t+1` timestamp.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — Decimal end-to-end + 16:00 ET → UTC localization.**
+>
+>   1. **Decimal for all money/qty — non-negotiable.** This matches L6 and the discipline established
+>      in #76. No float money can escape into `Fill` fields.
+>
+>   2. **Timestamp from `Bar.timestamp` when present — correct.** If the caller supplies bars with
+>      tz-aware timestamps, use them directly. No ambiguity.
+>
+>   3. **16:00 America/New_York → UTC for date-only bars — sensible default.** US equity markets
+>      close at 16:00 ET. Localizing to session close produces a deterministic, meaningful timestamp
+>      that the golden test can pin. This is the same convention `exchange_calendars` uses for XNYS
+>      session close. The UTC conversion ensures all timestamps are in a single timezone regardless
+>      of the caller's locale.
 
 ---
 

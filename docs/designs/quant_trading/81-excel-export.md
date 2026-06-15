@@ -80,7 +80,23 @@ presentation-only and never mutates the stored model value.
 > optionally, **one committed sample `.xlsx` as a non-asserted human-openable artifact**. **Confirm:**
 > structure/value golden over byte-identical, and whether to commit the sample `.xlsx` artifact at all.
 >
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — option (i), structural/value golden.**
+>
+>   1. **Byte-identical is the wrong invariant for `.xlsx`.** The format is a zip of XML with
+>      embedded timestamps and engine-specific serialization. Byte-comparison would create a
+>      permanently flaky test that breaks on every openpyxl version bump, CI clock skew, or
+>      engine switch. This is not a theoretical concern — `docProps/core.xml` embeds wall-clock
+>      `dcterms:created` and `dcterms:modified` that differ *every run*.
+>
+>   2. **JSON structural snapshot is strictly better.** It locks what matters (sheet names,
+>      column order, cell values, number formats, CF rule descriptors, disclaimer text) while
+>      ignoring what doesn't (XML attribute order, zip mtimes, engine serialization quirks).
+>      It reuses the existing `testing.assert_matches_golden` harness (#71) — no new testing
+>      infrastructure needed.
+>
+>   3. **Commit the sample `.xlsx` as a non-asserted artifact — yes.** A human-openable sample
+>      in the repo is useful for onboarding and PR review. It should be clearly documented as
+>      non-asserted (the JSON golden is the source of truth).
 
 > **Q-B — conditional-formatting portability across engines (openpyxl vs xlsxwriter).**
 > openpyxl **does** support color scales / data bars / cell-is rules
@@ -105,7 +121,21 @@ presentation-only and never mutates the stored model value.
 > - **Recommendation:** B1 — ship **full conditional formatting on the default openpyxl engine** from a
 >   single engine-agnostic `FORMAT_SPEC` + two thin appliers; golden-lock **openpyxl** formatting only and
 >   treat xlsxwriter as **best-effort richer** (no formatting parity required for v1).
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — B1 (full openpyxl formatting, best-effort xlsxwriter).**
+>
+>   1. **Full formatting on openpyxl — correct for the default engine.** openpyxl supports all
+>      the CF rules needed (CellIsRule, ColorScaleRule, DataBarRule). The workbook is a *report*,
+>      not a CSV dump — conditional formatting is what makes it useful at a glance.
+>
+>   2. **Single `FORMAT_SPEC` + two appliers — correct architecture.** One source of truth for
+>      the rules (thresholds, colors, target columns), two thin rendering functions. This is
+>      the same pattern as `selector.SOURCE_TABLE` from #73: the data is declared once, the
+>      engine-specific rendering is thin and mechanical.
+>
+>   3. **xlsxwriter best-effort — pragmatic for v1.** Achieving byte-identical CF round-trip
+>      across two engines is a rabbit hole. xlsxwriter formatting will *look* right (it uses
+>      the same `FORMAT_SPEC`), but the golden test doesn't assert it. If a user reports a
+>      formatting discrepancy, it's a bug fix, not a design failure.
 
 > **Q-C — exact per-sheet column mapping + ordering (confirm §14.3 → fields).**
 > §2 proposes the full `Recommendation`/`Order`/`Fill` field → column mapping for all six sheets. Two
@@ -125,7 +155,22 @@ presentation-only and never mutates the stored model value.
 >   sheet's per-family breakdown as **one column per family** holding a compact signed family sum from
 >   `plan.signal.votes`; derive every Summary roll-up that can be computed from `plans`, and source the
 >   rest (`calendar`/`preset`/`weights`/`submodule pin`) from the optional `scan` run-`context` (Q-D).
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — follow recommendation.**
+>
+>   1. **`SHEET_SPEC` as the single column→field mapping — correct.** One table that governs all
+>      six sheets' columns and ordering eliminates the column-drift risk. Any column change is
+>      a single edit in `SHEET_SPEC`, not a hunt through sheet-building functions.
+>
+>   2. **Per-family signed sum for Reasoning sheet — correct.** One column per family (`Trend`,
+>      `Momentum`, `Volatility`, `Volume`) with a signed family sum is compact and readable.
+>      The full per-vote breakdown (`macd_hist:+0.8×0.20`) would be useful but overly dense for
+>      Excel — the signed sum gives the right level of detail. The per-vote breakdown is
+>      available in the `reasoning` text and in `top_factors`.
+>
+>   3. **Derive-from-plans + context for Summary — correct.** Everything computable from plans
+>      should be computed. The four non-derivable fields (`calendar`, `preset`, `weights`,
+>      `submodule pin`) come from the scan orchestrator, not from any single plan. Threading
+>      them via an optional `context` mapping (Q-D) is the right separation.
 
 > **Q-D — input shape + how Summary metadata is threaded (← decides the command signature).**
 > The issue signature is `export(plans, path=…, engine=…)`. **`plans` must be `list[TradePlan]`** — it is
@@ -148,7 +193,22 @@ presentation-only and never mutates the stored model value.
 >   and accept an **optional `context`** mapping from `scan` for the non-derivable Summary cells (missing
 >   ⇒ `"n/a"`); accept `path`/`engine` as top-level kwargs that **override** `ExportConfig`, falling back to
 >   the config when omitted.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — `list[TradePlan]` + optional `context` + kwargs override.**
+>
+>   1. **`plans: list[TradePlan]` — the only viable input shape.** `list[Recommendation]` alone
+>      cannot populate Orders, Fills, or the vote breakdown (Reasoning sheet). The full plan
+>      carries everything: `.recommendation` → Recommendations/Levels, `.signal.votes` →
+>      Reasoning, `.orders` → Orders, `.simulated_fills` → Fills.
+>
+>   2. **Option (i) for Summary metadata — correct.** Derive what you can from plans, accept
+>      the rest as optional `context`. This means `export` works standalone (with `"n/a"` for
+>      non-derivable cells) and richer when called from `scan`. Option (ii) bloats `ExportConfig`
+>      with run-context fields that don't belong on a config model. Option (iii) adds a new
+>      model contract that `scan` must emit — more ceremony for v1.
+>
+>   3. **Kwargs override `ExportConfig` — correct.** `export(plans, path="custom.xlsx")` should
+>      just work without constructing an `ExportConfig`. The explicit kwarg wins; the config is
+>      the fallback for defaults.
 
 > **Q-E — number formats + `Decimal` → Excel cells.**
 > Cells are IEEE float; money is `Decimal` (L9). Proposal: write `float(Decimal)` as the **cell value**
@@ -167,7 +227,21 @@ presentation-only and never mutates the stored model value.
 > - **Recommendation:** write `float(Decimal)` as the **unrounded** cell value with display `number_format`
 >   only; for percent fields use the literal-suffix format `'0.0"%"'` (option a — no ×100, so the cell value
 >   equals the model field and stays golden-stable); **never pre-round** a stored value.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — unrounded cell values + display-only formatting.**
+>
+>   1. **`float(Decimal)` as unrounded cell value — correct.** The cell stores the full-precision
+>      value; the `number_format` controls display rounding. This is the Excel-native way:
+>      presentation ≠ storage. Pre-rounding would lose precision and break golden stability
+>      (a rounding rule change would flip cell values).
+>
+>   2. **Literal-suffix `'0.0"%"'` for percent fields (option a) — correct.** The model stores
+>      `stop_distance_pct = -3.1` (meaning −3.1%). Excel's `'0.0%'` format would multiply by
+>      100, displaying −310%. The literal-suffix format avoids the ×100 and keeps
+>      `cell value == model field` — essential for golden stability and for any programmatic
+>      reader of the `.xlsx`.
+>
+>   3. **Never pre-round — confirmed.** R:R displayed as `2.0` via `'0.0'` format, but the
+>      cell holds `1.9743...`. A downstream formula referencing that cell gets the true value.
 
 > **Q-F — file-writing side-effects inside an `OBBject` command.**
 > `export` is unusual for OpenBB: it has a **write side-effect** and returns the **path**.
@@ -184,7 +258,24 @@ presentation-only and never mutates the stored model value.
 >   **resolved base dir** (env / `ExportConfig` override, default repo-relative `Analysis/exports/`) created
 >   with `mkdir(parents=True, exist_ok=True)`; **overwrite silently** on a same-as-of filename; always date
 >   the filename by the run **as-of**, never wall-clock.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — follow recommendation.**
+>
+>   1. **Return `str` path as `OBBject.results` — simple and sufficient.** A summary dict
+>      (`{path, sheets, rows}`) is tempting but unnecessary: the caller already knows the
+>      sheets (L2 fixed set) and can count rows from the input plans. The path is the only
+>      new information the export produces.
+>
+>   2. **Resolved base dir (not CWD) — correct.** CWD is fragile for an installed package.
+>      An env/config-overridable base with a sane repo-relative default (`Analysis/exports/`)
+>      works for both interactive use (from repo root) and deployed use (configured path).
+>
+>   3. **Overwrite silently — correct for a deterministic artifact.** Same inputs + same as-of
+>      = same file. Versioning/suffixing would accumulate stale files. The determinism guarantee
+>      (L6) means the overwritten file is identical to the previous one for the same inputs.
+>
+>   4. **Filename date = run as-of, never wall-clock — essential.** `datetime.now()` in the
+>      filename would break determinism and make golden testing impossible. The `as_of` date
+>      is the only meaningful timestamp for the analysis.
 
 ---
 

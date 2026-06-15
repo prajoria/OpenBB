@@ -85,7 +85,24 @@ shipped template. An optional later agent rewrite is out of scope; the template 
 > - **Recommendation:** A1 — votes-only polarity tokens (`"MACD+"`, `"RSI+"`), keeping the narrative a
 >   pure trace to `signal.votes` (L8) with no panel coupling; revisit A3 only if raw readings become a
 >   hard requirement.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — A1 (votes-only polarity tokens).**
+>
+>   1. **A1 preserves the auditability invariant (L8).** Every phrase traces to an `IndicatorVote`,
+>      which traces to a panel indicator. The chain is clean: one source of truth, one mapping.
+>      A2 would introduce a second source (`IndicatorPanel`) that must be threaded through the entire
+>      pipeline — a coupling cost with no user-visible benefit in v1.
+>
+>   2. **No panel on `TradePlan` today.** A2 requires the `IndicatorPanel` to reach the builder,
+>      but the `TradePlan` doesn't carry it. Adding it would be a model change touching #74, #77,
+>      and every golden downstream. Not worth it for parenthetical detail.
+>
+>   3. **Polarity tokens are readable.** `"MACD+"`, `"RSI+"`, `"EMA cross−"` are concise and
+>      self-explanatory. A user reading `"momentum confirming (RSI+, MACD+)"` understands the
+>      signal; the exact `RSI=62` value is secondary context the user can always look up.
+>
+>   4. **A3 is the right future path.** If raw readings become a hard requirement (e.g., for a
+>      richer agent-layer narrative), extending `IndicatorVote` with an optional `reading: float`
+>      is clean and backward-compatible. But that's a future issue, not #80.
 
 > **Q-B — `top_factors` selection + format.** Rank `signal.votes` by **`\|weight · vote\|`** (the [#74](https://github.com/prajoria/OpenBB/issues/74)
 > §4 attribution key, descending) and take the top-**K**. **K = 3** (matches the §9.3 example length).
@@ -99,7 +116,23 @@ shipped template. An optional later agent rewrite is out of scope; the template 
 > - **Recommendation:** rank by `|weight·vote|` desc, **K = 3** (configurable via the builder config,
 >   default 3), **include** volume votes, format each as `"{NAME}{±} ({family})"`, tie-break
 >   `|weight·vote|` → family canonical order → name alpha, dropping near-zero contributors.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — follow recommendation.**
+>
+>   1. **`|weight·vote|` as the ranking key — correct.** This is the same attribution key #74 §4
+>      uses to reconcile votes to the composite score. Reusing it for `top_factors` means the
+>      factors that appear are the ones that *actually moved the score* — faithful by construction.
+>
+>   2. **K=3 configurable — correct.** K=3 matches the §9.3 example length and is a sensible
+>      default for a 2–4 sentence narrative. Making it configurable (via the builder config)
+>      costs nothing and lets power users adjust.
+>
+>   3. **Include volume votes — correct.** Volume carries a `0.15` multiplier budget. If OBV
+>      or CMF fires strongly, its `|weight·vote|` contribution is real. Excluding volume would
+>      hide a meaningful factor from `top_factors`.
+>
+>   4. **Format `"{NAME}{±} ({family})"` — clean and readable.** The family in parens adds
+>      context without clutter. The tie-break chain (magnitude → family order → alpha) is
+>      total and deterministic.
 
 > **Q-C — `caveats` triggers + deterministic ordering.** Which conditions raise a caveat, and in what
 > fixed precedence? Proposed trigger set (each a short clause, joined in this order):
@@ -120,7 +153,25 @@ shipped template. An optional later agent rewrite is out of scope; the template 
 > - **Recommendation:** adopt the full six-trigger set in the listed precedence with δ = 0.10 (the
 >   `[0.40, 0.50)` borderline band); treat `plan.validation` as optionally present (trigger #1 fires
 >   only when it is); and ship the empty case as `"None."` (a benign, non-blank, golden-stable string).
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — full six-trigger set with `"None."` empty case.**
+>
+>   1. **Six triggers in fixed precedence — correct and complete.** The ordering (validation →
+>      no-fill → volume divergence → intra-family split → borderline → missing family) reflects
+>      severity: structural warnings first (validation, fill failure), then signal-quality
+>      warnings. A deterministic ordering makes caveats golden-stable.
+>
+>   2. **δ = 0.10 for borderline band `[0.40, 0.50)` — reasonable.** This flags scores that
+>      *barely* crossed the entry threshold, which is genuinely useful information. 10 basis
+>      points of score above the threshold means the recommendation could easily flip on a
+>      slightly different day.
+>
+>   3. **`plan.validation` optionally present — correct.** #82 is a soft dependency; the
+>      trigger fires only when the field is populated. This is exactly why `validation` is
+>      typed `Data | None`.
+>
+>   4. **`"None."` for empty caveats — correct.** A blank string is ambiguous (is it missing
+>      or intentionally empty?). `"None."` is unambiguous, golden-stable, and reads naturally
+>      in both the Excel export and the narrative context.
 
 > **Q-D — `entry_price` provenance + the FLAT / no-fill edge case (a real model tension).**
 > The three price fields are **required `Decimal`** (no default), yet a `HOLD/FLAT` symbol has **no
@@ -143,7 +194,24 @@ shipped template. An optional later agent rewrite is out of scope; the template 
 > - **Recommendation:** FLAT entry = the **`as_of` close** (a meaningful reference, not `Decimal("0")`)
 >   with `stop = target = entry` ⇒ zero-distance gaps; for filled trades **freeze** [#77](https://github.com/prajoria/OpenBB/issues/77)'s planned
 >   stop/target and **report the drifted R:R** honestly (no re-anchoring), consistent with [#77](https://github.com/prajoria/OpenBB/issues/77) Q-F.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — FLAT = `as_of` close; freeze levels; report drift.**
+>
+>   1. **FLAT entry = `as_of` close — correct.** `Decimal("0")` is a meaningless sentinel that
+>      would confuse any downstream consumer. The `as_of` close is a real, meaningful reference
+>      price that answers "where was the stock when we decided not to trade?" The zero-distance
+>      (`stop = target = entry`) and zero-size fields are the clean FLAT representation, and
+>      #81 maps them to `"—"` in Excel.
+>
+>   2. **Freeze planned levels for filled trades — consistent with #77 Q-F.** Re-anchoring
+>      stop/target off the realized entry would hide the slippage. If the planned entry was
+>      $100 and the fill was $100.15, the frozen stop ($97) and target ($104) now produce a
+>      *slightly different* R:R than the planned 2.0×. That drift is real information —
+>      reporting it honestly is the right thing. The user sees: "your fill was 15 cents worse
+>      than planned, so your actual R:R is 1.97× instead of 2.0×."
+>
+>   3. **Division guards (zero-distance) — essential.** The `entry == stop` case must not
+>      throw `ZeroDivisionError`. Returning `0.0` for all distance/R:R fields is the natural
+>      sentinel.
 
 > **Q-E — `risk_pct_of_notional` formula (§4.7 normalized, no personal dollars).** The field is
 > `float`, documented *"Position risk as a percent of notional / sizing risk fraction used."* Three
@@ -165,7 +233,22 @@ shipped template. An optional later agent rewrite is out of scope; the template 
 >   of abstract account notional at risk), which requires threading `SizingConfig` (or at least
 >   `account_size`) onto the `TradePlan`; if that plumbing is rejected, fall back to **E1**
 >   (`risk_per_share / entry_price`), which needs nothing extra.
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — E3 with `SizingConfig` threading; E1 as fallback.**
+>
+>   1. **E3 is the most informative formula.** `(position_size × risk_per_share) / account_size`
+>      answers the real question: "what fraction of my capital is at risk in this trade?" E1
+>      (`risk_per_share / entry_price`) is just `stop_distance_pct` by another name —
+>      redundant with an existing field. E2 (`risk_per_trade`) is the *input* budget, not the
+>      *realized* fraction after share-flooring.
+>
+>   2. **Threading `SizingConfig` (or `account_size`) is acceptable.** The `TradePlan` already
+>      carries `position_size` (from #76's sizing). Adding `account_size` is one more Decimal
+>      field — either directly on `TradePlan` or by making `SizingConfig` accessible through
+>      the plan's `rule`. The plumbing cost is low.
+>
+>   3. **E1 as fallback is pragmatic.** If the plumbing is deferred, E1 (`risk_per_share /
+>      entry_price`) still produces a meaningful per-share risk fraction. The field contract
+>      (`float`, documented as "risk fraction") holds for both formulas — E3 is just richer.
 
 > **Q-F — builder location, signature, and the `engine/execution.py` filename pact.** PRD §9.1 names a
 > single `engine/execution.py` hosting *"BrokerInterface + paper fill simulation + Recommendation
@@ -180,7 +263,21 @@ shipped template. An optional later agent rewrite is out of scope; the template 
 >   **return-only** (pure); the `plan_router` / [#79](https://github.com/prajoria/OpenBB/issues/79) `scan` caller attaches it via
 >   `plan.model_copy(update={"recommendation": rec})`. Keep the `engine/execution.py` filename for #80
 >   per the [#78](./78-paperbroker-fill-sim.md) §1 pact (broker/fill live in `broker.py`/`simulate.py`).
-> - **Answer:** _(pending approval)_
+> - **Answer (Review):** ✅ **Approved — return-only builder in `execution.py`.**
+>
+>   1. **Return-only (pure) — correct.** `build_recommendation` should be a pure function:
+>      plan in, `Recommendation` out. No mutation. The caller (`plan_router` / `scan`) attaches
+>      the result via `model_copy`. This is the same immutable discipline used by backtest's
+>      `sanitize_result` and the #78 `model_copy` attach pattern.
+>
+>   2. **`execution.py` filename — honors the #78 §1 pact.** #78 split the broker/fill code
+>      into `broker.py` + `simulate.py` and explicitly left `execution.py` for #80. Keeping
+>      this agreement avoids a confusing rename.
+>
+>   3. **Reuse `confluence.bucket_conviction` (L3) — confirmed.** Import the two-line bucketer
+>      from `confluence.py` rather than inline it. One source of truth for the `0.7 / 0.4`
+>      edges prevents silent drift between the confluence score and the recommendation's
+>      conviction label.
 
 ---
 
