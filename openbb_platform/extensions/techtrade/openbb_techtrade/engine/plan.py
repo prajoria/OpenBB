@@ -36,6 +36,7 @@ from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 
+from openbb_techtrade.engine.execution import build_recommendation
 from openbb_techtrade.engine.orders import build_trade_plan
 from openbb_techtrade.models import MoverSignal, Order, TradePlan
 
@@ -167,7 +168,13 @@ def build_plans(
     plans: list[TradePlan] = []
     for signal in signals:
         entry, atr = fetch_levels(signal.symbol, as_of=signal.as_of)
-        plans.append(build_trade_plan(signal, entry=entry, atr=atr, risk_per_trade=risk))
+        plan = build_trade_plan(signal, entry=entry, atr=atr, risk_per_trade=risk)
+        # #80 delegation seam: the #77 inline ``Recommendation`` is a self-contained stub;
+        # replace it with the templated builder's narrative so the plan that flows downstream
+        # carries the full ``reasoning`` / ``top_factors`` / ``caveats`` story (design Q-F).
+        # ``build_recommendation`` is pure / return-only, so we attach via ``model_copy``.
+        recommendation = build_recommendation(plan)
+        plans.append(plan.model_copy(update={"recommendation": recommendation}))
     return plans
 
 

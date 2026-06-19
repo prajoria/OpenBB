@@ -36,6 +36,7 @@ from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 
+from openbb_techtrade.engine.execution import build_recommendation
 from openbb_techtrade.engine.movers import list_movers, resolve_session
 from openbb_techtrade.engine.plan import build_plans
 from openbb_techtrade.execution.broker import (
@@ -207,4 +208,8 @@ def _with_fills(plan: TradePlan, bars: dict[str, list], broker: BrokerInterface 
     except Exception as exc:  # noqa: BLE001 - per-symbol fill isolation (design Q-E)
         warnings.warn(f"scan: skipped fills for {plan.symbol!r}: {exc}", stacklevel=2)
         return plan
-    return plan.model_copy(update={"simulated_fills": fills})
+    filled_plan = plan.model_copy(update={"simulated_fills": fills})
+    # #80 / Q-D filled branch: rebuild the Recommendation off the realized entry so the
+    # narrative + R:R + risk_pct_of_notional reflect the actual fill (#77 Q-F freeze + drift).
+    refreshed = build_recommendation(filled_plan)
+    return filled_plan.model_copy(update={"recommendation": refreshed})
