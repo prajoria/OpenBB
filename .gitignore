@@ -61,6 +61,8 @@ obb/*
 
 # Tools local context (PII, credentials, paths)
 Tools/docs/CONTEXT_LOCAL.md
+# Vendored binaries pulled in for one-off bootstrapping (uv standalone, etc.)
+Tools/uv/
 *.exe
 build/conda/tmp
 # Windows virtual environment
