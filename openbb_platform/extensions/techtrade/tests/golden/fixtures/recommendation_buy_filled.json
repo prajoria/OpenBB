@@ -1,0 +1,26 @@
+{
+  "action": "BUY",
+  "as_of": "2024-01-12",
+  "atr": 1.9,
+  "caveats": "Trend votes split.",
+  "conviction": "High",
+  "entry_price": "121.40",
+  "position_size": "263",
+  "reasoning": "Long GLD: trend weakly mixed (macd_hist+, ema_cross-), momentum strongly confirming (rsi+, stoch+), volatility breakout (bb_pctb+), and volume confirming (obv_slope+, cmf+). Stop 2xATR below entry (-3.1%); target at 2.0R (+6.3%).",
+  "risk_pct_of_notional": 0.009994,
+  "risk_per_share": "3.80",
+  "risk_reward": 2.0,
+  "score": 0.72,
+  "segment": "Materials",
+  "stop_distance_pct": 0.03130148270181219,
+  "stop_price": "117.60",
+  "symbol": "GLD",
+  "target_distance_pct": 0.06260296540362438,
+  "target_price": "129.00",
+  "time_stop_bars": 20,
+  "top_factors": [
+    "ema_cross- (trend)",
+    "macd_hist+ (trend)",
+    "stoch+ (momentum)"
+  ]
+}
