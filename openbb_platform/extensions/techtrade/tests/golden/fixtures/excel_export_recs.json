@@ -1,0 +1,536 @@
+{
+  "by_sheet": {
+    "Fills": {
+      "cells": {
+        "max_col": 7,
+        "max_row": 3,
+        "rows": [
+          [
+            "Symbol",
+            "Side",
+            "Qty",
+            "Fill Price",
+            "Commission",
+            "Slippage",
+            "Timestamp"
+          ],
+          [
+            "NVDA",
+            "buy",
+            263,
+            121.4,
+            0,
+            0.06,
+            "2024-01-16T14:30:00"
+          ],
+          [
+            "GLD",
+            "sell_short",
+            263,
+            121.4,
+            0,
+            0.06,
+            "2024-01-16T14:30:00"
+          ]
+        ]
+      },
+      "conditional_formats": [],
+      "number_formats": {
+        "Commission": "\"$\"#,##0.00",
+        "Fill Price": "\"$\"#,##0.00",
+        "Qty": "#,##0",
+        "Side": "General",
+        "Slippage": "\"$\"#,##0.00",
+        "Symbol": "General",
+        "Timestamp": "yyyy-mm-dd h:mm:ss"
+      }
+    },
+    "Levels": {
+      "cells": {
+        "max_col": 10,
+        "max_row": 4,
+        "rows": [
+          [
+            "Symbol",
+            "Entry",
+            "Stop",
+            "Target",
+            "Stop Distance %",
+            "Target Distance %",
+            "ATR(14)",
+            "Risk/Share",
+            "Risk %",
+            "Time Stop (bars)"
+          ],
+          [
+            "JPM",
+            121.4,
+            121.4,
+            121.4,
+            0,
+            0,
+            1.9,
+            0,
+            0,
+            null
+          ],
+          [
+            "NVDA",
+            121.4,
+            117.6,
+            129,
+            3.130148270181219,
+            6.260296540362438,
+            1.9,
+            3.8,
+            0.009994,
+            20
+          ],
+          [
+            "GLD",
+            121.4,
+            125.2,
+            113.8,
+            3.130148270181219,
+            6.260296540362438,
+            1.9,
+            3.8,
+            0.009994,
+            20
+          ]
+        ]
+      },
+      "conditional_formats": [],
+      "number_formats": {
+        "ATR(14)": "General",
+        "Entry": "\"$\"#,##0.00",
+        "Risk %": "0.00%",
+        "Risk/Share": "\"$\"#,##0.00",
+        "Stop": "\"$\"#,##0.00",
+        "Stop Distance %": "0.00\"%\"",
+        "Symbol": "General",
+        "Target": "\"$\"#,##0.00",
+        "Target Distance %": "0.00\"%\"",
+        "Time Stop (bars)": "General"
+      }
+    },
+    "Orders": {
+      "cells": {
+        "max_col": 8,
+        "max_row": 7,
+        "rows": [
+          [
+            "Symbol",
+            "Side",
+            "Qty",
+            "Type",
+            "Limit",
+            "Stop",
+            "TIF",
+            "Intent"
+          ],
+          [
+            "NVDA",
+            "buy",
+            263,
+            "market",
+            null,
+            null,
+            "day",
+            "entry"
+          ],
+          [
+            "NVDA",
+            "sell",
+            263,
+            "stop",
+            null,
+            117.6,
+            "gtc",
+            "exit_stop"
+          ],
+          [
+            "NVDA",
+            "sell",
+            263,
+            "limit",
+            129,
+            null,
+            "gtc",
+            "exit_target"
+          ],
+          [
+            "GLD",
+            "sell_short",
+            263,
+            "market",
+            null,
+            null,
+            "day",
+            "entry"
+          ],
+          [
+            "GLD",
+            "buy_to_cover",
+            263,
+            "stop",
+            null,
+            125.2,
+            "gtc",
+            "exit_stop"
+          ],
+          [
+            "GLD",
+            "buy_to_cover",
+            263,
+            "limit",
+            113.8,
+            null,
+            "gtc",
+            "exit_target"
+          ]
+        ]
+      },
+      "conditional_formats": [],
+      "number_formats": {
+        "Intent": "General",
+        "Limit": "\"$\"#,##0.00",
+        "Qty": "#,##0",
+        "Side": "General",
+        "Stop": "\"$\"#,##0.00",
+        "Symbol": "General",
+        "TIF": "General",
+        "Type": "General"
+      }
+    },
+    "Reasoning": {
+      "cells": {
+        "max_col": 8,
+        "max_row": 4,
+        "rows": [
+          [
+            "Symbol",
+            "Reasoning (full)",
+            "Top Factors",
+            "Caveats",
+            "Trend",
+            "Momentum",
+            "Volatility",
+            "Volume"
+          ],
+          [
+            "JPM",
+            "Hold JPM: below the entry threshold.",
+            null,
+            "None.",
+            -0.8,
+            -0.2,
+            -0.12,
+            -0.15
+          ],
+          [
+            "NVDA",
+            "BUY NVDA: trend confirming.",
+            "macd_hist+ (trend), ema_cross+ (trend)",
+            "None.",
+            0.8,
+            0.2,
+            0.12,
+            0.15
+          ],
+          [
+            "GLD",
+            "SELL_SHORT GLD: trend confirming.",
+            "macd_hist- (trend)",
+            "None.",
+            -0.8,
+            -0.2,
+            -0.12,
+            -0.15
+          ]
+        ]
+      },
+      "conditional_formats": [],
+      "number_formats": {
+        "Caveats": "General",
+        "Momentum": "+0.00;-0.00",
+        "Reasoning (full)": "General",
+        "Symbol": "General",
+        "Top Factors": "General",
+        "Trend": "+0.00;-0.00",
+        "Volatility": "+0.00;-0.00",
+        "Volume": "+0.00;-0.00"
+      }
+    },
+    "Recommendations": {
+      "cells": {
+        "max_col": 12,
+        "max_row": 7,
+        "rows": [
+          [
+            "OpenBB TechTrade - Top-Mover Recommendations - 2024-01-12",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "Research/paper output - not investment advice",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            "Segment",
+            "Symbol",
+            "Action",
+            "Conviction",
+            "Score",
+            "Entry",
+            "Stop",
+            "Target",
+            "Stop %",
+            "R:R",
+            "Shares",
+            "Reasoning"
+          ],
+          [
+            "Financials",
+            "JPM",
+            "HOLD/FLAT",
+            "Low",
+            0.05,
+            121.4,
+            121.4,
+            121.4,
+            0,
+            0,
+            0,
+            "Hold JPM: below the entry threshold."
+          ],
+          [
+            "Information Technology",
+            "NVDA",
+            "BUY",
+            "High",
+            0.78,
+            121.4,
+            117.6,
+            129,
+            3.130148270181219,
+            2,
+            263,
+            "BUY NVDA: trend confirming."
+          ],
+          [
+            "Materials",
+            "GLD",
+            "SELL_SHORT",
+            "High",
+            -0.78,
+            121.4,
+            125.2,
+            113.8,
+            3.130148270181219,
+            2,
+            263,
+            "SELL_SHORT GLD: trend confirming."
+          ]
+        ]
+      },
+      "conditional_formats": [
+        {
+          "formula": [
+            "\"BUY\""
+          ],
+          "operator": "equal",
+          "range": "C5:C7",
+          "type": "cellIs"
+        },
+        {
+          "formula": [
+            "\"HOLD/FLAT\""
+          ],
+          "operator": "equal",
+          "range": "C5:C7",
+          "type": "cellIs"
+        },
+        {
+          "formula": [
+            "\"SELL_SHORT\""
+          ],
+          "operator": "equal",
+          "range": "C5:C7",
+          "type": "cellIs"
+        },
+        {
+          "formula": [
+            "\"High\""
+          ],
+          "operator": "equal",
+          "range": "D5:D7",
+          "type": "cellIs"
+        },
+        {
+          "formula": [
+            "\"Low\""
+          ],
+          "operator": "equal",
+          "range": "D5:D7",
+          "type": "cellIs"
+        },
+        {
+          "formula": [
+            "\"Medium\""
+          ],
+          "operator": "equal",
+          "range": "D5:D7",
+          "type": "cellIs"
+        },
+        {
+          "formula": [],
+          "operator": null,
+          "range": "E5:E7",
+          "type": "colorScale"
+        },
+        {
+          "formula": [],
+          "operator": null,
+          "range": "I5:I7",
+          "type": "colorScale"
+        },
+        {
+          "formula": [],
+          "operator": null,
+          "range": "J5:J7",
+          "type": "dataBar"
+        }
+      ],
+      "number_formats": {
+        "Action": "General",
+        "Conviction": "General",
+        "Entry": "\"$\"#,##0.00",
+        "R:R": "0.0",
+        "Reasoning": "General",
+        "Score": "+0.00;-0.00",
+        "Segment": "General",
+        "Shares": "#,##0",
+        "Stop": "\"$\"#,##0.00",
+        "Stop %": "0.00\"%\"",
+        "Symbol": "General",
+        "Target": "\"$\"#,##0.00"
+      }
+    },
+    "Summary": {
+      "cells": {
+        "max_col": 2,
+        "max_row": 15,
+        "rows": [
+          [
+            "Key",
+            "Value"
+          ],
+          [
+            "As-of",
+            "2024-01-12"
+          ],
+          [
+            "Calendar",
+            "n/a"
+          ],
+          [
+            "Preset",
+            "n/a"
+          ],
+          [
+            "Weights",
+            "n/a"
+          ],
+          [
+            "Submodule pin (pandas-ta-classic)",
+            "n/a"
+          ],
+          [
+            "Plans (total)",
+            3
+          ],
+          [
+            "BUY",
+            1
+          ],
+          [
+            "SELL_SHORT",
+            1
+          ],
+          [
+            "HOLD/FLAT",
+            1
+          ],
+          [
+            "Avg R:R (actionable)",
+            2
+          ],
+          [
+            "Validation coverage",
+            0
+          ],
+          [
+            "Segment: Financials",
+            1
+          ],
+          [
+            "Segment: Information Technology",
+            1
+          ],
+          [
+            "Segment: Materials",
+            1
+          ]
+        ]
+      },
+      "conditional_formats": [],
+      "number_formats": {
+        "Key": "General",
+        "Value": "General"
+      }
+    }
+  },
+  "disclaimer": "Research/paper output - not investment advice",
+  "sheets": [
+    "Recommendations",
+    "Levels",
+    "Reasoning",
+    "Orders",
+    "Fills",
+    "Summary"
+  ]
+}
