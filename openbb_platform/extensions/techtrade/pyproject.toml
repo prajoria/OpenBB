@@ -12,11 +12,14 @@ python = ">=3.10,<3.14"
 openbb-core = "^1.6.10"
 pandas = "*"
 numpy = "*"
+openpyxl = "*"
 
 [tool.poetry.extras]
 # tuneta -> MIT, optional per-segment indicator tuning (PRD §12.4, issue #83)
 # talib  -> BSD, optional C-acceleration backend for pandas-ta-classic
 # agent  -> optional reasoning / MCP tool surface (PRD §16, issues #84/#85)
+# xlsxwriter -> BSD, optional richer Excel engine for obb.techtrade.export (PRD §14.3 / issue #81)
+xlsxwriter = ["xlsxwriter"]
 
 [build-system]
 requires = ["poetry-core"]
