@@ -19,11 +19,20 @@ openpyxl = "*"
 # talib  -> BSD, optional C-acceleration backend for pandas-ta-classic
 # agent  -> optional reasoning / MCP tool surface (PRD §16, issues #84/#85)
 # xlsxwriter -> BSD, optional richer Excel engine for obb.techtrade.export (PRD §14.3 / issue #81)
+# validation -> AGPL, optional openbb-backtest engine for obb.techtrade.validate (PRD §15 / issue #82)
 xlsxwriter = ["xlsxwriter"]
+validation = ["openbb-backtest"]
+
+[tool.poetry.plugins."openbb_core_extension"]
+techtrade = "openbb_techtrade.techtrade_router:router"
+
+[tool.poetry.plugins."openbb_backtest_strategies"]
+# Advertise the techtrade confluence SignalStrategy to openbb-backtest's plugin discovery.
+# backtest auto-discovers this strategy *only when both packages are installed* -- the
+# entry-point file ships unconditionally, but ``import openbb_backtest`` only happens
+# inside the strategy module body. Design Q-A (soft dep) + Q-B B2 (registered strategy).
+techtrade_confluence = "openbb_techtrade.validation.confluence_strategy:TechtradeConfluence"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.plugins."openbb_core_extension"]
-techtrade = "openbb_techtrade.techtrade_router:router"
