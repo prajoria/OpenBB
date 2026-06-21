@@ -55,6 +55,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
-claude config set statusLine true
+rem ---------------------------------------------------------------------------
+rem NOTE: do NOT run "claude config set statusLine true" here. Claude Code 2.x
+rem removed the "config" subcommand, so that invocation is parsed as a prompt
+rem ("config") and sent to the API, producing a stray "config" turn and a
+rem 400 Bad Request. Configure statusLine via ~/.claude/settings.json instead.
+rem ---------------------------------------------------------------------------
 set "CLAUDE_CODE_PERMISSION_MODE=bypassPermissions"
 claude --permission-mode bypassPermissions --model %CLAUDE_MODEL%
