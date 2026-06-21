@@ -47,7 +47,14 @@ set "LOG_FILE=%LOG_DIR%\proxy.log"
 echo [start-copilot-proxy] Logging to: %LOG_FILE%
 echo [start-copilot-proxy] COPILOT_API_FORCE_MODEL=%COPILOT_API_FORCE_MODEL%
 
-rem PowerShell Tee-Object gives us both live console output AND a log file.
-rem Each line gets a millisecond timestamp. --verbose makes consola emit
-rem request payloads and the "Forcing model X -> Y" lines.
-powershell -NoProfile -Command "& node '%PROXY_ENTRY%' start --port 4141 --verbose %* 2>&1 | ForEach-Object { '{0:HH:mm:ss.fff} {1}' -f (Get-Date), $_ } | Tee-Object -FilePath '%LOG_FILE%' -Append"
+rem ---------------------------------------------------------------------------
+rem Pre-flight: only one instance can bind :4141. Starting a second one makes
+rem Node throw an unhandled EADDRINUSE 'error' event and exit 1 ("it crashes").
+rem If a proxy is already listening, reuse it and exit cleanly instead of
+rem crashing. Stop the existing process first if you want a fresh start.
+rem
+rem The port check, the node launch and the timestamped Tee logging all run in a
+rem single PowerShell session so the guard and the server share one context.
+rem --verbose makes consola emit request payloads and "Forcing model X -> Y".
+rem ---------------------------------------------------------------------------
+powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort 4141 -State Listen -ErrorAction SilentlyContinue) { Write-Host '[start-copilot-proxy] A proxy is already listening on :4141 - reusing it (not starting a second instance). Stop the existing process first for a fresh start.'; exit 0 }; & node '%PROXY_ENTRY%' start --port 4141 --verbose %* 2>&1 | ForEach-Object { '{0:HH:mm:ss.fff} {1}' -f (Get-Date), $_ } | Tee-Object -FilePath '%LOG_FILE%' -Append"
