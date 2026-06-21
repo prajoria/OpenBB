@@ -6,11 +6,13 @@ set "ANTHROPIC_API_KEY=copilot-proxy"
 set "CLAUDE_CODE_USE_POWERSHELL_TOOL=1"
 
 rem ---------------------------------------------------------------------------
-rem Portable layout: this .bat lives in <root>\git\ and the portable Node.js +
-rem npm-global (with claude.cmd) live in <root>\tools\. Everything resolved
-rem relative to %~dp0 so moving <root> to another disk just works.
+rem Portable layout: this .bat lives in <root>\git\OpenBBTechnical\ and the
+rem portable Node.js + npm-global (with claude.cmd) live in <root>\tools\.
+rem The copilot-api proxy is vendored as a git submodule next to this script
+rem (%~dp0copilot-api). Everything resolved relative to %~dp0 so moving <root>
+rem to another disk just works.
 rem ---------------------------------------------------------------------------
-set "PORTABLE_ROOT=%~dp0.."
+set "PORTABLE_ROOT=%~dp0..\.."
 set "NODE_HOME=%PORTABLE_ROOT%\tools\nodejs"
 set "NPM_CONFIG_PREFIX=%PORTABLE_ROOT%\tools\npm-global"
 set "NPM_CONFIG_CACHE=%PORTABLE_ROOT%\tools\npm-cache"

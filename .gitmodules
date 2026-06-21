@@ -15,3 +15,7 @@
 [submodule "openbb_platform/extensions/techtrade/external/pandas-ta-classic"]
 	path = openbb_platform/extensions/techtrade/external/pandas-ta-classic
 	url = https://github.com/prajoria/pandas-ta-classic.git
+[submodule "copilot-api"]
+	path = copilot-api
+	url = https://github.com/prajoria/copilot-api.git
+	branch = master
