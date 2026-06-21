@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "OpenBBTechnical",
+  "project_id": "d338b7ac-62cd-4d50-9616-ccafe055d7d4"
+}
