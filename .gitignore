@@ -92,11 +92,9 @@ setup_copilot_claud/
 setup_playwright_mcp/
 vscode-extension/
 
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-.beads/proxieddb/
+# Beads / Dolt: rules now live in .beads/.gitignore (tracks config + hooks,
+# ignores embeddeddolt/ runtime and the credential key). Issue data syncs via
+# `refs/dolt/data` on the git remote; see .beads/README.md.
 
 # Temporary scratch files
 temp/
