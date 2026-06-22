@@ -75,7 +75,7 @@ ships under.
 | **L2** | Verdict gate | **Strict: `verdict == "robust"` persists** | Stricter than PRD §15's "non-overfit" wording. `fragile` and `overfit` candidates are returned to the user in the `TuningReport` (for transparency / diagnosis) but **not** persisted. Conservative against PRD §19's TA-over-tuning risk. |
 | **L3** | Persistence | **`~/.openbb_platform/techtrade_tuned.json`** | Per-user file. Schema: `{"schema_version": "1.0", "segments": {<name>: {"config": <IndicatorConfig-as-dict>, "meta": {"verdict": "robust", "pbo": ..., "dsr": ..., "tuned_at": "<iso8601>", "tuneta_version": "<x.y.z>"}}}}`. Never committed; `.gitignore`-equivalent already covers `~/.openbb_platform/` by virtue of being outside the repo. |
 | **L4** | Per-segment tune target | **Pool the segment's universe** into one MultiIndex `(date, symbol)` OHLCV DataFrame | Single `tuneta.fit(X, y)` per segment, exercising tuneta's documented multi-symbol path. Statistical power across the sector vs. an ETF proxy. Forces a `pool_sector_ohlcv(segment, as_of, horizon_years)` helper with an offline-test fetcher seam (mirrors `engine/indicators.py:_default_ohlcv_fetcher`). |
-| **L5** | Validate scope | **Per-segment: one `validate_plan(...)` call per `tune(segment, ...)`** | The tuned candidate `IndicatorConfig` builds a sample `TradePlan` for the segment's benchmark ETF (deterministic; see Q-A), then `openbb_techtrade.validation.backtest_bridge.validate_plan(plan, method="wfo")` returns the `ValidationReport`. Each segment proves itself; no aggregate gate. |
+| **L5** | Validate scope | **Per-segment: one `validate_plan(...)` call per `tune(segment, ...)`** | The tuned candidate `IndicatorConfig` builds a sample `TradePlan` for the segment's benchmark ETF (deterministic; see Q-A), then `openbb_techtrade.validation.backtest_bridge.validate_plan(plan, method="wfo")` returns the `ValidationReport`. Each segment proves itself; no aggregate gate. **Execution-model fact (verified 2026-06-21 against the #82 code):** `validate_plan` runs the WFO fold loop *sequentially in the caller's asyncio task* — no `ThreadPool`/`ProcessPool`/`run_in_executor`/`multiprocessing`/`joblib`/`concurrent.futures`/`ray`/`dask` usage anywhere in `openbb_backtest`. This locks §5.3's W2 contextvar approach as safe (asyncio context-copy propagates the override into the fold loop). |
 | **L6** | Tuneta search space | **8 period knobs** with explicit ranges | `macd_fast (8,20)`, `macd_slow (20,40)`, `macd_signal (5,15)`, `adx_length (10,30)`, `ema_fast (10,30)`, `ema_slow (30,80)`, `rsi_length (8,30)`, `atr_length (10,30)`. The 7 non-period / coupled-bundle knobs (`stoch_k/d/smooth_k`, `bb_length/std`, `kc_length/scalar`) stay at PRD defaults — tuneta tunes one period per indicator, stoch needs 3 coherent knobs together, and `bb_std=2.0` / `kc_scalar=1.5` are shape multipliers, not periods. |
 | **L7** | Command shape | **`tune(segment: str, ...) → OBBject[TuningReport]`** — single-segment per call | Matches the issue's literal `tune(segment, ...)` signature. Caller loops over the 11 GICS sectors if they want all of them; composable; no batch-resume logic in v1. |
 | **L8** | Dependency posture | **Soft/optional, `[tuneta]` extra, reuses `TechtradeDependencyError`** | Mirrors #82's Q-A verbatim. `pyproject.toml` declares `tuneta = ["tuneta"]`; all `import tuneta` is lazy in-body in `tuning/tuneta_adapter.py`; absent → `TechtradeDependencyError(OpenBBError)` with hint `pip install 'openbb-techtrade[tuneta]'`. Every other techtrade command keeps importing and running (enforced by the #85 core-unchanged-when-removed test). |
@@ -614,32 +614,36 @@ The per-segment validate (§4.3) needs the candidate `IndicatorConfig` to be the
 
 > Documented here so reviewers can pick W1 if they prefer a simpler mental model and a one-line revert; the implementation plan can branch on the answer.
 
-> - **Answer (Review):** ⚠️ **Conditional — W2 only if `validate_plan` runs in-thread; otherwise W1. Verify #82's execution model before locking.**
+> - **Answer (Review):** ✅ **Approved — W2 (contextvar). Verified 2026-06-21 against the #82 code.**
 >
->   1. **The decision hinges on a fact not yet stated here: how #82 executes the WFO folds.**
->      `ContextVar` propagates to `asyncio` tasks (via `copy_context`) and stays correct for
->      synchronous same-thread calls — but it does **not** automatically cross into
->      `ThreadPoolExecutor`/`ProcessPoolExecutor` workers. If #82 fans folds across threads or
->      subprocesses, the W2 override is invisible in the worker, `lookup_tuned_for_symbol` falls
->      back to `DEFAULT_CONFIG`, and validate silently grades the *wrong* config → a meaningless
->      verdict with no error. That is exactly the silent-failure class this whole gate exists to
->      prevent.
->   2. **Therefore:**
->      - If `validate_plan` is **synchronous and single-threaded** → **W2** is clean, correct, and
->        avoids the concurrency window. Add a test that asserts the override is actually seen by
->        the strategy re-run (not just set).
->      - If it uses **threads/processes** → **W1** (write → validate → `try/finally` revert), because
->        a real file is the only override that reliably crosses the worker boundary. Mitigate the
->        concurrency window by writing to a temp file + atomic `os.replace` *only after* `robust`,
->        and reverting in `finally` so a crash mid-validate can't leave a non-robust config
->        persisted. (W1 + atomic-replace also sidesteps the Q-E coarse-mtime race.)
->   3. **If you want W2's cleanliness regardless of #82's model,** the middle path is W2 with
->      *explicit* context propagation — capture `contextvars.copy_context()` and run each fold
->      inside it — but that couples #83 to #82's internal executor wiring, which is more brittle
->      than just picking W1. Prefer W1 over "W2 + manual propagation" unless validate is provably
->      single-thread.
->   4. **Action:** confirm the #82 `validate_plan` execution model (in-thread vs pooled) and record
->      it in L5's note; that single fact locks W1 vs W2.
+>   1. **Execution-model verification (the fact your conditional asked for).** Grep across the
+>      entire `openbb_backtest` package for `ThreadPool` / `ProcessPool` / `run_in_executor` /
+>      `multiprocessing` / `joblib.Parallel` / `concurrent.futures` / `asyncio.gather` /
+>      `asyncio.create_task` / `ray` / `dask` returns **zero hits**. The fold loop in
+>      `openbb_backtest/routers/validate_router.py:206` is a plain `for i, fold in enumerate(folds):`
+>      that runs sequentially in the caller's task. The `async def validate` declaration exists for
+>      REST-streaming surface consistency (`09-api-surface.md` §2) but does no executor offload.
+>      `validate_plan` therefore runs in the *same* asyncio task as `tune_router.tune`, which means
+>      a `ContextVar` set in `tune` propagates correctly into `_run_folds` via standard asyncio
+>      context-copy semantics. **W2 is safe today.**
+>   2. **Therefore W2 is locked**, with two guards that survive a future #82 refactor:
+>      - **Locked-in test (`test_override_visible_in_validate_fold`):** asserts the contextvar
+>        override set by `tune` is *actually observed* by `lookup_tuned_for_symbol` during the
+>        validate call — not just that the var is set in the `tune` frame. Catches the
+>        executor-regression the moment backtest adds one.
+>      - **Boundary-comment in code:** `tuned_defaults.py` documents that the override mechanism
+>        assumes `validate_plan` runs in the same asyncio task; if #82 ever fans folds out via
+>        `run_in_executor` or `multiprocessing`, contributors must either wrap each fold in
+>        `contextvars.copy_context().run(...)` or migrate this path to W1.
+>   3. **W1 stays documented above as the fallback** so a future contributor who hits the regression
+>      knows the migration target: write candidate → validate → `try/finally` revert, using
+>      `tempfile.NamedTemporaryFile` + `os.replace` for atomic write to dodge the Q-E coarse-mtime
+>      race.
+>   4. **Why W1 is *not* preferred today even though it'd also work:** the test
+>      `test_fragile_verdict_does_not_persist` (§6) asserts the JSON file is *unchanged* on a
+>      non-robust verdict. With W1, that test only checks the post-revert state and silently
+>      tolerates the mid-validate window; with W2, "no write happens at all" is the literal
+>      runtime invariant. Stronger acceptance.
 
 ---
 
@@ -658,7 +662,13 @@ The per-segment validate (§4.3) needs the candidate `IndicatorConfig` to be the
 | `test_sector_ohlcv.py::test_drops_tail_rows_with_nan_forward_returns` | unit | for `forward_horizon_bars=5`, the last 5 rows per symbol are dropped from `(X, y)` |
 | `test_tuned_defaults.py::test_read_missing_file_returns_none` | unit | when `~/.openbb_platform/techtrade_tuned.json` does not exist, `lookup_tuned_for_symbol("AAPL")` returns `None` (no raise) |
 | `test_tuned_defaults.py::test_read_after_write_roundtrips` | unit | `write_tuned("Information Technology", config, meta)` then `lookup_tuned_for_symbol("AAPL")` (which maps to IT via the segment resolver, mocked) returns an `IndicatorConfig` equal to the written one |
-| `test_tuned_defaults.py::test_mtime_cache_invalidates_on_change` | unit | after a `write_tuned`, the next `lookup` sees the new value (no stale cache) |
+| `test_tuned_defaults.py::test_mtime_cache_invalidates_on_change` | unit | after a `write_tuned`, the next `lookup` sees the new value (no stale cache) — writes **twice in quick succession** (within one mtime tick) to actually exercise the Q-E coarse-mtime guard (`st_size` tiebreaker / explicit cache-clear) |
+| `test_tuned_defaults.py::test_lru_cache_maxsize_bounded` | unit | re-writing the tuned file >8 times in one process never accumulates more than `maxsize=8` cache entries (Q-E guard 1: bounded cache) |
+| `test_tuned_defaults.py::test_override_visible_in_validate_fold` | unit | **§5.3 W2 lock-in test.** Sets the contextvar override in the caller frame; a faked `validate_plan` inspects the override from inside its fold loop via `lookup_tuned_for_symbol`; assertion: the strategy sees the candidate config, not `DEFAULT_CONFIG`. Catches any future #82 refactor that breaks contextvar propagation. |
+| `test_tune_router.py::test_no_op_tune_does_not_persist` | unit (Q-F guard 3) | if tuneta proposes a config equal to (or within rounding of) `DEFAULT_CONFIG`, `persisted=False` and `reason="no change from defaults"`; the JSON file is unchanged. Keeps `techtrade_tuned.json` meaningful (only genuinely-different robust configs land). |
+| `test_tune_router.py::test_loop_over_mixed_verdicts_does_not_raise` | unit (Q-F guard 2) | a caller looping `tune` across multiple segments where verdicts are mixed (robust, fragile, overfit) completes the full loop and returns all reports; no exception aborts a sector mid-batch. Logged at WARNING per Q-F. |
+| `test_tune_router.py::test_dependency_error_message_names_missing_extra` | unit (Q-G guard 2) | when `tuneta` is present but `openbb-backtest` is absent, the surfaced `TechtradeDependencyError` message names the missing extra (`[validation]`) AND mentions that a full tune needs **both** `[tuneta]` and `[validation]`; symmetrical case when `openbb-backtest` is present but `tuneta` is absent. |
+| `test_panel_consults_tuned_defaults.py::test_panel_with_neither_extra_imports_and_works` | unit (Q-G guard 3) | with both `tuneta` and `openbb_backtest` forced absent, `import openbb_techtrade` succeeds and `build_indicator_panel(symbol, as_of, rows)` builds the panel via the L9 auto-load path (which finds no tuned file and falls back to `DEFAULT_CONFIG`). Proves the hot path of L9 stays importable with no extras. |
 | `test_tuned_defaults.py::test_schema_version_mismatch_returns_none_and_logs` | unit | a file with `schema_version != "1.0"` is treated as absent (returns `None`), logged at WARNING |
 | `test_tune_router.py::test_robust_verdict_persists` | unit (faked tuneta + faked validate) | a `verdict="robust"` `ValidationReport` triggers `write_tuned`; `TuningReport.persisted is True`; the segment is readable from the JSON afterward |
 | `test_tune_router.py::test_fragile_verdict_does_not_persist` | unit | `verdict="fragile"` → `TuningReport.persisted is False`; the JSON file is **unchanged** (or absent if it didn't exist before) |
