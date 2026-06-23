@@ -47,6 +47,7 @@ openbb-derivatives = { path = "./extensions/derivatives", develop = true }
 openbb-economy = { path = "./extensions/economy", develop = true }
 openbb-equity = { path = "./extensions/equity", develop = true }
 openbb-etf = { path = "./extensions/etf", develop = true }
+openbb-techtrade = { path = "./extensions/techtrade", develop = true }
 openbb-fixedincome = { path = "./extensions/fixedincome", develop = true }
 openbb-index = { path = "./extensions/index", develop = true }
 openbb-news = { path = "./extensions/news", develop = true }

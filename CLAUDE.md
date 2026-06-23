@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Communication Conventions
+
+**Always pair an issue number with its title/description — never cite a bare number.**
+When referencing any issue (GitHub `#NN` or beads `bd-NN`) in a question, status
+update, summary, commit message, or PR body, write it as `#NN (short description)`
+so it is understandable without a lookup.
+- Good: `#65 (Scaffold techtrade extension + entry point + green build)`
+- Bad: `#65`
+
+If you don't already know the title, look it up first (`gh issue view NN` /
+`bd show <id>`) before mentioning it.
+
 ## Overview
 
 OpenBB is an open-source financial data platform that provides the "connect once, consume everywhere" infrastructure for integrating financial data sources. The project consists of multiple components:

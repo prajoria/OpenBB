@@ -5,3 +5,17 @@
 	path = third_party/adk-python
 	url = https://github.com/prajoria/adk-python.git
 	branch = main
+[submodule "third_party/awesome-quant"]
+	path = third_party/awesome-quant
+	url = https://github.com/prajoria/awesome-quant
+[submodule "third_party/openbb-docs"]
+	path = third_party/openbb-docs
+	url = https://github.com/OpenBB-finance/openbb-docs
+	branch = main
+[submodule "openbb_platform/extensions/techtrade/external/pandas-ta-classic"]
+	path = openbb_platform/extensions/techtrade/external/pandas-ta-classic
+	url = https://github.com/prajoria/pandas-ta-classic.git
+[submodule "copilot-api"]
+	path = copilot-api
+	url = https://github.com/prajoria/copilot-api.git
+	branch = master
