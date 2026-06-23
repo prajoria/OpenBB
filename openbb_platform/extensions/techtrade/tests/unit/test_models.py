@@ -248,5 +248,8 @@ def test_tuning_report_construction_with_realistic_values():
     # layer to keep models.py a leaf module (see TuningReport docstring), so we assert
     # via isinstance rather than via static attribute access.
     assert isinstance(report.candidate, IndicatorConfig)
+    # Structural-attribute check: confirm the dataclass instance round-trips intact
+    # through the Any-typed field (per the brief's original assertion shape).
+    assert report.candidate.macd_fast == DEFAULT_CONFIG.macd_fast == 12
     # Round-trip through dict (the OBBject pathway uses model_dump under the hood):
     assert report.model_dump()["reason"].startswith("verdict=")
