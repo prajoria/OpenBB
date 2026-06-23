@@ -40,6 +40,15 @@ def _setup_tuned_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "openbb_techtrade.tuning.tuned_defaults.segment_for_symbol",
         lambda sym: "Information Technology",
     )
+    # The router's fail-fast `_require_tuneta()` guard (#83 T7) raises
+    # TechtradeDependencyError when tuneta is absent BEFORE any orchestration
+    # runs -- which is the right user-facing behaviour and is exercised by
+    # test_neither_extra_imports.py::test_tune_raises_dependency_error_with_tuneta_absent.
+    # These tests exercise the orchestration ITSELF (with fit_segment / validate_plan
+    # / pool_sector_ohlcv all monkey-patched) and so must bypass the guard.
+    monkeypatch.setattr(
+        "openbb_techtrade.tuning.tune_router._require_tuneta", lambda: None,
+    )
     from openbb_techtrade.tuning.tuned_defaults import _clear_cache
     _clear_cache()
     return path

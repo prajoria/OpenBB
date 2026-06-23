@@ -45,7 +45,7 @@ from openbb_techtrade.tuning.sector_ohlcv import (
     pool_sector_ohlcv,
 )
 from openbb_techtrade.tuning.tuned_defaults import tune_override, write_tuned
-from openbb_techtrade.tuning.tuneta_adapter import fit_segment
+from openbb_techtrade.tuning.tuneta_adapter import _require_tuneta, fit_segment
 from openbb_techtrade.validation.backtest_bridge import validate_plan
 
 logger = logging.getLogger(__name__)
@@ -161,6 +161,12 @@ async def tune(
         :data:`SEGMENT_BENCHMARK_ETFS` (Q-A A1).
     """
     effective_as_of = as_of if as_of is not None else date.today()
+    # Fail-fast on the [tuneta] extra BEFORE any I/O (universe / OHLCV fetch).
+    # Without this guard, an absent-tuneta install would surface as the first
+    # downstream error -- often a provider/credentials failure -- masking the
+    # real cause. Mirrors #82's _require_backtest() shape; both extras get the
+    # same "early, explicit, actionable" treatment.
+    _require_tuneta()
     plan = _build_sample_plan(segment, effective_as_of)
 
     X, y = pool_sector_ohlcv(

@@ -316,3 +316,40 @@ def test_validate_plan_default_method_is_wfo(monkeypatch: pytest.MonkeyPatch):
     )
     asyncio.run(validate_plan(_plan()))
     assert captured["method"] == "wfo"
+
+
+# --- #83 extension: both extras absent at once (joint truth-table row) ---------------------------
+
+
+def test_degradation_with_tuneta_also_absent(monkeypatch: pytest.MonkeyPatch):
+    """#83 Q-G: extend the #82 truth table -- with BOTH openbb_backtest AND tuneta absent,
+    every other techtrade module still imports cleanly (the #85 core-unchanged-when-removed
+    discipline applied to both optional extras at once).
+    """
+    real_import = builtins.__import__
+
+    def _blocker(name: str, *args: Any, **kwargs: Any):
+        if name.startswith("openbb_backtest") or name.startswith("tuneta"):
+            raise ImportError(f"forced absent: {name}")
+        return real_import(name, *args, **kwargs)
+
+    for module_name in list(sys.modules):
+        if module_name.startswith("openbb_backtest") or module_name.startswith("tuneta"):
+            monkeypatch.delitem(sys.modules, module_name, raising=False)
+    monkeypatch.setattr(builtins, "__import__", _blocker)
+
+    # Every techtrade module -- including the NEW tuning ones -- must still import.
+    for module_name in (
+        "openbb_techtrade",
+        "openbb_techtrade.engine.plan",
+        "openbb_techtrade.engine.scan",
+        "openbb_techtrade.engine.signals",
+        "openbb_techtrade.engine.execution",
+        "openbb_techtrade.reporting.excel_export",
+        # NEW for #83:
+        "openbb_techtrade.tuning",
+        "openbb_techtrade.tuning.tuned_defaults",
+        "openbb_techtrade.tuning.sector_ohlcv",
+        "openbb_techtrade.tuning.tuneta_adapter",  # the only tuneta-touching module -- must still import
+    ):
+        importlib.import_module(module_name)
