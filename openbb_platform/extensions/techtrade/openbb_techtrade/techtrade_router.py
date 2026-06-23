@@ -40,6 +40,7 @@ def _include_subrouters() -> None:
         ("openbb_techtrade.engine.plan_router", "router"),
         ("openbb_techtrade.reporting.export_router", "router"),
         ("openbb_techtrade.validation.validate_router", "router"),
+        ("openbb_techtrade.tuning.tune_router", "router"),  # NEW (#83 P7)
     ):
         try:
             module = import_module(module_path)
