@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from unittest import mock
 
@@ -103,6 +102,36 @@ def test_write_tuned_uses_atomic_replace(tmp_path: Path, monkeypatch: pytest.Mon
         write_tuned("Information Technology", DEFAULT_CONFIG,
                     {"verdict": "robust", "tuned_at": "2026-06-21T00:00:00Z"})
         assert replace_spy.called, "write_tuned must use os.replace for atomic write"
+
+
+def test_write_tuned_cleans_up_temp_file_on_replace_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """If os.replace raises (e.g. Windows reader-lock), the temp file must not leak.
+
+    Regression test for T2 review follow-up: a failed replace previously left
+    `.techtrade_tuned.XXXX.tmp` orphans in `~/.openbb_platform/`.
+    """
+    path = tmp_path / "techtrade_tuned.json"
+    monkeypatch.setattr(
+        "openbb_techtrade.tuning.tuned_defaults.TUNED_PATH", path
+    )
+    monkeypatch.setattr(
+        "openbb_techtrade.tuning.tuned_defaults.segment_for_symbol",
+        lambda sym: "Information Technology",
+    )
+    from openbb_techtrade.tuning.tuned_defaults import _clear_cache, write_tuned
+    _clear_cache()
+
+    # Force os.replace to fail; the temp file must still be unlinked.
+    with mock.patch("os.replace", side_effect=OSError("simulated reader-lock")):
+        with pytest.raises(OSError, match="simulated reader-lock"):
+            write_tuned("Information Technology", DEFAULT_CONFIG,
+                        {"verdict": "robust", "tuned_at": "2026-06-21T00:00:00Z"})
+
+    # No .techtrade_tuned.*.tmp orphan should remain in the parent directory.
+    orphans = list(tmp_path.glob(".techtrade_tuned.*.tmp"))
+    assert orphans == [], f"temp-file leak after failed os.replace: {orphans}"
 
 
 # --- Q-E mtime cache --------------------------------------------------------------------------

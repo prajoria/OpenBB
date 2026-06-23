@@ -163,13 +163,24 @@ def write_tuned(segment: str, config: IndicatorConfig, meta: dict) -> None:
     # Sort keys + indent=2 for byte-stability across runs (global determinism rule).
     payload = json.dumps(current, sort_keys=True, indent=2)
     # Atomic write: NamedTemporaryFile in the same directory, then os.replace.
+    # On Windows, os.replace can fail when the destination is held by a concurrent
+    # reader; the try/except guarantees the temp file is cleaned up so we never
+    # accumulate `.techtrade_tuned.*.tmp` orphans in ~/.openbb_platform/.
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", dir=str(TUNED_PATH.parent),
         prefix=".techtrade_tuned.", suffix=".tmp", delete=False,
     ) as fh:
         fh.write(payload)
         tmp_name = fh.name
-    os.replace(tmp_name, TUNED_PATH)
+    try:
+        os.replace(tmp_name, TUNED_PATH)
+    except OSError:
+        # Best-effort cleanup; suppress secondary failures so the original raises.
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
     _clear_cache()
 
 
