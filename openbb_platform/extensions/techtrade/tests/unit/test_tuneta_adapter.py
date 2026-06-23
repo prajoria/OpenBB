@@ -6,7 +6,6 @@ import builtins
 import importlib
 import sys
 from typing import Any
-from unittest import mock
 
 import pandas as pd
 import pytest
