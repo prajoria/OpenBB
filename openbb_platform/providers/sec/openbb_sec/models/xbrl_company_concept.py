@@ -1,4 +1,15 @@
-"""SEC XBRL Company Concept Model."""
+"""SEC XBRL Company Concept Model.
+
+Standardization candidate
+-------------------------
+XBRL company-concept retrieval (CIK + taxonomy + tag -> fact series) is a
+generic shape that other providers could also implement. For now this model is
+intentionally kept SEC-specific (YAGNI): a standard ``XbrlCompanyConcept`` model
+in ``openbb_core`` is only worthwhile once a *second* provider implements the
+same concept retrieval. If/when that happens, the QueryParams/Data shapes below
+are designed to be lifted into a provider-agnostic standard model with minimal
+changes. See issue #23 for the tracked design decision.
+"""
 
 # pylint: disable=unused-argument
 

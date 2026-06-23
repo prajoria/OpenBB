@@ -487,7 +487,7 @@ def build_indicator_panel(
     as_of: date,
     ohlcv_rows: list,
     *,
-    config: IndicatorConfig = DEFAULT_CONFIG,
+    config: IndicatorConfig | None = None,
 ) -> IndicatorPanel:
     """Build a per-symbol :class:`IndicatorPanel` from OHLCV history (pure, no network).
 
@@ -508,8 +508,14 @@ def build_indicator_panel(
     ohlcv_rows : list
         Chronologically ascending OHLCV rows (dict or attribute), through the last
         ``as_of`` bar.
-    config : IndicatorConfig, optional
-        Period configuration. Defaults to :data:`DEFAULT_CONFIG` (PRD §11).
+    config : IndicatorConfig | None, optional
+        Indicator periods. ``None`` (default, **keyword-only**, #83 L9): consult
+        ``~/.openbb_platform/techtrade_tuned.json`` for ``symbol``'s GICS sector via
+        :func:`openbb_techtrade.tuning.tuned_defaults.lookup_tuned_for_symbol` and
+        use the tuned :class:`IndicatorConfig` if a robust entry is present for
+        that sector; otherwise fall back to :data:`DEFAULT_CONFIG` (PRD §11). Pass
+        ``config=X`` explicitly to bypass the auto-load (caller intent wins --
+        useful for golden / regression tests).
 
     Returns
     -------
@@ -520,8 +526,22 @@ def build_indicator_panel(
     ------
     ValueError
         If ``ohlcv_rows`` is empty (propagated from :func:`ohlcv_to_frame`).
+
+    Notes
+    -----
+    The auto-load adds one ``os.stat`` per call on the hot path (the
+    :func:`~openbb_techtrade.tuning.tuned_defaults._read_tuned_cached` ``lru_cache``
+    is keyed on ``(path, mtime_ns, st_size)`` so the parse cost is paid once per
+    file write, not per symbol). The lookup module imports neither ``tuneta`` nor
+    ``openbb_backtest``, so it is safe to call on a bare techtrade install.
     """
     import pandas_ta_classic  # noqa: F401 - registers the pandas ``.ta`` accessor
+
+    if config is None:
+        # Lazy import: avoids a hot-path import cycle if any future tuning module
+        # needs to import indicators (none does today; cheap insurance).
+        from openbb_techtrade.tuning.tuned_defaults import lookup_tuned_for_symbol  # noqa: PLC0415
+        config = lookup_tuned_for_symbol(symbol) or DEFAULT_CONFIG
 
     df = ohlcv_to_frame(ohlcv_rows)
     return IndicatorPanel(

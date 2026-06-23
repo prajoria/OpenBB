@@ -1,5 +1,9 @@
 [tool.poetry]
-name = "openbb-portfolio"
+# Distribution name is vendor-prefixed (`-custom`) to avoid shadowing the
+# published `openbb-portfolio` package on PyPI. This is a private fork extension,
+# not a replacement for the upstream package. The importable package remains
+# `openbb_portfolio` (unchanged). See issue #21.
+name = "openbb-portfolio-custom"
 version = "1.0.0"
 description = "Portfolio management extension for OpenBB Platform — serves portfolio, ESPP, and stock-analysis widgets via the OpenBB Workspace custom backend."
 authors = ["OpenBB Team <hello@openbb.co>"]

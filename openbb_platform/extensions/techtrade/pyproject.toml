@@ -20,6 +20,7 @@ openpyxl = "*"
 # agent  -> optional reasoning / MCP tool surface (PRD §16, issues #84/#85)
 # xlsxwriter -> BSD, optional richer Excel engine for obb.techtrade.export (PRD §14.3 / issue #81)
 # validation -> AGPL, optional openbb-backtest engine for obb.techtrade.validate (PRD §15 / issue #82)
+tuneta = ["tuneta"]
 xlsxwriter = ["xlsxwriter"]
 validation = ["openbb-backtest"]
 
