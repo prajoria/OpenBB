@@ -222,3 +222,31 @@ def test_literal_enforcement_and_exportconfig_defaults():
     assert cfg.include_sheets == ["Recommendations", "Levels", "Reasoning", "Orders", "Fills", "Summary"]
     assert cfg.engine == "openpyxl"
     assert cfg.path is None
+
+
+def test_tuning_report_construction_with_realistic_values():
+    """TuningReport carries everything obb.techtrade.tune returns (#83 L3, §4.2)."""
+    from openbb_techtrade.models import TuningReport
+    from openbb_techtrade.engine.indicators import DEFAULT_CONFIG, IndicatorConfig
+
+    report = TuningReport(
+        segment="Information Technology",
+        as_of=date(2026, 6, 21),
+        candidate=DEFAULT_CONFIG,
+        validation=None,
+        persisted=False,
+        reason="verdict=fragile (pbo=0.31, dsr=0.62)",
+        tuneta_version="0.2.3",
+        fit_seconds=42.7,
+        trials=100,
+        early_stop=20,
+    )
+    assert report.segment == "Information Technology"
+    assert report.persisted is False
+    assert report.validation is None  # the Data|None field (mirrors TradePlan.validation L2-of-82)
+    # candidate must be exactly an IndicatorConfig; field is typed loosely in the model
+    # layer to keep models.py a leaf module (see TuningReport docstring), so we assert
+    # via isinstance rather than via static attribute access.
+    assert isinstance(report.candidate, IndicatorConfig)
+    # Round-trip through dict (the OBBject pathway uses model_dump under the hood):
+    assert report.model_dump()["reason"].startswith("verdict=")

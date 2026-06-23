@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from openbb_core.provider.abstract.data import Data
 from pydantic import Field
@@ -233,6 +233,60 @@ class TradePlan(Data):
             "openbb_backtest.models.ValidationReport (a Data subclass) when populated. "
             "Typed as Data to keep techtrade installable without openbb-backtest."
         ),
+    )
+
+
+class TuningReport(Data):
+    """Outcome of one ``obb.techtrade.tune(segment)`` call (PRD §12.4, issue #83).
+
+    Carries the candidate ``IndicatorConfig`` tuneta proposed (always -- even when
+    not persisted), the ``ValidationReport`` from #82's gate (typed as ``Data |
+    None`` so this model stays leaf -- same L2 trick TradePlan.validation uses),
+    and the ``persisted`` flag that records whether the candidate cleared the
+    L2-strict ``verdict == "robust"`` gate and was written to
+    ``~/.openbb_platform/techtrade_tuned.json``.
+
+    Fragile / overfit candidates come back with ``persisted=False`` and a
+    diagnostic ``reason`` so the caller can see *what* was proposed and *why* it
+    was rejected (Q-F transparency-without-persistence posture).
+    """
+
+    segment: str = Field(description="GICS sector name the tune ran for.")
+    as_of: date = Field(description="Session date the tune was anchored to.")
+    candidate: Any = Field(
+        description=(
+            "The IndicatorConfig tuneta proposed (8 tuned period knobs + 7 "
+            "PRD-default knobs). Always populated, even when not persisted. "
+            "Carries an ``IndicatorConfig`` when populated; typed as ``Any`` so "
+            "models.py stays a leaf module (no engine import). Same spirit as the "
+            "``TradePlan.validation: Data | None`` trick that keeps techtrade "
+            "installable without openbb-backtest -- the engine-layer dataclass "
+            "is not a Pydantic ``Data`` subclass, so ``Any`` is the loosest "
+            "annotation that lets Pydantic accept the dataclass instance."
+        )
+    )
+    validation: Data | None = Field(
+        default=None,
+        description=(
+            "ValidationReport from #82's validate_plan gate. Typed as Data to "
+            "keep techtrade installable without openbb-backtest (same Data|None "
+            "discipline as TradePlan.validation)."
+        ),
+    )
+    persisted: bool = Field(
+        description="True iff verdict == 'robust' AND a genuinely-different "
+        "config was written to ~/.openbb_platform/techtrade_tuned.json."
+    )
+    reason: str = Field(
+        description="Human-readable outcome: 'verdict=robust', "
+        "'verdict=fragile (pbo=0.31, dsr=0.62)', 'no change from defaults', etc. "
+        "Field order/precision is stable across runs for byte-stability."
+    )
+    tuneta_version: str = Field(description="tuneta.__version__ at fit time.")
+    fit_seconds: float = Field(description="Wall-clock the tuneta.fit() took.")
+    trials: int = Field(description="Optuna trials budget actually used.")
+    early_stop: int = Field(
+        description="Optuna early-stop budget (non-improving trials before halt)."
     )
 
 
