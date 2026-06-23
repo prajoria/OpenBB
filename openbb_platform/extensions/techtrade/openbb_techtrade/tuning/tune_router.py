@@ -199,6 +199,11 @@ async def tune(
             },
         )
         persisted = True
+    elif verdict == "robust" and no_op:
+        logger.info(
+            "tune: segment %s verdict=robust but candidate == DEFAULT_CONFIG -> not persisted (no change)",
+            segment,
+        )
     elif verdict != "robust":
         logger.warning(
             "tune: segment %s verdict=%s -> not persisted (pbo=%s dsr=%s)",
