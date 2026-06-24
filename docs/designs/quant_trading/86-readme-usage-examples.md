@@ -84,6 +84,32 @@ is the `examples/*.py` scripts and (if Q-A picks the executable-test option) a t
 > (scan → recommend → export) and links to the longer examples for the rest. Tests live in
 > `tests/unit/test_examples_smoke.py` and reuse the same `_signal_fetcher` / `_level_fetcher` / bar
 > fakes already in `tests/unit/test_plan.py` and `tests/unit/test_scan.py`.
+>
+> - **Answer (Review):** ✅ **Approved — A3 (runnable `examples/` + offline smoke test).**
+>
+>   1. **A1 is correctly rejected — the scaffold README is the failure proof.** This doc exists
+>      precisely because review-only discipline let the #65 README drift to a status line that
+>      contradicts the shipped surface. Re-adopting A1 would reproduce the exact failure we are
+>      paying down. Non-negotiable.
+>
+>   2. **A3 over A2 — readability + verification, not one or the other.** A2 (link to pytest
+>      fixtures) guarantees correctness but ships a worse reading experience: fixtures are written
+>      for test concision, not narrative. A3 keeps the example *readable as documentation* while
+>      still CI-checking it, and reuses the existing `_signal_fetcher` / `_level_fetcher` offline
+>      seams — zero new test infrastructure. A4 (doctest) is rightly rejected: OBBject has no
+>      canonical repr and OpenBB's pytest config does not enable `--doctest-glob`.
+>
+>   3. **Refinement (the one real gap to close):** the **inline 6-line headline snippet** in the
+>      Quickstart (§2.2) is *not* itself one of the `examples/*.py` files, so it sits outside the
+>      smoke test and can drift independently — the same class of bug A3 is meant to kill. Make
+>      the inline snippet a verbatim slice of `examples/scan_to_excel.py::main()` (or generate it
+>      from that file) so the single inline block is covered transitively. Without this, A3 guards
+>      the linked examples but leaves the most-read snippet unguarded.
+>
+>   4. **Shape-only assertions are the right scope.** Locking content (golden snapshots) here
+>      would make the smoke brittle and duplicate the engine's `tests/golden/` locks. Asserting
+>      `list[TradePlan]` / `str`-path-exists is enough to catch signature and return-shape drift,
+>      which is what actually rots a README.
 
 > **Q-B — Should the README cover `tune` / `narrator` / `MCP` ([#83](https://github.com/prajoria/OpenBB/issues/83) / [#84](https://github.com/prajoria/OpenBB/issues/84) / [#85](https://github.com/prajoria/OpenBB/issues/85)) as "Roadmap" or omit them entirely?**
 > All three are "extra-tier", not implemented, but already referenced by name in the scaffold
@@ -98,6 +124,27 @@ is the `examples/*.py` scripts and (if Q-A picks the executable-test option) a t
 > the benefit (a user who is evaluating techtrade for a longer horizon can see the plan) is real.
 > The Roadmap section explicitly marks each item *"not yet implemented; tracking issue [#…]"* so it
 > cannot be misread as a feature claim.
+>
+> - **Answer (Review):** ✅ **Approved — B1 (Roadmap section: #83 / #84 / #85 / #87).**
+>
+>   1. **B1 beats B2 because the scaffold already leaked the names.** `tune` is named in the
+>      current README's surface line; silently deleting it (B2) leaves users who saw the old
+>      surface, or who read issue comments, wondering whether it regressed. A one-paragraph
+>      Roadmap converts that ambiguity into an honest "planned, not shipped."
+>
+>   2. **Guardrail on presentation (must-do, not optional):** render roadmap items as prose with
+>      issue links — **never** as runnable-looking call syntax (e.g. avoid `obb.techtrade.tune(...)`
+>      in a python fence). A copy-pasteable-looking line for an unimplemented command is exactly
+>      the "fictitious argument" failure §0 bans. Each row should read `tune (#83) — not yet
+>      implemented` in plain text.
+>
+>   3. **Keep it bottom-of-page and decoupled from the live Commands matrix (§3).** The Roadmap
+>      must never share a table or heading level with the live surface, or a skimming reader will
+>      conflate the two. Bottom placement (per §2's skeleton) is correct.
+>
+>   4. **Cross-check the issue numbers before merge.** B1 lists #83 (tune) / #84 (narrator) /
+>      #85 (MCP) / #87 (streaming/intraday). Confirm #87 is the streaming issue and that no extra
+>      tier item is missing, so the Roadmap is exhaustive rather than a partial teaser.
 
 > **Q-C — Where does the soft-dep install matrix live?**
 > Two install commands matter to a real user:
@@ -115,6 +162,25 @@ is the `examples/*.py` scripts and (if Q-A picks the executable-test option) a t
 > **Recommend C1 + a one-line cross-reference at each affected example.** The table is the
 > authoritative install matrix; each `export` / `validate` example carries a parenthetical
 > *"(requires `[xlsxwriter]`)"* / *"(requires `[validation]`)"* nudge.
+>
+> - **Answer (Review):** ✅ **Approved — C1 (upfront install matrix) + per-example nudges.**
+>
+>   1. **Upfront table prevents the first-failed-call experience.** C2 (per-command only) means a
+>      user learns `[validation]` exists *after* `validate` raises `TechtradeDependencyError`. The
+>      install matrix at the top lets them install the right extra before they hit the wall. The
+>      parenthetical nudges (C1's second half) keep the reminder local where it bites — this is the
+>      both-and that C1 already specifies, and it's the correct call.
+>
+>   2. **Make the matrix mirror `[tool.poetry.extras]` exactly, including the core row.** The
+>      table should be authoritative against `pyproject.toml` (per L3): one row for the bare
+>      `pip install openbb-techtrade` and one each for `[xlsxwriter]` and `[validation]`. Do not
+>      list any extra (`[tuneta]`, `[agent]`) that isn't installable today — those belong in the
+>      Roadmap (Q-B), not the install matrix, or the matrix becomes a list of broken commands.
+>
+>   3. **Tie the nudge to the degradation message.** The parenthetical in each example should use
+>      the *same* extra name the runtime error prints (`pip install 'openbb-techtrade[validation]'`),
+>      so a user who hits the error and a user who reads the docs see identical, copy-pasteable
+>      install strings. One source of truth for the install command across README + runtime.
 
 > **Q-D — Do we keep the existing `## Vendored indicator engine` and `## Testing & determinism`
 > sections, edit them in place, or split them off?**
@@ -130,6 +196,24 @@ is the `examples/*.py` scripts and (if Q-A picks the executable-test option) a t
 > **Recommend D1.** The README is already short (60 lines) and these sections are 30 of them;
 > moving them out for the sake of cleanliness is over-engineering. Demoting them under
 > *"For Contributors"* signals the audience switch.
+>
+> - **Answer (Review):** ✅ **Approved — D1 (keep contributor content, demoted to *For Contributors*).**
+>
+>   1. **One page = one source of truth — correct for the current size.** Splitting to a separate
+>      `CONTRIBUTING.md` (D2) for 30 lines is premature; it adds a file to lose and a link to rot
+>      for no reading-experience gain. The submodule pin, golden harness, and offline-test
+>      discipline stay discoverable next to the code they govern.
+>
+>   2. **The audience-switch heading is doing real work — make it unambiguous.** A `## For
+>      Contributors` (or `## Development`) heading with a one-line preface ("the sections below are
+>      for people changing techtrade, not using it") prevents a user from mistaking the submodule
+>      fetch / golden-file discipline for required user setup.
+>
+>   3. **Consistency check with Q-E:** D1's "don't split yet" and E1's "revisit at ~200 lines"
+>      share the same threshold, and §2's skeleton totals ~180 lines. That's internally
+>      consistent — but it means the README is *near* the split line on day one. Flag the ~200-line
+>      trigger in a comment so the next editor knows D2 + E2 become live together once narrator/MCP
+>      land.
 
 > **Q-E — Do we need a separate `docs/quickstart.md` inside the extension?**
 > Some OpenBB extensions have a `docs/` directory (e.g. the vendored `pandas-ta-classic` ships
@@ -142,6 +226,22 @@ is the `examples/*.py` scripts and (if Q-A picks the executable-test option) a t
 > | E2 | Add `openbb_platform/extensions/techtrade/docs/quickstart.md` with the longer narrative; README points to it | Mirrors the convention some other extensions use; but the README is already short enough to carry the full quickstart inline |
 >
 > **Recommend E1.** Keep everything in the README until it crosses ~200 lines; split then.
+>
+> - **Answer (Review):** ✅ **Approved — E1 (no separate `docs/quickstart.md` for v1).**
+>
+>   1. **README + `examples/` is the right surface for a 10-command extension.** A separate
+>      `docs/quickstart.md` (E2) duplicates the headline flow that already lives in the Quickstart
+>      section and the `examples/*.py` scripts, creating a third place to drift. Fewer surfaces is
+>      strictly better while everything fits on one scannable page.
+>
+>   2. **`examples/README.md` is the correct lightweight middle-ground.** The file layout (§1)
+>      already adds a one-line `examples/README.md` index. That gives the "where do I start"
+>      pointer a `docs/quickstart.md` would provide, without a parallel narrative to maintain.
+>
+>   3. **Name the split trigger explicitly.** E1's "~200 lines" is the same threshold as D1.
+>      When narrator (#84) / MCP (#85) land and push the surface past one page, revisit E2 **and**
+>      D2 together (move the walkthrough to `docs/quickstart.md`, contributor content to
+>      `CONTRIBUTING.md`). Until then, E1 holds.
 
 ---
 
