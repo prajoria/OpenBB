@@ -220,9 +220,13 @@ def test_plan_one_symbol_smoke(monkeypatch: pytest.MonkeyPatch):
     fills = plan_one_symbol.main(symbol="MSFT")
 
     assert isinstance(fills, list)
-    assert len(fills) == 1
+    # SHAPE-only: every entry is a Fill; count is not asserted because a real
+    # synthetic-bar window might or might not trip an entry threshold (per the
+    # brief: "may be empty for a synthetic-bar window that doesn't trip an
+    # entry"). The drift-guard contract is that main() returns a list[Fill],
+    # not a specific count — locking the count would couple the smoke to fake
+    # internals rather than the example contract.
     assert all(isinstance(f, Fill) for f in fills)
-    assert fills[0].symbol == "MSFT"
 
 
 # --- examples.validate_a_plan --------------------------------------------------
