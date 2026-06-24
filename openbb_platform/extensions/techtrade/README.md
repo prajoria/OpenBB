@@ -82,9 +82,11 @@ path = obb.techtrade.export(plans=plans).results
 print(f"workbook written to: {path}")
 ```
 
-This snippet is a verbatim slice of `openbb_techtrade/examples/scan_to_excel.py::main()` —
-they are smoke-tested together so they cannot drift. See `openbb_techtrade/examples/` for
-the full runnable scripts:
+This snippet mirrors the live-path body of `openbb_techtrade/examples/scan_to_excel.py::main()`
+(the example takes optional test seams the inline snippet omits); the smoke test in
+`tests/unit/test_examples_smoke.py` guards the example's signatures + return shapes against
+drift, which covers the kwarg names (`metric=`, `top_n=`, `plans=`) you see here.
+See `openbb_techtrade/examples/` for the full runnable scripts:
 
 - [`openbb_techtrade/examples/scan_to_excel.py`](./openbb_techtrade/examples/scan_to_excel.py) — headline `scan → export`
 - [`openbb_techtrade/examples/plan_one_symbol.py`](./openbb_techtrade/examples/plan_one_symbol.py) — `plan → orders → simulate`
