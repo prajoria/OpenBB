@@ -10,13 +10,7 @@ packages = [{ include = "openbb_financialtoolkit" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 openbb-core = "^1.5.8"
-# Local path dependency on the FinanceToolkit submodule. This resolves ONLY for
-# an editable install from a repo checkout that has the submodule initialized
-# (`git submodule update --init`). It does NOT produce an installable wheel/sdist
-# for `pip install openbb-financialtoolkit` from PyPI — see README.md "Installation".
-# TODO: converge on a published `financetoolkit` version constraint (or upstream
-# the required fork changes) before any PyPI release.
-financetoolkit = { path = "../../../FinanceToolkit", develop = true }
+financetoolkit = "^2.1.2"
 
 [build-system]
 requires = ["poetry-core"]
