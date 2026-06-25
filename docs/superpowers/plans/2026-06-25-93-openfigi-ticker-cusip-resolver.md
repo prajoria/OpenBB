@@ -1,5 +1,15 @@
 # Issue #93 — OpenFIGI ticker→CUSIP Resolver Implementation Plan
 
+> 🔒 **BRANCH FROZEN — work on this plan is COMPLETE.** All four tasks
+> (T1–T4) shipped via **[PR #95](https://github.com/prajoria/OpenBB/pull/95)**
+> (`feat/93-openfigi-ticker-cusip-resolver` → `trading_technicals`). 51/51
+> unit tests green; live-run evidence in
+> [`Tools/docs/runs/2026-06-25-enrich-cusip-figi-bounded.md`](../../../Tools/docs/runs/2026-06-25-enrich-cusip-figi-bounded.md).
+> See [`BRANCH-FROZEN.md`](../../../BRANCH-FROZEN.md) at repo root.
+>
+> **Do not amend, re-run, or branch new work off these tasks.** Review
+> feedback on PR #95 → handle in a new branch per the BRANCH-FROZEN rules.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extend `resolve_cusip(symbol)` coverage from the #89 MVP universe (~514 S&P 500 + B4 seed tickers) to the broad 13F universe by deterministically mapping every un-tickered CUSIP already present in `sec_13f_holdings` to a `(ticker, figi)` via Bloomberg's free OpenFIGI `/v3/mapping` API, with read-through response caching.
