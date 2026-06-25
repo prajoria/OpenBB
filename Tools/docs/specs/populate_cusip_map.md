@@ -54,7 +54,7 @@ python Tools/populate_cusip_map.py --limit 25           # first N (smoke test)
 |----------|---------|
 | `_resolve_api_key()` | FMP key from user settings / `.env` |
 | `get_sp500_symbols(database)` | read active `(symbol, security)` from `sp500_constituents` |
-| `fetch_cusip(symbol, api_key)` | FMP profile -> `(cusip, issuer_name)`; `None` on failure, never raises |
+| `fetch_cusip(symbol, api_key)` | FMP profile -> `(cusip, issuer_name)`; `None` on failure, never raises; retries dotted class tickers (`BRK.B`) with a dash (`BRK-B`) |
 | `populate(symbols, api_key, dry_run, sleep)` | init index tables, build rows, `upsert_cusip_map` |
 | `main()` | argparse, universe resolution, plan/print, stats |
 
@@ -73,6 +73,9 @@ B4-seeded / 13F-ingested rows.
   path.
 - Verified: `--limit 3` resolved A/AAPL/ABBV; `resolve_cusip('NFLX')` returns
   `64110L106` (not in the seed).
+- Full S&P 500 populate (2026-06-24): 514/514 resolved (~1000 rows). Class
+  tickers `BF.B` / `BRK.B` need the dot->dash fallback (FMP profile expects
+  `BRK-B`).
 - CUSIP identifiers are **licensed** (CUSIP Global Services / S&P) — local use
   only, do not redistribute the table.
 - Deferred follow-up (bead `cse`): full-universe-beyond-S&P-500 + fuzzy

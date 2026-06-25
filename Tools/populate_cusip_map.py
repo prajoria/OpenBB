@@ -165,12 +165,8 @@ def get_sp500_symbols(database: str | None = None) -> list[tuple[str, str]]:
     return out
 
 
-def fetch_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
-    """Resolve a single ticker to (cusip, issuer_name) via FMP stable profile.
-
-    Returns ``None`` if the profile is missing or has no CUSIP. Never raises for
-    a single-symbol failure (so one bad ticker can't kill the batch).
-    """
+def _profile_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
+    """One FMP stable profile lookup -> (cusip, issuer_name) or None."""
     import requests
 
     try:
@@ -196,6 +192,22 @@ def fetch_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
         logger.warning("%s: unexpected CUSIP %r -- skipping", symbol, cusip)
         return None
     return cusip, (issuer or symbol)
+
+
+def fetch_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
+    """Resolve a single ticker to (cusip, issuer_name) via FMP stable profile.
+
+    Class-share tickers in ``sp500_constituents`` use a dot (e.g. ``BRK.B``)
+    but FMP's profile endpoint expects a dash (``BRK-B``); if the dotted form
+    yields nothing, retry the dash variant.
+
+    Returns ``None`` if the profile is missing or has no CUSIP. Never raises for
+    a single-symbol failure (so one bad ticker can't kill the batch).
+    """
+    result = _profile_cusip(symbol, api_key)
+    if result is None and "." in symbol:
+        result = _profile_cusip(symbol.replace(".", "-"), api_key)
+    return result
 
 
 def populate(
