@@ -349,6 +349,24 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
   - Verified e2e: 2023q2 ingest (59,718 holdings / 4,523 CUSIPs);
     `resolve_cusip('MSFT')`/`('AAPL')` + ranked holders confirmed.
 
+- **populate_cusip_map.py** — broaden the ticker → CUSIP cache (#89)
+  - Offline batch loader that fills `sec_13f_cusip_map` for a whole index so
+    `resolve_cusip` covers more than the built-in B4 seed. Pulls index
+    constituents (FMP stable `sp500-constituent`, also `nasdaq`/`dowjones`) and
+    resolves each ticker → CUSIP via the FMP stable `profile` endpoint
+    (`cusip` field), then upserts `(cusip, issuer_name, ticker, …)` rows through
+    `thirteen_f_index.upsert_cusip_map` (source `fmp_profile`, idempotent).
+  - Keeps live resolution **offline** — once populated, `resolve_cusip` is a
+    pure MySQL read with no per-request API calls (the design intent of the
+    deferred `cse` follow-up).
+  - CLI: `--index`, `--symbols`, `--limit`, `--sleep`, `--dry-run`. `requests`
+    only; per-symbol try/except so one bad ticker can't kill the batch; 0.3s
+    courtesy sleep between profile calls.
+  - Verified: `--symbols AAPL,MSFT,NFLX` resolved 3/3 (NFLX `64110L106`, not in
+    the seed) into `openbb_fmp_cache_test`; `resolve_cusip('NFLX')` then returns
+    it. CUSIP identifiers are licensed (CUSIP Global Services / S&P) — local use
+    only, do not redistribute the table.
+
 ### 2026-02-19
 
 - **parse_fidelity_positions.py** — Created
