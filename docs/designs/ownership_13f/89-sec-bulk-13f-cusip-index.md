@@ -71,7 +71,7 @@ get nothing" to "read the local CUSIP index."
 |---|---|---|---|
 | L1 | Authoritative source | SEC **Form 13F bulk data sets** (quarterly structured `.tsv`/zip dumps from `https://www.sec.gov/dera/data/form-13f`), **not** live EFTS full-text per request | Volume cost paid once/quarter at ingest; reads are local |
 | L2 | Index key | **CUSIP** (9-char), the only join key present in 13F `INFOTABLE` rows | Ticker→CUSIP resolution is a required, separate step (Q-B) |
-| L3 | Storage | MySQL via existing `openbb_fmp_cached.utils.database` (`DatabaseConfig` / `get_connection` / `execute_many`) in the **`openbb_fmp_cache`** DB (provider cache, not `_test`) | No new DB; reuse the 67-table cache DB + its DDL idempotency pattern |
+| L3 | Storage | MySQL via existing `openbb_fmp_cached.utils.database` (`DatabaseConfig` / `get_connection` / `execute_many`) in the **`openbb_fmp_cache_test`** DB (the resolved `DatabaseConfig` default per `user_settings`) | No new DB; reuse the existing cache DB + its DDL idempotency pattern |
 | L4 | Single consumer | Only the `fmp_cached` institutional-ownership SEC tier reads the index; output is normalized to `FMPInstitutionalOwnershipData` exactly as today | No new public router; the existing `obb.equity.ownership.institutional` surface is unchanged |
 | L5 | Network rules | SEC HTTP via `requests` with a descriptive `User-Agent` (SEC requires it), ≤10 req/s, retries with backoff; **no `aiohttp`** (broken on Win/Py3.12 per repo rules) | Ingest is a synchronous, resumable batch script under `Tools/` |
 | L6 | Ingest cadence | Manual / scheduled CLI script — **not** auto-triggered inside the read path | A cold read never blocks on a multi-hundred-MB download; missing-quarter → graceful empty |
@@ -245,7 +245,7 @@ docs/designs/ownership_13f/
 
 ---
 
-## 3. Data model (MySQL, in `openbb_fmp_cache`)
+## 3. Data model (MySQL, in `openbb_fmp_cache_test`)
 
 Two tables. All DDL `CREATE TABLE IF NOT EXISTS`; load via `INSERT … ON DUPLICATE KEY UPDATE`.
 
@@ -363,7 +363,7 @@ flowchart LR
 | Ingest is idempotent, resumable, off the read path | §0 L6/L7 + §4 |
 | Output normalized to `FMPInstitutionalOwnershipData` with provenance | §0 L4 + §3 field mapping (Q-D) |
 | No `aiohttp`; SEC via `requests` + UA; ≤10 r/s | §0 L5 |
-| Reuses existing `openbb_fmp_cache` DB + `database` helpers | §0 L3 |
+| Reuses existing `openbb_fmp_cache_test` DB + `database` helpers | §0 L3 |
 | Tests: parser/resolver/read-helper/tier + e2e | §5 |
 | Graceful degradation when index absent (empty, pipeline continues) | §1 + §6 |
 
