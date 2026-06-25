@@ -16,3 +16,6 @@
 	path = copilot-api
 	url = https://github.com/prajoria/copilot-api.git
 	branch = master
+[submodule "third_party/openfigi-api"]
+	path = third_party/openfigi-api
+	url = https://github.com/prajoria/openfigi-api.git
