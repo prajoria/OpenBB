@@ -6,9 +6,10 @@ The SEC bulk 13F data set is keyed by CUSIP, not ticker. To answer
 ticker in ``sec_13f_cusip_map``. Out of the box only a small built-in seed
 (B4) is populated, so coverage is limited to a handful of mega-caps.
 
-This loader fills that table for a whole index (default: S&P 500) by:
+This loader fills that table for the S&P 500 universe by:
 
-  1. pulling the index constituents from FMP (stable ``sp500-constituent``), and
+  1. reading the constituents from the local ``sp500_constituents`` table
+     (already populated -- no index-constituents API call), and
   2. resolving each ticker -> CUSIP via the FMP stable ``profile`` endpoint
      (which returns the security ``cusip``), then
   3. upserting ``(cusip, issuer_name, ticker, ...)`` rows via
@@ -20,8 +21,7 @@ no live API calls on the request hot path. Re-running is safe (idempotent
 
 Usage:
     python Tools/populate_cusip_map.py --dry-run            # plan only, no writes
-    python Tools/populate_cusip_map.py                      # S&P 500 (default)
-    python Tools/populate_cusip_map.py --index nasdaq       # nasdaq / dowjones
+    python Tools/populate_cusip_map.py                      # S&P 500 (sp500_constituents)
     python Tools/populate_cusip_map.py --symbols AAPL,MSFT  # explicit tickers
     python Tools/populate_cusip_map.py --limit 25           # first N (smoke test)
 
@@ -102,7 +102,7 @@ logger = logging.getLogger("populate_cusip_map")
 # ---------------------------------------------------------------------------
 FMP_STABLE = "https://financialmodelingprep.com/stable"
 SOURCE_PROFILE = "fmp_profile"
-VALID_INDEXES = ("sp500", "nasdaq", "dowjones")
+SP500_TABLE = "sp500_constituents"
 REQUEST_TIMEOUT = 20
 DEFAULT_SLEEP = 0.3  # seconds between profile calls (FMP courtesy)
 
@@ -134,27 +134,35 @@ def _resolve_api_key() -> str | None:
     return None
 
 
-def get_index_symbols(index: str, api_key: str) -> list[tuple[str, str]]:
-    """Fetch (symbol, name) constituents for an index from FMP stable.
-
-    ``index`` is one of sp500 / nasdaq / dowjones.
+def get_sp500_symbols(database: str | None = None) -> list[tuple[str, str]]:
+    """Read active S&P 500 ``(symbol, name)`` rows from the local
+    ``sp500_constituents`` table -- no index-constituents API call.
     """
-    import requests
+    import pymysql
+    from openbb_fmp_cached.utils.database import DatabaseConfig
 
-    url = f"{FMP_STABLE}/{index}-constituent/?apikey={api_key}"
-    resp = requests.get(url, timeout=REQUEST_TIMEOUT)
-    resp.raise_for_status()
-    data = resp.json()
-    if not isinstance(data, list):
-        raise RuntimeError(f"Unexpected constituents response: {type(data)!r}")
+    params = DatabaseConfig().connection_params
+    if database:
+        params["database"] = database
+
+    conn = pymysql.connect(**params, cursorclass=pymysql.cursors.DictCursor)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT symbol, security FROM {SP500_TABLE} "
+                "WHERE is_active = 1 ORDER BY symbol"
+            )
+            rows = cur.fetchall()
+    finally:
+        conn.close()
 
     out: list[tuple[str, str]] = []
-    for row in data:
-        sym = (row.get("symbol") or "").strip().upper()
-        name = (row.get("name") or row.get("addedSecurity") or "").strip()
+    for r in rows:
+        sym = (r.get("symbol") or "").strip().upper()
+        name = (r.get("security") or "").strip()
         if sym:
             out.append((sym, name))
-    return sorted(set(out))
+    return out
 
 
 def fetch_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
@@ -246,15 +254,14 @@ def main():
         description="Populate the ticker->CUSIP cache (sec_13f_cusip_map)."
     )
     parser.add_argument(
-        "--index",
-        default="sp500",
-        choices=VALID_INDEXES,
-        help="Index universe to load when --symbols is not given (default: sp500)",
+        "--database",
+        default=None,
+        help="Target MySQL database (default: from DatabaseConfig)",
     )
     parser.add_argument(
         "--symbols",
         default=None,
-        help="Comma-separated tickers to load (overrides --index)",
+        help="Comma-separated tickers to load (overrides the sp500_constituents table)",
     )
     parser.add_argument(
         "--limit",
@@ -281,22 +288,14 @@ def main():
 
     api_key = _resolve_api_key()
 
-    # Resolve the symbol universe
+    # Resolve the symbol universe (DB read -- cheap, allowed in dry-run too)
     if args.symbols:
         symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
         source_label = f"--symbols ({len(symbols)})"
-    elif args.dry_run:
-        # Avoid the constituents API call in dry-run; describe the plan instead.
-        symbols = []
-        source_label = f"index '{args.index}' (not fetched in dry-run)"
     else:
-        if not api_key:
-            print("\n  ERROR: an FMP API key is required to fetch index constituents.")
-            print("  Configure fmp_api_key in user_settings.json or FMP_API_KEY in .env.")
-            sys.exit(1)
-        constituents = get_index_symbols(args.index, api_key)
+        constituents = get_sp500_symbols(args.database)
         symbols = [s for s, _ in constituents]
-        source_label = f"index '{args.index}' ({len(symbols)} constituents)"
+        source_label = f"{SP500_TABLE} table ({len(symbols)} active)"
 
     if args.limit is not None:
         symbols = symbols[: args.limit]
@@ -309,10 +308,7 @@ def main():
 
     if args.dry_run:
         print("\n  DRY RUN -- no API calls, no DB writes.")
-        if not args.symbols:
-            print(f"  Would fetch '{args.index}' constituents, then one profile call each.")
-        else:
-            print("  Would resolve each symbol via FMP profile and upsert its CUSIP.")
+        print("  Would resolve each symbol via FMP profile and upsert its CUSIP.")
         print("=" * 70)
         return
 
