@@ -17,3 +17,8 @@
 {"id":"int-e0fa5173","kind":"field_change","created_at":"2026-06-25T01:32:29.592092Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-awy","extra":{"field":"status","new_value":"closed","old_value":"open"}}
 {"id":"int-0d02ba61","kind":"field_change","created_at":"2026-06-25T01:32:30.0360243Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-7t8","extra":{"field":"status","new_value":"closed","old_value":"open"}}
 {"id":"int-7cf963d6","kind":"field_change","created_at":"2026-06-25T01:36:52.3575003Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-qjl","extra":{"field":"status","new_value":"closed","old_value":"open"}}
+{"id":"int-d77257d0","kind":"field_change","created_at":"2026-06-25T01:52:14.9966251Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-sfq","extra":{"field":"status","new_value":"closed","old_value":"open"}}
+{"id":"int-8f10633d","kind":"field_change","created_at":"2026-06-25T01:52:15.6940083Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-7qp","extra":{"field":"status","new_value":"closed","old_value":"open"}}
+{"id":"int-9eb0cbd9","kind":"field_change","created_at":"2026-06-25T01:52:16.1387979Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-53y","extra":{"field":"status","new_value":"closed","old_value":"open"}}
+{"id":"int-69b20d30","kind":"field_change","created_at":"2026-06-25T01:52:16.5756783Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-sfg","extra":{"field":"status","new_value":"closed","old_value":"open"}}
+{"id":"int-05c5eb58","kind":"field_change","created_at":"2026-06-25T01:52:17.0355048Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-cse","extra":{"field":"status","new_value":"deferred","old_value":"open"}}

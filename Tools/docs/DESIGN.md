@@ -327,6 +327,28 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
 
 ## 10. Changelog
 
+### 2026-06-24
+
+- **ingest_sec_13f.py** — SEC bulk Form 13F → CUSIP reverse-holdings index (#89)
+  - Downloads the quarterly Form 13F bulk data set (zip), parses `SUBMISSION`,
+    `COVERPAGE`, and `INFOTABLE` TSVs, and loads `sec_13f_holdings` +
+    `sec_13f_cusip_map` in `openbb_fmp_cache_test` via the existing
+    `openbb_fmp_cached` DB helpers. DDL lives in
+    `providers/sec/openbb_sec/utils/thirteen_f_index.py` (single source of
+    truth); the ingest imports it — no `CREATE TABLE` in `Tools/`.
+  - VALUE unit normalized per-period at parse (whole-USD from 2023-Q2,
+    thousands before); option rows (`PUTCALL`) segregated, not summed into long
+    shares. FIGI captured per-CUSIP into `sec_13f_cusip_map.figi`. Manifest row
+    written to `sec_13f_ingest_runs` (period, sha256, counts, value_unit).
+  - CLI: `--period`, `--user-agent` (SEC requires it), `--no-seed`, `--limit`,
+    `--dry-run`. `requests` only (no `aiohttp`); idempotent ON DUPLICATE KEY.
+  - Read helpers `resolve_cusip` / `holders_for_cusip` power the
+    `fmp_cached` institutional-ownership SEC tier (`_try_sec_13f`), which now
+    aggregates real per-manager holdings into the FMP summary schema instead of
+    the old always-empty filer-indexed fetcher.
+  - Verified e2e: 2023q2 ingest (59,718 holdings / 4,523 CUSIPs);
+    `resolve_cusip('MSFT')`/`('AAPL')` + ranked holders confirmed.
+
 ### 2026-02-19
 
 - **parse_fidelity_positions.py** — Created

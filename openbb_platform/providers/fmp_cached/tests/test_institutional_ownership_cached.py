@@ -100,10 +100,18 @@ def _yfinance_info(symbol: str = "MSFT") -> dict:
     }
 
 
-def _sec_13f_rows(n: int = 3) -> list[dict]:
-    """Simulate SEC 13F filing rows."""
+def _sec_13f_holder_rows(n: int = 3) -> list[dict]:
+    """Simulate sec_13f_holdings read rows returned by holders_for_cusip."""
     return [
-        {"nameOfIssuer": f"Fund_{i}", "shares": 1_000_000 * (i + 1), "value": 300_000_000 * (i + 1)}
+        {
+            "cusip": "67066G104",
+            "filer_cik": f"000000{i}",
+            "filer_name": f"Fund_{i}",
+            "period": "2023-Q2",
+            "shares": 1_000_000 * (i + 1),
+            "value_usd": 300_000_000 * (i + 1),
+            "put_call": None,
+        }
         for i in range(n)
     ]
 
@@ -300,40 +308,122 @@ class TestTryYfinance:
 class TestTrySec13f:
     @pytest.mark.asyncio
     async def test_sec_success(self):
-        sec_rows = _sec_13f_rows(3)
+        holders = _sec_13f_holder_rows(3)
         with patch(
-            "openbb_sec.models.form_13FHR.SecForm13FHRFetcher.aextract_data",
-            new_callable=AsyncMock,
-            return_value=sec_rows,
+            "openbb_sec.utils.thirteen_f_index.resolve_cusip",
+            return_value=["67066G104"],
+        ), patch(
+            "openbb_sec.utils.thirteen_f_index.holders_for_cusip",
+            return_value=holders,
+        ), patch(
+            "openbb_sec.utils.thirteen_f_index.init_thirteen_f_index",
+            return_value=True,
         ):
             result = await _try_sec_13f(["NVDA"])
             assert len(result) == 1
             assert result[0]["symbol"] == "NVDA"
             assert result[0]["data_source"] == "sec_13f"
-            # Should have aggregated values
-            assert result[0]["investors_holding"] > 0
-            assert result[0]["total_invested"] > 0
-            assert result[0]["number_of_13f_shares"] > 0
+            # Aggregated from the per-manager holding rows.
+            assert result[0]["investors_holding"] == 3
+            assert result[0]["number_of_13f_shares"] == sum(h["shares"] for h in holders)
+            assert result[0]["total_invested"] == float(sum(h["value_usd"] for h in holders))
+            # Period 2023-Q2 maps to its quarter-end date.
+            assert result[0]["date"] == "2023-06-30"
 
     @pytest.mark.asyncio
-    async def test_sec_empty(self):
+    async def test_sec_no_cusip(self):
+        """Unknown ticker -> no CUSIP -> empty (symbol skipped)."""
         with patch(
-            "openbb_sec.models.form_13FHR.SecForm13FHRFetcher.aextract_data",
-            new_callable=AsyncMock,
+            "openbb_sec.utils.thirteen_f_index.resolve_cusip",
             return_value=[],
+        ), patch(
+            "openbb_sec.utils.thirteen_f_index.init_thirteen_f_index",
+            return_value=True,
+        ):
+            result = await _try_sec_13f(["NVDA"])
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_sec_no_holders(self):
+        """CUSIP resolves but the index has no holdings yet -> empty."""
+        with patch(
+            "openbb_sec.utils.thirteen_f_index.resolve_cusip",
+            return_value=["67066G104"],
+        ), patch(
+            "openbb_sec.utils.thirteen_f_index.holders_for_cusip",
+            return_value=[],
+        ), patch(
+            "openbb_sec.utils.thirteen_f_index.init_thirteen_f_index",
+            return_value=True,
         ):
             result = await _try_sec_13f(["NVDA"])
             assert result == []
 
     @pytest.mark.asyncio
     async def test_sec_error(self):
+        """A read error is swallowed per-symbol -> empty, never raises."""
         with patch(
-            "openbb_sec.models.form_13FHR.SecForm13FHRFetcher.aextract_data",
-            new_callable=AsyncMock,
-            side_effect=Exception("SEC unreachable"),
+            "openbb_sec.utils.thirteen_f_index.resolve_cusip",
+            return_value=["67066G104"],
+        ), patch(
+            "openbb_sec.utils.thirteen_f_index.holders_for_cusip",
+            side_effect=Exception("DB unreachable"),
+        ), patch(
+            "openbb_sec.utils.thirteen_f_index.init_thirteen_f_index",
+            return_value=True,
         ):
             result = await _try_sec_13f(["NVDA"])
             assert result == []
+
+
+@pytest.mark.integration
+class TestSec13fEndToEnd:
+    """End-to-end SEC tier against the real MySQL 13F index (no network).
+
+    Seeds a synthetic ticker/CUSIP + two holding rows, runs the full
+    resolve_cusip -> holders_for_cusip -> aggregate path through
+    ``_try_sec_13f``, then deletes the synthetic rows. Skips cleanly when the
+    index database is unreachable.
+    """
+
+    @pytest.mark.asyncio
+    async def test_sec_tier_against_real_index(self):
+        from datetime import datetime as _dt, timezone as _tz
+
+        from openbb_sec.utils import thirteen_f_index as tfi
+        from openbb_fmp_cached.utils.database import execute_query as _eq
+
+        if not tfi.init_thirteen_f_index():
+            pytest.skip("13F index database unreachable")
+
+        ticker = "ZZE2E"
+        cusip = "ZZE2E0001"  # CHAR(9)
+        period = "2099-Q4"
+        now = _dt.now(_tz.utc).replace(tzinfo=None)
+        try:
+            tfi.upsert_cusip_map(
+                [(cusip, "E2E TEST ISSUER", ticker, None, None, tfi.SOURCE_SEED, now)]
+            )
+            tfi.upsert_holdings(
+                [
+                    (cusip, "0000001", "Fund One", period, 1000, 5_000_000, None, tfi.SOURCE_BULK, now),
+                    (cusip, "0000002", "Fund Two", period, 2000, 9_000_000, None, tfi.SOURCE_BULK, now),
+                ]
+            )
+
+            result = await _try_sec_13f([ticker])
+
+            assert len(result) == 1
+            rec = result[0]
+            assert rec["symbol"] == ticker.upper()
+            assert rec["data_source"] == "sec_13f"
+            assert rec["investors_holding"] == 2
+            assert rec["number_of_13f_shares"] == 3000
+            assert rec["total_invested"] == 14_000_000.0
+            assert rec["date"] == "2099-12-31"
+        finally:
+            _eq("DELETE FROM sec_13f_holdings WHERE cusip = %s", (cusip,))
+            _eq("DELETE FROM sec_13f_cusip_map WHERE cusip = %s", (cusip,))
 
 
 # ---------------------------------------------------------------------------
