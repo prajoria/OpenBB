@@ -6,36 +6,32 @@ technicals, discovery, models, options, ...).
 
 ## Installation
 
-> **Important — this extension is not published to PyPI and is not registered
-> in the root `openbb_platform` `pyproject.toml`, so it does NOT auto-load.**
-> You must install it standalone from a source checkout. The
-> `financetoolkit` dependency is declared as a **local `path` dependency**
-> (`develop = true`), which only resolves for an editable install from a repo
-> checkout that includes the `FinanceToolkit` submodule — `pip install
-> openbb-financialtoolkit` from a built wheel/sdist will **not** work because the
-> `../../../FinanceToolkit` tree is not shipped in the artifact.
+> **Note — this extension is not published to PyPI and is not registered in
+> the root `openbb_platform` `pyproject.toml`, so it does NOT auto-load.**
+> You must install it standalone from a source checkout. The runtime
+> `financetoolkit` dependency now resolves from PyPI (`^2.1.2`), so no
+> submodule init is required.
 
 ```bash
-# 1. Clone OpenBB and initialize submodules (pulls FinanceToolkit)
+# 1. Clone OpenBB
 git clone https://github.com/OpenBB-finance/OpenBB.git
 cd OpenBB
-git submodule update --init --recursive
 
-# 2. Editable install of the extension (resolves the local path dependency)
+# 2. Editable install of the extension (pulls financetoolkit from PyPI)
 pip install -e openbb_platform/extensions/financialtoolkit
 
 # 3. Rebuild the static package so the new commands are picked up
 python -c "import openbb; openbb.build()"
 ```
 
-### FinanceToolkit dependency / fork status
+### FinanceToolkit dependency status
 
-The pinned `FinanceToolkit` submodule currently tracks a personal fork
-(`prajoria/FinanceToolkit`) rather than upstream `JerBouma/FinanceToolkit` or a
-published PyPI `financetoolkit` release. This is a **known short-term coupling**
-and a release blocker — the plan is to upstream the required changes (or pin a
-published `financetoolkit` version constraint) and repoint the submodule at the
-canonical source. See the tracking issue for the convergence plan.
+The runtime dependency is the published `financetoolkit` package (`^2.1.2`)
+from PyPI. The previous coupling to a personal fork
+(`prajoria/FinanceToolkit`) via git submodule was removed in #19 to make
+the extension PyPI-installable. Disposition of the fork's 3-tier
+historical-data fallback (FMP cached → FMP direct → CBOE) is tracked in a
+separate follow-up issue.
 
 ## Credentials
 
