@@ -31,12 +31,40 @@ analysis.  All scripts share a common infrastructure pattern.
 
 ## 2. Script Inventory
 
-| Script                          | Purpose                                                       | Lines | Tables Created              |
-|---------------------------------|---------------------------------------------------------------|-------|-----------------------------|
-| `parse_fidelity_positions.py`   | Parse Fidelity "Portfolio Positions" HTML → MySQL             | ~870  | `Portfolio_Positions`, `Account_Owner` |
-| `load_espp_plan.py`             | Parse ESPP purchase history (TSV/CSV) → MySQL                | ~540  | `ESPP_Plan`                 |
-| `share_cost_basis.py`           | Standalone cost-basis / gain-loss analyzer (TSV/CSV, no DB)  | ~310  | —                           |
-| `build_sp500_constituents.py`   | Populate `sp500_constituents` via `fmp_cached` provider      | ~100  | (uses provider module)      |
+> **Per-tool design specs live in [`specs/`](specs/README.md)** — one markdown
+> spec per script (purpose, inputs, outputs, CLI, key functions, persistence,
+> gotchas). This table is the index; the specs are the detail.
+
+### DB loaders (write to MySQL)
+
+| Script                          | Purpose                                                       | Writes / Tables             | Spec |
+|---------------------------------|---------------------------------------------------------------|-----------------------------|------|
+| `parse_fidelity_positions.py`   | Parse Fidelity "Portfolio Positions" HTML → MySQL             | `Portfolio_Positions`, `Account_Owner` | [spec](specs/parse_fidelity_positions.md) |
+| `load_espp_plan.py`             | Parse ESPP purchase history (TSV/CSV) → MySQL                 | `ESPP_Plan`                 | [spec](specs/load_espp_plan.md) |
+| `build_sp500_constituents.py`   | Populate the S&P 500 constituents universe via `fmp_cached`   | `sp500_constituents`        | [spec](specs/build_sp500_constituents.md) |
+| `populate_market_holidays.py`   | Compute + upsert US market holidays 2016–2026                 | `market_holidays`           | [spec](specs/populate_market_holidays.md) |
+| `populate_cusip_map.py`         | S&P 500 ticker → CUSIP cache loader (#89)                     | `sec_13f_cusip_map`         | [spec](specs/populate_cusip_map.md) |
+| `ingest_sec_13f.py`             | Ingest SEC Form 13F bulk data set → CUSIP reverse index (#89) | `sec_13f_holdings`, `sec_13f_cusip_map`, `sec_13f_ingest_runs` | [spec](specs/ingest_sec_13f.md) |
+| `fetch_position_history.py`     | Pre-cache daily equity history for held symbols via `fmp_cached` | `equity_historical` (cache) | [spec](specs/fetch_position_history.md) |
+
+### Read / analysis
+
+| Script                              | Purpose                                                   | Writes        | Spec |
+|-------------------------------------|-----------------------------------------------------------|---------------|------|
+| `portfolio_stats.py`                | Print Portfolio_Positions stats by owner & account        | —             | [spec](specs/portfolio_stats.md) |
+| `export_basket_weight_comparison.py`| Basket intended vs current weights → Excel                | `.xlsx`       | [spec](specs/export_basket_weight_comparison.md) |
+| `share_cost_basis.py`               | Standalone cost-basis / gain-loss analyzer (TSV/CSV)      | —             | [spec](specs/share_cost_basis.md) |
+| `mortgage_amortization.py`          | Fixed-rate mortgage amortization calculator (library)     | CSV (opt)     | [spec](specs/mortgage_amortization.md) |
+
+### Utilities / infra
+
+| Script                                      | Purpose                                            | Spec |
+|---------------------------------------------|----------------------------------------------------|------|
+| `make_venv_portable.py`                     | Rewrite `.venv_win` `.pth` paths to repo-relative  | [spec](specs/make_venv_portable.md) |
+| `quant_scraper/scrape_quant_strategies.py`  | Clone every repo linked from `awesome-quant`       | [spec](specs/quant_scraper.md) |
+| `scheduler/run_fetch_position_history.ps1`  | Scheduled-task wrapper for `fetch_position_history`| [spec](specs/scheduler.md) |
+
+> `Tools/uv/` holds vendored `uv`/`uvx` binaries (not a script).
 
 ---
 
