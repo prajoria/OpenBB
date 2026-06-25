@@ -2,6 +2,15 @@
 
 This folder is a collection of example notebooks that demonstrate some of the ways to get started with using the OpenBB Platform.  To run them, ensure that the active kernel selected is the same Python virtual environment where OpenBB was installed.
 
+## Contributing examples
+
+Notebook outputs are stripped automatically on commit via the `nbstripout`
+pre-commit hook configured at the repo root (`.pre-commit-config.yaml`).
+Run `pre-commit install` once in a fresh clone so the hook fires; thereafter
+every commit will keep `outputs` empty and `execution_count` null in
+committed notebooks. This keeps PR diffs small and prevents accidental
+inclusion of personal data in cell outputs.
+
 ## Table of Contents
 
 ### googleColab
