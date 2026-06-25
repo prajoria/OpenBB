@@ -44,6 +44,7 @@ analysis.  All scripts share a common infrastructure pattern.
 | `build_sp500_constituents.py`   | Populate the S&P 500 constituents universe via `fmp_cached`   | `sp500_constituents`        | [spec](specs/build_sp500_constituents.md) |
 | `populate_market_holidays.py`   | Compute + upsert US market holidays 2016–2026                 | `market_holidays`           | [spec](specs/populate_market_holidays.md) |
 | `populate_cusip_map.py`         | S&P 500 ticker → CUSIP cache loader (#89)                     | `sec_13f_cusip_map`         | [spec](specs/populate_cusip_map.md) |
+| `enrich_cusip_figi.py`          | Broad ticker → CUSIP enrichment via OpenFIGI `/v3/mapping` (#93) | `sec_13f_cusip_map`, `openfigi_map_cache` | [spec](specs/enrich_cusip_figi.md) |
 | `ingest_sec_13f.py`             | Ingest SEC Form 13F bulk data set → CUSIP reverse index (#89) | `sec_13f_holdings`, `sec_13f_cusip_map`, `sec_13f_ingest_runs` | [spec](specs/ingest_sec_13f.md) |
 | `fetch_position_history.py`     | Pre-cache daily equity history for held symbols via `fmp_cached` | `equity_historical` (cache) | [spec](specs/fetch_position_history.md) |
 
@@ -354,6 +355,34 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
 ---
 
 ## 10. Changelog
+
+### 2026-06-25
+
+- **enrich_cusip_figi.py** — Broad ticker → CUSIP enrichment via OpenFIGI (#93)
+  - Closes the long-tail gap left by `populate_cusip_map.py` (S&P 500 only).
+    Walks distinct un-mapped CUSIPs in `sec_13f_holdings` (ranked by latest-
+    period `SUM(value_usd)`, R5), batches them through OpenFIGI `/v3/mapping`
+    via `openbb_sec.utils.openfigi.map_cusips`, picks the US-composite match
+    via the deterministic R3 ladder, and upserts `(ticker, figi,
+    source='openfigi')` into `sec_13f_cusip_map`.
+  - **Provenance precedence is enforced app-side** (R6) by the SQL anti-join
+    on `source IN ('seed','fmp_profile','openfigi','openfigi_ambiguous')` —
+    not by `COALESCE` — so seed/FMP-profile tickers are never overwritten.
+  - **Ambiguous / no-match CUSIPs are persisted** as `(ticker=NULL,
+    source='openfigi_ambiguous')` (R4) so subsequent runs anti-join past them;
+    `--reresolve-flagged` re-attempts on demand.
+  - **New table** `openfigi_map_cache` — read-through cache for raw
+    `/v3/mapping` job results (TTL 180d, R9). DDL lives in
+    `providers/sec/openbb_sec/utils/openfigi.py`, leaving the #89 13F schema
+    untouched (L3). Decouples raw responses from the selected match so the
+    R3 ladder can be refined later without spending OpenFIGI calls.
+  - CLI mirrors `populate_cusip_map.py` plus five #93-specific flags:
+    `--max-batches --since --reresolve-flagged --audit-disagreements
+    --refresh`. Credential resolution: `--api-key` flag → `OPEN_FIGI_API_KEY`
+    env → `user_settings.credentials.openfigi_api_key` → keyless (R2; logs
+    mode + source at startup, never the key).
+  - Spec: [`Tools/docs/specs/enrich_cusip_figi.md`](specs/enrich_cusip_figi.md).
+    Design: [`docs/designs/quant_trading/93-openfigi-ticker-cusip-resolver.md`](../../docs/designs/quant_trading/93-openfigi-ticker-cusip-resolver.md).
 
 ### 2026-06-24
 
