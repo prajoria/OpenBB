@@ -31,9 +31,28 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Make stdout UTF-8 (Windows console default is cp1252) -- same as populate_cusip_map.py
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+# Make stdout + stderr UTF-8 on Windows (cp1252 default raises UnicodeEncodeError
+# on non-ASCII WARN/ERROR log records). Mirrors Tools/populate_cusip_map.py's
+# guard verbatim -- the `errors="replace"` is what keeps a single odd byte from
+# aborting a long enrichment loop.
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+# Load .env from repo root so OPEN_FIGI_API_KEY (and other dev creds) reach
+# os.environ before resolve_credentials() runs its R2 ladder. Mirrors
+# Tools/populate_cusip_map.py:77-79. Soft-import: if python-dotenv is not
+# installed we silently continue (creds may still come from the OS env or
+# user_settings).
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+try:
+    from dotenv import load_dotenv  # noqa: PLC0415
+
+    load_dotenv(_PROJECT_ROOT / ".env", override=True)
+except ImportError:  # pragma: no cover -- dotenv is in dev deps but not required
+    pass
 
 # Add SEC + fmp_cached provider source dirs to sys.path so this script runs as a
 # bare ``python Tools/enrich_cusip_figi.py`` without requiring an editable install
@@ -96,6 +115,62 @@ def _db():
     from openbb_fmp_cached.utils import database as _database  # noqa: PLC0415
 
     return _database
+
+
+# SQL string is duplicated from openbb_sec.utils.thirteen_f_index.upsert_cusip_map
+# verbatim. We can't reuse the helper directly because it runs through
+# fmp_cached.execute_many which uses autocommit=True -- partial-write under
+# executemany failure would silently violate R5. The helper here opens its own
+# connection, flips autocommit off, and uses BEGIN/COMMIT/ROLLBACK so a failed
+# batch leaves zero rows behind (R5 "drop in-flight batch on uncaught error,
+# never partial-upsert").
+_UPSERT_CUSIP_MAP_SQL = """
+INSERT INTO sec_13f_cusip_map
+    (cusip, issuer_name, ticker, title_class, figi, source, updated_at)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+    issuer_name = VALUES(issuer_name),
+    ticker      = COALESCE(VALUES(ticker), ticker),
+    title_class = COALESCE(VALUES(title_class), title_class),
+    figi        = COALESCE(VALUES(figi), figi),
+    source      = VALUES(source),
+    updated_at  = VALUES(updated_at)
+"""
+
+
+def transactional_upsert_cusip_map(rows: list[tuple]) -> int:
+    """Upsert into sec_13f_cusip_map inside an explicit transaction.
+
+    Unlike openbb_sec.utils.thirteen_f_index.upsert_cusip_map (which goes
+    through fmp_cached.execute_many with autocommit=True), this helper opens
+    its own pymysql connection, sets autocommit off, executes the upsert
+    inside a transaction, and commits only on full success. Any exception
+    triggers a rollback so the batch is all-or-nothing -- honoring R5's
+    "drop in-flight batch on uncaught error, never partial".
+
+    Returns cursor.rowcount on commit; raises whatever pymysql raised on
+    failure (caller's outer try/except logs and continues to the next batch).
+    """
+    if not rows:
+        return 0
+    pool = _db().get_connection_pool()
+    with pool.get_connection() as conn:
+        # The fmp_cached pool always hands out autocommit=True connections;
+        # flip it off for the duration of this batch's executemany.
+        conn.autocommit(False)
+        try:
+            with conn.cursor() as cursor:
+                cursor.executemany(_UPSERT_CUSIP_MAP_SQL, rows)
+                rowcount = cursor.rowcount
+            conn.commit()
+            return rowcount
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            # Restore autocommit so the next caller of the pool sees the
+            # connection in its normal mode (the pool reuses connections).
+            conn.autocommit(True)
 
 
 def select_target_cusips(
@@ -170,18 +245,24 @@ def enrich(
     dry_run: bool,
     audit_disagreements: bool,
     max_batches: int | None,
+    extra_sleep: float = 0.0,
 ) -> dict:
-    """Map -> select -> upsert. Returns a stats dict (also logged at end).
+    """Map -> select -> upsert. Returns a stats dict and emits a final summary log.
 
-    Per-batch transactional upsert: an uncaught exception in a batch drops
-    that batch's writes rather than partial-upserting (R5 last bullet).
+    Per-batch transactional upsert (R5 "drop in-flight batch on uncaught error,
+    never partial"): both the map step AND the upsert step are guarded; if
+    either raises mid-batch, ``transactional_upsert_cusip_map`` rolls back and
+    nothing from that batch is persisted. The outer try/except logs the failure
+    and the loop continues with the next batch.
+
+    ``extra_sleep`` adds a fixed delay between batches, layered on top of the
+    ``RateLimitPolicy``'s per-minute pacing (honors --sleep CLI flag).
     """
     from openbb_sec.utils.openfigi import (  # noqa: PLC0415
         RateLimitPolicy,
         map_cusips,
         select_match,
     )
-    from openbb_sec.utils.thirteen_f_index import upsert_cusip_map  # noqa: PLC0415
 
     policy = RateLimitPolicy.keyed() if api_key else RateLimitPolicy.keyless()
     stats = {
@@ -209,8 +290,10 @@ def enrich(
         try:
             results = map_cusips(chunk, api_key=api_key, policy=policy, refresh=refresh)
         except Exception as exc:  # noqa: BLE001 -- drop the in-flight batch, never partial-upsert
-            logger.error("batch %d dropped (uncaught error): %s", batch_idx + 1, exc)
+            logger.error("batch %d dropped (map failure): %s", batch_idx + 1, exc)
             stats["errors"] += len(chunk)
+            if extra_sleep > 0 and batch_idx + 1 < total_chunks:
+                time.sleep(extra_sleep)
             continue
 
         rows_to_upsert: list[tuple] = []
@@ -256,9 +339,28 @@ def enrich(
             rows_to_upsert.append(_row_for_upsert(cusip, match))
 
         if rows_to_upsert:
-            written = upsert_cusip_map(rows_to_upsert)
-            stats["written"] += written
+            try:
+                written = transactional_upsert_cusip_map(rows_to_upsert)
+            except Exception as exc:  # noqa: BLE001 -- batch rolled back; loop continues
+                logger.error(
+                    "batch %d upsert rolled back (%d rows lost): %s",
+                    batch_idx + 1, len(rows_to_upsert), exc,
+                )
+                stats["errors"] += len(rows_to_upsert)
+            else:
+                stats["written"] += written
 
+        # --sleep -- extra throttling layered on top of RateLimitPolicy's per-
+        # minute pacing inside map_cusips. Skip after the last batch.
+        if extra_sleep > 0 and batch_idx + 1 < total_chunks:
+            time.sleep(extra_sleep)
+
+    logger.info(
+        "enrich complete: requested=%d mapped_ok=%d ambiguous=%d no_match=%d "
+        "errors=%d disagreements=%d written=%d",
+        stats["requested"], stats["mapped_ok"], stats["ambiguous"],
+        stats["no_match"], stats["errors"], stats["disagreements"], stats["written"],
+    )
     return stats
 
 
@@ -320,6 +422,14 @@ def main() -> int:
 
     _setup_logging(args.verbose)
 
+    # --database: override DB_NAME so DatabaseConfig (and therefore _db() +
+    # transactional_upsert_cusip_map + select_target_cusips) target the chosen
+    # database. Must be set BEFORE the first _db() call below. Mirrors how
+    # populate_cusip_map.py threads args.database through get_connection.
+    if args.database:
+        import os  # noqa: PLC0415 -- localized to keep top-of-module import list lean
+        os.environ["DB_NAME"] = args.database
+
     from openbb_sec.utils.openfigi import (  # noqa: PLC0415
         init_openfigi_cache,
         resolve_credentials,
@@ -349,6 +459,10 @@ def main() -> int:
         f"  Estimated batches : {batches_est}  "
         f"(size {batch_size}, mode {policy_label}, source {source})"
     )
+    if args.database:
+        print(f"  Database (override): {args.database}")  # noqa: T201
+    if args.sleep > 0:
+        print(f"  Extra sleep/batch : {args.sleep}s")  # noqa: T201
     if args.dry_run:
         print("\n  DRY RUN -- no DB writes (cache reads + OpenFIGI calls still happen).")  # noqa: T201
 
@@ -360,6 +474,7 @@ def main() -> int:
         dry_run=args.dry_run,
         audit_disagreements=args.audit_disagreements,
         max_batches=args.max_batches,
+        extra_sleep=args.sleep,
     )
     elapsed = time.monotonic() - started
 
