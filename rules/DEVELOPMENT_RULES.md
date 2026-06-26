@@ -74,6 +74,19 @@ Portfolio data lives in `openbb_fmp_cache_test`.  The default
 `openbb_fmp_cache` is for general provider caching.  Always verify
 which database you're connecting to.
 
+### Backups
+Database backups live **outside the repository** so large `.sql` dumps
+never get committed.  On this machine the backup folder is `H:\DBBackup`.
+Do **not** write dumps into the repo tree (no `backups/` folder under the
+repo root).
+
+- Use `mysqldump --single-transaction --routines --triggers --databases <db>`
+  for a consistent snapshot.
+- Pass the password via the `MYSQL_PWD` environment variable, never on the
+  command line; read credentials from `DatabaseConfig`.
+- Name dumps `<database>_<YYYYMMDD_HHMMSS>.sql`.
+- Restore with `mysql --user=<user> -p < H:\DBBackup\<file>.sql`.
+
 ---
 
 ## 4. Script Structure Pattern

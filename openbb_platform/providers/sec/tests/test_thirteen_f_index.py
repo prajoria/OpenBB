@@ -150,6 +150,117 @@ class TestReadHelpers:
 
 
 # ---------------------------------------------------------------------------
+# Aggregate institutional ownership + percentage
+# ---------------------------------------------------------------------------
+
+
+class TestInstitutionalHoldingSummary:
+    def _fake_db(self, agg_row):
+        fake_db = MagicMock()
+        # First call resolves latest period; second returns the aggregate row.
+        fake_db.execute_query.side_effect = [
+            [{"p": "2023-Q1"}],
+            [agg_row],
+        ]
+        return fake_db
+
+    def test_summary_with_pct(self):
+        fake_db = self._fake_db(
+            {"holder_count": 4515, "total_shares": 5_586_915_374,
+             "total_value_usd": 1_384_457_411_802}
+        )
+        with patch.object(tfi, "_db", return_value=fake_db):
+            out = tfi.institutional_holding_summary(
+                "594918104", shares_outstanding=7_435_487_575
+            )
+        assert out["period"] == "2023-Q1"
+        assert out["holder_count"] == 4515
+        assert out["total_shares"] == 5_586_915_374
+        assert out["pct_institutional"] == pytest.approx(0.7514, abs=1e-3)
+
+    def test_summary_without_shares_outstanding(self):
+        fake_db = self._fake_db(
+            {"holder_count": 10, "total_shares": 100, "total_value_usd": 1000}
+        )
+        with patch.object(tfi, "_db", return_value=fake_db):
+            out = tfi.institutional_holding_summary("594918104")
+        assert out["pct_institutional"] is None
+
+    def test_summary_zero_shares_outstanding_is_safe(self):
+        fake_db = self._fake_db(
+            {"holder_count": 10, "total_shares": 100, "total_value_usd": 1000}
+        )
+        with patch.object(tfi, "_db", return_value=fake_db):
+            out = tfi.institutional_holding_summary(
+                "594918104", shares_outstanding=0
+            )
+        assert out["pct_institutional"] is None
+
+    def test_summary_empty_input(self):
+        out = tfi.institutional_holding_summary([])
+        assert out["holder_count"] == 0
+        assert out["period"] is None
+        assert out["pct_institutional"] is None
+
+    def test_summary_graceful_on_error(self):
+        fake_db = MagicMock()
+        fake_db.execute_query.side_effect = [
+            [{"p": "2023-Q1"}],
+            Exception("db down"),
+        ]
+        with patch.object(tfi, "_db", return_value=fake_db):
+            out = tfi.institutional_holding_summary("594918104")
+        assert out["holder_count"] == 0
+
+
+class TestSharesOutstandingFromSEC:
+    """SEC EDGAR shares-outstanding lookup (network mocked)."""
+
+    def setup_method(self):
+        tfi._TICKER_CIK_CACHE = None  # reset module cache between tests
+
+    def test_issuer_cik_for_ticker(self):
+        payload = {"0": {"cik_str": 789019, "ticker": "MSFT", "title": "MICROSOFT CORP"}}
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = payload
+        resp.raise_for_status.return_value = None
+        with patch("requests.get", return_value=resp):
+            assert tfi.issuer_cik_for_ticker("msft") == 789019
+            assert tfi.issuer_cik_for_ticker("UNKNOWN") is None
+
+    def test_shares_outstanding_period_aligned(self):
+        tickers = MagicMock(status_code=200)
+        tickers.json.return_value = {
+            "0": {"cik_str": 789019, "ticker": "MSFT", "title": "MICROSOFT CORP"}
+        }
+        tickers.raise_for_status.return_value = None
+        concept = MagicMock(status_code=200)
+        concept.json.return_value = {
+            "units": {
+                "shares": [
+                    {"end": "2022-12-31", "val": 7_000_000_000},
+                    {"end": "2023-04-20", "val": 7_435_487_575},
+                    {"end": "2023-10-20", "val": 7_500_000_000},
+                ]
+            }
+        }
+
+        def _get(url, **_kwargs):
+            return tickers if "company_tickers" in url else concept
+
+        with patch("requests.get", side_effect=_get):
+            # Closest end to 2023-03-31 is 2023-04-20.
+            assert tfi.shares_outstanding_from_sec("MSFT", "2023-Q1") == 7_435_487_575
+
+    def test_shares_outstanding_unknown_ticker(self):
+        tickers = MagicMock(status_code=200)
+        tickers.json.return_value = {}
+        tickers.raise_for_status.return_value = None
+        with patch("requests.get", return_value=tickers):
+            assert tfi.shares_outstanding_from_sec("NOPE", "2023-Q1") is None
+
+
+# ---------------------------------------------------------------------------
 # Ingest parser / aggregator (pure)
 # ---------------------------------------------------------------------------
 

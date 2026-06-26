@@ -391,3 +391,213 @@ def holders_for_cusip(
         logger.warning("holders_for_cusip failed: %s", exc)
         return []
     return list(rows or [])
+
+
+def institutional_holding_summary(
+    cusips: str | list[str],
+    period: str | None = None,
+    shares_outstanding: int | float | None = None,
+) -> dict[str, Any]:
+    """Aggregate total 13F institutional ownership for a stock.
+
+    Sums every reporting manager's position for ``cusips`` in a single quarter
+    so callers get the *whole* institutional footprint, not just the top
+    holders. When ``shares_outstanding`` is provided, the institutional
+    ownership **percentage** is computed as ``total_shares / shares_outstanding``.
+
+    ``cusips`` may be a single CUSIP or a list (one ticker → many share-class
+    CUSIPs, Q-B). When ``period`` is ``None`` the latest available period is
+    used.
+
+    Returns a dict with keys ``period``, ``holder_count``, ``total_shares``,
+    ``total_value_usd``, ``shares_outstanding`` and ``pct_institutional``
+    (``None`` when shares outstanding is unknown or non-positive). All counts
+    are ``0`` and ``period`` is ``None`` when nothing is found or the index is
+    unreachable.
+    """
+    empty: dict[str, Any] = {
+        "period": None,
+        "holder_count": 0,
+        "total_shares": 0,
+        "total_value_usd": 0,
+        "shares_outstanding": shares_outstanding,
+        "pct_institutional": None,
+    }
+
+    if isinstance(cusips, str):
+        cusips = [cusips]
+    cusips = [c for c in (cusips or []) if c]
+    if not cusips:
+        return empty
+
+    if period is None:
+        period = latest_period_for_cusips(cusips)
+        if period is None:
+            return empty
+
+    placeholders = ", ".join(["%s"] * len(cusips))
+    sql = f"""
+    SELECT
+        COUNT(DISTINCT filer_cik) AS holder_count,
+        COALESCE(SUM(shares), 0)    AS total_shares,
+        COALESCE(SUM(value_usd), 0) AS total_value_usd
+    FROM sec_13f_holdings
+    WHERE cusip IN ({placeholders}) AND period = %s
+    """
+    try:
+        rows = _db().execute_query(sql, (*cusips, period))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("institutional_holding_summary failed: %s", exc)
+        return empty
+
+    row = (rows or [{}])[0]
+    total_shares = int(row.get("total_shares") or 0)
+    total_value = int(row.get("total_value_usd") or 0)
+    holder_count = int(row.get("holder_count") or 0)
+
+    pct = None
+    if shares_outstanding and shares_outstanding > 0:
+        pct = total_shares / float(shares_outstanding)
+
+    return {
+        "period": period,
+        "holder_count": holder_count,
+        "total_shares": total_shares,
+        "total_value_usd": total_value,
+        "shares_outstanding": shares_outstanding,
+        "pct_institutional": pct,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Shares-outstanding lookup (authentic source for the institutional %)
+#
+# To turn aggregate 13F shares into a *percentage* of the float we need shares
+# outstanding. The most authentic, period-alignable source is SEC EDGAR's XBRL
+# company-facts API — the issuer's own cover-page share count from its 10-Q/10-K
+# (``dei:EntityCommonStockSharesOutstanding``). It is official, free, and lives
+# in the same SEC corpus as the 13F data, so the numerator (13F shares) and
+# denominator (shares outstanding) come from one regulator. ``fmp_cached`` is a
+# fine *secondary* source (a third-party aggregator) when an offline/period-
+# aligned SEC figure is not required — the notebook wires that fallback.
+# ---------------------------------------------------------------------------
+
+_SEC_TICKER_CIK_URL = "https://www.sec.gov/files/company_tickers.json"
+_SEC_COMPANYCONCEPT = (
+    "https://data.sec.gov/api/xbrl/companyconcept/CIK{cik:010d}/{taxonomy}/{tag}.json"
+)
+# dei first (cover-page "as of" count), then us-gaap as a fallback tag.
+_SHARES_TAGS = (
+    ("dei", "EntityCommonStockSharesOutstanding"),
+    ("us-gaap", "CommonStockSharesOutstanding"),
+)
+_DEFAULT_SEC_UA = "OpenBBTechnical-Research research@openbbtech.local"
+
+# Module-level cache for the ticker→CIK map (fetched once per process).
+_TICKER_CIK_CACHE: dict[str, int] | None = None
+
+
+def _sec_user_agent() -> str:
+    """SEC requires a descriptive UA; honor ``SEC_USER_AGENT`` if set."""
+    import os  # noqa: PLC0415
+
+    return os.getenv("SEC_USER_AGENT", _DEFAULT_SEC_UA)
+
+
+def _load_ticker_cik_map() -> dict[str, int]:
+    """Fetch and cache SEC's official ticker→CIK map (``company_tickers.json``)."""
+    global _TICKER_CIK_CACHE  # noqa: PLW0603
+    if _TICKER_CIK_CACHE is not None:
+        return _TICKER_CIK_CACHE
+    import requests  # noqa: PLC0415
+
+    out: dict[str, int] = {}
+    try:
+        resp = requests.get(
+            _SEC_TICKER_CIK_URL,
+            headers={"User-Agent": _sec_user_agent()},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        for row in resp.json().values():
+            ticker = str(row.get("ticker", "")).strip().upper()
+            cik = row.get("cik_str")
+            if ticker and cik is not None:
+                out[ticker] = int(cik)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to load SEC ticker→CIK map: %s", exc)
+        return {}
+    _TICKER_CIK_CACHE = out
+    return out
+
+
+def issuer_cik_for_ticker(symbol: str) -> int | None:
+    """Resolve a ticker to its **issuer** CIK via SEC's official mapping.
+
+    This is the *company's* CIK (the entity that files 10-K/10-Q/13F-HR cover
+    data), not a 13F filer's CIK. Returns ``None`` when unknown or SEC is
+    unreachable.
+    """
+    if not symbol:
+        return None
+    return _load_ticker_cik_map().get(symbol.strip().upper())
+
+
+def shares_outstanding_from_sec(
+    symbol: str, period: str | None = None
+) -> int | None:
+    """Return shares outstanding for ``symbol`` from SEC EDGAR XBRL.
+
+    Uses the issuer's own cover-page share count
+    (``dei:EntityCommonStockSharesOutstanding``, falling back to
+    ``us-gaap:CommonStockSharesOutstanding``). When ``period`` (e.g.
+    ``'2023-Q1'``) is given, the reported value whose ``end`` date is closest to
+    that quarter-end is returned, so the figure period-aligns with the 13F
+    snapshot. Returns ``None`` when the issuer/CIK/data is unavailable.
+
+    Network call (``requests`` + descriptive User-Agent, SEC rate limits apply);
+    this is intentionally off the MySQL read path and only invoked on demand.
+    """
+    cik = issuer_cik_for_ticker(symbol)
+    if cik is None:
+        return None
+
+    target = None
+    if period:
+        try:
+            target = datetime.strptime(
+                period_to_quarter_end(period), "%Y-%m-%d"
+            ).date()
+        except (ValueError, KeyError):
+            target = None
+
+    import requests  # noqa: PLC0415
+
+    for taxonomy, tag in _SHARES_TAGS:
+        url = _SEC_COMPANYCONCEPT.format(cik=cik, taxonomy=taxonomy, tag=tag)
+        try:
+            resp = requests.get(
+                url, headers={"User-Agent": _sec_user_agent()}, timeout=30
+            )
+            if resp.status_code != 200:
+                continue
+            entries = resp.json().get("units", {}).get("shares", [])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("SEC shares lookup failed for %s (%s): %s", symbol, tag, exc)
+            continue
+
+        candidates = [e for e in entries if e.get("val") and e.get("end")]
+        if not candidates:
+            continue
+
+        if target is None:
+            best = max(candidates, key=lambda e: e["end"])
+        else:
+            def _dist(entry: dict[str, Any]) -> int:
+                end = datetime.strptime(entry["end"], "%Y-%m-%d").date()
+                return abs((end - target).days)
+
+            best = min(candidates, key=_dist)
+        return int(best["val"])
+
+    return None
