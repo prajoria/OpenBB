@@ -47,6 +47,7 @@ analysis.  All scripts share a common infrastructure pattern.
 | `enrich_cusip_figi.py`          | Broad ticker → CUSIP enrichment via OpenFIGI `/v3/mapping` (#93) | `sec_13f_cusip_map`, `openfigi_map_cache` | [spec](specs/enrich_cusip_figi.md) |
 | `ingest_sec_13f.py`             | Ingest SEC Form 13F bulk data set → CUSIP reverse index (#89) | `sec_13f_holdings`, `sec_13f_cusip_map`, `sec_13f_ingest_runs` | [spec](specs/ingest_sec_13f.md) |
 | `fetch_position_history.py`     | Pre-cache daily equity history for held symbols via `fmp_cached` | `equity_historical` (cache) | [spec](specs/fetch_position_history.md) |
+| `refresh_etf_holdings_cache.py` | Pre-cache ETF holdings for the 11 GICS sector SPDRs + held ETFs (#97 consumer) | `etf_holdings` (cache, via provider chain) | [spec](specs/refresh_etf_holdings_cache.md) |
 
 ### Read / analysis
 
@@ -355,6 +356,33 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
 ---
 
 ## 10. Changelog
+
+### 2026-06-26
+
+- **refresh_etf_holdings_cache.py** — Pre-warm the `fmp_cached` `etf_holdings`
+  cache for the ETFs that matter to this checkout (sibling to
+  `fetch_position_history.py`).
+  - Universe = `SPDR_SECTORS` (11 GICS sector SPDRs, derived from
+    `openbb_techtrade.engine.screener.GICS_SECTOR_ETFS.values()` at module
+    load — L9 of the design, so the two declarations cannot drift) ∪
+    Portfolio_Positions symbols filtered through `KNOWN_ETFS` (~20 well-known
+    ETF tickers — L4) ∪ comma-separated extras from `--etfs`.
+  - Calls `obb.etf.holdings(symbol=ETF, provider="fmp_cached")` per ETF; the
+    provider's multi-tier fallback chain (FMP → issuer-file → SEC N-PORT, the
+    latter two arriving with #97) populates the cache. **This tool knows
+    nothing about which tier feeds each ETF** (L2 — provider chain is the
+    SSOT). Until #97 lands: every SPDR logs `402 Restricted Endpoint` as an
+    error, cache stays empty, exit 0. After #97 lands: zero code change here.
+  - Per-ETF errors are non-fatal (L7); a partial win is still a win.
+  - Scheduled separately via `scheduler/run_refresh_etf_holdings_cache.ps1`
+    (L8 — different failure modes, different re-run cadences than
+    `fetch_position_history`).
+  - Applies the lessons from the #93 review: `load_dotenv` at module import,
+    `--database` plumbed via `os.environ["DB_NAME"]`, Windows-console fix with
+    `errors="replace"` + stderr, `contextlib.suppress` instead of bare
+    try/except/pass.
+  - Spec: [`Tools/docs/specs/refresh_etf_holdings_cache.md`](specs/refresh_etf_holdings_cache.md).
+    Design: [`docs/superpowers/specs/2026-06-26-refresh-etf-holdings-cache-design.md`](../../docs/superpowers/specs/2026-06-26-refresh-etf-holdings-cache-design.md).
 
 ### 2026-06-25
 
