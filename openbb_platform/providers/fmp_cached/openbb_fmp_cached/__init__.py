@@ -31,6 +31,7 @@ from openbb_fmp_cached.models.equity_historical import FMPCachedEquityHistorical
 from openbb_fmp_cached.models.equity_peers import FMPCachedEquityPeersFetcher
 from openbb_fmp_cached.models.equity_profile import FMPCachedEquityProfileFetcher
 from openbb_fmp_cached.models.equity_quote import FMPCachedEquityQuoteFetcher
+from openbb_fmp_cached.models.etf_holdings import FMPCachedEtfHoldingsFetcher
 from openbb_fmp_cached.models.index_constituents import FMPCachedIndexConstituentsFetcher
 from openbb_fmp_cached.models.key_metrics import FMPCachedKeyMetricsFetcher
 
@@ -88,6 +89,7 @@ def create_all_cached_fetchers():
         "EquityPeers": FMPCachedEquityPeersFetcher,
         "EquityQuote": FMPCachedEquityQuoteFetcher,
         "EtfHistorical": FMPCachedEquityHistoricalFetcher,
+        "EtfHoldings": FMPCachedEtfHoldingsFetcher,
         "FinancialRatios": FMPCachedFinancialRatiosFetcher,
         "IndexConstituents": FMPCachedIndexConstituentsFetcher,
         "IncomeStatement": FMPCachedIncomeStatementFetcher,
@@ -125,7 +127,6 @@ def create_all_cached_fetchers():
         ("EsgScore", FMPEsgScoreFetcher),
         ("EtfCountries", FMPEtfCountriesFetcher),
         ("EtfEquityExposure", FMPEtfEquityExposureFetcher),
-        ("EtfHoldings", FMPEtfHoldingsFetcher),
         ("EtfInfo", FMPEtfInfoFetcher),
         ("EtfPricePerformance", FMPPricePerformanceFetcher),
         ("EtfSearch", FMPEtfSearchFetcher),
