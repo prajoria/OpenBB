@@ -31,6 +31,12 @@ logger = logging.getLogger(__name__)
 #: Entry-point group third-party packages advertise strategy classes under.
 STRATEGY_ENTRY_POINT_GROUP = "openbb_backtest_strategies"
 
+#: Module-level latch so we only walk ``entry_points()`` once per process
+#: (the walk is cheap but non-zero, and tests / interactive sessions can hit
+#: ``resolve()`` thousands of times). ``load_plugins()`` itself stays callable
+#: explicitly for tests that want to force a re-scan.
+_PLUGINS_LOADED: bool = False
+
 
 def load_plugins() -> list[str]:
     """Import + register every ``openbb_backtest_strategies`` entry point.
@@ -54,6 +60,10 @@ def load_plugins() -> list[str]:
             continue
         _register(ep.name, cls)
         loaded.append(ep.name)
+    # Mark the latch only when at least one full scan completes — that way a
+    # test that forces a re-scan via ``load_plugins()`` still re-runs the loop.
+    global _PLUGINS_LOADED  # noqa: PLW0603 - explicit single-flag pattern
+    _PLUGINS_LOADED = True
     return loaded
 
 
@@ -84,6 +94,12 @@ def resolve(name: str, params: dict[str, object] | None = None) -> Strategy:
     ValueError
         When ``params`` do not match the class constructor.
     """
+    # Lazy-load entry-point plugins on first use so third-party strategies
+    # (e.g. ``techtrade_confluence`` from the techtrade extension) are
+    # discoverable without callers having to remember to import them. The
+    # ``_PLUGINS_LOADED`` latch makes repeated calls free.
+    if not _PLUGINS_LOADED:
+        load_plugins()
     cls = get_strategy(name)  # KeyError for unknown name (registry contract)
     kwargs = dict(params or {})
     try:

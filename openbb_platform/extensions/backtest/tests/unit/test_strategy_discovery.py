@@ -32,13 +32,20 @@ from openbb_backtest.strategies.base import WeightStrategy
 def _isolate_registry():
     """Snapshot/restore the global strategy registry around each test."""
     from openbb_backtest import registry
+    from openbb_backtest.strategies import discovery
 
     saved = dict(registry._STRATEGIES)
+    # Reset the lazy-load latch so each test starts from a clean "haven't
+    # scanned entry_points yet" state — the new lazy-load contract in
+    # ``resolve()`` is observable only on the first call.
+    saved_latch = discovery._PLUGINS_LOADED
+    discovery._PLUGINS_LOADED = False
     try:
         yield
     finally:
         registry._STRATEGIES.clear()
         registry._STRATEGIES.update(saved)
+        discovery._PLUGINS_LOADED = saved_latch
 
 
 # ---- fake entry points (no real install) ---------------------------------
@@ -192,3 +199,59 @@ def test_pyproject_declares_entry_point_group():
     pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
     text = pyproject.read_text(encoding="utf-8")
     assert 'plugins."openbb_backtest_strategies"' in text
+
+
+# ---- regression guard: resolve() lazy-loads entry-point plugins ----------
+
+
+def test_resolve_lazy_loads_entry_point_plugins_on_first_call(monkeypatch):
+    """resolve(name) must auto-load entry-point plugins on first use.
+
+    Regression guard for bd OpenBBTechnical-498 — the notebook §5.1 validate
+    cell failed with `KeyError: no strategy registered as 'techtrade_confluence'`
+    because resolve() went straight to get_strategy() without calling
+    load_plugins() first, even though the validate_router._strategy_factory
+    docstring promised "loading entry-point plugins on demand."
+    """
+    from openbb_backtest.strategies.discovery import resolve
+
+    # Latch starts False (fixture reset); the plugin is NOT pre-registered.
+    _patch_entry_points(monkeypatch, [_FakeEP("lazy_plugin", _PluginA)])
+
+    # resolve() should auto-load via the latch.
+    obj = resolve("lazy_plugin")
+    assert isinstance(obj, _PluginA)
+
+
+def test_resolve_does_not_re_scan_entry_points_after_first_call(monkeypatch):
+    """The _PLUGINS_LOADED latch makes repeated resolve() calls free.
+
+    Regression guard for the second half of bd OpenBBTechnical-498's fix —
+    if the latch were missing, every resolve() would walk entry_points()
+    which is non-zero cost on a hot loop.
+    """
+    import contextlib
+
+    from openbb_backtest.strategies import discovery
+
+    call_count = {"n": 0}
+    original = discovery.entry_points
+
+    def _counting(group: str):
+        if group == discovery.STRATEGY_ENTRY_POINT_GROUP:
+            call_count["n"] += 1
+        return original(group=group)
+
+    monkeypatch.setattr(discovery, "entry_points", _counting)
+
+    # First call triggers the scan. The strategy may or may not be installed
+    # in this test env — what we care about is the SCAN count, not resolution.
+    with contextlib.suppress(KeyError):
+        discovery.resolve("techtrade_confluence", {"symbols": ["MSFT"]})
+    first_count = call_count["n"]
+    assert first_count == 1
+
+    # Second call must NOT re-scan (latch already flipped).
+    with contextlib.suppress(KeyError):
+        discovery.resolve("techtrade_confluence", {"symbols": ["MSFT"]})
+    assert call_count["n"] == 1, "resolve() re-scanned entry_points after first call"
