@@ -357,6 +357,44 @@ CLI: `--file`, `--clipboard`, or embedded sample data.
 
 ## 10. Changelog
 
+### 2026-06-27
+
+- **fmp_cached etf_holdings: multi-tier fallback chain (#97 v1, issuer-file half)** —
+  Replaces the 10-line `create_cached_fetcher_class` wrapper on
+  `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/etf_holdings.py`
+  with a `FMPCachedEtfHoldingsFetcher` subclass that walks
+  **cache → FMP → issuer-file → SEC N-PORT (stub)**. Closes the EURKR
+  degeneration symptom in `obb.techtrade.scan` by guaranteeing all 11
+  GICS sector SPDRs (the scan universe) resolve via State Street's free
+  daily holdings files when FMP returns 402.
+  - **New sibling module** `etf_holdings_issuer.py` owns the issuer tier:
+    `ISSUER_REGISTRY` seeded with the 11 SPDRs, `fetch_issuer_holdings(symbol)`
+    + spike-confirmed `_parse_ssga_xlsx(content, *, ticker)` parser
+    (sheet `holdings`, header row index 4, columns Name|Ticker|Identifier|
+    SEDOL|Weight|Sector|Shares Held|Local Currency; Identifier = 9-char
+    CUSIP; Weight is a percentage-as-decimal normalized to fraction by
+    dividing by 100; skips USD CASH + dash-only rows). Never raises —
+    `[]` on any error so the caller falls through.
+  - **Cache** reuses the existing `etf_holdings` MySQL table's `data_json`
+    column (one JSON-blob per holding row; delete-then-insert per ETF;
+    same persistence pattern as `institutional_ownership.py`). No
+    schema change. `ETF_HOLDINGS_TTL_DAYS = 1`.
+  - **Registration fix** to `fmp_cached/__init__.py`: removed the
+    duplicate `EtfHoldings` entry from `fetcher_mapping` so the
+    `dedicated_fetchers` override actually survives the merge in
+    `create_all_cached_fetchers()` (previously `create_cached_fetcher_class`
+    re-wrapped the raw FMP class and overwrote the cached subclass).
+  - **Deferred** to follow-up beads `OpenBBTechnical-0p0` (N-PORT read
+    helpers) and `-022` (N-PORT bulk ingest): the SEC N-PORT bulk-dataset
+    URL was not at any spike-probed path (404s with proper UA; SEC docs
+    page returns 403 to scrapers). `_try_nport` is a stub returning `[]`
+    until the URL is hand-confirmed. v1 ships SSGA-only; this covers all
+    11 SPDRs (the scan universe) and unblocks `obb.techtrade.scan`.
+  - 34 new offline unit tests (19 chain + 15 issuer). 119/119 wider
+    regression green per-file (no #89 / #93 / refresh_etf_holdings_cache
+    regressions). Live smoke documented in
+    `Tools/docs/runs/2026-06-27-etf-holdings-fallback-bounded.md`.
+
 ### 2026-06-26
 
 - **refresh_etf_holdings_cache.py** — Pre-warm the `fmp_cached` `etf_holdings`

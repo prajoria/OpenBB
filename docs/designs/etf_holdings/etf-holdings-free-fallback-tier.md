@@ -1,6 +1,9 @@
 # ETF holdings — free fallback tier (issuer-file + SEC N-PORT)
 
-**GitHub:** _(proposed — not yet filed)_ · **Beads:** `OpenBBTechnical-f6j` · **Phase:** Provider infra · **Sprint:** TBD · **Size:** L
+**GitHub:** [#97](https://github.com/prajoria/OpenBB/issues/97) · **Beads:** `OpenBBTechnical-f6j` · **Phase:** Provider infra · **Sprint:** 2026-06-27 · **Size:** L
+
+**Status:** **v1 IMPLEMENTED (2026-06-27)** — issuer-file half shipped on `feat/97-etf-holdings-free-fallback-tier`; closes the EURKR symptom completely (all 11 GICS SPDRs covered by SSGA). N-PORT half (T2/T3) deferred to follow-up beads `OpenBBTechnical-0p0` and `-022` — the SEC bulk-dataset URL was not at any spike-probed path and the SEC docs page 403s scrapers; reactivate when URL is hand-confirmed.
+
 **Depends on:** none (self-contained provider work). Optionally reuses the
 `openbb_fmp_cached.utils.database` helpers and the OpenFIGI CUSIP resolver from #93.
 **Related:** the `fmp_cached` → `obb.etf.holdings` path consumed by techtrade's
