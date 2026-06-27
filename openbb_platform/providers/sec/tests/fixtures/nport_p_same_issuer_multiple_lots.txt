@@ -1,0 +1,65 @@
+<SEC-DOCUMENT>0001234567-26-000005.txt : 20260315
+<SEC-HEADER>0001234567-26-000005.hdr.sgml : 20260315
+ACCESSION NUMBER:		0001234567-26-000005
+CONFORMED SUBMISSION TYPE:	NPORT-P
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20251231
+FILED AS OF DATE:		20260315
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>NPORT-P
+<SEQUENCE>1
+<FILENAME>primary_doc.xml
+<XML>
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+  <headerData>
+    <filerInfo>
+      <filer>
+        <issuerCredentials>
+          <cik>0005555555</cik>
+        </issuerCredentials>
+      </filer>
+      <seriesClassInfo>
+        <seriesId>S000055555</seriesId>
+        <classId>C000055555</classId>
+      </seriesClassInfo>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <genInfo>
+      <seriesName>Private Placement Income Fund</seriesName>
+      <repPdEnd>2025-12-31</repPdEnd>
+      <filingDate>2026-03-15</filingDate>
+    </genInfo>
+    <invstOrSecs>
+      <invstOrSec>
+        <name>ACME CAPITAL PARTNERS LP</name>
+        <assetCat>DBT</assetCat>
+        <balance>5000000</balance>
+        <valUSD>5000000.00</valUSD>
+        <pctVal>50.0</pctVal>
+        <payoffProfile>Long</payoffProfile>
+      </invstOrSec>
+      <invstOrSec>
+        <name>ACME CAPITAL PARTNERS LP</name>
+        <assetCat>DBT</assetCat>
+        <balance>2500000</balance>
+        <valUSD>2500000.00</valUSD>
+        <pctVal>25.0</pctVal>
+        <payoffProfile>Long</payoffProfile>
+      </invstOrSec>
+      <invstOrSec>
+        <name>ACME CAPITAL PARTNERS LP</name>
+        <assetCat>DBT</assetCat>
+        <balance>2500000</balance>
+        <valUSD>2500000.00</valUSD>
+        <pctVal>25.0</pctVal>
+        <payoffProfile>Long</payoffProfile>
+      </invstOrSec>
+    </invstOrSecs>
+  </formData>
+</edgarSubmission>
+</XML>
+</DOCUMENT>
+</SEC-DOCUMENT>

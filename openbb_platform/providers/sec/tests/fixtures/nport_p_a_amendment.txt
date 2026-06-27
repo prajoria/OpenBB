@@ -1,0 +1,63 @@
+<SEC-DOCUMENT>0001234567-26-000002.txt : 20260420
+<SEC-HEADER>0001234567-26-000002.hdr.sgml : 20260420
+ACCESSION NUMBER:		0001234567-26-000002
+CONFORMED SUBMISSION TYPE:	NPORT-P/A
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20251231
+FILED AS OF DATE:		20260420
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>NPORT-P/A
+<SEQUENCE>1
+<FILENAME>primary_doc.xml
+<XML>
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+  <headerData>
+    <filerInfo>
+      <filer>
+        <issuerCredentials>
+          <cik>0000884394</cik>
+        </issuerCredentials>
+      </filer>
+      <seriesClassInfo>
+        <seriesId>S000004310</seriesId>
+        <classId>C000011948</classId>
+      </seriesClassInfo>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <genInfo>
+      <seriesName>Technology Select Sector SPDR Fund</seriesName>
+      <repPdEnd>2025-12-31</repPdEnd>
+      <filingDate>2026-04-20</filingDate>
+    </genInfo>
+    <invstOrSecs>
+      <invstOrSec>
+        <name>APPLE INC</name>
+        <ticker>AAPL</ticker>
+        <cusip>037833100</cusip>
+        <isin>US0378331005</isin>
+        <balance>1600000</balance>
+        <valUSD>332000000.00</valUSD>
+        <pctVal>23.0</pctVal>
+        <assetCat>EC</assetCat>
+        <payoffProfile>Long</payoffProfile>
+      </invstOrSec>
+      <invstOrSec>
+        <name>MICROSOFT CORP</name>
+        <ticker>MSFT</ticker>
+        <cusip>594918104</cusip>
+        <isin>US5949181045</isin>
+        <balance>950000</balance>
+        <valUSD>300000000.00</valUSD>
+        <pctVal>21.0</pctVal>
+        <assetCat>EC</assetCat>
+        <payoffProfile>Long</payoffProfile>
+      </invstOrSec>
+    </invstOrSecs>
+  </formData>
+</edgarSubmission>
+</XML>
+</DOCUMENT>
+</SEC-DOCUMENT>
