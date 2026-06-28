@@ -8,7 +8,7 @@ This extension should:
 - Follow OpenBB extension architecture, packaging, routing, and testing standards.
 - Expose FinanceToolkit functionality as OpenBB commands (Python + API compatible patterns).
 - Keep FinanceToolkit as the computation backend (wrapper/adaptor design), not duplicate formulas.
-- Assume FinanceToolkit is available as a repository submodule/dependency.
+- Assume FinanceToolkit is available as a PyPI dependency (`financetoolkit ^2.1.2`).
 
 Out of scope for initial implementation:
 - Re-implementing provider fetchers inside this extension.
@@ -117,15 +117,19 @@ Use existing extension conventions (`technical`, `quantitative`, etc.) as templa
 - Python: aligned with platform (`>=3.10,<3.14`)
 - Dependencies:
   - `openbb-core` (aligned platform version)
-  - `financetoolkit` via submodule path assumption
+  - `financetoolkit` from PyPI (`^2.1.2`)
 
-Example dependency strategy for submodule-based development:
+> **Historical note (#19):** an earlier iteration used a local path
+> dependency on a `FinanceToolkit` git submodule (`prajoria/FinanceToolkit`
+> fork). That coupling was removed so the extension is PyPI-installable.
+
+Current dependency strategy:
 
 ```toml
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 openbb-core = "^1.5.8"
-financetoolkit = { path = "../../../FinanceToolkit", develop = true }
+financetoolkit = "^2.1.2"
 ```
 
 Plugin registration:

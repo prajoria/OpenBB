@@ -1,0 +1,22 @@
+{
+  "action": "HOLD/FLAT",
+  "as_of": "2024-01-12",
+  "atr": 1.9,
+  "caveats": "Trend unavailable (short history).",
+  "conviction": "Low",
+  "entry_price": "121.40",
+  "position_size": "0",
+  "reasoning": "Hold GLD: below the entry threshold.",
+  "risk_pct_of_notional": 0.0,
+  "risk_per_share": "0",
+  "risk_reward": 0.0,
+  "score": 0.05,
+  "segment": "Materials",
+  "stop_distance_pct": 0.0,
+  "stop_price": "121.40",
+  "symbol": "GLD",
+  "target_distance_pct": 0.0,
+  "target_price": "121.40",
+  "time_stop_bars": null,
+  "top_factors": []
+}

@@ -379,33 +379,65 @@ async def _try_yfinance(symbols: list[str]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-async def _try_sec_13f(symbols: list[str]) -> list[dict]:
-    """Try fetching institutional ownership from SEC EDGAR 13F filings.
+def _period_to_date(period: str | None) -> date:
+    """Convert a ``'<YYYY>-Q<n>'`` index period to its quarter-end date."""
+    quarter_end = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
+    if period and "-Q" in period:
+        try:
+            year_s, q_s = period.split("-Q")
+            month, day = quarter_end[int(q_s)]
+            return date(int(year_s), month, day)
+        except Exception:  # noqa: BLE001
+            pass
+    return date.today()
 
-    SEC returns per-institution holding rows.  We aggregate them into a single
-    summary row per symbol that matches the FMP schema.
+
+async def _try_sec_13f(symbols: list[str]) -> list[dict]:
+    """Try institutional ownership from the SEC bulk 13F CUSIP index.
+
+    Form 13F is filed *by* managers and indexed by the filer, so it cannot
+    answer "who holds ``<symbol>``?" directly. We resolve the ticker to its
+    CUSIP(s) via the local index (populated by ``Tools/ingest_sec_13f.py``) and
+    aggregate the per-manager holding rows into a single summary row per symbol
+    matching the FMP schema (design L4 -- single consumer, output unchanged).
     """
     try:
-        from openbb_sec.models.form_13FHR import SecForm13FHRFetcher, SecForm13FHRQueryParams
+        from openbb_sec.utils.thirteen_f_index import (
+            holders_for_cusip,
+            init_thirteen_f_index,
+            resolve_cusip,
+        )
+
+        # Best-effort: ensure the index tables exist (graceful if DB is down).
+        try:
+            init_thirteen_f_index()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("13F index init failed: %s", exc)
 
         results = []
         for symbol in symbols:
             try:
-                sec_query = SecForm13FHRQueryParams(symbol=symbol, limit=1)
-                raw = await SecForm13FHRFetcher.aextract_data(sec_query, None)
-                if not raw:
+                cusips = resolve_cusip(symbol)
+                if not cusips:
+                    logger.debug("SEC 13F: no CUSIP for %s", symbol)
                     continue
 
-                # Aggregate: count institutions, sum value/shares
-                institutions_count = len({r.get("nameOfIssuer", r.get("issuer", "")) for r in raw})
-                total_value = sum(r.get("value", 0) or 0 for r in raw)
-                total_shares = sum(r.get("shares", 0) or 0 for r in raw)
+                holders = holders_for_cusip(cusips)
+                if not holders:
+                    logger.debug("SEC 13F: no holders for %s (cusips=%s)", symbol, cusips)
+                    continue
 
-                today = date.today()
+                # All rows share the resolved (latest) period.
+                period = holders[0].get("period")
+                institutions_count = len({h.get("filer_cik") for h in holders})
+                total_shares = sum(int(h.get("shares") or 0) for h in holders)
+                total_value = sum(int(h.get("value_usd") or 0) for h in holders)
+
+                as_of = _period_to_date(period)
                 results.append({
                     "symbol": symbol.upper(),
                     "cik": None,
-                    "date": today.isoformat(),
+                    "date": as_of.isoformat(),
                     "investors_holding": institutions_count,
                     "last_investors_holding": 0,
                     "investors_holding_change": 0,

@@ -1,0 +1,83 @@
+<SEC-DOCUMENT>0001234567-26-000003.txt : 20260315
+<SEC-HEADER>0001234567-26-000003.hdr.sgml : 20260315
+ACCESSION NUMBER:		0001234567-26-000003
+CONFORMED SUBMISSION TYPE:	NPORT-P
+PUBLIC DOCUMENT COUNT:		1
+CONFORMED PERIOD OF REPORT:	20251231
+FILED AS OF DATE:		20260315
+</SEC-HEADER>
+<DOCUMENT>
+<TYPE>NPORT-P
+<SEQUENCE>1
+<FILENAME>primary_doc.xml
+<XML>
+<?xml version="1.0" encoding="UTF-8"?>
+<edgarSubmission>
+  <headerData>
+    <filerInfo>
+      <filer>
+        <issuerCredentials>
+          <cik>0001234567</cik>
+        </issuerCredentials>
+      </filer>
+      <seriesClassInfo>
+        <seriesId>S000099001</seriesId>
+        <classId>C000099001</classId>
+      </seriesClassInfo>
+    </filerInfo>
+  </headerData>
+  <formData>
+    <genInfo>
+      <seriesName>Synthetic Derivative Heavy Fund</seriesName>
+      <repPdEnd>2025-12-31</repPdEnd>
+      <filingDate>2026-03-15</filingDate>
+    </genInfo>
+    <invstOrSecs>
+      <invstOrSec>
+        <name>SPX FUTURE MAR2026</name>
+        <cusip>N/A</cusip>
+        <lei>5493000F4ZO33MV32P92</lei>
+        <balance>500</balance>
+        <valUSD>22500000.00</valUSD>
+        <pctVal>15.0</pctVal>
+        <assetCat>DE</assetCat>
+        <payoffProfile>Long</payoffProfile>
+        <derivativeInfo>
+          <futrDeriv>
+            <counterpartyName>CME GROUP</counterpartyName>
+            <expirationDate>2026-03-20</expirationDate>
+          </futrDeriv>
+        </derivativeInfo>
+      </invstOrSec>
+      <invstOrSec>
+        <name>USD INTEREST RATE SWAP 5Y</name>
+        <cusip>N/A</cusip>
+        <lei>549300HKH7SYBT4ZH569</lei>
+        <balance>10000000</balance>
+        <valUSD>150000.00</valUSD>
+        <pctVal>0.1</pctVal>
+        <assetCat>DE</assetCat>
+        <payoffProfile>Long</payoffProfile>
+        <derivativeInfo>
+          <swapDeriv>
+            <counterpartyName>JPMORGAN CHASE BANK NA</counterpartyName>
+            <terminationDate>2031-12-31</terminationDate>
+          </swapDeriv>
+        </derivativeInfo>
+      </invstOrSec>
+      <invstOrSec>
+        <name>US TREASURY NOTE 4.25 2034</name>
+        <cusip>91282CJZ5</cusip>
+        <isin>US91282CJZ50</isin>
+        <balance>50000000</balance>
+        <valUSD>49500000.00</valUSD>
+        <pctVal>33.0</pctVal>
+        <assetCat>DBT</assetCat>
+        <payoffProfile>Long</payoffProfile>
+      </invstOrSec>
+    </invstOrSecs>
+  </formData>
+</edgarSubmission>
+</XML>
+</DOCUMENT>
+</SEC-DOCUMENT>

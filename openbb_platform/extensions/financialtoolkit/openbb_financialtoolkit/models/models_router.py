@@ -197,12 +197,13 @@ def wacc(
             ],
         ),
         APIEx(
+            description="Intrinsic value (DCF) for AAPL with explicit growth and WACC assumptions.",
             parameters={
                 "symbols": ["AAPL"],
                 "growth_rate": 0.05,
                 "perpetual_growth_rate": 0.025,
                 "weighted_average_cost_of_capital": 0.09,
-            }
+            },
         ),
     ],
 )

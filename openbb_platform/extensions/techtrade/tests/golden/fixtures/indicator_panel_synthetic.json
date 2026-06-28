@@ -1,0 +1,33 @@
+{
+  "as_of": "2024-01-12",
+  "candles": {
+    "cdl_doji_10_0.1": 1,
+    "cdl_highwave": 1,
+    "cdl_longleggeddoji": 1,
+    "cdl_rickshawman": 1,
+    "cdl_spinningtop": 1
+  },
+  "momentum": {
+    "rsi": 47.936936470431206,
+    "stoch_d": 74.29287621093611,
+    "stoch_k": 60.59808673137517
+  },
+  "symbol": "SYNTH",
+  "trend": {
+    "adx": 10.915087923249441,
+    "ema_cross": 0.4900912752866873,
+    "ema_fast": 95.12437537750232,
+    "ema_slow": 94.63428410221563,
+    "macd_hist": 0.005144568044524178
+  },
+  "volatility": {
+    "atr": 1.5127738040626828,
+    "bb_pctb": 0.4603290423899738,
+    "kc_lower": 92.0132056845918,
+    "kc_upper": 98.23554507041284
+  },
+  "volume": {
+    "cmf": 0.05728981716977448,
+    "obv_slope": -1860.9
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "action": "SELL_SHORT",
+  "as_of": "2024-01-12",
+  "atr": 1.9,
+  "caveats": "None.",
+  "conviction": "High",
+  "entry_price": "121.40",
+  "position_size": "263",
+  "reasoning": "Short GLD: trend strongly negative (macd_hist-, ema_cross-), momentum strongly diverging (rsi-, stoch-), volatility range-bound (bb_pctb-), and volume diverging (obv_slope-, cmf-). Stop 2xATR above entry (+3.1%); target at 2.0R (-6.3%).",
+  "risk_pct_of_notional": 0.009994,
+  "risk_per_share": "3.80",
+  "risk_reward": 2.0,
+  "score": -0.78,
+  "segment": "Materials",
+  "stop_distance_pct": 0.03130148270181219,
+  "stop_price": "125.20",
+  "symbol": "GLD",
+  "target_distance_pct": 0.06260296540362438,
+  "target_price": "113.80",
+  "time_stop_bars": 20,
+  "top_factors": [
+    "ema_cross- (trend)",
+    "macd_hist- (trend)",
+    "stoch- (momentum)"
+  ]
+}
