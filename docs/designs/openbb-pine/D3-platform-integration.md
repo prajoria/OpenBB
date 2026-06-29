@@ -387,8 +387,7 @@ Content-Type: application/json
     "format": "records",
     "tz": "UTC",
     "records": [
-      {"date": "2024-01-02T00:00:00Z", "open": 184.1, "high": 186.4, "low": 183.9, "close": 185.6, "volume": 52341900},
-      "..."
+      {"date": "2024-01-02T00:00:00Z", "open": 184.1, "high": 186.4, "low": 183.9, "close": 185.6, "volume": 52341900}
     ]
   },
   "symbol": "PRIVATE_SYM",
@@ -435,13 +434,12 @@ class PineByoData(BaseModel):
 ```json
 {
   "results": [
-    {"date": "2024-01-02", "plot_0": 185.13, "plot_1": 194.22, "plot_2": 176.04},
-    "..."
+    {"date": "2024-01-02", "plot_0": 185.13, "plot_1": 194.22, "plot_2": 176.04}
   ],
   "warnings": [],
-  "chart": null,
   "extra": {
     "alerts": [],
+    "orders": [],
     "attribution": "Powered by PyneSys (https://pynesys.io)",
     "compile_cache_hit": true,
     "exec_ms": 41,
@@ -450,6 +448,8 @@ class PineByoData(BaseModel):
   }
 }
 ```
+
+(`results` is truncated for brevity; production responses carry one row per bar. `orders` is `[]` for indicators and populated for strategies per D2 §6.1.)
 
 **Response (200) — BYO mode.** Shape is identical; `extra.provider_used = "byo"` and
 `extra.bars_consumed` reflects the caller's row count. If `symbol` was omitted, a warning
@@ -500,7 +500,7 @@ class PineStrategiesRunRequest(PineRunRequest):
 
 ```json
 {
-  "results": [{"date": "2024-01-02", "equity": 100000.0, "drawdown": 0.0}, "..."],
+  "results": [{"date": "2024-01-02", "equity": 100000.0, "drawdown": 0.0}],
   "extra": {
     "trades": [{"entry_time": "2024-02-14", "exit_time": "2024-03-01",
                 "side": "long", "qty": 100, "entry_price": 180.4, "exit_price": 188.2,
@@ -933,8 +933,10 @@ openbb-fmp = "^1.4"
 pandas = ">=2.0,<3"
 numpy  = ">=1.26,<3"
 
-# Compiler parser — required, exact pin per PRD §5.2 T5 (largest CVE surface).
-lark = "1.1.9"
+# Compiler parser — required, exact pin owned by D1 §1.5 (largest CVE surface per PRD §5.2 T5).
+# D3 mirrors the pin verbatim; any version bump must be a D1 decision so the parser's
+# grammar/error-recovery behavior stays under compiler-team review.
+lark = "==1.2.2"
 
 # Pydantic settings backs PineSettings; hard top-level import (matches backtest).
 pydantic-settings = ">=2.0,<3"

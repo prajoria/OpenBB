@@ -653,11 +653,19 @@ Construction in `openbb_pine/runtime/emitter.py`. The executor collects `(candle
 
 ### 6.4 Why `attribution` is a literal
 
-It is the PyneCore `NOTICE` §4(d) compliance string and must appear in every user-visible surface (PRD §2.6). A literal constant means a typo or dynamic-format change cannot drop the URL, and CI can grep the exact string across surfaces (Workspace footer, `/pine/health`, doctor banner — PRD Appendix B checklist). Constant lives in `openbb_pine/runtime/__init__.py`:
+It is the PyneCore `NOTICE` §4(d) compliance string and must appear in every user-visible surface (PRD §2.6). A literal constant means a typo or dynamic-format change cannot drop the URL, and CI can grep the exact string across surfaces (Workspace footer, `/pine/health`, doctor banner — PRD Appendix B checklist).
+
+**Single source of truth (resolves the boundary leak flagged by the D1/D2/D3 reviewer).** The constant lives in `openbb_pine/attribution.py` (owned by D3 §8.1 — `POWERED_BY_FULL`). D2's runtime imports it rather than redefining its own `ATTRIBUTION`:
 
 ```python
-ATTRIBUTION: str = "Powered by PyneSys (https://pynesys.io)"
+# In openbb_pine/runtime/executor.py
+from openbb_pine.attribution import POWERED_BY_FULL
+
+# ...build extra dict...
+extra["attribution"] = POWERED_BY_FULL
 ```
+
+The `tests/unit/test_attribution_surfaces.py::test_all_four_pynecore_attribution_surfaces` test (D3 §8.3) asserts the same `POWERED_BY_FULL` literal appears in all 4 surfaces; D2's `extra["attribution"]` value is one of those 4 (the `/pine/run` REST response). Any future refactor that moves the constant must be a single-file change.
 
 ### 6.5 `OBBject.warnings`
 
@@ -677,21 +685,29 @@ Anything truly broken is an exception (§7), not a warning.
 
 ```python
 """Runtime-side error hierarchy. See D2 §7. Compiler-side errors (D1) live
-in openbb_pine.compiler.errors and do NOT inherit from PineRuntimeError."""
+in openbb_pine.compiler.errors and do NOT inherit from PineRuntimeError.
+
+**Cross-doc consolidation note (post-D1/D2/D3 review).** The PineError root and the
+runtime-shaped subclass names below (`PineRuntimeError`, `PineDataValidationError`,
+`PineProviderError`, `PineFMPRequiredError`, `PineFMPUnreachableError`) are defined in
+the shared `openbb_pine/errors.py` module owned by D3 §4.7. D2 *imports* them and only
+adds runtime-specific behavior (init-arg signatures, attached state). This avoids the
+three-`PineError`-classes-with-different-bases bug the cross-doc reviewer flagged."""
 
 from __future__ import annotations
 
+from openbb_pine.errors import (
+    PineError,              # OpenBBError-rooted (D3 §4.7)
+    PineRuntimeError,
+    PineDataValidationError as _PineDataValidationErrorBase,
+    PineProviderError as _PineProviderErrorBase,
+)
 
-class PineError(Exception):
-    """Root of every pine-extension error."""
 
+class PineDataValidationError(_PineDataValidationErrorBase):
+    """BYO DataFrame violated the §3.1 schema. Lists *every* defect.
 
-class PineRuntimeError(PineError):
-    """Anything raised after the compiler hands a module to the executor."""
-
-
-class PineDataValidationError(PineRuntimeError):
-    """BYO DataFrame violated the §3.1 schema. Lists *every* defect."""
+    Runtime-side init signature; class is rooted in OpenBBError via D3 §4.7."""
     def __init__(self, defects: list[str], *, context: str | None = None) -> None:
         self.defects = list(defects)
         self.context = context
@@ -699,8 +715,10 @@ class PineDataValidationError(PineRuntimeError):
         super().__init__(f"BYO data validation failed{ctx}: {'; '.join(self.defects)}")
 
 
-class PineProviderError(PineRuntimeError):
-    """A non-FMP provider was requested (PRD §13.8)."""
+class PineProviderError(_PineProviderErrorBase):
+    """A non-FMP provider was requested (PRD §13.8).
+
+    Runtime-side init signature; class is rooted in OpenBBError via D3 §4.7."""
     code = "PineProviderError"
     supported = ("fmp", "fmp_cached")
     tracking_url = ("https://github.com/prajoria/OpenBB/issues?"
@@ -877,11 +895,73 @@ Decisions named here so reviewers know what they're not finding, and deferred wi
 | MCP tool registration | **D3** | Each compiled indicator becomes an MCP tool — registration is D3 |
 | CLI (`openbb pine run`, `openbb pine doctor`) | **D3** | Doctor delegates the FMP-credential check to D2's `check_fmp_credential` (§8.3) |
 | BYO `data.format = "parquet_url"` / `"csv_url"` / `"arrow_ipc_base64"` payloads | **D3** | D2's `BYODataProvider` only sees the materialized DataFrame; fetcher/decoder is D3 |
-| Sandbox / RCE mitigations (PRD §5.2) | **D1** | Codegen-side allowlist + `RestrictedPython` namespace |
+| Sandbox / RCE mitigations (PRD §5.2 T1) | **D1** | Codegen-side allowlist before file write — pre-import gate |
 | Per-builtin Pine stdlib bridges (`ta.sma`, `ta.macd`, etc.) | separate `stdlib/*` doc | D2 only confirms `pynecore.lib.ta` is importable |
 | Strategy engine (`strategy.entry`, fill models, equity curve) | **D2.5 (Phase 2)** | `OBBject.extra["orders"]` shape is reserved here; Phase 2 fills it |
 
-### 10.1 Things D2 noticed but does not fix
+### 10.1 PRD §5.2 T2 (resource exhaustion) and T3 (restricted exec namespace) — D2 ownership
+
+**Resolves the security-ownership gap flagged by the D1/D2/D3 reviewer.** Both T2 and T3 are runtime-layer concerns (they protect the *running* compiled module from misbehaving), so they belong with D2, alongside §9's FMP retry budget (also a runtime resource concern). D1's T1 mitigates code that *should never be emitted*; D2's T2/T3 mitigate code that *might* execute despite the allowlist.
+
+**T2 — per-script wall-clock + memory budget.** The runtime wraps `ScriptRunner.run_iter()` in:
+
+```python
+# openbb_pine/runtime/limits.py
+import resource, signal
+from contextlib import contextmanager
+
+DEFAULT_TIMEOUT_S = 30          # PRD §5.2 T2; overridable via pine.settings.exec_timeout_s
+DEFAULT_RLIMIT_AS = 2 * 1024**3 # 2 GiB virtual-mem cap on Linux
+MAX_BARS_PER_REQUEST = 5_000_000  # soft cap; raise PineDataValidationError above
+
+class PineExecTimeoutError(PineRuntimeError):
+    code = "PineExecTimeoutError"
+
+@contextmanager
+def enforce_limits(timeout_s: int = DEFAULT_TIMEOUT_S):
+    def _handler(signum, frame):
+        raise PineExecTimeoutError(f"Pine script exceeded {timeout_s}s wall-clock budget")
+    if hasattr(signal, "SIGALRM"):          # POSIX
+        signal.signal(signal.SIGALRM, _handler)
+        signal.alarm(timeout_s)
+    try:
+        if hasattr(resource, "RLIMIT_AS"):  # POSIX
+            soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+            resource.setrlimit(resource.RLIMIT_AS, (min(soft, DEFAULT_RLIMIT_AS), hard))
+        yield
+    finally:
+        if hasattr(signal, "SIGALRM"):
+            signal.alarm(0)
+```
+
+Windows fallback: a `threading.Timer` raises `PineExecTimeoutError` after `timeout_s`; memory cap is best-effort via `psutil.Process().memory_info()` polled by the timer. The Windows path is documented as degraded — operator README recommends container deployment on POSIX (PRD §5.3).
+
+**T3 — restricted exec namespace builder.** The compiled `@pyne` module is imported into a deliberately stripped namespace:
+
+```python
+# openbb_pine/runtime/restricted.py
+_ALLOWED_BUILTINS = {
+    # arithmetic / iter / type-introspection only — no I/O, no eval, no import
+    "abs", "all", "any", "bool", "complex", "dict", "divmod", "enumerate",
+    "filter", "float", "frozenset", "int", "isinstance", "issubclass", "len",
+    "list", "map", "max", "min", "object", "pow", "range", "repr", "reversed",
+    "round", "set", "slice", "sorted", "str", "sum", "tuple", "type", "zip",
+    # explicitly absent: __import__, open, exec, eval, compile, input,
+    # globals, locals, vars, setattr, delattr, dir, exit, quit, help
+}
+
+def build_restricted_namespace(compiled_module_path: str) -> dict:
+    """Build the dict that exec(compiled, ns) uses. Returns a fresh ns each call."""
+    ns = {"__name__": "pine_user_script", "__file__": compiled_module_path,
+          "__builtins__": {k: __builtins__[k] for k in _ALLOWED_BUILTINS}}
+    return ns
+```
+
+PyneCore's `import_hook` is allowed to register itself (it's the runtime substrate); user code cannot reach `os`, `sys`, `subprocess`, `socket`, `pathlib`, `open`, or `__import__` because none are in `_ALLOWED_BUILTINS` AND D1's allowlist forbids emitting `Import`/`ImportFrom` for any module outside `MODULE_ALLOWLIST`. **Defense in depth: T1 prevents emission, T3 prevents execution-time escape if T1 ever has a bug.**
+
+**Operator deployment guidance (lifted from PRD §5.3).** Production deployments that expose `/api/v1/pine/run` to untrusted users should additionally run the worker under firejail / gVisor / a container with no network egress and a read-only filesystem except `/tmp`. T2 and T3 are language-level mitigations; they are necessary but not sufficient against a determined adversary.
+
+### 10.2 Things D2 noticed but does not fix
 
 Two PRD items that should be tightened in the next PRD revision (flagged for the maintainer):
 
@@ -924,7 +1004,7 @@ Two D2-specific risks worth folding into PRD §10:
 openbb_platform/extensions/pine/openbb_pine/
 ├── __init__.py                       # §1 sys.path bridge
 └── runtime/
-    ├── __init__.py                   # exports ATTRIBUTION, version constants
+    ├── __init__.py                   # exports version constants (POWERED_BY_FULL lives in openbb_pine/attribution.py per D3 §8.1)
     ├── errors.py                     # §7 error hierarchy
     ├── fmp_provider.py               # §2 FMPOHLCVProvider
     ├── byo_provider.py               # §3 BYODataProvider

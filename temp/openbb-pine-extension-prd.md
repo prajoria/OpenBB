@@ -418,7 +418,7 @@ class FMPOHLCVProvider:
     routed through openbb-fmp (or openbb-fmp-cached if installed and preferred).
 
     Selection rule:
-      - if obb.user.preferences.defaults.commands["/equity/price/historical"]["provider"]
+      - if obb.user.preferences.defaults.commands["equity.price.historical"]["provider"]
         is "fmp_cached" AND openbb-fmp-cached is installed -> use fmp_cached
       - else -> use fmp
 
@@ -464,20 +464,19 @@ Content-Type: application/json
 }
 ```
 
-Accepted `provider` values: `"fmp"` (live), `"fmp_cached"` (uses the user's existing `openbb-fmp-cached` cache layer if installed). Omitting `provider` defers to the user's `obb.user.preferences.defaults.commands["/equity/price/historical"]["provider"]` setting if that value is `fmp` or `fmp_cached`; otherwise the request fails with `PineProviderError: only fmp / fmp_cached are supported in v1.x (see PRD §13.8)`. Pine extension ships **no provider credentials**; the FMP key the user already configured for OpenBB is what's used.
+Accepted `provider` values: `"fmp"` (live), `"fmp_cached"` (uses the user's existing `openbb-fmp-cached` cache layer if installed). Omitting `provider` defers to the user's `obb.user.preferences.defaults.commands["equity.price.historical"]["provider"]` setting if that value is `fmp` or `fmp_cached`; otherwise the request fails with `PineProviderError: only fmp / fmp_cached are supported in v1.x (see PRD §13.8)`. Pine extension ships **no provider credentials**; the FMP key the user already configured for OpenBB is what's used.
 
 **Response (200)**
 
 ```json
 {
   "results": [
-    {"date": "2024-01-02", "plot_0": 185.13, "plot_1": 194.22, "plot_2": 176.04},
-    "..."
+    {"date": "2024-01-02", "plot_0": 185.13, "plot_1": 194.22, "plot_2": 176.04}
   ],
   "warnings": [],
-  "chart": null,
   "extra": {
     "alerts": [],
+    "orders": [],
     "attribution": "Powered by PyneSys (https://pynesys.io)",
     "compile_cache_hit": true,
     "exec_ms": 41,
@@ -524,8 +523,7 @@ Content-Type: application/json
     "format": "records",
     "tz": "UTC",
     "records": [
-      {"date": "2024-01-02T00:00:00Z", "open": 184.1, "high": 186.4, "low": 183.9, "close": 185.6, "volume": 52341900},
-      "..."
+      {"date": "2024-01-02T00:00:00Z", "open": 184.1, "high": 186.4, "low": 183.9, "close": 185.6, "volume": 52341900}
     ]
   },
   "symbol": "PRIVATE_SYM",
@@ -539,7 +537,7 @@ Alternative `data.format` values: `"parquet_url"` (signed URL the worker fetches
 
 ### 4.9 Provider precedence (no provider field supplied)
 
-When the user omits `provider`, we use `"fmp_cached"` if `openbb-fmp-cached` is installed, else `"fmp"`. If the user's `obb.user.preferences.defaults.commands["/equity/price/historical"]["provider"]` is set to anything outside `{"fmp", "fmp_cached"}`, the request fails with a structured `PineProviderError` that names the unsupported provider and points to §13.8 — failing fast rather than silently overriding the user's preference. We do not introduce a pine-specific default beyond this.
+When the user omits `provider`, we use `"fmp_cached"` if `openbb-fmp-cached` is installed, else `"fmp"`. If the user's `obb.user.preferences.defaults.commands["equity.price.historical"]["provider"]` is set to anything outside `{"fmp", "fmp_cached"}`, the request fails with a structured `PineProviderError` that names the unsupported provider and points to §13.8 — failing fast rather than silently overriding the user's preference. We do not introduce a pine-specific default beyond this.
 
 ### 4.10 Bring-your-own data — design notes
 

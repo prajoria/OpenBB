@@ -360,6 +360,35 @@ def main(length=input.int(20, minval=1), mult=input.float(2.0)):
     return {"basis": basis, "upper": basis + dev, "lower": basis - dev}
 ```
 
+**Downstream-interface commitments (resolves "unilateral assumption" boundary leaks flagged by the D1/D2/D3 reviewer).** The compile step does not only return source; it returns a `CompiledModule` record that downstream consumers (D2 runtime, D3 platform) depend on. Codegen MUST emit:
+
+```python
+@dataclass(frozen=True, slots=True)
+class CompiledModule:
+    source:           str                   # the Python text written under §6's cache key
+    sha:              str                   # blake2b(source ‖ params ‖ compiler_version ‖ pine_version)
+    pine_version:     int                   # 5 | 6
+    compiler_version: str                   # SemVer string
+    builtins_used:    frozenset[str]        # every `ta.*`, `math.*`, `input.*`, etc. name the script references
+    security_contexts: dict[str, SecurityContext] | None  # see below; None for scripts without `request.security`
+```
+
+- **`builtins_used`** is the set of Pine builtin identifiers the script references (e.g. `{"ta.sma", "math.abs", "input.int"}`). D3 §4.2 (`/pine/compile` response) and §4.6 (`/pine/health.builtins_implemented`) read it. D2 §8.2 reads it to populate `pine_unsupported_builtin_total{name=…}` telemetry. Codegen builds the set during the type-checker pass (every `Name`/`Attribute` resolved against the stdlib table contributes), freezes it, attaches it to the `CompiledModule`. **This is part of the codegen contract — not an optional addendum.**
+- **`security_contexts`** is the lowering D2 §5.1 step 2 depends on. Every `request.security("OTHER", tf, expr)` call in the source is rewritten by codegen into a structured directive:
+
+  ```python
+  __security_contexts__: dict[str, SecurityContext] = {
+      "ctx_0": SecurityContext(symbol="OTHER", timeframe="1D", expr=<lowered expr ast>),
+      …
+  }
+  ```
+
+  D2's runtime reads `compiled.security_contexts` (or the in-module `__security_contexts__` dict) when it sets up the multi-symbol dispatch ahead of `ScriptRunner.run_iter()`. If the dict is empty / `None`, no secondary fetches happen. This rewrite is a codegen-pass concern (not type-check) because it changes the call shape; the type-check pass merely tags `request.security` calls for the codegen rewriter.
+
+- **`compile_cache_hit`** is a separate signal the executor (D2 §6.3) writes into `OBBject.extra`; D1 reports the cache hit/miss decision through `CompiledModule.cache_status: Literal["hit", "miss", "bypass"]` so D2 doesn't need to re-derive it.
+
+The full `CompiledModule` lives at `openbb_pine/compiler/types.py`. Mutating its shape is a D1 decision; consumers downstream may not add fields.
+
 ### 3.2 The allowed Python `ast` node types
 
 ```python
@@ -629,7 +658,15 @@ class Diagnostic:
     tracking_url: str | None = None            # GitHub label search URL
 
 class PineError(OpenBBError):
-    """Root of every error the openbb-pine compiler raises."""
+    """Root of every error the openbb-pine compiler raises.
+
+    **Cross-doc consolidation note (post-D1/D2/D3 review).** The class itself
+    is defined in `openbb_pine/errors.py` (D3 §4.7 owns the shared module);
+    D1 imports it. The diagnostics-carrying init below is the compile-time
+    behavior added on top, via a mixin or by re-export. The base remains
+    `openbb_core.app.model.abstract.error.OpenBBError` so the platform's
+    standard error middleware intercepts these uniformly with runtime-side
+    errors (D2 §7) and platform-side errors (D3 §4.7)."""
     diagnostics: tuple[Diagnostic, ...]
     def __init__(self, *diagnostics: Diagnostic) -> None:
         self.diagnostics = diagnostics
@@ -644,6 +681,14 @@ class PineUnsupportedFeatureError(PineError):  # PF###  — feature not yet ship
 class PineCodegenError(PineError):             # CG###  — §3.3 allowlist gate; always a bug
 class PineInternalCompilerError(PineError):    # IC###  — invariant violation; pages on-call
 ```
+
+**Import contract (resolves the boundary leak flagged by the D1/D2/D3 reviewer):**
+the actual class definitions live in `openbb_pine/errors.py` (D3 §4.7); D1's
+`openbb_pine/compiler/errors.py` re-exports them with the diagnostics-init shape
+above. D2's `openbb_pine/runtime/errors.py` does the symmetric re-export for the
+runtime-shaped subclasses. There is exactly **one** `PineError` class in the
+codebase; both D1 and D2 file paths exist for namespace tidiness and import without
+re-declaring.
 
 ### 5.2 Error-code namespace
 
