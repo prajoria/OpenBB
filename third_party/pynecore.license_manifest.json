@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "pinned_commit": "2919eac66f563e035987b58122db52b1957cfef1",
+  "pinned_version": "6.5.2",
+  "files": {
+    "NOTICE":  {"sha256": "42ff53bbc8d03337480d81699e424fbf58e49837c1f037ba792e9a170f5a6555", "byte_size": 912},
+    "LICENSE": {"sha256": "80a06338645bbd84e84ee8a3438f91e4614eed5726c62d539888472ea08f1fe0", "byte_size": 11543}
+  },
+  "captured_at": "2026-06-29",
+  "captured_by": "openbb-pine extension P0 (bead 0e9.4.3, GH #106 L0.2)",
+  "rationale": "PyneCore is Apache-2.0 with a §4(d) attribution requirement. Any upstream change to NOTICE or LICENSE must be reviewed (it may add new compliance obligations or relicense). This manifest is checked by .github/workflows/pynecore-license-check.yml on every PR that touches the submodule. Stored as a sibling of the submodule (not inside it) because the parent repo cannot track files inside a submodule — see docs/designs/openbb-pine/D0-pynecore-pin.md §1."
+}

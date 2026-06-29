@@ -1,0 +1,42 @@
+name: pynecore-license-check
+
+on:
+  pull_request:
+    paths:
+      - 'third_party/pynecore'
+      - 'third_party/pynecore.license_manifest.json'
+      - '.gitmodules'
+      - 'Tools/pine/verify_pynecore_license.py'
+      - 'Tools/pine/refresh_pynecore_manifest.py'
+      - '.github/workflows/pynecore-license-check.yml'
+  push:
+    branches: [main, openbb_tradingview]
+    paths:
+      - 'third_party/pynecore'
+      - 'third_party/pynecore.license_manifest.json'
+      - 'Tools/pine/verify_pynecore_license.py'
+      - 'Tools/pine/refresh_pynecore_manifest.py'
+      - '.github/workflows/pynecore-license-check.yml'
+
+# Cancel previous runs that are not yet completed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify NOTICE + LICENSE SHAs match manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify pinned PyneCore commit + NOTICE/LICENSE SHA256
+        run: python3 Tools/pine/verify_pynecore_license.py
