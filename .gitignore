@@ -96,8 +96,13 @@ vscode-extension/
 # ignores embeddeddolt/ runtime and the credential key). Issue data syncs via
 # `refs/dolt/data` on the git remote; see .beads/README.md.
 
-# Temporary scratch files
-temp/
+# Temporary scratch files (ignore contents, not the directory itself, so exceptions below work)
+temp/*
+# Exceptions: pine-extension PRD + research artifacts are tracked on openbb_tradingview
+!temp/openbb-pine-extension-prd.md
+!temp/TradingView/
+!temp/_crawl_tv.py
+!temp/tv_indicators_full.json
 
 # Local data — single backup unit, never committed (see branch-decomposition plan)
 # Anchored to repo root so it does NOT swallow source packages named "data"

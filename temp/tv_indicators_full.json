@@ -1,0 +1,1458 @@
+[
+  {
+    "title": "1 year active supply %",
+    "url": "https://www.tradingview.com/support/solutions/43000773986-1-year-active-supply/",
+    "sol": "43000773986",
+    "slug": "1-year-active-supply",
+    "ok": true
+  },
+  {
+    "title": "24-hour Volume",
+    "url": "https://www.tradingview.com/support/solutions/43000668584-24-hour-volume/",
+    "sol": "43000668584",
+    "slug": "24-hour-volume",
+    "ok": true
+  },
+  {
+    "title": "Accumulation Distribution (ADL)",
+    "url": "https://www.tradingview.com/support/solutions/43000501770-accumulation-distribution-adl/",
+    "sol": "43000501770",
+    "slug": "accumulation-distribution-adl",
+    "ok": true
+  },
+  {
+    "title": "Active addresses with contracts",
+    "url": "https://www.tradingview.com/support/solutions/43000778587-active-addresses-with-contracts/",
+    "sol": "43000778587",
+    "slug": "active-addresses-with-contracts",
+    "ok": true
+  },
+  {
+    "title": "Addresses with balance ≥ X (% of supply)",
+    "url": "https://www.tradingview.com/support/solutions/43000773987-addresses-with-balance-x-of-supply/",
+    "sol": "43000773987",
+    "slug": "addresses-with-balance-x-of-supply",
+    "ok": true
+  },
+  {
+    "title": "Addresses with balance ≥ X (USD)",
+    "url": "https://www.tradingview.com/support/solutions/43000773988-addresses-with-balance-x-usd/",
+    "sol": "43000773988",
+    "slug": "addresses-with-balance-x-usd",
+    "ok": true
+  },
+  {
+    "title": "Advance/Decline Line",
+    "url": "https://www.tradingview.com/support/solutions/43000589092-advance-decline-line/",
+    "sol": "43000589092",
+    "slug": "advance-decline-line",
+    "ok": true
+  },
+  {
+    "title": "Advance/Decline Ratio",
+    "url": "https://www.tradingview.com/support/solutions/43000589093-advance-decline-ratio/",
+    "sol": "43000589093",
+    "slug": "advance-decline-ratio",
+    "ok": true
+  },
+  {
+    "title": "Advance/Decline Ratio (Bars)",
+    "url": "https://www.tradingview.com/support/solutions/43000644914-advance-decline-ratio-bars/",
+    "sol": "43000644914",
+    "slug": "advance-decline-ratio-bars",
+    "ok": true
+  },
+  {
+    "title": "Analyst price forecast",
+    "url": "https://www.tradingview.com/support/solutions/43000678409-analyst-price-forecast/",
+    "sol": "43000678409",
+    "slug": "analyst-price-forecast",
+    "ok": true
+  },
+  {
+    "title": "Arnaud Legoux Moving Average",
+    "url": "https://www.tradingview.com/support/solutions/43000594683-arnaud-legoux-moving-average/",
+    "sol": "43000594683",
+    "slug": "arnaud-legoux-moving-average",
+    "ok": true
+  },
+  {
+    "title": "Aroon",
+    "url": "https://www.tradingview.com/support/solutions/43000501801-aroon/",
+    "sol": "43000501801",
+    "slug": "aroon",
+    "ok": true
+  },
+  {
+    "title": "Aroon Oscillator",
+    "url": "https://www.tradingview.com/support/solutions/43000773004-aroon-oscillator/",
+    "sol": "43000773004",
+    "slug": "aroon-oscillator",
+    "ok": true
+  },
+  {
+    "title": "Auto Fib Extension",
+    "url": "https://www.tradingview.com/support/solutions/43000612397-auto-fib-extension/",
+    "sol": "43000612397",
+    "slug": "auto-fib-extension",
+    "ok": true
+  },
+  {
+    "title": "Auto Fib Retracement",
+    "url": "https://www.tradingview.com/support/solutions/43000585089-auto-fib-retracement/",
+    "sol": "43000585089",
+    "slug": "auto-fib-retracement",
+    "ok": true
+  },
+  {
+    "title": "Auto key levels",
+    "url": "https://www.tradingview.com/support/solutions/43000783958-auto-key-levels/",
+    "sol": "43000783958",
+    "slug": "auto-key-levels",
+    "ok": true
+  },
+  {
+    "title": "Auto Pitchfork",
+    "url": "https://www.tradingview.com/support/solutions/43000657911-auto-pitchfork/",
+    "sol": "43000657911",
+    "slug": "auto-pitchfork",
+    "ok": true
+  },
+  {
+    "title": "Auto Trendlines",
+    "url": "https://www.tradingview.com/support/solutions/43000741165-auto-trendlines/",
+    "sol": "43000741165",
+    "slug": "auto-trendlines",
+    "ok": true
+  },
+  {
+    "title": "Average Daily Range (ADR) indicator",
+    "url": "https://www.tradingview.com/support/solutions/43000695003-average-daily-range-adr-indicator/",
+    "sol": "43000695003",
+    "slug": "average-daily-range-adr-indicator",
+    "ok": true
+  },
+  {
+    "title": "Average Directional Index (ADX)",
+    "url": "https://www.tradingview.com/support/solutions/43000589099-average-directional-index-adx/",
+    "sol": "43000589099",
+    "slug": "average-directional-index-adx",
+    "ok": true
+  },
+  {
+    "title": "Average transaction volume",
+    "url": "https://www.tradingview.com/support/solutions/43000773989-average-transaction-volume/",
+    "sol": "43000773989",
+    "slug": "average-transaction-volume",
+    "ok": true
+  },
+  {
+    "title": "Average True Range (ATR)",
+    "url": "https://www.tradingview.com/support/solutions/43000501823-average-true-range-atr/",
+    "sol": "43000501823",
+    "slug": "average-true-range-atr",
+    "ok": true
+  },
+  {
+    "title": "Awesome Oscillator (AO)",
+    "url": "https://www.tradingview.com/support/solutions/43000501826-awesome-oscillator-ao/",
+    "sol": "43000501826",
+    "slug": "awesome-oscillator-ao",
+    "ok": true
+  },
+  {
+    "title": "Balance of Power (BOP)",
+    "url": "https://www.tradingview.com/support/solutions/43000589100-balance-of-power-bop/",
+    "sol": "43000589100",
+    "slug": "balance-of-power-bop",
+    "ok": true
+  },
+  {
+    "title": "Basis",
+    "url": "https://www.tradingview.com/support/solutions/43000784536-basis/",
+    "sol": "43000784536",
+    "slug": "basis",
+    "ok": true
+  },
+  {
+    "title": "BBTrend",
+    "url": "https://www.tradingview.com/support/solutions/43000726749-bbtrend/",
+    "sol": "43000726749",
+    "slug": "bbtrend",
+    "ok": true
+  },
+  {
+    "title": "Block height",
+    "url": "https://www.tradingview.com/support/solutions/43000778555-block-height/",
+    "sol": "43000778555",
+    "slug": "block-height",
+    "ok": true
+  },
+  {
+    "title": "Blocks mined",
+    "url": "https://www.tradingview.com/support/solutions/43000778556-blocks-mined/",
+    "sol": "43000778556",
+    "slug": "blocks-mined",
+    "ok": true
+  },
+  {
+    "title": "Bollinger Bands (BB)",
+    "url": "https://www.tradingview.com/support/solutions/43000501840-bollinger-bands-bb/",
+    "sol": "43000501840",
+    "slug": "bollinger-bands-bb",
+    "ok": true
+  },
+  {
+    "title": "Bollinger Bands %b (%b)",
+    "url": "https://www.tradingview.com/support/solutions/43000501971-bollinger-bands-b-b/",
+    "sol": "43000501971",
+    "slug": "bollinger-bands-b-b",
+    "ok": true
+  },
+  {
+    "title": "Bollinger BandWidth (BBW)",
+    "url": "https://www.tradingview.com/support/solutions/43000501972-bollinger-bandwidth-bbw/",
+    "sol": "43000501972",
+    "slug": "bollinger-bandwidth-bbw",
+    "ok": true
+  },
+  {
+    "title": "Bollinger Bars",
+    "url": "https://www.tradingview.com/support/solutions/43000742575-bollinger-bars/",
+    "sol": "43000742575",
+    "slug": "bollinger-bars",
+    "ok": true
+  },
+  {
+    "title": "Bull Bear Power",
+    "url": "https://www.tradingview.com/support/solutions/43000717955-bull-bear-power/",
+    "sol": "43000717955",
+    "slug": "bull-bear-power",
+    "ok": true
+  },
+  {
+    "title": "Chaikin Money Flow (CMF)",
+    "url": "https://www.tradingview.com/support/solutions/43000501974-chaikin-money-flow-cmf/",
+    "sol": "43000501974",
+    "slug": "chaikin-money-flow-cmf",
+    "ok": true
+  },
+  {
+    "title": "Chaikin Oscillator",
+    "url": "https://www.tradingview.com/support/solutions/43000501979-chaikin-oscillator/",
+    "sol": "43000501979",
+    "slug": "chaikin-oscillator",
+    "ok": true
+  },
+  {
+    "title": "Chande Kroll Stop",
+    "url": "https://www.tradingview.com/support/solutions/43000589105-chande-kroll-stop/",
+    "sol": "43000589105",
+    "slug": "chande-kroll-stop",
+    "ok": true
+  },
+  {
+    "title": "Chande Momentum Oscillator (CMO)",
+    "url": "https://www.tradingview.com/support/solutions/43000589109-chande-momentum-oscillator-cmo/",
+    "sol": "43000589109",
+    "slug": "chande-momentum-oscillator-cmo",
+    "ok": true
+  },
+  {
+    "title": "Chandelier Exit",
+    "url": "https://www.tradingview.com/support/solutions/43000773013-chandelier-exit/",
+    "sol": "43000773013",
+    "slug": "chandelier-exit",
+    "ok": true
+  },
+  {
+    "title": "Chop Zone",
+    "url": "https://www.tradingview.com/support/solutions/43000589111-chop-zone/",
+    "sol": "43000589111",
+    "slug": "chop-zone",
+    "ok": true
+  },
+  {
+    "title": "Choppiness Index (CHOP)",
+    "url": "https://www.tradingview.com/support/solutions/43000501980-choppiness-index-chop/",
+    "sol": "43000501980",
+    "slug": "choppiness-index-chop",
+    "ok": true
+  },
+  {
+    "title": "Commodity Channel Index (CCI)",
+    "url": "https://www.tradingview.com/support/solutions/43000502001-commodity-channel-index-cci/",
+    "sol": "43000502001",
+    "slug": "commodity-channel-index-cci",
+    "ok": true
+  },
+  {
+    "title": "Connors RSI (CRSI)",
+    "url": "https://www.tradingview.com/support/solutions/43000502017-connors-rsi-crsi/",
+    "sol": "43000502017",
+    "slug": "connors-rsi-crsi",
+    "ok": true
+  },
+  {
+    "title": "Coppock Curve",
+    "url": "https://www.tradingview.com/support/solutions/43000589114-coppock-curve/",
+    "sol": "43000589114",
+    "slug": "coppock-curve",
+    "ok": true
+  },
+  {
+    "title": "Correlation Coefficient (CC)",
+    "url": "https://www.tradingview.com/support/solutions/43000502022-correlation-coefficient-cc/",
+    "sol": "43000502022",
+    "slug": "correlation-coefficient-cc",
+    "ok": true
+  },
+  {
+    "title": "Created UTXOs",
+    "url": "https://www.tradingview.com/support/solutions/43000778564-created-utxos/",
+    "sol": "43000778564",
+    "slug": "created-utxos",
+    "ok": true
+  },
+  {
+    "title": "Cumulative Volume Delta",
+    "url": "https://www.tradingview.com/support/solutions/43000725058-cumulative-volume-delta/",
+    "sol": "43000725058",
+    "slug": "cumulative-volume-delta",
+    "ok": true
+  },
+  {
+    "title": "Cumulative Volume Index (CVI)",
+    "url": "https://www.tradingview.com/support/solutions/43000589126-cumulative-volume-index-cvi/",
+    "sol": "43000589126",
+    "slug": "cumulative-volume-index-cvi",
+    "ok": true
+  },
+  {
+    "title": "Detrended Price Oscillator (DPO)",
+    "url": "https://www.tradingview.com/support/solutions/43000502246-detrended-price-oscillator-dpo/",
+    "sol": "43000502246",
+    "slug": "detrended-price-oscillator-dpo",
+    "ok": true
+  },
+  {
+    "title": "Difficulty",
+    "url": "https://www.tradingview.com/support/solutions/43000778562-difficulty/",
+    "sol": "43000778562",
+    "slug": "difficulty",
+    "ok": true
+  },
+  {
+    "title": "Directional Movement (DMI)",
+    "url": "https://www.tradingview.com/support/solutions/43000502250-directional-movement-dmi/",
+    "sol": "43000502250",
+    "slug": "directional-movement-dmi",
+    "ok": true
+  },
+  {
+    "title": "Dividend Yield",
+    "url": "https://www.tradingview.com/support/solutions/43000589129-dividend-yield/",
+    "sol": "43000589129",
+    "slug": "dividend-yield",
+    "ok": true
+  },
+  {
+    "title": "Donchian Channels (DC)",
+    "url": "https://www.tradingview.com/support/solutions/43000502253-donchian-channels-dc/",
+    "sol": "43000502253",
+    "slug": "donchian-channels-dc",
+    "ok": true
+  },
+  {
+    "title": "Double Exponential Moving Average (EMA)",
+    "url": "https://www.tradingview.com/support/solutions/43000589132-double-exponential-moving-average-ema/",
+    "sol": "43000589132",
+    "slug": "double-exponential-moving-average-ema",
+    "ok": true
+  },
+  {
+    "title": "Ease of Movement (EOM)",
+    "url": "https://www.tradingview.com/support/solutions/43000502256-ease-of-movement-eom/",
+    "sol": "43000502256",
+    "slug": "ease-of-movement-eom",
+    "ok": true
+  },
+  {
+    "title": "El Salvador Government balance",
+    "url": "https://www.tradingview.com/support/solutions/43000778575-el-salvador-government-balance/",
+    "sol": "43000778575",
+    "slug": "el-salvador-government-balance",
+    "ok": true
+  },
+  {
+    "title": "Elder's Force Index (EFI)",
+    "url": "https://www.tradingview.com/support/solutions/43000502259-elder-s-force-index-efi/",
+    "sol": "43000502259",
+    "slug": "elder-s-force-index-efi",
+    "ok": true
+  },
+  {
+    "title": "Envelope (ENV)",
+    "url": "https://www.tradingview.com/support/solutions/43000502260-envelope-env/",
+    "sol": "43000502260",
+    "slug": "envelope-env",
+    "ok": true
+  },
+  {
+    "title": "ETF balances",
+    "url": "https://www.tradingview.com/support/solutions/43000778590-etf-balances/",
+    "sol": "43000778590",
+    "slug": "etf-balances",
+    "ok": true
+  },
+  {
+    "title": "ETF flows",
+    "url": "https://www.tradingview.com/support/solutions/43000778591-etf-flows/",
+    "sol": "43000778591",
+    "slug": "etf-flows",
+    "ok": true
+  },
+  {
+    "title": "Ethereum new deposits",
+    "url": "https://www.tradingview.com/support/solutions/43000778578-ethereum-new-deposits/",
+    "sol": "43000778578",
+    "slug": "ethereum-new-deposits",
+    "ok": true
+  },
+  {
+    "title": "Ethereum new unique depositors",
+    "url": "https://www.tradingview.com/support/solutions/43000778580-ethereum-new-unique-depositors/",
+    "sol": "43000778580",
+    "slug": "ethereum-new-unique-depositors",
+    "ok": true
+  },
+  {
+    "title": "Ethereum new value staked",
+    "url": "https://www.tradingview.com/support/solutions/43000778579-ethereum-new-value-staked/",
+    "sol": "43000778579",
+    "slug": "ethereum-new-value-staked",
+    "ok": true
+  },
+  {
+    "title": "Ethereum total number of deposits",
+    "url": "https://www.tradingview.com/support/solutions/43000778581-ethereum-total-number-of-deposits/",
+    "sol": "43000778581",
+    "slug": "ethereum-total-number-of-deposits",
+    "ok": true
+  },
+  {
+    "title": "Ethereum total unique depositors",
+    "url": "https://www.tradingview.com/support/solutions/43000778582-ethereum-total-unique-depositors/",
+    "sol": "43000778582",
+    "slug": "ethereum-total-unique-depositors",
+    "ok": true
+  },
+  {
+    "title": "Ethereum total value staked",
+    "url": "https://www.tradingview.com/support/solutions/43000778583-ethereum-total-value-staked/",
+    "sol": "43000778583",
+    "slug": "ethereum-total-value-staked",
+    "ok": true
+  },
+  {
+    "title": "Exponential Moving Average",
+    "url": "https://www.tradingview.com/support/solutions/43000592270-exponential-moving-average/",
+    "sol": "43000592270",
+    "slug": "exponential-moving-average",
+    "ok": true
+  },
+  {
+    "title": "Fisher Transform",
+    "url": "https://www.tradingview.com/support/solutions/43000589141-fisher-transform/",
+    "sol": "43000589141",
+    "slug": "fisher-transform",
+    "ok": true
+  },
+  {
+    "title": "Funding rate: a guide to market sentiment",
+    "url": "https://www.tradingview.com/support/solutions/43000762390-funding-rate-a-guide-to-market-sentiment/",
+    "sol": "43000762390",
+    "slug": "funding-rate-a-guide-to-market-sentiment",
+    "ok": true
+  },
+  {
+    "title": "Hash Rate",
+    "url": "https://www.tradingview.com/support/solutions/43000778561-hash-rate/",
+    "sol": "43000778561",
+    "slug": "hash-rate",
+    "ok": true
+  },
+  {
+    "title": "Held tokens in addresses ≥ X (% of supply)",
+    "url": "https://www.tradingview.com/support/solutions/43000773992-held-tokens-in-addresses-x-of-supply/",
+    "sol": "43000773992",
+    "slug": "held-tokens-in-addresses-x-of-supply",
+    "ok": true
+  },
+  {
+    "title": "Held tokens in addresses ≥ X (tokens)",
+    "url": "https://www.tradingview.com/support/solutions/43000773991-held-tokens-in-addresses-x-tokens/",
+    "sol": "43000773991",
+    "slug": "held-tokens-in-addresses-x-tokens",
+    "ok": true
+  },
+  {
+    "title": "Held tokens in addresses ≥ X (USD)",
+    "url": "https://www.tradingview.com/support/solutions/43000773990-held-tokens-in-addresses-x-usd/",
+    "sol": "43000773990",
+    "slug": "held-tokens-in-addresses-x-usd",
+    "ok": true
+  },
+  {
+    "title": "Historical Volatility",
+    "url": "https://www.tradingview.com/support/solutions/43000589145-historical-volatility/",
+    "sol": "43000589145",
+    "slug": "historical-volatility",
+    "ok": true
+  },
+  {
+    "title": "Hull Moving Average",
+    "url": "https://www.tradingview.com/support/solutions/43000589149-hull-moving-average/",
+    "sol": "43000589149",
+    "slug": "hull-moving-average",
+    "ok": true
+  },
+  {
+    "title": "Ichimoku Cloud",
+    "url": "https://www.tradingview.com/support/solutions/43000589152-ichimoku-cloud/",
+    "sol": "43000589152",
+    "slug": "ichimoku-cloud",
+    "ok": true
+  },
+  {
+    "title": "Index price",
+    "url": "https://www.tradingview.com/support/solutions/43000784533-index-price/",
+    "sol": "43000784533",
+    "slug": "index-price",
+    "ok": true
+  },
+  {
+    "title": "Kaufman's Adaptive Moving Average (KAMA)",
+    "url": "https://www.tradingview.com/support/solutions/43000773012-kaufman-s-adaptive-moving-average-kama/",
+    "sol": "43000773012",
+    "slug": "kaufman-s-adaptive-moving-average-kama",
+    "ok": true
+  },
+  {
+    "title": "Keltner Channels (KC)",
+    "url": "https://www.tradingview.com/support/solutions/43000502266-keltner-channels-kc/",
+    "sol": "43000502266",
+    "slug": "keltner-channels-kc",
+    "ok": true
+  },
+  {
+    "title": "Klinger Oscillator",
+    "url": "https://www.tradingview.com/support/solutions/43000589157-klinger-oscillator/",
+    "sol": "43000589157",
+    "slug": "klinger-oscillator",
+    "ok": true
+  },
+  {
+    "title": "Know Sure Thing (KST)",
+    "url": "https://www.tradingview.com/support/solutions/43000502329-know-sure-thing-kst/",
+    "sol": "43000502329",
+    "slug": "know-sure-thing-kst",
+    "ok": true
+  },
+  {
+    "title": "Large transaction volume",
+    "url": "https://www.tradingview.com/support/solutions/43000773993-large-transaction-volume/",
+    "sol": "43000773993",
+    "slug": "large-transaction-volume",
+    "ok": true
+  },
+  {
+    "title": "Least Squares Moving Average",
+    "url": "https://www.tradingview.com/support/solutions/43000599877-least-squares-moving-average/",
+    "sol": "43000599877",
+    "slug": "least-squares-moving-average",
+    "ok": true
+  },
+  {
+    "title": "Linear Regression",
+    "url": "https://www.tradingview.com/support/solutions/43000644936-linear-regression/",
+    "sol": "43000644936",
+    "slug": "linear-regression",
+    "ok": true
+  },
+  {
+    "title": "Liquidation data: what to watch and why it matters",
+    "url": "https://www.tradingview.com/support/solutions/43000762400-liquidation-data-what-to-watch-and-why-it-matters/",
+    "sol": "43000762400",
+    "slug": "liquidation-data-what-to-watch-and-why-it-matters",
+    "ok": true
+  },
+  {
+    "title": "Long / Short Ratio Accounts",
+    "url": "https://www.tradingview.com/support/solutions/43000762399-long-short-ratio-accounts/",
+    "sol": "43000762399",
+    "slug": "long-short-ratio-accounts",
+    "ok": true
+  },
+  {
+    "title": "Long Short Accounts %",
+    "url": "https://www.tradingview.com/support/solutions/43000762397-long-short-accounts/",
+    "sol": "43000762397",
+    "slug": "long-short-accounts",
+    "ok": true
+  },
+  {
+    "title": "MA Cross",
+    "url": "https://www.tradingview.com/support/solutions/43000599879-ma-cross/",
+    "sol": "43000599879",
+    "slug": "ma-cross",
+    "ok": true
+  },
+  {
+    "title": "Mark price",
+    "url": "https://www.tradingview.com/support/solutions/43000784534-mark-price/",
+    "sol": "43000784534",
+    "slug": "mark-price",
+    "ok": true
+  },
+  {
+    "title": "Mass Index",
+    "url": "https://www.tradingview.com/support/solutions/43000589169-mass-index/",
+    "sol": "43000589169",
+    "slug": "mass-index",
+    "ok": true
+  },
+  {
+    "title": "McGinley Dynamic",
+    "url": "https://www.tradingview.com/support/solutions/43000589175-mcginley-dynamic/",
+    "sol": "43000589175",
+    "slug": "mcginley-dynamic",
+    "ok": true
+  },
+  {
+    "title": "Mean block interval",
+    "url": "https://www.tradingview.com/support/solutions/43000778557-mean-block-interval/",
+    "sol": "43000778557",
+    "slug": "mean-block-interval",
+    "ok": true
+  },
+  {
+    "title": "Mean block size in bytes",
+    "url": "https://www.tradingview.com/support/solutions/43000778560-mean-block-size-in-bytes/",
+    "sol": "43000778560",
+    "slug": "mean-block-size-in-bytes",
+    "ok": true
+  },
+  {
+    "title": "Mean gas used",
+    "url": "https://www.tradingview.com/support/solutions/43000778551-mean-gas-used/",
+    "sol": "43000778551",
+    "slug": "mean-gas-used",
+    "ok": true
+  },
+  {
+    "title": "Mean transaction fees",
+    "url": "https://www.tradingview.com/support/solutions/43000778548-mean-transaction-fees/",
+    "sol": "43000778548",
+    "slug": "mean-transaction-fees",
+    "ok": true
+  },
+  {
+    "title": "Mean transaction gas limit",
+    "url": "https://www.tradingview.com/support/solutions/43000778584-mean-transaction-gas-limit/",
+    "sol": "43000778584",
+    "slug": "mean-transaction-gas-limit",
+    "ok": true
+  },
+  {
+    "title": "Mean transaction gas price",
+    "url": "https://www.tradingview.com/support/solutions/43000778553-mean-transaction-gas-price/",
+    "sol": "43000778553",
+    "slug": "mean-transaction-gas-price",
+    "ok": true
+  },
+  {
+    "title": "Mean transaction size in bytes",
+    "url": "https://www.tradingview.com/support/solutions/43000778574-mean-transaction-size-in-bytes/",
+    "sol": "43000778574",
+    "slug": "mean-transaction-size-in-bytes",
+    "ok": true
+  },
+  {
+    "title": "Mean transfer volume",
+    "url": "https://www.tradingview.com/support/solutions/43000778538-mean-transfer-volume/",
+    "sol": "43000778538",
+    "slug": "mean-transfer-volume",
+    "ok": true
+  },
+  {
+    "title": "Mean UTXO value created",
+    "url": "https://www.tradingview.com/support/solutions/43000778566-mean-utxo-value-created/",
+    "sol": "43000778566",
+    "slug": "mean-utxo-value-created",
+    "ok": true
+  },
+  {
+    "title": "Mean UTXO value spent",
+    "url": "https://www.tradingview.com/support/solutions/43000778569-mean-utxo-value-spent/",
+    "sol": "43000778569",
+    "slug": "mean-utxo-value-spent",
+    "ok": true
+  },
+  {
+    "title": "Median",
+    "url": "https://www.tradingview.com/support/solutions/43000644897-median/",
+    "sol": "43000644897",
+    "slug": "median",
+    "ok": true
+  },
+  {
+    "title": "Median block interval",
+    "url": "https://www.tradingview.com/support/solutions/43000778558-median-block-interval/",
+    "sol": "43000778558",
+    "slug": "median-block-interval",
+    "ok": true
+  },
+  {
+    "title": "Median gas used",
+    "url": "https://www.tradingview.com/support/solutions/43000778552-median-gas-used/",
+    "sol": "43000778552",
+    "slug": "median-gas-used",
+    "ok": true
+  },
+  {
+    "title": "Median transaction fees",
+    "url": "https://www.tradingview.com/support/solutions/43000778549-median-transaction-fees/",
+    "sol": "43000778549",
+    "slug": "median-transaction-fees",
+    "ok": true
+  },
+  {
+    "title": "Median transaction gas limit",
+    "url": "https://www.tradingview.com/support/solutions/43000778585-median-transaction-gas-limit/",
+    "sol": "43000778585",
+    "slug": "median-transaction-gas-limit",
+    "ok": true
+  },
+  {
+    "title": "Median transaction gas price",
+    "url": "https://www.tradingview.com/support/solutions/43000778554-median-transaction-gas-price/",
+    "sol": "43000778554",
+    "slug": "median-transaction-gas-price",
+    "ok": true
+  },
+  {
+    "title": "Median transfer volume",
+    "url": "https://www.tradingview.com/support/solutions/43000778539-median-transfer-volume/",
+    "sol": "43000778539",
+    "slug": "median-transfer-volume",
+    "ok": true
+  },
+  {
+    "title": "Median UTXO value created",
+    "url": "https://www.tradingview.com/support/solutions/43000778567-median-utxo-value-created/",
+    "sol": "43000778567",
+    "slug": "median-utxo-value-created",
+    "ok": true
+  },
+  {
+    "title": "Median UTXO value spent",
+    "url": "https://www.tradingview.com/support/solutions/43000778570-median-utxo-value-spent/",
+    "sol": "43000778570",
+    "slug": "median-utxo-value-spent",
+    "ok": true
+  },
+  {
+    "title": "Momentum",
+    "url": "https://www.tradingview.com/support/solutions/43000589187-momentum/",
+    "sol": "43000589187",
+    "slug": "momentum",
+    "ok": true
+  },
+  {
+    "title": "Money Flow (MFI)",
+    "url": "https://www.tradingview.com/support/solutions/43000502348-money-flow-mfi/",
+    "sol": "43000502348",
+    "slug": "money-flow-mfi",
+    "ok": true
+  },
+  {
+    "title": "Moon Phases",
+    "url": "https://www.tradingview.com/support/solutions/43000599884-moon-phases/",
+    "sol": "43000599884",
+    "slug": "moon-phases",
+    "ok": true
+  },
+  {
+    "title": "Moving average convergence divergence (MACD) indicator",
+    "url": "https://www.tradingview.com/support/solutions/43000502344-moving-average-convergence-divergence-macd-indicator/",
+    "sol": "43000502344",
+    "slug": "moving-average-convergence-divergence-macd-indicator",
+    "ok": true
+  },
+  {
+    "title": "Moving Average Ribbon",
+    "url": "https://www.tradingview.com/support/solutions/43000644913-moving-average-ribbon/",
+    "sol": "43000644913",
+    "slug": "moving-average-ribbon",
+    "ok": true
+  },
+  {
+    "title": "Moving Averages",
+    "url": "https://www.tradingview.com/support/solutions/43000502589-moving-averages/",
+    "sol": "43000502589",
+    "slug": "moving-averages",
+    "ok": true
+  },
+  {
+    "title": "MovingAvg Cross",
+    "url": "https://www.tradingview.com/support/solutions/43000599885-movingavg-cross/",
+    "sol": "43000599885",
+    "slug": "movingavg-cross",
+    "ok": true
+  },
+  {
+    "title": "MovingAvg2Line Cross",
+    "url": "https://www.tradingview.com/support/solutions/43000599886-movingavg2line-cross/",
+    "sol": "43000599886",
+    "slug": "movingavg2line-cross",
+    "ok": true
+  },
+  {
+    "title": "Multi-Time Period Charts indicator",
+    "url": "https://www.tradingview.com/support/solutions/43000502591-multi-time-period-charts-indicator/",
+    "sol": "43000502591",
+    "slug": "multi-time-period-charts-indicator",
+    "ok": true
+  },
+  {
+    "title": "Negative Volume Index (NVI)",
+    "url": "https://www.tradingview.com/support/solutions/43000773005-negative-volume-index-nvi/",
+    "sol": "43000773005",
+    "slug": "negative-volume-index-nvi",
+    "ok": true
+  },
+  {
+    "title": "Net Volume",
+    "url": "https://www.tradingview.com/support/solutions/43000589192-net-volume/",
+    "sol": "43000589192",
+    "slug": "net-volume",
+    "ok": true
+  },
+  {
+    "title": "On Balance Volume (OBV)",
+    "url": "https://www.tradingview.com/support/solutions/43000502593-on-balance-volume-obv/",
+    "sol": "43000502593",
+    "slug": "on-balance-volume-obv",
+    "ok": true
+  },
+  {
+    "title": "Open Interest",
+    "url": "https://www.tradingview.com/support/solutions/43000685269-open-interest/",
+    "sol": "43000685269",
+    "slug": "open-interest",
+    "ok": true
+  },
+  {
+    "title": "Parabolic SAR (SAR)",
+    "url": "https://www.tradingview.com/support/solutions/43000502597-parabolic-sar-sar/",
+    "sol": "43000502597",
+    "slug": "parabolic-sar-sar",
+    "ok": true
+  },
+  {
+    "title": "Percentage Price Oscillator (PPO)",
+    "url": "https://www.tradingview.com/support/solutions/43000502346-percentage-price-oscillator-ppo/",
+    "sol": "43000502346",
+    "slug": "percentage-price-oscillator-ppo",
+    "ok": true
+  },
+  {
+    "title": "Percentage Volume Oscillator (PVO)",
+    "url": "https://www.tradingview.com/support/solutions/43000591350-percentage-volume-oscillator-pvo/",
+    "sol": "43000591350",
+    "slug": "percentage-volume-oscillator-pvo",
+    "ok": true
+  },
+  {
+    "title": "Performance",
+    "url": "https://www.tradingview.com/support/solutions/43000736064-performance/",
+    "sol": "43000736064",
+    "slug": "performance",
+    "ok": true
+  },
+  {
+    "title": "Pivot Points High Low",
+    "url": "https://www.tradingview.com/support/solutions/43000589195-pivot-points-high-low/",
+    "sol": "43000589195",
+    "slug": "pivot-points-high-low",
+    "ok": true
+  },
+  {
+    "title": "Pivot Points Standard",
+    "url": "https://www.tradingview.com/support/solutions/43000521824-pivot-points-standard/",
+    "sol": "43000521824",
+    "slug": "pivot-points-standard",
+    "ok": true
+  },
+  {
+    "title": "Positive Volume Index (PVI)",
+    "url": "https://www.tradingview.com/support/solutions/43000773006-positive-volume-index-pvi/",
+    "sol": "43000773006",
+    "slug": "positive-volume-index-pvi",
+    "ok": true
+  },
+  {
+    "title": "Power-Law Model",
+    "url": "https://www.tradingview.com/support/solutions/43000778576-power-law-model/",
+    "sol": "43000778576",
+    "slug": "power-law-model",
+    "ok": true
+  },
+  {
+    "title": "Premium",
+    "url": "https://www.tradingview.com/support/solutions/43000784535-premium/",
+    "sol": "43000784535",
+    "slug": "premium",
+    "ok": true
+  },
+  {
+    "title": "Price Momentum Oscillator (PMO)",
+    "url": "https://www.tradingview.com/support/solutions/43000773010-price-momentum-oscillator-pmo/",
+    "sol": "43000773010",
+    "slug": "price-momentum-oscillator-pmo",
+    "ok": true
+  },
+  {
+    "title": "Price target - indicator",
+    "url": "https://www.tradingview.com/support/solutions/43000730980-price-target-indicator/",
+    "sol": "43000730980",
+    "slug": "price-target-indicator",
+    "ok": true
+  },
+  {
+    "title": "Price Volume Trend (PVT)",
+    "url": "https://www.tradingview.com/support/solutions/43000502345-price-volume-trend-pvt/",
+    "sol": "43000502345",
+    "slug": "price-volume-trend-pvt",
+    "ok": true
+  },
+  {
+    "title": "Pring's Special K",
+    "url": "https://www.tradingview.com/support/solutions/43000773011-pring-s-special-k/",
+    "sol": "43000773011",
+    "slug": "pring-s-special-k",
+    "ok": true
+  },
+  {
+    "title": "Rank Correlation Index (RCI)",
+    "url": "https://www.tradingview.com/support/solutions/43000765570-rank-correlation-index-rci/",
+    "sol": "43000765570",
+    "slug": "rank-correlation-index-rci",
+    "ok": true
+  },
+  {
+    "title": "Rate of Change (ROC)",
+    "url": "https://www.tradingview.com/support/solutions/43000502343-rate-of-change-roc/",
+    "sol": "43000502343",
+    "slug": "rate-of-change-roc",
+    "ok": true
+  },
+  {
+    "title": "RCI Ribbon",
+    "url": "https://www.tradingview.com/support/solutions/43000765571-rci-ribbon/",
+    "sol": "43000765571",
+    "slug": "rci-ribbon",
+    "ok": true
+  },
+  {
+    "title": "Realized market cap",
+    "url": "https://www.tradingview.com/support/solutions/43000773994-realized-market-cap/",
+    "sol": "43000773994",
+    "slug": "realized-market-cap",
+    "ok": true
+  },
+  {
+    "title": "Receiving addresses",
+    "url": "https://www.tradingview.com/support/solutions/43000778535-receiving-addresses/",
+    "sol": "43000778535",
+    "slug": "receiving-addresses",
+    "ok": true
+  },
+  {
+    "title": "Relative Strength Index (RSI)",
+    "url": "https://www.tradingview.com/support/solutions/43000502338-relative-strength-index-rsi/",
+    "sol": "43000502338",
+    "slug": "relative-strength-index-rsi",
+    "ok": true
+  },
+  {
+    "title": "Relative Vigor Index",
+    "url": "https://www.tradingview.com/support/solutions/43000591593-relative-vigor-index/",
+    "sol": "43000591593",
+    "slug": "relative-vigor-index",
+    "ok": true
+  },
+  {
+    "title": "Relative Volatility Index",
+    "url": "https://www.tradingview.com/support/solutions/43000594684-relative-volatility-index/",
+    "sol": "43000594684",
+    "slug": "relative-volatility-index",
+    "ok": true
+  },
+  {
+    "title": "Relative Volume at Time",
+    "url": "https://www.tradingview.com/support/solutions/43000705489-relative-volume-at-time/",
+    "sol": "43000705489",
+    "slug": "relative-volume-at-time",
+    "ok": true
+  },
+  {
+    "title": "Rob Booker - ADX Breakout",
+    "url": "https://www.tradingview.com/support/solutions/43000591333-rob-booker-adx-breakout/",
+    "sol": "43000591333",
+    "slug": "rob-booker-adx-breakout",
+    "ok": true
+  },
+  {
+    "title": "Rob Booker - Knoxville Divergence",
+    "url": "https://www.tradingview.com/support/solutions/43000591336-rob-booker-knoxville-divergence/",
+    "sol": "43000591336",
+    "slug": "rob-booker-knoxville-divergence",
+    "ok": true
+  },
+  {
+    "title": "Rob Booker Intraday Pivot Points",
+    "url": "https://www.tradingview.com/support/solutions/43000594546-rob-booker-intraday-pivot-points/",
+    "sol": "43000594546",
+    "slug": "rob-booker-intraday-pivot-points",
+    "ok": true
+  },
+  {
+    "title": "Rob Booker Missed Pivot Points",
+    "url": "https://www.tradingview.com/support/solutions/43000594678-rob-booker-missed-pivot-points/",
+    "sol": "43000594678",
+    "slug": "rob-booker-missed-pivot-points",
+    "ok": true
+  },
+  {
+    "title": "Rob Booker Reversal",
+    "url": "https://www.tradingview.com/support/solutions/43000599840-rob-booker-reversal/",
+    "sol": "43000599840",
+    "slug": "rob-booker-reversal",
+    "ok": true
+  },
+  {
+    "title": "Rob Booker Ziv Ghost Pivots",
+    "url": "https://www.tradingview.com/support/solutions/43000594679-rob-booker-ziv-ghost-pivots/",
+    "sol": "43000594679",
+    "slug": "rob-booker-ziv-ghost-pivots",
+    "ok": true
+  },
+  {
+    "title": "RSI divergence indicator",
+    "url": "https://www.tradingview.com/support/solutions/43000589127-rsi-divergence-indicator/",
+    "sol": "43000589127",
+    "slug": "rsi-divergence-indicator",
+    "ok": true
+  },
+  {
+    "title": "RVT ratio, 90 days",
+    "url": "https://www.tradingview.com/support/solutions/43000773995-rvt-ratio-90-days/",
+    "sol": "43000773995",
+    "slug": "rvt-ratio-90-days",
+    "ok": true
+  },
+  {
+    "title": "Seasonality",
+    "url": "https://www.tradingview.com/support/solutions/43000723025-seasonality/",
+    "sol": "43000723025",
+    "slug": "seasonality",
+    "ok": true
+  },
+  {
+    "title": "Seasonals",
+    "url": "https://www.tradingview.com/support/solutions/43000745201-seasonals/",
+    "sol": "43000745201",
+    "slug": "seasonals",
+    "ok": true
+  },
+  {
+    "title": "Sending addresses",
+    "url": "https://www.tradingview.com/support/solutions/43000778534-sending-addresses/",
+    "sol": "43000778534",
+    "slug": "sending-addresses",
+    "ok": true
+  },
+  {
+    "title": "Simple Moving Average",
+    "url": "https://www.tradingview.com/support/solutions/43000696841-simple-moving-average/",
+    "sol": "43000696841",
+    "slug": "simple-moving-average",
+    "ok": true
+  },
+  {
+    "title": "SMI Ergodic Indicator",
+    "url": "https://www.tradingview.com/support/solutions/43000594669-smi-ergodic-indicator/",
+    "sol": "43000594669",
+    "slug": "smi-ergodic-indicator",
+    "ok": true
+  },
+  {
+    "title": "SMI Ergodic Oscillator",
+    "url": "https://www.tradingview.com/support/solutions/43000594671-smi-ergodic-oscillator/",
+    "sol": "43000594671",
+    "slug": "smi-ergodic-oscillator",
+    "ok": true
+  },
+  {
+    "title": "Smoothed Moving Average",
+    "url": "https://www.tradingview.com/support/solutions/43000591343-smoothed-moving-average/",
+    "sol": "43000591343",
+    "slug": "smoothed-moving-average",
+    "ok": true
+  },
+  {
+    "title": "Spent Output Profit Ratio (SOPR)",
+    "url": "https://www.tradingview.com/support/solutions/43000778537-spent-output-profit-ratio-sopr/",
+    "sol": "43000778537",
+    "slug": "spent-output-profit-ratio-sopr",
+    "ok": true
+  },
+  {
+    "title": "Spent UTXOs",
+    "url": "https://www.tradingview.com/support/solutions/43000778565-spent-utxos/",
+    "sol": "43000778565",
+    "slug": "spent-utxos",
+    "ok": true
+  },
+  {
+    "title": "Stochastic (STOCH)",
+    "url": "https://www.tradingview.com/support/solutions/43000502332-stochastic-stoch/",
+    "sol": "43000502332",
+    "slug": "stochastic-stoch",
+    "ok": true
+  },
+  {
+    "title": "Stochastic Momentum Index (SMI)",
+    "url": "https://www.tradingview.com/support/solutions/43000707882-stochastic-momentum-index-smi/",
+    "sol": "43000707882",
+    "slug": "stochastic-momentum-index-smi",
+    "ok": true
+  },
+  {
+    "title": "Stochastic RSI (STOCH RSI)",
+    "url": "https://www.tradingview.com/support/solutions/43000502333-stochastic-rsi-stoch-rsi/",
+    "sol": "43000502333",
+    "slug": "stochastic-rsi-stoch-rsi",
+    "ok": true
+  },
+  {
+    "title": "Stock-to-Flow Ratio in USD",
+    "url": "https://www.tradingview.com/support/solutions/43000778577-stock-to-flow-ratio-in-usd/",
+    "sol": "43000778577",
+    "slug": "stock-to-flow-ratio-in-usd",
+    "ok": true
+  },
+  {
+    "title": "Supertrend",
+    "url": "https://www.tradingview.com/support/solutions/43000634738-supertrend/",
+    "sol": "43000634738",
+    "slug": "supertrend",
+    "ok": true
+  },
+  {
+    "title": "Supply Equality Ratio",
+    "url": "https://www.tradingview.com/support/solutions/43000773996-supply-equality-ratio/",
+    "sol": "43000773996",
+    "slug": "supply-equality-ratio",
+    "ok": true
+  },
+  {
+    "title": "Technical Ratings",
+    "url": "https://www.tradingview.com/support/solutions/43000614331-technical-ratings/",
+    "sol": "43000614331",
+    "slug": "technical-ratings",
+    "ok": true
+  },
+  {
+    "title": "Time Weighted Average Price",
+    "url": "https://www.tradingview.com/support/solutions/43000692939-time-weighted-average-price/",
+    "sol": "43000692939",
+    "slug": "time-weighted-average-price",
+    "ok": true
+  },
+  {
+    "title": "Top trader long/short accounts",
+    "url": "https://www.tradingview.com/support/solutions/43000784529-top-trader-long-short-accounts/",
+    "sol": "43000784529",
+    "slug": "top-trader-long-short-accounts",
+    "ok": true
+  },
+  {
+    "title": "Top trader long/short accounts ratio",
+    "url": "https://www.tradingview.com/support/solutions/43000784530-top-trader-long-short-accounts-ratio/",
+    "sol": "43000784530",
+    "slug": "top-trader-long-short-accounts-ratio",
+    "ok": true
+  },
+  {
+    "title": "Top trader long/short positions",
+    "url": "https://www.tradingview.com/support/solutions/43000784531-top-trader-long-short-positions/",
+    "sol": "43000784531",
+    "slug": "top-trader-long-short-positions",
+    "ok": true
+  },
+  {
+    "title": "Top trader long/short positions ratio",
+    "url": "https://www.tradingview.com/support/solutions/43000784532-top-trader-long-short-positions-ratio/",
+    "sol": "43000784532",
+    "slug": "top-trader-long-short-positions-ratio",
+    "ok": true
+  },
+  {
+    "title": "Total block size in bytes",
+    "url": "https://www.tradingview.com/support/solutions/43000778559-total-block-size-in-bytes/",
+    "sol": "43000778559",
+    "slug": "total-block-size-in-bytes",
+    "ok": true
+  },
+  {
+    "title": "Total gas used",
+    "url": "https://www.tradingview.com/support/solutions/43000778550-total-gas-used/",
+    "sol": "43000778550",
+    "slug": "total-gas-used",
+    "ok": true
+  },
+  {
+    "title": "Total transactions size in bytes",
+    "url": "https://www.tradingview.com/support/solutions/43000778573-total-transactions-size-in-bytes/",
+    "sol": "43000778573",
+    "slug": "total-transactions-size-in-bytes",
+    "ok": true
+  },
+  {
+    "title": "Total UTXO value created",
+    "url": "https://www.tradingview.com/support/solutions/43000778568-total-utxo-value-created/",
+    "sol": "43000778568",
+    "slug": "total-utxo-value-created",
+    "ok": true
+  },
+  {
+    "title": "Total UTXO value spent",
+    "url": "https://www.tradingview.com/support/solutions/43000778572-total-utxo-value-spent/",
+    "sol": "43000778572",
+    "slug": "total-utxo-value-spent",
+    "ok": true
+  },
+  {
+    "title": "Total UTXOs",
+    "url": "https://www.tradingview.com/support/solutions/43000778563-total-utxos/",
+    "sol": "43000778563",
+    "slug": "total-utxos",
+    "ok": true
+  },
+  {
+    "title": "Trading Sessions",
+    "url": "https://www.tradingview.com/support/solutions/43000729030-trading-sessions/",
+    "sol": "43000729030",
+    "slug": "trading-sessions",
+    "ok": true
+  },
+  {
+    "title": "Transaction fees",
+    "url": "https://www.tradingview.com/support/solutions/43000773997-transaction-fees/",
+    "sol": "43000773997",
+    "slug": "transaction-fees",
+    "ok": true
+  },
+  {
+    "title": "Transaction rate",
+    "url": "https://www.tradingview.com/support/solutions/43000778543-transaction-rate/",
+    "sol": "43000778543",
+    "slug": "transaction-rate",
+    "ok": true
+  },
+  {
+    "title": "Transfer count",
+    "url": "https://www.tradingview.com/support/solutions/43000778541-transfer-count/",
+    "sol": "43000778541",
+    "slug": "transfer-count",
+    "ok": true
+  },
+  {
+    "title": "Transfer rate",
+    "url": "https://www.tradingview.com/support/solutions/43000778542-transfer-rate/",
+    "sol": "43000778542",
+    "slug": "transfer-rate",
+    "ok": true
+  },
+  {
+    "title": "Trend Strength Index",
+    "url": "https://www.tradingview.com/support/solutions/43000730926-trend-strength-index/",
+    "sol": "43000730926",
+    "slug": "trend-strength-index",
+    "ok": true
+  },
+  {
+    "title": "Triple EMA",
+    "url": "https://www.tradingview.com/support/solutions/43000591346-triple-ema/",
+    "sol": "43000591346",
+    "slug": "triple-ema",
+    "ok": true
+  },
+  {
+    "title": "TRIX",
+    "url": "https://www.tradingview.com/support/solutions/43000502331-trix/",
+    "sol": "43000502331",
+    "slug": "trix",
+    "ok": true
+  },
+  {
+    "title": "True Strength Index",
+    "url": "https://www.tradingview.com/support/solutions/43000592290-true-strength-index/",
+    "sol": "43000592290",
+    "slug": "true-strength-index",
+    "ok": true
+  },
+  {
+    "title": "Ulcer Index",
+    "url": "https://www.tradingview.com/support/solutions/43000773115-ulcer-index/",
+    "sol": "43000773115",
+    "slug": "ulcer-index",
+    "ok": true
+  },
+  {
+    "title": "Ultimate Oscillator (UO)",
+    "url": "https://www.tradingview.com/support/solutions/43000502328-ultimate-oscillator-uo/",
+    "sol": "43000502328",
+    "slug": "ultimate-oscillator-uo",
+    "ok": true
+  },
+  {
+    "title": "Understanding crypto open interest",
+    "url": "https://www.tradingview.com/support/solutions/43000762388-understanding-crypto-open-interest/",
+    "sol": "43000762388",
+    "slug": "understanding-crypto-open-interest",
+    "ok": true
+  },
+  {
+    "title": "Up/Down Volume",
+    "url": "https://www.tradingview.com/support/solutions/43000672561-up-down-volume/",
+    "sol": "43000672561",
+    "slug": "up-down-volume",
+    "ok": true
+  },
+  {
+    "title": "US spot crypto ETF balances",
+    "url": "https://www.tradingview.com/support/solutions/43000778588-us-spot-crypto-etf-balances/",
+    "sol": "43000778588",
+    "slug": "us-spot-crypto-etf-balances",
+    "ok": true
+  },
+  {
+    "title": "US spot crypto ETF flows",
+    "url": "https://www.tradingview.com/support/solutions/43000778589-us-spot-crypto-etf-flows/",
+    "sol": "43000778589",
+    "slug": "us-spot-crypto-etf-flows",
+    "ok": true
+  },
+  {
+    "title": "Visible Average Price",
+    "url": "https://www.tradingview.com/support/solutions/43000678766-visible-average-price/",
+    "sol": "43000678766",
+    "slug": "visible-average-price",
+    "ok": true
+  },
+  {
+    "title": "Volatility Stop",
+    "url": "https://www.tradingview.com/support/solutions/43000594676-volatility-stop/",
+    "sol": "43000594676",
+    "slug": "volatility-stop",
+    "ok": true
+  },
+  {
+    "title": "Volume",
+    "url": "https://www.tradingview.com/support/solutions/43000591617-volume/",
+    "sol": "43000591617",
+    "slug": "volume",
+    "ok": true
+  },
+  {
+    "title": "Volume Delta",
+    "url": "https://www.tradingview.com/support/solutions/43000725057-volume-delta/",
+    "sol": "43000725057",
+    "slug": "volume-delta",
+    "ok": true
+  },
+  {
+    "title": "Volume Weighted Average Price (VWAP)",
+    "url": "https://www.tradingview.com/support/solutions/43000502018-volume-weighted-average-price-vwap/",
+    "sol": "43000502018",
+    "slug": "volume-weighted-average-price-vwap",
+    "ok": true
+  },
+  {
+    "title": "Volume-Weighted Moving Average (VWMA)",
+    "url": "https://www.tradingview.com/support/solutions/43000592293-volume-weighted-moving-average-vwma/",
+    "sol": "43000592293",
+    "slug": "volume-weighted-moving-average-vwma",
+    "ok": true
+  },
+  {
+    "title": "Vortex Indicator",
+    "url": "https://www.tradingview.com/support/solutions/43000591352-vortex-indicator/",
+    "sol": "43000591352",
+    "slug": "vortex-indicator",
+    "ok": true
+  },
+  {
+    "title": "VWAP Auto Anchored",
+    "url": "https://www.tradingview.com/support/solutions/43000652199-vwap-auto-anchored/",
+    "sol": "43000652199",
+    "slug": "vwap-auto-anchored",
+    "ok": true
+  },
+  {
+    "title": "Weighted Moving Average",
+    "url": "https://www.tradingview.com/support/solutions/43000594680-weighted-moving-average/",
+    "sol": "43000594680",
+    "slug": "weighted-moving-average",
+    "ok": true
+  },
+  {
+    "title": "Williams %R (%R)",
+    "url": "https://www.tradingview.com/support/solutions/43000501985-williams-r-r/",
+    "sol": "43000501985",
+    "slug": "williams-r-r",
+    "ok": true
+  },
+  {
+    "title": "Williams Alligator",
+    "url": "https://www.tradingview.com/support/solutions/43000592305-williams-alligator/",
+    "sol": "43000592305",
+    "slug": "williams-alligator",
+    "ok": true
+  },
+  {
+    "title": "Williams Fractal",
+    "url": "https://www.tradingview.com/support/solutions/43000591663-williams-fractal/",
+    "sol": "43000591663",
+    "slug": "williams-fractal",
+    "ok": true
+  },
+  {
+    "title": "Woodies CCI",
+    "url": "https://www.tradingview.com/support/solutions/43000594673-woodies-cci/",
+    "sol": "43000594673",
+    "slug": "woodies-cci",
+    "ok": true
+  },
+  {
+    "title": "Zig Zag",
+    "url": "https://www.tradingview.com/support/solutions/43000591664-zig-zag/",
+    "sol": "43000591664",
+    "slug": "zig-zag",
+    "ok": true
+  }
+]

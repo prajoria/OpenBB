@@ -19,3 +19,6 @@
 [submodule "third_party/openfigi-api"]
 	path = third_party/openfigi-api
 	url = https://github.com/prajoria/openfigi-api.git
+[submodule "third_party/pynecore"]
+	path = third_party/pynecore
+	url = https://github.com/prajoria/pynecore.git
