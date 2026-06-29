@@ -965,8 +965,8 @@ PyneCore's `import_hook` is allowed to register itself (it's the runtime substra
 
 Two PRD items that should be tightened in the next PRD revision (flagged for the maintainer):
 
-1. **PRD §4.9 spelling of the preference key.** The PRD writes `obb.user.preferences.defaults.commands["/equity/price/historical"]["provider"]`. But `openbb_core/app/model/defaults.py:43-49` normalizes the leading `/` away and replaces `/` with `.`, so the actual key is `commands["equity.price.historical"]`. D2 uses the normalized form. Recommend the PRD be updated.
-2. **PRD §4.8 example response includes `chart: null` and a string `"..."` placeholder.** Harmless for human readers, but if a future test fixture parses that JSON it will trip. Recommend an explicit `(elided)` marker.
+1. **PRD §4.9 spelling of the preference key.** The PRD previously wrote `obb.user.preferences.defaults.commands["/equity/price/historical"]["provider"]`. But `openbb_core/app/model/defaults.py:43-49` normalizes the leading `/` away and replaces `/` with `.`, so the actual key is `commands["equity.price.historical"]`. D2 uses the normalized form. **Resolved** in the post-review consolidation commit — PRD §4.6/§4.9/§13.8 now use the normalized form throughout.
+2. **PRD §4.8 example response previously included `chart: null` and a string `"..."` placeholder.** Harmless for human readers, but a future test fixture would trip on them. **Resolved** in the post-review consolidation commit — PRD §4.8 and §4.8.2 examples now elide cleanly (single row + parenthetical "results truncated for brevity").
 
 Neither blocks D2 implementation.
 
