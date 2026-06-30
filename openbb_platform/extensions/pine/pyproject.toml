@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "openbb-extension-pine"
+version = "0.1.0"
+description = "Pine Script compatibility - compile and run Pine v5/v6 indicators and strategies through the OpenBB Platform."
+authors = ["Prashant Rajoria"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "openbb_pine" }]
+
+[tool.poetry.dependencies]
+# PRD 16.1 - Python pin
+python = ">=3.11,<3.13"
+
+# PRD 16.1 - core platform
+openbb-core = "^1.6.10"
+
+# PRD 13.8, 16.1 - FMP is a HARD dependency, not an extra. The user persona in
+# PRD 1.4 is an FMP subscriber; v1.x supports no other primary-series provider.
+openbb-fmp = "^1.4"
+
+# Runtime numerical stack - required.
+pandas = ">=2.0,<3"
+numpy = ">=1.26,<3"
+
+# Compiler parser - required, exact pin owned by D1 1.5 (largest CVE surface per PRD 5.2 T5).
+# Any version bump must be a D1 decision so the parser's grammar/error-recovery
+# behavior stays under compiler-team review.
+lark = "==1.2.2"
+
+# Pydantic settings backs PineSettings; hard top-level import (matches backtest).
+pydantic-settings = ">=2.0,<3"
+
+# Click for the openbb-pine CLI (doctor, version) - added at P0-L0.3.
+click = ">=8.1,<9"
+
+[tool.poetry.extras]
+# fmp-cached - recommended for perf (PRD 13.8, 16.1). Optional because users
+# without it can still hit provider="fmp".
+fmp-cached = ["openbb-fmp-cached"]
+
+[tool.poetry.plugins."openbb_core_extension"]
+pine = "openbb_pine.pine_router:router"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

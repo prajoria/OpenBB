@@ -1,0 +1,56 @@
+"""Implemented-feature manifest consumed by the wild-corpus coverage metric.
+
+This module is the single source of truth for **what is implemented** in the
+``openbb-pine`` extension at any point in time. The wild-corpus coverage tool
+(``tools/pine/measure_wild_corpus_coverage.py``) reads these three frozensets
+to decide whether a given Pine script in the wild-corpus index would "run
+unedited" against the current implementation.
+
+PRD references:
+
+* §3.4 — wild-corpus coverage methodology
+* §8.1 — phase-gate targets (M1 ≥40%, M2 ≥70%, M3 ≥90%)
+* §12 — 12-month success metric (L4 wild-corpus coverage ≥90%)
+
+Lifecycle. At Phase 0 (this commit) every set is empty, so the baseline
+metric is intentionally 0%. As stdlib beads land in Phase 1+, each PR
+that implements a builtin (or a grammar feature, or adds a supported Pine
+version) ADDS the corresponding identifier to the relevant frozenset here.
+The wild-corpus-coverage CI job (``.github/workflows/wild-corpus-coverage.yml``)
+then recomputes the coverage percentage and posts it as a PR comment with
+the delta vs the main-branch baseline.
+
+Contract.
+
+* ``PINE_VERSIONS_SUPPORTED`` -- the set of ``//@version=`` integers the
+  compiler accepts unedited. v5 scripts only count once the v5→v6 migration
+  shim lands (PRD §8.1 Phase 1 gate (h)).
+* ``BUILTINS_IMPLEMENTED`` -- fully-qualified Pine builtin identifiers
+  (``ta.sma``, ``math.abs``, ``ta.crossover``, ...). MUST exclude any
+  identifier that is only stubbed -- a script using a stub does NOT run
+  unedited.
+* ``FEATURES_IMPLEMENTED`` -- the closed vocabulary of grammar features the
+  wild-corpus indexer (L0.4) records per script. See the wild-corpus index
+  README for the exhaustive list; currently:
+  ``{"request.security", "library", "drawings", "strategy", "indicator"}``.
+
+These three sets MUST stay frozensets so they are hashable and cannot be
+mutated at runtime by accident; tests assert their identity-type.
+"""
+
+from __future__ import annotations
+
+PINE_VERSIONS_SUPPORTED: frozenset[int] = frozenset()
+"""Pine ``//@version=`` integers the compiler accepts. Empty at Phase 0."""
+
+BUILTINS_IMPLEMENTED: frozenset[str] = frozenset()
+"""Fully-qualified Pine builtin identifiers implemented (not stubbed)."""
+
+FEATURES_IMPLEMENTED: frozenset[str] = frozenset()
+"""Grammar features implemented. Subset of the wild-corpus indexer's vocabulary."""
+
+__all__ = [
+    "PINE_VERSIONS_SUPPORTED",
+    "BUILTINS_IMPLEMENTED",
+    "FEATURES_IMPLEMENTED",
+]
