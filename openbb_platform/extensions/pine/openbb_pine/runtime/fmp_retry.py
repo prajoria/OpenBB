@@ -191,14 +191,11 @@ def call_with_retry(
                     _fmp_unreachable_counters.get(metric_key, 0) + 1
                 )
                 err = PineFMPUnreachableError(
-                    f"FMP provider {provider!r} unreachable after "
-                    f"{MAX_RETRIES + 1} attempt(s) (label={label!r}); "
-                    f"last error: {exc!r}"
+                    provider=provider,
+                    attempts=MAX_RETRIES + 1,
+                    last_error=exc,
+                    label=label,
                 )
-                err.provider = provider
-                err.attempts = MAX_RETRIES + 1
-                err.last_error = exc
-                err.label = label
                 raise err from exc
 
             # Sleep with jittered backoff before the next attempt. ``attempt``
@@ -208,9 +205,10 @@ def call_with_retry(
 
     # Defensive -- the loop always returns or raises before falling through.
     raise PineFMPUnreachableError(  # pragma: no cover
-        f"FMP provider {provider!r} unreachable after "
-        f"{MAX_RETRIES + 1} attempt(s) (label={label!r}); "
-        f"last error: {last_exc!r}"
+        provider=provider,
+        attempts=MAX_RETRIES + 1,
+        last_error=last_exc,
+        label=label,
     )
 
 

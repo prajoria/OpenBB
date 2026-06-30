@@ -73,9 +73,46 @@ class PineFMPRequiredError(PineProviderError):
 
 
 class PineFMPUnreachableError(PineProviderError):
-    """All retry attempts to FMP / fmp_cached failed (PRD section 10 R13)."""
+    """All retry attempts to FMP / fmp_cached failed (PRD section 10 R13).
+
+    Carries the per-attempt diagnostic state (provider, attempts, last_error,
+    label) as structured attributes so the REST error envelope (D3 §4.1) and
+    the CLI both surface the same information. Init signature matches D2 §7.1.
+
+    Example::
+
+        raise PineFMPUnreachableError(
+            provider="fmp_cached",
+            attempts=5,
+            last_error=httpx_timeout_exc,
+            label="historical price AAPL 1d",
+        )
+    """
 
     code: str = "PineFMPUnreachableError"
+
+    def __init__(
+        self,
+        *,
+        provider: str | None = None,
+        attempts: int | None = None,
+        last_error: BaseException | None = None,
+        label: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        self.provider: str | None = provider
+        self.attempts: int | None = attempts
+        self.last_error: BaseException | None = last_error
+        self.label: str | None = label
+        if message is not None:
+            text = message
+        elif provider is not None and attempts is not None:
+            lbl = f" (label={label!r})" if label else ""
+            last = f"; last error: {last_error!r}" if last_error is not None else ""
+            text = f"FMP provider {provider!r} unreachable after {attempts} attempt(s){lbl}{last}"
+        else:
+            text = "FMP provider unreachable (no structured detail attached)"
+        super().__init__(text)
 
 
 class PineDataValidationError(PineError):
