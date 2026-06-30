@@ -212,10 +212,88 @@ class PineUnsupportedFeatureError(PineCompileError):
         super().__init__(text)
 
 
-class PineCodegenError(PineError):
-    """Codegen produced invalid output (defense-in-depth; should be unreachable)."""
+class PineCodegenError(PineCompileError):
+    """Codegen produced invalid output (defense-in-depth; should be unreachable
+    if D1 §3.3 allowlist gate is intact).
+
+    Carries the structured diagnostic shape D1 §5.2 enumerates for ``CG###``:
+
+    * ``rule`` — one of ``"CG001"`` (disallowed ast node type), ``"CG002"``
+      (disallowed import-from module), ``"CG003"`` (disallowed top-level
+      free name), or any future ``"CGNNN"`` the gate adds.
+    * ``node_kind`` — short label for the offending construct, e.g.
+      ``"ast.Subscript"`` or ``"ImportFrom('os')"``.
+    * ``allowlist_member`` — the human-friendly description of what the
+      violator would have had to be to pass the gate, so the operator sees
+      both halves of the contract in one message.
+    * ``tracking_url`` — GitHub label search URL for filing the underlying
+      compiler bug (these errors are ALWAYS compiler bugs, never user
+      errors, per D1 §3.5; a fresh CG### in production is a P0).
+
+    Init signature mirrors the post-R2/R6/Wave-3A consolidation pattern
+    (commits ``3c6bb0a81`` + ``d4b294da5`` + ``03b6b69ee``) — added
+    preemptively rather than after the C5 review cycle since the pattern is
+    now proven across PineDataValidationError + PineFMPUnreachableError +
+    PineTypeError + PineUnsupportedBuiltinError + PineUnsupportedFeatureError.
+
+    Backward compatible: pass a positional string OR ``message=`` to wrap a
+    pre-stitched string (e.g. defensive raises that don't yet thread
+    structured data through).
+
+    Subclasses :class:`PineCompileError` (not the bare :class:`PineError`)
+    so existing ``except PineCompileError`` handlers — including the REST
+    error envelope mapper in D3 §4.1 — catch codegen failures uniformly with
+    type-checker rejections. Codegen failures are still a compile-pipeline
+    fault, not a runtime / data fault.
+
+    Example::
+
+        raise PineCodegenError(
+            rule="CG001",
+            node_kind="ast.Lambda",
+            allowlist_member="any of NODE_TYPE_ALLOWLIST per D1 §3.2",
+            tracking_url="https://github.com/<repo>/issues?label=pine-codegen",
+        )
+    """
 
     code: str = "PineCodegenError"
+
+    def __init__(
+        self,
+        *args: object,
+        rule: str | None = None,
+        node_kind: str | None = None,
+        allowlist_member: str | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        # Backwards-compat: callers may still raise ``PineCodegenError("msg")``
+        # with a single positional string. Promote it into the message slot
+        # when no explicit ``message=`` was given. Same pattern as
+        # PineTypeError (post-R2/R6/Wave-3A).
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.rule = rule
+        self.node_kind = node_kind
+        self.allowlist_member = allowlist_member
+        if tracking_url is not None:
+            # Shadow the class-level default (PineError sets ``tracking_url``
+            # to None on the class).
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        else:
+            r = f"[{rule}] " if rule else ""
+            kind = node_kind or "ast node"
+            text = f"{r}codegen produced disallowed {kind}"
+            if allowlist_member:
+                text += f" (expected: {allowlist_member})"
+            if tracking_url:
+                text += f"\n  tracking: {tracking_url}"
+        super().__init__(text)
 
 
 # --- Provider / data errors (D2 territory) -------------------------------
