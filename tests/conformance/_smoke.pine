@@ -1,0 +1,17 @@
+// Harness self-test fixture (PRD section 7) -- NOT a real builtin.
+//
+// The leading underscore in the filename marks this as a meta-fixture
+// for the conformance harness itself, not a per-builtin conformance
+// pair. Its only purpose is to keep test_harness_discovers_at_least_smoke_pair
+// green so a future commit that breaks the auto-discovery glob
+// cannot silently turn the entire conformance suite into "no tests
+// collected" (which CI would happily pass).
+//
+// Body is deliberately minimal: a 2-bar SMA(1) which is just the
+// close itself. When the compiler lands the pair will start
+// asserting the trivial identity close == sma; until then the
+// conformance test SKIPs for this pair (no compiler) but the
+// harness self-test still validates that discovery picked it up.
+//@version=6
+indicator("smoke", overlay=true)
+plot(ta.sma(close, 1), title="sma_close")
