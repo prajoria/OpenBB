@@ -41,6 +41,13 @@ fmp-cached = ["openbb-fmp-cached"]
 [tool.poetry.plugins."openbb_core_extension"]
 pine = "openbb_pine.pine_router:router"
 
+[tool.poetry.scripts]
+# PRD §16.4 + D3 §10 — registers the ``openbb-pine`` shell command after
+# ``pip install -e .``. Provides ``openbb-pine doctor`` (nine-check
+# diagnostic) and ``openbb-pine --version`` (banner whose first line is
+# the §2.6 PyneSys attribution surface #4).
+openbb-pine = "openbb_pine.cli.main:cli"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
