@@ -1,0 +1,105 @@
+name: wild-corpus-coverage
+
+# Measures "what % of wild-corpus Pine scripts would run unedited against
+# the current implemented set" and posts the result as a sticky PR comment.
+# PRD §3.4 (methodology), §8.1 (phase-gate targets), §12 (success metrics).
+#
+# Triggers on changes to:
+#   * the extension package (a new builtin or feature may bump the number)
+#   * the wild-corpus index (a corpus refresh changes the denominator)
+#   * the measurement tool itself
+#
+# Pushes to main / openbb_tradingview update the saved baseline that PRs
+# compare against (Tools/pine/_baselines/wild_corpus_coverage.json).
+
+on:
+  pull_request:
+    paths:
+      - 'openbb_platform/extensions/pine/openbb_pine/**'
+      - 'tests/wild_corpus/index.json'
+      - 'Tools/pine/measure_wild_corpus_coverage.py'
+      - '.github/workflows/wild-corpus-coverage.yml'
+  push:
+    branches: [main, openbb_tradingview]
+    paths:
+      - 'openbb_platform/extensions/pine/openbb_pine/**'
+      - 'tests/wild_corpus/index.json'
+      - 'Tools/pine/measure_wild_corpus_coverage.py'
+      - '.github/workflows/wild-corpus-coverage.yml'
+
+# Cancel in-flight runs for the same PR; only the latest result matters.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write  # for sticky-pull-request-comment
+
+jobs:
+  measure:
+    name: Compute wild-corpus coverage + post PR comment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch main baseline (best-effort)
+        run: |
+          # The baseline lives at Tools/pine/_baselines/wild_corpus_coverage.json
+          # on the main branch. PRs read it for the delta column; if it does
+          # not yet exist (Phase 0, first run) we fall back to an empty
+          # placeholder so the PR comment shows "—" in the Δ column.
+          git fetch origin main --depth=1 || true
+          mkdir -p /tmp/wcc
+          git show origin/main:Tools/pine/_baselines/wild_corpus_coverage.json \
+            > /tmp/wcc/baseline.json 2>/dev/null \
+            || echo '{}' > /tmp/wcc/baseline.json
+
+      - name: Compute coverage + render PR comment
+        run: |
+          python Tools/pine/measure_wild_corpus_coverage.py \
+            --baseline-json /tmp/wcc/baseline.json \
+            --pr-comment-out /tmp/wcc/comment.md \
+            > /tmp/wcc/current.json
+          echo "----- coverage JSON (current) -----"
+          cat /tmp/wcc/current.json
+          echo "----- PR comment markdown -----"
+          cat /tmp/wcc/comment.md
+
+      - name: Post sticky PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: wild-corpus-coverage
+          path: /tmp/wcc/comment.md
+
+      - name: Upload current coverage as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wild-corpus-coverage-current
+          path: /tmp/wcc/current.json
+          retention-days: 30
+
+      - name: Refresh baseline (main only, push event)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # On push to main we stage the freshly-computed JSON as the new
+          # baseline. A separate workflow (or a manual PR) is responsible
+          # for committing it back -- this step only prepares the file so
+          # the artifact step picks it up.
+          mkdir -p Tools/pine/_baselines
+          cp /tmp/wcc/current.json Tools/pine/_baselines/wild_corpus_coverage.json
+
+      - name: Upload baseline artifact (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wild-corpus-coverage-baseline
+          path: Tools/pine/_baselines/wild_corpus_coverage.json
+          retention-days: 90
