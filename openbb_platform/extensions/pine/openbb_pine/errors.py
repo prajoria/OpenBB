@@ -40,15 +40,176 @@ class PineSyntaxError(PineCompileError):
 
 
 class PineTypeError(PineCompileError):
-    """A static type check failed during compilation."""
+    """A static type check failed during compilation.
+
+    Carries the structured diagnostic shape D1 §5.1 specifies, so downstream
+    (REST envelope D3 §4.1, CLI rendering D3 §10.5) can surface the rule
+    code, expected/got types, source location, and the optional hint
+    uniformly. Init signature mirrors the post-R2/R6 consolidation pattern
+    (commits 3c6bb0a81 + d4b294da5) — added preemptively rather than after
+    review since the pattern is now proven across PineDataValidationError +
+    PineFMPUnreachableError.
+
+    Backward compatible: pass a positional string OR ``message=`` to wrap a
+    pre-stitched string (e.g. ``raise PineTypeError("cannot unify ...")`` in
+    ``compiler.types.unify``).
+
+    Example::
+
+        raise PineTypeError(
+            rule="PT001",
+            expected="simple<int>",
+            got="series<int>",
+            expr_text="ta.sma(close, dyn_len)",
+            location=("<inline>", 5, 12),
+            hint="Pine's ta.sma requires a non-series length.",
+        )
+    """
 
     code: str = "PineTypeError"
 
+    def __init__(
+        self,
+        *args: object,
+        expected: object | None = None,
+        got: object | None = None,
+        expr_text: str | None = None,
+        location: tuple[str, int, int] | None = None,
+        rule: str | None = None,
+        hint: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        # Backwards-compat: callers may still raise PineTypeError("msg") with a
+        # single positional string (e.g. compiler.types.unify). Promote it into
+        # the message slot when no explicit message= was given.
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.expected = expected
+        self.got = got
+        self.expr_text = expr_text
+        self.location = location
+        self.rule = rule
+        self.hint = hint
+        if message is not None:
+            text = message
+        else:
+            loc = (
+                f" at {location[0]}:{location[1]}:{location[2]}"
+                if location is not None
+                else ""
+            )
+            rule_s = f" [{rule}]" if rule else ""
+            text = (
+                f"PineTypeError{rule_s}{loc}: expected {expected!r}, got {got!r}"
+            )
+            if expr_text:
+                text += f"\n  in: {expr_text}"
+            if hint:
+                text += f"\n  hint: {hint}"
+        super().__init__(text)
+
 
 class PineUnsupportedBuiltinError(PineError):
-    """The script references a builtin that the compiler does not yet emit."""
+    """The script references a builtin that the compiler does not yet emit.
+
+    Carries the structured diagnostic shape D1 §5.1 specifies — ``builtin``
+    names the qualified Pine identifier (e.g. ``"ta.ichimoku"``), and the
+    optional ``suggested_alternative`` / ``tracking_url`` flow through into
+    the REST error envelope per PRD §4.8. The C3 type checker still adds the
+    name to ``CompiledModule.builtins_used`` even when raising this — so the
+    wild-corpus coverage metric (PRD §3.4 L0.5) can attribute the shortfall.
+
+    Example::
+
+        raise PineUnsupportedBuiltinError(
+            "ta.ichimoku",
+            suggested_alternative="Implement via ta.donchian + ta.sma composition.",
+            tracking_url="https://github.com/<repo>/issues?label=pine-builtin&q=ta.ichimoku",
+        )
+    """
 
     code: str = "PineUnsupportedBuiltinError"
+
+    def __init__(
+        self,
+        builtin: str | None = None,
+        *,
+        suggested_alternative: str | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        self.builtin: str | None = builtin
+        self.suggested_alternative: str | None = suggested_alternative
+        # PineError class-level ``tracking_url`` is None; we shadow per-instance
+        # so the REST envelope (D3 §4.1) and CLI both see the actual link.
+        self.tracking_url: str | None = tracking_url
+        if message is not None:
+            text = message
+        elif builtin is not None:
+            suffix = ""
+            if suggested_alternative:
+                suffix += f"\n  alternative: {suggested_alternative}"
+            if tracking_url:
+                suffix += f"\n  tracking: {tracking_url}"
+            text = f"Pine builtin {builtin!r} is not yet implemented{suffix}"
+        else:
+            text = "Unsupported Pine builtin (no structured detail attached)"
+        super().__init__(text)
+
+
+class PineUnsupportedFeatureError(PineCompileError):
+    """A Pine source feature is recognised but not yet shipped.
+
+    Originally introduced for the C7 v5→v6 auto-migration shim. The C3 type
+    checker reuses it for typed-decl-in-body (PF002) and other deferred Pine
+    constructs. ``tracking_url`` points at the GitHub label used to file new
+    requests so the long-tail workstream stays addressable.
+
+    The error code prefix ``PF`` ("Pine Feature") is reserved for this class
+    so REST callers can branch on the prefix without parsing the message:
+    ``PF001`` v4-or-earlier pragma, ``PF002`` typed decl in body /
+    future-version pragma we won't speculate on, ``PF003`` v5 source uses a
+    construct no V5_REWRITES entry handles.
+
+    Example::
+
+        raise PineUnsupportedFeatureError(
+            "PF002 typed decl in body",
+            tracking_url="https://github.com/<repo>/issues?label=pine-feature",
+        )
+    """
+
+    code: str = "PineUnsupportedFeatureError"
+    # Default class-level tracking URL is retained for the v5-migration use
+    # case; instance attribute may override per-raise.
+    tracking_url: str = (
+        "https://github.com/OpenBB-finance/OpenBBTerminal/issues/"
+        "?labels=pine-v5-migration"
+    )
+
+    def __init__(
+        self,
+        feature: str | None = None,
+        *,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        self.feature: str | None = feature
+        if tracking_url is not None:
+            # Shadow the class-level default per-instance.
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        elif feature is not None:
+            url = tracking_url or type(self).tracking_url
+            trail = f"\n  tracking: {url}" if url else ""
+            text = f"Pine feature {feature!r} is not yet supported{trail}"
+        else:
+            text = "Unsupported Pine feature (no structured detail attached)"
+        super().__init__(text)
 
 
 class PineCodegenError(PineError):
@@ -198,6 +359,7 @@ __all__ = [
     "PineSyntaxError",
     "PineTypeError",
     "PineUnsupportedBuiltinError",
+    "PineUnsupportedFeatureError",
     "PineCodegenError",
     "PineProviderError",
     "PineFMPRequiredError",
