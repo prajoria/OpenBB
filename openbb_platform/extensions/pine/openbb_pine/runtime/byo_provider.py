@@ -96,8 +96,8 @@ class BYODataProvider:
         defects = self._validate(df, interval=interval)
         if defects:
             raise PineDataValidationError(
-                f"BYO data validation failed (context: symbol={symbol}): "
-                + "; ".join(defects)
+                defects=defects,
+                context=f"symbol={symbol}",
             )
         self.df: pd.DataFrame = df
         self.symbol: str = symbol

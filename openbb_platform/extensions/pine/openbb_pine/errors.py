@@ -79,9 +79,47 @@ class PineFMPUnreachableError(PineProviderError):
 
 
 class PineDataValidationError(PineError):
-    """BYO DataFrame violated the section 3.1 schema."""
+    """BYO DataFrame violated the section 3.1 schema.
+
+    Carries the full defect list as a structured attribute so the REST error
+    envelope (D3 section 4.1) and the CLI both surface every defect in one
+    response, not first-error-wins. Init signature matches D2 section 7.1.
+
+    Example::
+
+        raise PineDataValidationError(
+            defects=["missing column: volume", "index is not tz-aware"],
+            context="symbol=PRIVATE_SYM",
+        )
+    """
 
     code: str = "PineDataValidationError"
+
+    def __init__(
+        self,
+        defects: list[str] | None = None,
+        *,
+        context: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        # Type-guard: a `str` is iterable, so `list(str)` produces per-character
+        # garbage. Catch the str-as-positional bug at the source rather than at
+        # ``str(exc)`` time. Callers with a pre-stitched message MUST use the
+        # ``message=`` kwarg explicitly.
+        if isinstance(defects, str):
+            raise TypeError(
+                "PineDataValidationError(defects=...) must be list[str], not str. "
+                "Use the `message=` keyword for a pre-stitched single-string error."
+            )
+        self.defects: list[str] = list(defects or [])
+        self.context: str | None = context
+        if message is not None:
+            text = message
+        else:
+            ctx = f" (context: {context})" if context else ""
+            joined = "; ".join(self.defects) if self.defects else "(no defects listed)"
+            text = f"BYO data validation failed{ctx}: {joined}"
+        super().__init__(text)
 
 
 class PineCacheError(PineError):
