@@ -52,6 +52,11 @@ cli/openbb_cli/assets/styles/user/*
 # Platform
 openbb_platform/core/openbb/package/*
 
+# openbb-extension-pine wild-corpus crawler HTTP cache (PRD §3.4) — never commit
+Tools/pine/_cache/
+# Per-script compile cache for the openbb-pine compiler (PRD §5.2 T4)
+Tools/pine/_compile_cache/
+
 # Dev Container env
 obb/*
 
