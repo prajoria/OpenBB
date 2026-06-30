@@ -1,0 +1,15 @@
+// Hand-authored Pine v5 fixture — covers the most common indicator shape:
+// indicator() directive (study() in v5) + a single ta.* call + plot().
+//
+// Per PRD §2.1: this file was written from scratch by the OpenBB Pine team.
+// No source was copied from TradingView's website or community library.
+//
+// Migration target: every line is rewritten by ONE of the V5_REWRITES
+// entries — study() → indicator(), pragma rewrite. The v6 hand-translation
+// lives at simple_sma.v6.pine and the test asserts the two compile to
+// IR with the same shape.
+//@version=5
+study("Simple SMA", overlay=true)
+length = input.int(20, minval=1)
+basis = ta.sma(close, length)
+plot(basis, color=color.blue, transp=20)

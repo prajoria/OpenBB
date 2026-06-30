@@ -1,0 +1,9 @@
+// Hand-translated Pine v6 equivalent of iff_input.v5.pine.
+// study() → indicator(); iff(c, a, b) → (c ? a : b); pragma updated.
+//@version=6
+indicator("RSI Threshold", overlay=false)
+length = input.int(14, minval=2)
+threshold = input.int(70, minval=50)
+val = ta.rsi(close, length)
+signal = (val > threshold ? 1 : 0)
+plot(signal)

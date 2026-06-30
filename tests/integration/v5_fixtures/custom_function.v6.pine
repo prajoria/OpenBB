@@ -1,0 +1,11 @@
+// Hand-translated Pine v6 equivalent of custom_function.v5.pine.
+// study() → indicator(); pragma updated; everything else is unchanged
+// (function decls have no v5→v6 syntactic diff per the TradingView
+// migration guide).
+//@version=6
+indicator("Smoothed Range", overlay=false)
+length = input.int(14, minval=1)
+smooth(src) => ta.sma(src, length)
+range_ = high - low
+smoothed = smooth(range_)
+plot(smoothed)

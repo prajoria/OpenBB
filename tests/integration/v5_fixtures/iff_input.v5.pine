@@ -1,0 +1,15 @@
+// Hand-authored Pine v5 fixture — indicator with an input + iff() helper.
+// Tests the iff(c, a, b) → (c ? a : b) rewrite alongside the standard
+// study() → indicator() rename and the input.int() builtin.
+//
+// Per PRD §2.1: hand-authored, not copied from TradingView.
+//
+// Covers: study() → indicator(), input.int() builtin, ta.rsi() call,
+// iff() ternary-helper rewrite, plot().
+//@version=5
+study("RSI Threshold", overlay=false)
+length = input.int(14, minval=2)
+threshold = input.int(70, minval=50)
+val = ta.rsi(close, length)
+signal = iff(val > threshold, 1, 0)
+plot(signal)

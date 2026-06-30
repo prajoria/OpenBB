@@ -1,0 +1,8 @@
+// Hand-translated Pine v6 equivalent of simple_sma.v5.pine.
+// study() → indicator(); transp=20 stripped (v6 puts opacity inside
+// color.new()); pragma updated. No semantic changes.
+//@version=6
+indicator("Simple SMA", overlay=true)
+length = input.int(20, minval=1)
+basis = ta.sma(close, length)
+plot(basis, color=color.blue)

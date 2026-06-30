@@ -1,0 +1,16 @@
+// Hand-authored Pine v5 fixture — indicator with a custom user-defined
+// function. Tests that function declarations survive the migration
+// untouched (no v5/v6 syntactic diff at the function-decl layer per the
+// TradingView migration guide).
+//
+// Per PRD §2.1: hand-authored, not copied from TradingView.
+//
+// Covers: study() → indicator(), custom one-line function form
+// `f(x) => expr`, ta.sma call, plot().
+//@version=5
+study("Smoothed Range", overlay=false)
+length = input.int(14, minval=1)
+smooth(src) => ta.sma(src, length)
+range_ = high - low
+smoothed = smooth(range_)
+plot(smoothed)
