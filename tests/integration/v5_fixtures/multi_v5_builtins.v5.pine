@@ -1,0 +1,23 @@
+// Hand-authored Pine v5 fixture — multiple v5-only builtins in one script.
+// Tests that the migration shim can chain multiple rewrites in a single
+// pass without cross-interference:
+//
+//   * study()          → indicator()
+//   * security(...)    → request.security(...)
+//   * transp= arg      stripped from plot()
+//
+// The request.security() call is retained un-executed at Phase 1 (the
+// runtime may not yet support cross-symbol requests); this fixture only
+// asserts the migration shim rewrites the SOURCE cleanly.
+//
+// Per PRD §2.1: hand-authored, not copied from TradingView.
+//
+// Covers: study() → indicator(), security() → request.security(),
+// transp= stripping, input.string(), input.timeframe() variant, plot().
+//@version=5
+study("Multi v5 Builtins", overlay=false)
+sym = input.string("AAPL", title="Symbol")
+tf = input.string("1D", title="Timeframe")
+other = security(sym, tf, close)
+delta = close - other
+plot(delta, title="delta", color=color.blue, transp=30)

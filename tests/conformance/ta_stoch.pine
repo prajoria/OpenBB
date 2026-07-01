@@ -1,0 +1,16 @@
+// Conformance fixture for ta.stoch (S-bead OpenBBTechnical-0e9.5.24, Wave 5B-2).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's Stochastic formula against a
+// hard-coded synthetic (close, high, low) series (see ta_stoch.csv). No
+// chart data is redistributed; the .csv is a pure function of this .pine.
+//
+// ta.stoch returns only the fast %K component:
+//   k = 100 * (close - lowest(low, length)) / (highest(high, length) - lowest(low, length))
+// clamped to [0, 100]. The %D signal line is a separate ta.sma(k, 3) that
+// this fixture intentionally does NOT emit — Wave 5B-2 owns the %K primitive.
+//
+// Warm-up: k = NA until bar (length - 1) — i.e. NA on bars 0..3, first value at bar 4.
+//@version=6
+indicator("smoke_ta_stoch", overlay=false)
+plot(ta.stoch(close, high, low, 5), title="stoch5")

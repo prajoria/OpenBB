@@ -1,0 +1,21 @@
+// Conformance fixture for ta.adx (S-bead OpenBBTechnical-0e9.5.26, Wave 5B-2).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script against a hard-coded synthetic
+// (close, high, low) series (see ta_adx.csv). No chart data is
+// redistributed; the .csv is a pure function of this .pine.
+//
+// Signature deviation note: PyneCore's ``lib.ta`` has no standalone ``adx``
+// primitive — only ``dmi(diLength, adxSmoothing)`` which returns the
+// (+DI, -DI, ADX) triple. This fixture calls ``ta.dmi`` directly and
+// plots the third element (the ADX component) so the reference numbers
+// stay purely PyneCore-derivative. The ``ta.adx`` bridge in
+// ``openbb_pine.stdlib.ta`` synthesises exactly this: ``dmi(...)[2]``.
+//
+// Warm-up: ADX requires ``dilen`` bars for the +DI/-DI channels plus
+// another ``adxlen`` bars for the RMA smoothing on top — so first ADX
+// value appears at bar (dilen + adxlen - 1) at the earliest.
+//@version=6
+indicator("smoke_ta_adx", overlay=false)
+[_dip, _dim, adx_val] = ta.dmi(5, 5)
+plot(adx_val, title="adx5")

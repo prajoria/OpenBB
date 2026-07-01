@@ -1,0 +1,16 @@
+// Hand-translated Pine v6 equivalent of multi_v5_builtins.v5.pine.
+// Every rewrite from the v5→v6 migration shim applied by hand so the
+// two sources compile to structurally identical IR:
+//
+//   * study("Multi v5 Builtins", …) → indicator("Multi v5 Builtins", …)
+//   * security(sym, tf, close) → request.security(sym, tf, close)
+//   * plot(..., transp=30) → plot(...) (opacity dropped; users who need
+//     the exact opacity behavior migrate via color.new() manually).
+//
+//@version=6
+indicator("Multi v5 Builtins", overlay=false)
+sym = input.string("AAPL", title="Symbol")
+tf = input.string("1D", title="Timeframe")
+other = request.security(sym, tf, close)
+delta = close - other
+plot(delta, title="delta", color=color.blue)

@@ -1,0 +1,13 @@
+// Conformance fixture for ta.cci (S-bead OpenBBTechnical-0e9.5.25, Wave 5B-2).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's CCI formula against a
+// hard-coded synthetic close series (see ta_cci.csv `close` column).
+// No chart data is redistributed; the .csv is a pure function of this .pine.
+//
+// CCI(close, length) = (close - sma(close, length)) / (0.015 * mean_dev),
+// where mean_dev is the mean absolute deviation of close over the same
+// window. Warm-up returns NA until bar (length - 1).
+//@version=6
+indicator("smoke_ta_cci", overlay=false)
+plot(ta.cci(close, 5), title="cci5")

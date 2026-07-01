@@ -1,0 +1,10 @@
+// Hand-translated Pine v6 equivalent of typed_function_args.v5.pine.
+// Only rewrite: study() → indicator(). Typed function args are v5+v6
+// compatible; no other change needed.
+//@version=6
+indicator("Typed Function Args", overlay=true)
+weighted(float src, int len) =>
+    basis = ta.sma(src, len)
+    basis + src / 2
+smoothed = weighted(close, 14)
+plot(smoothed, title="w", color=color.red)

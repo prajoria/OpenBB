@@ -1,0 +1,13 @@
+// Conformance fixture for ta.rsi (S-bead OpenBBTechnical-0e9.5.20, Wave 5B-2).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's RSI formula against a
+// hard-coded synthetic close series (see ta_rsi.csv `close` column).
+// No chart data is redistributed; the .csv is a pure function of this .pine.
+//
+// RSI(close, 3) warms up over 3 bars (Wilder smoothing on up/down channels):
+// the first bar records only the previous-close seed, the next two build
+// the rma buffers, and the value first appears at bar 3 (0-indexed).
+//@version=6
+indicator("smoke_ta_rsi", overlay=false)
+plot(ta.rsi(close, 3), title="rsi3")

@@ -1,0 +1,23 @@
+// Hand-authored Pine v5 fixture — the "three most-common rewrites in one
+// script" scenario. Real community v5 indicators frequently combine:
+//
+//   * study("…", …)             at the top
+//   * plot(…, transp=N)         for the fill layer
+//   * iff(cond, a, b)           for conditional overlays
+//
+// All three rewrite in a single migration pass. Idempotence (each rewrite
+// runs only once even if the source contains multiple hits) is asserted
+// by the C7 unit tests; this integration fixture exercises the combined
+// pipeline for a real-shaped script.
+//
+// Per PRD §2.1: hand-authored, not copied from TradingView.
+//
+// Covers: study() → indicator(), transp= stripping (2 hits), iff() → (?:),
+// input.int(), ta.rsi(), color.new (leave alone), plot() (multiple).
+//@version=5
+study("Combined Rewrites", overlay=false)
+length = input.int(14, minval=1, title="Length")
+val = ta.rsi(close, length)
+signal = iff(val > 70, val, iff(val < 30, val, 0))
+plot(val, title="rsi", color=color.blue, transp=15)
+plot(signal, title="sig", color=color.red, transp=0)
