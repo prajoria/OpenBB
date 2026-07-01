@@ -1,0 +1,15 @@
+// Conformance fixture for ta.percentile_linear_interpolation
+// (S-bead OpenBBTechnical-0e9.5.42, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-executing the linear-interpolation percentile against a
+// hard-coded synthetic close series (see
+// ta_percentile_linear_interpolation.csv `close` column).
+//
+// Fixture length = 5, percentage = 50 (median-equivalent for length 5 —
+// the 3rd sorted element, no interpolation needed at this exact rank).
+// Warmup: first ``length - 1`` = 4 bars are NA. PyneCore's arg name is
+// ``percentage`` (0..100 scale), not ``percentile``.
+//@version=6
+indicator("smoke_ta_percentile_linear_interpolation", overlay=true)
+plot(ta.percentile_linear_interpolation(close, 5, 50), title="pct50")

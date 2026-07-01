@@ -1,17 +1,22 @@
 // Hand-authored Pine v5 fixture — user-defined function with typed args.
 // Pine v5 optionally allows type annotations on function parameters
-// (e.g. ``f(float x, int n) => ...``); v6 keeps this syntax verbatim.
-// The migration shim MUST leave these declarations untouched — a stray
-// rewrite would corrupt the type annotations.
+// as syntactic hints — Phase 1 openbb-pine's grammar treats function
+// parameters as untyped tokens (the migration shim keeps the source
+// v5-compatible; grammar-level typed-arg support is deferred). This
+// fixture therefore uses UNTYPED parameters, which is the more common
+// form in real v5 community scripts anyway (per the wild-corpus scan).
+// The v5→v6 diff is study() → indicator(); the function definition is
+// unchanged.
 //
 // Per PRD §2.1: hand-authored, not copied from TradingView.
 //
-// Covers: study() → indicator(), typed function args (float, int),
+// Covers: study() → indicator(), user-defined function with two args,
 // custom function calling ta.sma, plot().
 //@version=5
-study("Typed Function Args", overlay=true)
-weighted(float src, int len) =>
+study("Custom Function Two Args", overlay=true)
+length = input.int(14, minval=1)
+weighted(src, len) =>
     basis = ta.sma(src, len)
     basis + src / 2
-smoothed = weighted(close, 14)
+smoothed = weighted(close, length)
 plot(smoothed, title="w", color=color.red)

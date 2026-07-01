@@ -1,0 +1,12 @@
+// Conformance fixture for ta.median (S-bead OpenBBTechnical-0e9.5.41, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-computing the sorted-middle-element of a 3-bar window against a
+// hard-coded synthetic close series (see ta_median.csv `close` column).
+//
+// Fixture length = 3 (odd -> unambiguous middle element; PyneCore uses
+// window[len//2] after sorting). Warmup: first ``length - 1`` = 2 bars
+// are NA.
+//@version=6
+indicator("smoke_ta_median", overlay=true)
+plot(ta.median(close, 3), title="med3")

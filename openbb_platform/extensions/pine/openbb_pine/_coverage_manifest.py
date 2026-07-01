@@ -80,6 +80,14 @@ BUILTINS_IMPLEMENTED: frozenset[str] = frozenset({
     "math.round",
     "math.sqrt",
     "math.sum",
+    # Wave 5B-3: bands + volatility + volume (S-beads 0e9.5.{22,23,28,29,34,38,39}).
+    "ta.bb",
+    "ta.atr",
+    "ta.tr",
+    "ta.stdev",
+    "ta.obv",
+    "ta.vwap",
+    "ta.sar",
 })
 """Fully-qualified Pine builtin identifiers implemented (not stubbed)."""
 

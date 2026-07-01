@@ -1,0 +1,14 @@
+// Hand-translated Pine v6 equivalent of combined_rewrites.v5.pine.
+// Applies the three rewrites the migration shim performs:
+//
+//   * study("Combined Rewrites", …) → indicator("Combined Rewrites", …)
+//   * plot(..., transp=N) → plot(...) — two hits, both stripped
+//   * iff(val > 70, 1, 0) → (val > 70 ? 1 : 0)
+//
+//@version=6
+indicator("Combined Rewrites", overlay=false)
+length = input.int(14, minval=1, title="Length")
+val = ta.rsi(close, length)
+signal = (val > 70 ? 1 : 0)
+plot(val, title="rsi", color=color.blue)
+plot(signal, title="sig", color=color.red)

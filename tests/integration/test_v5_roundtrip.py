@@ -83,6 +83,14 @@ def _skeleton(prog: ir.Program) -> dict[str, object]:
         "simple_sma",
         "custom_function",
         "iff_input",
+        # Wave 5B-5 X2 additions (bead 0e9.5.60) — real-shaped v5 scripts
+        # exercising the migration shim's combined behavior:
+        #   * multi_v5_builtins   — study + security + transp all in one.
+        #   * typed_function_args — user-defined function with two args.
+        #   * combined_rewrites   — study + transp (x2) + iff all in one.
+        "multi_v5_builtins",
+        "typed_function_args",
+        "combined_rewrites",
     ],
 )
 def test_v5_fixture_compiles_unedited(fixture_name: str) -> None:
@@ -122,6 +130,12 @@ def test_v5_fixture_compiles_unedited(fixture_name: str) -> None:
         "simple_sma",
         "custom_function",
         "iff_input",
+        # Wave 5B-5 X2 additions (bead 0e9.5.60) — same 3 real-shaped v5
+        # scripts as :func:`test_v5_fixture_compiles_unedited` (see there
+        # for individual coverage notes).
+        "multi_v5_builtins",
+        "typed_function_args",
+        "combined_rewrites",
     ],
 )
 def test_v5_v6_skeleton_equivalence(fixture_name: str) -> None:
@@ -156,6 +170,10 @@ def test_all_fixtures_present() -> None:
         "simple_sma.v5.pine", "simple_sma.v6.pine",
         "custom_function.v5.pine", "custom_function.v6.pine",
         "iff_input.v5.pine", "iff_input.v6.pine",
+        # Wave 5B-5 X2 additions (bead 0e9.5.60).
+        "multi_v5_builtins.v5.pine", "multi_v5_builtins.v6.pine",
+        "typed_function_args.v5.pine", "typed_function_args.v6.pine",
+        "combined_rewrites.v5.pine", "combined_rewrites.v6.pine",
     }
     actual = {p.name for p in FIXTURE_DIR.glob("*.pine")}
     missing = expected - actual

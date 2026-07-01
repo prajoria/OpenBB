@@ -1,0 +1,11 @@
+// Conformance fixture for ta.change (S-bead OpenBBTechnical-0e9.5.35, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-executing the bar-over-bar difference against a hard-coded
+// synthetic close series (see ta_change.csv `close` column).
+//
+// Default ``length = 1`` — the first bar has NA (no previous bar to
+// diff against). Subsequent bars produce close[i] - close[i-1].
+//@version=6
+indicator("smoke_ta_change", overlay=false)
+plot(ta.change(close), title="chg1")

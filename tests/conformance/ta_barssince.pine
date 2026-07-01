@@ -1,0 +1,14 @@
+// Conformance fixture for ta.barssince (S-bead OpenBBTechnical-0e9.5.44, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-executing the "bars since condition was last true" counter
+// against a hard-coded synthetic close series (see ta_barssince.csv
+// `close` column).
+//
+// Condition: close > 107. Fires first at 2024-01-06 (close=108). Prior
+// bars emit NA (PyneCore returns the ``NA(int)`` sentinel until the
+// condition has been true at least once). On each true-firing bar the
+// counter resets to 0; between fires it increments by 1 per bar.
+//@version=6
+indicator("smoke_ta_barssince", overlay=false)
+plot(ta.barssince(close > 107), title="bs107")

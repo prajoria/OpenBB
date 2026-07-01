@@ -1,0 +1,13 @@
+// Conformance fixture for ta.crossover (S-bead OpenBBTechnical-0e9.5.30, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by hand-executing the crossover formula against a
+// hard-coded synthetic close series (see ta_crossover.csv `close` column).
+//
+// crossover is true on the bar where source1 (close) first strictly
+// exceeds source2 (constant 104) with the prior bar's source1 <= source2.
+// With this fixture the transition fires exactly once at 2024-01-05
+// (close jumps 101 → 105 across the 104 threshold).
+//@version=6
+indicator("smoke_ta_crossover", overlay=false)
+plot(ta.crossover(close, 104) ? 1 : 0, title="co")

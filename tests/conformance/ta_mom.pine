@@ -1,0 +1,12 @@
+// Conformance fixture for ta.mom (S-bead OpenBBTechnical-0e9.5.36, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-executing the momentum formula (identical to ta.change with
+// explicit length) against a hard-coded synthetic close series (see
+// ta_mom.csv `close` column).
+//
+// mom(source, length) == change(source, length): source[i] - source[i-length].
+// Fixture length = 3. Warmup: first 3 bars are NA.
+//@version=6
+indicator("smoke_ta_mom", overlay=false)
+plot(ta.mom(close, 3), title="mom3")

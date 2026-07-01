@@ -1,0 +1,13 @@
+// Conformance fixture for ta.roc (S-bead OpenBBTechnical-0e9.5.37, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-executing 100 * (source - source[length]) / source[length]
+// against a hard-coded synthetic close series (see ta_roc.csv `close`
+// column).
+//
+// Fixture length = 3. Warmup: first 3 bars are NA (source[length] is
+// not yet defined). No zero-divisor in this fixture — source stays
+// well above 100 for the entire run.
+//@version=6
+indicator("smoke_ta_roc", overlay=false)
+plot(ta.roc(close, 3), title="roc3")

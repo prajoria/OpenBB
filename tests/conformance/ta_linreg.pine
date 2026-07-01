@@ -1,0 +1,12 @@
+// Conformance fixture for ta.linreg (S-bead OpenBBTechnical-0e9.5.40, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-executing the OLS regression formula against a hard-coded
+// synthetic close series (see ta_linreg.csv `close` column).
+//
+// Fixture length = 5, offset = 0 (returns the regression value at the
+// current bar's x-coordinate, i.e. intercept + slope * (length - 1)).
+// Warmup: first ``length - 1`` = 4 bars are NA.
+//@version=6
+indicator("smoke_ta_linreg", overlay=true)
+plot(ta.linreg(close, 5, 0), title="linreg5")

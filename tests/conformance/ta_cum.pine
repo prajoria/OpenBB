@@ -1,0 +1,11 @@
+// Conformance fixture for ta.cum (S-bead OpenBBTechnical-0e9.5.43, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-computing the running total against a hard-coded synthetic close
+// series (see ta_cum.csv `close` column).
+//
+// ta.cum has no ``length`` argument — it accumulates from the first
+// bar. No warmup phase; the first bar equals the first source value.
+//@version=6
+indicator("smoke_ta_cum", overlay=false)
+plot(ta.cum(close), title="cum")

@@ -1,0 +1,14 @@
+// Conformance fixture for ta.crossunder (S-bead OpenBBTechnical-0e9.5.31, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed by
+// hand-executing the crossunder formula against a hard-coded synthetic
+// close series (see ta_crossunder.csv `close` column).
+//
+// crossunder is symmetric to crossover; with the same series that
+// crossed *above* 104 at 2024-01-05, no downward crossing occurs — the
+// series stays above 104 for the remainder. Output is false throughout.
+// The presence of a permanent-false series is the point: it exercises
+// the persistent-state warmup + no-crossing branch that crossover cannot.
+//@version=6
+indicator("smoke_ta_crossunder", overlay=false)
+plot(ta.crossunder(close, 104) ? 1 : 0, title="cu")

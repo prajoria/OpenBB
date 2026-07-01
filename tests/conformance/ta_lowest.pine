@@ -1,0 +1,11 @@
+// Conformance fixture for ta.lowest (S-bead OpenBBTechnical-0e9.5.33, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// by hand-executing the rolling-min formula against a hard-coded
+// synthetic close series (see ta_lowest.csv `close` column).
+//
+// ta.lowest is symmetric to ta.highest. Warmup: first ``length-1`` = 2
+// bars are NA. Fixture length = 3.
+//@version=6
+indicator("smoke_ta_lowest", overlay=true)
+plot(ta.lowest(close, 3), title="lo3")

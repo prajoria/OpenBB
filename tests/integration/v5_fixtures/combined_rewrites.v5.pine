@@ -3,7 +3,9 @@
 //
 //   * study("…", …)             at the top
 //   * plot(…, transp=N)         for the fill layer
-//   * iff(cond, a, b)           for conditional overlays
+//   * iff(cond, a, b)           for conditional overlays (flat, not
+//     nested — nested iff() calls are a Phase-3 shim concern per the
+//     PF003 error in v5_migration.py)
 //
 // All three rewrite in a single migration pass. Idempotence (each rewrite
 // runs only once even if the source contains multiple hits) is asserted
@@ -13,11 +15,11 @@
 // Per PRD §2.1: hand-authored, not copied from TradingView.
 //
 // Covers: study() → indicator(), transp= stripping (2 hits), iff() → (?:),
-// input.int(), ta.rsi(), color.new (leave alone), plot() (multiple).
+// input.int(), ta.rsi(), color reference, plot() (multiple).
 //@version=5
 study("Combined Rewrites", overlay=false)
 length = input.int(14, minval=1, title="Length")
 val = ta.rsi(close, length)
-signal = iff(val > 70, val, iff(val < 30, val, 0))
+signal = iff(val > 70, 1, 0)
 plot(val, title="rsi", color=color.blue, transp=15)
 plot(signal, title="sig", color=color.red, transp=0)

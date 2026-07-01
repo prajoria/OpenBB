@@ -1,0 +1,12 @@
+// Conformance fixture for ta.highest (S-bead OpenBBTechnical-0e9.5.32, Wave 5B-4).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// by hand-executing the rolling-max formula against a hard-coded
+// synthetic close series (see ta_highest.csv `close` column).
+//
+// ta.highest returns the greatest source value across the trailing
+// ``length`` bars including the current bar. Warmup: first
+// ``length-1`` = 2 bars are NA. Fixture length = 3.
+//@version=6
+indicator("smoke_ta_highest", overlay=true)
+plot(ta.highest(close, 3), title="hi3")
