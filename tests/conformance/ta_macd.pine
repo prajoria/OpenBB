@@ -1,0 +1,22 @@
+// Conformance fixture for ta.macd (S-bead OpenBBTechnical-0e9.5.21, Wave 5B-1).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's MACD formula against a
+// hard-coded synthetic close series (see ta_macd.csv `close` column).
+//
+// MACD returns a 3-tuple:
+//   macd_line = ema(close, fastlen) - ema(close, slowlen)
+//   signal    = ema(macd_line, siglen)
+//   hist      = macd_line - signal
+//
+// With fastlen=3, slowlen=6, siglen=2:
+//   * fast EMA warms at bar 2, slow EMA warms at bar 5
+//   * macd_line valid from bar 5 onward
+//   * signal EMA(macd_line, 2) needs 2 valid macd_line samples -> warms at bar 6
+//   * hist follows signal (NA at bar 5, valid from bar 6)
+//@version=6
+indicator("smoke_ta_macd", overlay=false)
+[macd_line, signal_line, hist_line] = ta.macd(close, 3, 6, 2)
+plot(macd_line, title="macd")
+plot(signal_line, title="signal")
+plot(hist_line, title="hist")

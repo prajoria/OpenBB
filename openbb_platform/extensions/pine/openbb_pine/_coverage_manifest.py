@@ -43,7 +43,14 @@ from __future__ import annotations
 PINE_VERSIONS_SUPPORTED: frozenset[int] = frozenset()
 """Pine ``//@version=`` integers the compiler accepts. Empty at Phase 0."""
 
-BUILTINS_IMPLEMENTED: frozenset[str] = frozenset()
+BUILTINS_IMPLEMENTED: frozenset[str] = frozenset({
+    # Wave 5B-1: moving averages (S-beads 0e9.5.16-19, 21).
+    "ta.sma",
+    "ta.ema",
+    "ta.wma",
+    "ta.rma",
+    "ta.macd",
+})
 """Fully-qualified Pine builtin identifiers implemented (not stubbed)."""
 
 FEATURES_IMPLEMENTED: frozenset[str] = frozenset()

@@ -1,0 +1,9 @@
+// Conformance fixture for ta.sma (S-bead OpenBBTechnical-0e9.5.16, Wave 5B-1).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's SMA formula against a
+// hard-coded synthetic close series (see ta_sma.csv `close` column).
+// No chart data is redistributed; the .csv is a pure function of this .pine.
+//@version=6
+indicator("smoke_ta_sma", overlay=true)
+plot(ta.sma(close, 3), title="sma3")

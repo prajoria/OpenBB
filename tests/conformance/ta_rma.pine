@@ -1,0 +1,10 @@
+// Conformance fixture for ta.rma (S-bead OpenBBTechnical-0e9.5.19, Wave 5B-1).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's RMA (Wilder smoothing)
+// formula against a hard-coded synthetic close series (see ta_rma.csv
+// `close` column). Equivalent to EMA with α = 1/length; used inside RSI's
+// average-gain/loss channel per Wilder's original 1978 formulation.
+//@version=6
+indicator("smoke_ta_rma", overlay=true)
+plot(ta.rma(close, 3), title="rma3")

@@ -1,0 +1,10 @@
+// Conformance fixture for ta.ema (S-bead OpenBBTechnical-0e9.5.17, Wave 5B-1).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's EMA formula against a
+// hard-coded synthetic close series (see ta_ema.csv `close` column).
+// Warmup: first (length-1) bars = NA; length-th bar seeded with
+// SMA(source, length); subsequent bars use α = 2/(length+1) recursion.
+//@version=6
+indicator("smoke_ta_ema", overlay=true)
+plot(ta.ema(close, 3), title="ema3")

@@ -1,0 +1,10 @@
+// Conformance fixture for ta.wma (S-bead OpenBBTechnical-0e9.5.18, Wave 5B-1).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's WMA formula against a
+// hard-coded synthetic close series (see ta_wma.csv `close` column).
+// Linear-weighted: newest bar carries weight `length`, oldest carries
+// weight 1; denominator = length*(length+1)/2.
+//@version=6
+indicator("smoke_ta_wma", overlay=true)
+plot(ta.wma(close, 3), title="wma3")
