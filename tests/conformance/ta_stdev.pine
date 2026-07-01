@@ -1,0 +1,11 @@
+// Conformance fixture for ta.stdev (S-bead OpenBBTechnical-0e9.5.34, Wave 5B-3).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's stdev formula against a
+// hard-coded synthetic close series (see ta_stdev.csv `close`).
+// ta.stdev(source, length) uses biased (population) variance by default,
+// then math.sqrt — matching Pine's documented behaviour. Warmup: first
+// (length-1) bars are NA.
+//@version=6
+indicator("smoke_ta_stdev", overlay=false)
+plot(ta.stdev(close, 4), title="stdev4")

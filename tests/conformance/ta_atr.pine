@@ -1,0 +1,13 @@
+// Conformance fixture for ta.atr (S-bead OpenBBTechnical-0e9.5.23, Wave 5B-3).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's ATR formula against a
+// hard-coded synthetic OHLC series (see ta_atr.csv `high`/`low`/`close`).
+// ATR = rma(tr(handle_na=true), length); Wilder's seed = SMA of first
+// `length` valid TR values, then alpha=1/length recursion. Because
+// handle_na=true is passed internally by ta.atr, the first bar's TR
+// is (high-low) rather than NA, so the seed forms at bar `length-1`.
+// With length=3 the first ATR value lands at bar index 2 (bar 3 of 10).
+//@version=6
+indicator("smoke_ta_atr", overlay=false)
+plot(ta.atr(3), title="atr3")

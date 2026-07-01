@@ -1,0 +1,14 @@
+// Conformance fixture for ta.bb (S-bead OpenBBTechnical-0e9.5.22, Wave 5B-3).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's Bollinger Bands formula
+// against a hard-coded synthetic close series (see ta_bb.csv `close`).
+// ta.bb returns (basis, upper, lower); basis = sma(close, length),
+// upper = basis + mult*stdev(close, length), lower = basis - mult*stdev.
+// Warmup: first (length-1) bars are NA for all three outputs.
+//@version=6
+indicator("smoke_ta_bb", overlay=true)
+[basis, upper, lower] = ta.bb(close, 4, 2.0)
+plot(basis, title="basis")
+plot(upper, title="upper")
+plot(lower, title="lower")

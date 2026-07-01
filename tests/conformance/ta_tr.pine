@@ -1,0 +1,11 @@
+// Conformance fixture for ta.tr (S-bead OpenBBTechnical-0e9.5.38, Wave 5B-3).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's True Range formula against a
+// hard-coded synthetic OHLC series (see ta_tr.csv `high`/`low`/`close`).
+// TR = max(high-low, |high-prev_close|, |low-prev_close|). handle_na=false
+// makes the first bar NA (no previous close); handle_na=true would emit
+// (high-low) on the first bar (ta.atr uses that mode internally).
+//@version=6
+indicator("smoke_ta_tr", overlay=false)
+plot(ta.tr(false), title="tr")

@@ -1,0 +1,10 @@
+// Conformance fixture for ta.obv (S-bead OpenBBTechnical-0e9.5.28, Wave 5B-3).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's OBV formula against a
+// hard-coded synthetic close+volume series (see ta_obv.csv `close`/`volume`).
+// OBV = cum(volume * sign(change(close))); bar 0 is NA because
+// ta.change(close) is NA on the first bar.
+//@version=6
+indicator("smoke_ta_obv", overlay=false)
+plot(ta.obv, title="obv")

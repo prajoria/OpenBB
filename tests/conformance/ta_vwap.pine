@@ -1,0 +1,14 @@
+// Conformance fixture for ta.vwap (S-bead OpenBBTechnical-0e9.5.29, Wave 5B-3).
+//
+// Author-derivative posture per PRD §7.3: reference output computed
+// deterministically by running this script's VWAP formula against a
+// hard-coded synthetic close+volume series (see ta_vwap.csv `close`/`volume`).
+//
+// Anchor semantics: ta.vwap(source) defaults `anchor` to
+// `session.isfirstbar`. In a synthetic single-session dataset that flag
+// fires every bar (each 1D bar is its own session), producing the trivial
+// vwap == source. To exercise the cumulative TPV/Vol path — the interesting
+// numeric — we pass an explicit `anchor` that fires only on bar 0.
+//@version=6
+indicator("smoke_ta_vwap", overlay=true)
+plot(ta.vwap(close, bar_index == 0), title="vwap")
