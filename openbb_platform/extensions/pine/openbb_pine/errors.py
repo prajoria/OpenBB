@@ -14,6 +14,8 @@ used by the REST error envelope (D3 section 4.1).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from openbb_core.app.model.abstract.error import OpenBBError
 
 
@@ -399,9 +401,73 @@ class PineDataValidationError(PineError):
 
 
 class PineCacheError(PineError):
-    """Compile cache could not be read or written."""
+    """Compile cache could not be read or written.
+
+    Carries the structured diagnostic shape D1 §5 + PRD §4.8 specify for cache
+    corruption / atomicity violations:
+
+    * ``sha`` — the 64-char hex cache key of the offending entry, so operators
+      can inspect / remove the corrupted directory without grepping logs.
+    * ``defect`` — short label naming the corruption class, e.g.
+      ``"missing meta.json"`` / ``"meta.json parse failed"`` /
+      ``"os.replace failed"``. Machine-comparable so the REST envelope
+      (D3 §4.1) can branch without regexing free text.
+    * ``path`` — the on-disk :class:`pathlib.Path` of the offending file or
+      directory, threaded through so the operator can act on it.
+
+    Init signature mirrors the post-R2/R6/Wave-3A/Wave-4 consolidation pattern
+    (commits ``3c6bb0a81`` + ``d4b294da5`` + ``03b6b69ee`` + ``41edda954``) —
+    added preemptively rather than after the C6 review cycle since the pattern
+    is now proven across PineDataValidationError + PineFMPUnreachableError +
+    PineTypeError + PineUnsupportedBuiltinError + PineUnsupportedFeatureError +
+    PineCodegenError.
+
+    Backward compatible: pass a positional string OR ``message=`` to wrap a
+    pre-stitched string. In practice C6's cache-corruption code path DOES NOT
+    raise this — it logs a warning and degrades to a cache miss (corruption
+    must never break compilation, per D1 §6). The structured init exists for
+    the rarer atomicity failure paths (e.g. a mid-write ENOSPC that leaves
+    tempfiles behind) where surfacing the defect is preferable to silence.
+
+    Example::
+
+        raise PineCacheError(
+            sha="abcd1234...",
+            defect="os.replace failed after tempfile write",
+            path=cache_dir / sha[:2] / f"{sha}.py",
+        )
+    """
 
     code: str = "PineCacheError"
+
+    def __init__(
+        self,
+        *args: object,
+        sha: str | None = None,
+        defect: str | None = None,
+        path: Path | None = None,
+        message: str | None = None,
+    ) -> None:
+        # Backwards-compat: callers may still raise ``PineCacheError("msg")``
+        # with a single positional string. Promote it into the message slot
+        # when no explicit ``message=`` was given. Same pattern as
+        # PineCodegenError / PineTypeError.
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.sha: str | None = sha
+        self.defect: str | None = defect
+        self.path: Path | None = path
+        if message is not None:
+            text = message
+        else:
+            sha_s = f" (sha={sha[:12]}…)" if sha else ""
+            path_s = f" at {path}" if path is not None else ""
+            defect_s = defect or "cache access failed"
+            text = f"PineCacheError{sha_s}: {defect_s}{path_s}"
+        super().__init__(text)
 
 
 # --- Runtime / execution errors (D2 territory) ---------------------------
