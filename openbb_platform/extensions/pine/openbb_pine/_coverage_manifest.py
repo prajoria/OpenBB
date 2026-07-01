@@ -40,8 +40,11 @@ mutated at runtime by accident; tests assert their identity-type.
 
 from __future__ import annotations
 
-PINE_VERSIONS_SUPPORTED: frozenset[int] = frozenset()
-"""Pine ``//@version=`` integers the compiler accepts. Empty at Phase 0."""
+PINE_VERSIONS_SUPPORTED: frozenset[int] = frozenset({5, 6})
+"""Pine ``//@version=`` integers the compiler accepts.
+
+v6 is native (C1-C8 chain); v5 is auto-migrated to v6 via the C7 shim
+(0e9.5.7, commit 0d2765ad4) before parse. See PRD §8.1 M1 gate (h)."""
 
 BUILTINS_IMPLEMENTED: frozenset[str] = frozenset({
     # Wave 5B-1: moving averages (S-beads 0e9.5.16-19, 21).
@@ -91,8 +94,57 @@ BUILTINS_IMPLEMENTED: frozenset[str] = frozenset({
 })
 """Fully-qualified Pine builtin identifiers implemented (not stubbed)."""
 
-FEATURES_IMPLEMENTED: frozenset[str] = frozenset()
-"""Grammar features implemented. Subset of the wild-corpus indexer's vocabulary."""
+FEATURES_IMPLEMENTED: frozenset[str] = frozenset({
+    # Top-level declarations (C2 parser + C3 type checker + C5 codegen).
+    "indicator",              # @script.indicator via C5 codegen
+    # "strategy",             # deferred to Phase 2 (bead 0e9.5.6)
+    # "library",              # deferred to Phase 3 (bead 0e9.5.7 P3)
+    # Grammar features (C1 lexer + C2 parser + C3 type checker).
+    "var",                    # var x = ...
+    "varip",                  # varip x = ...
+    "if_else",                # if/else if/else statements
+    "for_loop",               # for i = ...
+    "while_loop",             # while cond
+    "ternary",                # cond ? a : b
+    "history_ref",            # x[n] history operator
+    "function_def",           # named function definitions
+    "type_annotation",        # : simple int, : series float, etc.
+    # Common input.* forms (C3 signatures + C5 codegen).
+    "input.int",
+    "input.float",
+    "input.bool",
+    "input.string",
+    "input.source",
+    # Plot/alert primitives (C5 codegen).
+    "plot",
+    "plotshape",
+    "hline",
+    "alert",
+    # OHLCV sources (C3 signatures + C5 codegen).
+    "close",
+    "open",
+    "high",
+    "low",
+    "volume",
+    "time",
+    # NA / nz sentinel handling (PyneCore runtime + C3).
+    "na",
+    "nz",
+})
+"""Grammar features implemented. Subset of the wild-corpus indexer's vocabulary.
+
+Populated post-Wave-5B as part of bead 0e9.5.62 (L0.4b wild-corpus strategy)
+to unblock the L0.5 coverage metric — an empty features set was misattributing
+every wild-corpus script's use of ``indicator()`` / ``plot()`` / ``input.int``
+as "unsupported feature" and dragging the coverage percentage to 0.
+
+Deferred to later phases (still missing):
+- ``strategy`` (Phase 2 — bead 0e9.5.6 / #pine-P2)
+- ``library`` (Phase 3 — bead 0e9.5.7 / #pine-P3)
+- ``request.security`` (Phase 2)
+- Drawings (``line.new``, ``label.new``, ``box.new``, ``table.new``; Phase 3)
+- Import statements (Phase 3 library support)
+"""
 
 __all__ = [
     "PINE_VERSIONS_SUPPORTED",
