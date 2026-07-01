@@ -268,8 +268,12 @@ def run_compiled(
     offenders = scan_for_forbidden_imports(compiled.source)
     if offenders:
         raise PineSecurityError(
-            f"Compiled module references forbidden modules: {sorted(set(offenders))}. "
-            "This is a T3 sandbox-violation; the compiler (T1) should have blocked it earlier."
+            rule="SEC001",
+            node_kind=f"forbidden imports: {sorted(set(offenders))}",
+            hint=(
+                "This is a T3 sandbox-violation; the compiler (T1) should "
+                "have blocked it earlier."
+            ),
         )
 
     # --- Provider construction ------------------------------------------

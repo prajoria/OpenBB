@@ -1,4 +1,4 @@
-"""Shared Pine error hierarchy.
+"""Shared Pine error hierarchy + Diagnostic dataclass.
 
 Owned here per D3 section 4.7 (post-D1/D2/D3 cross-doc consolidation, commit
 ``af08128d3``): runtime and compiler modules import from this single module
@@ -10,13 +10,119 @@ Every class subclasses ``openbb_core.app.model.abstract.error.OpenBBError`` so
 the platform's standard error middleware can intercept and serialize them
 uniformly. Each class carries a ``code`` class attribute matching its name,
 used by the REST error envelope (D3 section 4.1).
+
+**Diagnostic** (D1 §5.1) is a first-class per-diagnostic carrier — every
+error surface can carry ``tuple[Diagnostic, ...]`` so users see every defect
+in one pass rather than first-error-wins. The dataclass is frozen + slotted
+so it's cheap to construct and hash-stable (safe to shove into a ``set`` or
+a dict key for dedup).
+
+The **structured-init pattern** (kw-only-with-backwards-compat-positional-string)
+was proven across the post-R2 / post-R6 / Wave-3A / Wave-4 pre-empt-fix
+cycle. Every ``PineError`` subclass in this module follows the same shape:
+
+* Positional ``str`` → treated as pre-stitched ``message=`` (backwards-compat).
+* kw-only ``message=`` → wins over structured rendering, useful for callers
+  that want to fully control the string.
+* Otherwise → structured attrs are combined into a default rendering.
+* ``code`` / ``tracking_url`` class attributes provide REST-envelope
+  defaults; instance attrs shadow them on a per-raise basis (never mutated
+  on the class).
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from openbb_core.app.model.abstract.error import OpenBBError
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic — D1 §5.1 per-diagnostic carrier.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Diagnostic:
+    """A single diagnostic emitted by any compile-time or runtime layer.
+
+    Errors carry ``tuple[Diagnostic, ...]`` so multiple defects surface in one
+    raise (mirroring :class:`PineDataValidationError`'s ``defects`` list but
+    structured, per-diagnostic). Warnings surface via
+    :class:`openbb_pine.compiler.type_checker.TypeCheckResult`'s diagnostics
+    field too.
+
+    Fields map 1:1 to the D1 §5.4 REST-envelope shape — the serialization
+    contract is ``dataclasses.asdict(diag)``.
+
+    Rendering: :meth:`render` produces a Pine-style diagnostic with a caret
+    line beneath the offending column when ``source`` is provided (see
+    D1 §5.3 for the intended UX).
+    """
+
+    severity: Literal["error", "warning", "info", "hint"]
+    code: str
+    """Three-letter prefix + three-digit code — see
+    :mod:`openbb_pine.error_codes` for the registry."""
+
+    message: str
+    location: tuple[str, int, int] | None = None
+    """``(file, line, col)`` — 1-based line/col per Pine convention."""
+
+    span: tuple[int, int] | None = None
+    """Byte offsets in the source, if the front-end tracked them."""
+
+    hint: str | None = None
+    tracking_url: str | None = None
+    related: tuple[str, ...] = ()
+    """Cross-reference to related codes (e.g. ``("PT001",)`` on a PT005 that
+    the operator should also read about)."""
+
+    def render(self, source: str | None = None) -> str:
+        """Render a Pine-style diagnostic string.
+
+        Format (matches D1 §5.3)::
+
+            {severity} [{code}] — {message}
+              {source-file}:{line}:{col}
+              {line} │ <source line>
+                     │       ^^ (caret under the offending column)
+              hint: {hint}
+              → {tracking_url}
+
+        When ``source`` is passed, the offending source line is rendered
+        with a caret pointing at ``location[2]`` (1-based column).
+        """
+        parts: list[str] = []
+        header = f"{self.severity} [{self.code}] — {self.message}"
+        parts.append(header)
+        if self.location is not None:
+            file, line, col = self.location
+            parts.append(f"  {file}:{line}:{col}")
+            if source is not None:
+                # Extract the offending line (1-based) and build the caret.
+                lines = source.splitlines()
+                if 1 <= line <= len(lines):
+                    src_line = lines[line - 1]
+                    gutter = f"  {line} │ "
+                    parts.append(f"{gutter}{src_line}")
+                    # Caret column is (col - 1) inside the source-line prefix
+                    # of ``gutter``-many spaces. Guard against col outside
+                    # the line so a stray span offset can't blow up render.
+                    caret_col = max(col - 1, 0)
+                    parts.append(f"  {' ' * len(str(line))} │ {' ' * caret_col}^^")
+        if self.hint:
+            parts.append(f"  hint: {self.hint}")
+        if self.tracking_url:
+            parts.append(f"  → {self.tracking_url}")
+        return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Root
+# ---------------------------------------------------------------------------
 
 
 class PineError(OpenBBError):
@@ -36,9 +142,64 @@ class PineCompileError(PineError):
 
 
 class PineSyntaxError(PineCompileError):
-    """The Pine source did not parse."""
+    """The Pine source did not parse.
+
+    Structured init added in bead 0e9.5.8 C8 — matches the D1 §5.1 shape
+    (rule, source_line, line, col, hint). Backwards-compat: existing
+    positional-string raises in the lexer + parser continue to work, so this
+    bead doesn't require lock-step edits across the compiler front-end.
+
+    Example::
+
+        raise PineSyntaxError(
+            rule="PS001",
+            source_line="length = input.int(=20)",
+            line=7,
+            col=18,
+            hint="input.int's first arg is the default value.",
+        )
+    """
 
     code: str = "PineSyntaxError"
+
+    def __init__(
+        self,
+        *args: object,
+        rule: str | None = None,
+        source_line: str | None = None,
+        line: int | None = None,
+        col: int | None = None,
+        hint: str | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.rule = rule
+        self.source_line = source_line
+        self.line = line
+        self.col = col
+        self.hint = hint
+        if tracking_url is not None:
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        else:
+            rule_s = f" [{rule}]" if rule else ""
+            loc = ""
+            if line is not None and col is not None:
+                loc = f" at line {line}, col {col}"
+            elif line is not None:
+                loc = f" at line {line}"
+            text = f"PineSyntaxError{rule_s}{loc}"
+            if source_line:
+                text += f"\n  in: {source_line}"
+            if hint:
+                text += f"\n  hint: {hint}"
+        super().__init__(text)
 
 
 class PineTypeError(PineCompileError):
@@ -298,19 +459,167 @@ class PineCodegenError(PineCompileError):
         super().__init__(text)
 
 
+class PineInternalCompilerError(PineCompileError):
+    """A compiler invariant was violated — always a bug, never user-facing.
+
+    D1 §5.2 reserves the ``IC###`` prefix for these. When one fires in
+    production, page on-call: the compiler emitted output that contradicts
+    its own contract (e.g. type-checked IR reached codegen with an
+    unexpected node kind, an unregistered error code was raised, etc.).
+
+    Structured init added in bead 0e9.5.8 C8. The ``invariant`` text
+    describes what was violated ("error code raised but not registered");
+    ``node_kind`` optionally names the offending IR / AST node so the
+    on-call responder has enough context to start debugging without
+    round-tripping through logs.
+
+    Example::
+
+        raise PineInternalCompilerError(
+            rule="IC001",
+            invariant="error code raised but not registered in ERROR_CODES",
+            hint="add the code to openbb_pine/error_codes.py",
+        )
+    """
+
+    code: str = "PineInternalCompilerError"
+
+    def __init__(
+        self,
+        *args: object,
+        rule: str | None = None,
+        invariant: str | None = None,
+        node_kind: str | None = None,
+        hint: str | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.rule = rule
+        self.invariant = invariant
+        self.node_kind = node_kind
+        self.hint = hint
+        if tracking_url is not None:
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        else:
+            r = f"[{rule}] " if rule else ""
+            inv = invariant or "compiler invariant violated"
+            text = f"{r}{inv}"
+            if node_kind:
+                text += f" (node: {node_kind})"
+            if hint:
+                text += f"\n  hint: {hint}"
+        super().__init__(text)
+
+
 # --- Provider / data errors (D2 territory) -------------------------------
 
 
 class PineProviderError(PineError):
-    """A non-FMP provider was requested (PRD section 13.8)."""
+    """A non-FMP provider was requested (PRD section 13.8).
+
+    Structured init added in bead 0e9.5.8 C8 — carries ``requested``,
+    ``supported``, and ``tracking_url`` structured. Backwards-compat with
+    positional-string raises retained (``provider_selection.py`` originally
+    raised with a plain string + monkey-patched the fields on the instance
+    after; now callers can pass them directly).
+
+    Example::
+
+        raise PineProviderError(
+            requested="yfinance",
+            supported=("fmp", "fmp_cached"),
+            tracking_url="https://github.com/<repo>/issues/?label=pine-provider",
+        )
+    """
 
     code: str = "PineProviderError"
 
+    def __init__(
+        self,
+        *args: object,
+        requested: str | None = None,
+        supported: tuple[str, ...] | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.requested = requested
+        self.supported = supported
+        if tracking_url is not None:
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        elif requested is not None:
+            sup = f" (supported: {list(supported)})" if supported else ""
+            trail = f"\n  tracking: {tracking_url}" if tracking_url else ""
+            text = f"Provider {requested!r} is not supported{sup}{trail}"
+        else:
+            text = "Unsupported provider (no structured detail attached)"
+        # Bypass any PineProviderError subclass init logic by going straight
+        # to OpenBBError (subclasses call OpenBBError.__init__ directly if
+        # they need to skip us).
+        OpenBBError.__init__(self, text)
+
 
 class PineFMPRequiredError(PineProviderError):
-    """BYO mode without FMP key, and the script touched an FMP-only builtin."""
+    """BYO mode without FMP key, and the script touched an FMP-only builtin.
+
+    Structured init added in bead 0e9.5.8 C8 — carries ``builtin`` (the
+    Pine identifier that requires FMP, e.g. ``"request.dividends"``) and
+    ``mode`` (typically ``"byo_only"``). PRD §13.8's error-body shape
+    surfaces both so callers see which builtin needs upgrading and why.
+
+    Example::
+
+        raise PineFMPRequiredError(
+            builtin="request.security",
+            mode="byo_only",
+        )
+    """
 
     code: str = "PineFMPRequiredError"
+
+    def __init__(
+        self,
+        *args: object,
+        builtin: str | None = None,
+        mode: str | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.builtin = builtin
+        self.mode = mode
+        if tracking_url is not None:
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        elif builtin is not None:
+            mode_s = f" (mode: {mode})" if mode else ""
+            text = (
+                f"Builtin {builtin!r} requires FMP but no FMP key is "
+                f"configured{mode_s}"
+            )
+        else:
+            text = "FMP required but not configured (no structured detail attached)"
+        # Skip PineProviderError.__init__'s requested/supported rendering —
+        # this class has its own structured fields.
+        OpenBBError.__init__(self, text)
 
 
 class PineFMPUnreachableError(PineProviderError):
@@ -353,7 +662,10 @@ class PineFMPUnreachableError(PineProviderError):
             text = f"FMP provider {provider!r} unreachable after {attempts} attempt(s){lbl}{last}"
         else:
             text = "FMP provider unreachable (no structured detail attached)"
-        super().__init__(text)
+        # Skip PineProviderError.__init__ — this class predates the structured
+        # init on the parent and has its own field set. Go straight to
+        # OpenBBError so no rendering logic in the middle mangles our text.
+        OpenBBError.__init__(self, text)
 
 
 class PineDataValidationError(PineError):
@@ -486,18 +798,109 @@ class PineStrategyNotYetImplementedError(PineError):
 
 
 class PineSecurityError(PineError):
-    """A sandbox / security invariant was violated (PRD section 5 T1/T3)."""
+    """A sandbox / security invariant was violated (PRD section 5 T1/T3).
+
+    Structured init added in bead 0e9.5.8 C8. Carries ``rule`` (a ``SEC###``
+    code — see :mod:`openbb_pine.error_codes`, currently ``SEC001`` for the
+    T3 forbidden-import scan) and ``node_kind`` (short label for the
+    offending construct — typically the AST node or module name that
+    triggered).
+
+    Example::
+
+        raise PineSecurityError(
+            rule="SEC001",
+            node_kind="ImportFrom('subprocess')",
+        )
+    """
 
     code: str = "PineSecurityError"
 
+    def __init__(
+        self,
+        *args: object,
+        rule: str | None = None,
+        node_kind: str | None = None,
+        hint: str | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.rule = rule
+        self.node_kind = node_kind
+        self.hint = hint
+        if tracking_url is not None:
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        else:
+            r = f"[{rule}] " if rule else ""
+            kind = node_kind or "sandbox violation"
+            text = f"{r}Pine sandbox violation: {kind}"
+            if hint:
+                text += f"\n  hint: {hint}"
+        super().__init__(text)
+
 
 class PineExecTimeoutError(PineRuntimeError):
-    """A Pine script exceeded its wall-clock budget (PRD section 5.2 T2)."""
+    """A Pine script exceeded its wall-clock budget (PRD section 5.2 T2).
+
+    Structured init added in bead 0e9.5.8 C8. Carries ``timeout_s`` (the
+    budget), ``elapsed_s`` (how long the run actually took, if measurable),
+    and ``script_hash`` (compiled-module identity for post-hoc lookup in
+    the compile cache).
+
+    Backwards-compat: the SIGALRM signal handler in ``runtime/limits.py``
+    raises with a positional string; that call site keeps working. When
+    calling from user code, prefer the structured form.
+
+    Example::
+
+        raise PineExecTimeoutError(
+            timeout_s=5,
+            elapsed_s=5.4,
+            script_hash=compiled.sha,
+        )
+    """
 
     code: str = "PineExecTimeoutError"
 
+    def __init__(
+        self,
+        *args: object,
+        timeout_s: int | None = None,
+        elapsed_s: float | None = None,
+        script_hash: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.timeout_s = timeout_s
+        self.elapsed_s = elapsed_s
+        self.script_hash = script_hash
+        if message is not None:
+            text = message
+        elif timeout_s is not None:
+            elapsed_str = f" (elapsed {elapsed_s:.2f}s)" if elapsed_s else ""
+            hash_s = f" [{script_hash[:12]}]" if script_hash else ""
+            text = (
+                f"Pine script{hash_s} exceeded {timeout_s}s wall-clock "
+                f"budget{elapsed_str}"
+            )
+        else:
+            text = "Pine script exceeded its wall-clock budget"
+        super().__init__(text)
+
 
 __all__ = [
+    "Diagnostic",
     "PineError",
     "PineCompileError",
     "PineSyntaxError",
@@ -505,6 +908,7 @@ __all__ = [
     "PineUnsupportedBuiltinError",
     "PineUnsupportedFeatureError",
     "PineCodegenError",
+    "PineInternalCompilerError",
     "PineProviderError",
     "PineFMPRequiredError",
     "PineFMPUnreachableError",

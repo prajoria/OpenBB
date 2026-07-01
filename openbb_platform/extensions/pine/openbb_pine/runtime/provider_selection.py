@@ -67,17 +67,15 @@ def _read_user_preference(settings: Any | None) -> str | None:
 def _raise_non_fmp(requested: str) -> None:
     """Raise ``PineProviderError`` with the PRD section 13.8 message shape.
 
-    Attaches ``requested`` and ``supported`` attributes so callers can render
-    structured error envelopes without re-parsing the message.
+    Uses the structured init (added by bead 0e9.5.8 C8) so the ``requested``,
+    ``supported``, and ``tracking_url`` fields are populated at construction
+    time — no more post-hoc monkey-patching on the exception instance.
     """
-    err = PineProviderError(
-        f"Only fmp and fmp_cached are supported in this version. "
-        f"Requested: {requested!r}. See PRD section 13.8 and {TRACKING_URL}"
+    raise PineProviderError(
+        requested=requested,
+        supported=SUPPORTED_PROVIDERS,
+        tracking_url=TRACKING_URL,
     )
-    err.requested = requested
-    err.supported = SUPPORTED_PROVIDERS
-    err.tracking_url = TRACKING_URL
-    raise err
 
 
 def resolve_provider(
