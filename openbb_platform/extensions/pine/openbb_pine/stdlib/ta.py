@@ -112,3 +112,104 @@ def macd(source, fastlen: int, slowlen: int, siglen: int):
 
 
 __all__ += ["sma", "ema", "wma", "rma", "macd"]
+
+
+# ==============================================================================
+# ---- Wave 5B-2: momentum + oscillators ----
+# Owns: ta.rsi, ta.stoch, ta.cci, ta.adx, ta.mfi
+# ==============================================================================
+
+
+def rsi(source, length: int):
+    """Pine ``ta.rsi(source, length)`` — Relative Strength Index.
+
+    Delegates to :func:`pynecore.lib.ta.rsi`. Uses Wilder's smoothing
+    (``rma`` over up-moves / down-moves) internally; warm-up returns
+    ``NA`` until ``length`` bars have been observed, then produces a
+    value in ``[0, 100]``.
+
+    Per :mod:`openbb_pine.compiler.builtin_signatures` the compile-time
+    signature is ``(src: series<float>, length: simple<int>) -> series<float>``.
+    PyneCore names the first arg ``source``; the C3 registry names it
+    ``src`` (the shorter Pine-reference name). Positional dispatch keeps
+    both sides interoperable — the bridge never binds by name.
+    """
+    return _pyne_ta.rsi(source, length)
+
+
+def stoch(source, high, low, length: int):
+    """Pine ``ta.stoch(source, high, low, length)`` — Stochastic %K.
+
+    Delegates to :func:`pynecore.lib.ta.stoch`. Returns only the fast %K
+    component; the %D signal line is a separate ``ta.sma(ta.stoch(...), 3)``
+    application in Pine (see TradingView Pine reference — %D is user-side
+    smoothing, not part of the ``ta.stoch`` primitive).
+
+    Warm-up returns ``NA`` until ``length`` bars of both ``high`` and
+    ``low`` history are available; the output is clamped to ``[0, 100]``.
+
+    Per :mod:`openbb_pine.compiler.builtin_signatures` the compile-time
+    signature is
+    ``(src: series<float>, high: series<float>, low: series<float>,
+    length: simple<int>) -> series<float>``. The C3 registry uses ``src``
+    where PyneCore uses ``source`` — positional dispatch keeps them
+    aligned; see :func:`rsi` for the same convention.
+    """
+    return _pyne_ta.stoch(source, high, low, length)
+
+
+def cci(source, length: int):
+    """Pine ``ta.cci(source, length)`` — Commodity Channel Index.
+
+    Delegates to :func:`pynecore.lib.ta.cci`. Computes
+    ``(source - sma(source, length)) / (0.015 * mean_dev)`` where
+    ``mean_dev`` is the mean absolute deviation of ``source`` over the
+    same window; warm-up returns ``NA`` until the window is full.
+
+    Per :mod:`openbb_pine.compiler.builtin_signatures` the compile-time
+    signature is ``(src: series<float>, length: simple<int>) -> series<float>``.
+    """
+    return _pyne_ta.cci(source, length)
+
+
+def adx(dilen: int, adxlen: int):
+    """Pine ``ta.adx(dilen, adxlen)`` — Average Directional Index.
+
+    Delegates to :func:`pynecore.lib.ta.dmi` and returns the third element
+    of the ``(+DI, -DI, ADX)`` triple. **PyneCore does NOT expose a
+    standalone ``adx`` function** — the Pine reference documents
+    ``ta.adx(dilen, adxlen)`` as a convenience over the full DMI
+    computation, so the bridge synthesises it by projecting ``dmi()[2]``.
+
+    Both parameters gate warm-up: the true-range machinery inside
+    ``ta.dmi`` needs ``dilen`` bars for the +DI / -DI channels, and
+    ``adxlen`` further bars for the ADX smoothing (Wilder's RMA) on top.
+    Returns ``NA`` throughout warm-up.
+
+    Per :mod:`openbb_pine.compiler.builtin_signatures` the compile-time
+    signature is ``(dilen: simple<int>, adxlen: simple<int>) -> series<float>``.
+    ``ta.adx`` is NOT one of the 29 PRD §3.2 Phase-1 builtins; Wave 5B-2
+    added its registry entry alongside this bridge because the parent
+    bead spec ``0e9.5.26`` names it explicitly.
+    """
+    return _pyne_ta.dmi(dilen, adxlen)[2]
+
+
+def mfi(source, length: int):
+    """Pine ``ta.mfi(source, length)`` — Money Flow Index.
+
+    Delegates to :func:`pynecore.lib.ta.mfi`. Volume-weighted RSI: the
+    up / down "money flow" is ``volume * source`` gated by whether
+    ``ta.change(source)`` is positive or negative, then folded through
+    ``100 - 100/(1 + upper/lower)`` (analogous to RSI but without the
+    Wilder smoothing).
+
+    Per :mod:`openbb_pine.compiler.builtin_signatures` the compile-time
+    signature is ``(src: series<float>, length: simple<int>) -> series<float>``.
+    Requires ``volume`` to be present on the OHLCV stream — the executor's
+    ``BYODataProvider`` validation catches missing-volume up front.
+    """
+    return _pyne_ta.mfi(source, length)
+
+
+__all__ += ["rsi", "stoch", "cci", "adx", "mfi"]

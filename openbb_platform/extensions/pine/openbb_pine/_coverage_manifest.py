@@ -56,6 +56,22 @@ BUILTINS_IMPLEMENTED: frozenset[str] = frozenset({
     "ta.cci",
     "ta.adx",
     "ta.mfi",
+    # Wave 5B-4: signals + transforms + rolling utilities
+    # (S-beads 0e9.5.{30,31,32,33,35,36,37,40,41,42,43,44}). Parent recovery
+    # after subagent partial-landing: bridges + fixtures shipped, coverage
+    # manifest + tests added here.
+    "ta.crossover",
+    "ta.crossunder",
+    "ta.highest",
+    "ta.lowest",
+    "ta.change",
+    "ta.mom",
+    "ta.roc",
+    "ta.linreg",
+    "ta.median",
+    "ta.percentile_linear_interpolation",
+    "ta.cum",
+    "ta.barssince",
     # Wave 5B-5: math.* namespace (S-beads 0e9.5.45-51).
     "math.abs",
     "math.max",
