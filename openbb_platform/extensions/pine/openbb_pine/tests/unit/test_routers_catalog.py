@@ -2,8 +2,11 @@
 
 Pin the two read-only GET endpoints:
 
-* ``/pine/indicators/list`` returns an empty list + a warning at M1
-  (bundled indicators land with the P2 widgets bead).
+* ``/pine/indicators/list`` returns the bundled-widget catalog loaded from
+  :func:`openbb_pine._load_bundled_widgets`. Wave 5B-5 (P2 bead 0e9.5.53)
+  ships the first entry — ``pine_bollinger_bands``. When the catalog is
+  empty (widgets.json removed for a dev build) the endpoint returns
+  ``[]`` plus a ``PineCatalogEmpty`` warning.
 * ``/pine/builtins/coverage`` reads the
   :mod:`openbb_pine._coverage_manifest` frozensets verbatim — Phase 0
   baseline = all counts at zero, ``pine_versions_known`` always [5, 6].
@@ -35,19 +38,22 @@ def test_indicators_list_returns_obbject_list():
     assert isinstance(obj.results, list)
 
 
-def test_indicators_list_empty_at_m1():
-    """At M1 there are no bundled indicators (Workspace widgets are P2)."""
-    from openbb_pine.routers.catalog_router import indicators_list
+def test_indicators_list_empty_when_widgets_missing(monkeypatch):
+    """When widgets.json is absent, the endpoint returns ``[]`` cleanly."""
+    import openbb_pine.routers.catalog_router as cr
 
-    obj = indicators_list()
+    monkeypatch.setattr(cr, "_load_bundled_widgets", lambda: {})
+    obj = cr.indicators_list()
     assert obj.results == []
 
 
-def test_indicators_list_carries_empty_warning_at_m1():
-    """The empty catalog must surface a warning so callers know it's intentional."""
-    from openbb_pine.routers.catalog_router import indicators_list
+def test_indicators_list_carries_empty_warning_when_widgets_missing(monkeypatch):
+    """Empty catalog must surface a warning so callers can distinguish
+    'intentional empty' from 'endpoint broken'."""
+    import openbb_pine.routers.catalog_router as cr
 
-    obj = indicators_list()
+    monkeypatch.setattr(cr, "_load_bundled_widgets", lambda: {})
+    obj = cr.indicators_list()
     assert obj.warnings is not None
     assert len(obj.warnings) == 1
     w = obj.warnings[0]
@@ -55,23 +61,43 @@ def test_indicators_list_carries_empty_warning_at_m1():
     assert "Phase 1" in w.message or "bundled indicators" in w.message
 
 
-def test_indicators_list_returns_entries_when_catalog_populated(monkeypatch):
-    """Once bundled indicators land, the warning drops and the list populates."""
+def test_indicators_list_populated_from_widgets_json(monkeypatch):
+    """When the catalog is populated, the warning drops and each widget
+    surfaces as a typed :class:`BundledIndicatorEntry`."""
     import openbb_pine.routers.catalog_router as cr
 
-    entry = BundledIndicatorEntry(
-        name="bollinger_bands",
-        pine_source_path="bundled/bb.pine",
-        description="Bollinger Bands",
-        category="indicator",
-        pine_version=6,
+    fake_widget = {
+        "name": "Pine — Bollinger Bands",
+        "description": "20-period Bollinger Bands (2σ) via openbb-pine.",
+        "category": "technical-analysis",
+        "type": "chart",
+        "endpoint": "/api/v1/pine/run",
+    }
+    monkeypatch.setattr(
+        cr, "_load_bundled_widgets", lambda: {"pine_bollinger_bands": fake_widget}
     )
-    monkeypatch.setattr(cr, "_BUNDLED_INDICATORS", [entry])
     obj = cr.indicators_list()
     assert len(obj.results) == 1
-    assert obj.results[0].name == "bollinger_bands"
-    # No warning when the list is populated.
+    entry = obj.results[0]
+    assert isinstance(entry, BundledIndicatorEntry)
+    assert entry.name == "Pine — Bollinger Bands"
+    assert entry.pine_source_path == "inline:pine_bollinger_bands"
+    assert entry.description.startswith("20-period Bollinger Bands")
+    assert entry.pine_version == 6
+    # No warning when populated.
     assert obj.warnings is None
+
+
+def test_indicators_list_surfaces_shipped_bollinger_widget():
+    """Integration-shape: the shipped widgets.json contains one entry
+    named 'Pine — Bollinger Bands' (D3 §16 / PRD §8.1 M1 gate (c))."""
+    from openbb_pine.routers.catalog_router import indicators_list
+
+    obj = indicators_list()
+    names = [e.name for e in obj.results]
+    assert "Pine — Bollinger Bands" in names, (
+        f"P2 widget missing from catalog; got names={names!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

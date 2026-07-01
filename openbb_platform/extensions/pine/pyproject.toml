@@ -6,6 +6,11 @@ authors = ["Prashant Rajoria"]
 license = "AGPL-3.0-only"
 readme = "README.md"
 packages = [{ include = "openbb_pine" }]
+# Ship the bundled-widget catalog (P2 bead 0e9.5.53) inside the built
+# wheel / sdist. Poetry excludes non-Python files by default; this list
+# calls them back in. Wildcards keep future additions (assets/*.pine,
+# assets/*.svg) auto-included without a pyproject touch.
+include = ["openbb_pine/assets/*"]
 
 [tool.poetry.dependencies]
 # PRD 16.1 - Python pin
