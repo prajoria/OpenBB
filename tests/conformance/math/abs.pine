@@ -1,0 +1,11 @@
+// Pine conformance fixture — math.abs.
+// Hand-authored per PRD §2.1 (clean-room): no TradingView / community
+// source consulted while writing this pair.
+//
+// Shape: absolute value of a de-meaned close series (close - open) is a
+// signed number; ``math.abs`` flips negatives to positives while leaving
+// zeros / positives untouched. The reference CSV lists the expected
+// per-bar output.
+//@version=6
+indicator("math_abs", overlay=false)
+plot(math.abs(close - open), title="abs_val")

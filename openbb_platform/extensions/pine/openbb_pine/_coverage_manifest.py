@@ -50,6 +50,20 @@ BUILTINS_IMPLEMENTED: frozenset[str] = frozenset({
     "ta.wma",
     "ta.rma",
     "ta.macd",
+    # Wave 5B-2: momentum + oscillators (S-beads 0e9.5.20, 24-27).
+    "ta.rsi",
+    "ta.stoch",
+    "ta.cci",
+    "ta.adx",
+    "ta.mfi",
+    # Wave 5B-5: math.* namespace (S-beads 0e9.5.45-51).
+    "math.abs",
+    "math.max",
+    "math.min",
+    "math.pow",
+    "math.round",
+    "math.sqrt",
+    "math.sum",
 })
 """Fully-qualified Pine builtin identifiers implemented (not stubbed)."""
 

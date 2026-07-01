@@ -1,0 +1,8 @@
+// Pine conformance fixture — math.min (N-ary form).
+// Hand-authored per PRD §2.1 (clean-room).
+//
+// Shape: per-bar minimum across (close, open). Pine's ``math.min`` is
+// N-ary — the same construct scales to arbitrarily many series.
+//@version=6
+indicator("math_min", overlay=false)
+plot(math.min(close, open), title="min_val")

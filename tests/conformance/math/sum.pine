@@ -1,0 +1,9 @@
+// Pine conformance fixture — math.sum (rolling window).
+// Hand-authored per PRD §2.1 (clean-room).
+//
+// Shape: rolling 3-bar sum. First (length-1) = 2 bars are ``NA`` per
+// Pine's warm-up convention; subsequent bars are the exact
+// Kahan-summed window sum.
+//@version=6
+indicator("math_sum", overlay=false)
+plot(math.sum(close, 3), title="sum3")

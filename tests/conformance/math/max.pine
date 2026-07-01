@@ -1,0 +1,8 @@
+// Pine conformance fixture — math.max (N-ary form).
+// Hand-authored per PRD §2.1 (clean-room).
+//
+// Shape: per-bar maximum across (close, open). Pine's ``math.max`` is
+// N-ary — the same construct scales to arbitrarily many series.
+//@version=6
+indicator("math_max", overlay=false)
+plot(math.max(close, open), title="max_val")

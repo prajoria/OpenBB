@@ -1,0 +1,8 @@
+// Pine conformance fixture — math.pow.
+// Hand-authored per PRD §2.1 (clean-room).
+//
+// Shape: ``close`` squared. Reference on a 2, 3, 4, 5, 6 close series
+// is 4, 9, 16, 25, 36.
+//@version=6
+indicator("math_pow", overlay=false)
+plot(math.pow(close, 2), title="pow_close")

@@ -24,10 +24,11 @@ qualifiers via :data:`openbb_pine.compiler.builtin_signatures.BUILTIN_SIGNATURES
 
 from __future__ import annotations
 
-__all__ = ["ta"]
+__all__ = ["math", "ta"]
 
 # Bridges are attribute-accessed via ``openbb_pine.stdlib.ta.sma`` etc.
 # Import is lazy at module level so a missing PyneCore (dev-env quirk)
 # fails on first *use* with a clear import trace rather than at package
 # import time.
+from openbb_pine.stdlib import math  # noqa: E402  (re-export)
 from openbb_pine.stdlib import ta  # noqa: E402  (re-export)

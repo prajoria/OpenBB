@@ -1,0 +1,9 @@
+// Pine conformance fixture — math.sqrt.
+// Hand-authored per PRD §2.1 (clean-room).
+//
+// Shape: principal square root of ``close``. On a monotonic close
+// sequence 4, 9, 16, 25, 36 the reference is the exact integers
+// 2, 3, 4, 5, 6.
+//@version=6
+indicator("math_sqrt", overlay=false)
+plot(math.sqrt(close), title="sqrt_close")

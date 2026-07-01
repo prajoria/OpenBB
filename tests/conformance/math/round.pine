@@ -1,0 +1,9 @@
+// Pine conformance fixture — math.round (default precision).
+// Hand-authored per PRD §2.1 (clean-room).
+//
+// Shape: rounding a fractional close to the nearest integer. Bankers'
+// rounding rounds ties to even, so 100.5 -> 100 and 101.5 -> 102 (both
+// even). The reference CSV lists the expected per-bar output.
+//@version=6
+indicator("math_round", overlay=false)
+plot(math.round(close), title="round_val")
