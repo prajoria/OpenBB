@@ -128,7 +128,7 @@ def _parse_iso_datetime(s: str | datetime | None) -> datetime | None:
     ],
 )
 async def run(
-    source: Annotated[str, Field(min_length=1, description="Pine v5 or v6 source.")],
+    source: str,
     provider: Annotated[
         str | None, Field(description='"fmp" or "fmp_cached" — PRD §13.8 locks the set.')
     ] = None,
@@ -138,8 +138,8 @@ async def run(
     interval: Annotated[
         str | None, Field(description='Bar interval, e.g. "1d", "1h".')
     ] = None,
-    start: Annotated[str | None, Field(description="ISO date.")] = None,
-    end: Annotated[str | None, Field(description="ISO date.")] = None,
+    start: str | None = None,
+    end: str | None = None,
     params: Annotated[
         dict[str, Any] | None, Field(description="Pine input overrides.")
     ] = None,

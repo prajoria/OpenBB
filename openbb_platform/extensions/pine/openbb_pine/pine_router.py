@@ -61,6 +61,16 @@ _include_subrouters()
 
 
 @router.command(methods=["GET"])
-def about() -> OBBject[PineAbout]:
-    """Return pine extension metadata (PRD section 16.3)."""
+def about() -> OBBject:
+    """Return pine extension metadata (PRD section 16.3).
+
+    Bare ``OBBject`` (not ``OBBject[PineAbout]``) — the static package
+    builder generates ``openbb.package.pine`` from this annotation and
+    would need to import ``PineAbout`` from us to parametrize the
+    typed variant; the auto-gen tooling doesn't wire that import through,
+    so ``obb.pine.about()`` breaks at package-load time with ``NameError:
+    name 'PineAbout' is not defined``. Caught by real-world smoke bead
+    0e9.5.63 (smoke test STEP 2). See ``about.py::about()`` note for
+    the mirror decision at the implementation site.
+    """
     return _about_impl()

@@ -123,16 +123,16 @@ def _maybe_typecheck_builtins(parsed_program: Any) -> list[str]:
         PythonEx(
             description="Compile a v6 indicator source (codegen returns a stub at M1).",
             code=[
-                'src = """//@version=6\\nindicator(\\"BB\\")\\nplot(close)"""',
+                'src = open("bb.pine").read()',
                 "obb.pine.compile(source=src)",
             ],
         ),
     ],
 )
 def compile(  # noqa: A001 - public name is the API contract
-    source: Annotated[str, Field(min_length=1, description="Pine v5 or v6 source.")],
+    source: str,
     target_version: Annotated[int, Field(ge=5, le=6, description="Pine version (5 or 6).")] = 6,
-) -> OBBject[PineCompileResponse]:
+) -> OBBject:
     """Translate Pine source to Python without executing it.
 
     Lexes + parses ``source`` via the Wave-1A / Wave-2A pipeline; on

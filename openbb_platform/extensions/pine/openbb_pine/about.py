@@ -119,13 +119,22 @@ class PineAbout(BaseModel):
 # ----------------------------------------------------------------------
 
 
-def about() -> OBBject[PineAbout]:
+def about() -> OBBject:
     """Return pine extension metadata (PRD §16.3).
 
     Every field is sourced from real state via the shared ``diagnostics``
     module — same backend as ``openbb-pine doctor``. ``doctor_issues``
     contains the *names* of failing checks (status == "fail"), matching the
     one-line-fix promise of PRD §16.3.
+
+    Return type note: **bare `OBBject`** (not `OBBject[PineAbout]`) —
+    matches the techtrade extension's `about()` convention. The static
+    package builder generates a facade that would need to import
+    `PineAbout` from us to parametrize the annotation, and the auto-gen
+    tooling doesn't wire that import through; a typed return therefore
+    breaks `obb.pine.about()` at package-load time with a NameError.
+    Caught by real-world smoke bead 0e9.5.63; documented in D3 §5 as an
+    exception to the general "typed for stable-key returns" rule.
     """
     try:
         ext_version = version("openbb-extension-pine")

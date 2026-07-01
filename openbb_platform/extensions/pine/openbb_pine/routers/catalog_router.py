@@ -99,7 +99,7 @@ def indicators_list() -> OBBject[list[BundledIndicatorEntry]]:
 
 
 @router.command(methods=["GET"], path="/builtins/coverage")
-def builtins_coverage() -> OBBject[BuiltinsCoverage]:
+def builtins_coverage() -> OBBject:
     """Report which Pine builtins / grammar features / versions are implemented.
 
     Reads :mod:`openbb_pine._coverage_manifest` (the single source of

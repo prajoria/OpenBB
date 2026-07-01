@@ -62,7 +62,7 @@ def _derive_status(
 
 
 @router.command(methods=["GET"])
-def health() -> OBBject[PineHealth]:
+def health() -> OBBject:
     """Report extension health for ops dashboards / load-balancer probes.
 
     The response carries the §2.6 attribution surface #3 string verbatim
