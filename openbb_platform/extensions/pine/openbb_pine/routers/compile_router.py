@@ -131,7 +131,7 @@ def _maybe_typecheck_builtins(parsed_program: Any) -> list[str]:
 )
 def compile(  # noqa: A001 - public name is the API contract
     source: str,
-    target_version: Annotated[int, Field(ge=5, le=6, description="Pine version (5 or 6).")] = 6,
+    target_version: int = 6,
 ) -> OBBject:
     """Translate Pine source to Python without executing it.
 

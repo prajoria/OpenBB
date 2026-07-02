@@ -53,30 +53,15 @@ _STRATEGY_TRACKING_URL = (
 )
 async def run(
     source: str,
-    provider: Annotated[
-        str | None, Field(description='"fmp" or "fmp_cached" — PRD §13.8.')
-    ] = None,
-    symbol: Annotated[
-        str | None, Field(description="Ticker — required in provider mode.")
-    ] = None,
-    interval: Annotated[
-        str | None, Field(description='Bar interval, e.g. "1d", "1h".')
-    ] = None,
+    provider: str | None = None,
+    symbol: str | None = None,
+    interval: str | None = None,
     start: str | None = None,
     end: str | None = None,
-    params: Annotated[
-        dict[str, Any] | None, Field(description="Pine input overrides.")
-    ] = None,
-    data: Annotated[
-        PineByoData | None, Field(description="BYO OHLCV payload.")
-    ] = None,
-    strategy_params: Annotated[
-        dict[str, Any] | None,
-        Field(description="Strategy-specific overrides (capital, fees, slippage)."),
-    ] = None,
-    timeout_s: Annotated[
-        int | None, Field(ge=1, description="Per-script wall-clock cap.")
-    ] = None,
+    params: dict[str, Any] | None = None,
+    data: PineByoData | None = None,
+    strategy_params: dict[str, Any] | None = None,
+    timeout_s: int | None = None,
 ) -> OBBject:
     """Run a Pine strategy — M1 returns 501 always (D3 §4.3).
 
