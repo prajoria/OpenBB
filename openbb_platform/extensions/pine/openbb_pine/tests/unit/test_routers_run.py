@@ -1,9 +1,14 @@
 """Tests for :mod:`openbb_pine.routers.run_router` and ``strategies_router``.
 
-Post-flip (bead 0e9.5.61) — /pine/run now calls the real compile → execute
-chain. Tests mock ``run_compiled`` so they stay hermetic (no FMP key
-required, no real network). Real end-to-end integration lives at
-``tests/integration/test_pine_run_e2e.py``.
+Facade-split per bead 0e9.11 (smoke test 0e9.9 STEP 4 finding): the single
+``/pine/run`` endpoint was split into ``/pine/run`` (provider-only) and
+``/pine/run_byo`` (BYO records-only) to sidestep openbb-core ``@validate``
+``Union[list, dict, DataFrame, Data, …]`` coercion that rejected the
+``data`` param's ``None`` default.
+
+Tests mock ``run_compiled`` + ``compile_pine`` so they stay hermetic
+(no FMP key required, no real network). Real end-to-end integration lives
+at ``tests/integration/test_pine_run_e2e.py``.
 
 /pine/strategies/run still returns HTTP 501 at M1 (strategies land at M2
 per PRD §3.2).
@@ -12,7 +17,7 @@ per PRD §3.2).
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from openbb_core.app.model.obbject import OBBject
@@ -22,7 +27,6 @@ from openbb_pine.errors import (
     PineProviderError,
     PineStrategyNotYetImplementedError,
 )
-from openbb_pine.routers._models import PineByoData
 
 
 def _run_async(coro):
@@ -48,8 +52,21 @@ def _fake_obbject() -> OBBject:
     )
 
 
+def _mock_compiled():
+    """Minimal CompiledModule-like object compile_pine returns."""
+    m = MagicMock()
+    m.source = "# fake compiled"
+    m.sha = "deadbeef" * 8
+    m.pine_version = 6
+    m.compiler_version = "0.1.0"
+    m.builtins_used = frozenset({"close", "plot"})
+    m.security_contexts = None
+    m.cache_status = "hit"
+    return m
+
+
 # ---------------------------------------------------------------------------
-# /pine/run — real compile+execute path (mocked runtime)
+# /pine/run — provider mode
 # ---------------------------------------------------------------------------
 
 
@@ -57,23 +74,26 @@ def test_run_valid_fmp_request_reaches_run_compiled():
     """Valid FMP request flows through compile_pine + run_compiled to OBBject."""
     from openbb_pine.routers.run_router import run
 
-    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run:
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
         mock_run.return_value = _fake_obbject()
         result = _run_async(run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL"))
 
     assert isinstance(result, OBBject)
     assert mock_run.called
-    kwargs = mock_run.call_args.kwargs
-    # provider_or_data is the provider string in this path
-    assert kwargs["provider_or_data"] == "fmp"
-    assert kwargs["symbol"] == "AAPL"
+    kw = mock_run.call_args.kwargs
+    assert kw["provider_or_data"] == "fmp"
+    assert kw["symbol"] == "AAPL"
 
 
 def test_run_returns_obbject_with_attribution_and_extra_keys():
     """OBBject carries D2 §6.1 .extra keys (surface #1 attribution path)."""
     from openbb_pine.routers.run_router import run
 
-    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run:
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
         mock_run.return_value = _fake_obbject()
         result = _run_async(run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL"))
 
@@ -88,65 +108,25 @@ def test_run_fmp_cached_provider_flows_through():
     """``fmp_cached`` reaches run_compiled with that provider name."""
     from openbb_pine.routers.run_router import run
 
-    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run:
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
         mock_run.return_value = _fake_obbject()
         _run_async(run(source=_TRIVIAL_SRC, provider="fmp_cached", symbol="AAPL"))
 
     assert mock_run.call_args.kwargs["provider_or_data"] == "fmp_cached"
 
 
-def test_run_byo_records_materialises_to_dataframe():
-    """BYO records payload becomes pd.DataFrame threaded into run_compiled."""
-    import pandas as pd
+def test_run_default_provider_is_fmp_cached():
+    """Default provider = 'fmp_cached' per PRD §16.1 recommendation."""
     from openbb_pine.routers.run_router import run
 
-    records = [
-        {"date": "2024-01-02T00:00:00Z", "open": 184.1, "high": 186.4,
-         "low": 183.9, "close": 185.6, "volume": 52341900},
-        {"date": "2024-01-03T00:00:00Z", "open": 185.6, "high": 187.0,
-         "low": 184.2, "close": 186.8, "volume": 48200100},
-    ]
-    data = PineByoData(format="records", records=records)
-
-    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run:
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
         mock_run.return_value = _fake_obbject()
-        _run_async(run(source=_TRIVIAL_SRC, data=data, symbol="PRIVATE"))
-
-    passed = mock_run.call_args.kwargs["provider_or_data"]
-    assert isinstance(passed, pd.DataFrame)
-    assert list(passed.columns) == ["open", "high", "low", "close", "volume"]
-    assert len(passed) == 2
-    assert passed.index.tz is not None  # tz-aware per BYODataProvider schema
-
-
-def test_run_byo_parquet_url_not_yet_wired():
-    """Non-records BYO formats raise PineDataValidationError at M1 per PRD §4.10."""
-    from openbb_pine.routers.run_router import run
-
-    data = PineByoData(format="parquet_url", url="https://example/x.parquet")
-    with pytest.raises(PineDataValidationError) as ei:
-        _run_async(run(source=_TRIVIAL_SRC, data=data, symbol="X"))
-    assert "records" in str(ei.value)
-    assert "parquet_url" in str(ei.value)
-
-
-def test_run_byo_empty_records_raises():
-    """Empty records list is a schema defect — caught at PineByoData model layer."""
-    from pydantic import ValidationError
-
-    with pytest.raises(ValidationError) as ei:
-        PineByoData(format="records", records=[])
-    assert "non-empty" in str(ei.value).lower() or "records" in str(ei.value).lower()
-
-
-def test_run_byo_missing_date_column_raises():
-    """Records without a date column are rejected."""
-    from openbb_pine.routers.run_router import run
-
-    data = PineByoData(format="records", records=[{"close": 1.0}])
-    with pytest.raises(PineDataValidationError) as ei:
-        _run_async(run(source=_TRIVIAL_SRC, data=data, symbol="X"))
-    assert "date" in str(ei.value).lower()
+        _run_async(run(source=_TRIVIAL_SRC))
+    assert mock_run.call_args.kwargs["provider_or_data"] == "fmp_cached"
 
 
 def test_run_non_fmp_provider_raises_pine_provider_error_first():
@@ -157,41 +137,25 @@ def test_run_non_fmp_provider_raises_pine_provider_error_first():
     """
     from openbb_pine.routers.run_router import run
 
-    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run:
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
         with pytest.raises(PineProviderError) as ei:
             _run_async(run(source=_TRIVIAL_SRC, provider="yahoo", symbol="AAPL"))
-    # run_compiled must NOT have been called
     assert not mock_run.called
+    assert not mock_compile.called
     msg = str(ei.value).lower()
     assert "fmp" in msg
     assert "yahoo" in msg
 
 
-def test_run_without_provider_or_data_raises_validation_error():
-    """At least one of provider+symbol or data must be set."""
-    from openbb_pine.routers.run_router import run
-
-    with pytest.raises((ValueError, Exception)) as ei:
-        _run_async(run(source=_TRIVIAL_SRC))
-    cls_name = type(ei.value).__name__
-    assert cls_name in ("ValueError", "ValidationError")
-
-
-def test_run_provider_without_symbol_raises_validation_error():
-    from openbb_pine.routers.run_router import run
-
-    with pytest.raises((ValueError, Exception)) as ei:
-        _run_async(run(source=_TRIVIAL_SRC, provider="fmp"))
-    cls_name = type(ei.value).__name__
-    assert cls_name in ("ValueError", "ValidationError")
-
-
-def test_run_iso_dates_parsed_to_utc_datetimes():
+def test_run_iso_dates_pass_through_to_run_compiled():
     """`start`/`end` ISO strings become tz-aware UTC datetimes for run_compiled."""
     from datetime import datetime, timezone as tz
     from openbb_pine.routers.run_router import run
 
-    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run:
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
         mock_run.return_value = _fake_obbject()
         _run_async(run(
             source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL",
@@ -209,7 +173,9 @@ def test_run_threads_params_and_timeout_through():
     """`params` and `timeout_s` reach run_compiled."""
     from openbb_pine.routers.run_router import run
 
-    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run:
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
         mock_run.return_value = _fake_obbject()
         _run_async(run(
             source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL",
@@ -218,6 +184,102 @@ def test_run_threads_params_and_timeout_through():
     kw = mock_run.call_args.kwargs
     assert kw["params"] == {"length": 20}
     assert kw["timeout_s"] == 15
+
+
+# ---------------------------------------------------------------------------
+# /pine/run_byo — BYO records mode
+# ---------------------------------------------------------------------------
+
+
+def _sample_records(n: int = 3) -> list[dict]:
+    return [
+        {"date": f"2024-01-{2+i:02d}T00:00:00Z", "open": 100.0 + i, "high": 101.0 + i,
+         "low": 99.0 + i, "close": 100.5 + i, "volume": 1_000_000}
+        for i in range(n)
+    ]
+
+
+def test_run_byo_records_materialises_to_dataframe():
+    """BYO records list becomes pd.DataFrame threaded into run_compiled."""
+    import pandas as pd
+    from openbb_pine.routers.run_router import run_byo
+
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
+        mock_run.return_value = _fake_obbject()
+        _run_async(run_byo(source=_TRIVIAL_SRC, records=_sample_records(3), symbol="X"))
+
+    passed = mock_run.call_args.kwargs["provider_or_data"]
+    assert isinstance(passed, pd.DataFrame)
+    assert list(passed.columns) == ["open", "high", "low", "close", "volume"]
+    assert len(passed) == 3
+    assert passed.index.tz is not None
+
+
+def test_run_byo_default_symbol_is_byo():
+    """Symbol defaults to 'BYO' when not specified."""
+    from openbb_pine.routers.run_router import run_byo
+
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
+        mock_run.return_value = _fake_obbject()
+        _run_async(run_byo(source=_TRIVIAL_SRC, records=_sample_records(3)))
+    assert mock_run.call_args.kwargs["symbol"] == "BYO"
+
+
+def test_run_byo_empty_records_raises_pine_data_validation():
+    """Empty records list is a schema defect handled by _byo_records_to_dataframe."""
+    from openbb_pine.routers.run_router import run_byo
+
+    with pytest.raises(PineDataValidationError) as ei:
+        _run_async(run_byo(source=_TRIVIAL_SRC, records=[]))
+    assert "empty" in str(ei.value).lower()
+
+
+def test_run_byo_missing_date_column_raises():
+    """Records without a date column are rejected."""
+    from openbb_pine.routers.run_router import run_byo
+
+    with pytest.raises(PineDataValidationError) as ei:
+        _run_async(run_byo(source=_TRIVIAL_SRC, records=[{"close": 1.0}]))
+    assert "date" in str(ei.value).lower()
+
+
+def test_run_byo_tz_localisation_works():
+    """Non-UTC tz records get localised then converted to UTC."""
+    import pandas as pd
+    from openbb_pine.routers.run_router import run_byo
+
+    records = [
+        {"date": "2024-01-02T09:30:00", "open": 100.0, "high": 101.0,
+         "low": 99.0, "close": 100.5, "volume": 1_000_000},
+    ]
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
+        mock_run.return_value = _fake_obbject()
+        _run_async(run_byo(source=_TRIVIAL_SRC, records=records, tz="America/New_York"))
+
+    df = mock_run.call_args.kwargs["provider_or_data"]
+    assert isinstance(df, pd.DataFrame)
+    # After tz-localise + convert to UTC, 09:30 New_York (EST) = 14:30 UTC
+    assert df.index[0].tz is not None
+
+
+def test_run_byo_does_not_call_resolve_provider():
+    """BYO mode skips provider validation entirely."""
+    from openbb_pine.routers.run_router import run_byo
+
+    with patch("openbb_pine.routers.run_router.resolve_provider") as mock_rp, \
+         patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
+        mock_run.return_value = _fake_obbject()
+        _run_async(run_byo(source=_TRIVIAL_SRC, records=_sample_records(3)))
+
+    assert not mock_rp.called
 
 
 # ---------------------------------------------------------------------------
@@ -232,22 +294,6 @@ def test_strategies_run_raises_501_always_m1():
         _run_async(run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL"))
     assert "M2" in str(ei.value)
     assert "0e9.5.6" in str(ei.value)
-
-
-def test_strategies_run_501_even_with_byo_data():
-    from openbb_pine.routers.strategies_router import run
-
-    data = PineByoData(format="records", records=[{"close": 1.0}])
-    with pytest.raises(PineStrategyNotYetImplementedError):
-        _run_async(run(source=_TRIVIAL_SRC, data=data))
-
-
-def test_strategies_run_501_even_with_no_provider_or_data():
-    """M1 strategies router does not validate input shape; always 501."""
-    from openbb_pine.routers.strategies_router import run
-
-    with pytest.raises(PineStrategyNotYetImplementedError):
-        _run_async(run(source=_TRIVIAL_SRC))
 
 
 def test_strategies_run_501_carries_strategy_params():
@@ -269,11 +315,12 @@ def test_strategies_run_501_carries_strategy_params():
 # ---------------------------------------------------------------------------
 
 
-def test_run_router_registers_run_route():
+def test_run_router_registers_both_run_and_run_byo():
     from openbb_pine.routers.run_router import router
 
     paths = {r.path for r in router.api_router.routes}
     assert "/run" in paths
+    assert "/run_byo" in paths
 
 
 def test_strategies_router_registers_run_route_under_strategies():

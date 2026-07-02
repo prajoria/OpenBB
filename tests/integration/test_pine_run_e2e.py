@@ -1,10 +1,17 @@
-"""End-to-end test for :func:`openbb_pine.routers.run_router.run` (bead 0e9.5.61).
+"""End-to-end test for :func:`openbb_pine.routers.run_router.run_byo`
+(beads 0e9.5.61 + 0e9.11).
 
-Proves the full compile-then-execute pipeline is wired: the `_smoke.pine`
-conformance fixture (a real Pine v6 indicator) reaches the endpoint,
-compiles via ``compile_pine()``, runs through ``run_compiled()`` against
-a BYO ``pandas.DataFrame`` (so no FMP key required), and returns an
-OBBject with the expected shape.
+Proves the full compile-then-execute pipeline is wired end-to-end via
+``run_byo(source, records=..., symbol=...)``: the ``_smoke.pine`` fixture
+(a real Pine v6 indicator) reaches the endpoint, compiles via
+``compile_pine()``, runs through ``run_compiled()`` against a BYO
+``pandas.DataFrame`` (so no FMP key required), and returns an OBBject
+with the D2 §6.1 shape.
+
+Facade-split note (bead 0e9.11): the canonical single ``/pine/run``
+endpoint was split into ``/pine/run`` (provider-only) + ``/pine/run_byo``
+(BYO-records-only) to sidestep openbb-core's ``@validate`` union-coercion
+of the ``data`` param. These tests exercise the BYO endpoint end-to-end.
 
 FMP-provider mode is unit-tested via mock in test_routers_run.py; here we
 prefer BYO to keep the integration test hermetic.
@@ -19,8 +26,7 @@ import pandas as pd
 import pytest
 from openbb_core.app.model.obbject import OBBject
 
-from openbb_pine.routers._models import PineByoData
-from openbb_pine.routers.run_router import run
+from openbb_pine.routers.run_router import run_byo
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -58,11 +64,9 @@ def test_pine_run_e2e_smoke_fixture_via_byo():
     assert _SMOKE_PINE.is_file(), f"Missing conformance fixture: {_SMOKE_PINE}"
     src = _SMOKE_PINE.read_text()
 
-    data = PineByoData(format="records", records=_byo_records_5_bars())
-
-    result = _run_async(run(
+    result = _run_async(run_byo(
         source=src,
-        data=data,
+        records=_byo_records_5_bars(),
         symbol="SMOKE",
     ))
 
@@ -106,12 +110,10 @@ def test_pine_run_e2e_cache_hit_on_second_call():
     """Second identical call is a cache hit — compile_pine returns from
     ~/.openbb/pine_cache/ without re-lexing/parsing/emitting."""
     src = _SMOKE_PINE.read_text()
-    data1 = PineByoData(format="records", records=_byo_records_5_bars())
-    data2 = PineByoData(format="records", records=_byo_records_5_bars())
 
     # First call — cache miss (or hit if a prior test warmed the cache).
-    _run_async(run(source=src, data=data1, symbol="SMOKE"))
+    _run_async(run_byo(source=src, records=_byo_records_5_bars(), symbol="SMOKE"))
     # Second call — should be a cache hit regardless of first-call state.
-    result2 = _run_async(run(source=src, data=data2, symbol="SMOKE"))
+    result2 = _run_async(run_byo(source=src, records=_byo_records_5_bars(), symbol="SMOKE"))
 
     assert result2.extra["compile_cache_hit"] is True
