@@ -999,6 +999,79 @@ Installing `openbb-extension-pine` must not:
 
 Each of these is a Phase 1 acceptance gate.
 
+### 16.6 M1 shipping findings (post-smoke-test amendments)
+
+Added post-M1 smoke-test verification (bead `0e9.9`). Documents real-world
+gotchas the shipping code handles / callers should know about.
+
+#### 16.6.1 Facade split — `run` vs `run_byo`
+
+The single canonical `/pine/run` endpoint (D3 §4.1 as originally designed)
+had to be split into two disjoint-signature facade methods per bead `0e9.11`:
+
+- **`POST /pine/run`** — provider mode only. Params: `source`, `provider`,
+  `symbol`, `interval`, `start`, `end`, `params`, `timeout_s`. No `data`
+  param.
+- **`POST /pine/run_byo`** — BYO records only. Params: `source`, `records`
+  (`list[dict]`), `symbol`, `tz`, `params`, `timeout_s`. No `provider`,
+  `interval`, `start`, `end`.
+
+**Why**: `openbb_core.app.static.utils.decorators.validate` coerces
+signature params through a `Union[list, dict, DataFrame, Data, …]` that
+rejects `None` as the default value for a `data: PineByoData | None`
+param. The single-endpoint shape worked via direct API (`from
+openbb_pine.routers.run_router import run`) but failed via `obb.pine.run()`
+after the static package builder generated its facade. The split is
+purely at the facade layer — both methods share the internal
+`_compile_and_run()` helper, so runtime + compiler behavior is unchanged.
+
+**Impact on PRD §4.7 endpoint table**: 6 endpoints becomes 7. Widget +
+MCP registration + REST examples all name the new `/pine/run_byo` route
+alongside `/pine/run`.
+
+#### 16.6.2 FMP `/api/v3/profile` reachability caveat
+
+`openbb-pine doctor` includes a check that hits `GET /api/v3/profile/AAPL`
+to validate the user's FMP key + subscription tier. Some FMP plans exclude
+this endpoint even for valid keys (returns HTTP 401 despite a working
+non-profile endpoint list). The doctor surfaces this specifically:
+
+```
+[FAIL] FMP /api/v3/profile/AAPL reachable: FMP returned HTTP 401
+        → Verify the FMP API key is correct and the plan covers /profile.
+```
+
+**Action for M1 users**: BYO-data mode (`obb.pine.run_byo`) works regardless
+of FMP subscription tier. Provider-mode users on affected FMP plans
+should either upgrade or fall back to BYO mode.
+
+**Followup**: bead `0e9.15` (P2 scope) — replace the `/profile` check
+with a `/historical-price-full/AAPL?serietype=line&limit=1` probe that
+subscribers on lower tiers can still access. Not blocking M1 ship — the
+doctor error message is clear enough for users to route around.
+
+#### 16.6.3 `openbb.package.pine` static facade — typed-model prohibition
+
+The `openbb_core.app.static.package_builder` emits generated facade
+methods with return-type annotations copied verbatim from the router's
+`@router.command def X() -> OBBject[T]:` signature — but does **not**
+generate imports for custom types `T`. This causes `NameError: name 'T'
+is not defined` at package-import time for any pine router that used
+`OBBject[PineAbout]`, `OBBject[PineHealth]`, `Annotated[T, Field(...)]`
+arg wrappers, or `data: PineByoData` param types.
+
+**Rule enforced across all pine `@router.command` sites**: signatures use
+**only** built-in Python types + bare `OBBject`. Custom Pydantic models
+may live inside `.results` at runtime but **must not appear** in the
+annotation surface. This is a hard invariant checked by the P6 attribution
++ P7 no-side-effect CI tests indirectly (they exercise `from openbb import
+obb`, which trips the NameError if a typed reference leaks in).
+
+**Bead `0e9.10`** tracks the underlying openbb-core generator gap. When
+that lands upstream, the pine constraint relaxes (typed models can return
+to the surface). Until then, bare `OBBject` is the rule.
+
+
 ---
 
 ## Appendix A — Trademark disclaimer template (placed in README + `/pine/health`)
