@@ -91,6 +91,32 @@ BUILTINS_IMPLEMENTED: frozenset[str] = frozenset({
     "ta.obv",
     "ta.vwap",
     "ta.sar",
+    # Post-Wave-5B curated-corpus alignment (bead 0e9.13): input.* + color.*
+    # constants ARE implicitly supported by the codegen (emits `from
+    # pynecore.lib import input, color`; PyneCore ships the full input/color
+    # namespaces). Add to BUILTINS_IMPLEMENTED so the L0.5 coverage metric
+    # doesn't misattribute them to "unsupported builtin" against real
+    # community scripts. Same reasoning for the essential str/math/na sugar.
+    "input.int",
+    "input.float",
+    "input.bool",
+    "input.string",
+    "input.source",
+    "color.blue",
+    "color.red",
+    "color.green",
+    "color.orange",
+    "color.purple",
+    "color.gray",
+    "color.white",
+    "color.black",
+    "color.yellow",
+    "color.new",
+    "str.tostring",
+    "str.tonumber",
+    "math.log",
+    "math.exp",
+    "math.sign",
 })
 """Fully-qualified Pine builtin identifiers implemented (not stubbed)."""
 

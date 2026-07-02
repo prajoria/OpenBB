@@ -59,6 +59,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INDEX_PATH = REPO_ROOT / "tests" / "wild_corpus" / "index.json"
+DEFAULT_CURATED_INDEX_PATH = REPO_ROOT / "tests" / "wild_corpus" / "curated_index.json"
 DEFAULT_BASELINE_PATH = (
     REPO_ROOT / "tools" / "pine" / "_baselines" / "wild_corpus_coverage.json"
 )
@@ -453,6 +454,28 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--curated-index-path",
+        type=Path,
+        default=DEFAULT_CURATED_INDEX_PATH,
+        help=(
+            "Path to the curated corpus JSON (M1 gate (f) source per D4 §Option C). "
+            f"Defaults to {DEFAULT_CURATED_INDEX_PATH.relative_to(REPO_ROOT)}."
+        ),
+    )
+    parser.add_argument(
+        "--corpus-source",
+        choices=["index", "curated", "combined"],
+        default="combined",
+        help=(
+            "Which corpus to measure against. 'index' is the TV-scraped "
+            "20-entry corpus (all source_visible=false; coverage always 0 or "
+            "unknown). 'curated' is the hand-authored fixture corpus (all "
+            "source_visible=true; M1 gate (f) source per D4 §Option C). "
+            "'combined' (default) unions both, prioritising deduplication by "
+            "url. M1 gate (f) is measured against 'curated' or 'combined'."
+        ),
+    )
+    parser.add_argument(
         "--pr-comment-out",
         type=Path,
         default=None,
@@ -494,10 +517,21 @@ def main(argv: list[str] | None = None) -> int:
 
     implemented = _load_implemented_baseline()
 
-    if not args.index_path.exists():
+    # Resolve which corpus paths to load based on --corpus-source.
+    paths_to_load: list[Path] = []
+    if args.corpus_source in ("index", "combined"):
+        paths_to_load.append(args.index_path)
+    if args.corpus_source in ("curated", "combined"):
+        paths_to_load.append(args.curated_index_path)
+
+    # Filter to paths that actually exist. If none exist, skip cleanly.
+    existing_paths = [p for p in paths_to_load if p.exists()]
+    if not existing_paths:
+        missing = ", ".join(str(p) for p in paths_to_load)
         payload = skipped_payload(
-            f"wild_corpus/index.json absent — run tools/pine/crawl_wild_corpus.py first "
-            f"(expected at {args.index_path})",
+            f"no corpus source available (checked: {missing}) — "
+            f"run tools/pine/crawl_wild_corpus.py or "
+            f"Tools/pine/fingerprint_curated_corpus.py first",
             implemented,
         )
         baseline = _load_baseline(args.baseline_json)
@@ -510,14 +544,23 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        index = _load_index(args.index_path)
+        index: list[dict[str, Any]] = []
+        seen_urls: set[str] = set()
+        for p in existing_paths:
+            for entry in _load_index(p):
+                url = entry.get("url")
+                if url and url in seen_urls:
+                    continue  # dedup across index + curated when combined
+                if url:
+                    seen_urls.add(url)
+                index.append(entry)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(  # noqa: T201 - CLI tool
             json.dumps(
                 {
                     "schema_version": SCHEMA_VERSION,
                     "status": "error",
-                    "error": f"failed to load index {args.index_path}: {exc}",
+                    "error": f"failed to load corpus: {exc}",
                 },
                 indent=2,
                 sort_keys=True,

@@ -205,28 +205,32 @@ def test_unknown_bucket_for_source_not_visible_scripts(empty_manifest):
 def test_missing_index_emits_skipped_status_and_exits_zero(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    """A missing tests/wild_corpus/index.json must NOT fail CI."""
+    """No corpus available at all (both index + curated missing) must NOT fail CI."""
     nonexistent = tmp_path / "absent.json"
+    nonexistent_curated = tmp_path / "absent-curated.json"
     assert not nonexistent.exists()
-    rc = mwc.main(["--index-path", str(nonexistent)])
+    rc = mwc.main([
+        "--index-path", str(nonexistent),
+        "--curated-index-path", str(nonexistent_curated),
+    ])
     assert rc == 0
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert payload["status"] == "skipped"
     assert payload["coverage_pct"] is None
-    assert "wild_corpus/index.json absent" in payload["reason"]
+    assert "no corpus source available" in payload["reason"]
 
 
 def test_missing_index_writes_skipped_pr_comment(tmp_path: Path):
     """`--pr-comment-out` is honored even on the skipped path."""
     nonexistent = tmp_path / "absent.json"
+    nonexistent_curated = tmp_path / "absent-curated.json"
     comment_path = tmp_path / "pr-comment.md"
     rc = mwc.main(
         [
-            "--index-path",
-            str(nonexistent),
-            "--pr-comment-out",
-            str(comment_path),
+            "--index-path", str(nonexistent),
+            "--curated-index-path", str(nonexistent_curated),
+            "--pr-comment-out", str(comment_path),
         ]
     )
     assert rc == 0

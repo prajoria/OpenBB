@@ -1,0 +1,922 @@
+[
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.sma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "_smoke",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/_smoke.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "math.abs"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "open",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "abs",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/math/abs.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "math.max"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "open",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "max",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/math/max.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "math.min"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "open",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "min",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/math/min.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "math.pow"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "pow",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/math/pow.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "math.round"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "round",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/math/round.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "math.sqrt"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "sqrt",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/math/sqrt.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "math.sum"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "sum",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/math/sum.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.dmi"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_adx",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_adx.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.atr"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_atr",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_atr.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.barssince"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_barssince",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_barssince.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.bb"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_bb",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_bb.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.cci"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_cci",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_cci.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.change"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_change",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_change.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.crossover"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot",
+      "ternary"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_crossover",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_crossover.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.crossunder"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot",
+      "ternary"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_crossunder",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_crossunder.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.cum"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_cum",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_cum.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.ema"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_ema",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_ema.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.highest"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_highest",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_highest.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.linreg"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_linreg",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_linreg.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.lowest"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_lowest",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_lowest.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.macd"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_macd",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_macd.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.median"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_median",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_median.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.mfi"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_mfi",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_mfi.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.mom"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_mom",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_mom.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.obv"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_obv",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_obv.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.percentile_linear_interpolation"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_percentile_linear_interpolation",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_percentile_linear_interpolation.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.rma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_rma",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_rma.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.roc"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_roc",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_roc.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.rsi"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_rsi",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_rsi.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.sar"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_sar",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_sar.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.sma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_sma",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_sma.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.stdev"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_stdev",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_stdev.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.stoch"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "high",
+      "indicator",
+      "low",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_stoch",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_stoch.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.tr"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_tr",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_tr.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.vwap"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_vwap",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_vwap.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "ta.wma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "ta_wma",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/conformance/ta_wma.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "color.blue",
+      "color.red",
+      "input.int",
+      "ta.rsi"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "input.int",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "combined_rewrites.v5",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/combined_rewrites.v5.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "color.blue",
+      "color.red",
+      "input.int",
+      "ta.rsi"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "input.int",
+      "plot",
+      "ternary"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "combined_rewrites.v6",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/combined_rewrites.v6.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "input.int",
+      "ta.sma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "function_def",
+      "high",
+      "input.int",
+      "low",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 5,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "custom_function.v5",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/custom_function.v5.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "input.int",
+      "ta.sma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "function_def",
+      "high",
+      "indicator",
+      "input.int",
+      "low",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "custom_function.v6",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/custom_function.v6.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "input.int",
+      "ta.rsi"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "input.int",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 5,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "iff_input.v5",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/iff_input.v5.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "input.int",
+      "ta.rsi"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "input.int",
+      "plot",
+      "ternary"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "iff_input.v6",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/iff_input.v6.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "color.blue",
+      "input.string"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "input.string",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "multi_v5_builtins.v5",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/multi_v5_builtins.v5.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "color.blue",
+      "input.string",
+      "request.security"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "input.string",
+      "plot",
+      "request.security"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "multi_v5_builtins.v6",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/multi_v5_builtins.v6.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "color.blue",
+      "input.int",
+      "ta.sma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "input.int",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "simple_sma.v5",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/simple_sma.v5.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "color.blue",
+      "input.int",
+      "ta.sma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "indicator",
+      "input.int",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "simple_sma.v6",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/simple_sma.v6.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "color.red",
+      "input.int",
+      "ta.sma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "function_def",
+      "input.int",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "typed_function_args.v5",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/typed_function_args.v5.pine"
+  },
+  {
+    "author": "author-derivative (PRD \u00a77.3)",
+    "builtins_used": [
+      "color.red",
+      "input.int",
+      "ta.sma"
+    ],
+    "crawled_at": "2026-07-02T05:50:39+00:00",
+    "features_used": [
+      "close",
+      "function_def",
+      "indicator",
+      "input.int",
+      "plot"
+    ],
+    "likes": null,
+    "pine_version": 6,
+    "script_type": "indicator",
+    "source_visible": true,
+    "title": "typed_function_args.v6",
+    "url": "file://H:/masterswork/git/OpenBBTechnical/tests/integration/v5_fixtures/typed_function_args.v6.pine"
+  }
+]
