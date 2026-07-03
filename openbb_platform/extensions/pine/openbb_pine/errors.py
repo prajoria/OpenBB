@@ -668,6 +668,57 @@ class PineFMPUnreachableError(PineProviderError):
         OpenBBError.__init__(self, text)
 
 
+class PineDataResolverError(PineError):
+    """A user-supplied ``data_resolver`` callable raised while fetching a
+    secondary series (D5 §4.2 / §4.3 — Python-API BYO escape hatch).
+
+    Runtime wraps the underlying exception so callers see a single
+    Pine-typed error rather than an arbitrary user-callable failure mode.
+    Preserves the original via ``__cause__`` (chained ``raise ... from``)
+    and stores structured fields for the REST error envelope (D3 §4.1) and
+    the CLI. This isn't a PineProviderError subclass because
+    ``data_resolver`` is not a provider — it's a bring-your-own hook.
+
+    Example::
+
+        raise PineDataResolverError(
+            symbol="MYPRIVATE",
+            timeframe="1D",
+            context_id="ctx_0",
+        ) from original_exc
+    """
+
+    code: str = "PineDataResolverError"
+
+    def __init__(
+        self,
+        *args: object,
+        symbol: str | None = None,
+        timeframe: str | None = None,
+        context_id: str | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.symbol: str | None = symbol
+        self.timeframe: str | None = timeframe
+        self.context_id: str | None = context_id
+        if tracking_url is not None:
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        else:
+            ctx = f" (context_id={context_id!r})" if context_id else ""
+            sym = f" symbol={symbol!r}" if symbol else ""
+            tf = f" timeframe={timeframe!r}" if timeframe else ""
+            text = f"user data_resolver failed{ctx}:{sym}{tf}"
+        super().__init__(text)
+
+
 class PineDataValidationError(PineError):
     """BYO DataFrame violated the section 3.1 schema.
 
@@ -912,6 +963,7 @@ __all__ = [
     "PineProviderError",
     "PineFMPRequiredError",
     "PineFMPUnreachableError",
+    "PineDataResolverError",
     "PineDataValidationError",
     "PineCacheError",
     "PineRuntimeError",
