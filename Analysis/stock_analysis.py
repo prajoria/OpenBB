@@ -160,6 +160,13 @@ class AnalysisFeatureFlags:
     use_stop_cap : bool
         Phase A8 (part 1) — cap the initial stop at ``min(2 * ATR, 5 % * entry)``
         instead of the current unbounded ``entry − 2 * ATR``.
+    use_peg_tightening : bool
+        Phase A5 (post-review) — apply Peter Lynch's PEG tiebreaker to the
+        ``valuation_verdict`` when DCF-MOS lands in the "Fair Value" band:
+        PEG < 1.0 upgrades to "Undervalued", PEG > 2.0 downgrades to
+        "Overvalued".  Because ``valuation_verdict`` feeds ``gate_passed``,
+        this can flip a stock from gate-pass to gate-fail — hence gated
+        behind a flag (see PR #304 review C1/I1 / bead OpenBBTechnical-0h2.35).
 
     Env-var overrides
     -----------------
@@ -177,6 +184,7 @@ class AnalysisFeatureFlags:
     use_regime_input: bool = False
     use_trailing_stop: bool = False
     use_stop_cap: bool = False
+    use_peg_tightening: bool = False
 
     @classmethod
     def from_env(cls) -> "AnalysisFeatureFlags":
@@ -1924,9 +1932,18 @@ def phase4_valuation(
 
     # PEG tightens ONLY the Fair Value verdict — the ambiguous middle case.
     # Strong DCF signals (Undervalued/Overvalued) are not overwritten;
-    # DCF-first is the design intent per bead 0h2.8.
+    # DCF-first is the design intent per bead 0h2.8 (add peg_ratio to P4).
+    #
+    # Gated behind use_peg_tightening (default False) because a Fair→Overvalued
+    # flip flows through gate_passed = valuation_verdict in {Undervalued, Fair
+    # Value} — a firm decision shift.  PR #304 review C1/I1 caught this as an
+    # unflagged behavior change; bead OpenBBTechnical-0h2.35 tracks the fix.
     peg_note = ""
-    if valuation_verdict == "Fair Value" and not np.isnan(peg_ratio):
+    if (
+        cfg.feature_flags.use_peg_tightening
+        and valuation_verdict == "Fair Value"
+        and not np.isnan(peg_ratio)
+    ):
         if peg_ratio < 1.0:
             valuation_verdict = "Undervalued"
             peg_note = f" (PEG {peg_ratio:.2f} < 1.0 → cheap growth)"

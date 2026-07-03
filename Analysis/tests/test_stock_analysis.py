@@ -1445,6 +1445,138 @@ class TestPhase4SectorWaccFlag:
         )
 
 
+class TestPhase4CombinedFlags:
+    """Verify multiple AnalysisFeatureFlags interact correctly in phase4_valuation
+    (PR #304 review C2 / bead OpenBBTechnical-0h2.34).
+
+    The single-flag tests in TestPhase4TwoStageFlag and TestPhase4SectorWaccFlag
+    each test their own flag in isolation.  A real rollout will run BOTH flags
+    on simultaneously — a wrong argument-order swap or misplaced conditional in
+    the dcf_fn(fcf0, g_short, g_term, wacc, ...) call chain would slip through
+    both single-flag test suites.  This class covers the combined path.
+    """
+
+    def _cfg_p1_p2_p3(self, *, use_two_stage_dcf: bool, use_sector_wacc: bool,
+                       sector: str = "Utilities"):
+        """Build a fixture where ratios_df.wacc is deliberately absent so
+        the WACC fallback path is exercised — that's what use_sector_wacc
+        redirects."""
+        income_df = pd.DataFrame({
+            "revenue":            [100e9, 115e9, 130e9, 148e9, 168e9],
+            "operating_income":   [30e9,  35e9,  40e9,  46e9,  53e9],
+            "gross_profit":       [65e9,  75e9,  85e9,  97e9,  110e9],
+            "eps_diluted":        [8.0,   9.0,   10.5,  12.0,  14.0],
+            "shares_outstanding": [10e9,  10e9,  9.9e9, 9.8e9, 9.75e9],
+        })
+        cash_df = pd.DataFrame({"free_cash_flow": [30e9, 35e9, 40e9, 46e9, 50e9]})
+        ratios_df = pd.DataFrame({
+            "price_earnings_ratio":      [28.0],
+            "enterprise_value_multiple": [22.0],
+            "price_to_free_cash_flow":   [30.0],
+            "price_to_sales":            [12.0],
+            "piotroski_score":           [7],
+            "altman_z_score":            [4.5],
+            "enterprise_value":          [3.5e12],
+            # wacc: absent — forces the fallback branch to fire
+        })
+        p2 = Phase2Result(
+            income_df=income_df,
+            balance_df=pd.DataFrame({"total_assets": [1] * 5}),
+            cash_df=cash_df, ratios_df=ratios_df, kpi_df=pd.DataFrame(),
+            roe_decomp_df=pd.DataFrame(),
+            score=4.2, accruals_ratio=0.03, gross_profitability=0.40,
+            operating_leverage=1.3, dilution_5y=-0.02,
+            gate_passed=True, gate_notes="OK",
+        )
+        p3 = _make_mock_p3()
+        p1 = _make_mock_p1()
+        p1.sector = sector
+        cfg = AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(
+                use_two_stage_dcf=use_two_stage_dcf,
+                use_sector_wacc=use_sector_wacc,
+            ),
+        )
+        return cfg, p1, p2, p3
+
+    def test_both_flags_on_utilities_uses_two_stage_dcf_with_sector_wacc(self):
+        """The load-bearing combined-flags test.  Both flags on, Utilities
+        sector → WACC=6 %, DCF routed through _dcf_two_stage.  Result must
+        equal _dcf_two_stage(fcf0, g_short, 0.025, 0.06, shares) exactly."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            use_two_stage_dcf=True, use_sector_wacc=True,
+            sector="Utilities",
+        )
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+
+        # Reconstruct what the DCF should be
+        fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
+        rev  = p2.income_df["revenue"]
+        g_short = min(_cagr(rev, 5), 0.25)
+        shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
+        # Utilities WACC per _SECTOR_WACC_MAP
+        expected = _dcf_two_stage(fcf0, g_short, 0.025, 0.06, shares_out)
+
+        assert abs(p4.dcf_fair_value - expected) < 1e-6, (
+            f"combined flags produced dcf={p4.dcf_fair_value}, "
+            f"expected _dcf_two_stage(wacc=0.06)={expected}"
+        )
+
+    def test_both_flags_on_energy_produces_different_dcf_than_either_alone(self):
+        """A stronger invariant: with Energy sector (WACC 12 %, high) and
+        two-stage fade (which increases DCF vs single-stage), the combined
+        result must differ from both single-flag paths — proving the two
+        modifications compose, not shadow each other."""
+        cfg_both, p1, p2, p3 = self._cfg_p1_p2_p3(
+            use_two_stage_dcf=True, use_sector_wacc=True,
+            sector="Energy",
+        )
+        cfg_two_only, _, _, _ = self._cfg_p1_p2_p3(
+            use_two_stage_dcf=True, use_sector_wacc=False,
+            sector="Energy",  # sector doesn't matter when flag off
+        )
+        cfg_sec_only, _, _, _ = self._cfg_p1_p2_p3(
+            use_two_stage_dcf=False, use_sector_wacc=True,
+            sector="Energy",
+        )
+        p4_both     = phase4_valuation(cfg_both,     p2, p3, p1=p1)
+        p4_two_only = phase4_valuation(cfg_two_only, p2, p3, p1=p1)
+        p4_sec_only = phase4_valuation(cfg_sec_only, p2, p3, p1=p1)
+
+        # Combined ≠ two-stage-only (because WACC changed from 9 % to 12 %)
+        assert p4_both.dcf_fair_value != p4_two_only.dcf_fair_value, (
+            "combined flags should differ from two-stage-alone (WACC differs)"
+        )
+        # Combined ≠ sector-only (because model changed from single to two-stage)
+        assert p4_both.dcf_fair_value != p4_sec_only.dcf_fair_value, (
+            "combined flags should differ from sector-only (model differs)"
+        )
+
+    def test_both_flags_route_through_sensitivity_and_reverse_dcf(self):
+        """Combined flags: sensitivity table AND reverse-DCF must use the
+        SAME (dcf_fn, wacc) pair as the point fair value.  Otherwise the
+        Phase4Result rows contradict each other under a real rollout."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            use_two_stage_dcf=True, use_sector_wacc=True,
+            sector="Utilities",
+        )
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+
+        # Sensitivity base cell (middle row / middle col) must match fair value
+        assert not p4.sensitivity_df.empty
+        base_cell = float(p4.sensitivity_df.iloc[1, 1])
+        assert abs(base_cell - round(p4.dcf_fair_value, 2)) < 0.05, (
+            f"sensitivity base cell {base_cell} disagrees with "
+            f"dcf_fair_value {p4.dcf_fair_value:.2f} — combined flags "
+            f"not routed to sensitivity?"
+        )
+        # Reverse-DCF should produce a finite implied growth
+        assert not math.isnan(p4.implied_growth), (
+            "combined flags should still produce a finite implied_growth"
+        )
+
+
 class TestPhase4PegRatio:
     """Verify PEG ratio field + verdict tightening (bead OpenBBTechnical-0h2.8).
 
@@ -1462,9 +1594,14 @@ class TestPhase4PegRatio:
     """
 
     def _cfg_p1_p2_p3(self, pe: float, revenue_series: list[float],
-                       fcf: float = 30e9):
+                       fcf: float = 30e9, use_peg_tightening: bool = False):
         """Build a synthetic p2/p3/p1 fixture where pe and revenue CAGR
-        can be set explicitly to hit specific PEG target values."""
+        can be set explicitly to hit specific PEG target values.
+
+        Pass ``use_peg_tightening=True`` to enable the A5 verdict-tightening
+        (Fair Value + PEG<1 → Undervalued; Fair Value + PEG>2 → Overvalued).
+        Default False preserves pre-A5 behavior (PR #304 review I1 / bead
+        OpenBBTechnical-0h2.35)."""
         income_df = pd.DataFrame({
             "revenue":            revenue_series,
             "operating_income":   [r * 0.30 for r in revenue_series],
@@ -1494,7 +1631,10 @@ class TestPhase4PegRatio:
         )
         p3 = _make_mock_p3()
         p1 = _make_mock_p1()
-        cfg = AnalysisConfig(symbol="MSFT")
+        cfg = AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_peg_tightening=use_peg_tightening),
+        )
         return cfg, p1, p2, p3
 
     # --- basic field presence -------------------------------------------
@@ -1555,54 +1695,151 @@ class TestPhase4PegRatio:
         assert math.isnan(p4.peg_ratio)
 
     # --- verdict tightening (the "integrate into scoring" part) ---------
+    #
+    # These tests exercise the A5 verdict-tightening logic gated behind
+    # AnalysisFeatureFlags.use_peg_tightening (PR #304 review C1/I1 caught
+    # that the original tests only checked "PEG" in gate_notes, which is
+    # always True whenever peg_ratio is non-NaN — the substring appears via
+    # peg_gate_str regardless of whether tightening ran).  Tests now:
+    #   (1) verify the pre-tightening verdict is "Fair Value" (flag off)
+    #   (2) verify the post-tightening verdict flips as expected (flag on)
+    # Bead OpenBBTechnical-0h2.33 tracks this fix.
 
-    def test_peg_cheap_upgrades_fair_value_to_undervalued(self):
-        """When DCF says Fair Value AND PEG < 1.0 (cheap), verdict
-        upgrades to Undervalued. Peter Lynch's classic 'GARP' signal."""
-        # Construct a case where MOS ≈ 0 (Fair Value) but growth is high
-        # relative to PE: revenue growing 20 %/yr, PE only 15 → PEG ≈ 0.75
+    def test_peg_tightening_off_leaves_fair_value_unchanged(self):
+        """Flag OFF (default): a Fair Value + cheap PEG stock stays Fair
+        Value.  This is the pre-A5 behavior + establishes the baseline that
+        the other tightening tests compare against."""
+        # Same inputs as the cheap-upgrade test — but with flag OFF.
+        # Price ~75/share puts MOS ≈ 0 (Fair Value band) given the fixture's
+        # DCF fair value (see companion test for the derivation).
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=15.0,
             revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],  # 20 % CAGR
-            fcf=20e9,   # keep FCF modest so DCF is not wildly favorable
+            fcf=20e9,
+            use_peg_tightening=False,
         )
-        # Also crank up the price so MOS drops into the Fair Value zone
         p3.price_df = p3.price_df.copy()
-        p3.price_df["close"] = [200.0, 201.0, 202.0]  # elevated price
+        p3.price_df["close"] = [75.0, 75.5, 76.0]
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
-        # PEG must be < 1.0
         assert p4.peg_ratio < 1.0, f"expected cheap PEG, got {p4.peg_ratio}"
-        # If DCF was borderline, verdict should now be Undervalued
-        # (we don't assert an exact MOS band because DCF drift is high;
-        # instead, assert the *combination*: cheap PEG + not-overvalued
-        # DCF → verdict includes cheap-PEG signal in gate_notes)
-        assert "PEG" in p4.gate_notes, (
-            f"expected PEG mention in gate_notes, got: {p4.gate_notes!r}"
+        # Verdict must remain "Fair Value" — pre-A5 behavior preserved.
+        assert p4.valuation_verdict == "Fair Value", (
+            f"flag-off should preserve pre-A5 Fair Value verdict; "
+            f"got {p4.valuation_verdict}, mos={p4.margin_of_safety}"
+        )
+
+    def test_peg_cheap_upgrades_fair_value_to_undervalued(self):
+        """When flag ON + DCF says Fair Value + PEG < 1.0 (cheap), verdict
+        upgrades to Undervalued.  Peter Lynch's classic 'GARP' signal.
+
+        Fixture DCF: fcf0 ≈ 21e9, g_short=0.20 (capped at 0.25), wacc=0.085
+        → fair value ≈ $75.45/share.  Setting price at $75 puts MOS ≈ 0.006
+        (well inside the Fair Value band [-0.05, +0.15])."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=15.0,
+            revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],  # 20 % CAGR
+            fcf=20e9,
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [75.0, 75.5, 76.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+
+        # Precondition: PEG must be < 1.0 (otherwise the test isn't
+        # exercising the cheap-PEG branch).
+        assert p4.peg_ratio < 1.0, f"expected cheap PEG, got {p4.peg_ratio}"
+
+        # Precondition: baseline verdict from same inputs with flag off
+        # would have been Fair Value (the middle case that A5 tightens).
+        cfg_off, _, _, _ = self._cfg_p1_p2_p3(
+            pe=15.0,
+            revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],
+            fcf=20e9,
+            use_peg_tightening=False,
+        )
+        p3_off = _make_mock_p3()
+        p3_off.price_df = p3_off.price_df.copy()
+        p3_off.price_df["close"] = [75.0, 75.5, 76.0]
+        p4_off = phase4_valuation(cfg_off, p2, p3_off, p1=p1)
+        assert p4_off.valuation_verdict == "Fair Value", (
+            f"test invariant broken: baseline should be Fair Value, "
+            f"got {p4_off.valuation_verdict}"
+        )
+
+        # The load-bearing assertion: verdict flipped to Undervalued
+        # AND the peg_note annotation appears (proves tightening path ran).
+        assert p4.valuation_verdict == "Undervalued", (
+            f"expected Fair Value → Undervalued (PEG {p4.peg_ratio:.2f}), "
+            f"got {p4.valuation_verdict}"
+        )
+        assert "cheap growth" in p4.gate_notes, (
+            f"expected cheap-growth annotation in gate_notes, "
+            f"got: {p4.gate_notes!r}"
         )
 
     def test_peg_expensive_downgrades_fair_value_to_overvalued(self):
-        """When DCF says Fair Value AND PEG > 2.0 (expensive), verdict
-        downgrades to Overvalued."""
+        """When flag ON + DCF says Fair Value + PEG > 2.0 (expensive), verdict
+        downgrades to Overvalued.  Also verifies gate_passed flips as a
+        consequence — the C1/I1 review finding that justified the flag.
+
+        Fixture DCF: fcf0 ≈ 31.5e9, g_short=0.08, wacc=0.085 → fair value
+        ≈ $69.84/share.  Setting price at $68 puts MOS ≈ +0.026 (Fair Value
+        band)."""
         # PE 35, growth 8 % → PEG ≈ 4.4 (very expensive)
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
             revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],  # ~8 % CAGR
+            use_peg_tightening=True,
         )
         p3.price_df = p3.price_df.copy()
-        p3.price_df["close"] = [180.0, 181.0, 182.0]  # push toward Fair Value
+        p3.price_df["close"] = [68.0, 68.5, 68.0]
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+
+        # Precondition: PEG > 2.0 (exercises the expensive branch)
         assert p4.peg_ratio > 2.0, f"expected expensive PEG, got {p4.peg_ratio}"
-        assert "PEG" in p4.gate_notes
+
+        # Precondition: baseline verdict without tightening is Fair Value
+        cfg_off, _, _, _ = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            use_peg_tightening=False,
+        )
+        p3_off = _make_mock_p3()
+        p3_off.price_df = p3_off.price_df.copy()
+        p3_off.price_df["close"] = [68.0, 68.5, 68.0]
+        p4_off = phase4_valuation(cfg_off, p2, p3_off, p1=p1)
+        assert p4_off.valuation_verdict == "Fair Value", (
+            f"test invariant broken: baseline should be Fair Value, "
+            f"got {p4_off.valuation_verdict}"
+        )
+        # Baseline gate must have passed (Fair Value is in the gate's
+        # accepting set) — this is what makes the tightening a real
+        # behavior change worthy of a flag.
+        assert p4_off.gate_passed, "baseline gate should pass on Fair Value"
+
+        # The load-bearing assertions:
+        assert p4.valuation_verdict == "Overvalued", (
+            f"expected Fair Value → Overvalued (PEG {p4.peg_ratio:.2f}), "
+            f"got {p4.valuation_verdict}"
+        )
+        assert "expensive growth" in p4.gate_notes
+        # And gate_passed FLIPS — this is precisely why the flag exists.
+        assert not p4.gate_passed, (
+            "expensive-PEG downgrade to Overvalued should also flip "
+            "gate_passed=False (Overvalued is not in the accepting set)"
+        )
 
     def test_strong_dcf_undervalued_not_downgraded_by_expensive_peg(self):
-        """Design invariant: PEG only refines Fair Value cases. When DCF
-        signals strong Undervalued (MOS ≥ 15 %), an expensive PEG must
-        NOT overwrite the DCF verdict — DCF-first."""
-        # High FCF + low price → clear Undervalued
+        """Design invariant: even with the flag ON, PEG only refines Fair
+        Value cases. When DCF signals strong Undervalued (MOS ≥ 15 %), an
+        expensive PEG must NOT overwrite the DCF verdict — DCF-first."""
+        # High FCF + low price → clear Undervalued.  Flag ON to make sure
+        # the DCF-first invariant holds even when tightening is active.
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
             revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
             fcf=100e9,  # very high FCF → high DCF value
+            use_peg_tightening=True,
         )
         p3.price_df = p3.price_df.copy()
         p3.price_df["close"] = [50.0, 51.0, 52.0]  # very low price → MOS strong
