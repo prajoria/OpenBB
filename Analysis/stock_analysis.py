@@ -717,21 +717,113 @@ def _dcf_single(
     return (pv_explicit + pv_tv) / shares
 
 
+def _dcf_two_stage(
+    fcf0: float,
+    g_short: float,
+    g_term: float,
+    wacc: float,
+    shares: float,
+    explicit_years: int = 5,
+    fade_years: int = 8,
+) -> float:
+    """Compute a two-stage DCF fair value per share (bead OpenBBTechnical-0h2.6).
+
+    Improvement over :func:`_dcf_single`: instead of jumping straight from
+    ``g_short`` at year 5 to ``g_term`` at year 6 (single-stage Gordon),
+    growth **linearly fades** from ``g_short`` down to ``g_term`` across
+    *fade_years* additional years.  This matches the Damodaran/McKinsey
+    three-stage template and empirically better reflects corporate growth
+    mean-reversion — a 15 % grower doesn't drop to 2.5 % overnight, but it
+    also can't sustain 15 % forever.
+
+    The signature is deliberately compatible with :func:`_dcf_single` so
+    ``phase4_valuation`` can pick one at the top and route every DCF call
+    (fair value, sensitivity, reverse-DCF) through the chosen callable.
+
+    Parameters
+    ----------
+    fcf0 : float
+        Trailing free cash flow (year 0).
+    g_short : float
+        Growth rate for the explicit projection (years 1..explicit_years).
+    g_term : float
+        Terminal growth rate (year explicit_years + fade_years + 1 and beyond).
+    wacc : float
+        Weighted average cost of capital (discount rate).
+    shares : float
+        Diluted shares outstanding.
+    explicit_years : int, default 5
+        Years of explicit high-growth projection.  Matches ``_dcf_single``.
+    fade_years : int, default 8
+        Years over which growth linearly fades from g_short to g_term.
+
+    Returns
+    -------
+    float
+        Fair value per share.  NaN if shares <= 0.
+
+    Notes
+    -----
+    The terminal value is computed at the END of the fade period (year
+    ``explicit_years + fade_years``) using the year-N FCF and terminal
+    growth, discounted back to today.  Same wacc <= g_term guard as
+    _dcf_single applies (clamps g_term to wacc - 0.01).
+    """
+    if wacc <= g_term:
+        g_term = wacc - 0.01
+
+    if shares <= 0:
+        return float("nan")
+
+    # Stage 1: explicit high growth for years 1..explicit_years
+    fcf = fcf0
+    pv_total = 0.0
+    for t in range(1, explicit_years + 1):
+        fcf = fcf * (1 + g_short)
+        pv_total += fcf / (1 + wacc) ** t
+
+    # Stage 2: linear fade from g_short to g_term over fade_years
+    # Year (explicit + 1) uses g_short + step * 1, ..., year (explicit + fade_years)
+    # uses g_short + step * fade_years = g_term (i.e., fully faded by end).
+    if fade_years > 0:
+        step = (g_term - g_short) / fade_years
+        for k in range(1, fade_years + 1):
+            growth_k = g_short + step * k
+            fcf = fcf * (1 + growth_k)
+            year = explicit_years + k
+            pv_total += fcf / (1 + wacc) ** year
+
+    # Terminal at end of fade (year N = explicit_years + fade_years)
+    n = explicit_years + fade_years
+    tv    = fcf * (1 + g_term) / (wacc - g_term)
+    pv_tv = tv / (1 + wacc) ** n
+    pv_total += pv_tv
+
+    return pv_total / shares
+
+
 def _dcf_sensitivity(
     fcf0: float,
     g_short: float,
     wacc_base: float,
     g_term_base: float,
     shares: float,
+    dcf_fn: "callable | None" = None,
 ) -> pd.DataFrame:
-    """Build a 3×3 sensitivity table: rows = WACC ±1%, cols = g_term ±0.5%."""
+    """Build a 3×3 sensitivity table: rows = WACC ±1%, cols = g_term ±0.5%.
+
+    *dcf_fn* selects which DCF model to use for each cell; defaults to
+    :func:`_dcf_single` for backward-compat.  Pass :func:`_dcf_two_stage`
+    to build a sensitivity table under the fade model (bead 0h2.6).
+    """
+    fn = dcf_fn if dcf_fn is not None else _dcf_single
     wacc_steps   = [wacc_base - 0.01, wacc_base, wacc_base + 0.01]
     g_term_steps = [g_term_base - 0.005, g_term_base, g_term_base + 0.005]
     rows = {}
     for w in wacc_steps:
         row = {}
         for g in g_term_steps:
-            row[f"g_term={g:.3f}"] = round(_dcf_single(fcf0, g_short, g, w, shares), 2)
+            row[f"g_term={g:.3f}"] = round(fn(fcf0, g_short, g, w, shares), 2)
         rows[f"wacc={w:.3f}"] = row
     return pd.DataFrame(rows).T
 
@@ -1703,15 +1795,22 @@ def phase4_valuation(
     sensitivity_df = pd.DataFrame()
     implied_growth = float("nan")
 
+    # Pick DCF model per AnalysisFeatureFlags.use_two_stage_dcf (bead 0h2.6).
+    # Default False -> _dcf_single (single-stage Gordon, pre-A4a behavior).
+    # True -> _dcf_two_stage (5Y explicit -> 8Y fade -> terminal).  Routing
+    # via a local dcf_fn ensures fair value, sensitivity, and reverse-DCF
+    # all use the SAME model — no silent inconsistency between them.
+    dcf_fn = _dcf_two_stage if cfg.feature_flags.use_two_stage_dcf else _dcf_single
+
     if not np.isnan(fcf0) and fcf0 > 0 and not np.isnan(shares_out) and shares_out > 0:
-        dcf_fair_value = _dcf_single(fcf0, g_short, g_term, wacc, shares_out)
+        dcf_fair_value = dcf_fn(fcf0, g_short, g_term, wacc, shares_out)
         if not np.isnan(dcf_fair_value) and dcf_fair_value > 0:
             margin_of_safety = (dcf_fair_value - current_price) / dcf_fair_value
-        sensitivity_df = _dcf_sensitivity(fcf0, g_short, wacc, g_term, shares_out)
+        sensitivity_df = _dcf_sensitivity(fcf0, g_short, wacc, g_term, shares_out, dcf_fn=dcf_fn)
         # Reverse-DCF
         try:
             implied_growth = brentq(
-                lambda g: _dcf_single(fcf0, g, g_term, wacc, shares_out) - current_price,
+                lambda g: dcf_fn(fcf0, g, g_term, wacc, shares_out) - current_price,
                 -0.10, 0.30,
                 xtol=1e-6,
             )

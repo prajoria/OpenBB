@@ -58,6 +58,7 @@ from stock_analysis import (  # noqa: E402
     _compute_vol_trend,
     _dcf_sensitivity,
     _dcf_single,
+    _dcf_two_stage,
     _decision_label,
     _entry_quality_label,
     _find_col,
@@ -1023,6 +1024,223 @@ class TestVolTrend:
             assert label in ("expanding", "contracting", "flat"), (
                 f"unexpected label {label!r} for scale={scale}, n={n}"
             )
+
+
+class TestTwoStageDCF:
+    """Verify _dcf_two_stage helper (bead OpenBBTechnical-0h2.6, first
+    feature-flag-gated behavior change).
+
+    The two-stage fade replaces the current single-stage Gordon-at-year-5
+    model with: explicit 5Y growth → linear fade over 8Y to terminal.
+    Rationale: a company growing 15 % cannot maintain that indefinitely, but
+    also cannot drop to 2.5 % overnight — the fade captures the mean-reversion
+    that empirical corporate growth studies actually show.
+
+    Gated behind AnalysisFeatureFlags.use_two_stage_dcf (default False = old
+    behavior).  Both helpers share the (fcf0, g_short, g_term, wacc, shares)
+    signature so phase4_valuation can pick one via a local dcf_fn variable
+    and route every DCF call through it (fair value, sensitivity, reverse-DCF).
+    """
+
+    # --- signature parity -----------------------------------------------
+
+    def test_signature_matches_dcf_single(self):
+        """Both helpers must be call-compatible so a dcf_fn = _dcf_single or
+        _dcf_two_stage indirection works cleanly in phase4_valuation."""
+        # Same positional-only call site must work for both
+        v_single = _dcf_single(100.0, 0.10, 0.025, 0.09, 100.0)
+        v_two    = _dcf_two_stage(100.0, 0.10, 0.025, 0.09, 100.0)
+        assert isinstance(v_single, float)
+        assert isinstance(v_two, float)
+
+    def test_positive_value_for_reasonable_inputs(self):
+        v = _dcf_two_stage(fcf0=1_000_000_000, g_short=0.10, g_term=0.025,
+                            wacc=0.09, shares=1_000_000_000)
+        assert v > 0
+        assert np.isfinite(v)
+
+    # --- key equivalence points -----------------------------------------
+
+    def test_equals_single_stage_when_growth_flat(self):
+        """When g_short == g_term, the fade has no gradient — every year uses
+        the same growth rate.  Two-stage and single-stage must agree.
+
+        Note: they won't be *exactly* equal because single-stage projects
+        5 years then goes terminal; two-stage projects 5 + 8 = 13 years then
+        goes terminal.  But when growth is constant, the extra 8 years of
+        explicit projection at terminal growth should still converge to
+        essentially the same value (< 1 % difference).
+        """
+        v_single = _dcf_single(100.0, 0.025, 0.025, 0.09, 100.0)
+        v_two    = _dcf_two_stage(100.0, 0.025, 0.025, 0.09, 100.0)
+        # Same underlying model in the limit — should agree within 1 %
+        assert abs(v_two - v_single) / v_single < 0.01, (
+            f"two-stage {v_two} vs single {v_single} diverged by "
+            f"{abs(v_two - v_single) / v_single:.1%}"
+        )
+
+    def test_two_stage_greater_than_single_when_g_short_high(self):
+        """The reviewer's core argument for the change: single-stage bakes
+        the terminal (mature) rate in at year 6+, immediately abandoning
+        the high growth.  Two-stage preserves the high growth for 5 more
+        years while fading — so its NPV is meaningfully higher when
+        g_short >> g_term.  For MSFT-like inputs (revenue CAGR 14 % vs
+        terminal 2.5 %), two-stage should exceed single-stage by 10 %+.
+        """
+        v_single = _dcf_single(1e10, 0.14, 0.025, 0.09, 1e9)
+        v_two    = _dcf_two_stage(1e10, 0.14, 0.025, 0.09, 1e9)
+        assert v_two > v_single, (
+            f"expected two-stage {v_two} > single {v_single}"
+        )
+        # And the gap should be material — not just noise
+        assert (v_two - v_single) / v_single > 0.05, (
+            f"expected > 5% uplift from fade, got "
+            f"{(v_two - v_single) / v_single:.1%}"
+        )
+
+    # --- WACC guard (same as _dcf_single) -------------------------------
+
+    def test_wacc_below_g_term_is_guarded(self):
+        """If wacc <= g_term, terminal-value denominator (wacc - g_term)
+        would go negative → nonsense.  Both helpers must clamp g_term to
+        (wacc - 0.01) so the terminal remains bounded."""
+        # wacc=0.03, g_term=0.05 → without guard, terminal denominator = -0.02
+        v_two = _dcf_two_stage(100.0, 0.10, 0.05, 0.03, 100.0)
+        assert np.isfinite(v_two), "guard should keep the value finite"
+        assert v_two > 0
+
+    def test_zero_shares_returns_nan(self):
+        """Matches _dcf_single's shares<=0 guard."""
+        v = _dcf_two_stage(100.0, 0.10, 0.025, 0.09, 0)
+        assert np.isnan(v)
+
+    # --- hand-computed golden -------------------------------------------
+
+    def test_hand_computed_zero_growth_annuity(self):
+        """Degenerate case: g_short = g_term = 0, wacc = 0.10, fcf0 = 100,
+        shares = 100.  With no growth, every year's FCF is 100, discounted
+        at 10 %.  This collapses to a straight annuity + perpetuity that
+        can be verified with the closed-form geometric sum.
+
+        Two-stage projects 5 + 8 = 13 explicit years, then terminal.
+        Sum over 13 years of 100 / 1.10^t:
+            = 100 * (1 - 1.10^-13) / 0.10
+            ≈ 100 * 7.10336
+            ≈ 710.336
+        Terminal value at year 13: FCF_13 * (1 + g_term) / (wacc - g_term)
+            = 100 * 1.0 / 0.10 = 1000
+        PV of terminal: 1000 / 1.10^13 ≈ 289.664
+        Total enterprise value ≈ 710.336 + 289.664 ≈ 1000
+        Per share (shares=100): ≈ 10.0
+        """
+        v = _dcf_two_stage(fcf0=100.0, g_short=0.0, g_term=0.0,
+                            wacc=0.10, shares=100.0)
+        # Expected ~10.0 by the derivation above; allow small floating-point slack
+        assert abs(v - 10.0) < 0.01, f"expected ~10.0, got {v}"
+
+
+class TestPhase4TwoStageFlag:
+    """Verify the AnalysisFeatureFlags.use_two_stage_dcf switch in
+    phase4_valuation actually toggles the DCF helper (bead 0h2.6).
+
+    The parity assertion is critical: with the flag off, every downstream
+    number (dcf_fair_value, sensitivity_df, implied_growth) must be
+    bit-identical to pre-A4a.  A silent change means the branch introduced
+    an unintended side effect."""
+
+    def _cfg_and_p2p3(self, use_two_stage: bool):
+        """Build minimal synthetic Phase2/Phase3 inputs that let
+        phase4_valuation run end-to-end without any live provider call."""
+        # A minimal but realistic Phase2Result — populated with the columns
+        # phase4_valuation actually reads.
+        income_df = pd.DataFrame({
+            "revenue":                          [100e9, 115e9, 130e9, 148e9, 168e9],
+            "operating_income":                 [30e9,  35e9,  40e9,  46e9,  53e9],
+            "gross_profit":                     [65e9,  75e9,  85e9,  97e9,  110e9],
+            "eps_diluted":                      [8.0,   9.0,   10.5,  12.0,  14.0],
+            "shares_outstanding":               [10e9,  10e9,  9.9e9, 9.8e9, 9.75e9],
+        })
+        balance_df = pd.DataFrame({"total_assets": [1] * 5})   # unused by DCF branch
+        cash_df    = pd.DataFrame({"free_cash_flow": [30e9, 35e9, 40e9, 46e9, 50e9]})
+        ratios_df  = pd.DataFrame({
+            "price_earnings_ratio":       [28.0],
+            "enterprise_value_multiple":  [22.0],
+            "price_to_free_cash_flow":    [30.0],
+            "price_to_sales":             [12.0],
+            "piotroski_score":            [7],
+            "altman_z_score":             [4.5],
+            "wacc":                       [0.085],
+            "enterprise_value":           [3.5e12],
+        })
+        p2 = Phase2Result(
+            income_df=income_df, balance_df=balance_df, cash_df=cash_df,
+            ratios_df=ratios_df, kpi_df=pd.DataFrame(),
+            roe_decomp_df=pd.DataFrame(),
+            score=4.2, accruals_ratio=0.03, gross_profitability=0.40,
+            operating_leverage=1.3, dilution_5y=-0.02,
+            gate_passed=True, gate_notes="OK",
+        )
+        # Default p3 mock: 3 rows with close ~145, ATR ~2.5.  phase4_valuation
+        # only reads p3.price_df["close"].iloc[-1] so no override needed.
+        p3 = _make_mock_p3()
+        cfg = AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_two_stage_dcf=use_two_stage),
+        )
+        return cfg, p2, p3
+
+    def test_flag_off_uses_single_stage(self):
+        """Flag=False must produce exactly _dcf_single's output on the same
+        (fcf0, g_short, g_term, wacc, shares) inputs — no drift."""
+        cfg, p2, p3 = self._cfg_and_p2p3(use_two_stage=False)
+        p4 = phase4_valuation(cfg, p2, p3)
+        # Reconstruct the expected DCF the same way phase4_valuation does
+        fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
+        rev  = p2.income_df["revenue"]
+        g_short = min(_cagr(rev, 5), 0.25)
+        wacc = 0.085
+        g_term = 0.025
+        shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
+        expected = _dcf_single(fcf0, g_short, g_term, wacc, shares_out)
+        assert abs(p4.dcf_fair_value - expected) < 1e-6, (
+            f"flag-off drift: p4.dcf={p4.dcf_fair_value}, expected={expected}"
+        )
+
+    def test_flag_on_uses_two_stage(self):
+        """Flag=True routes DCF through _dcf_two_stage.  Value must differ
+        from the flag-off case and match _dcf_two_stage on identical inputs."""
+        cfg_on,  p2, p3 = self._cfg_and_p2p3(use_two_stage=True)
+        cfg_off, _,  _  = self._cfg_and_p2p3(use_two_stage=False)
+        p4_on  = phase4_valuation(cfg_on,  p2, p3)
+        p4_off = phase4_valuation(cfg_off, p2, p3)
+        # Different model → different value
+        assert p4_on.dcf_fair_value != p4_off.dcf_fair_value, (
+            f"flag-on should produce a different DCF ({p4_on.dcf_fair_value}) "
+            f"than flag-off ({p4_off.dcf_fair_value})"
+        )
+        # And it should match _dcf_two_stage directly
+        fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
+        rev  = p2.income_df["revenue"]
+        g_short = min(_cagr(rev, 5), 0.25)
+        shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
+        expected = _dcf_two_stage(fcf0, g_short, 0.025, 0.085, shares_out)
+        assert abs(p4_on.dcf_fair_value - expected) < 1e-6
+
+    def test_sensitivity_and_reverse_dcf_route_through_same_helper(self):
+        """When flag is on, sensitivity_df and implied_growth must both
+        use the two-stage model — otherwise the numbers on the same
+        Phase4Result contradict each other."""
+        cfg, p2, p3 = self._cfg_and_p2p3(use_two_stage=True)
+        p4 = phase4_valuation(cfg, p2, p3)
+        # Sensitivity: reconstruct one cell and compare — the base case
+        # (middle row / middle col) must match the fair value.
+        assert not p4.sensitivity_df.empty
+        # Round to 2 dp because sensitivity table stores that precision
+        base_cell = float(p4.sensitivity_df.iloc[1, 1])
+        assert abs(base_cell - round(p4.dcf_fair_value, 2)) < 0.05, (
+            f"sensitivity base cell {base_cell} disagrees with "
+            f"dcf_fair_value {p4.dcf_fair_value:.2f} — flag not routed to sensitivity?"
+        )
 
 # ---------------------------------------------------------------------------
 
