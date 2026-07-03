@@ -364,6 +364,11 @@ class Phase4Result:
     sensitivity_df: pd.DataFrame    # 3x3 WACC x g_term grid
     implied_growth: float           # Reverse-DCF implied short-term growth
     roic_wacc_spread: float         # ROIC - WACC (latest)
+    peg_ratio: float                # PE / (revenue CAGR × 100); NaN if growth <= 0
+    """Peter Lynch's PEG.  Rule of thumb: < 1.0 cheap, > 2.0 expensive.
+    Used as a tiebreaker to tighten the Fair Value verdict only; strong
+    DCF signals (Undervalued/Overvalued) are not overwritten by PEG
+    (bead OpenBBTechnical-0h2.8)."""
     piotroski: float
     altman: float
     valuation_verdict: str          # "Undervalued" / "Fair Value" / "Overvalued"
@@ -1895,6 +1900,19 @@ def phase4_valuation(
     roic_val = _latest_col(ratios_df, ["roic", "return_on_invested_capital"])
     roic_wacc_spread = float(roic_val - wacc) if not np.isnan(roic_val) else float("nan")
 
+    # --- PEG ratio (bead OpenBBTechnical-0h2.8) ---
+    # PEG = PE / (revenue CAGR × 100).  Peter Lynch's classic:
+    #   < 1.0 = cheap (growth outpaces earnings multiple)
+    #   > 2.0 = expensive (paying too much for the growth)
+    # Undefined when growth is <= 0 or PE is missing; return NaN in that case.
+    # NB: uses the RAW revenue CAGR, not the DCF-floored g_short (which
+    # gets bumped to 5 % for declining-revenue names to keep the DCF
+    # sensible).  For PEG we want the honest growth signal.
+    peg_ratio = float("nan")
+    raw_cagr = _cagr(income_df[rev_col], 5) if rev_col else float("nan")
+    if not np.isnan(pe) and pe > 0 and not np.isnan(raw_cagr) and raw_cagr > 0:
+        peg_ratio = float(pe / (raw_cagr * 100))
+
     # --- Valuation verdict ---
     mos = margin_of_safety if not np.isnan(margin_of_safety) else 0.0
     if mos >= 0.15:
@@ -1903,6 +1921,18 @@ def phase4_valuation(
         valuation_verdict = "Fair Value"
     else:
         valuation_verdict = "Overvalued"
+
+    # PEG tightens ONLY the Fair Value verdict — the ambiguous middle case.
+    # Strong DCF signals (Undervalued/Overvalued) are not overwritten;
+    # DCF-first is the design intent per bead 0h2.8.
+    peg_note = ""
+    if valuation_verdict == "Fair Value" and not np.isnan(peg_ratio):
+        if peg_ratio < 1.0:
+            valuation_verdict = "Undervalued"
+            peg_note = f" (PEG {peg_ratio:.2f} < 1.0 → cheap growth)"
+        elif peg_ratio > 2.0:
+            valuation_verdict = "Overvalued"
+            peg_note = f" (PEG {peg_ratio:.2f} > 2.0 → expensive growth)"
 
     # Combined valuation-technical entry recommendation
     bull = p3.bullish_count
@@ -1924,9 +1954,10 @@ def phase4_valuation(
         and (np.isnan(altman) or altman > 1.81)
         and valuation_verdict in ("Undervalued", "Fair Value")
     )
+    peg_gate_str = f" | PEG {peg_ratio:.2f}" if not np.isnan(peg_ratio) else ""
     gate_notes = (
-        f"MOS {margin_of_safety:.1%} | {valuation_verdict} | "
-        f"Altman Z {altman:.2f} | {entry_rec}"
+        f"MOS {margin_of_safety:.1%} | {valuation_verdict}{peg_note} | "
+        f"Altman Z {altman:.2f}{peg_gate_str} | {entry_rec}"
     )
 
     # --- 5Y Historical Multiple Trends ---
@@ -1976,6 +2007,7 @@ def phase4_valuation(
         sensitivity_df=sensitivity_df,
         implied_growth=implied_growth,
         roic_wacc_spread=roic_wacc_spread,
+        peg_ratio=peg_ratio,
         piotroski=piotroski,
         altman=altman,
         valuation_verdict=valuation_verdict,

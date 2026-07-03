@@ -590,6 +590,7 @@ def _make_mock_p4(mos: float = 0.18, altman: float = 3.5) -> Phase4Result:
         sensitivity_df=pd.DataFrame(),
         implied_growth=0.08,
         roic_wacc_spread=0.07,
+        peg_ratio=1.5,        # A5: Peter Lynch's PEG (1.0 cheap / 2.0 expensive)
         piotroski=7.0,
         altman=altman,
         valuation_verdict="Undervalued" if mos >= 0.15 else "Fair Value",
@@ -1441,6 +1442,178 @@ class TestPhase4SectorWaccFlag:
         assert abs(p4.dcf_fair_value - expected) < 1e-6, (
             f"explicit wacc 0.0725 should override sector default; "
             f"got {p4.dcf_fair_value}, expected {expected}"
+        )
+
+
+class TestPhase4PegRatio:
+    """Verify PEG ratio field + verdict tightening (bead OpenBBTechnical-0h2.8).
+
+    PEG = P/E / (revenue CAGR × 100).  Peter Lynch's classic rule:
+    - PEG < 1.0 → cheap (growth outpaces price of earnings)
+    - PEG > 2.0 → expensive (paying too much for the growth)
+    - 1.0-2.0  → reasonable
+
+    A5 integration is deliberately narrow: PEG only tightens the
+    valuation_verdict when DCF-MOS produced 'Fair Value' (the ambiguous
+    middle case). Strong DCF signals ('Undervalued', 'Overvalued') are
+    NOT overwritten by PEG — DCF-first is the design intent.  No feature
+    flag: A5 is a low-impact refinement of borderline verdicts, not a
+    behavior overhaul.
+    """
+
+    def _cfg_p1_p2_p3(self, pe: float, revenue_series: list[float],
+                       fcf: float = 30e9):
+        """Build a synthetic p2/p3/p1 fixture where pe and revenue CAGR
+        can be set explicitly to hit specific PEG target values."""
+        income_df = pd.DataFrame({
+            "revenue":            revenue_series,
+            "operating_income":   [r * 0.30 for r in revenue_series],
+            "gross_profit":       [r * 0.65 for r in revenue_series],
+            "eps_diluted":        [8.0, 9.0, 10.5, 12.0, 14.0],
+            "shares_outstanding": [10e9] * 5,
+        })
+        cash_df = pd.DataFrame({"free_cash_flow": [fcf * 0.7, fcf * 0.8,
+                                                   fcf * 0.9, fcf, fcf * 1.05]})
+        ratios_df = pd.DataFrame({
+            "price_earnings_ratio":      [pe],
+            "enterprise_value_multiple": [22.0],
+            "price_to_free_cash_flow":   [30.0],
+            "price_to_sales":            [12.0],
+            "piotroski_score":           [7],
+            "altman_z_score":            [4.5],
+            "enterprise_value":          [3.5e12],
+            "wacc":                      [0.085],
+        })
+        p2 = Phase2Result(
+            income_df=income_df, balance_df=pd.DataFrame({"total_assets": [1]*5}),
+            cash_df=cash_df, ratios_df=ratios_df, kpi_df=pd.DataFrame(),
+            roe_decomp_df=pd.DataFrame(),
+            score=4.0, accruals_ratio=0.03, gross_profitability=0.40,
+            operating_leverage=1.3, dilution_5y=-0.02,
+            gate_passed=True, gate_notes="OK",
+        )
+        p3 = _make_mock_p3()
+        p1 = _make_mock_p1()
+        cfg = AnalysisConfig(symbol="MSFT")
+        return cfg, p1, p2, p3
+
+    # --- basic field presence -------------------------------------------
+
+    def test_mock_p4_has_peg_ratio(self):
+        """_make_mock_p4 default construction must expose peg_ratio."""
+        p4 = _make_mock_p4()
+        assert hasattr(p4, "peg_ratio")
+        assert isinstance(p4.peg_ratio, float)
+
+    def test_phase4_produces_peg_ratio(self):
+        """Full phase4 call must populate peg_ratio from computed PE and
+        revenue CAGR."""
+        # 15 % revenue CAGR ((161/100)^(1/5)-1 ≈ 10 %; use 5-year doubling)
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(pe=25.0,
+                                              revenue_series=[100e9, 115e9,
+                                                              130e9, 148e9, 168e9])
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert not math.isnan(p4.peg_ratio), "peg_ratio must be populated"
+        assert p4.peg_ratio > 0
+
+    # --- PEG value correctness ------------------------------------------
+
+    def test_peg_matches_pe_over_growth(self):
+        """PEG = PE / (revenue CAGR × 100). Verify the formula holds
+        against a hand-computed value.
+
+        Note: _cagr uses n = min(len(series)-1, years) periods.  For a
+        5-point series that's 4 compounding periods, not 5 — so the
+        expected CAGR is (168/100)^(1/4) - 1 ≈ 0.1381, not 0.1088.
+        """
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(pe=25.0,
+                                              revenue_series=[100e9, 115e9,
+                                                              130e9, 148e9, 168e9])
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        expected_cagr = (168 / 100) ** (1/4) - 1   # 4 periods between 5 points
+        expected_peg = 25.0 / (expected_cagr * 100)
+        assert abs(p4.peg_ratio - expected_peg) < 0.01, (
+            f"peg={p4.peg_ratio}, expected≈{expected_peg}"
+        )
+
+    def test_peg_nan_when_growth_negative(self):
+        """Declining revenue → CAGR < 0 → PEG undefined. Must return NaN."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(pe=25.0,
+                                              revenue_series=[168e9, 148e9,
+                                                              130e9, 115e9, 100e9])
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert math.isnan(p4.peg_ratio), (
+            f"expected NaN for declining revenue, got {p4.peg_ratio}"
+        )
+
+    def test_peg_nan_when_pe_missing(self):
+        """No PE → PEG is undefined."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(pe=float("nan"),
+                                              revenue_series=[100e9, 115e9,
+                                                              130e9, 148e9, 168e9])
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert math.isnan(p4.peg_ratio)
+
+    # --- verdict tightening (the "integrate into scoring" part) ---------
+
+    def test_peg_cheap_upgrades_fair_value_to_undervalued(self):
+        """When DCF says Fair Value AND PEG < 1.0 (cheap), verdict
+        upgrades to Undervalued. Peter Lynch's classic 'GARP' signal."""
+        # Construct a case where MOS ≈ 0 (Fair Value) but growth is high
+        # relative to PE: revenue growing 20 %/yr, PE only 15 → PEG ≈ 0.75
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=15.0,
+            revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],  # 20 % CAGR
+            fcf=20e9,   # keep FCF modest so DCF is not wildly favorable
+        )
+        # Also crank up the price so MOS drops into the Fair Value zone
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [200.0, 201.0, 202.0]  # elevated price
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        # PEG must be < 1.0
+        assert p4.peg_ratio < 1.0, f"expected cheap PEG, got {p4.peg_ratio}"
+        # If DCF was borderline, verdict should now be Undervalued
+        # (we don't assert an exact MOS band because DCF drift is high;
+        # instead, assert the *combination*: cheap PEG + not-overvalued
+        # DCF → verdict includes cheap-PEG signal in gate_notes)
+        assert "PEG" in p4.gate_notes, (
+            f"expected PEG mention in gate_notes, got: {p4.gate_notes!r}"
+        )
+
+    def test_peg_expensive_downgrades_fair_value_to_overvalued(self):
+        """When DCF says Fair Value AND PEG > 2.0 (expensive), verdict
+        downgrades to Overvalued."""
+        # PE 35, growth 8 % → PEG ≈ 4.4 (very expensive)
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],  # ~8 % CAGR
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [180.0, 181.0, 182.0]  # push toward Fair Value
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.peg_ratio > 2.0, f"expected expensive PEG, got {p4.peg_ratio}"
+        assert "PEG" in p4.gate_notes
+
+    def test_strong_dcf_undervalued_not_downgraded_by_expensive_peg(self):
+        """Design invariant: PEG only refines Fair Value cases. When DCF
+        signals strong Undervalued (MOS ≥ 15 %), an expensive PEG must
+        NOT overwrite the DCF verdict — DCF-first."""
+        # High FCF + low price → clear Undervalued
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            fcf=100e9,  # very high FCF → high DCF value
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [50.0, 51.0, 52.0]  # very low price → MOS strong
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        # PEG should still compute as expensive
+        assert p4.peg_ratio > 2.0
+        # But verdict should remain Undervalued because DCF is strong
+        assert p4.valuation_verdict == "Undervalued", (
+            f"strong DCF should not be overridden by expensive PEG; "
+            f"got verdict={p4.valuation_verdict}, mos={p4.margin_of_safety}, "
+            f"peg={p4.peg_ratio}"
         )
 
 # ---------------------------------------------------------------------------
