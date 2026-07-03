@@ -55,7 +55,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from scipy.optimize import brentq
-from scipy.stats import percentileofscore
+from scipy.stats import kurtosis as _scipy_kurtosis, percentileofscore, skew as _scipy_skew
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +390,15 @@ class Phase5Result:
     var_95: float
     cvar_95: float
     ulcer_index: float
+    kurtosis: float
+    """Fisher (excess) kurtosis of daily returns.  0 = normal distribution;
+    positive = fat tails (extreme moves more likely than a normal would
+    predict).  Empirically ~3-8 for daily large-cap equity returns
+    (bead OpenBBTechnical-0h2.4)."""
+    skewness: float
+    """Third-moment asymmetry of daily returns.  Negative = left tail
+    longer/fatter (crashes worse than rallies); positive = right tail
+    dominant.  Equity returns typically show mild negative skew."""
     kelly_fraction: float
     conviction_size: float          # Conviction-based position size (%)
     half_kelly_size: float          # Half-Kelly position size (%)
@@ -1827,6 +1836,14 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
     max_drawdown = float(drawdown_ser.min())
     ulcer_index  = float(np.sqrt((drawdown_ser ** 2).mean()))
 
+    # Distributional shape — fat-tail awareness (bead OpenBBTechnical-0h2.4).
+    # Fisher's excess kurtosis (fisher=True is scipy default): 0 = normal,
+    # positive = fatter tails than normal.  Skew: negative = left-tailed
+    # (crashes worse than rallies).  Both operate on the same returns
+    # series used for Sharpe/Sortino/etc — no new data fetch required.
+    kurtosis_val = float(_scipy_kurtosis(sym_ret, fisher=True, bias=True))
+    skewness_val = float(_scipy_skew(sym_ret, bias=True))
+
     # Calmar
     calmar = (annual_ret / abs(max_drawdown)) if max_drawdown != 0 else float("nan")
 
@@ -1895,6 +1912,8 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
         "cvar_95":       round(cvar_95, 4),
         "max_drawdown":  round(max_drawdown, 4),
         "ulcer_index":   round(ulcer_index, 4),
+        "kurtosis":      round(kurtosis_val, 4),
+        "skewness":      round(skewness_val, 4),
         "annual_return": round(annual_ret, 4),
         "annual_vol":    round(annual_vol, 4),
     }])
@@ -1919,6 +1938,8 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
         var_95=var_95,
         cvar_95=cvar_95,
         ulcer_index=ulcer_index,
+        kurtosis=kurtosis_val,
+        skewness=skewness_val,
         kelly_fraction=kelly_fraction,
         conviction_size=conviction_size,
         half_kelly_size=half_kelly_size,

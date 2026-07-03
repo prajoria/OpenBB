@@ -612,6 +612,8 @@ def _make_mock_p5(sharpe: float = 1.4, mdd: float = -0.22) -> Phase5Result:
         var_95=-0.018,
         cvar_95=-0.032,
         ulcer_index=4.5,
+        kurtosis=4.2,        # empirically typical for daily equity returns (excess kurtosis)
+        skewness=-0.3,       # slight negative skew is normal for stocks
         kelly_fraction=0.18,
         conviction_size=0.03,
         half_kelly_size=0.036,
@@ -898,6 +900,62 @@ class TestPhase1Tradeability:
         assert float_adjusted_cap == 800_000_000_000.0
 
 
+class TestPhase5FatTails:
+    """Verify kurtosis + skewness on Phase5Result (bead OpenBBTechnical-0h2.4).
+
+    A2 exposes distributional shape beyond mean/variance — critical because
+    real equity returns have fat tails (excess kurtosis typically 3-8 for
+    daily returns) that Sharpe/Sortino don't capture.  Golden values are
+    compared to direct scipy.stats calls on synthetic series.
+    """
+
+    def test_mock_p5_has_fat_tail_fields(self):
+        p5 = _make_mock_p5()
+        assert hasattr(p5, "kurtosis")
+        assert hasattr(p5, "skewness")
+        assert isinstance(p5.kurtosis, float)
+        assert isinstance(p5.skewness, float)
+
+    def test_normal_series_has_zero_excess_kurtosis(self):
+        """Fisher's excess kurtosis for a standard normal ~= 0 (large N).
+
+        This is the sanity check: a normal distribution has kurtosis 3 in
+        the Pearson definition; scipy defaults to Fisher (subtracts 3), so
+        the output must be near 0.
+        """
+        from scipy.stats import kurtosis, skew
+        rng = np.random.default_rng(42)
+        # Large N to shrink sampling error
+        normal_returns = rng.normal(loc=0.0, scale=0.01, size=10_000)
+        k = float(kurtosis(normal_returns, fisher=True))
+        s = float(skew(normal_returns))
+        # With N=10k, |kurtosis| < 0.15 and |skew| < 0.05 with very high probability
+        assert abs(k) < 0.15, f"expected ~0 excess kurtosis for normal, got {k}"
+        assert abs(s) < 0.05, f"expected ~0 skew for normal, got {s}"
+
+    def test_fat_tailed_series_shows_positive_kurtosis(self):
+        """A Student-t distribution with df=3 has infinite population kurtosis;
+        the sample estimator should still return a large positive value —
+        confirming that the metric distinguishes fat-tailed from normal."""
+        from scipy.stats import kurtosis, t
+        rng = np.random.default_rng(7)
+        t_returns = t.rvs(df=3, size=10_000, random_state=rng) * 0.01
+        k = float(kurtosis(t_returns, fisher=True))
+        # Even with sampling, df=3 t consistently produces k > 3
+        assert k > 3.0, f"expected fat-tailed kurtosis > 3, got {k}"
+
+    def test_negatively_skewed_series_shows_negative_skew(self):
+        """Left-skewed distributions (crashes worse than rallies) — the
+        canonical case for equity returns during stress periods."""
+        from scipy.stats import skew
+        rng = np.random.default_rng(11)
+        # Negative-skew construction: mix of small positive returns and rare large negatives
+        left_tail = rng.normal(loc=0.001, scale=0.005, size=9_500)
+        crashes  = rng.normal(loc=-0.05, scale=0.02, size=500)
+        returns = np.concatenate([left_tail, crashes])
+        s = float(skew(returns))
+        assert s < -0.5, f"expected pronounced negative skew, got {s}"
+
 # ---------------------------------------------------------------------------
 
 
@@ -1167,6 +1225,29 @@ class TestPhase5MSFT:
     def test_recommended_size_within_max(self, result):
         assert result.recommended_size <= 0.04 + 1e-9
 
+    def test_kurtosis_finite_and_typical(self, result):
+        """MSFT's daily returns should show finite excess kurtosis in the
+        empirical range for large-cap equities (~1-10 excess).  Extreme
+        values (>50 or infinite) suggest a data-quality problem."""
+        assert not math.isnan(result.kurtosis), "kurtosis must not be NaN"
+        assert math.isfinite(result.kurtosis)
+        assert -1.0 <= result.kurtosis <= 50.0, (
+            f"MSFT kurtosis {result.kurtosis} outside plausible large-cap range"
+        )
+
+    def test_skewness_finite(self, result):
+        """Skewness should be finite; sign varies by lookback window."""
+        assert not math.isnan(result.skewness), "skewness must not be NaN"
+        assert math.isfinite(result.skewness)
+        assert -5.0 <= result.skewness <= 5.0, (
+            f"MSFT skewness {result.skewness} outside plausible range"
+        )
+
+    def test_risk_kpi_df_has_fat_tail_columns(self, result):
+        """Bead spec: fields must appear in the exported KPI table too."""
+        assert "kurtosis" in result.risk_kpi_df.columns
+        assert "skewness" in result.risk_kpi_df.columns
+
 
 @integration
 class TestPhase5AAPL:
@@ -1179,6 +1260,17 @@ class TestPhase5AAPL:
 
     def test_max_drawdown_negative(self, result):
         assert result.max_drawdown <= 0
+
+    def test_kurtosis_finite_and_typical(self, result):
+        """AAPL should show finite excess kurtosis in the typical large-cap range."""
+        assert not math.isnan(result.kurtosis)
+        assert math.isfinite(result.kurtosis)
+        assert -1.0 <= result.kurtosis <= 50.0
+
+    def test_skewness_finite(self, result):
+        assert not math.isnan(result.skewness)
+        assert math.isfinite(result.skewness)
+        assert -5.0 <= result.skewness <= 5.0
 
 
 # ---------------------------------------------------------------------------
