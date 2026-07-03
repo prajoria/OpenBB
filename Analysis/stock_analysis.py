@@ -399,6 +399,10 @@ class Phase5Result:
     """Third-moment asymmetry of daily returns.  Negative = left tail
     longer/fatter (crashes worse than rallies); positive = right tail
     dominant.  Equity returns typically show mild negative skew."""
+    vol_63d_trend: str              # "expanding" / "contracting" / "flat"
+    """Direction of the trailing 63-day realized volatility vs. the prior
+    63-day window (bead OpenBBTechnical-0h2.5, reviewer P5 rec).  Hysteresis
+    of ±10 % keeps the label stable across small fluctuations."""
     kelly_fraction: float
     conviction_size: float          # Conviction-based position size (%)
     half_kelly_size: float          # Half-Kelly position size (%)
@@ -544,6 +548,61 @@ def _compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
     rs   = avg_gain / avg_loss.replace(0, np.nan)
     return 100 - 100 / (1 + rs)
+
+
+def _compute_vol_trend(
+    returns: pd.Series,
+    window: int = 63,
+    threshold: float = 0.10,
+) -> str:
+    """Classify the direction of the rolling *window*-day realized volatility.
+
+    Compares the mean of the most recent *window* days of rolling-vol
+    against the prior *window* days.  Returns one of:
+
+    * ``"expanding"``    — recent vol > prior vol by more than *threshold*
+    * ``"contracting"``  — recent vol < prior vol by more than *threshold*
+    * ``"flat"``         — change within ±*threshold*, or insufficient data
+
+    The *threshold* provides hysteresis so tiny fluctuations don't flip the
+    label between two consecutive analysis runs.  Defaults (63d window,
+    10 % threshold) match the reviewer's P5 recommendation: "Recent
+    volatility (3-6 months) may be very different from 15-month vol."
+
+    Parameters
+    ----------
+    returns : pd.Series
+        Daily returns series (typically ``price.pct_change().dropna()``).
+    window : int, default 63
+        Number of trading days per rolling-vol window.  63 ≈ 3 months.
+    threshold : float, default 0.10
+        Fractional change required to leave the "flat" band.
+
+    Returns
+    -------
+    str
+        One of ``"expanding"``, ``"contracting"``, ``"flat"``.  Never NaN
+        or None — downstream code can rely on the closed set.
+    """
+    if returns is None or len(returns) < 2 * window:
+        return "flat"
+
+    rolling_vol = returns.rolling(window).std().dropna()
+    if len(rolling_vol) < 2 * window:
+        return "flat"
+
+    recent_mean = float(rolling_vol.iloc[-window:].mean())
+    prior_mean  = float(rolling_vol.iloc[-2 * window:-window].mean())
+
+    if prior_mean <= 0 or not np.isfinite(prior_mean) or not np.isfinite(recent_mean):
+        return "flat"
+
+    change = (recent_mean - prior_mean) / prior_mean
+    if change > threshold:
+        return "expanding"
+    if change < -threshold:
+        return "contracting"
+    return "flat"
 
 
 def _compute_technicals(df: pd.DataFrame) -> pd.DataFrame:
@@ -1844,6 +1903,10 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
     kurtosis_val = float(_scipy_kurtosis(sym_ret, fisher=True, bias=True))
     skewness_val = float(_scipy_skew(sym_ret, bias=True))
 
+    # Volatility regime — 63-day rolling vol trend (bead OpenBBTechnical-0h2.5).
+    # Recent vs. prior 63-day windows; ±10 % hysteresis prevents whipsaw.
+    vol_63d_trend = _compute_vol_trend(sym_ret, window=63, threshold=0.10)
+
     # Calmar
     calmar = (annual_ret / abs(max_drawdown)) if max_drawdown != 0 else float("nan")
 
@@ -1914,6 +1977,7 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
         "ulcer_index":   round(ulcer_index, 4),
         "kurtosis":      round(kurtosis_val, 4),
         "skewness":      round(skewness_val, 4),
+        "vol_63d_trend": vol_63d_trend,
         "annual_return": round(annual_ret, 4),
         "annual_vol":    round(annual_vol, 4),
     }])
@@ -1940,6 +2004,7 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
         ulcer_index=ulcer_index,
         kurtosis=kurtosis_val,
         skewness=skewness_val,
+        vol_63d_trend=vol_63d_trend,
         kelly_fraction=kelly_fraction,
         conviction_size=conviction_size,
         half_kelly_size=half_kelly_size,

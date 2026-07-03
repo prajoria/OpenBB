@@ -55,6 +55,7 @@ from stock_analysis import (  # noqa: E402
     _compute_atr,
     _compute_rsi,
     _compute_technicals,
+    _compute_vol_trend,
     _dcf_sensitivity,
     _dcf_single,
     _decision_label,
@@ -614,6 +615,7 @@ def _make_mock_p5(sharpe: float = 1.4, mdd: float = -0.22) -> Phase5Result:
         ulcer_index=4.5,
         kurtosis=4.2,        # empirically typical for daily equity returns (excess kurtosis)
         skewness=-0.3,       # slight negative skew is normal for stocks
+        vol_63d_trend="flat",  # A3: expanding / contracting / flat
         kelly_fraction=0.18,
         conviction_size=0.03,
         half_kelly_size=0.036,
@@ -956,6 +958,72 @@ class TestPhase5FatTails:
         s = float(skew(returns))
         assert s < -0.5, f"expected pronounced negative skew, got {s}"
 
+
+class TestVolTrend:
+    """Verify _compute_vol_trend classifier (bead OpenBBTechnical-0h2.4 → 0h2.5).
+
+    Compares the mean of recent-63d rolling vol to the prior-63d window.
+    Threshold is ±10 % so tiny fluctuations don't flip the label — hysteresis
+    prevents whipsaw when vol is essentially stable.  Property tests use
+    synthetic series where the expected label is unambiguous.
+    """
+
+    def test_returns_expanding_when_vol_rising_strongly(self):
+        """A series where the LAST 100 days are much louder than the
+        prior 200 days classifies as 'expanding'.
+
+        Layout matters: with window=63, the classifier compares
+        rolling_vol.iloc[-63:] (covers returns[-126:-1], mix of quiet+loud)
+        to rolling_vol.iloc[-126:-63] (covers returns[-189:-63], pure quiet).
+        The transition needs to land inside the last 2*window returns for
+        the classifier to see it.
+        """
+        rng = np.random.default_rng(1)
+        quiet = pd.Series(rng.normal(0, 0.01, size=200))
+        loud  = pd.Series(rng.normal(0, 0.04, size=100))
+        returns = pd.concat([quiet, loud], ignore_index=True)
+        assert _compute_vol_trend(returns) == "expanding"
+
+    def test_returns_contracting_when_vol_falling_strongly(self):
+        """Loud early followed by quiet — classic 'crisis then calm'.
+        Mirror of the expanding case."""
+        rng = np.random.default_rng(2)
+        loud  = pd.Series(rng.normal(0, 0.04, size=200))
+        quiet = pd.Series(rng.normal(0, 0.01, size=100))
+        returns = pd.concat([loud, quiet], ignore_index=True)
+        assert _compute_vol_trend(returns) == "contracting"
+
+    def test_returns_flat_when_vol_stable(self):
+        """A series with constant volatility across the whole window."""
+        rng = np.random.default_rng(3)
+        # ~400 days at the same vol level
+        returns = pd.Series(rng.normal(0, 0.015, size=400))
+        assert _compute_vol_trend(returns) == "flat"
+
+    def test_returns_flat_when_series_too_short(self):
+        """Fewer than 2 * 63 = 126 returns → no meaningful comparison possible."""
+        rng = np.random.default_rng(4)
+        returns = pd.Series(rng.normal(0, 0.02, size=50))
+        assert _compute_vol_trend(returns) == "flat"
+
+    def test_returns_flat_on_empty_series(self):
+        """Degenerate input must not crash."""
+        assert _compute_vol_trend(pd.Series(dtype=float)) == "flat"
+
+    def test_only_returns_allowed_values(self):
+        """Contract: output is always one of the three literal strings.
+        Never returns None, NaN, or an unknown string — downstream code
+        can rely on the closed set."""
+        rng = np.random.default_rng(5)
+        for _ in range(20):
+            n = rng.integers(low=10, high=500)
+            scale = float(rng.uniform(0.005, 0.06))
+            returns = pd.Series(rng.normal(0, scale, size=n))
+            label = _compute_vol_trend(returns)
+            assert label in ("expanding", "contracting", "flat"), (
+                f"unexpected label {label!r} for scale={scale}, n={n}"
+            )
+
 # ---------------------------------------------------------------------------
 
 
@@ -1248,6 +1316,13 @@ class TestPhase5MSFT:
         assert "kurtosis" in result.risk_kpi_df.columns
         assert "skewness" in result.risk_kpi_df.columns
 
+    def test_vol_63d_trend_is_one_of_allowed_values(self, result):
+        """A3: vol regime label must be from the closed set."""
+        assert result.vol_63d_trend in ("expanding", "contracting", "flat")
+
+    def test_risk_kpi_df_has_vol_trend_column(self, result):
+        assert "vol_63d_trend" in result.risk_kpi_df.columns
+
 
 @integration
 class TestPhase5AAPL:
@@ -1271,6 +1346,10 @@ class TestPhase5AAPL:
         assert not math.isnan(result.skewness)
         assert math.isfinite(result.skewness)
         assert -5.0 <= result.skewness <= 5.0
+
+    def test_vol_63d_trend_is_one_of_allowed_values(self, result):
+        """A3: vol regime label must be from the closed set."""
+        assert result.vol_63d_trend in ("expanding", "contracting", "flat")
 
 
 # ---------------------------------------------------------------------------
