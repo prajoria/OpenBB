@@ -70,7 +70,7 @@ def _widgets_to_entries() -> list[BundledIndicatorEntry]:
 
 
 @router.command(methods=["GET"], path="/indicators/list")
-def indicators_list() -> OBBject[list[BundledIndicatorEntry]]:
+def indicators_list() -> OBBject:
     """List the bundled Pine indicators shipped with the extension.
 
     Reads :func:`openbb_pine._load_bundled_widgets` (widgets.json). When the
@@ -78,10 +78,22 @@ def indicators_list() -> OBBject[list[BundledIndicatorEntry]]:
     ``[]`` plus a PineCatalogEmpty warning so callers can distinguish
     "no bundled indicators" from "endpoint broken."
 
+    Bare ``OBBject`` (not ``OBBject[list[BundledIndicatorEntry]]``) — the
+    static package builder generates ``openbb.package.pine_indicators`` from
+    this annotation and would need to import ``BundledIndicatorEntry`` from
+    us to parametrize the generic, which it does not. Same fix as bead
+    #0e9.5.63 applied to ``pine_router.about()`` (commit ``ecee35428``) and
+    audited across every ``@router.command`` site by commit ``6e1ff5dc3``,
+    which missed this file. PRD §16.6 — no typed generics in
+    ``@router.command`` return annotations.
+
     Returns
     -------
-    OBBject[list[BundledIndicatorEntry]]
-        One entry per widgets.json top-level key.
+    OBBject
+        Results is ``list[BundledIndicatorEntry]`` (one entry per
+        widgets.json top-level key), plus a ``PineCatalogEmpty`` warning
+        when the catalog is empty. Runtime shape is unchanged — only the
+        static-facade type annotation is bare.
     """
     entries = _widgets_to_entries()
     warnings: list[Warning_] = []
