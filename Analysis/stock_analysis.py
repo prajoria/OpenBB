@@ -37,7 +37,7 @@ Usage
     p1  = phase1_company_profile(cfg)
     p2  = phase2_fundamentals(cfg)
     p3  = phase3_technicals(cfg)
-    p4  = phase4_valuation(cfg, p2, p3)
+    p4  = phase4_valuation(cfg, p2, p3, p1=p1)
     p5  = phase5_risk(cfg)
     p6  = phase6_peer_relative(cfg, p1)
     p7  = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
@@ -976,6 +976,60 @@ def _sector_etf(sector: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Sector-adjusted WACC fallback map (bead OpenBBTechnical-0h2.7).
+# ---------------------------------------------------------------------------
+# Used only as a FALLBACK when the ratios provider returns no wacc.  A live
+# ratios_df.wacc always wins over this default (see phase4_valuation).
+#
+# Rates are empirical-calibrated averages from sector-level cost-of-capital
+# studies (Damodaran; McKinsey Valuation, 7th ed. Ch. 15).  Reviewer P4
+# (item #10 in expert priority table) flagged the flat 9 % fallback as
+# 'too aggressive for a utility, too generous for a crypto name'.
+#
+# All sector strings that appear in _SECTOR_ETF_MAP are covered here so
+# the two lookups stay in sync as the map grows.
+_SECTOR_WACC_MAP: dict[str, float] = {
+    "Technology":             0.09,   # baseline — unchanged from flat fallback
+    "Communication Services": 0.09,   # similar risk profile to tech
+    "Financial Services":     0.10,   # banks/insurers — rate-sensitive
+    "Financial":              0.10,   # alias for FMP inconsistency
+    "Healthcare":             0.11,   # R&D + FDA + patent-cliff risk
+    "Health Care":            0.11,   # alias for FMP inconsistency
+    "Consumer Cyclical":      0.10,   # discretionary-spend cyclicality
+    "Consumer Defensive":     0.07,   # recession-resilient (staples)
+    "Industrials":            0.09,   # middle of road
+    "Basic Materials":        0.11,   # commodity-price exposure
+    "Energy":                 0.12,   # commodity + geopolitical
+    "Utilities":              0.06,   # regulated, low vol, div-heavy
+    "Real Estate":            0.08,   # REITs, moderate leverage
+    "Crypto":                 0.15,   # bead-title exemplar: highest vol
+}
+
+
+def _sector_wacc_default(sector: str, default: float = 0.09) -> float:
+    """Return the sector-calibrated WACC fallback (bead OpenBBTechnical-0h2.7).
+
+    Used only when ratios_df.wacc is NaN or non-positive.  A live provider
+    WACC always wins over this default in phase4_valuation.
+
+    Parameters
+    ----------
+    sector : str
+        Sector name as returned by ``obb.equity.profile`` (FMP-style).
+        Unknown sectors return *default*.
+    default : float, default 0.09
+        Fallback when sector isn't in ``_SECTOR_WACC_MAP``.  Set to the
+        flat pre-A4b rate so uncovered sectors don't shift silently.
+
+    Returns
+    -------
+    float
+        WACC as a decimal (0.09 = 9 %).
+    """
+    return _SECTOR_WACC_MAP.get(sector, default)
+
+
+# ---------------------------------------------------------------------------
 # Phase 1: Company Profile & Business Quality Screen
 # ---------------------------------------------------------------------------
 
@@ -1680,13 +1734,26 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
 
 
 def phase4_valuation(
-    cfg: AnalysisConfig, p2: Phase2Result, p3: Phase3Result
+    cfg: AnalysisConfig,
+    p2: Phase2Result,
+    p3: Phase3Result,
+    p1: Phase1Result | None = None,
 ) -> Phase4Result:
     """Phase 4 — DCF fair value, margin of safety, reverse-DCF, quality overlays.
 
     Uses data already fetched in Phase 2 — no new API calls for core valuation.
     Additional endpoint (fmp_cached):
     - None required: all data reused from p2 income_df, balance_df, cash_df, ratios_df.
+
+    Parameters
+    ----------
+    cfg, p2, p3 : as usual.
+    p1 : Phase1Result | None, default None
+        Optional so pre-A4b callers still work.  When provided AND
+        ``cfg.feature_flags.use_sector_wacc`` is True, the WACC fallback
+        (used when ratios_df.wacc is missing) is drawn from
+        :func:`_sector_wacc_default` using ``p1.sector``.  Without p1,
+        the fallback silently degrades to the flat 9 % (pre-A4b behavior).
 
     Returns
     -------
@@ -1761,7 +1828,14 @@ def phase4_valuation(
     fcf_col  = _find_col(cash_df, ["free_cash_flow", "freeCashFlow"])
     wacc     = _latest_col(ratios_df, ["wacc", "weighted_average_cost_of_capital"])
     if np.isnan(wacc) or wacc <= 0:
-        wacc = 0.09
+        # Fallback: flat 9 % (pre-A4b) unless use_sector_wacc flag is on AND
+        # we have a p1 to read the sector from.  Live-provider wacc always
+        # wins over this fallback — this branch only fires when ratios_df.wacc
+        # is missing (bead OpenBBTechnical-0h2.7).
+        if cfg.feature_flags.use_sector_wacc and p1 is not None:
+            wacc = _sector_wacc_default(p1.sector)
+        else:
+            wacc = 0.09
 
     fcf0   = float("nan")
     if fcf_col:
@@ -2575,7 +2649,7 @@ def run_full_analysis(cfg: AnalysisConfig) -> dict[str, Any]:
         return results
 
     logger.info("Phase 4 — Valuation")
-    p4 = phase4_valuation(cfg, p2, p3)
+    p4 = phase4_valuation(cfg, p2, p3, p1=p1)
     results["p4"] = p4
     if _gate_check("p4", p4, results):
         return results

@@ -66,6 +66,7 @@ from stock_analysis import (  # noqa: E402
     _latest_col,
     _score_fundamentals,
     _sector_etf,
+    _sector_wacc_default,
     _to_df,
     phase7_decision,
     run_full_analysis,
@@ -1240,6 +1241,206 @@ class TestPhase4TwoStageFlag:
         assert abs(base_cell - round(p4.dcf_fair_value, 2)) < 0.05, (
             f"sensitivity base cell {base_cell} disagrees with "
             f"dcf_fair_value {p4.dcf_fair_value:.2f} — flag not routed to sensitivity?"
+        )
+
+
+class TestSectorWaccDefault:
+    """Verify _sector_wacc_default helper (bead OpenBBTechnical-0h2.7).
+
+    Replaces the flat 9 % WACC fallback with a sector-calibrated default
+    when ratios_df.wacc is missing.  Rationale (reviewer P4, item #10):
+    9 % is too generous for a low-vol utility (empirical ~6 %) and too
+    aggressive for a crypto-adjacent name (empirical ~15 %).  Gated
+    behind AnalysisFeatureFlags.use_sector_wacc.
+    """
+
+    def test_technology_sector_returns_9pct(self):
+        """Technology sits at the baseline — same as the flat fallback.
+        This ensures Tech names don't shift when the flag flips on."""
+        assert _sector_wacc_default("Technology") == 0.09
+
+    def test_utilities_sector_returns_low_wacc(self):
+        """Utilities have regulated returns, low vol, dividend-heavy.
+        Empirically the lowest WACC of any sector (~6 %)."""
+        assert _sector_wacc_default("Utilities") == 0.06
+
+    def test_healthcare_sector_returns_higher_wacc(self):
+        """Healthcare has R&D + FDA + patent risk — reviewer flagged 11 %."""
+        assert _sector_wacc_default("Healthcare") == 0.11
+
+    def test_health_care_alias_also_returns_11pct(self):
+        """Provider inconsistency: FMP sometimes returns 'Health Care'
+        with a space.  Alias must resolve to the same value."""
+        assert _sector_wacc_default("Health Care") == 0.11
+
+    def test_energy_returns_elevated_wacc(self):
+        """Energy: commodity price + geopolitical risk."""
+        assert _sector_wacc_default("Energy") == 0.12
+
+    def test_crypto_returns_15pct_per_bead_title(self):
+        """Bead title explicitly names crypto at 15 % — the exemplar of
+        'reviewer's aggressive-fallback critique.'"""
+        assert _sector_wacc_default("Crypto") == 0.15
+
+    def test_unknown_sector_returns_default_9pct(self):
+        """When the sector name isn't in the map, fall back to the flat
+        9 % — preserves pre-A4b behavior for uncovered sectors."""
+        assert _sector_wacc_default("Bogus") == 0.09
+        assert _sector_wacc_default("") == 0.09
+
+    def test_custom_default_respected(self):
+        """Caller can override the fallback default (e.g., to preserve
+        an explicit numeric injected upstream)."""
+        assert _sector_wacc_default("Bogus", default=0.075) == 0.075
+
+    def test_all_mapped_sectors_have_plausible_wacc(self):
+        """Sanity: every sector WACC is a real number in (0, 0.20).
+        Guards against typos that would ship silently."""
+        # All the sector strings that appear in _SECTOR_ETF_MAP should
+        # also appear in _SECTOR_WACC_MAP so the two stay in sync.
+        for sector in [
+            "Technology", "Communication Services",
+            "Financial Services", "Financial",
+            "Healthcare", "Health Care",
+            "Consumer Cyclical", "Consumer Defensive",
+            "Industrials", "Basic Materials",
+            "Energy", "Utilities", "Real Estate",
+            "Crypto",
+        ]:
+            wacc = _sector_wacc_default(sector)
+            assert 0.0 < wacc < 0.20, f"{sector} WACC {wacc} outside plausible range"
+
+
+class TestPhase4SectorWaccFlag:
+    """Verify the AnalysisFeatureFlags.use_sector_wacc switch in
+    phase4_valuation (bead 0h2.7).
+
+    Parity assertion is critical: with the flag OFF (default), the WACC
+    fallback path must return the flat 9 %, exactly as pre-A4b.  With
+    the flag ON, the sector from p1 drives the WACC.  If p1 is not
+    passed (test-scaffolding legacy), sector-lookup gracefully falls
+    back to the flat 9 % — no crash.
+    """
+
+    def _cfg_p1_p2_p3(self, use_sector_wacc: bool, sector: str = "Utilities"):
+        """Build synthetic p1/p2/p3.  ratios_df deliberately omits wacc
+        so the fallback path is exercised."""
+        # p2 with NO wacc column — forces the fallback
+        income_df = pd.DataFrame({
+            "revenue":            [100e9, 115e9, 130e9, 148e9, 168e9],
+            "operating_income":   [30e9,  35e9,  40e9,  46e9,  53e9],
+            "gross_profit":       [65e9,  75e9,  85e9,  97e9,  110e9],
+            "eps_diluted":        [8.0,   9.0,   10.5,  12.0,  14.0],
+            "shares_outstanding": [10e9,  10e9,  9.9e9, 9.8e9, 9.75e9],
+        })
+        cash_df = pd.DataFrame({"free_cash_flow": [30e9, 35e9, 40e9, 46e9, 50e9]})
+        # ratios_df with NO wacc key — the whole point of A4b's fallback
+        ratios_df = pd.DataFrame({
+            "price_earnings_ratio":      [28.0],
+            "enterprise_value_multiple": [22.0],
+            "price_to_free_cash_flow":   [30.0],
+            "price_to_sales":            [12.0],
+            "piotroski_score":           [7],
+            "altman_z_score":            [4.5],
+            "enterprise_value":          [3.5e12],
+            # wacc: absent
+        })
+        p2 = Phase2Result(
+            income_df=income_df, balance_df=pd.DataFrame({"total_assets":[1]*5}),
+            cash_df=cash_df, ratios_df=ratios_df, kpi_df=pd.DataFrame(),
+            roe_decomp_df=pd.DataFrame(),
+            score=4.2, accruals_ratio=0.03, gross_profitability=0.40,
+            operating_leverage=1.3, dilution_5y=-0.02,
+            gate_passed=True, gate_notes="OK",
+        )
+        p3 = _make_mock_p3()
+        p1 = _make_mock_p1()
+        # Override p1.sector to whatever the test wants
+        p1.sector = sector
+        cfg = AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_sector_wacc=use_sector_wacc),
+        )
+        return cfg, p1, p2, p3
+
+    def test_flag_off_uses_flat_9pct(self):
+        """Flag=False must produce the DCF you'd get from flat 9 %,
+        regardless of p1.sector — pre-A4b behavior preserved."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=False,
+                                              sector="Utilities")
+        # Utilities would map to 6 % under the flag; but with flag off,
+        # WACC must remain 9 %.
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        # Reconstruct expected DCF at 9 %
+        fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
+        rev  = p2.income_df["revenue"]
+        g_short = min(_cagr(rev, 5), 0.25)
+        shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
+        expected = _dcf_single(fcf0, g_short, 0.025, 0.09, shares_out)
+        assert abs(p4.dcf_fair_value - expected) < 1e-6, (
+            f"flag-off drift: p4.dcf={p4.dcf_fair_value}, expected(9%)={expected}"
+        )
+
+    def test_flag_on_uses_sector_wacc_utilities(self):
+        """Utilities → 6 %.  Lower WACC → higher DCF value than flat-9 %
+        case (same FCF, lower discount rate)."""
+        cfg_on,  p1_on,  p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True,
+                                                     sector="Utilities")
+        cfg_off, p1_off, _,  _  = self._cfg_p1_p2_p3(use_sector_wacc=False,
+                                                     sector="Utilities")
+        p4_on  = phase4_valuation(cfg_on,  p2, p3, p1=p1_on)
+        p4_off = phase4_valuation(cfg_off, p2, p3, p1=p1_off)
+        # Utilities WACC 6 % < flat 9 % → utilities DCF should be higher
+        assert p4_on.dcf_fair_value > p4_off.dcf_fair_value, (
+            f"utilities under 6% WACC ({p4_on.dcf_fair_value}) should exceed "
+            f"flat-9% ({p4_off.dcf_fair_value})"
+        )
+
+    def test_flag_on_uses_sector_wacc_energy(self):
+        """Energy → 12 %.  Higher WACC → lower DCF value than flat-9 %."""
+        cfg_on,  p1_on,  p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True,
+                                                     sector="Energy")
+        cfg_off, p1_off, _,  _  = self._cfg_p1_p2_p3(use_sector_wacc=False,
+                                                     sector="Energy")
+        p4_on  = phase4_valuation(cfg_on,  p2, p3, p1=p1_on)
+        p4_off = phase4_valuation(cfg_off, p2, p3, p1=p1_off)
+        # Energy WACC 12 % > flat 9 % → energy DCF should be lower
+        assert p4_on.dcf_fair_value < p4_off.dcf_fair_value
+
+    def test_flag_on_but_no_p1_falls_back_gracefully(self):
+        """If phase4_valuation is called without p1 (older test-only path),
+        the sector-WACC lookup can't resolve — must silently degrade to
+        flat 9 %, not crash."""
+        cfg, _, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True,
+                                             sector="Utilities")
+        # Call WITHOUT p1
+        p4 = phase4_valuation(cfg, p2, p3)  # p1 not passed
+        fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
+        rev  = p2.income_df["revenue"]
+        g_short = min(_cagr(rev, 5), 0.25)
+        shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
+        expected = _dcf_single(fcf0, g_short, 0.025, 0.09, shares_out)
+        assert abs(p4.dcf_fair_value - expected) < 1e-6, (
+            "no-p1 path should degrade to flat 9 % WACC"
+        )
+
+    def test_ratios_wacc_takes_precedence_over_sector_default(self):
+        """When ratios_df has a valid wacc, it wins regardless of flag —
+        the sector default is a FALLBACK, not an override."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True,
+                                              sector="Utilities")
+        # Inject an explicit wacc into ratios_df — should be honored
+        p2.ratios_df = p2.ratios_df.assign(wacc=[0.0725])
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        # Compute what the DCF should be at wacc=0.0725
+        fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
+        rev  = p2.income_df["revenue"]
+        g_short = min(_cagr(rev, 5), 0.25)
+        shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
+        expected = _dcf_single(fcf0, g_short, 0.025, 0.0725, shares_out)
+        assert abs(p4.dcf_fair_value - expected) < 1e-6, (
+            f"explicit wacc 0.0725 should override sector default; "
+            f"got {p4.dcf_fair_value}, expected {expected}"
         )
 
 # ---------------------------------------------------------------------------
