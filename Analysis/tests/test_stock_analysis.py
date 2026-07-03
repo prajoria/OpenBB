@@ -521,6 +521,8 @@ def _make_mock_p1() -> Phase1Result:
         sector="Technology",
         industry="Software",
         market_cap=3_000_000_000_000,
+        free_float_pct=None,
+        short_interest_pct=None,
         gate_passed=True,
         gate_notes="OK",
     )
@@ -827,6 +829,75 @@ class TestPhase6Rolling3M:
         assert 0.0 <= p6.rolling_3m_rank <= 100.0
 
 
+class TestPhase1Tradeability:
+    """Verify free_float_pct + short_interest_pct on Phase1Result (bead OpenBBTechnical-0h2.3).
+
+    The A1 bead renames the P1 block conceptually to 'tradeability' (from the
+    reviewer's P1 recommendation: raw market cap overstates liquidity, so
+    float-adjusted market cap is the more honest signal).  These unit tests
+    verify the dataclass carries both fields with sensible None-fallback
+    semantics — live-provider assertions live in TestPhase1MSFT/AAPL below.
+    """
+
+    def test_mock_p1_has_tradeability_fields(self):
+        p1 = _make_mock_p1()
+        assert hasattr(p1, "free_float_pct")
+        assert hasattr(p1, "short_interest_pct")
+
+    def test_mock_p1_defaults_to_none_on_missing_data(self):
+        """Both fields must be None-capable — providers may fail to return them."""
+        p1 = _make_mock_p1()
+        assert p1.free_float_pct is None
+        assert p1.short_interest_pct is None
+
+    def test_phase1result_accepts_float_free_float(self):
+        """Construct a Phase1Result with a real free-float value (0.87 = 87 %)."""
+        p1 = Phase1Result(
+            profile_df=pd.DataFrame(),
+            quote_df=pd.DataFrame(),
+            metrics_df=pd.DataFrame(),
+            peers=[],
+            geo_df=pd.DataFrame(),
+            insider_df=pd.DataFrame(),
+            institutional_df=pd.DataFrame(),
+            price_targets_df=pd.DataFrame(),
+            sector="",
+            industry="",
+            market_cap=0.0,
+            free_float_pct=0.87,
+            short_interest_pct=0.05,
+            gate_passed=False,
+            gate_notes="",
+        )
+        assert p1.free_float_pct == 0.87
+        assert p1.short_interest_pct == 0.05
+
+    def test_float_adjusted_market_cap_derivation(self):
+        """The whole point of A1 — a caller can compute float-adjusted market cap
+        as market_cap * free_float_pct.  This is the reviewer's core recommendation.
+        """
+        p1 = Phase1Result(
+            profile_df=pd.DataFrame(),
+            quote_df=pd.DataFrame(),
+            metrics_df=pd.DataFrame(),
+            peers=[],
+            geo_df=pd.DataFrame(),
+            insider_df=pd.DataFrame(),
+            institutional_df=pd.DataFrame(),
+            price_targets_df=pd.DataFrame(),
+            sector="",
+            industry="",
+            market_cap=1_000_000_000_000.0,  # $1T raw
+            free_float_pct=0.80,             # 80 % of shares publicly tradeable
+            short_interest_pct=None,
+            gate_passed=False,
+            gate_notes="",
+        )
+        # A caller (later phases) can derive the float-adjusted cap
+        float_adjusted_cap = p1.market_cap * p1.free_float_pct
+        assert float_adjusted_cap == 800_000_000_000.0
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -862,6 +933,24 @@ class TestPhase1MSFT:
     def test_gate_passed(self, result):
         assert result.gate_passed
 
+    def test_free_float_pct_populated(self, result):
+        """MSFT's free float from fmp_cached share_statistics should be a
+        fraction in (0, 1] — Microsoft's insider stake is small so free float
+        is typically > 0.99.  A None result means fmp_cached share_statistics
+        failed; that's a provider regression worth surfacing."""
+        assert result.free_float_pct is not None, (
+            "fmp_cached share_statistics returned no free_float for MSFT — "
+            "provider regression?"
+        )
+        assert 0.0 < result.free_float_pct <= 1.0
+
+    def test_short_interest_pct_semantics(self, result):
+        """fmp_cached does not currently expose short_interest.  A1 preserves
+        the field on the dataclass for future population (see follow-up bead
+        for adding a short-interest provider) but the value must be None on
+        the current single-provider stack."""
+        assert result.short_interest_pct is None
+
 
 @integration
 class TestPhase1AAPL:
@@ -877,6 +966,18 @@ class TestPhase1AAPL:
 
     def test_gate_passed(self, result):
         assert result.gate_passed
+
+    def test_free_float_pct_populated(self, result):
+        """AAPL's free float from fmp_cached share_statistics — same expectation
+        as MSFT: fraction in (0, 1], typically > 0.99 for a well-held large-cap."""
+        assert result.free_float_pct is not None, (
+            "fmp_cached share_statistics returned no free_float for AAPL"
+        )
+        assert 0.0 < result.free_float_pct <= 1.0
+
+    def test_short_interest_pct_semantics(self, result):
+        """Same as MSFT — fmp_cached does not expose short_interest today."""
+        assert result.short_interest_pct is None
 
 
 # ---------------------------------------------------------------------------

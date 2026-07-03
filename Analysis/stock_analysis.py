@@ -284,7 +284,15 @@ class AnalysisConfig:
 
 @dataclass
 class Phase1Result:
-    """Outputs of Phase 1: Company Profile & Business Quality Screen."""
+    """Outputs of Phase 1: Company Profile & Tradeability Screen.
+
+    Named "tradeability" (not "business quality") because these fields answer
+    'can a meaningful position actually be entered and exited?' — raw market
+    cap alone overstates liquidity for stocks with heavy insider or founder
+    ownership.  ``free_float_pct * market_cap`` yields the float-adjusted
+    market cap, which is the more honest liquidity signal (bead
+    OpenBBTechnical-0h2.3 / GH #300, per reviewer P1 recommendation).
+    """
 
     profile_df: pd.DataFrame
     quote_df: pd.DataFrame
@@ -297,6 +305,15 @@ class Phase1Result:
     sector: str
     industry: str
     market_cap: float
+    free_float_pct: float | None
+    """Fraction of shares publicly tradeable (0.0-1.0) from
+    ``obb.equity.share_statistics``.  ``None`` if the provider returned no
+    data.  Multiply by ``market_cap`` for float-adjusted market cap."""
+    short_interest_pct: float | None
+    """Fraction of the float sold short (0.0-1.0).  Currently always ``None``
+    because ``fmp_cached`` does not expose short-interest data — follow-up
+    bead will add a secondary provider (finra or similar) if we want to lift
+    the single-provider constraint here."""
     gate_passed: bool
     gate_notes: str
 
@@ -884,6 +901,31 @@ def phase1_company_profile(cfg: AnalysisConfig) -> Phase1Result:
     except Exception:  # noqa: BLE001
         price_targets_df = pd.DataFrame()
 
+    # Tradeability: free float from share_statistics (bead OpenBBTechnical-0h2.3).
+    # The FMPShareStatisticsData validator returns free_float already normalised
+    # to a 0-1 fraction (raw percent / 100).  Fallback path derives it from
+    # float_shares / outstanding_shares if the primary field is empty.
+    free_float_pct: float | None = None
+    try:
+        share_stats_df = _to_df(
+            obb.equity.share_statistics(symbol=sym, provider=prv)
+        )
+        primary = _latest_col(share_stats_df, ["free_float"])
+        if not np.isnan(primary):
+            free_float_pct = float(primary)
+        else:
+            float_shares = _latest_col(share_stats_df, ["float_shares"])
+            outstanding = _latest_col(share_stats_df, ["outstanding_shares"])
+            if not np.isnan(float_shares) and not np.isnan(outstanding) and outstanding > 0:
+                free_float_pct = float(float_shares) / float(outstanding)
+    except Exception:  # noqa: BLE001
+        free_float_pct = None
+
+    # Short interest: fmp_cached does not expose it today.  Preserved on the
+    # dataclass so downstream phases can consume the field once a follow-up
+    # bead adds a secondary provider (finra_cached or similar).
+    short_interest_pct: float | None = None
+
     # Extract key fields
     sector   = _safe_str(profile_df, ["sector"])
     industry = _safe_str(profile_df, ["industry"])
@@ -907,6 +949,8 @@ def phase1_company_profile(cfg: AnalysisConfig) -> Phase1Result:
         sector=sector,
         industry=industry,
         market_cap=mktcap,
+        free_float_pct=free_float_pct,
+        short_interest_pct=short_interest_pct,
         gate_passed=gate_passed,
         gate_notes=gate_notes,
     )
