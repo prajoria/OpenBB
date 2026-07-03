@@ -47,8 +47,9 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import numpy as np
@@ -96,6 +97,118 @@ def _last_trading_day(reference: datetime.date | None = None) -> datetime.date:
 PRIMARY_PROVIDER: str = "fmp_cached"
 
 # ---------------------------------------------------------------------------
+# Feature flags (Phase A0 — bead OpenBBTechnical-0h2.1)
+# ---------------------------------------------------------------------------
+# Every flag defaults to ``False`` so the pipeline behaves exactly as it did
+# before A0 shipped.  Downstream beads flip individual flags on to activate
+# their new behavior; the default-off state is the reversibility guarantee
+# that lets us roll back any single experiment without a code revert.
+#
+# Envvar convention: each flag maps 1:1 to ``ANALYSIS_<UPPER_ATTR>``.
+# Truthy: "1", "true", "yes", "on" (case-insensitive).  Falsy: "0", "false",
+# "no", "off", "" (empty).  Any other string raises ValueError — we never
+# silently coerce garbage input.
+
+_TRUTHY_ENV = frozenset({"1", "true", "yes", "on"})
+_FALSY_ENV = frozenset({"0", "false", "no", "off", ""})
+
+
+def _parse_env_bool(envvar: str, raw: str) -> bool:
+    """Parse an env-var string to bool with strict recognition.
+
+    Raises ValueError if *raw* is not in the truthy/falsy vocabulary.  The
+    *envvar* name is included in the error message for actionable diagnostics
+    ("which flag did I typo?").
+    """
+    lowered = raw.strip().lower()
+    if lowered in _TRUTHY_ENV:
+        return True
+    if lowered in _FALSY_ENV:
+        return False
+    raise ValueError(
+        f"{envvar}={raw!r} is not a recognised boolean; "
+        f"use one of {sorted(_TRUTHY_ENV)} or {sorted(_FALSY_ENV - {''})}."
+    )
+
+
+@dataclass
+class AnalysisFeatureFlags:
+    """Rollout flags for phase A-G behavior changes (per plan Q-4).
+
+    Every flag defaults to ``False`` — old pipeline behavior is preserved
+    on a default construction, so ``AnalysisConfig(symbol=...)`` alone
+    causes no observable output change.
+
+    Attributes
+    ----------
+    use_two_stage_dcf : bool
+        Phase A4a — enable the 5Y-explicit → 8Y-taper → terminal DCF fade
+        in place of the current single-stage Gordon Growth model.
+    use_sector_wacc : bool
+        Phase A4b — when ``ratios_df["wacc"]`` is NaN, fall back to a
+        sector-mapped default (tech 9 %, healthcare 11 %, crypto-adj 15 %)
+        instead of the current flat 9 % fallback.
+    use_confluence_engine : bool
+        Phase C2 — route the P3 11-condition binary count through the
+        weighted continuous confluence engine at ``techtrade.engine.confluence``.
+    use_regime_input : bool
+        Phase B2 — feed ``MarketRegime`` (from the new shared regime extension)
+        into the P7 composite weight adjustment table.
+    use_trailing_stop : bool
+        Phase A8 (part 2) — attach trailing-stop rules to the P7 execution
+        plan output (move to break-even after 1R, 1.5× ATR trail after 2R).
+    use_stop_cap : bool
+        Phase A8 (part 1) — cap the initial stop at ``min(2 * ATR, 5 % * entry)``
+        instead of the current unbounded ``entry − 2 * ATR``.
+
+    Env-var overrides
+    -----------------
+    Each field is overridable via the matching ``ANALYSIS_<UPPER_ATTR>``
+    environment variable, resolved by :meth:`from_env`.  Callers who want the
+    behavior of ``AnalysisConfig`` to reflect the environment should pass
+    ``feature_flags=AnalysisFeatureFlags.from_env()`` explicitly — the default
+    factory returns an all-``False`` instance so pytest never picks up shell
+    state accidentally.
+    """
+
+    use_two_stage_dcf: bool = False
+    use_sector_wacc: bool = False
+    use_confluence_engine: bool = False
+    use_regime_input: bool = False
+    use_trailing_stop: bool = False
+    use_stop_cap: bool = False
+
+    @classmethod
+    def from_env(cls) -> "AnalysisFeatureFlags":
+        """Build an instance from ``ANALYSIS_*`` environment variables.
+
+        Unset vars keep the field default (``False``).  Set vars must parse
+        as bool via :func:`_parse_env_bool`; unrecognised values raise
+        ``ValueError`` with the offending envvar name.
+
+        Returns
+        -------
+        AnalysisFeatureFlags
+        """
+        kwargs: dict[str, bool] = {}
+        for f in cls.__dataclass_fields__.values():
+            envvar = "ANALYSIS_" + f.name.upper()
+            if envvar in os.environ:
+                kwargs[f.name] = _parse_env_bool(envvar, os.environ[envvar])
+        return cls(**kwargs)
+
+    def as_dict(self) -> dict[str, bool]:
+        """Introspection helper — every flag as a plain dict.
+
+        Delegates to :func:`dataclasses.asdict` so newly-added flags in phases
+        B-G surface automatically without editing this method.  Used for
+        dev-time logging (``logger.info("flags: %s", flags.as_dict())``) and
+        for the P7 handoff artifact so a reader can reproduce a run.
+        """
+        return asdict(self)
+
+
+# ---------------------------------------------------------------------------
 # Configuration dataclass
 # ---------------------------------------------------------------------------
 
@@ -125,6 +238,12 @@ class AnalysisConfig:
         Annual risk-free rate used in Sharpe / Sortino / Jensen calculations.
     max_portfolio_allocation : float
         Maximum single-position size as fraction of portfolio (for Kelly sizing).
+    feature_flags : AnalysisFeatureFlags
+        Rollout switches for Phase A-G behavior changes (see
+        :class:`AnalysisFeatureFlags`).  Defaults to all-``False`` so behavior
+        matches pre-A0 exactly.  Pass ``AnalysisFeatureFlags.from_env()`` to
+        pick up ``ANALYSIS_*`` env vars, or construct an explicit instance
+        for programmatic overrides.
     """
 
     symbol: str
@@ -146,6 +265,7 @@ class AnalysisConfig:
     risk_free_rate: float = 0.02
     max_portfolio_allocation: float = 0.04  # 4 % hard cap
     enforce_gates: bool = False             # Stop pipeline on gate failure
+    feature_flags: AnalysisFeatureFlags = field(default_factory=AnalysisFeatureFlags)
 
     def __post_init__(self) -> None:
         if self.provider != PRIMARY_PROVIDER:

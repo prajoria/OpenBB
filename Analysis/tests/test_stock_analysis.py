@@ -42,6 +42,7 @@ if _ANALYSIS_DIR not in sys.path:
 from stock_analysis import (  # noqa: E402
     PRIMARY_PROVIDER,
     AnalysisConfig,
+    AnalysisFeatureFlags,
     Phase1Result,
     Phase2Result,
     Phase3Result,
@@ -135,6 +136,27 @@ class TestHelpers:
         assert 0.0 < cfg.risk_free_rate < 0.10
         # end_date must be strictly before today (never includes current session)
         assert cfg.end_date < datetime.date.today().isoformat()
+
+    def test_analysis_config_has_feature_flags(self):
+        """AnalysisConfig must expose a feature_flags field defaulting to all-old-behavior."""
+        cfg = AnalysisConfig(symbol="TSLA")
+        assert isinstance(cfg.feature_flags, AnalysisFeatureFlags)
+        # Every flag defaults to False → old behavior preserved on default config
+        assert cfg.feature_flags.use_two_stage_dcf is False
+        assert cfg.feature_flags.use_sector_wacc is False
+        assert cfg.feature_flags.use_confluence_engine is False
+        assert cfg.feature_flags.use_regime_input is False
+        assert cfg.feature_flags.use_trailing_stop is False
+        assert cfg.feature_flags.use_stop_cap is False
+
+    def test_analysis_config_accepts_custom_feature_flags(self):
+        """Callers can pass their own AnalysisFeatureFlags instance to override defaults."""
+        flags = AnalysisFeatureFlags(use_two_stage_dcf=True, use_stop_cap=True)
+        cfg = AnalysisConfig(symbol="TSLA", feature_flags=flags)
+        assert cfg.feature_flags.use_two_stage_dcf is True
+        assert cfg.feature_flags.use_stop_cap is True
+        # Untouched flags stay at default (False)
+        assert cfg.feature_flags.use_sector_wacc is False
 
     def test_analysis_config_wrong_provider_warns(self):
         with pytest.warns(UserWarning, match="not the supported value"):
@@ -1146,3 +1168,116 @@ class TestFullPipelineAAPL:
 
     def test_p7_action_label_valid(self, results):
         assert results["p7"].action_label in ("Strong Buy", "Buy", "Hold/Watch", "Avoid")
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — AnalysisFeatureFlags (Phase A0 — bead OpenBBTechnical-0h2.1)
+# ---------------------------------------------------------------------------
+
+
+class TestFeatureFlags:
+    """Exhaustive parse coverage for the six Phase A-G rollout flags.
+
+    Every flag defaults to ``False`` — i.e. the pipeline behaves exactly as it
+    did before A0 shipped.  Downstream beads (A4a, A4b, A8, B1-B4, C1-C4, F1-F3)
+    flip the individual flags on to activate their new behavior; the default
+    off state is the reversibility guarantee that lets us roll back any single
+    experiment without a code revert.
+    """
+
+    @pytest.fixture
+    def clean_flag_env(self, monkeypatch):
+        """Delete every ANALYSIS_* var so tests start from a hermetic environment.
+
+        The var list is derived from ``__dataclass_fields__`` so a seventh flag
+        added in a later phase is covered automatically — no test edit needed.
+        """
+        for name in AnalysisFeatureFlags.__dataclass_fields__:
+            monkeypatch.delenv(f"ANALYSIS_{name.upper()}", raising=False)
+        return monkeypatch
+
+    # --- default construction -------------------------------------------
+
+    def test_all_flags_default_false(self):
+        flags = AnalysisFeatureFlags()
+        assert flags.use_two_stage_dcf is False
+        assert flags.use_sector_wacc is False
+        assert flags.use_confluence_engine is False
+        assert flags.use_regime_input is False
+        assert flags.use_trailing_stop is False
+        assert flags.use_stop_cap is False
+
+    def test_kwargs_override_defaults(self):
+        flags = AnalysisFeatureFlags(
+            use_two_stage_dcf=True,
+            use_sector_wacc=True,
+            use_confluence_engine=True,
+            use_regime_input=True,
+            use_trailing_stop=True,
+            use_stop_cap=True,
+        )
+        assert flags.use_two_stage_dcf is True
+        assert flags.use_sector_wacc is True
+        assert flags.use_confluence_engine is True
+        assert flags.use_regime_input is True
+        assert flags.use_trailing_stop is True
+        assert flags.use_stop_cap is True
+
+    # --- from_env: no vars set ------------------------------------------
+
+    def test_from_env_no_vars_returns_all_false(self, clean_flag_env):
+        flags = AnalysisFeatureFlags.from_env()
+        assert flags == AnalysisFeatureFlags()
+
+    # --- from_env: truthy variants --------------------------------------
+
+    @pytest.mark.parametrize("truthy", ["1", "true", "TRUE", "yes", "on"])
+    def test_from_env_recognises_truthy(self, monkeypatch, truthy):
+        monkeypatch.setenv("ANALYSIS_USE_TWO_STAGE_DCF", truthy)
+        flags = AnalysisFeatureFlags.from_env()
+        assert flags.use_two_stage_dcf is True, f"{truthy!r} should parse as True"
+
+    @pytest.mark.parametrize("falsy", ["0", "false", "FALSE", "no", "off", ""])
+    def test_from_env_recognises_falsy(self, monkeypatch, falsy):
+        monkeypatch.setenv("ANALYSIS_USE_TWO_STAGE_DCF", falsy)
+        flags = AnalysisFeatureFlags.from_env()
+        assert flags.use_two_stage_dcf is False, f"{falsy!r} should parse as False"
+
+    def test_from_env_rejects_garbage(self, monkeypatch):
+        """Unrecognised values raise ValueError — we never silently coerce."""
+        monkeypatch.setenv("ANALYSIS_USE_TWO_STAGE_DCF", "maybe")
+        with pytest.raises(ValueError, match="ANALYSIS_USE_TWO_STAGE_DCF"):
+            AnalysisFeatureFlags.from_env()
+
+    # --- from_env: each flag maps to its own env var --------------------
+
+    @pytest.mark.parametrize("attr,envvar", [
+        ("use_two_stage_dcf",     "ANALYSIS_USE_TWO_STAGE_DCF"),
+        ("use_sector_wacc",       "ANALYSIS_USE_SECTOR_WACC"),
+        ("use_confluence_engine", "ANALYSIS_USE_CONFLUENCE_ENGINE"),
+        ("use_regime_input",      "ANALYSIS_USE_REGIME_INPUT"),
+        ("use_trailing_stop",     "ANALYSIS_USE_TRAILING_STOP"),
+        ("use_stop_cap",          "ANALYSIS_USE_STOP_CAP"),
+    ])
+    def test_from_env_each_flag_has_its_own_var(self, clean_flag_env, attr, envvar):
+        # Fixture already cleared all ANALYSIS_* vars — set only the targeted one.
+        clean_flag_env.setenv(envvar, "true")
+        flags = AnalysisFeatureFlags.from_env()
+        assert getattr(flags, attr) is True, f"{envvar} did not toggle {attr}"
+        # All other flags stay False
+        for other in AnalysisFeatureFlags.__dataclass_fields__:
+            if other == attr:
+                continue
+            assert getattr(flags, other) is False, (
+                f"{envvar} unexpectedly toggled {other}"
+            )
+
+    # --- introspection helper --------------------------------------------
+
+    def test_as_dict_returns_all_six(self):
+        flags = AnalysisFeatureFlags(use_stop_cap=True)
+        d = flags.as_dict()
+        assert set(d.keys()) == set(AnalysisFeatureFlags.__dataclass_fields__)
+        assert d["use_stop_cap"] is True
+        assert d["use_two_stage_dcf"] is False
+
