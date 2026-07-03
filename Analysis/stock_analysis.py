@@ -1938,40 +1938,66 @@ def phase4_valuation(
     # flip flows through gate_passed = valuation_verdict in {Undervalued, Fair
     # Value} — a firm decision shift.  PR #304 review C1/I1 caught this as an
     # unflagged behavior change; bead OpenBBTechnical-0h2.35 tracks the fix.
+    #
+    # When the flag is on but peg_ratio is NaN (declining revenue or missing
+    # PE), we surface a diagnostic in peg_note so the user knows their opt-in
+    # was silently skipped for THIS symbol.  Bead OpenBBTechnical-0h2.39.
     peg_note = ""
-    if (
-        cfg.feature_flags.use_peg_tightening
-        and valuation_verdict == "Fair Value"
-        and not np.isnan(peg_ratio)
-    ):
-        if peg_ratio < 1.0:
+    if cfg.feature_flags.use_peg_tightening and valuation_verdict == "Fair Value":
+        if np.isnan(peg_ratio):
+            peg_note = " (PEG unavailable — tightening skipped)"
+            logger.info(
+                "use_peg_tightening=True for %s but peg_ratio is NaN "
+                "(growth<=0 or PE missing); tightening skipped",
+                cfg.symbol,
+            )
+        elif peg_ratio < 1.0:
             valuation_verdict = "Undervalued"
             peg_note = f" (PEG {peg_ratio:.2f} < 1.0 → cheap growth)"
         elif peg_ratio > 2.0:
             valuation_verdict = "Overvalued"
             peg_note = f" (PEG {peg_ratio:.2f} > 2.0 → expensive growth)"
 
-    # Combined valuation-technical entry recommendation
+    # Combined valuation-technical entry recommendation.
+    #
+    # Keyed on the (possibly PEG-tightened) valuation_verdict, NOT raw mos.
+    # If PEG tightening flipped Fair Value → Overvalued via use_peg_tightening,
+    # the verdict change must flow through here — otherwise Phase4Result would
+    # simultaneously say verdict=Overvalued AND entry_rec=Opportunistic Entry,
+    # a silent incoherence (bead OpenBBTechnical-0h2.36 (entry_rec coherence)).
+    # Within each verdict tier, mos + bullish_count still refine the wording.
     bull = p3.bullish_count
-    if mos >= 0.15 and bull >= 6:
-        entry_rec = "Strong Entry — value and timing aligned"
-    elif mos >= 0.15 and bull >= 3:
-        entry_rec = "Partial Entry — fundamental case strong; wait for technical improvement"
-    elif mos >= 0.15 and bull < 3:
-        entry_rec = "Wait — cheap but technically broken"
-    elif 0.0 <= mos < 0.15 and bull >= 6:
-        entry_rec = "Opportunistic Entry — fair value but strong technicals"
-    elif mos < 0.0:
+    if valuation_verdict == "Overvalued":
         entry_rec = "Avoid — overvalued regardless of technicals"
-    else:
-        entry_rec = "Watchlist — no asymmetric opportunity"
+    elif valuation_verdict == "Undervalued":
+        # Deep-undervalued cases (mos >= 0.15) get the classic 3-tier
+        # gradation on technicals; PEG-upgraded borderline cases (mos in
+        # [-0.05, 0.15)) still count as "cheap enough to enter" but the
+        # technical strength decides how eagerly.
+        if bull >= 6:
+            entry_rec = "Strong Entry — value and timing aligned"
+        elif bull >= 3:
+            entry_rec = "Partial Entry — fundamental case strong; wait for technical improvement"
+        else:
+            entry_rec = "Wait — cheap but technically broken"
+    else:  # "Fair Value"
+        if bull >= 6:
+            entry_rec = "Opportunistic Entry — fair value but strong technicals"
+        else:
+            entry_rec = "Watchlist — no asymmetric opportunity"
 
     gate_passed = (
         not np.isnan(margin_of_safety)
         and (np.isnan(altman) or altman > 1.81)
         and valuation_verdict in ("Undervalued", "Fair Value")
     )
-    peg_gate_str = f" | PEG {peg_ratio:.2f}" if not np.isnan(peg_ratio) else ""
+    # peg_gate_str is gated on use_peg_tightening to preserve bit-for-bit
+    # gate_notes parity when the flag is off — otherwise a user opting out
+    # of PEG still sees the value in gate_notes and could reasonably infer
+    # PEG was consulted. Bead OpenBBTechnical-0h2.38 (peg_gate_str leak).
+    peg_gate_str = ""
+    if cfg.feature_flags.use_peg_tightening and not np.isnan(peg_ratio):
+        peg_gate_str = f" | PEG {peg_ratio:.2f}"
     gate_notes = (
         f"MOS {margin_of_safety:.1%} | {valuation_verdict}{peg_note} | "
         f"Altman Z {altman:.2f}{peg_gate_str} | {entry_rec}"

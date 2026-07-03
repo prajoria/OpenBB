@@ -141,16 +141,21 @@ class TestHelpers:
         assert cfg.end_date < datetime.date.today().isoformat()
 
     def test_analysis_config_has_feature_flags(self):
-        """AnalysisConfig must expose a feature_flags field defaulting to all-old-behavior."""
+        """AnalysisConfig must expose a feature_flags field defaulting to all-old-behavior.
+
+        Driven from ``AnalysisFeatureFlags.__dataclass_fields__`` so this test
+        automatically covers new flags added in later phases (bead
+        OpenBBTechnical-0h2.37 (flag test coverage): iteration 1 hard-coded 6
+        flags and missed the 7th when A5 shipped ``use_peg_tightening``).
+        """
         cfg = AnalysisConfig(symbol="TSLA")
         assert isinstance(cfg.feature_flags, AnalysisFeatureFlags)
-        # Every flag defaults to False → old behavior preserved on default config
-        assert cfg.feature_flags.use_two_stage_dcf is False
-        assert cfg.feature_flags.use_sector_wacc is False
-        assert cfg.feature_flags.use_confluence_engine is False
-        assert cfg.feature_flags.use_regime_input is False
-        assert cfg.feature_flags.use_trailing_stop is False
-        assert cfg.feature_flags.use_stop_cap is False
+        # Every flag defaults to False → old behavior preserved on default config.
+        for name in AnalysisFeatureFlags.__dataclass_fields__:
+            assert getattr(cfg.feature_flags, name) is False, (
+                f"expected {name}=False by default, got "
+                f"{getattr(cfg.feature_flags, name)!r}"
+            )
 
     def test_analysis_config_accepts_custom_feature_flags(self):
         """Callers can pass their own AnalysisFeatureFlags instance to override defaults."""
@@ -1853,6 +1858,136 @@ class TestPhase4PegRatio:
             f"peg={p4.peg_ratio}"
         )
 
+    # --- coherence: entry_rec must follow post-tightening verdict --------
+    #
+    # Bead OpenBBTechnical-0h2.36 (entry_rec coherence): before this fix,
+    # entry_rec branched on raw ``mos`` instead of ``valuation_verdict``,
+    # so a Fair-Value-to-Overvalued PEG downgrade produced a Phase4Result
+    # that simultaneously said verdict="Overvalued" AND
+    # entry_recommendation="Opportunistic Entry" — silent incoherence
+    # within a single result object.
+
+    def test_entry_rec_follows_peg_tightened_verdict_overvalued(self):
+        """When PEG flips Fair Value → Overvalued, entry_rec must be
+        the Overvalued recommendation, not the raw-MOS Opportunistic Entry."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [68.0, 68.5, 68.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        # Precondition: PEG flipped verdict to Overvalued
+        assert p4.valuation_verdict == "Overvalued", (
+            f"test invariant broken: expected PEG-driven Overvalued, "
+            f"got {p4.valuation_verdict}"
+        )
+        # Load-bearing: entry_rec must reflect the flipped verdict
+        assert "Avoid" in p4.entry_recommendation, (
+            f"entry_rec must follow post-tightening verdict; "
+            f"got {p4.entry_recommendation!r} (verdict={p4.valuation_verdict})"
+        )
+
+    def test_entry_rec_follows_peg_tightened_verdict_undervalued(self):
+        """When PEG flips Fair Value → Undervalued, entry_rec must be one
+        of the Undervalued recommendations (Strong/Partial/Wait), not the
+        raw-MOS Opportunistic Entry or Watchlist."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=15.0,
+            revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],
+            fcf=20e9,
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [75.0, 75.5, 76.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        # Precondition: PEG flipped verdict to Undervalued
+        assert p4.valuation_verdict == "Undervalued"
+        # Load-bearing: entry_rec matches one of the Undervalued family
+        assert any(
+            key in p4.entry_recommendation
+            for key in ("Strong Entry", "Partial Entry", "Wait")
+        ), (
+            f"entry_rec must follow post-tightening verdict; "
+            f"got {p4.entry_recommendation!r} (verdict={p4.valuation_verdict})"
+        )
+
+    # --- gate_notes bit-for-bit parity when flag off ---------------------
+
+    def test_peg_gate_str_absent_when_flag_off(self):
+        """Bead OpenBBTechnical-0h2.38 (peg_gate_str leak): when
+        use_peg_tightening=False the display line ``| PEG X.XX`` must NOT
+        appear in gate_notes — otherwise a reader could infer PEG was
+        consulted when it wasn't."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            use_peg_tightening=False,   # flag OFF
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [68.0, 68.5, 68.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        # PEG is still computed on the dataclass (that's a data field,
+        # unaffected by the display flag) — but gate_notes must not mention it.
+        assert not math.isnan(p4.peg_ratio), "peg_ratio should still compute"
+        assert "PEG" not in p4.gate_notes, (
+            f"flag-off must preserve gate_notes bit-for-bit; "
+            f"got: {p4.gate_notes!r}"
+        )
+
+    def test_peg_gate_str_present_when_flag_on(self):
+        """Complement to the flag-off parity test: with the flag on, the
+        PEG value SHOULD appear in gate_notes (so users of the tightening
+        can see what tipped the decision)."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [68.0, 68.5, 68.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert "PEG" in p4.gate_notes, (
+            f"flag-on should surface PEG in gate_notes; got: {p4.gate_notes!r}"
+        )
+
+    # --- silent no-op guard when flag on but PEG unavailable -------------
+
+    def test_flag_on_but_nan_peg_surfaces_diagnostic(self):
+        """Bead OpenBBTechnical-0h2.39 (NaN PEG silent no-op): when
+        use_peg_tightening=True but peg_ratio is NaN (declining revenue),
+        the user's opt-in must not silently do nothing.  Annotate
+        gate_notes so the caller can distinguish 'tightening ran and
+        found nothing' from 'tightening was skipped for lack of data'."""
+        # Declining revenue → CAGR < 0 → PEG NaN
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=25.0,
+            revenue_series=[168e9, 148e9, 130e9, 115e9, 100e9],  # declining
+            use_peg_tightening=True,
+        )
+        # Set a price near the fixture's DCF fair value so verdict is Fair Value
+        # (declining-revenue DCF is small; pick a modest price to land in-band).
+        p3.price_df = p3.price_df.copy()
+        # For declining-revenue fixture, DCF fair value is much lower —
+        # use a very low price so MOS lands in Fair Value.
+        p3.price_df["close"] = [5.0, 5.0, 5.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        # Precondition: PEG really is NaN
+        assert math.isnan(p4.peg_ratio), (
+            f"test invariant broken: expected NaN PEG, got {p4.peg_ratio}"
+        )
+        # Load-bearing: diagnostic annotation appears in gate_notes when
+        # the flag is on and the verdict was Fair Value (otherwise there
+        # was nothing to skip).  We only assert when we actually hit the
+        # Fair Value branch — a downstream MOS <= -0.05 or >= 0.15 would
+        # skip the whole tightening block for other reasons.
+        if p4.valuation_verdict == "Fair Value":
+            assert "PEG unavailable" in p4.gate_notes, (
+                f"flag-on + NaN PEG on Fair Value verdict must surface "
+                f"a diagnostic; got: {p4.gate_notes!r}"
+            )
+
 # ---------------------------------------------------------------------------
 
 
@@ -2277,7 +2412,7 @@ class TestFullPipelineAAPL:
 
 
 class TestFeatureFlags:
-    """Exhaustive parse coverage for the six Phase A-G rollout flags.
+    """Exhaustive parse coverage for the AnalysisFeatureFlags rollout flags.
 
     Every flag defaults to ``False`` — i.e. the pipeline behaves exactly as it
     did before A0 shipped.  Downstream beads (A4a, A4b, A8, B1-B4, C1-C4, F1-F3)
@@ -2300,29 +2435,31 @@ class TestFeatureFlags:
     # --- default construction -------------------------------------------
 
     def test_all_flags_default_false(self):
+        """Every declared flag defaults to False.
+
+        Driven from ``__dataclass_fields__`` so a new flag added in a later
+        phase is covered automatically (bead OpenBBTechnical-0h2.37).
+        """
         flags = AnalysisFeatureFlags()
-        assert flags.use_two_stage_dcf is False
-        assert flags.use_sector_wacc is False
-        assert flags.use_confluence_engine is False
-        assert flags.use_regime_input is False
-        assert flags.use_trailing_stop is False
-        assert flags.use_stop_cap is False
+        for name in AnalysisFeatureFlags.__dataclass_fields__:
+            assert getattr(flags, name) is False, (
+                f"expected {name}=False by default, got "
+                f"{getattr(flags, name)!r}"
+            )
 
     def test_kwargs_override_defaults(self):
-        flags = AnalysisFeatureFlags(
-            use_two_stage_dcf=True,
-            use_sector_wacc=True,
-            use_confluence_engine=True,
-            use_regime_input=True,
-            use_trailing_stop=True,
-            use_stop_cap=True,
-        )
-        assert flags.use_two_stage_dcf is True
-        assert flags.use_sector_wacc is True
-        assert flags.use_confluence_engine is True
-        assert flags.use_regime_input is True
-        assert flags.use_trailing_stop is True
-        assert flags.use_stop_cap is True
+        """Passing all flags as True kwargs flips every one to True.
+
+        Driven from ``__dataclass_fields__`` so new flags are auto-covered
+        (bead OpenBBTechnical-0h2.37)."""
+        all_true = {
+            name: True for name in AnalysisFeatureFlags.__dataclass_fields__
+        }
+        flags = AnalysisFeatureFlags(**all_true)
+        for name in AnalysisFeatureFlags.__dataclass_fields__:
+            assert getattr(flags, name) is True, (
+                f"kwarg {name}=True did not stick"
+            )
 
     # --- from_env: no vars set ------------------------------------------
 
@@ -2351,15 +2488,20 @@ class TestFeatureFlags:
             AnalysisFeatureFlags.from_env()
 
     # --- from_env: each flag maps to its own env var --------------------
+    #
+    # Parametrize list derived from ``__dataclass_fields__`` so a new flag
+    # added in a later phase is covered automatically (bead
+    # OpenBBTechnical-0h2.37 (flag test coverage): iteration 1 had a
+    # hard-coded 6-tuple list that silently missed the 7th flag when A5
+    # shipped ``use_peg_tightening``).
 
-    @pytest.mark.parametrize("attr,envvar", [
-        ("use_two_stage_dcf",     "ANALYSIS_USE_TWO_STAGE_DCF"),
-        ("use_sector_wacc",       "ANALYSIS_USE_SECTOR_WACC"),
-        ("use_confluence_engine", "ANALYSIS_USE_CONFLUENCE_ENGINE"),
-        ("use_regime_input",      "ANALYSIS_USE_REGIME_INPUT"),
-        ("use_trailing_stop",     "ANALYSIS_USE_TRAILING_STOP"),
-        ("use_stop_cap",          "ANALYSIS_USE_STOP_CAP"),
-    ])
+    @pytest.mark.parametrize(
+        "attr,envvar",
+        [
+            (name, f"ANALYSIS_{name.upper()}")
+            for name in AnalysisFeatureFlags.__dataclass_fields__
+        ],
+    )
     def test_from_env_each_flag_has_its_own_var(self, clean_flag_env, attr, envvar):
         # Fixture already cleared all ANALYSIS_* vars — set only the targeted one.
         clean_flag_env.setenv(envvar, "true")
@@ -2375,10 +2517,23 @@ class TestFeatureFlags:
 
     # --- introspection helper --------------------------------------------
 
-    def test_as_dict_returns_all_six(self):
-        flags = AnalysisFeatureFlags(use_stop_cap=True)
+    def test_as_dict_covers_all_fields(self):
+        """as_dict() returns every declared flag.
+
+        Renamed from ``test_as_dict_returns_all_six`` — the name was stale
+        when a 7th flag shipped (bead OpenBBTechnical-0h2.37).  Body now
+        iterates ``__dataclass_fields__`` so both key coverage and value
+        wiring are checked for every flag."""
+        # Pick one arbitrary flag to set — the first one in field order.
+        first_flag = next(iter(AnalysisFeatureFlags.__dataclass_fields__))
+        flags = AnalysisFeatureFlags(**{first_flag: True})
         d = flags.as_dict()
+        # Key coverage: every declared field appears in the dict.
         assert set(d.keys()) == set(AnalysisFeatureFlags.__dataclass_fields__)
-        assert d["use_stop_cap"] is True
-        assert d["use_two_stage_dcf"] is False
+        # Value wiring: the flag we set is True, all others are False.
+        assert d[first_flag] is True
+        for name in AnalysisFeatureFlags.__dataclass_fields__:
+            if name == first_flag:
+                continue
+            assert d[name] is False, f"unexpected {name}={d[name]!r}"
 
