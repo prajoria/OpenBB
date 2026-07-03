@@ -1960,29 +1960,54 @@ def phase4_valuation(
 
     # Combined valuation-technical entry recommendation.
     #
-    # Keyed on the (possibly PEG-tightened) valuation_verdict, NOT raw mos.
-    # If PEG tightening flipped Fair Value → Overvalued via use_peg_tightening,
-    # the verdict change must flow through here — otherwise Phase4Result would
-    # simultaneously say verdict=Overvalued AND entry_rec=Opportunistic Entry,
-    # a silent incoherence (bead OpenBBTechnical-0h2.36 (entry_rec coherence)).
-    # Within each verdict tier, mos + bullish_count still refine the wording.
+    # Two branches, gated on use_peg_tightening for strict default-off parity:
+    #
+    # * Flag OFF (default): use the pre-A5 raw-mos cascade unchanged.  This
+    #   is bit-for-bit what pre-A5 produced.  MOS-based decisions like
+    #   'mos < 0 → Avoid' carry through even when they slightly disagree
+    #   with the DCF-only valuation_verdict.
+    #
+    # * Flag ON: key on the (possibly PEG-tightened) valuation_verdict.
+    #   A PEG Fair Value → Overvalued flip must flow into entry_rec too —
+    #   otherwise Phase4Result would simultaneously say verdict=Overvalued
+    #   AND entry_rec=Opportunistic Entry, a silent incoherence
+    #   (bead OpenBBTechnical-0h2.36 (entry_rec coherence)).
+    #
+    # Iter-3 initially made the verdict-keyed branch unconditional, which
+    # silently changed default-off behavior for mos in [-0.05, 0) (they
+    # used to hit 'Avoid' via mos<0, now hit 'Opportunistic Entry' /
+    # 'Watchlist').  QC-A (bead OpenBBTechnical-3xq.1) caught it as a
+    # regression in the fix itself; iter-4 restores parity by gating.
     bull = p3.bullish_count
-    if valuation_verdict == "Overvalued":
-        entry_rec = "Avoid — overvalued regardless of technicals"
-    elif valuation_verdict == "Undervalued":
-        # Deep-undervalued cases (mos >= 0.15) get the classic 3-tier
-        # gradation on technicals; PEG-upgraded borderline cases (mos in
-        # [-0.05, 0.15)) still count as "cheap enough to enter" but the
-        # technical strength decides how eagerly.
-        if bull >= 6:
+    if cfg.feature_flags.use_peg_tightening:
+        # Verdict-keyed branch: needed for coherence when PEG tightens verdict
+        if valuation_verdict == "Overvalued":
+            entry_rec = "Avoid — overvalued regardless of technicals"
+        elif valuation_verdict == "Undervalued":
+            # Within Undervalued, bullish_count refines the wording.
+            if bull >= 6:
+                entry_rec = "Strong Entry — value and timing aligned"
+            elif bull >= 3:
+                entry_rec = "Partial Entry — fundamental case strong; wait for technical improvement"
+            else:
+                entry_rec = "Wait — cheap but technically broken"
+        else:  # "Fair Value"
+            if bull >= 6:
+                entry_rec = "Opportunistic Entry — fair value but strong technicals"
+            else:
+                entry_rec = "Watchlist — no asymmetric opportunity"
+    else:
+        # Pre-A5 raw-mos cascade — preserved bit-for-bit for default-off parity.
+        if mos >= 0.15 and bull >= 6:
             entry_rec = "Strong Entry — value and timing aligned"
-        elif bull >= 3:
+        elif mos >= 0.15 and bull >= 3:
             entry_rec = "Partial Entry — fundamental case strong; wait for technical improvement"
-        else:
+        elif mos >= 0.15 and bull < 3:
             entry_rec = "Wait — cheap but technically broken"
-    else:  # "Fair Value"
-        if bull >= 6:
+        elif 0.0 <= mos < 0.15 and bull >= 6:
             entry_rec = "Opportunistic Entry — fair value but strong technicals"
+        elif mos < 0.0:
+            entry_rec = "Avoid — overvalued regardless of technicals"
         else:
             entry_rec = "Watchlist — no asymmetric opportunity"
 

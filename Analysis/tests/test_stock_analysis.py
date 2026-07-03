@@ -1913,6 +1913,86 @@ class TestPhase4PegRatio:
             f"got {p4.entry_recommendation!r} (verdict={p4.valuation_verdict})"
         )
 
+    # --- default-off entry_rec parity (bead OpenBBTechnical-3xq.1) -------
+    #
+    # QC-A found that the iter-3 unconditional verdict-keyed refactor
+    # silently changed default-off behavior for stocks with mos ∈ [-0.05, 0):
+    # they used to be 'Avoid' via the pre-A5 raw-mos cascade, but under the
+    # verdict-keyed branch they became 'Opportunistic Entry'/'Watchlist'
+    # because valuation_verdict is 'Fair Value' whenever mos ∈ [-0.05, 0.15].
+    # Iter-4 restores parity by gating the verdict-keyed branch on
+    # use_peg_tightening.  This test locks the invariant.
+
+    def test_default_off_preserves_avoid_for_slightly_negative_mos(self):
+        """Flag OFF + mos ∈ [-0.05, 0) + strong technicals must produce
+        'Avoid' — pre-A5 behavior. The verdict_verdict='Fair Value' band
+        covers this MOS range, but the raw-mos cascade (default-off path)
+        still routes mos < 0 to 'Avoid'."""
+        # Fixture: same as expensive-PEG test but with price slightly HIGHER
+        # than DCF fair value so mos lands in [-0.05, 0).  fcf0 ≈ 31.5e9,
+        # g_short = 0.08, wacc = 0.085 → dcf ≈ $69.84/share.
+        # Price $71 → mos ≈ (69.84 - 71) / 69.84 ≈ -0.017 (in the target band).
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            use_peg_tightening=False,  # flag OFF — the whole point
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [71.0, 71.0, 71.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+
+        # Precondition: mos actually lands in [-0.05, 0).
+        assert -0.05 <= p4.margin_of_safety < 0.0, (
+            f"test invariant broken: mos={p4.margin_of_safety} not in [-0.05, 0)"
+        )
+        # Precondition: valuation_verdict is still 'Fair Value' (the range
+        # that triggers the QC-A regression under the verdict-keyed branch).
+        assert p4.valuation_verdict == "Fair Value", (
+            f"test invariant broken: expected Fair Value for mos in [-0.05, 0), "
+            f"got {p4.valuation_verdict}"
+        )
+        # Load-bearing: entry_rec must be 'Avoid' — the pre-A5 raw-mos cascade
+        # routes mos < 0 to 'Avoid' regardless of bullish_count or verdict.
+        assert "Avoid" in p4.entry_recommendation, (
+            f"default-off must preserve pre-A5 'mos < 0 → Avoid' behavior; "
+            f"got {p4.entry_recommendation!r} (mos={p4.margin_of_safety}, "
+            f"verdict={p4.valuation_verdict}, bull={p3.bullish_count})"
+        )
+
+    def test_flag_on_slightly_negative_mos_flips_to_verdict_keyed(self):
+        """Complement to the parity test: with flag ON, the same slightly-
+        negative-MOS case now routes through the verdict-keyed branch.
+        valuation_verdict is 'Fair Value' (untightened by PEG since PEG is
+        moderate in this fixture), so bull ≥ 6 → 'Opportunistic Entry'.
+        Proves the flag actually toggles the branch."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            use_peg_tightening=True,  # flag ON
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [71.0, 71.0, 71.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+
+        # Preconditions: mos in target band, verdict still Fair Value
+        # (PEG doesn't tighten because peg > 2 needs verdict==Fair Value AND
+        # peg > 2.0 — this fixture's PEG is expensive enough that it flips).
+        assert -0.05 <= p4.margin_of_safety < 0.0
+
+        # If PEG flipped the verdict to Overvalued, entry_rec is 'Avoid'.
+        # If verdict stayed Fair Value (PEG in normal range), bull ≥ 6
+        # yields 'Opportunistic Entry'.  Either way, the flag-on path is
+        # NOT the pre-A5 'Avoid' verdict — this proves the branches differ.
+        if p4.valuation_verdict == "Fair Value":
+            assert "Opportunistic Entry" in p4.entry_recommendation, (
+                f"flag-on Fair Value + bull>=6 must be Opportunistic Entry; "
+                f"got {p4.entry_recommendation!r}"
+            )
+        else:
+            # PEG tightened to Overvalued → verdict-keyed branch routes to Avoid
+            assert p4.valuation_verdict == "Overvalued"
+            assert "Avoid" in p4.entry_recommendation
+
     # --- gate_notes bit-for-bit parity when flag off ---------------------
 
     def test_peg_gate_str_absent_when_flag_off(self):
@@ -1959,34 +2039,51 @@ class TestPhase4PegRatio:
         use_peg_tightening=True but peg_ratio is NaN (declining revenue),
         the user's opt-in must not silently do nothing.  Annotate
         gate_notes so the caller can distinguish 'tightening ran and
-        found nothing' from 'tightening was skipped for lack of data'."""
-        # Declining revenue → CAGR < 0 → PEG NaN
+        found nothing' from 'tightening was skipped for lack of data'.
+
+        QC-B (bead OpenBBTechnical-3xq.2) found the original version was
+        effectively a no-op: fixture price $5 pushed MOS to ~0.92
+        (Undervalued), so the assertion behind `if verdict == "Fair Value"`
+        never ran.  Iter-4 sets price at ~ DCF fair value so verdict lands
+        in the Fair Value band and the diagnostic path is exercised.
+
+        Fixture derivation: raw revenue CAGR = -0.1216 (PEG will be NaN).
+        DCF uses floored g_short = 0.05 (per the DCF-only safety clamp for
+        declining revenue), fcf0 = 31.5e9, wacc = 0.085, shares = 9.75e9
+        → dcf_fair_value ≈ $61.50/share.  Price $58 → MOS ≈ +0.057, safely
+        inside [-0.05, 0.15] Fair Value band."""
+        # Declining revenue → raw CAGR < 0 → PEG NaN.  DCF-only g_short
+        # gets floored to 0.05 so DCF stays sensible.
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=25.0,
             revenue_series=[168e9, 148e9, 130e9, 115e9, 100e9],  # declining
             use_peg_tightening=True,
         )
-        # Set a price near the fixture's DCF fair value so verdict is Fair Value
-        # (declining-revenue DCF is small; pick a modest price to land in-band).
         p3.price_df = p3.price_df.copy()
-        # For declining-revenue fixture, DCF fair value is much lower —
-        # use a very low price so MOS lands in Fair Value.
-        p3.price_df["close"] = [5.0, 5.0, 5.0]
+        p3.price_df["close"] = [58.0, 58.0, 58.0]  # ≈ DCF, lands in Fair Value
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
-        # Precondition: PEG really is NaN
+
+        # Precondition 1: PEG really is NaN (declining revenue path).
         assert math.isnan(p4.peg_ratio), (
             f"test invariant broken: expected NaN PEG, got {p4.peg_ratio}"
         )
-        # Load-bearing: diagnostic annotation appears in gate_notes when
-        # the flag is on and the verdict was Fair Value (otherwise there
-        # was nothing to skip).  We only assert when we actually hit the
-        # Fair Value branch — a downstream MOS <= -0.05 or >= 0.15 would
-        # skip the whole tightening block for other reasons.
-        if p4.valuation_verdict == "Fair Value":
-            assert "PEG unavailable" in p4.gate_notes, (
-                f"flag-on + NaN PEG on Fair Value verdict must surface "
-                f"a diagnostic; got: {p4.gate_notes!r}"
-            )
+        # Precondition 2: verdict lands in Fair Value (the branch the
+        # diagnostic fires on).  If fixture drifts and verdict becomes
+        # Undervalued/Overvalued, the test loudly fails at this line
+        # rather than silently skipping the load-bearing assertion.
+        assert p4.valuation_verdict == "Fair Value", (
+            f"test invariant broken: expected Fair Value verdict for the "
+            f"diagnostic branch to fire; got {p4.valuation_verdict} "
+            f"(mos={p4.margin_of_safety:.4f}).  If DCF drifted, re-derive "
+            f"the target price against Fair Value band [dcf*0.85, dcf*1.05]."
+        )
+        # Load-bearing: diagnostic annotation appears in gate_notes.  Now
+        # UNCONDITIONAL — deleting the peg_note='(PEG unavailable...)'
+        # line in phase4_valuation would fail this assertion immediately.
+        assert "PEG unavailable" in p4.gate_notes, (
+            f"flag-on + NaN PEG on Fair Value verdict must surface a "
+            f"diagnostic; got: {p4.gate_notes!r}"
+        )
 
 # ---------------------------------------------------------------------------
 
