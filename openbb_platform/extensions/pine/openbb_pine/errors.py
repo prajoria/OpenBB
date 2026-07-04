@@ -734,14 +734,37 @@ class PineSecurityContextNotFoundError(PineError):
       contexts so the operator can spot the mismatch immediately.
 
     * ``reason="dynamic_unsupported"`` — the context IS in the map, but its
-      ``dynamic_symbol`` or ``dynamic_timeframe`` flag is set. Dynamic
-      contexts are deferred past M2 per D5 §4.4 (documented 5-10× perf
-      caveat). Runtime raises rather than silently falling back to a slow
-      per-bar fetch.
+      ``dynamic_symbol`` or ``dynamic_timeframe`` flag is set, OR the
+      dispatcher routed it to the deferred per-bar-lazy-fetch path and
+      wrote an empty DataFrame for it. Dynamic contexts are deferred past
+      M2 per D5 §4.4 (documented 5-10× perf caveat). Runtime raises rather
+      than silently falling back to a slow per-bar fetch.
 
     Preserves any underlying exception via ``__cause__`` (chained
     ``raise ... from``) and stores structured fields for the REST error
     envelope (D3 §4.1) and the CLI.
+
+    ``available_keys`` shape
+    ------------------------
+    Populated by
+    :func:`openbb_pine.runtime.security_hook._format_available_keys`
+    (both raise sites route through the helper for consistency): a
+    ``list[str]`` of pre-formatted ``"ctx_id: 'SYMBOL'@'TF'"`` strings.
+    Downstream JSON consumers can rely on this shape. Callers that supply
+    their own list are expected to follow the same convention.
+
+    Defensive-copy policy
+    ---------------------
+    ``available_keys`` is defensively copied at ``__init__`` (``list(...)``
+    of the caller-supplied iterable) so a caller can't mutate the list
+    after the raise and observe the mutation on the raised instance.
+    Sibling classes in this module (:class:`PineDataResolverError`,
+    :class:`PineSyntaxError`, :class:`PineTypeError`, …) do NOT defensively
+    copy their structured attrs because their attrs are immutable scalars
+    (``str`` / ``int`` / ``tuple``). This class is different — it holds a
+    mutable ``list`` — so the copy is a deliberate divergence, not an
+    inconsistency. Future subclasses that store mutable containers should
+    follow the same policy.
 
     Example::
 
