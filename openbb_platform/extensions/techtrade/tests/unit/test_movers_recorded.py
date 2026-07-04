@@ -47,6 +47,7 @@ import json
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -148,55 +149,106 @@ def _make_holdings_fetcher(xlk_rows: list[dict]):
     return _fake_holdings
 
 
-def test_list_movers_returns_non_empty_for_information_technology_with_recorded_fixtures(
-    gainers_rows: list[dict],
-    xlk_rows: list[dict],
-) -> None:
-    """``list_movers("Information Technology")`` must return ≥1 mover.
+def _make_fake_obb_for_universe_path():
+    """Fake ``obb`` module surface exercised on the sector-scan (universe) path.
 
-    This is the load-bearing assertion for R7.2 (every public entry point
-    needs a "not empty" smoke test) and for the ``z7f`` regression guard.
-
-    Under the pre-``z7f`` code path this would have returned 0 movers
-    because the universe filter would eliminate every discovery candidate
-    (see fixture-provenance sanity check: intersection == 0).
+    ``_fetch_universe_candidates`` calls ``obb.equity.price.historical(...)``
+    per symbol; we return two synthetic OHLCV bars per call so
+    :func:`compute_ohlcv_metrics` produces a non-null metric row. The exact
+    numbers don't matter — the load-bearing behavior is that the real code
+    path in :func:`_default_candidate_fetcher` dispatches to the universe
+    branch when ``universe`` is non-empty, and that ``list_movers`` threads
+    it through end-to-end.
     """
-    fetcher = _make_candidate_fetcher(gainers_rows, xlk_rows)
-    holdings = _make_holdings_fetcher(xlk_rows)
 
-    results = list_movers(
-        segment="Information Technology",
-        metric="pct_change",
-        top_n=10,
-        as_of="2024-01-10",  # arbitrary weekday session, no calendar drift
-        holdings_fetcher=holdings,
-        # NOTE: intentionally NOT passing candidate_fetcher — that would put
-        # us on the offline-only path, bypassing the universe filter and
-        # invalidating the test. Instead we set ``candidate_fetcher`` to our
-        # fake via a keyword below.
-        candidate_fetcher=fetcher,
-        # ``candidate_fetcher`` above is truthy, so ``_resolve_filter_universe``
-        # returns None (no universe filter applied). We still need the
-        # ``universe`` kwarg to reach the fake fetcher on the sector-scan
-        # path, so pass it directly through build_mover_list — but list_movers
-        # calls build_mover_list internally and does not accept a universe
-        # kwarg, so we assert on the fetcher-with-universe path via a direct
-        # build_mover_list call in the next test.
+    def _fake_historical(**_kwargs: object) -> SimpleNamespace:
+        # Two chronologically-ascending bars — compute_ohlcv_metrics needs
+        # >= 2 bars to derive pct_change / gap / rel_volume without falling
+        # into its 1-bar degenerate branch.
+        bars = [
+            SimpleNamespace(
+                open=100.0, high=101.0, low=99.5, close=100.5, volume=1_000_000
+            ),
+            SimpleNamespace(
+                open=100.5, high=102.0, low=100.0, close=101.5, volume=1_200_000
+            ),
+        ]
+        return SimpleNamespace(results=bars)
+
+    return SimpleNamespace(
+        equity=SimpleNamespace(
+            price=SimpleNamespace(historical=_fake_historical),
+        ),
     )
 
-    # ``list_movers`` returns a list[MoverList]; with a single segment
-    # requested it should contain exactly one entry.
+
+def test_list_movers_information_technology_end_to_end_with_recorded_holdings(
+    xlk_rows: list[dict],
+) -> None:
+    """End-to-end ``list_movers("Information Technology")`` — the true R7.2 guard.
+
+    This is the load-bearing regression test for bd-z7f. Unlike a naive R7.2
+    test that stubs the candidate_fetcher (which shortcuts
+    ``_resolve_filter_universe`` to ``None`` and never runs the universe
+    path), this test:
+
+    1. Injects only ``holdings_fetcher`` — driven by the recorded XLK fixture
+       — so ``_resolve_filter_universe`` stays on the live branch and
+       resolves the XLK universe against the real ``resolve_universe``.
+    2. Patches ``openbb.obb`` at module scope so the *real*
+       ``_default_candidate_fetcher`` runs. With ``universe`` non-empty it
+       dispatches to ``_fetch_universe_candidates``, which in turn calls the
+       patched ``obb.equity.price.historical`` per XLK symbol.
+
+    Under the pre-z7f code (fan-out-then-filter: no ``universe`` kwarg,
+    discovery firehose intersected with XLK downstream) this returns 0
+    movers because the two symbol populations have zero overlap. Under the
+    post-z7f code (narrow-then-fan-out: universe threaded to the fetcher)
+    this returns 10 movers, one per top-N XLK symbol.
+
+    If someone reverts the z7f fix (drops ``universe=universe`` from
+    ``build_mover_list``'s fetcher call or the ``if universe:`` branch in
+    ``_default_candidate_fetcher``), this test fails with ``len(movers) == 0``.
+    """
+    holdings = _make_holdings_fetcher(xlk_rows)
+    fake_obb = _make_fake_obb_for_universe_path()
+
+    import openbb
+
+    with patch.object(openbb, "obb", fake_obb):
+        results = list_movers(
+            segment="Information Technology",
+            metric="pct_change",
+            top_n=10,
+            as_of="2024-01-10",  # arbitrary weekday session, no calendar drift
+            holdings_fetcher=holdings,
+            # NOTE: deliberately NO candidate_fetcher — that's the exact
+            # short-circuit that made the previous version of this test
+            # decorative. Letting it default to None keeps
+            # ``_resolve_filter_universe`` on the live branch so the whole
+            # z7f code path actually runs.
+        )
+
     assert len(results) == 1
     assert isinstance(results[0], MoverList)
     assert results[0].segment == "Information Technology"
 
-    # Under the pre-z7f fetcher-then-filter path, len(movers) would be 0.
-    # Under the post-z7f fetcher this is len(gainers) with all fields intact.
-    # We assert only the R7.2 minimum: non-empty.
-    assert len(results[0].movers) > 0, (
-        "list_movers returned 0 movers on realistic fixtures — "
-        "z7f regression? Check that _default_candidate_fetcher receives "
-        "the universe kwarg and takes the sector-scan path."
+    # Under the pre-z7f fetch-then-filter path, len(movers) would be 0
+    # (discovery firehose ∩ XLK == 0, per fixture provenance). Under the
+    # post-z7f universe-threading path, every XLK symbol becomes a candidate
+    # so we get the full top-N.
+    assert len(results[0].movers) == 10, (
+        f"Expected top-10 XLK movers from universe-path scan; got "
+        f"{len(results[0].movers)}. If this is 0, the z7f fix regressed — "
+        f"check that _default_candidate_fetcher receives universe= from "
+        f"build_mover_list and dispatches to _fetch_universe_candidates."
+    )
+
+    # Every mover must be an XLK constituent (the sector-scan universe).
+    xlk_symbols = {r["symbol"] for r in xlk_rows if r.get("symbol")}
+    result_symbols = {m.symbol for m in results[0].movers}
+    assert result_symbols.issubset(xlk_symbols), (
+        f"movers escaped the XLK universe: {result_symbols - xlk_symbols}"
     )
 
 
@@ -206,11 +258,13 @@ def test_build_mover_list_takes_universe_path_when_universe_supplied(
 ) -> None:
     """Direct ``build_mover_list`` test proving the universe-path behavior.
 
-    This is the tighter of the two tests: it bypasses ``list_movers``'s
-    universe-resolution branching and directly asserts that when
-    ``build_mover_list`` is called with a non-empty universe, the fake
-    fetcher produces a per-symbol candidate for every XLK member — matching
-    the ``z7f`` fix's design intent (narrow-then-fan-out, R7.4).
+    Complements the end-to-end test above by isolating the middle stage:
+    when ``build_mover_list`` is called with a non-empty universe, the
+    fetcher gets a per-symbol candidate for every XLK member — matching the
+    ``z7f`` fix's design intent (narrow-then-fan-out, R7.4).
+
+    Uses an injected fake ``candidate_fetcher`` so the assertion is on the
+    fetcher's ``universe=`` receipt, not on the live discovery path.
     """
     from openbb_techtrade.engine.movers import build_mover_list
     from openbb_techtrade.models import SegmentConfig

@@ -189,7 +189,13 @@ def test_default_candidate_fetcher_warns_when_discovery_feed_yields_zero(
     ]
     assert len(warnings) == 1
     msg = warnings[0].getMessage()
-    assert "sources_ok=0/3" in msg
+    # Post-PR-#325-review message format distinguishes raised (exception)
+    # from empty (returned []) sources so ops can localize outages.
+    assert "raised=" in msg
+    assert "empty=" in msg
+    assert "'gainers'" in msg  # all three sources should appear as raised
+    assert "'losers'" in msg
+    assert "'active'" in msg
     assert "as_of=2024-01-10" in msg
     assert "fmp_cached" in msg
 
@@ -250,3 +256,285 @@ def test_default_holdings_fetcher_warns_when_all_rows_have_null_symbols(
     assert len(warnings) == 1
     msg = warnings[0].getMessage()
     assert "rows_returned=2" in msg  # rows arrived, but were unusable
+
+
+# --------------------------------------------------------------------------- #
+# PR #325 iter-1 review fixes — negative "does not fire on happy path" tests
+# for the warnings that lacked them (F8: only 1 of 4 had a negative test).
+# --------------------------------------------------------------------------- #
+def test_fetch_universe_candidates_does_not_warn_when_history_returned(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """R7.3 "avoid noise" — no warning on happy path for universe scan."""
+    fake_bars = [
+        SimpleNamespace(open=100.0, high=101.0, low=99.0, close=100.5, volume=1_000_000),
+        SimpleNamespace(open=100.5, high=102.0, low=100.0, close=101.5, volume=1_200_000),
+    ]
+    fake_obb = SimpleNamespace(
+        equity=SimpleNamespace(
+            price=SimpleNamespace(
+                historical=lambda **_kwargs: SimpleNamespace(results=fake_bars)
+            )
+        )
+    )
+
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        out = _fetch_universe_candidates(
+            fake_obb,
+            ["NVDA", "MSFT", "AAPL"],
+            as_of=date(2024, 1, 10),
+            ohlcv_lookback=21,
+        )
+
+    assert len(out) == 3
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
+def test_default_candidate_fetcher_does_not_warn_when_discovery_returns_rows(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """R7.3 "avoid noise" — no warning when all 3 discovery sources return rows."""
+    fake_row = SimpleNamespace(symbol="AAPL", percent_change=0.05, volume=1_000_000)
+
+    def _fake_source(*_a, **_kw):
+        return SimpleNamespace(results=[fake_row])
+
+    fake_obb = SimpleNamespace(
+        equity=SimpleNamespace(
+            discovery=SimpleNamespace(
+                gainers=_fake_source,
+                losers=_fake_source,
+                active=_fake_source,
+            )
+        )
+    )
+    import openbb
+
+    with (
+        patch.object(openbb, "obb", fake_obb),
+        caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"),
+    ):
+        out = _default_candidate_fetcher(as_of=date(2024, 1, 10))
+
+    assert len(out) == 1  # 3 sources returned same row, deduped by symbol
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
+def test_default_holdings_fetcher_does_not_warn_when_rows_have_symbols(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """R7.3 "avoid noise" — no warning when ETF endpoint returns usable symbols."""
+    import openbb
+    fake_rows = [SimpleNamespace(symbol="NVDA"), SimpleNamespace(symbol="MSFT")]
+    fake_obb = SimpleNamespace(
+        etf=SimpleNamespace(
+            holdings=lambda **_kwargs: SimpleNamespace(results=fake_rows)
+        )
+    )
+    with (
+        patch.object(openbb, "obb", fake_obb),
+        caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.universe"),
+    ):
+        out = _default_holdings_fetcher("XLK")
+
+    assert out == ["NVDA", "MSFT"]
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
+# --------------------------------------------------------------------------- #
+# Warning 5 (NEW, PR #325 iter-1): _resolve_filter_universe silent-swallow
+# — silent-failure-hunter finding #2, the exact z7f-class silent failure
+# sitting three lines below the original 90e warnings.
+# --------------------------------------------------------------------------- #
+def test_resolve_filter_universe_warns_when_holdings_fetcher_raises(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """R7.3: silent degrade to no-filter after resolution failure must warn."""
+    from openbb_techtrade.engine.movers import _resolve_filter_universe
+
+    def _raising_holdings(_etf_symbol):
+        raise RuntimeError("simulated FMP 429 rate-limit")
+
+    config = SegmentConfig(
+        segment="Information Technology",
+        benchmark_etf="XLK",
+        universe_source="etf_holdings",
+        rank_metric="pct_change",
+        top_n=10,
+    )
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        result = _resolve_filter_universe(
+            config,
+            candidate_fetcher=None,           # live path
+            resolve_universe_filter=True,
+            holdings_fetcher=_raising_holdings,
+            screener_fetcher=None,
+            constituents_map=None,
+        )
+
+    assert result is None  # degrades to no filter
+    warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "universe resolution failed" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    msg = warnings[0].getMessage()
+    assert "Information Technology" in msg
+    assert "RuntimeError" in msg
+    assert "429" in msg or "rate-limit" in msg
+    assert "results are NOT scoped to the segment" in msg
+    assert "benchmark_etf=XLK" in msg
+
+
+# --------------------------------------------------------------------------- #
+# Warning 6 (NEW, PR #325 iter-1): rank_movers metric-drop warning
+# — silent-failure-hunter finding #3, catches volume=null silent-empty on
+# discovery-path fixtures ranked by "volume" and future metric-drift.
+# --------------------------------------------------------------------------- #
+def test_rank_movers_warns_when_all_candidates_lack_ranking_metric(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Fixture-style scenario: every candidate has volume=None; metric='volume'
+    would previously return MoverList(movers=[]) silently.
+    """
+    from openbb_techtrade.engine.movers import rank_movers
+
+    candidates = [
+        {"symbol": "AAA", "pct_change": 0.01, "volume": None},
+        {"symbol": "BBB", "pct_change": 0.02, "volume": None},
+        {"symbol": "CCC", "pct_change": 0.03, "volume": None},
+    ]
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        result = rank_movers("test", date(2024, 1, 10), candidates, metric="volume")
+
+    assert result.movers == []
+    warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "rank_movers" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    msg = warnings[0].getMessage()
+    assert "dropped 3/3" in msg
+    assert "'volume'" in msg
+
+
+def test_rank_movers_warns_when_half_of_candidates_lack_metric(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Partial degradation (>= 50%) also warns — biased ranking hazard."""
+    from openbb_techtrade.engine.movers import rank_movers
+
+    candidates = [
+        {"symbol": "AAA", "pct_change": 0.01, "volume": None},
+        {"symbol": "BBB", "pct_change": 0.02, "volume": None},
+        {"symbol": "CCC", "pct_change": 0.03, "volume": 100},
+        {"symbol": "DDD", "pct_change": 0.04, "volume": 200},
+    ]
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        result = rank_movers("test", date(2024, 1, 10), candidates, metric="volume")
+
+    assert len(result.movers) == 2
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "dropped 2/4" in warnings[0].getMessage()
+
+
+def test_rank_movers_does_not_warn_when_all_candidates_have_metric(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """R7.3 "avoid noise" — happy path is silent."""
+    from openbb_techtrade.engine.movers import rank_movers
+
+    candidates = [
+        {"symbol": "AAA", "pct_change": 0.01, "volume": 100},
+        {"symbol": "BBB", "pct_change": 0.02, "volume": 200},
+    ]
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        result = rank_movers("test", date(2024, 1, 10), candidates, metric="volume")
+
+    assert len(result.movers) == 2
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
+# --------------------------------------------------------------------------- #
+# Warning 7 (NEW, PR #325 iter-1): partial-degradation warnings for both
+# discovery (F5) and universe-scan (F6) paths — no more silent under-sampling.
+# --------------------------------------------------------------------------- #
+def test_default_candidate_fetcher_warns_on_partial_discovery_degradation(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """2 of 3 sources return empty; caller gets biased pool -> PARTIAL warning."""
+    fake_row = SimpleNamespace(symbol="AAPL", percent_change=0.05, volume=1_000_000)
+
+    def _one_row(*_a, **_kw):
+        return SimpleNamespace(results=[fake_row])
+
+    def _empty(*_a, **_kw):
+        return SimpleNamespace(results=[])
+
+    fake_obb = SimpleNamespace(
+        equity=SimpleNamespace(
+            discovery=SimpleNamespace(
+                gainers=_one_row,
+                losers=_empty,
+                active=_empty,
+            )
+        )
+    )
+    import openbb
+
+    with (
+        patch.object(openbb, "obb", fake_obb),
+        caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"),
+    ):
+        out = _default_candidate_fetcher(as_of=date(2024, 1, 10))
+
+    assert len(out) == 1
+    warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "partially degraded" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    msg = warnings[0].getMessage()
+    assert "1/3 sources produced rows" in msg
+    assert "'losers'" in msg
+    assert "'active'" in msg
+
+
+def test_fetch_universe_candidates_warns_on_partial_scan_degradation(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """>= 20% of universe symbols dropped -> PARTIAL warning (biased ranking)."""
+    # 5 symbols; 2 will fail (40% > 20% threshold).
+    fake_bars = [
+        SimpleNamespace(open=100.0, high=101.0, low=99.0, close=100.5, volume=1_000_000),
+        SimpleNamespace(open=100.5, high=102.0, low=100.0, close=101.5, volume=1_200_000),
+    ]
+
+    def _sometimes_fail(**kwargs):
+        symbol = kwargs.get("symbol")
+        if symbol in {"BAD1", "BAD2"}:
+            raise RuntimeError("simulated per-symbol fetch failure")
+        return SimpleNamespace(results=fake_bars)
+
+    fake_obb = SimpleNamespace(
+        equity=SimpleNamespace(price=SimpleNamespace(historical=_sometimes_fail))
+    )
+
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        out = _fetch_universe_candidates(
+            fake_obb,
+            ["NVDA", "MSFT", "AAPL", "BAD1", "BAD2"],
+            as_of=date(2024, 1, 10),
+            ohlcv_lookback=21,
+        )
+
+    assert len(out) == 3
+    warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "partially degraded" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    msg = warnings[0].getMessage()
+    assert "2/5 symbols dropped" in msg
+    assert "failed_fetch=2" in msg
