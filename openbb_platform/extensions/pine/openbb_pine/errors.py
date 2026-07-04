@@ -719,6 +719,114 @@ class PineDataResolverError(PineError):
         super().__init__(text)
 
 
+class PineSecurityContextNotFoundError(PineError):
+    """A monkey-patched ``pynecore.lib.request.security`` call at runtime
+    could not resolve ``(symbol, timeframe)`` to a prefetched context
+    (D5 §5.3 — ``_install_secondaries_hook``).
+
+    Two shapes produce this error, distinguished via ``reason``:
+
+    * ``reason="not_found"`` — the ``(symbol, timeframe)`` tuple isn't in
+      the ``security_contexts`` map. Either the compiler failed to register
+      the context (C3 bug), the caller passed a symbol/timeframe pair that
+      isn't in the compiled script, or a static-vs-runtime string mismatch
+      (e.g. ``"1D"`` vs ``"1d"``). ``available_keys`` surfaces the actual
+      contexts so the operator can spot the mismatch immediately.
+
+    * ``reason="dynamic_unsupported"`` — the context IS in the map, but its
+      ``dynamic_symbol`` or ``dynamic_timeframe`` flag is set, OR the
+      dispatcher routed it to the deferred per-bar-lazy-fetch path and
+      wrote an empty DataFrame for it. Dynamic contexts are deferred past
+      M2 per D5 §4.4 (documented 5-10× perf caveat). Runtime raises rather
+      than silently falling back to a slow per-bar fetch.
+
+    Preserves any underlying exception via ``__cause__`` (chained
+    ``raise ... from``) and stores structured fields for the REST error
+    envelope (D3 §4.1) and the CLI.
+
+    ``available_keys`` shape
+    ------------------------
+    Populated by
+    :func:`openbb_pine.runtime.security_hook._format_available_keys`
+    (both raise sites route through the helper for consistency): a
+    ``list[str]`` of pre-formatted ``"ctx_id: 'SYMBOL'@'TF'"`` strings.
+    Downstream JSON consumers can rely on this shape. Callers that supply
+    their own list are expected to follow the same convention.
+
+    Defensive-copy policy
+    ---------------------
+    ``available_keys`` is defensively copied at ``__init__`` (``list(...)``
+    of the caller-supplied iterable) so a caller can't mutate the list
+    after the raise and observe the mutation on the raised instance.
+    Sibling classes in this module (:class:`PineDataResolverError`,
+    :class:`PineSyntaxError`, :class:`PineTypeError`, …) do NOT defensively
+    copy their structured attrs because their attrs are immutable scalars
+    (``str`` / ``int`` / ``tuple``). This class is different — it holds a
+    mutable ``list`` — so the copy is a deliberate divergence, not an
+    inconsistency. Future subclasses that store mutable containers should
+    follow the same policy.
+
+    Example::
+
+        raise PineSecurityContextNotFoundError(
+            symbol="SPY",
+            timeframe="1D",
+            reason="not_found",
+            available_keys=list(security_contexts.keys()),
+        )
+    """
+
+    code: str = "PineSecurityContextNotFoundError"
+
+    def __init__(
+        self,
+        *args: object,
+        symbol: str | None = None,
+        timeframe: str | None = None,
+        reason: Literal["not_found", "dynamic_unsupported"] | None = None,
+        available_keys: list[str] | tuple[str, ...] | None = None,
+        context_id: str | None = None,
+        tracking_url: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if args and message is None:
+            if len(args) == 1 and isinstance(args[0], str):
+                message = args[0]
+            else:
+                message = " ".join(str(a) for a in args)
+        self.symbol: str | None = symbol
+        self.timeframe: str | None = timeframe
+        self.reason: str | None = reason
+        # Copy so callers can't mutate our attribute after the raise.
+        self.available_keys: list[str] | None = (
+            list(available_keys) if available_keys is not None else None
+        )
+        self.context_id: str | None = context_id
+        if tracking_url is not None:
+            self.tracking_url = tracking_url
+        if message is not None:
+            text = message
+        else:
+            sym = f" symbol={symbol!r}" if symbol else ""
+            tf = f" timeframe={timeframe!r}" if timeframe else ""
+            ctx = f" (context_id={context_id!r})" if context_id else ""
+            if reason == "dynamic_unsupported":
+                text = (
+                    f"Dynamic-symbol/timeframe request.security(){sym}{tf}"
+                    f"{ctx} is not yet supported in M2 (D5 §4.4 defers "
+                    "per-bar lazy fetch; use static symbol + timeframe)"
+                )
+            else:
+                keys_s = ""
+                if self.available_keys is not None:
+                    keys_s = f"\n  available contexts: {self.available_keys}"
+                text = (
+                    f"No prefetched security context found for"
+                    f"{sym}{tf}{ctx}{keys_s}"
+                )
+        super().__init__(text)
+
+
 class PineDataValidationError(PineError):
     """BYO DataFrame violated the section 3.1 schema.
 
@@ -964,6 +1072,7 @@ __all__ = [
     "PineFMPRequiredError",
     "PineFMPUnreachableError",
     "PineDataResolverError",
+    "PineSecurityContextNotFoundError",
     "PineDataValidationError",
     "PineCacheError",
     "PineRuntimeError",
