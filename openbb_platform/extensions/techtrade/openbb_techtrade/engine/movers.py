@@ -232,28 +232,48 @@ def _default_candidate_fetcher(
     calendar: str = "XNYS",
     ohlcv_lookback: int = 21,
     needs_ohlcv: bool = False,
+    universe: list[str] | None = None,
 ) -> list[dict]:
-    """Build live mover candidates from the discovery feed (integration-only).
+    """Build live mover candidates (integration-only).
 
-    Unions ``obb.equity.discovery.gainers``, ``.losers`` and ``.active`` by symbol
-    (first occurrence wins), capturing ``pct_change`` and ``volume``. When
-    ``needs_ohlcv`` is set (i.e. the metric is ``gap`` / ``rel_volume``), recent
-    history from ``obb.equity.price.historical`` is fetched per symbol and merged via
-    :func:`compute_ohlcv_metrics`. Every external call is guarded so a flaky source
-    or symbol is skipped rather than aborting the whole fetch. ``openbb`` is imported
-    lazily and all live calls use ``fmp_cached``.
+    Two paths depending on ``universe`` (bd OpenBBTechnical-z7f):
+
+    * **Universe path** (``universe`` non-empty): iterate the provided symbol list
+      and fetch recent daily OHLCV per symbol via
+      ``obb.equity.price.historical(provider="fmp_cached")``; each candidate is
+      built through :func:`compute_ohlcv_metrics`, which populates all four
+      metric fields (``pct_change``, ``volume``, ``gap``, ``rel_volume``). This
+      is the sector-scan path: the market-wide discovery feed almost never
+      intersects a sector-ETF universe (e.g. XLK holds mega-cap tech while
+      ``obb.equity.discovery.gainers/losers`` returns penny-stock movers), so
+      going straight to the constituents is the only way to produce non-empty
+      results.
+    * **Discovery path** (``universe`` is ``None`` or empty): unions
+      ``obb.equity.discovery.gainers``, ``.losers`` and ``.active`` by symbol
+      (first occurrence wins). When ``needs_ohlcv`` is set, recent history is
+      merged in via :func:`compute_ohlcv_metrics`. Preserved for callers that
+      genuinely want the market-wide firehose.
+
+    Every external call is guarded so a flaky source or symbol is skipped
+    rather than aborting the whole fetch. ``openbb`` is imported lazily and
+    all live calls use ``fmp_cached``.
 
     Parameters
     ----------
     as_of : date
         Resolved session date; bounds the OHLCV ``end_date`` to avoid look-ahead.
     calendar : str, optional
-        Exchange-calendar code (accepted for a uniform fetcher signature; unused by
-        the discovery feed). Defaults to ``"XNYS"``.
+        Exchange-calendar code (accepted for a uniform fetcher signature; unused
+        directly). Defaults to ``"XNYS"``.
     ohlcv_lookback : int, optional
         Number of trailing OHLCV bars to keep per symbol. Defaults to ``21``.
     needs_ohlcv : bool, optional
-        Whether to fetch and merge OHLCV-derived metrics. Defaults to ``False``.
+        On the discovery path, whether to fetch and merge OHLCV-derived metrics.
+        Ignored on the universe path (which always fetches OHLCV). Defaults to
+        ``False``.
+    universe : list[str] | None, optional
+        Sector-ETF constituent list (or any target symbol set). When provided
+        and non-empty, activates the universe path. Defaults to ``None``.
 
     Returns
     -------
@@ -261,6 +281,14 @@ def _default_candidate_fetcher(
         Candidate dicts keyed minimally by ``symbol`` plus available metric fields.
     """
     from openbb import obb
+
+    if universe:
+        return _fetch_universe_candidates(
+            obb,
+            universe,
+            as_of=as_of,
+            ohlcv_lookback=ohlcv_lookback,
+        )
 
     candidates: dict[str, dict] = {}
     for source in ("gainers", "losers", "active"):
@@ -296,6 +324,62 @@ def _default_candidate_fetcher(
                 continue
 
     return list(candidates.values())
+
+
+def _fetch_universe_candidates(
+    obb: object,
+    universe: list[str],
+    *,
+    as_of: date,
+    ohlcv_lookback: int,
+) -> list[dict]:
+    """Build mover candidates directly from OHLCV history for a symbol universe.
+
+    Sector-scan path helper for :func:`_default_candidate_fetcher`. Fetches a
+    short trailing daily-price window per symbol and folds each into a candidate
+    via :func:`compute_ohlcv_metrics`, so every candidate carries all four
+    metrics (``pct_change`` / ``volume`` / ``gap`` / ``rel_volume``). Per-symbol
+    failures are caught and skipped so one broken ticker never aborts the batch.
+
+    Parameters
+    ----------
+    obb : object
+        The already-imported ``openbb`` module (passed in so the caller controls
+        the lazy import).
+    universe : list[str]
+        Symbols to build candidates for; duplicates are collapsed.
+    as_of : date
+        Resolved session date; the OHLCV ``end_date`` upper bound.
+    ohlcv_lookback : int
+        Number of trailing bars to keep after fetch.
+
+    Returns
+    -------
+    list[dict]
+        One candidate dict per successfully-fetched symbol.
+    """
+    start = (as_of - timedelta(days=ohlcv_lookback * 2 + 10)).isoformat()
+    end = as_of.isoformat()
+    seen: set[str] = set()
+    out: list[dict] = []
+    for symbol in universe:
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        try:
+            history = obb.equity.price.historical(  # type: ignore[attr-defined]
+                symbol=symbol,
+                start_date=start,
+                end_date=end,
+                provider="fmp_cached",
+            )
+            bars = (history.results or [])[-ohlcv_lookback:]
+            if not bars:
+                continue
+            out.append(compute_ohlcv_metrics(symbol, bars))
+        except Exception:  # noqa: BLE001, S112 - skip a symbol whose history fails
+            continue
+    return out
 
 
 def _call_discovery(fetch: Callable[..., object]) -> list:
@@ -365,10 +449,14 @@ def build_mover_list(
     top_n = top_n if top_n is not None else config.top_n
     fetcher = candidate_fetcher or _default_candidate_fetcher
 
+    # Passed through so the live fetcher can go straight to per-symbol OHLCV on
+    # the sector-scan path (bd OpenBBTechnical-z7f). Injected test fetchers use
+    # ``**kwargs`` so this extra keyword is silently absorbed.
     candidates = fetcher(
         as_of=session,
         calendar=calendar,
         needs_ohlcv=metric in _OHLCV_METRICS,
+        universe=universe,
     )
 
     if universe is not None:
