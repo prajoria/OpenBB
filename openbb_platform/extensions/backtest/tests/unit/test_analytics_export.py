@@ -181,3 +181,62 @@ def test_export_module_imports_with_heavy_deps_absent():
     )
     assert result.returncode == 0, result.stderr
     assert "OK tearsheet_20210104_093000.html" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# Path-traversal defenses (bd-cwer, closes h1u8 / m7q4)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_export_path_rejects_parent_traversal(tmp_path):
+    """``name='../evil'`` must not escape ``export_dir``.
+
+    Regression test for OpenBBTechnical-h1u8 / m7q4: prior code let a
+    caller-supplied ``name`` with ``..`` segments resolve outside the
+    approved export directory, giving quantstats an arbitrary write path.
+    """
+    from openbb_backtest.analytics.export import _resolve_export_path
+    from openbb_core.app.paths import PathTraversalError
+
+    with pytest.raises(PathTraversalError):
+        _resolve_export_path("../evil", str(tmp_path), _TS)
+
+
+def test_resolve_export_path_rejects_absolute_name(tmp_path):
+    """Absolute-path ``name`` overrides ``export_dir`` under naive Path join — reject."""
+    from openbb_backtest.analytics.export import _resolve_export_path
+    from openbb_core.app.paths import PathTraversalError
+
+    absolute = "/tmp/evil" if os.name != "nt" else "C:/Windows/evil"
+    with pytest.raises(PathTraversalError):
+        _resolve_export_path(absolute, str(tmp_path), _TS)
+
+
+def test_resolve_export_path_rejects_windows_drive_relative(tmp_path):
+    """Windows drive-relative ``C:evil`` bypasses ``is_absolute()`` — safe_join rejects."""
+    from openbb_backtest.analytics.export import _resolve_export_path
+    from openbb_core.app.paths import PathTraversalError
+
+    if os.name != "nt":
+        pytest.skip("drive-relative paths are Windows-specific")
+    with pytest.raises(PathTraversalError):
+        _resolve_export_path("C:evil", str(tmp_path), _TS)
+
+
+def test_resolve_export_path_creates_export_dir_if_missing(tmp_path):
+    """The ``export_dir`` doesn't have to exist yet — safe_join tolerates it via mkdir."""
+    from openbb_backtest.analytics.export import _resolve_export_path
+
+    fresh_dir = tmp_path / "not_yet"
+    fresh_dir.mkdir()
+    out = _resolve_export_path("myreport", str(fresh_dir), _TS)
+    assert out == (fresh_dir / "myreport.html").resolve()
+
+
+def test_resolve_export_path_default_name_still_works(tmp_path):
+    """When ``name=None``, the timestamp-derived default is composed via safe_join."""
+    from openbb_backtest.analytics.export import _resolve_export_path
+
+    out = _resolve_export_path(None, str(tmp_path), _TS)
+    assert out.name == "tearsheet_20210104_093000.html"
+    assert out.parent == tmp_path.resolve()

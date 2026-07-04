@@ -91,16 +91,29 @@ def _resolve_export_path(
 
     Pure and dependency-free (no quantstats), so it can be exercised — and the
     file name asserted deterministic — without importing any heavy library.
+
+    ``name`` is sandboxed inside ``export_dir`` via
+    :func:`openbb_core.app.paths.safe_join` — ``..`` traversal, absolute
+    paths, and Windows drive-relative paths raise ``PathTraversalError``
+    (bd-cwer / bd-h1u8 / bd-m7q4). Creates ``export_dir`` if missing so
+    callers don't need to pre-create it.
     """
+    # pylint: disable=import-outside-toplevel
+    from openbb_core.app.paths import safe_join
+
     if name:
         stem = name[:-5] if name.endswith(".html") else name
     else:
         when = timestamp or datetime.now(timezone.utc)
         stem = f"{_NAME_PREFIX}_{when.strftime(_TIMESTAMP_FMT)}"
-    return Path(export_dir) / f"{stem}.html"
+    root = Path(export_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    return safe_join(root, f"{stem}.html")
 
 
-def _write_report(qs: ModuleType, returns: pd.Series, out_path: Path, title: str) -> None:
+def _write_report(
+    qs: ModuleType, returns: pd.Series, out_path: Path, title: str
+) -> None:
     """Render the quantstats HTML report to ``out_path`` (the heavy seam).
 
     Isolated so unit tests can stub the actual render while still exercising the

@@ -41,11 +41,12 @@ timestamps and engine-specific XML quirks that byte-comparison cannot survive).
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 import pandas as pd
 from openpyxl import Workbook
@@ -53,7 +54,6 @@ from openpyxl.formatting.rule import (
     CellIsRule,
     ColorScaleRule,
     DataBarRule,
-    FormulaRule,
 )
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -202,8 +202,14 @@ SHEET_SPEC: dict[str, list[ColumnSpec]] = {
         ColumnSpec("Score", lambda p: _rec(p).score, number_format=_SCORE_FMT),
         ColumnSpec("Entry", lambda p: _rec(p).entry_price, number_format=_CURRENCY_FMT),
         ColumnSpec("Stop", lambda p: _rec(p).stop_price, number_format=_CURRENCY_FMT),
-        ColumnSpec("Target", lambda p: _rec(p).target_price, number_format=_CURRENCY_FMT),
-        ColumnSpec("Stop %", lambda p: _rec(p).stop_distance_pct * 100.0, number_format=_PCT_FMT),
+        ColumnSpec(
+            "Target", lambda p: _rec(p).target_price, number_format=_CURRENCY_FMT
+        ),
+        ColumnSpec(
+            "Stop %",
+            lambda p: _rec(p).stop_distance_pct * 100.0,
+            number_format=_PCT_FMT,
+        ),
         ColumnSpec("R:R", lambda p: _rec(p).risk_reward, number_format=_RR_FMT),
         ColumnSpec("Shares", lambda p: _rec(p).position_size, number_format=_QTY_FMT),
         ColumnSpec("Reasoning", lambda p: _truncate(_rec(p).reasoning)),
@@ -212,12 +218,28 @@ SHEET_SPEC: dict[str, list[ColumnSpec]] = {
         ColumnSpec("Symbol", lambda p: _rec(p).symbol),
         ColumnSpec("Entry", lambda p: _rec(p).entry_price, number_format=_CURRENCY_FMT),
         ColumnSpec("Stop", lambda p: _rec(p).stop_price, number_format=_CURRENCY_FMT),
-        ColumnSpec("Target", lambda p: _rec(p).target_price, number_format=_CURRENCY_FMT),
-        ColumnSpec("Stop Distance %", lambda p: _rec(p).stop_distance_pct * 100.0, number_format=_PCT_FMT),
-        ColumnSpec("Target Distance %", lambda p: _rec(p).target_distance_pct * 100.0, number_format=_PCT_FMT),
+        ColumnSpec(
+            "Target", lambda p: _rec(p).target_price, number_format=_CURRENCY_FMT
+        ),
+        ColumnSpec(
+            "Stop Distance %",
+            lambda p: _rec(p).stop_distance_pct * 100.0,
+            number_format=_PCT_FMT,
+        ),
+        ColumnSpec(
+            "Target Distance %",
+            lambda p: _rec(p).target_distance_pct * 100.0,
+            number_format=_PCT_FMT,
+        ),
         ColumnSpec("ATR(14)", lambda p: _rec(p).atr),
-        ColumnSpec("Risk/Share", lambda p: _rec(p).risk_per_share, number_format=_CURRENCY_FMT),
-        ColumnSpec("Risk %", lambda p: _rec(p).risk_pct_of_notional, number_format=_RISK_PCT_FMT),
+        ColumnSpec(
+            "Risk/Share", lambda p: _rec(p).risk_per_share, number_format=_CURRENCY_FMT
+        ),
+        ColumnSpec(
+            "Risk %",
+            lambda p: _rec(p).risk_pct_of_notional,
+            number_format=_RISK_PCT_FMT,
+        ),
         ColumnSpec("Time Stop (bars)", lambda p: _rec(p).time_stop_bars),
     ],
     "Reasoning": [
@@ -225,10 +247,26 @@ SHEET_SPEC: dict[str, list[ColumnSpec]] = {
         ColumnSpec("Reasoning (full)", lambda p: _rec(p).reasoning),
         ColumnSpec("Top Factors", _factors),
         ColumnSpec("Caveats", lambda p: _rec(p).caveats),
-        ColumnSpec("Trend", lambda p: _votes_by_family(p.signal.votes, "trend"), number_format=_SCORE_FMT),
-        ColumnSpec("Momentum", lambda p: _votes_by_family(p.signal.votes, "momentum"), number_format=_SCORE_FMT),
-        ColumnSpec("Volatility", lambda p: _votes_by_family(p.signal.votes, "volatility"), number_format=_SCORE_FMT),
-        ColumnSpec("Volume", lambda p: _votes_by_family(p.signal.votes, "volume"), number_format=_SCORE_FMT),
+        ColumnSpec(
+            "Trend",
+            lambda p: _votes_by_family(p.signal.votes, "trend"),
+            number_format=_SCORE_FMT,
+        ),
+        ColumnSpec(
+            "Momentum",
+            lambda p: _votes_by_family(p.signal.votes, "momentum"),
+            number_format=_SCORE_FMT,
+        ),
+        ColumnSpec(
+            "Volatility",
+            lambda p: _votes_by_family(p.signal.votes, "volatility"),
+            number_format=_SCORE_FMT,
+        ),
+        ColumnSpec(
+            "Volume",
+            lambda p: _votes_by_family(p.signal.votes, "volume"),
+            number_format=_SCORE_FMT,
+        ),
     ],
     "Orders": [
         ColumnSpec("Symbol", lambda o: o.symbol),
@@ -344,7 +382,9 @@ def _fills_df(plans: list[TradePlan]) -> pd.DataFrame:
     return _build_df(rows, SHEET_SPEC["Fills"])
 
 
-def _summary_rows(plans: list[TradePlan], context: dict[str, Any] | None) -> list[tuple[str, Any]]:
+def _summary_rows(
+    plans: list[TradePlan], context: dict[str, Any] | None
+) -> list[tuple[str, Any]]:
     """Build the Summary sheet's (key, value) pairs (design Q-C / Q-D).
 
     Derived from ``plans`` (as-of, segment counts, action counts, avg R:R, validation
@@ -413,13 +453,19 @@ def _write_title_and_disclaimer(ws, as_of: date | None) -> int:
     Occupies the first two rows; returns the row index where the table header should
     start (row 4 -- one blank row after the disclaimer, then the header on row 4).
     """
-    title = f"OpenBB TechTrade - Top-Mover Recommendations - {as_of.isoformat()}" if as_of else "OpenBB TechTrade"
+    title = (
+        f"OpenBB TechTrade - Top-Mover Recommendations - {as_of.isoformat()}"
+        if as_of
+        else "OpenBB TechTrade"
+    )
     ws.cell(row=1, column=1, value=title).font = _TITLE_FONT
     ws.cell(row=2, column=1, value=DISCLAIMER).font = _DISCLAIMER_FONT
     return 4  # header on row 4 (blank row 3)
 
 
-def _write_dataframe(ws, df: pd.DataFrame, start_row: int, spec: list[ColumnSpec] | None) -> None:
+def _write_dataframe(
+    ws, df: pd.DataFrame, start_row: int, spec: list[ColumnSpec] | None
+) -> None:
     """Write ``df`` onto ``ws`` starting at ``start_row``, with bold header + number_format.
 
     The first row written is the header (bold, light-grey fill). Each subsequent row
@@ -453,8 +499,7 @@ def _autosize_columns(ws, df: pd.DataFrame, header_row: int) -> None:
         max_len = len(str(header))
         for row in df[header]:
             row_len = len(str(row)) if row is not None else 0
-            if row_len > max_len:
-                max_len = row_len
+            max_len = max(max_len, row_len)
         ws.column_dimensions[get_column_letter(col_index)].width = min(max_len + 2, 60)
 
 
@@ -475,8 +520,12 @@ def _apply_filter_and_freeze(ws, header_row: int, n_cols: int, n_rows: int) -> N
 #: Action colors (design §3).
 _ACTION_FILLS: dict[str, PatternFill] = {
     "BUY": PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid"),
-    "SELL_SHORT": PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid"),
-    "HOLD/FLAT": PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid"),
+    "SELL_SHORT": PatternFill(
+        start_color="FFC7CE", end_color="FFC7CE", fill_type="solid"
+    ),
+    "HOLD/FLAT": PatternFill(
+        start_color="D9D9D9", end_color="D9D9D9", fill_type="solid"
+    ),
 }
 
 #: Conviction shades (design §3 -- High darkest).
@@ -526,31 +575,53 @@ def _build_openpyxl_rule(kind: _CFKind) -> list:
     if kind == "action_fill":
         return [
             CellIsRule(operator="equal", formula=['"BUY"'], fill=_ACTION_FILLS["BUY"]),
-            CellIsRule(operator="equal", formula=['"SELL_SHORT"'], fill=_ACTION_FILLS["SELL_SHORT"]),
-            CellIsRule(operator="equal", formula=['"HOLD/FLAT"'], fill=_ACTION_FILLS["HOLD/FLAT"]),
+            CellIsRule(
+                operator="equal",
+                formula=['"SELL_SHORT"'],
+                fill=_ACTION_FILLS["SELL_SHORT"],
+            ),
+            CellIsRule(
+                operator="equal",
+                formula=['"HOLD/FLAT"'],
+                fill=_ACTION_FILLS["HOLD/FLAT"],
+            ),
         ]
     if kind == "conviction_shade":
         return [
-            CellIsRule(operator="equal", formula=['"High"'], fill=_CONVICTION_FILLS["High"]),
-            CellIsRule(operator="equal", formula=['"Medium"'], fill=_CONVICTION_FILLS["Medium"]),
-            CellIsRule(operator="equal", formula=['"Low"'], fill=_CONVICTION_FILLS["Low"]),
+            CellIsRule(
+                operator="equal", formula=['"High"'], fill=_CONVICTION_FILLS["High"]
+            ),
+            CellIsRule(
+                operator="equal", formula=['"Medium"'], fill=_CONVICTION_FILLS["Medium"]
+            ),
+            CellIsRule(
+                operator="equal", formula=['"Low"'], fill=_CONVICTION_FILLS["Low"]
+            ),
         ]
     if kind == "data_bar":
         return [DataBarRule(start_type="min", end_type="max", color="63BE7B")]
     if kind == "color_scale_3":
         return [
             ColorScaleRule(
-                start_type="min", start_color="63BE7B",
-                mid_type="percentile", mid_value=50, mid_color="FFEB84",
-                end_type="max", end_color="F8696B",
+                start_type="min",
+                start_color="63BE7B",
+                mid_type="percentile",
+                mid_value=50,
+                mid_color="FFEB84",
+                end_type="max",
+                end_color="F8696B",
             )
         ]
     if kind == "color_scale_3_centered":
         return [
             ColorScaleRule(
-                start_type="min", start_color="F8696B",
-                mid_type="num", mid_value=0, mid_color="FFEB84",
-                end_type="max", end_color="63BE7B",
+                start_type="min",
+                start_color="F8696B",
+                mid_type="num",
+                mid_value=0,
+                mid_color="FFEB84",
+                end_type="max",
+                end_color="63BE7B",
             )
         ]
     return []  # pragma: no cover -- kind is constrained by _CFKind Literal
@@ -561,7 +632,9 @@ def _build_openpyxl_rule(kind: _CFKind) -> list:
 # ---------------------------------------------------------------------------
 
 
-def _apply_xlsxwriter_cf(workbook, worksheet, rule: CFRule, df: pd.DataFrame, header_row: int) -> None:
+def _apply_xlsxwriter_cf(
+    workbook, worksheet, rule: CFRule, df: pd.DataFrame, header_row: int
+) -> None:
     """Apply one :data:`FORMAT_SPEC` rule via xlsxwriter (best-effort, no parity guarantee).
 
     Imported lazily by :func:`_write_workbook_xlsxwriter` -- only callers using
@@ -575,18 +648,34 @@ def _apply_xlsxwriter_cf(workbook, worksheet, rule: CFRule, df: pd.DataFrame, he
     cell_range = (header_row, col_index, header_row + n_rows - 1, col_index)
 
     if rule.kind == "action_fill":
-        for value, color in (("BUY", "#C6EFCE"), ("SELL_SHORT", "#FFC7CE"), ("HOLD/FLAT", "#D9D9D9")):
+        for value, color in (
+            ("BUY", "#C6EFCE"),
+            ("SELL_SHORT", "#FFC7CE"),
+            ("HOLD/FLAT", "#D9D9D9"),
+        ):
             worksheet.conditional_format(
                 *cell_range,
-                {"type": "cell", "criteria": "equal to", "value": f'"{value}"',
-                 "format": workbook.add_format({"bg_color": color})},
+                {
+                    "type": "cell",
+                    "criteria": "equal to",
+                    "value": f'"{value}"',
+                    "format": workbook.add_format({"bg_color": color}),
+                },
             )
     elif rule.kind == "conviction_shade":
-        for value, color in (("High", "#B7E1CD"), ("Medium", "#DDEFE2"), ("Low", "#F0F4F2")):
+        for value, color in (
+            ("High", "#B7E1CD"),
+            ("Medium", "#DDEFE2"),
+            ("Low", "#F0F4F2"),
+        ):
             worksheet.conditional_format(
                 *cell_range,
-                {"type": "cell", "criteria": "equal to", "value": f'"{value}"',
-                 "format": workbook.add_format({"bg_color": color})},
+                {
+                    "type": "cell",
+                    "criteria": "equal to",
+                    "value": f'"{value}"',
+                    "format": workbook.add_format({"bg_color": color}),
+                },
             )
     elif rule.kind == "data_bar":
         worksheet.conditional_format(*cell_range, {"type": "data_bar"})
@@ -595,8 +684,14 @@ def _apply_xlsxwriter_cf(workbook, worksheet, rule: CFRule, df: pd.DataFrame, he
     elif rule.kind == "color_scale_3_centered":
         worksheet.conditional_format(
             *cell_range,
-            {"type": "3_color_scale", "min_color": "#F8696B", "mid_color": "#FFEB84",
-             "max_color": "#63BE7B", "mid_type": "num", "mid_value": 0},
+            {
+                "type": "3_color_scale",
+                "min_color": "#F8696B",
+                "mid_color": "#FFEB84",
+                "max_color": "#63BE7B",
+                "mid_type": "num",
+                "mid_value": 0,
+            },
         )
 
 
@@ -607,7 +702,9 @@ def _apply_xlsxwriter_cf(workbook, worksheet, rule: CFRule, df: pd.DataFrame, he
 
 def _resolved_sheets(config: ExportConfig) -> list[str]:
     """Return the sheets to render, in canonical order, subset by config (design L2)."""
-    requested = set(config.include_sheets) if config.include_sheets else set(CANONICAL_SHEETS)
+    requested = (
+        set(config.include_sheets) if config.include_sheets else set(CANONICAL_SHEETS)
+    )
     return [sheet for sheet in CANONICAL_SHEETS if sheet in requested]
 
 
@@ -676,13 +773,30 @@ def _write_workbook_xlsxwriter(
             df = dataframes[sheet_name]
             # Title + disclaimer take rows 0-1; the table starts at row 3 (header) / 4+ (data).
             header_row = 3 if sheet_name == "Recommendations" else 0
-            df.to_excel(writer, sheet_name=sheet_name, startrow=header_row, index=False, header=False)
+            df.to_excel(
+                writer,
+                sheet_name=sheet_name,
+                startrow=header_row,
+                index=False,
+                header=False,
+            )
             worksheet = writer.sheets[sheet_name]
 
             if sheet_name == "Recommendations":
-                title = f"OpenBB TechTrade - Top-Mover Recommendations - {as_of.isoformat()}" if as_of else "OpenBB TechTrade"
-                worksheet.write(0, 0, title, workbook.add_format({"bold": True, "font_size": 12}))
-                worksheet.write(1, 0, DISCLAIMER, workbook.add_format({"italic": True, "color": "#808080"}))
+                title = (
+                    f"OpenBB TechTrade - Top-Mover Recommendations - {as_of.isoformat()}"
+                    if as_of
+                    else "OpenBB TechTrade"
+                )
+                worksheet.write(
+                    0, 0, title, workbook.add_format({"bold": True, "font_size": 12})
+                )
+                worksheet.write(
+                    1,
+                    0,
+                    DISCLAIMER,
+                    workbook.add_format({"italic": True, "color": "#808080"}),
+                )
 
             # Header row with bold fill.
             for col_index, header in enumerate(df.columns):
@@ -699,13 +813,17 @@ def _write_workbook_xlsxwriter(
             # Freeze header + autofilter.
             worksheet.freeze_panes(header_row + 1, 0)
             if len(df) > 0:
-                worksheet.autofilter(header_row, 0, header_row + len(df), len(df.columns) - 1)
+                worksheet.autofilter(
+                    header_row, 0, header_row + len(df), len(df.columns) - 1
+                )
 
             # Conditional formatting (best-effort).
             if config.conditional_formatting:
                 for rule in FORMAT_SPEC:
                     if rule.sheet == sheet_name:
-                        _apply_xlsxwriter_cf(workbook, worksheet, rule, df, header_row + 1)
+                        _apply_xlsxwriter_cf(
+                            workbook, worksheet, rule, df, header_row + 1
+                        )
 
 
 # ---------------------------------------------------------------------------
@@ -714,6 +832,14 @@ def _write_workbook_xlsxwriter(
 
 #: Env var that overrides the default export base dir (Q-F: configurable, repo-relative default).
 EXPORT_BASE_ENV: str = "TECHTRADE_EXPORT_DIR"
+
+#: Env var that opts in to accepting an absolute ``ExportConfig.path``. Default
+#: behavior sandboxes ``cfg.path`` inside the base dir via ``safe_join``, so a
+#: web-facing caller who supplies ``path='../../etc/passwd.xlsx'`` gets a
+#: ``PathTraversalError`` (bd-cwer / bd-qawo). A trusted CLI/notebook caller
+#: who genuinely wants an absolute path (common in unit tests + local runs)
+#: sets ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1``.
+EXPORT_ALLOW_ABSOLUTE_ENV: str = "TECHTRADE_EXPORT_ALLOW_ABSOLUTE"
 
 #: Repo-relative default base dir (matches PRD §14.3 / L4).
 _DEFAULT_BASE_REL = Path("Analysis") / "exports"
@@ -724,10 +850,121 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[5]
 
 
-def _default_path(as_of: date | None) -> Path:
-    """Build the default export path: ``<base>/techtrade_<as_of>.xlsx`` (design L4)."""
+def _export_base_dir() -> Path:
+    """Return the configured export base directory (env-override or default)."""
     base_override = os.environ.get(EXPORT_BASE_ENV)
-    base = Path(base_override) if base_override else (_repo_root() / _DEFAULT_BASE_REL)
+    return Path(base_override) if base_override else (_repo_root() / _DEFAULT_BASE_REL)
+
+
+def _absolute_path_allowlist() -> tuple[Path, ...]:
+    """Return the allowlist of base dirs an opt-in absolute cfg.path may live under.
+
+    Even with ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1`` honored, the resolved
+    absolute path must sit under one of these directories — closes the
+    F2/F3 leak vector where a docker/systemd env inheritance would give a
+    web caller arbitrary write access. Includes:
+
+    * The configured ``EXPORT_BASE_ENV`` dir (or the default repo path)
+    * The system temp directory (for pytest / notebook scratch outputs)
+    """
+    # pylint: disable=import-outside-toplevel
+    import tempfile
+
+    bases = [_export_base_dir().resolve(), Path(tempfile.gettempdir()).resolve()]
+    # De-duplicate while preserving order.
+    seen: set[Path] = set()
+    return tuple(b for b in bases if not (b in seen or seen.add(b)))
+
+
+def _resolve_export_path(cfg_path: str | None, as_of: date | None) -> Path:
+    """Resolve ``ExportConfig.path`` to a safe absolute path.
+
+    * ``cfg_path is None`` → default ``<base>/techtrade_<as_of>.xlsx`` (design L4)
+    * ``cfg_path`` relative → sandboxed inside base dir via ``safe_join``
+    * ``cfg_path`` absolute → allowed iff ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1``
+      AND the resolved path is under an allowlisted base dir (see
+      :func:`_absolute_path_allowlist`). A warning is logged every time
+      the opt-in is honored so misconfigured production hosts surface in
+      audit trails.
+
+    Regression defense for OpenBBTechnical-qawo (bd-cwer): the REST-facing
+    ``export_router.export()`` used to forward ``cfg.path`` unmodified into
+    ``Path(cfg.path)`` → ``workbook.save(path)``, letting a web caller write
+    anywhere on the filesystem the process could reach. Even with the
+    ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE`` opt-in (intended for trusted
+    CLI/notebook use), the allowlist prevents a leaked env from re-opening
+    the full arbitrary-write primitive.
+    """
+    # pylint: disable=import-outside-toplevel
+    import logging
+
+    from openbb_core.app.paths import PathTraversalError, safe_join
+
+    base = _export_base_dir()
+    base.mkdir(parents=True, exist_ok=True)
+
+    if cfg_path is None:
+        date_token = (as_of or date.today()).isoformat()
+        return safe_join(base, f"techtrade_{date_token}.xlsx")
+
+    # Reject null bytes outright regardless of shape — they never appear
+    # in legitimate paths and are historically dangerous.
+    if "\x00" in cfg_path:
+        raise PathTraversalError(
+            f"ExportConfig.path contains a null byte: {cfg_path!r}"
+        )
+
+    candidate = Path(cfg_path)
+    if candidate.is_absolute() or candidate.drive:
+        allow = os.environ.get(EXPORT_ALLOW_ABSOLUTE_ENV, "").strip().lower()
+        if allow not in ("1", "true", "yes", "on"):
+            raise PathTraversalError(
+                f"ExportConfig.path is absolute: {cfg_path!r}. Set env "
+                f"{EXPORT_ALLOW_ABSOLUTE_ENV}=1 to permit absolute paths, or pass "
+                f"a path relative to the export base dir "
+                f"(default: <repo>/Analysis/exports, override via {EXPORT_BASE_ENV})."
+            )
+
+        resolved = candidate.resolve()
+        allowlist = _absolute_path_allowlist()
+        if not any(_is_relative_to(resolved, base_dir) for base_dir in allowlist):
+            raise PathTraversalError(
+                f"ExportConfig.path {cfg_path!r} resolves to {resolved} which "
+                f"is not under any allowlisted base dir "
+                f"({', '.join(str(b) for b in allowlist)}). Set "
+                f"{EXPORT_BASE_ENV} to include this path, or pass a path "
+                f"relative to an allowlisted base."
+            )
+        # Audit trail: every honored absolute write is logged so misconfigured
+        # production hosts (docker env inheritance, leaked .env files) surface
+        # in the operator's logs. Uses stderr via the standard logging config.
+        logging.getLogger(__name__).warning(
+            "Honored ExportConfig.path=%r via %s=1 → %s",
+            cfg_path,
+            EXPORT_ALLOW_ABSOLUTE_ENV,
+            resolved,
+        )
+        return resolved
+
+    return safe_join(base, cfg_path)
+
+
+def _is_relative_to(child: Path, parent: Path) -> bool:
+    """Return True iff ``child`` is at or under ``parent`` (matched on resolved forms)."""
+    try:
+        child.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _default_path(as_of: date | None) -> Path:
+    """Build the default export path: ``<base>/techtrade_<as_of>.xlsx`` (design L4).
+
+    Kept for backward compatibility with existing callers; new code should
+    use :func:`_resolve_export_path` which centralises the safe-path logic.
+    """
+    base = _export_base_dir()
     date_token = (as_of or date.today()).isoformat()
     return base / f"techtrade_{date_token}.xlsx"
 
@@ -778,7 +1015,10 @@ def export(
     dataframes = _build_dataframes(sorted_plans, context, sheets)
 
     as_of = sorted_plans[0].as_of if sorted_plans else None
-    path = Path(cfg.path) if cfg.path else _default_path(as_of)
+    # cfg.path is sandboxed via _resolve_export_path — absolute paths require
+    # explicit env opt-in (see EXPORT_ALLOW_ABSOLUTE_ENV) to defend the
+    # REST-facing export_router.export() from path-traversal (bd-cwer / bd-qawo).
+    path = _resolve_export_path(cfg.path, as_of)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if cfg.engine == "xlsxwriter":
