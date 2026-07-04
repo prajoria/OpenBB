@@ -78,6 +78,7 @@ from openbb_pine.compiler.types import (
     Qualifier,
     Reference,
     Scalar,
+    SecurityContext,
     TupleT,
     UDT,
     UnknownT,
@@ -109,9 +110,12 @@ class TypeCheckResult:
     ``CompiledModule.builtins_used``. Includes unsupported-but-real-Pine
     names so PRD §3.4 L0.5 wild-corpus coverage credits the request."""
 
-    security_contexts: dict | None
-    """Lowered ``request.security`` directives. Phase-2 territory — None in
-    Phase 1."""
+    security_contexts: dict[str, SecurityContext] | None
+    """Lowered ``request.security`` directives, one entry per call site,
+    keyed by a deterministic ``"ctx_N"`` id (N is the source-order index).
+    ``None`` when the script has no ``request.security`` calls (Phase-1
+    scripts and any indicator that only touches primary series). Populated
+    by bead ``0e9.6.y86`` per D5 §4.1 + §7.2."""
 
     diagnostics: tuple[Any, ...]
     """Non-fatal warnings (e.g. unused var). Errors raise; never reach here."""
@@ -168,6 +172,11 @@ class _TypeChecker:
         # Subscript-kind overrides per node id. Used when we rebuild the IR
         # so codegen sees the correct kind without us mutating frozen nodes.
         self._subscript_kind: dict[int, str] = {}
+        # request.security lowering (bead 0e9.6.y86 — D5 §4.1). Each call
+        # site gets a stable ``ctx_N`` id in source order so cache keys
+        # stay deterministic across recompiles.
+        self._security_contexts: dict[str, SecurityContext] = {}
+        self._security_ctx_counter: int = 0
 
     # ------------------------------------------------------------------
     # Scope helpers
@@ -721,6 +730,15 @@ class _TypeChecker:
         )
 
     def _visit_call(self, expr: ir.CallExpr) -> tuple[ir.Expression, PineType]:
+        # Special-case request.security BEFORE the standard signature lookup so
+        # its dynamic-symbol / dynamic-timeframe args (e.g. ``syminfo.ticker``,
+        # ``syminfo.timeframe``) don't get rejected by the generic Attribute
+        # visitor (which would raise PU for unsupported ``syminfo.*``). See
+        # bead 0e9.6.y86 + D5 §4.1 / §4.4.
+        if isinstance(expr.func, ir.Attribute):
+            qname_probe = self._qualified_name(expr.func)
+            if qname_probe == "request.security":
+                return self._visit_request_security(expr, qname_probe)
         # Resolve callee.
         callee = expr.func
         sig: Signature | None = None
@@ -831,6 +849,11 @@ class _TypeChecker:
                 formal = next(
                     (t for (n, t) in sig.args if n == arg.name), None
                 )
+                # Fall through to Signature.kwargs when the name isn't among
+                # positional-or-keyword args (D5 §7.2 keyword-only slots like
+                # ``request.security(..., gaps=?, lookahead=?)``).
+                if formal is None and sig.kwargs is not None:
+                    formal = sig.kwargs.get(arg.name)
                 if formal is not None:
                     self._rule_pt001_simple_arg_cannot_be_series(
                         formal=formal,
@@ -840,6 +863,255 @@ class _TypeChecker:
                         qname=qname,
                     )
         return tuple(new_args)
+
+    # ------------------------------------------------------------------
+    # request.security special-case (bead 0e9.6.y86 — D5 §4.1, §4.4, §7.2)
+    # ------------------------------------------------------------------
+
+    def _visit_request_security(
+        self, expr: ir.CallExpr, qname: str
+    ) -> tuple[ir.Expression, PineType]:
+        """Type-check a ``request.security(...)`` call and register a
+        :class:`SecurityContext`.
+
+        Behaviour per D5 §4.1 + §4.4:
+
+        * The ``symbol`` arg (positional 0 or kw ``symbol``) is inspected
+          before it's walked so we can flag ``dynamic_symbol=True`` for
+          non-literal forms (``syminfo.ticker``, ``input.symbol(...)``,
+          any runtime-computed string). Static form is a bare ``StrLit``.
+        * The ``timeframe`` arg (positional 1 or kw ``timeframe``) — same
+          logic, feeds ``dynamic_timeframe``.
+        * The ``expression`` arg (positional 2 or kw ``expression``) is
+          visited normally so nested Pine calls (``ta.rsi(...)`` etc.)
+          type-check; its serialized ``str(node)`` becomes the
+          :attr:`SecurityContext.expr` placeholder D2 reads opaquely.
+        * Keyword-only ``gaps`` / ``lookahead`` are type-checked against
+          the sig's kwargs map.
+
+        Assigns a stable ``ctx_N`` id in source order (N = per-checker
+        counter) so cache keys stay deterministic across recompiles.
+        """
+        # Register in builtins_used before anything else so telemetry sees
+        # the reference even if a later step raises.
+        self._builtins_used.add(qname)
+
+        # Split args into positional / kw. We resolve symbol / timeframe /
+        # expression by their D5-canonical positions (0, 1, 2) with keyword
+        # fall-through to match Pine's flexible call syntax.
+        positional: list[ir.KeywordArg] = [a for a in expr.args if a.name is None]
+        by_name: dict[str, ir.KeywordArg] = {
+            a.name: a for a in expr.args if a.name is not None
+        }
+
+        def _slot(pos_idx: int, kw_name: str) -> ir.KeywordArg | None:
+            if kw_name in by_name:
+                return by_name[kw_name]
+            if pos_idx < len(positional):
+                return positional[pos_idx]
+            return None
+
+        symbol_arg = _slot(0, "symbol")
+        timeframe_arg = _slot(1, "timeframe")
+        expression_arg = _slot(2, "expression")
+
+        # --- symbol -----------------------------------------------------
+        symbol_str, dynamic_symbol, new_symbol_node = self._resolve_security_string_arg(
+            symbol_arg, param="symbol", call=expr
+        )
+
+        # --- timeframe --------------------------------------------------
+        timeframe_str, dynamic_timeframe, new_timeframe_node = self._resolve_security_string_arg(
+            timeframe_arg, param="timeframe", call=expr
+        )
+
+        # --- expression -------------------------------------------------
+        new_expression_node: ir.Expression | None = None
+        expr_str: str = ""
+        if expression_arg is not None:
+            new_expression_node, _expr_t = self._visit_expr(expression_arg.value)
+            expr_str = str(new_expression_node)
+
+        # --- gaps / lookahead kwargs -----------------------------------
+        # Type-check the bool-const kwargs; walk them so any nested
+        # references contribute to builtins_used. Any other kwargs Pine
+        # scripts pass (e.g. ``calc_bars_count``) are still walked but
+        # unenforced — matches the ``_check_call_args`` stub tolerance.
+        new_kw_args: list[ir.KeywordArg] = []
+        from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES
+
+        sig = BUILTIN_SIGNATURES["request.security"]
+        for name, arg in by_name.items():
+            if name in {"symbol", "timeframe", "expression"}:
+                # Already resolved above; skip re-walking.
+                continue
+            new_val, val_t = self._visit_expr(arg.value)
+            new_kw_args.append(dataclasses.replace(arg, value=new_val))
+            formal = (sig.kwargs or {}).get(name)
+            if formal is not None:
+                self._rule_pt001_simple_arg_cannot_be_series(
+                    formal=formal,
+                    actual=val_t,
+                    formal_name=name,
+                    node=expr,
+                    qname=qname,
+                )
+
+        # --- register SecurityContext ----------------------------------
+        context_id = f"ctx_{self._security_ctx_counter}"
+        self._security_ctx_counter += 1
+        self._security_contexts[context_id] = SecurityContext(
+            symbol=symbol_str,
+            timeframe=timeframe_str,
+            expr=expr_str,
+            dynamic_symbol=dynamic_symbol,
+            dynamic_timeframe=dynamic_timeframe,
+        )
+
+        # --- rebuild the CallExpr with visited children ----------------
+        # Preserve original positional / keyword ordering. Slot the
+        # resolved nodes into the same positions they came from.
+        rebuilt_args: list[ir.KeywordArg] = []
+        pos_cursor = 0
+        for original in expr.args:
+            if original.name is None:
+                # Positional at pos_cursor: substitute the resolved node
+                # when it maps to symbol / timeframe / expression.
+                if pos_cursor == 0 and new_symbol_node is not None:
+                    rebuilt_args.append(
+                        dataclasses.replace(original, value=new_symbol_node)
+                    )
+                elif pos_cursor == 1 and new_timeframe_node is not None:
+                    rebuilt_args.append(
+                        dataclasses.replace(original, value=new_timeframe_node)
+                    )
+                elif pos_cursor == 2 and new_expression_node is not None:
+                    rebuilt_args.append(
+                        dataclasses.replace(original, value=new_expression_node)
+                    )
+                else:
+                    # Excess positional beyond the 3 we care about — visit
+                    # normally to keep IR shape consistent.
+                    new_val, _ = self._visit_expr(original.value)
+                    rebuilt_args.append(
+                        dataclasses.replace(original, value=new_val)
+                    )
+                pos_cursor += 1
+            else:
+                # Keyword: replace with the walked value for the tracked
+                # names; otherwise substitute the visited-kwarg entry.
+                if original.name == "symbol" and new_symbol_node is not None:
+                    rebuilt_args.append(
+                        dataclasses.replace(original, value=new_symbol_node)
+                    )
+                elif original.name == "timeframe" and new_timeframe_node is not None:
+                    rebuilt_args.append(
+                        dataclasses.replace(original, value=new_timeframe_node)
+                    )
+                elif original.name == "expression" and new_expression_node is not None:
+                    rebuilt_args.append(
+                        dataclasses.replace(original, value=new_expression_node)
+                    )
+                else:
+                    match = next(
+                        (a for a in new_kw_args if a.name == original.name),
+                        None,
+                    )
+                    rebuilt_args.append(match if match is not None else original)
+
+        return (
+            dataclasses.replace(expr, args=tuple(rebuilt_args)),
+            sig.returns,
+        )
+
+    def _resolve_security_string_arg(
+        self,
+        arg: ir.KeywordArg | None,
+        *,
+        param: str,
+        call: ir.CallExpr,
+    ) -> tuple[str, bool, ir.Expression | None]:
+        """Resolve a ``request.security`` symbol / timeframe arg.
+
+        Returns ``(serialized_str, is_dynamic, walked_node_or_None)``:
+
+        * ``serialized_str`` — the literal string for a bare ``StrLit``,
+          or ``str(node)`` for dynamic forms (D5 §4.1 example
+          ``"syminfo.ticker"``).
+        * ``is_dynamic`` — True iff the arg is anything other than a
+          ``StrLit`` (D5 §4.4 fully-dynamic case).
+        * ``walked_node_or_None`` — the visited IR node so the caller can
+          slot it back into the rebuilt CallExpr; ``None`` when ``arg`` is
+          missing (which becomes a symbol=='' placeholder for now — a
+          later bead can promote to a hard error once codegen wires up).
+
+        For dynamic string args of the shape ``syminfo.<attr>`` or other
+        ``<known_ns>.<attr>``, we deliberately skip the generic
+        :meth:`_visit_attribute` walk because it would raise
+        :class:`PineUnsupportedBuiltinError` for names not in the signature
+        registry (``syminfo.ticker`` etc.). Once C3 registers those
+        signatures via a later bead, the fast-path here becomes
+        unnecessary but harmless.
+        """
+        if arg is None:
+            self._raise_type_error(
+                rule="undefined",
+                expected=f"request.security {param} argument",
+                got=f"missing {param}",
+                node=call,
+                hint=(
+                    f"request.security requires a {param} argument at "
+                    f"position "
+                    f"{ {'symbol': 0, 'timeframe': 1}[param] } or as "
+                    f"``{param}=``."
+                ),
+            )
+            return "", False, None  # pragma: no cover — _raise_type_error raises
+
+        value = arg.value
+
+        # Static case: a bare Pine string literal like "SPY" or "1D".
+        if isinstance(value, ir.StrLit):
+            return value.value, False, value
+
+        # Dynamic case: anything else (Attribute, Name, Call, etc.).
+        # We WANT to walk the node so nested references land in
+        # builtins_used and Subscript.kind is resolved, but for
+        # ``syminfo.<attr>`` / other unsupported-namespace attrs we must
+        # avoid PineUnsupportedBuiltinError blowing up the whole call.
+        walked_node: ir.Expression = value
+        walked_type: PineType | None = None
+        try:
+            walked_node, walked_type = self._visit_expr(value)
+        except PineUnsupportedBuiltinError as exc:
+            # The unsupported name is already in ``_builtins_used`` (the
+            # helper adds it before raising) — swallow the exception so
+            # the SecurityContext still lands. The runtime dispatcher
+            # (D5 §4.2) will resolve the dynamic value per-bar.
+            _ = exc  # silence lint; retained if future logging wants it
+
+        # When we DID resolve a type, enforce it's a string. Pine rejects
+        # ``request.security(123, "1D", close)`` per the D5 §7.2 signature.
+        # Skip the check when the arg raised PineUnsupportedBuiltinError
+        # above (walked_type is None) — ``syminfo.ticker`` etc. are
+        # dynamic-string by convention and don't have a signature entry yet.
+        if walked_type is not None and not isinstance(walked_type.inner, NaT):
+            inner = walked_type.inner
+            if not (isinstance(inner, Scalar) and inner.kind == "string"):
+                self._raise_type_error(
+                    rule="PT001",
+                    expected="simple<string> | series<string>",
+                    got=walked_type,
+                    node=call,
+                    hint=(
+                        f"request.security {param!r} argument must be a "
+                        "string (literal for static routing, or a "
+                        "series/simple<string> for dynamic routing per "
+                        "D5 §4.4). Got a non-string type."
+                    ),
+                )
+
+        return str(walked_node), True, walked_node
 
     # ------------------------------------------------------------------
     # Rule handlers (PT001-PT008) — one per rule for findability
@@ -971,6 +1243,10 @@ def check(program: ir.Program, *, pine_version: int) -> TypeCheckResult:
     return TypeCheckResult(
         program=new_prog,
         builtins_used=frozenset(checker._builtins_used),
-        security_contexts=None,  # Phase 2.
+        security_contexts=(
+            dict(checker._security_contexts)
+            if checker._security_contexts
+            else None
+        ),
         diagnostics=(),
     )

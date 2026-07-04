@@ -187,11 +187,30 @@ class SecurityContext:
     Codegen rewrites each such call into a structured ``SecurityContext`` so
     D2 §5.1 step 2 can set up multi-symbol dispatch ahead of
     ``ScriptRunner.run_iter()``.
+
+    The ``dynamic_*`` flags implement D5 §4.4's fully-dynamic
+    symbol/timeframe support: when C3 cannot statically resolve the symbol
+    or timeframe argument (e.g. ``request.security(syminfo.ticker, tf,
+    expr)``), it sets the corresponding flag so the runtime dispatcher
+    (D2's ``security_dispatcher``) knows to fall back to lazy per-bar fetch
+    instead of prefetching. Documented perf caveat per D5 §4.4:
+    dynamic-symbol scripts run 5-10× slower than static-symbol.
+
+    Both flags default to ``False`` to preserve backward compatibility with
+    existing constructions like
+    ``SecurityContext(symbol="AAPL", timeframe="1D", expr="close")``.
     """
 
     symbol: str
     timeframe: str
     expr: str  # serialized lowered expression; D2 reads opaquely
+    dynamic_symbol: bool = False
+    """True when C3 could not statically resolve the symbol (e.g.
+    ``request.security(syminfo.ticker, ...)``). Signals runtime to defer
+    to lazy per-bar fetch (D5 §4.4)."""
+    dynamic_timeframe: bool = False
+    """True when C3 could not statically resolve the timeframe. Same
+    runtime consequence as ``dynamic_symbol`` (D5 §4.4)."""
 
 
 @dataclass(frozen=True, slots=True)
