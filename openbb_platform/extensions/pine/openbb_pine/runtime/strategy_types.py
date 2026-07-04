@@ -63,8 +63,8 @@ class TradeSummary:
 
     Sourced from ``pynecore.lib.strategy.Trade`` (see PyneCore
     ``strategy/__init__.py:238`` for the full mutable shape). We collapse
-    that ~25-attribute internal record into the 12-field public wire shape
-    documented in D5 §1.4.
+    that ~25-attribute internal record into the 14-field public wire shape
+    documented in D5 §1.4 (as amended — see below).
 
     Timestamps are ``pandas.Timestamp`` (UTC) so callers using pandas for
     downstream analysis (openbb-backtest bridge, notebook workflows) get
@@ -72,6 +72,26 @@ class TradeSummary:
     JSON serializers can call ``.isoformat()`` themselves. PyneCore stores
     entry/exit_time as int ms-epoch, which we convert once here so nobody
     downstream has to.
+
+    Deltas vs. D5 §1.4 spec (all intentional; see PR #321 review reply):
+
+    * Field renames for consistency with ``OpenPositionSummary`` and the
+      ``qty`` / ``pnl`` / ``bars_held`` naming used elsewhere in this module:
+      ``side`` → ``direction``; ``entry_id`` → ``id``; ``pnl_percent`` →
+      ``pnl_pct``; ``bars_in_trade`` → ``bars_held``.
+    * ``entry_signal`` + ``exit_signal`` collapsed into a single ``comment``
+      field (PyneCore's ``Trade.exit_comment`` with fallback to
+      ``entry_comment``) — dropping the two-field split keeps the wire flat.
+    * ``trade_num`` dropped — it is a list index, cheaply reconstructible by
+      the caller (bead ``liz``) as ``enumerate(orders, start=1)`` at
+      ``asdict`` time. Keeping it here would force this dataclass to know
+      its own position in a list it doesn't own.
+    * ``slippage`` dropped — PyneCore does not surface per-trade slippage on
+      ``Trade`` (it is folded into fill price at ``strategy(slippage=…)``
+      time). Reintroduce only when PyneCore starts tracking it separately.
+    * ``runup`` / ``drawdown`` **restored** — free data from
+      ``Trade.max_runup`` / ``Trade.max_drawdown``.
+    * ``datetime`` → ``pd.Timestamp`` for tz-aware pandas interop.
     """
 
     # Identity / direction --------------------------------------------------
@@ -82,9 +102,9 @@ class TradeSummary:
     direction: Literal["long", "short"]
     """``"long"`` when the entry was a buy (``Trade.sign == 1.0``);
     ``"short"`` for a sell (``Trade.sign == -1.0``). Flat sign (``0.0``)
-    is not a closed-trade state — the serializer treats it as ``"long"``
-    defensively (never observed in PyneCore's closed_trades but we don't
-    want a ``ValueError`` if a future PyneCore change surfaces it)."""
+    is never a closed-trade state; the serializer raises ``ValueError``
+    at ``_direction_from_sign`` if a zero-sign closed trade is ever
+    encountered (invariant violation from PyneCore)."""
 
     # Entry side ------------------------------------------------------------
     entry_time: pd.Timestamp
@@ -127,6 +147,20 @@ class TradeSummary:
     commission: float
     """Total commission paid across both entry and exit legs."""
 
+    # Excursion (MAE/MFE) ---------------------------------------------------
+    runup: float
+    """Maximum favorable excursion during the trade life — the peak paper
+    profit the position ever reached before it closed. Sourced from
+    ``Trade.max_runup`` (see ``strategy/__init__.py:280``). Always
+    non-negative. Together with ``drawdown`` this feeds R-multiple /
+    MFE analysis without a re-run."""
+
+    drawdown: float
+    """Maximum adverse excursion during the trade life — the deepest paper
+    loss the position ever reached before it closed. Sourced from
+    ``Trade.max_drawdown`` (see ``strategy/__init__.py:278``). Always
+    non-negative (PyneCore stores it as an unsigned magnitude)."""
+
     # Metadata --------------------------------------------------------------
     comment: str | None
     """The ``comment=`` argument from the closing ``strategy.exit()`` or
@@ -149,16 +183,19 @@ class OpenPositionSummary:
     """
 
     id: str
-    """The entry id of the most-recently-opened trade contributing to the
+    """The entry id of the first (oldest) open trade contributing to the
     running position. When multiple entries are stacked (Pine's ``pyramiding``
-    setting), this is the id of the last one to fire — the first trade in
-    ``SimPosition.open_trades`` list, which PyneCore appends to as new
-    entries fire. Empty string if the entry was id-less."""
+    setting), this is the id of the **first entry to fire** — the head of
+    ``SimPosition.open_trades``, which PyneCore appends to as new entries
+    fire. This mirrors TV's Strategy Tester "Open P&L" panel convention of
+    anchoring to the oldest entry. Empty string if the entry was id-less."""
 
     direction: Literal["long", "short"]
     """``"long"`` when ``SimPosition.sign == 1.0``; ``"short"`` when
     ``-1.0``. Flat position (``sign == 0.0``) is filtered upstream — the
-    serializer returns ``None`` before constructing this dataclass."""
+    serializer returns ``None`` before constructing this dataclass, and
+    ``_direction_from_sign`` raises ``ValueError`` if a zero-sign value
+    ever reaches it (defense against a PyneCore invariant break)."""
 
     entry_time: pd.Timestamp
     """UTC bar timestamp of the first (oldest) open trade's entry fill.
@@ -178,21 +215,24 @@ class OpenPositionSummary:
     in the ``direction`` field, matching ``TradeSummary``."""
 
     unrealized_pnl: float
-    """Mark-to-market P&L against the last bar's close.
-    Computed as ``(current_bar_close - avg_price) * size`` — the
-    ``size`` factor already carries the sign, so shorts get a positive
-    unrealized_pnl when close < avg_price, longs when close > avg_price.
-    Matches ``SimPosition.openprofit`` semantics.
+    """Mark-to-market P&L against the last bar's close, sourced directly
+    from ``SimPosition.openprofit`` (which PyneCore maintains as
+    ``size * (close - avg_price) * pointvalue`` — see
+    ``strategy/__init__.py:1064, 1128, 1184, 2481``). Reading the attribute
+    verbatim rather than recomputing here ensures the wire value carries
+    the ``syminfo.pointvalue`` (contract multiplier), so futures / forex
+    symbols with ``pv != 1.0`` agree with PyneCore's own ``openprofit``,
+    with ``StrategyStatistics``, and with the TV Strategy Tester panel.
     """
 
     unrealized_pnl_pct: float
-    """Percent unrealized P&L relative to entry value
-    (``unrealized_pnl / (avg_price * abs(size)) * 100``). Uses entry value
-    rather than initial capital because the position may have been opened
-    long after significant equity gains/losses shifted the reference — the
-    per-position return-on-entry is more actionable at the position level.
-    Zero when ``avg_price * abs(size) == 0`` (a defensive guard;
-    the serializer already returns ``None`` for a flat position)."""
+    """Percent unrealized P&L relative to initial capital
+    (``unrealized_pnl / initial_capital * 100``). Same denominator as
+    ``TradeSummary.pnl_pct`` so a caller can sum the closed-side
+    ``pnl_pct`` values across ``.extra["orders"]`` and add
+    ``.extra["open_position"].unrealized_pnl_pct`` to get a cumulative
+    total-return contribution. Matches TV's "Net Profit %" convention.
+    Zero when ``initial_capital <= 0`` (defensive guard)."""
 
     bars_held: int
     """Bars elapsed since the first (oldest) open entry filled. Matches
@@ -208,18 +248,27 @@ class OpenPositionSummary:
 
 
 def _direction_from_sign(sign: float) -> Literal["long", "short"]:
-    """Map a PyneCore ``sign`` (``+1.0``/``-1.0``/``0.0``) to our
-    ``"long"``/``"short"`` literal.
+    """Map a PyneCore ``sign`` (``+1.0`` / ``-1.0``) to our
+    ``"long"`` / ``"short"`` literal.
 
-    PyneCore's flat state (``sign == 0.0``) should never reach the wire
-    shapes — closed trades always transacted (non-zero size), open
-    positions with sign 0 are filtered by ``position_to_summary``. This
-    helper defaults flat → ``"long"`` defensively so a future PyneCore
-    change that surfaces a zero-sign closed trade doesn't blow up with a
-    ``ValueError`` at serialization time; the caller's downstream analysis
-    will still notice the ``qty == 0`` if they care.
+    Raises ``ValueError`` on a zero-sign input. PyneCore's flat state
+    (``sign == 0.0``) should never reach the wire shapes — closed trades
+    always transacted (non-zero size), open positions with sign 0 are
+    filtered by ``position_to_summary``. If a zero-sign ever surfaces here
+    it means the caller skipped its own flat check (a bug in the executor)
+    or PyneCore's invariants have broken. Silent fall-through to a "long"
+    default would produce a mystery zero-sign row in downstream analytics
+    that filter on ``direction``, so we fail loud instead.
     """
-    return "short" if sign < 0.0 else "long"
+    if sign > 0.0:
+        return "long"
+    if sign < 0.0:
+        return "short"
+    raise ValueError(
+        f"_direction_from_sign received sign={sign!r}: expected +1.0 or -1.0. "
+        "A zero sign means the caller passed a flat position/trade — the flat "
+        "check should happen upstream (see position_to_summary)."
+    )
 
 
 def _ms_epoch_to_ts(ms_epoch: int) -> pd.Timestamp:
@@ -230,7 +279,21 @@ def _ms_epoch_to_ts(ms_epoch: int) -> pd.Timestamp:
     where the CSV writer converts back). We standardize on tz-aware UTC
     on the wire so downstream pandas ops work naturally with the primary
     OHLCV DataFrame's tz-aware index (D2 §2.3).
+
+    Raises ``ValueError`` on a negative epoch. PyneCore uses ``-1`` as the
+    sentinel for an unset ``exit_time`` (``Trade.__init__`` line 271); if
+    that sentinel reaches this helper it means the caller passed an
+    unclosed trade to ``trade_to_summary``, which would otherwise produce
+    a plausible-looking ``1969-12-31T23:59:59.999+00:00`` timestamp that
+    downstream analytics silently trust. Fail loud rather than emit a
+    fake pre-epoch timestamp.
     """
+    if ms_epoch < 0:
+        raise ValueError(
+            f"_ms_epoch_to_ts received ms_epoch={ms_epoch}: negative epoch is "
+            "PyneCore's -1 sentinel for an unset time. Passing an unclosed "
+            "Trade to trade_to_summary is a caller bug."
+        )
     return pd.Timestamp(datetime.fromtimestamp(ms_epoch / 1000.0, tz=timezone.utc))
 
 
@@ -243,10 +306,9 @@ def trade_to_summary(
 
     :param trade: A completed ``pynecore.lib.strategy.Trade`` from
         ``SimPosition.closed_trades``. Must have ``exit_bar_index >= 0``
-        (i.e. the closing leg filled). The caller is expected to only
-        pass closed trades — passing an open trade produces a
-        ``TradeSummary`` with a sentinel exit_time from the ``-1`` epoch,
-        which is a caller error not silently normalized here.
+        and a non-negative ``exit_time`` (i.e. the closing leg filled).
+        Passing an unclosed trade fails loud through ``_ms_epoch_to_ts``
+        with ``ValueError`` rather than emitting a sentinel 1969 timestamp.
     :param initial_capital: The strategy's starting capital, used to
         compute ``pnl_pct`` (per-trade percent return against initial
         capital, matching ``StrategyStatistics.net_profit_percent``
@@ -280,12 +342,12 @@ def trade_to_summary(
     # which is NOT what we want on this wire shape.
     pnl_pct = (trade.profit / initial_capital * 100.0) if initial_capital > 0.0 else 0.0
 
-    # bars_held from bar-index deltas; guard against exit_bar_index sentinel
-    # (-1 = trade not yet closed). Callers passing an open trade get 0 rather
-    # than a negative bar count.
+    # bars_held from bar-index deltas; guard against a possible negative
+    # count (should never happen for a closed trade with exit_bar_index
+    # already validated above via _ms_epoch_to_ts, but clamp is cheap).
     entry_bar = int(trade.entry_bar_index)
     exit_bar = int(trade.exit_bar_index)
-    bars_held = max(0, exit_bar - entry_bar) if exit_bar >= 0 else 0
+    bars_held = max(0, exit_bar - entry_bar)
 
     return TradeSummary(
         id=trade.entry_id or "",
@@ -299,14 +361,16 @@ def trade_to_summary(
         pnl_pct=pnl_pct,
         bars_held=bars_held,
         commission=float(trade.commission),
+        runup=float(trade.max_runup),
+        drawdown=float(trade.max_drawdown),
         comment=comment,
     )
 
 
 def position_to_summary(
     pos: "SimPosition",
-    current_bar_close: float,
     current_bar_index: int,
+    initial_capital: float,
 ) -> OpenPositionSummary | None:
     """Convert a PyneCore ``SimPosition`` into an ``OpenPositionSummary``.
 
@@ -320,18 +384,42 @@ def position_to_summary(
     :param pos: A ``pynecore.lib.strategy.SimPosition`` (see
         ``pynecore/lib/strategy/__init__.py:662``) that was mutated in
         place by ``ScriptRunner.run_iter()`` during a strategy run.
-        Duck-typed — the function reads only ``size``, ``sign``,
-        ``avg_price``, and ``open_trades[0]`` (for entry_time /
+        Duck-typed — the function reads ``size``, ``sign``, ``avg_price``,
+        ``openprofit``, and ``open_trades[0]`` (for entry_time /
         entry_bar_index).
-    :param current_bar_close: Close price of the LAST bar the strategy
-        saw. Used to compute ``unrealized_pnl``. The executor sources this
-        from the final ``candle.close`` yielded by ``ScriptRunner.run_iter()``.
     :param current_bar_index: Bar index of the last bar the strategy saw.
         Used to compute ``bars_held``. The executor sources this from
         ``lib.bar_index`` immediately after ``run_iter()`` exhausts.
+    :param initial_capital: The strategy's starting capital, used to
+        compute ``unrealized_pnl_pct``. Same denominator as
+        ``TradeSummary.pnl_pct`` so the closed + open sides are additive.
+        Zero or negative values yield ``unrealized_pnl_pct = 0.0``.
+
+    ``current_bar_close`` is intentionally NOT a parameter: unrealized P&L
+    is read from ``SimPosition.openprofit`` (which PyneCore maintains as
+    ``size * (close - avg_price) * pointvalue``) so the wire value already
+    carries the ``syminfo.pointvalue`` contract multiplier. Recomputing
+    from ``current_bar_close`` here would silently drop the ``pv`` factor
+    on futures / forex.
     """
+    # Deferred import — the wire-shape module keeps its import graph light
+    # (see the ``TYPE_CHECKING`` block at the top). NA is only needed at
+    # runtime inside the na-guard below.
+    from pynecore.types.na import NA
+
     # Flat guard — no direction, no entry, nothing to serialize.
     if float(pos.size) == 0.0:
+        return None
+
+    # NA-guard for avg_price. Symmetric to the open_trades empty guard
+    # below: SimPosition.avg_price is typed PyneFloat (NA[float] | float)
+    # and is set to na_float on the ZeroDivisionError fallback branch
+    # (strategy/__init__.py:1182) even when size != 0. ``float(na_float)``
+    # would raise ``TypeError: NA cannot be converted to float`` and
+    # abort the whole serialization pass; instead we treat it as
+    # "PyneCore invariant violation" and return None like we do for the
+    # empty-open_trades case.
+    if isinstance(pos.avg_price, NA):
         return None
 
     # Head of open_trades = the oldest still-open entry. When pyramiding is
@@ -350,11 +438,14 @@ def position_to_summary(
 
     qty = abs(float(pos.size))
     avg_price = float(pos.avg_price)
-    # size is signed; PyneCore's SimPosition.openprofit uses this identity.
-    unrealized_pnl = (float(current_bar_close) - avg_price) * float(pos.size)
-    entry_value = avg_price * qty
+    # Read openprofit directly — PyneCore already applies syminfo.pointvalue
+    # (contract multiplier), which recomputing (close - avg) * size would
+    # silently drop for futures / forex with pv != 1.0.
+    unrealized_pnl = float(pos.openprofit)
+    # Percent unrealized against initial capital — same denominator as
+    # TradeSummary.pnl_pct so closed and open sides can be summed.
     unrealized_pnl_pct = (
-        (unrealized_pnl / entry_value * 100.0) if entry_value > 0.0 else 0.0
+        (unrealized_pnl / initial_capital * 100.0) if initial_capital > 0.0 else 0.0
     )
 
     entry_bar = int(oldest.entry_bar_index)
