@@ -96,11 +96,11 @@ def build_fundamentals(raw: pd.DataFrame) -> pd.DataFrame:
     available = []
     for _, row in raw.iterrows():
         filing = row.get("filing_date")
-        filing = None if filing is None or pd.isna(filing) else pd.Timestamp(filing).date()
-        period_end = pd.Timestamp(row["period_end"]).date()
-        available.append(
-            availability_date(filing, period_end, row.get("period_type"))
+        filing = (
+            None if filing is None or pd.isna(filing) else pd.Timestamp(filing).date()
         )
+        period_end = pd.Timestamp(row["period_end"]).date()
+        available.append(availability_date(filing, period_end, row.get("period_type")))
 
     out = pd.DataFrame(
         {
@@ -328,10 +328,20 @@ class Bundle:
         into place, so a concurrent reader never observes a partial bundle and a
         re-ingest under the same ``name`` fully replaces the prior contents
         (design §1, atomic refresh).
+
+        ``name`` is treated as an in-root subpath: absolute paths and ``..``
+        segments raise ``PathTraversalError`` (defends the ``shutil.rmtree``
+        below from being pointed outside ``root`` — see bd-cwer / bd-9cdg).
         """
-        root = Path(root)
-        dest = root / name
-        tmp = root / f".{name}.tmp"
+        # pylint: disable=import-outside-toplevel
+        from openbb_core.app.paths import safe_join
+
+        root_path = Path(root)
+        root_path.mkdir(parents=True, exist_ok=True)
+        dest = safe_join(root_path, name)
+        # ``.tmp`` sibling must also stay inside root; build it from the
+        # resolved dest's parent to avoid a second traversal-injection point.
+        tmp = dest.parent / f".{dest.name}.tmp"
         if tmp.exists():
             shutil.rmtree(tmp)
         tmp.mkdir(parents=True)
@@ -361,8 +371,15 @@ class Bundle:
 
     @classmethod
     def load(cls, root: str | Path, name: str = "default") -> Bundle:
-        """Load a persisted bundle written by :meth:`save`."""
-        path = Path(root) / name
+        """Load a persisted bundle written by :meth:`save`.
+
+        ``name`` must resolve inside ``root`` (see :meth:`save`); traversal
+        attempts raise ``PathTraversalError``.
+        """
+        # pylint: disable=import-outside-toplevel
+        from openbb_core.app.paths import safe_join
+
+        path = safe_join(root, name)
         meta = json.loads((path / "metadata.json").read_text())
         ohlcv = pd.read_parquet(path / "ohlcv.parquet")
         fundamentals = None
@@ -575,7 +592,9 @@ class FmpCachedReader:
             execute = execute_query
         self._execute = execute
 
-    def equity_historical(self, symbols: list[str], start: date, end: date) -> pd.DataFrame:
+    def equity_historical(
+        self, symbols: list[str], start: date, end: date
+    ) -> pd.DataFrame:
         placeholders = ", ".join(["%s"] * len(symbols))
         # placeholders are literal "%s" markers; all values are parameterized.
         query = (
@@ -627,4 +646,3 @@ class FmpCachedReader:
         if not non_empty:
             return rows_to_fundamentals([])
         return pd.concat(non_empty, ignore_index=True)
-
