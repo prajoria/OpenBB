@@ -325,6 +325,39 @@ def test_bundle_save_rejects_separators_in_name(tmp_path):
     assert result_meta.name == "sub/inner"
 
 
+@pytest.mark.parametrize(
+    "attack_name",
+    [
+        # These collapse via ``..`` back to the root itself. safe_join accepts
+        # them (root is trivially relative to root), but ``dest == root``, so
+        # ``dest.parent / .<basename>.tmp`` lands OUTSIDE the sandbox — and
+        # then ``shutil.rmtree(tmp)`` / ``tmp.rename(dest)`` are the same
+        # arbitrary-delete/write primitive this branch was meant to close.
+        "a/..",
+        "foo/../.",
+        "x/y/../..",
+        "default/..",
+    ],
+)
+def test_bundle_save_rejects_names_collapsing_to_root(tmp_path, attack_name):
+    """Names that resolve to root itself must raise, not silently escape via tmp sibling.
+
+    Regression test — critical Phase-6 QC finding on this branch. The
+    initial fix used ``safe_join(root, name)`` which correctly rejects
+    ``..`` traversal that escapes root, but a caller-controlled ``name``
+    like ``'a/..'`` collapses BACK to root itself. ``safe_join`` accepts
+    that (root is trivially relative to itself), then the tmp sibling
+    ``dest.parent / '.{dest.name}.tmp'`` lands in root's parent —
+    outside the sandbox — restoring the original vulnerability.
+    """
+    from openbb_backtest.data.bundle import Bundle
+    from openbb_core.app.paths import PathTraversalError
+
+    bundle = Bundle.from_frames(ohlcv=_synthetic_ohlcv(), calendar="XNYS")
+    with pytest.raises((PathTraversalError, ValueError)):
+        bundle.save(tmp_path, name=attack_name)
+
+
 def test_build_ohlcv_aligns_to_sessions_and_adds_adj_factor():
     from openbb_backtest.data.bundle import build_ohlcv
 

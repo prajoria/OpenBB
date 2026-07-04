@@ -334,11 +334,23 @@ class Bundle:
         below from being pointed outside ``root`` — see bd-cwer / bd-9cdg).
         """
         # pylint: disable=import-outside-toplevel
-        from openbb_core.app.paths import safe_join
+        from openbb_core.app.paths import PathTraversalError, safe_join
 
         root_path = Path(root)
         root_path.mkdir(parents=True, exist_ok=True)
         dest = safe_join(root_path, name)
+        # Extra guard: reject ``name`` values that collapse back to root
+        # itself (e.g. ``'a/..'``, ``'foo/../.'``). safe_join accepts them
+        # (root is trivially relative to itself), but the ``.tmp`` sibling
+        # below would then land in root's parent — outside the sandbox —
+        # restoring the same arbitrary-write/delete primitive this branch
+        # closes. See regression test test_bundle_save_rejects_names_
+        # collapsing_to_root.
+        if dest == root_path.resolve():
+            raise PathTraversalError(
+                f"Bundle name {name!r} collapses to the root directory; "
+                f"a bundle name must refer to a strict subpath of root"
+            )
         # ``.tmp`` sibling must also stay inside root; build it from the
         # resolved dest's parent to avoid a second traversal-injection point.
         tmp = dest.parent / f".{dest.name}.tmp"
@@ -374,12 +386,19 @@ class Bundle:
         """Load a persisted bundle written by :meth:`save`.
 
         ``name`` must resolve inside ``root`` (see :meth:`save`); traversal
-        attempts raise ``PathTraversalError``.
+        attempts raise ``PathTraversalError``. ``name`` values that collapse
+        back to ``root`` itself are also rejected (see :meth:`save`).
         """
         # pylint: disable=import-outside-toplevel
-        from openbb_core.app.paths import safe_join
+        from openbb_core.app.paths import PathTraversalError, safe_join
 
-        path = safe_join(root, name)
+        root_path = Path(root)
+        path = safe_join(root_path, name)
+        if path == root_path.resolve():
+            raise PathTraversalError(
+                f"Bundle name {name!r} collapses to the root directory; "
+                f"a bundle name must refer to a strict subpath of root"
+            )
         meta = json.loads((path / "metadata.json").read_text())
         ohlcv = pd.read_parquet(path / "ohlcv.parquet")
         fundamentals = None
