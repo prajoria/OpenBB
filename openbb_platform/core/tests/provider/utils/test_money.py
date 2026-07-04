@@ -11,7 +11,7 @@ Key behavioral promises exercised here:
   float arithmetic on money.
 * Understands all sibling formats: ``$1,234.56``, ``+$5,104.47``,
   ``-$183.70``, ``($605.38)``, ``$492.05 USD``.
-* Strict by default: unparseable inputs raise ``ValueError``. Existing
+* Strict by default: unparsable inputs raise ``ValueError``. Existing
   Tools/ callers use ``on_error="zero"`` for backward compatibility.
 * Sentinel values (``--``, ``N/A``, empty) return ``Decimal("0")`` without
   raising, in every ``on_error`` mode.
@@ -98,7 +98,7 @@ def test_parse_currency_none_treated_as_sentinel() -> None:
 
 
 def test_parse_currency_strict_raises_on_garbage() -> None:
-    """Default strict mode raises ValueError on unparseable input."""
+    """Default strict mode raises ValueError on unparsable input."""
     with pytest.raises(ValueError, match="parse"):
         parse_currency("not a number")
 
@@ -278,3 +278,176 @@ def test_parse_currency_bare_hyphen_raises() -> None:
     """A lone ``-`` has no magnitude — must raise (not become negative zero)."""
     with pytest.raises(ValueError, match="parse"):
         parse_currency("-")
+
+
+# ---------------------------------------------------------------------------
+# Round-1 review findings (silent-failure-hunter + pr-test-analyzer + code-reviewer)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # European decimal comma with US thousands comma — ambiguous shape, must reject.
+        # $1.234,56 (EU notation for US $1,234.56) used to silently misparse to 1.23456.
+        "$1.234,56",
+        "1.234,56",
+        # Doubled EU thousands — even more corrupted.
+        "$1.234.567,89",
+    ],
+)
+def test_parse_currency_rejects_european_decimal_format(raw: str) -> None:
+    """European-locale money formatting must raise, not silently misparse 1000×.
+
+    Regression test for silent-failure-hunter finding — the old strip regex
+    turned ``$1.234,56`` (EU for US $1,234.56) into ``1.23456`` because
+    it stripped the comma as a thousands separator and kept the dot as
+    decimal. Now the pre-strip well-formed-US-money check rejects it.
+    """
+    with pytest.raises(ValueError, match="parse"):
+        parse_currency(raw)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # Missing close paren.
+        "($1,234.56",
+        # Missing open paren.
+        "$1,234.56)",
+        # Extra unbalanced.
+        "(($10.00)",
+    ],
+)
+def test_parse_currency_rejects_unbalanced_parens(raw: str) -> None:
+    """Unbalanced parens make sign inference unsafe — must raise.
+
+    Regression test for silent-failure-hunter finding — a single missing
+    paren used to silently flip the sign in one direction but not the
+    other, producing plausible-looking but wrong values from typos.
+    """
+    with pytest.raises(ValueError, match="parse|unbalanced"):
+        parse_currency(raw)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # Lone paren, no content — obvious corruption, not a sentinel.
+        "(",
+        ")",
+        ")(",
+    ],
+)
+def test_parse_currency_lone_paren_is_not_sentinel(raw: str) -> None:
+    """A lone ``(`` or ``)`` is data corruption, not an empty sentinel.
+
+    Regression test for silent-failure-hunter finding — the sentinel
+    probe used to collapse ``"("`` to empty via ``strip("()")`` and
+    then return Decimal("0"), masking truncated CSV cells.
+    """
+    with pytest.raises(ValueError, match="parse|unbalanced"):
+        parse_currency(raw)
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # U+2013 EN DASH — explicitly named in the source translate table.
+        ("$–100", Decimal("-100")),
+        # U+2014 EM DASH — same.
+        ("$—50.00", Decimal("-50.00")),
+    ],
+)
+def test_parse_currency_normalises_en_and_em_dash(raw: str, expected: Decimal) -> None:
+    """U+2013 en-dash and U+2014 em-dash normalise to '-' for sign inference.
+
+    Regression test for pr-test-analyzer finding #6 — the source
+    translate table names three non-ASCII dashes (U+2212, U+2013, U+2014)
+    but only U+2212 was tested. A regression removing '–' or '—' from
+    the table would silently pass the entire prior suite.
+    """
+    assert parse_currency(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # Uppercase USD (already tested, kept for parity)
+        ("$100 USD", Decimal("100")),
+        # Lowercase usd — common in PDF-extracted CSVs
+        ("$100 usd", Decimal("100")),
+        # Mixed case
+        ("$100 Usd", Decimal("100")),
+        ("$100 uSD", Decimal("100")),
+    ],
+)
+def test_parse_currency_usd_suffix_is_case_insensitive(
+    raw: str, expected: Decimal
+) -> None:
+    """USD suffix works in any case — the source regex uses re.IGNORECASE.
+
+    Regression test for pr-test-analyzer finding — removing IGNORECASE
+    or narrowing to [A-Z]{3} would silently pass the old suite because
+    only uppercase was tested.
+    """
+    assert parse_currency(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # (($10.00)) — doubled parens still mean negative once (boolean flag, not XOR).
+        ("(($10.00))", Decimal("-10.00")),
+        # Combined leading '-' with doubled parens — still negative once.
+        ("((-$10))", Decimal("-10")),
+    ],
+)
+def test_parse_currency_nested_parens_do_not_sign_double(
+    raw: str, expected: Decimal
+) -> None:
+    """Doubled parens keep the negative-flag boolean semantics.
+
+    Regression test for pr-test-analyzer finding — an implementation
+    that toggled the sign per paren (XOR) or summed contributions
+    would silently pass the ``-($10)`` test but flip doubled parens
+    back to positive.
+    """
+    assert parse_currency(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # Shapes the guard regex accepts but Decimal() rejects — the InvalidOperation
+        # fallback must return zero in on_error='zero' mode.
+        ".",
+        "-.",
+    ],
+)
+def test_parse_currency_regex_accepts_but_decimal_rejects_returns_zero(
+    raw: str,
+) -> None:
+    r"""on_error='zero' mode covers regex-accepts-but-Decimal-rejects shapes.
+
+    Regression test for pr-test-analyzer finding — the well-formed regex
+    ``-?\d*\.?\d*`` fullmatches these but ``Decimal('.')`` raises. The
+    zero-mode fallback branch on the ``except InvalidOperation`` handler
+    is real behavior worth locking in (was previously covered only in
+    the raise-side).
+    """
+    assert parse_currency(raw, on_error="zero") == Decimal("0")
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["n/a", "N/a", "n/A"],
+)
+def test_parse_currency_sentinel_case_insensitive(raw: str) -> None:
+    """Sentinel matching is case-insensitive — 'n/a' is as valid as 'N/A'.
+
+    Regression test for pr-test-analyzer finding — the source comment
+    said the sentinel probe is case-insensitive but the frozenset only
+    stored 'N/A' (uppercase). Now the probe upper-cases before lookup.
+    """
+    assert parse_currency(raw) == Decimal("0")

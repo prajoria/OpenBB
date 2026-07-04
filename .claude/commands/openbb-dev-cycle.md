@@ -352,8 +352,8 @@ issues cheaper than a human round-trip.
     place, don't create a second)
   - `openbb_fred/utils/rate_limiter.py::fred_get` (will become thin wrapper on
     the new `openbb_core/provider/utils/http_retry.py::retrying_get`)
-  - See `C:\Users\daaji\.claude\plans\dreamy-giggling-chipmunk.md` for the full
-    "reuse cheatsheet"
+  - See the QC-remediation plan file referenced in the tracking bead
+    (`OpenBBTechnical-t7f2` and children) for the full "reuse cheatsheet"
 - **Test commands:**
   ```bash
   # Unit tests (~1s, no API needed)

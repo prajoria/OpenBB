@@ -101,20 +101,58 @@ def test_safe_join_rejects_mixed_traversal(tmp_path: Path) -> None:
         safe_join(tmp_path, "safe/../../escape.txt")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="symlink perms differ on Windows")
+def _try_make_symlink(link: Path, target: Path) -> bool:
+    """Attempt to create a symlink; return True on success, False if OS refuses.
+
+    Windows only allows unprivileged symlink creation under Developer Mode
+    (and some CI configurations). On POSIX this virtually always succeeds.
+    Using a capability probe instead of ``sys.platform == 'win32'`` skip
+    means the symlink-escape guard is verified wherever symlinks work,
+    not blindly bypassed on every Windows CI run.
+    """
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        return False
+    return True
+
+
 def test_safe_join_rejects_symlink_escape(tmp_path: Path) -> None:
-    """A symlink INSIDE root that points OUT of root is rejected on resolve()."""
+    """A symlink INSIDE root that points OUT of root is rejected on resolve().
+
+    Uses a capability probe (not a platform skip) so this security-critical
+    behavior is verified wherever the OS allows symlink creation — including
+    Windows Developer Mode, which is where the drive-relative guard also
+    matters. Regression test for pr-test-analyzer high-severity finding.
+    """
     outside = tmp_path.parent / "outside_root"
     outside.mkdir(exist_ok=True)
     try:
         link = tmp_path / "escape_link"
-        link.symlink_to(outside)
+        if not _try_make_symlink(link, outside):
+            pytest.skip("OS does not permit symlink creation in this environment")
         with pytest.raises(PathTraversalError):
             safe_join(tmp_path, "escape_link/passwd")
     finally:
-        # tmp_path is auto-cleaned, but its sibling isn't — clean up manually.
         if outside.exists():
             outside.rmdir()
+
+
+def test_safe_join_accepts_symlink_inside_root(tmp_path: Path) -> None:
+    """A symlink INSIDE root pointing to another location INSIDE root is accepted.
+
+    Regression test for pr-test-analyzer finding — every prior symlink
+    test asserted REJECTION, so an over-broad implementation that
+    rejects any symlink component would have silently passed.
+    """
+    target_dir = tmp_path / "target_dir"
+    target_dir.mkdir()
+    link = tmp_path / "link_to_target"
+    if not _try_make_symlink(link, target_dir):
+        pytest.skip("OS does not permit symlink creation in this environment")
+    # A file under the symlink must resolve to a legitimate in-root path.
+    result = safe_join(tmp_path, "link_to_target/report.html")
+    assert result == (target_dir / "report.html").resolve()
 
 
 # ---------------------------------------------------------------------------
@@ -230,3 +268,33 @@ def test_safe_join_root_with_trailing_slash(tmp_path: Path) -> None:
     root_with_slash = str(tmp_path) + os.sep
     result = safe_join(root_with_slash, "report.html")
     assert result == (tmp_path / "report.html").resolve()
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32", reason="Windows extended-length path semantics"
+)
+def test_safe_join_rejects_windows_extended_length_path(tmp_path: Path) -> None:
+    r"""Extended-length paths ``\\?\C:\...`` are absolute on Windows — must reject.
+
+    Regression test for pr-test-analyzer finding — the ``\\?\`` prefix
+    bypasses most path normalization and is semantically absolute. Both
+    ``is_absolute()`` and the drive-component guard should fire; this
+    test locks that in.
+    """
+    with pytest.raises(PathTraversalError):
+        safe_join(tmp_path, r"\\?\C:\Windows\notepad.exe")
+
+
+def test_safe_join_rejects_root_that_is_a_file(tmp_path: Path) -> None:
+    """Root must be a directory — a file used as root raises NotADirectoryError.
+
+    Regression test for pr-test-analyzer finding — without this guard,
+    ``exists()`` succeeded on a file root, ``resolve(strict=True)`` returned
+    the file path, and ``(file / 'child')`` produced a plausible-looking
+    descendant that ``is_relative_to`` accepted. Silently 'succeeded' on
+    a misconfigured root.
+    """
+    file_as_root = tmp_path / "not_a_directory.txt"
+    file_as_root.write_text("hello")
+    with pytest.raises(NotADirectoryError):
+        safe_join(file_as_root, "child.txt")

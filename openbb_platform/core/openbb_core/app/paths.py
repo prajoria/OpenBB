@@ -18,7 +18,8 @@ SHOULD route through ``safe_join`` instead. The helper:
   redirect to another drive
 * Rejects symlinks-inside-root that point outside the root (via ``resolve``)
 * Rejects null bytes, empty strings, and ``.``-only children outright
-* Requires the root to exist (distinguishes configuration bugs from attacks)
+* Requires the root to exist AND be a directory (distinguishes
+  configuration bugs from attack attempts via distinct error types)
 
 Callers who need a distinct exception type for "attack attempt" vs
 "benign parse error" should catch ``PathTraversalError`` specifically —
@@ -71,6 +72,10 @@ def safe_join(root: str | Path, child: str | Path) -> Path:
         If ``root`` does not exist on disk. Distinct from
         ``PathTraversalError`` so callers can tell configuration bugs
         (misconfigured export dir) from attack attempts.
+    NotADirectoryError
+        If ``root`` exists but is a regular file (or any non-directory
+        entry). Prevents silently 'succeeding' on a misconfigured root
+        that happens to accept path composition.
     PathTraversalError
         If the resolved child path is not inside ``root`` — covers
         ``..`` traversal, absolute-path overrides, Windows drive-relative
@@ -126,6 +131,8 @@ def safe_join(root: str | Path, child: str | Path) -> Path:
     root_path = Path(root)
     if not root_path.exists():
         raise FileNotFoundError(f"safe_join: root does not exist: {root_path}")
+    if not root_path.is_dir():
+        raise NotADirectoryError(f"safe_join: root is not a directory: {root_path}")
 
     # Resolve the root to its canonical form so the containment check is
     # symlink-aware. strict=True is safe here — we just verified existence.
