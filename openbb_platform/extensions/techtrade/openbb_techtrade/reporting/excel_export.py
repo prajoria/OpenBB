@@ -856,20 +856,48 @@ def _export_base_dir() -> Path:
     return Path(base_override) if base_override else (_repo_root() / _DEFAULT_BASE_REL)
 
 
+def _absolute_path_allowlist() -> tuple[Path, ...]:
+    """Return the allowlist of base dirs an opt-in absolute cfg.path may live under.
+
+    Even with ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1`` honored, the resolved
+    absolute path must sit under one of these directories — closes the
+    F2/F3 leak vector where a docker/systemd env inheritance would give a
+    web caller arbitrary write access. Includes:
+
+    * The configured ``EXPORT_BASE_ENV`` dir (or the default repo path)
+    * The system temp directory (for pytest / notebook scratch outputs)
+    """
+    # pylint: disable=import-outside-toplevel
+    import tempfile
+
+    bases = [_export_base_dir().resolve(), Path(tempfile.gettempdir()).resolve()]
+    # De-duplicate while preserving order.
+    seen: set[Path] = set()
+    return tuple(b for b in bases if not (b in seen or seen.add(b)))
+
+
 def _resolve_export_path(cfg_path: str | None, as_of: date | None) -> Path:
     """Resolve ``ExportConfig.path`` to a safe absolute path.
 
     * ``cfg_path is None`` → default ``<base>/techtrade_<as_of>.xlsx`` (design L4)
     * ``cfg_path`` relative → sandboxed inside base dir via ``safe_join``
-    * ``cfg_path`` absolute → allowed iff ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1``,
-      else raises ``PathTraversalError``
+    * ``cfg_path`` absolute → allowed iff ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1``
+      AND the resolved path is under an allowlisted base dir (see
+      :func:`_absolute_path_allowlist`). A warning is logged every time
+      the opt-in is honored so misconfigured production hosts surface in
+      audit trails.
 
     Regression defense for OpenBBTechnical-qawo (bd-cwer): the REST-facing
     ``export_router.export()`` used to forward ``cfg.path`` unmodified into
     ``Path(cfg.path)`` → ``workbook.save(path)``, letting a web caller write
-    anywhere on the filesystem the process could reach.
+    anywhere on the filesystem the process could reach. Even with the
+    ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE`` opt-in (intended for trusted
+    CLI/notebook use), the allowlist prevents a leaked env from re-opening
+    the full arbitrary-write primitive.
     """
     # pylint: disable=import-outside-toplevel
+    import logging
+
     from openbb_core.app.paths import PathTraversalError, safe_join
 
     base = _export_base_dir()
@@ -879,19 +907,55 @@ def _resolve_export_path(cfg_path: str | None, as_of: date | None) -> Path:
         date_token = (as_of or date.today()).isoformat()
         return safe_join(base, f"techtrade_{date_token}.xlsx")
 
+    # Reject null bytes outright regardless of shape — they never appear
+    # in legitimate paths and are historically dangerous.
+    if "\x00" in cfg_path:
+        raise PathTraversalError(
+            f"ExportConfig.path contains a null byte: {cfg_path!r}"
+        )
+
     candidate = Path(cfg_path)
     if candidate.is_absolute() or candidate.drive:
         allow = os.environ.get(EXPORT_ALLOW_ABSOLUTE_ENV, "").strip().lower()
-        if allow in ("1", "true", "yes", "on"):
-            return candidate.resolve()
-        raise PathTraversalError(
-            f"ExportConfig.path is absolute: {cfg_path!r}. Set env "
-            f"{EXPORT_ALLOW_ABSOLUTE_ENV}=1 to permit absolute paths, or pass "
-            f"a path relative to the export base dir "
-            f"(default: <repo>/Analysis/exports, override via {EXPORT_BASE_ENV})."
+        if allow not in ("1", "true", "yes", "on"):
+            raise PathTraversalError(
+                f"ExportConfig.path is absolute: {cfg_path!r}. Set env "
+                f"{EXPORT_ALLOW_ABSOLUTE_ENV}=1 to permit absolute paths, or pass "
+                f"a path relative to the export base dir "
+                f"(default: <repo>/Analysis/exports, override via {EXPORT_BASE_ENV})."
+            )
+
+        resolved = candidate.resolve()
+        allowlist = _absolute_path_allowlist()
+        if not any(_is_relative_to(resolved, base_dir) for base_dir in allowlist):
+            raise PathTraversalError(
+                f"ExportConfig.path {cfg_path!r} resolves to {resolved} which "
+                f"is not under any allowlisted base dir "
+                f"({', '.join(str(b) for b in allowlist)}). Set "
+                f"{EXPORT_BASE_ENV} to include this path, or pass a path "
+                f"relative to an allowlisted base."
+            )
+        # Audit trail: every honored absolute write is logged so misconfigured
+        # production hosts (docker env inheritance, leaked .env files) surface
+        # in the operator's logs. Uses stderr via the standard logging config.
+        logging.getLogger(__name__).warning(
+            "Honored ExportConfig.path=%r via %s=1 → %s",
+            cfg_path,
+            EXPORT_ALLOW_ABSOLUTE_ENV,
+            resolved,
         )
+        return resolved
 
     return safe_join(base, cfg_path)
+
+
+def _is_relative_to(child: Path, parent: Path) -> bool:
+    """Return True iff ``child`` is at or under ``parent`` (matched on resolved forms)."""
+    try:
+        child.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
 
 
 def _default_path(as_of: date | None) -> Path:

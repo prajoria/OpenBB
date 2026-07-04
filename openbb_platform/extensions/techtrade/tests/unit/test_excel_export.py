@@ -11,6 +11,7 @@ imports lazily and only when requested).
 
 from __future__ import annotations
 
+import os
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -188,7 +189,7 @@ def _make_plan(
 
 @pytest.fixture
 def out_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """An ephemeral output path inside pytest's tmp_path.
+    """Build an ephemeral output path inside pytest's tmp_path.
 
     Sets ``TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1`` because tests need to write to
     an absolute pytest ``tmp_path``. Production callers must NOT set this env
@@ -696,10 +697,111 @@ def test_export_accepts_relative_cfg_path_sandboxed_in_base_dir(
 def test_export_accepts_absolute_cfg_path_with_env_optin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """When TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1 is set, absolute cfg.path is allowed."""
+    """When TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1 is set, absolute cfg.path is allowed.
+
+    The tmp_path fixture uses the system temp dir, which is in the
+    allowlist returned by ``_absolute_path_allowlist()``.
+    """
     monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
     absolute = tmp_path / "explicit.xlsx"
     plans = [_make_plan()]
     result = export(plans, config=ExportConfig(path=str(absolute)))
     assert result == str(absolute.resolve())
     assert absolute.exists()
+
+
+# ---------------------------------------------------------------------------
+# Round-1 review findings: allowlist + audit-log on env opt-in (bd-cwer)
+# ---------------------------------------------------------------------------
+
+
+def test_export_rejects_absolute_path_outside_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Even with the env opt-in, absolute paths outside the allowlist raise.
+
+    Regression test for silent-failure-hunter Round-1 F2/F3 findings — a
+    docker/systemd env inheritance that leaks TECHTRADE_EXPORT_ALLOW_ABSOLUTE=1
+    into a REST server used to give full arbitrary-write. Now the resolved
+    path must sit under EXPORT_BASE_ENV OR system tmp; anywhere else raises.
+    """
+    from openbb_core.app.paths import PathTraversalError
+
+    monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
+    # Point EXPORT_BASE_ENV somewhere that ISN'T the attack target
+    export_base = tmp_path / "allowed_base"
+    export_base.mkdir()
+    monkeypatch.setenv("TECHTRADE_EXPORT_DIR", str(export_base))
+
+    # Attack: write outside both the base dir AND the system tmp dir.
+    # Use the repo root (or any well-known-not-tmp path). We test with a
+    # sibling of tmp_path that we ensure is outside the tempdir by using
+    # a fresh directory under a NON-tempdir root.
+    # On Windows, C:\Windows is definitely not the tempdir; on POSIX /etc is.
+    attack = (
+        "C:\\Windows\\attacker_write_target.xlsx"
+        if os.name == "nt"
+        else "/etc/attacker_write_target.xlsx"
+    )
+    plans = [_make_plan()]
+    with pytest.raises(PathTraversalError, match="allowlisted"):
+        export(plans, config=ExportConfig(path=attack))
+
+
+def test_export_accepts_absolute_under_configured_export_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Absolute paths under the configured EXPORT_BASE_ENV are allowed with the opt-in."""
+    monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
+    export_base = tmp_path / "configured_base"
+    export_base.mkdir()
+    monkeypatch.setenv("TECHTRADE_EXPORT_DIR", str(export_base))
+
+    # Path is absolute AND inside the configured base — should succeed.
+    absolute_in_base = export_base / "sub" / "wb.xlsx"
+    plans = [_make_plan()]
+    result = export(plans, config=ExportConfig(path=str(absolute_in_base)))
+    assert result == str(absolute_in_base.resolve())
+    assert absolute_in_base.exists()
+
+
+def test_export_rejects_null_byte_in_cfg_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Null bytes in cfg.path raise, even with the env opt-in set."""
+    from openbb_core.app.paths import PathTraversalError
+
+    monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
+    monkeypatch.setenv("TECHTRADE_EXPORT_DIR", str(tmp_path))
+    plans = [_make_plan()]
+    with pytest.raises(PathTraversalError, match="null byte"):
+        export(plans, config=ExportConfig(path="wb\x00.xlsx"))
+
+
+def test_export_logs_warning_when_env_optin_honored(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Every honored absolute cfg.path emits a WARNING log line (audit trail).
+
+    Regression test for silent-failure-hunter F2: a misconfigured
+    production host (docker env leak) should surface in operator logs,
+    not silently accept arbitrary absolute writes.
+    """
+    import logging
+
+    monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
+    absolute = tmp_path / "logged.xlsx"
+    plans = [_make_plan()]
+    with caplog.at_level(
+        logging.WARNING,
+        logger="openbb_techtrade.reporting.excel_export",
+    ):
+        export(plans, config=ExportConfig(path=str(absolute)))
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings, "Expected a WARNING log line for the honored absolute path"
+    combined = "\n".join(r.getMessage() for r in warnings)
+    assert "TECHTRADE_EXPORT_ALLOW_ABSOLUTE" in combined
+    assert str(absolute) in combined or str(absolute.resolve()) in combined

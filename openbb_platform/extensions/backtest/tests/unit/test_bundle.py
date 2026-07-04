@@ -308,18 +308,19 @@ def test_bundle_load_rejects_parent_traversal(tmp_path):
         Bundle.load(tmp_path, name="../evil")
 
 
-def test_bundle_save_rejects_separators_in_name(tmp_path):
-    """Names containing path separators are rejected — a plain identifier is required."""
+def test_bundle_save_accepts_nested_relative_name(tmp_path):
+    """Nested-relative names (``sub/inner``) are ALLOWED — safe_join only rejects escape.
+
+    Bundles use ``name`` as a filesystem-visible subpath; ``safe_join``
+    accepts any relative fragment that stays inside root. Only ``..``
+    traversal, absolute paths, and collapse-to-root shapes are rejected
+    (see the four ``rejects_...`` tests above). This test locks that
+    boundary in — a regression that over-broadly rejected any separator
+    would break legitimate hierarchical bundle layouts.
+    """
     from openbb_backtest.data.bundle import Bundle
 
     bundle = Bundle.from_frames(ohlcv=_synthetic_ohlcv(), calendar="XNYS")
-    # 'subdir/evil' would land in tmp_path/subdir/evil which is technically still
-    # inside root, but for bundles we require plain identifiers. Verify the safe_join
-    # accepts nested-relative but the actual dir doesn't exist yet — this raises via
-    # normal FS write behaviour, not PathTraversalError. Really only .. and absolute
-    # need to raise PathTraversalError.
-    # (This test locks in that the current behavior is at least NOT worse — separators
-    # are allowed as long as they don't escape root, which safe_join enforces.)
     result_meta = bundle.save(tmp_path, name="sub/inner")
     assert (tmp_path / "sub" / "inner" / "metadata.json").exists()
     assert result_meta.name == "sub/inner"
