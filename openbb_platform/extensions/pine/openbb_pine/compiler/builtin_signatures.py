@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from openbb_pine.compiler.types import PineType, Scalar, TupleT, UnknownT
+from openbb_pine.compiler.types import AnyT, PineType, Scalar, TupleT
 
 __all__ = [
     "Signature",
@@ -95,13 +95,22 @@ _INPUT_STRING = PineType(qualifier="input", inner=Scalar(kind="string"))
 _CONST_COLOR = PineType(qualifier="const", inner=Scalar(kind="color"))
 # Added for bead y86 (D5 §7.2 request.security signature).
 _CONST_BOOL = PineType(qualifier="const", inner=Scalar(kind="bool"))
+# _CONST_STRING (const<string>) — kept as a shared shorthand for downstream
+# beads (h14's ``strategy.entry`` id/direction args land here). Not
+# referenced by the y86 signature itself (``request.security`` uses
+# ``_SIMPLE_STRING`` per D5 §7.2), so this alias is intentionally unused
+# in this PR — no dead-code removal; the entry is a shared constant.
 _CONST_STRING = PineType(qualifier="const", inner=Scalar(kind="string"))
 # ``_SERIES_ANY`` models Pine's polymorphic ``series<T>`` — request.security's
 # ``expression`` argument and its return type share this shape (T is inferred
-# from ``expression`` per D5 §7.2). We encode "any inner" as an UnknownT
-# sentinel (var_id=-1) so C3's inner-compatibility check treats it as
-# structurally equivalent to whatever series<T> the actual call site passes.
-_SERIES_ANY = PineType(qualifier="series", inner=UnknownT(var_id=-1))
+# from ``expression`` per D5 §7.2). We encode "any inner" via the dedicated
+# :class:`AnyT` sentinel (NOT a fresh ``UnknownT``): four other type_checker
+# fallback sites use ``UnknownT(-1)`` for "compiler could not infer", and
+# structural equality on frozen dataclasses (``UnknownT(-1) == UnknownT(-1)``
+# is True) would silently unify unrelated code paths through the sentinel.
+# ``AnyT`` unifies with anything by design (see :func:`unify_inner`) and is
+# safe to share across signatures.
+_SERIES_ANY = PineType(qualifier="series", inner=AnyT())
 
 
 def _src_length() -> tuple[tuple[str, PineType], ...]:

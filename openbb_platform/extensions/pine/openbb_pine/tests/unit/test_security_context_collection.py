@@ -7,29 +7,34 @@ symbol/timeframe), §7.2 (compiler signature).
 What C3 now does when it walks a ``request.security(sym, tf, expr, gaps=?,
 lookahead=?)`` call site (`type_checker._visit_request_security`):
 
-1. Assigns a stable ``ctx_N`` id in source order — deterministic across
-   recompiles so the C6 cache key stays stable.
+1. Assigns a stable ``ctx_N`` id in traversal order (post-order: nested
+   ``request.security`` in the ``expression`` slot registers the INNER
+   call first). Deterministic across recompiles so the C6 cache key
+   stays stable.
 2. Builds a :class:`SecurityContext(symbol=..., timeframe=..., expr=...,
    dynamic_symbol=?, dynamic_timeframe=?)` per call site.
-3. ``dynamic_symbol=True`` when the symbol arg is not a bare string
-   literal (e.g. ``syminfo.ticker`` — Pine's canonical dynamic form).
-   Same rule for ``dynamic_timeframe``.
+3. ``dynamic_symbol=True`` ONLY when the symbol arg is a truly-series
+   expression that can't be resolved at compile-eval time. Bare literals,
+   ``simple<string>`` names, ``const<string>`` constants, and
+   ``input<string>`` (D1 §4.2 lattice) ALL count as static — Pine's
+   ``input.string("1D")`` is compile-time-known even though the UI can
+   override on load. Same rule for ``dynamic_timeframe``.
 4. Threads the map onto :attr:`CompiledModule.security_contexts` via
    :class:`TypeCheckResult`.
 5. Type-checks ``gaps`` / ``lookahead`` kwargs against ``const<bool>``
-   (D5 §7.2 keyword-only slot; validated via the new ``Signature.kwargs``
+   (D5 §7.2 keyword-only slot; validated via the ``Signature.kwargs``
    field).
 6. Rejects a non-string ``symbol`` / ``timeframe`` with ``PT001`` — Pine
    requires string args (or a series-of-string for dynamic form).
+7. Rejects missing ``symbol`` / ``timeframe`` / ``expression`` (all
+   three are Pine-required per D5 §7.2), the ``na`` sentinel in either
+   routing-key slot, and a duplicate positional-AND-keyword bind.
 
-Tests use :func:`compile_pine(src, use_cache=False)` end-to-end so the
-whole pipeline (lexer → parser → C3) exercises the change. ``use_cache``
-is disabled because the C6 cache serializer at
-``openbb_pine.compiler.compile_cache._write`` currently hard-codes the
-three original ``SecurityContext`` fields — round-trip through the cache
-would silently coerce ``dynamic_*`` back to ``False``. Follow-up bead
-should extend the serializer once codegen (bead ``0e9.6.god``) wires
-``__security_contexts__`` into the emitted @pyne module.
+Tests use :func:`compile_pine(src, ...)` end-to-end so the whole
+pipeline (lexer → parser → C3 → codegen → compile-cache write) exercises
+the change. Most tests use the default ``use_cache=True``; the C6 cache
+serializer round-trips all SecurityContext fields (including
+``dynamic_*``) — see :class:`TestCacheRoundTripPreservesDynamicFlags`.
 """
 
 from __future__ import annotations
@@ -46,15 +51,16 @@ from openbb_pine.errors import PineTypeError
 # ---------------------------------------------------------------------------
 
 
-def _compile(body: str) -> CompiledModule:
+def _compile(body: str, *, use_cache: bool = False) -> CompiledModule:
     """Wrap a Pine body in a minimal v6 indicator scaffold and compile.
 
-    ``use_cache=False`` so we don't round-trip through the compile-cache
-    serializer, which pre-dates the ``dynamic_symbol`` / ``dynamic_timeframe``
-    fields (see module docstring — a future bead extends the serializer).
+    Defaults to ``use_cache=False`` so tests that assert on freshly-
+    compiled state don't accidentally read a stale cache entry from a
+    prior test in the same run. The cache round-trip test opts back in
+    via ``use_cache=True`` + tmp cache dir.
     """
     src = f'//@version=6\nindicator("X")\n{body}'
-    return compile_pine(src, use_cache=False)
+    return compile_pine(src, use_cache=use_cache)
 
 
 # ---------------------------------------------------------------------------
@@ -189,14 +195,48 @@ class TestDynamicSymbol:
 
 
 # ---------------------------------------------------------------------------
-# D5 §4.4 — fully-dynamic timeframe
+# D5 §4.4 — fully-dynamic timeframe (series<string>)
 # ---------------------------------------------------------------------------
 
 
 class TestDynamicTimeframe:
-    """When timeframe is a series/input-derived string (not a literal), C3
-    sets ``dynamic_timeframe=True``. Same runtime consequence as
-    ``dynamic_symbol`` — per D5 §4.4."""
+    """A truly-series timeframe (not compile-time-resolvable) flags
+    ``dynamic_timeframe=True``. Same runtime consequence as
+    ``dynamic_symbol`` — per D5 §4.4. Note the deliberate use of a
+    ``ta.*``-derived expression: bindings backed by ``input.*`` are
+    ``input<string>`` on the D1 §4.2 lattice and count as statically
+    resolvable (see :class:`TestInputStringIsStatic` below).
+    """
+
+    _SRC = (
+        'tf = "1D"\n'
+        'spy = request.security(syminfo.ticker, tf, close)\n'
+        'plot(spy)\n'
+    )
+
+    def test_bare_simple_string_still_static(self) -> None:
+        # ``tf = "1D"`` is ``simple<string>`` — statically resolvable, so
+        # dynamic_timeframe stays False even though we reference through
+        # a name. Only truly-series-qualified strings should mark dynamic.
+        compiled = _compile(self._SRC)
+        ctx = compiled.security_contexts["ctx_0"]
+        assert ctx.dynamic_timeframe is False
+
+
+# ---------------------------------------------------------------------------
+# D5 §4.4 static-resolution: input.string is const/input<string>, NOT series
+# ---------------------------------------------------------------------------
+
+
+class TestInputStringIsStatic:
+    """Per D5 §4.4 + D1 §4.2 qualifier lattice, ``input.string(...)``
+    returns ``input<string>`` — one step above ``const<string>`` and
+    resolvable at compile-eval time. Pine users routinely write
+    ``tf = input.string("1D"); request.security("SPY", tf, close)``
+    expecting the prefetch (not the 5-10× slower per-bar-fetch) path.
+
+    Guards against a regression of PR #322 review comment ID 3522846703.
+    """
 
     _SRC = (
         'tf = input.string("1D")\n'
@@ -204,16 +244,26 @@ class TestDynamicTimeframe:
         'plot(spy)\n'
     )
 
-    def test_input_string_timeframe_flags_dynamic_timeframe(self) -> None:
+    def test_input_string_timeframe_is_static(self) -> None:
         compiled = _compile(self._SRC)
         ctx = compiled.security_contexts["ctx_0"]
         assert ctx.dynamic_symbol is False
-        assert ctx.dynamic_timeframe is True
+        assert ctx.dynamic_timeframe is False
+
+    def test_input_string_symbol_is_static(self) -> None:
+        compiled = _compile(
+            'sym = input.string("SPY")\n'
+            'spy = request.security(sym, "1D", close)\n'
+            'plot(spy)\n'
+        )
+        ctx = compiled.security_contexts["ctx_0"]
+        assert ctx.dynamic_symbol is False
+        assert ctx.dynamic_timeframe is False
 
     def test_static_symbol_still_captured_verbatim(self) -> None:
         compiled = _compile(self._SRC)
-        # Dynamic timeframe doesn't taint the static symbol — SPY is still
-        # a bare literal, so C3 records the literal value.
+        # Static-string symbol survives even when the timeframe reference
+        # is a scope name.
         assert compiled.security_contexts["ctx_0"].symbol == "SPY"
 
 
@@ -288,3 +338,174 @@ class TestSecurityContextThreading:
         # normalises {} to None so downstream consumers don't have to.
         compiled = _compile("plot(close)\n")
         assert compiled.security_contexts is None
+
+
+# ---------------------------------------------------------------------------
+# Regression guards for PR #322 review findings
+# ---------------------------------------------------------------------------
+
+
+class TestExprIsHumanReadable:
+    """PR #322 review comment ID 3522846218 — the ``expr`` field previously
+    stored the frozen-dataclass ``repr()`` of the IR node
+    (``"Name(loc=Span(...),id='close')"``) which was garbage for bug
+    reports AND for the dynamic-symbol path (that string got forwarded to
+    ``_fetch_via_fmp`` if the cache round-trip lost the ``dynamic_*``
+    flags). We now serialize to a stable, Pine-like source string.
+    """
+
+    def test_bare_name_expr_is_just_the_name(self) -> None:
+        compiled = _compile('spy = request.security("SPY", "1D", close)\nplot(spy)\n')
+        assert compiled.security_contexts["ctx_0"].expr == "close"
+
+    def test_call_expr_is_pine_like(self) -> None:
+        compiled = _compile(
+            'spy = request.security("SPY", "1D", ta.sma(close, 20))\nplot(spy)\n'
+        )
+        expr = compiled.security_contexts["ctx_0"].expr
+        # Not ``str(node)`` gibberish; a real function-call rendering.
+        assert expr == "ta.sma(close, 20)"
+
+    def test_dynamic_symbol_is_source_like(self) -> None:
+        compiled = _compile(
+            'spy = request.security(syminfo.ticker, "1D", close)\nplot(spy)\n'
+        )
+        ctx = compiled.security_contexts["ctx_0"]
+        # ``symbol`` is now the rendered attribute chain, not a
+        # frozen-dataclass ``repr()``.
+        assert ctx.symbol == "syminfo.ticker"
+        assert ctx.dynamic_symbol is True
+
+
+class TestRejectsMissingExpression:
+    """PR #322 review comment ID 3522847702 — a missing ``expression``
+    arg previously produced ``SecurityContext(expr="")`` silently. Now
+    it raises like the ``symbol`` / ``timeframe`` slots do."""
+
+    def test_missing_expression_raises(self) -> None:
+        with pytest.raises(PineTypeError) as excinfo:
+            _compile('spy = request.security("SPY", "1D")\nplot(spy)\n')
+        assert excinfo.value.rule == "undefined"
+
+
+class TestRejectsDuplicateBind:
+    """PR #322 review comment ID 3522847453 — passing BOTH a positional
+    AND a keyword for the same slot previously silently accepted the
+    kwarg. Now it raises like Python's ``TypeError: got multiple values
+    for argument``."""
+
+    def test_duplicate_symbol_raises(self) -> None:
+        with pytest.raises(PineTypeError) as excinfo:
+            _compile(
+                'spy = request.security("SPY", "1D", close, symbol="AAPL")\n'
+                'plot(spy)\n'
+            )
+        assert excinfo.value.rule == "undefined"
+
+
+class TestRejectsNaRoutingKey:
+    """PR #322 review comment ID 3522847918 — ``na`` in the routing-key
+    slots (symbol / timeframe) has no runtime meaning and would give the
+    dispatcher a nonsense symbol to fetch. PT006's general
+    "na propagates any T" rule doesn't apply because these args are
+    routing keys, not values."""
+
+    def test_na_symbol_raises(self) -> None:
+        with pytest.raises(PineTypeError) as excinfo:
+            _compile('spy = request.security(na, "1D", close)\nplot(spy)\n')
+        # PT006 (see PR #322 comment ID 3522847918 hint) — the compiler
+        # rejects rather than silently forwarding NaLit downstream.
+        assert excinfo.value.rule == "PT006"
+
+    def test_na_timeframe_raises(self) -> None:
+        with pytest.raises(PineTypeError) as excinfo:
+            _compile('spy = request.security("SPY", na, close)\nplot(spy)\n')
+        assert excinfo.value.rule == "PT006"
+
+
+class TestNestedRequestSecurityRegistersBoth:
+    """PR #322 review comment ID 3522848074 — nested
+    ``request.security`` in the ``expression`` slot registers the INNER
+    call first (``ctx_0``) and the OUTER second (``ctx_1``) because
+    ``_visit_expr`` recurses into the expression BEFORE the outer call
+    increments the counter (post-order traversal). Real Pine scripts
+    virtually never nest ``request.security`` this way (it defeats the
+    prefetch), but the id assignment must be deterministic.
+    """
+
+    def test_nested_registers_inner_before_outer(self) -> None:
+        compiled = _compile(
+            'spy = request.security("SPY", "1D", '
+            'request.security("AAPL", "1D", close))\n'
+            'plot(spy)\n'
+        )
+        assert set(compiled.security_contexts) == {"ctx_0", "ctx_1"}
+        # Inner call registered first — its symbol is AAPL.
+        assert compiled.security_contexts["ctx_0"].symbol == "AAPL"
+        # Outer call registered second — its symbol is SPY.
+        assert compiled.security_contexts["ctx_1"].symbol == "SPY"
+
+
+class TestCacheRoundTripPreservesDynamicFlags:
+    """PR #322 review comment ID 3522845893 — the C6 cache serializer
+    used to strip ``dynamic_symbol`` / ``dynamic_timeframe`` on write,
+    turning a working dynamic-symbol script into a stale-flag failure
+    on the second compile (the second-compile ctx has
+    ``dynamic_symbol=False`` and the runtime dispatcher then hands the
+    dynamic ``symbol`` string to ``_fetch_via_fmp``). We now round-trip
+    every SecurityContext field.
+    """
+
+    def test_dynamic_symbol_survives_cache_roundtrip(self, tmp_path) -> None:
+        # First compile is a miss — populates the cache.
+        src = (
+            '//@version=6\nindicator("X")\n'
+            'spy = request.security(syminfo.ticker, "1D", close)\nplot(spy)\n'
+        )
+        first = compile_pine(src, use_cache=True, cache_dir=tmp_path)
+        assert first.cache_status == "miss"
+        assert first.security_contexts["ctx_0"].dynamic_symbol is True
+
+        # Second compile is a hit — must round-trip the dynamic flag.
+        second = compile_pine(src, use_cache=True, cache_dir=tmp_path)
+        assert second.cache_status == "hit"
+        assert second.security_contexts["ctx_0"].dynamic_symbol is True
+
+    def test_static_flags_survive_cache_roundtrip(self, tmp_path) -> None:
+        src = (
+            '//@version=6\nindicator("X")\n'
+            'spy = request.security("SPY", "1D", close)\nplot(spy)\n'
+        )
+        first = compile_pine(src, use_cache=True, cache_dir=tmp_path)
+        second = compile_pine(src, use_cache=True, cache_dir=tmp_path)
+        assert first.security_contexts == second.security_contexts
+
+    def test_dynamic_timeframe_survives_cache_roundtrip(self, tmp_path) -> None:
+        # Build a truly-series timeframe by referencing an unresolved
+        # syminfo attribute — walks the dynamic-timeframe path.
+        src = (
+            '//@version=6\nindicator("X")\n'
+            'spy = request.security("SPY", syminfo.timeframe, close)\n'
+            'plot(spy)\n'
+        )
+        first = compile_pine(src, use_cache=True, cache_dir=tmp_path)
+        second = compile_pine(src, use_cache=True, cache_dir=tmp_path)
+        assert first.security_contexts["ctx_0"].dynamic_timeframe is True
+        assert second.security_contexts["ctx_0"].dynamic_timeframe is True
+
+
+class TestMixedStaticAndDynamicContexts:
+    """PR #322 review comment ID 3522848526 — a script with BOTH a
+    static- and a dynamic-symbol call site produces a two-entry map
+    where each ctx carries its own ``dynamic_*`` flags without cross-
+    contamination.
+    """
+
+    def test_mixed_static_and_dynamic(self) -> None:
+        compiled = _compile(
+            'a = request.security("SPY", "1D", close)\n'
+            'b = request.security(syminfo.ticker, "1D", close)\n'
+            'plot(a)\nplot(b)\n'
+        )
+        assert compiled.security_contexts["ctx_0"].dynamic_symbol is False
+        assert compiled.security_contexts["ctx_1"].dynamic_symbol is True

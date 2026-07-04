@@ -69,6 +69,7 @@ from openbb_pine.compiler.builtin_signatures import (
     lookup as lookup_builtin,
 )
 from openbb_pine.compiler.types import (
+    AnyT,
     ArrayT,
     InnerType,
     MapT,
@@ -145,6 +146,86 @@ _RANK: dict[str, int] = {"const": 0, "input": 1, "simple": 2, "series": 3}
 
 def _max_qual(a: Qualifier, b: Qualifier) -> Qualifier:
     return a if _RANK[a] >= _RANK[b] else b
+
+
+# ---------------------------------------------------------------------------
+# IR → Pine-source serializer (bead 0e9.6.y86 review — comment ID 3522846218)
+# ---------------------------------------------------------------------------
+
+
+def _serialize_ir_expr(node: ir.Expression) -> str:
+    """Render an IR expression back to a stable, human-readable Pine-like
+    source string.
+
+    Used by ``_visit_request_security`` to fill
+    :attr:`SecurityContext.expr` and the ``symbol``/``timeframe`` fields
+    for dynamic-form calls. The prior implementation used ``str(node)``
+    which yielded the frozen-dataclass ``repr()`` (``"Name(loc=Span(...),
+    id='close')"``) — soup unsuitable for bug reports OR for the dynamic
+    dispatcher path (D5 §4.4) where ``ctx.symbol`` gets forwarded to
+    ``_fetch_via_fmp``.
+
+    The output is intentionally minimal:
+
+    * Idempotent under re-serialization of the same tree.
+    * No location metadata (the D5 §4.1 contract calls this an *opaque*
+      field but tests + operators read it).
+    * Falls back to the frozen-dataclass ``repr()`` for any node kind we
+      haven't enumerated — always yields a string so the caller never
+      races on a KeyError.
+
+    Kept small and pure on purpose: it re-implements the tiny subset of
+    Pine unparse we care about for the ``request.security`` collector.
+    Full Pine unparse is a codegen concern (C5), not a type-checker
+    concern; a separate future bead can lift this into a general utility.
+    """
+    if isinstance(node, ir.StrLit):
+        return f'"{node.value}"'
+    if isinstance(node, ir.IntLit):
+        return str(node.value)
+    if isinstance(node, ir.FloatLit):
+        return repr(node.value)
+    if isinstance(node, ir.BoolLit):
+        return "true" if node.value else "false"
+    if isinstance(node, ir.NaLit):
+        return "na"
+    if isinstance(node, ir.ColorLit):
+        return node.raw
+    if isinstance(node, ir.Name):
+        return node.id
+    if isinstance(node, ir.Attribute):
+        return f"{_serialize_ir_expr(node.value)}.{node.attr}"
+    if isinstance(node, ir.Subscript):
+        return f"{_serialize_ir_expr(node.value)}[{_serialize_ir_expr(node.index)}]"
+    if isinstance(node, ir.UnaryExpr):
+        # Emit without inner parens; Pine's precedence rules make this
+        # unambiguous for the ``+ / - / not`` set.
+        return f"{node.op}{_serialize_ir_expr(node.operand)}"
+    if isinstance(node, ir.BinaryExpr):
+        # Wrap in parens so precedence surprises don't change meaning if the
+        # string is ever re-parsed. Safe under idempotence.
+        return (
+            f"({_serialize_ir_expr(node.lhs)} {node.op} "
+            f"{_serialize_ir_expr(node.rhs)})"
+        )
+    if isinstance(node, ir.TernaryExpr):
+        return (
+            f"({_serialize_ir_expr(node.cond)} ? "
+            f"{_serialize_ir_expr(node.then_)} : "
+            f"{_serialize_ir_expr(node.else_)})"
+        )
+    if isinstance(node, ir.CallExpr):
+        parts: list[str] = []
+        for a in node.args:
+            piece = _serialize_ir_expr(a.value)
+            parts.append(piece if a.name is None else f"{a.name}={piece}")
+        return f"{_serialize_ir_expr(node.func)}({', '.join(parts)})"
+    if isinstance(node, ir.TupleExpr):
+        return f"[{', '.join(_serialize_ir_expr(e) for e in node.elements)}]"
+    # Fallback — retains the previous behaviour for any unknown node so we
+    # never surface a KeyError from a serialisation hole. The frozen
+    # dataclass repr is at least deterministic.
+    return repr(node)
 
 
 # ---------------------------------------------------------------------------
@@ -879,18 +960,42 @@ class _TypeChecker:
         * The ``symbol`` arg (positional 0 or kw ``symbol``) is inspected
           before it's walked so we can flag ``dynamic_symbol=True`` for
           non-literal forms (``syminfo.ticker``, ``input.symbol(...)``,
-          any runtime-computed string). Static form is a bare ``StrLit``.
+          any runtime-computed string). Static form is a bare ``StrLit``
+          OR any expression that resolves to a compile-time-known string
+          type (``input.string(...)`` returns ``input<string>``, one step
+          up the const → input → simple → series lattice from
+          ``const<string>``; both are known at compile time — see PR #322
+          review comment ID 3522846703).
         * The ``timeframe`` arg (positional 1 or kw ``timeframe``) — same
           logic, feeds ``dynamic_timeframe``.
         * The ``expression`` arg (positional 2 or kw ``expression``) is
           visited normally so nested Pine calls (``ta.rsi(...)`` etc.)
-          type-check; its serialized ``str(node)`` becomes the
-          :attr:`SecurityContext.expr` placeholder D2 reads opaquely.
+          type-check; its serialized form (via :func:`_serialize_ir_expr`)
+          becomes the :attr:`SecurityContext.expr` placeholder D2 reads
+          opaquely.
         * Keyword-only ``gaps`` / ``lookahead`` are type-checked against
           the sig's kwargs map.
 
-        Assigns a stable ``ctx_N`` id in source order (N = per-checker
-        counter) so cache keys stay deterministic across recompiles.
+        Rejected forms (all raise :class:`PineTypeError`):
+
+        * Missing ``symbol`` / ``timeframe`` / ``expression`` — Pine
+          treats all three as required (PR #322 review comment ID
+          3522847702).
+        * Both positional AND keyword for the same slot (real Python
+          raises ``TypeError``; we mirror the check — PR #322 review
+          comment ID 3522847453).
+        * ``na`` in the ``symbol`` / ``timeframe`` slot — ``na`` is a
+          routing key with no runtime meaning here (PR #322 review
+          comment ID 3522847918).
+
+        Assigns a stable ``ctx_N`` id via a per-checker counter
+        incremented as each ``request.security`` call is *finalised*.
+        Because we recurse into ``expression`` (via ``_visit_expr``)
+        BEFORE registering, a nested ``request.security(..., request.
+        security(...))`` registers the INNER call first (``ctx_0``) and
+        the OUTER call second (``ctx_1``). Not strictly source order —
+        traversal (post-order) order (PR #322 review comment ID
+        3522848074).
         """
         # Register in builtins_used before anything else so telemetry sees
         # the reference even if a later step raises.
@@ -904,16 +1009,33 @@ class _TypeChecker:
             a.name: a for a in expr.args if a.name is not None
         }
 
-        def _slot(pos_idx: int, kw_name: str) -> ir.KeywordArg | None:
-            if kw_name in by_name:
-                return by_name[kw_name]
-            if pos_idx < len(positional):
-                return positional[pos_idx]
-            return None
+        _POS_INDEX = {"symbol": 0, "timeframe": 1, "expression": 2}
 
-        symbol_arg = _slot(0, "symbol")
-        timeframe_arg = _slot(1, "timeframe")
-        expression_arg = _slot(2, "expression")
+        def _slot(pos_idx: int, kw_name: str) -> ir.KeywordArg | None:
+            """Resolve a named slot from either positional[pos_idx] or
+            by_name[kw_name] — but raise when both are given, matching
+            Python's ``TypeError: got multiple values for argument`` and
+            avoiding a silent keyword-wins fallback (PR #322 review
+            comment ID 3522847453)."""
+            pos_hit = positional[pos_idx] if pos_idx < len(positional) else None
+            kw_hit = by_name.get(kw_name)
+            if pos_hit is not None and kw_hit is not None:
+                self._raise_type_error(
+                    rule="undefined",
+                    expected=f"either positional or keyword for {kw_name!r}",
+                    got=f"both positional[{pos_idx}] and {kw_name}=...",
+                    node=expr,
+                    hint=(
+                        f"request.security got multiple values for "
+                        f"argument {kw_name!r} (position {pos_idx} AND "
+                        f"``{kw_name}=``). Pass one or the other."
+                    ),
+                )
+            return kw_hit if kw_hit is not None else pos_hit
+
+        symbol_arg = _slot(_POS_INDEX["symbol"], "symbol")
+        timeframe_arg = _slot(_POS_INDEX["timeframe"], "timeframe")
+        expression_arg = _slot(_POS_INDEX["expression"], "expression")
 
         # --- symbol -----------------------------------------------------
         symbol_str, dynamic_symbol, new_symbol_node = self._resolve_security_string_arg(
@@ -926,11 +1048,25 @@ class _TypeChecker:
         )
 
         # --- expression -------------------------------------------------
-        new_expression_node: ir.Expression | None = None
-        expr_str: str = ""
-        if expression_arg is not None:
-            new_expression_node, _expr_t = self._visit_expr(expression_arg.value)
-            expr_str = str(new_expression_node)
+        # Required per D5 §7.2 — same "raise on missing" treatment as
+        # symbol / timeframe. Previously produced ``expr=""`` silently,
+        # which would surface as a downstream KeyError once codegen wires
+        # ``__security_contexts__`` into the emitted module (PR #322
+        # review comment ID 3522847702).
+        if expression_arg is None:
+            self._raise_type_error(
+                rule="undefined",
+                expected="request.security expression argument",
+                got="missing expression",
+                node=expr,
+                hint=(
+                    "request.security requires an expression argument "
+                    "at position 2 or as ``expression=``."
+                ),
+            )
+        assert expression_arg is not None  # narrow for the type checker
+        new_expression_node, _expr_t = self._visit_expr(expression_arg.value)
+        expr_str = _serialize_ir_expr(new_expression_node)
 
         # --- gaps / lookahead kwargs -----------------------------------
         # Type-check the bool-const kwargs; walk them so any nested
@@ -1036,22 +1172,39 @@ class _TypeChecker:
         Returns ``(serialized_str, is_dynamic, walked_node_or_None)``:
 
         * ``serialized_str`` — the literal string for a bare ``StrLit``,
-          or ``str(node)`` for dynamic forms (D5 §4.1 example
-          ``"syminfo.ticker"``).
-        * ``is_dynamic`` — True iff the arg is anything other than a
-          ``StrLit`` (D5 §4.4 fully-dynamic case).
+          or the source-like rendering via :func:`_serialize_ir_expr` for
+          dynamic forms (D5 §4.1 example ``"syminfo.ticker"``). Never the
+          raw ``str(node)`` frozen-dataclass ``repr()`` (that produced
+          ``"Name(loc=Span(...),id='close')"`` garbage on the dynamic
+          path, which the runtime dispatcher would then hand to
+          ``_fetch_via_fmp`` if the cache-round-trip lost the
+          ``dynamic_*`` flag — see PR #322 review comment ID 3522846218).
+        * ``is_dynamic`` — True iff the arg is NOT statically resolvable
+          (D5 §4.4 fully-dynamic case). Statically resolvable per D5 §4.4
+          + D1 §4.2 lattice covers ``StrLit`` and ANY expression whose
+          resolved type is ``const<string>`` / ``input<string>`` /
+          ``simple<string>`` — all are known at compile time (``input.*``
+          values are baked in at load time even if surfaced through UI).
+          Series-qualified strings are dynamic; PT001 rejects int/float.
         * ``walked_node_or_None`` — the visited IR node so the caller can
           slot it back into the rebuilt CallExpr; ``None`` when ``arg`` is
-          missing (which becomes a symbol=='' placeholder for now — a
-          later bead can promote to a hard error once codegen wires up).
+          missing (which is a compile-error: we raise before returning).
+
+        Rejected forms (all raise :class:`PineTypeError`):
+
+        * Missing arg — Pine requires all three positional args.
+        * ``na`` — a routing key with no runtime meaning; per PR #322
+          review comment ID 3522847918 the compiler rejects rather than
+          silently forwarding ``NaLit`` to the dispatcher.
+        * Non-string inner type (e.g. int, float) — PT001.
 
         For dynamic string args of the shape ``syminfo.<attr>`` or other
-        ``<known_ns>.<attr>``, we deliberately skip the generic
-        :meth:`_visit_attribute` walk because it would raise
-        :class:`PineUnsupportedBuiltinError` for names not in the signature
-        registry (``syminfo.ticker`` etc.). Once C3 registers those
-        signatures via a later bead, the fast-path here becomes
-        unnecessary but harmless.
+        ``<known_ns>.<attr>``, we deliberately swallow
+        :class:`PineUnsupportedBuiltinError` from the generic
+        :meth:`_visit_attribute` walk (the unsupported name is still
+        recorded in ``_builtins_used`` before the exception fires). Once
+        C3 registers those signatures via a later bead, the swallow
+        becomes unnecessary but harmless.
         """
         if arg is None:
             self._raise_type_error(
@@ -1070,31 +1223,45 @@ class _TypeChecker:
 
         value = arg.value
 
-        # Static case: a bare Pine string literal like "SPY" or "1D".
+        # Reject `na` explicitly — a `na` symbol/timeframe has no runtime
+        # meaning; PT006's general "na propagates any T" rule doesn't
+        # apply here because these args are routing keys, not values (see
+        # PR #322 review comment ID 3522847918).
+        if isinstance(value, ir.NaLit):
+            self._raise_type_error(
+                rule="PT006",
+                expected=f"non-na string for {param}",
+                got="na",
+                node=call,
+                hint=(
+                    f"request.security {param!r} must be a resolvable "
+                    "string (literal or a const/input/simple/series-"
+                    "qualified string expression); ``na`` is a routing "
+                    "sentinel with no runtime meaning here."
+                ),
+            )
+            return "", False, None  # pragma: no cover — _raise_type_error raises
+
+        # Static-literal case: a bare Pine string literal like "SPY" or "1D".
         if isinstance(value, ir.StrLit):
             return value.value, False, value
 
-        # Dynamic case: anything else (Attribute, Name, Call, etc.).
-        # We WANT to walk the node so nested references land in
-        # builtins_used and Subscript.kind is resolved, but for
+        # Otherwise: walk the expression. We WANT this so nested references
+        # land in builtins_used and Subscript.kind is resolved, but for
         # ``syminfo.<attr>`` / other unsupported-namespace attrs we must
-        # avoid PineUnsupportedBuiltinError blowing up the whole call.
+        # swallow ``PineUnsupportedBuiltinError`` (the name is already
+        # recorded in ``_builtins_used``).
         walked_node: ir.Expression = value
         walked_type: PineType | None = None
         try:
             walked_node, walked_type = self._visit_expr(value)
         except PineUnsupportedBuiltinError as exc:
-            # The unsupported name is already in ``_builtins_used`` (the
-            # helper adds it before raising) — swallow the exception so
-            # the SecurityContext still lands. The runtime dispatcher
-            # (D5 §4.2) will resolve the dynamic value per-bar.
             _ = exc  # silence lint; retained if future logging wants it
 
         # When we DID resolve a type, enforce it's a string. Pine rejects
-        # ``request.security(123, "1D", close)`` per the D5 §7.2 signature.
-        # Skip the check when the arg raised PineUnsupportedBuiltinError
-        # above (walked_type is None) — ``syminfo.ticker`` etc. are
-        # dynamic-string by convention and don't have a signature entry yet.
+        # ``request.security(123, "1D", close)`` per D5 §7.2. Skip the
+        # check when walked_type is None (the arg raised
+        # PineUnsupportedBuiltinError — dynamic-string by convention).
         if walked_type is not None and not isinstance(walked_type.inner, NaT):
             inner = walked_type.inner
             if not (isinstance(inner, Scalar) and inner.kind == "string"):
@@ -1111,7 +1278,25 @@ class _TypeChecker:
                     ),
                 )
 
-        return str(walked_node), True, walked_node
+        # Statically-resolvable-string test: D5 §4.4 + D1 §4.2 lattice
+        # (``const → input → simple → series``). ``const<string>`` and
+        # ``input<string>`` values are baked in at compile-eval time
+        # (``input.string("1D")`` returns ``input<string>`` — its default
+        # is known at compile time even though the runtime UI can override
+        # per script-load). ``simple<string>`` is also compile-eval-known.
+        # Only ``series<string>`` (or any non-string inner, already
+        # rejected above) is truly dynamic. See PR #322 review comment ID
+        # 3522846703 for the D5 §4.4 rationale — Pine users routinely
+        # write ``tf = input.string("1D"); request.security("SPY", tf,
+        # close)`` expecting the prefetch (not the 5-10× slower per-bar-
+        # fetch) path.
+        is_static = (
+            walked_type is not None
+            and walked_type.qualifier in ("const", "input", "simple")
+            and isinstance(walked_type.inner, Scalar)
+            and walked_type.inner.kind == "string"
+        )
+        return _serialize_ir_expr(walked_node), (not is_static), walked_node
 
     # ------------------------------------------------------------------
     # Rule handlers (PT001-PT008) — one per rule for findability
