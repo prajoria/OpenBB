@@ -472,32 +472,51 @@ def test_parse_currency_sentinel_case_insensitive(raw: str) -> None:
         "(())",
         "( )",
         "(N/A)()",
+        # Doubly-wrapped sentinels — docstring promises 'only a SINGLE
+        # balanced outer paren pair counts', so these must raise too. Locks
+        # in single-pair semantics against a refactor to recursive unwrapping
+        # like `while s.startswith('(') and s.endswith(')'): s = s[1:-1]`.
+        "((N/A))",
+        "((--))",
+        "(( -- ))",
     ],
 )
 def test_parse_currency_multi_paren_wrapping_is_not_sentinel(raw: str) -> None:
     """Only a single balanced outer paren-pair counts for sentinel unwrapping.
 
-    Regression test for silent-failure-hunter Round-2 finding — obvious
-    corruption like ``()`` or ``()()`` used to silently return zero
-    because ``str.strip('()')`` treats its argument as a character class,
-    not a matched-pair pattern. New sentinel probe strips at most one
-    outer balanced pair.
+    Regression tests for silent-failure-hunter Round-2 and pr-test-analyzer
+    Round-3 findings — obvious corruption like ``()`` or ``()()`` used to
+    silently return zero because ``str.strip('()')`` treats its argument as
+    a character class, not a matched-pair pattern. The new sentinel probe
+    strips at most one outer balanced pair AND requires the interior to be
+    a non-empty known sentinel — so doubly-wrapped sentinels like ``((N/A))``
+    are also rejected as ambiguous/corrupt.
     """
     with pytest.raises(ValueError, match="parse"):
         parse_currency(raw)
 
 
-def test_parse_currency_ordering_aware_balanced_parens() -> None:
-    """``)N/A(`` has equal paren counts but wrong ordering — NOT a sentinel.
+def test_parens_are_balanced_helper_rejects_ordering_violations() -> None:
+    """``_parens_are_balanced`` uses walking-depth semantics, not count-only.
 
-    Regression test for pr-test-analyzer Round-2 finding — distinguishes
-    ordering-aware balancing (walking-depth) from count-only balancing.
-    A refactor that replaced ``_parens_are_balanced`` with a naive
-    ``count('(') == count(')')`` check would incorrectly treat this
-    as a well-formed wrapped sentinel.
+    Tests the helper DIRECTLY because the public ``parse_currency`` pipeline's
+    ``_WELL_FORMED_US`` regex structurally prevents any ordering-violating
+    string (``)`` in prefix, ``(`` in suffix) from ever reaching the balance
+    check. So a naive ``count('(') == count(')')`` refactor of the helper
+    would pass every parse_currency test — but the helper is defense-in-depth
+    against future well-formed regex changes, and this test documents that
+    intent.
     """
-    with pytest.raises(ValueError, match="parse"):
-        parse_currency(")N/A(")
+    # pylint: disable=import-outside-toplevel
+    from openbb_core.provider.utils.money import _parens_are_balanced
+
+    assert _parens_are_balanced("(())")
+    assert _parens_are_balanced("()()")
+    assert _parens_are_balanced("")
+    assert not _parens_are_balanced(")(")
+    assert not _parens_are_balanced("))((")
+    assert not _parens_are_balanced("(")
+    assert not _parens_are_balanced(")")
 
 
 @pytest.mark.parametrize(
