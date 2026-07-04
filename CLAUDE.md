@@ -14,27 +14,32 @@ so it is understandable without a lookup.
 If you don't already know the title, look it up first (`gh issue view NN` /
 `bd show <id>`) before mentioning it.
 
-## Branch Protection Policy (2026-07-03)
+## Branch Protection Policy (updated 2026-07-04)
 
-**`openbb_tradingview` is master/main for Pine + TradingView work in this
-fork. `develop` is the downstream integration branch. Neither may be pushed
-to directly by Claude.**
+**`openbb_pine_support` is the primary integration branch for Pine +
+TradingView work in this fork. `develop` is the downstream integration
+branch. Neither may be pushed to directly by Claude.**
 
-Rationale: `openbb_tradingview` accumulates every Pine/TradingView commit
+Rationale: `openbb_pine_support` accumulates every Pine/TradingView commit
 (compiler, runtime, provider bridge, docs) and stays clean for team review.
-`develop` receives occasional bulk merges from `openbb_tradingview`,
+`develop` receives occasional bulk merges from `openbb_pine_support`,
 executed manually by a human — never by an agent. Direct pushes to either
 branch bypass review and defeat the merge-window model.
+
+**Historical note:** From 2026-07-03 through 2026-07-04 the protected pair
+was `openbb_tradingview` + `develop`. The remote `openbb_tradingview` was
+deleted server-side, so `openbb_pine_support` inherits the master/main
+role for Pine work going forward.
 
 ### Required workflow
 
 ```bash
-# 1. Start from openbb_tradingview
-git switch openbb_tradingview
+# 1. Start from openbb_pine_support
+git switch openbb_pine_support
 git pull --ff-only
 
 # 2. Cut a feature branch
-git switch -c <feature-name> openbb_tradingview
+git switch -c <feature-name> openbb_pine_support
 
 # 3. Do the work + commit on the feature branch
 # ... edits, tests, `git commit` ...
@@ -42,15 +47,15 @@ git switch -c <feature-name> openbb_tradingview
 # 4. Push the feature branch (never the base)
 git push -u origin <feature-name>
 
-# 5. Open a PR targeting openbb_tradingview
-gh pr create --base openbb_tradingview --head <feature-name>
+# 5. Open a PR targeting openbb_pine_support
+gh pr create --base openbb_pine_support --head <feature-name>
 ```
 
 ### Enforcement
 
 A `PreToolUse` hook (`.claude/hooks/block-protected-branch-push.py`, wired
 via `.claude/settings.json`) denies any `git push` command whose
-destination refspec resolves to `openbb_tradingview` or `develop`. This
+destination refspec resolves to `openbb_pine_support` or `develop`. This
 covers direct pushes, `HEAD:<branch>` refspecs, `<local>:<protected>`
 refspecs, deletes (`:<branch>`), force pushes (`--force`,
 `--force-with-lease`, `+refspec`), env-prefixed invocations, chained

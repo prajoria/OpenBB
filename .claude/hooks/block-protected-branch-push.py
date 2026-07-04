@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """PreToolUse:Bash hook that blocks git push to protected branches.
 
-Policy (locked 2026-07-03)
---------------------------
-* ``openbb_tradingview`` is master/main for Pine + TradingView work.
+Policy (updated 2026-07-04)
+---------------------------
+* ``openbb_pine_support`` is the primary integration branch for Pine +
+  TradingView work in this fork.
 * ``develop`` is the downstream integration branch, bulk-merged from
-  ``openbb_tradingview`` by a human.
+  ``openbb_pine_support`` by a human.
 * Neither branch may be pushed to directly by Claude. Feature branches
-  from ``openbb_tradingview`` -> PR back is the required workflow.
+  from ``openbb_pine_support`` -> PR back is the required workflow.
+
+Historical note: prior to 2026-07-04 this hook protected
+``openbb_tradingview`` in place of ``openbb_pine_support``. The remote
+``openbb_tradingview`` was deleted server-side, and ``openbb_pine_support``
+inherits its role as the master/main branch for Pine work.
 
 Hook contract
 -------------
@@ -37,7 +43,7 @@ import subprocess
 import sys
 
 
-PROTECTED_BRANCHES = frozenset({"openbb_tradingview", "develop"})
+PROTECTED_BRANCHES = frozenset({"openbb_pine_support", "develop"})
 
 # Match "git push" as a whole word so we don't false-positive on
 # "git pushd" (doesn't exist) or a rare "grepush" (also doesn't).
@@ -165,19 +171,19 @@ def _build_deny_reason(blocked: list[str], has_force: bool) -> str:
     return (
         f"BLOCKED: direct push to protected branch(es): {dests}{force_note}.\n"
         "\n"
-        "Policy: openbb_tradingview is master/main for Pine + TradingView work;\n"
-        "develop is the downstream integration branch. Neither may be pushed to\n"
-        "directly. Bulk merges from openbb_tradingview to develop are done manually\n"
-        "by a human, never by Claude.\n"
+        "Policy: openbb_pine_support is the primary integration branch for Pine +\n"
+        "TradingView work; develop is the downstream integration branch. Neither\n"
+        "may be pushed to directly. Bulk merges from openbb_pine_support to\n"
+        "develop are done manually by a human, never by Claude.\n"
         "\n"
         "Required workflow:\n"
-        "  1. Create a feature branch off openbb_tradingview:\n"
-        "       git switch -c <feature-name> openbb_tradingview\n"
+        "  1. Create a feature branch off openbb_pine_support:\n"
+        "       git switch -c <feature-name> openbb_pine_support\n"
         "  2. Commit your work on the feature branch.\n"
         "  3. Push the feature branch:\n"
         "       git push -u origin <feature-name>\n"
-        "  4. Open a PR targeting openbb_tradingview:\n"
-        "       gh pr create --base openbb_tradingview --head <feature-name>\n"
+        "  4. Open a PR targeting openbb_pine_support:\n"
+        "       gh pr create --base openbb_pine_support --head <feature-name>\n"
         "\n"
         "If you truly need to bypass this (e.g. amending a commit already on the\n"
         "protected branch during a manual maintenance session), disable the hook\n"
