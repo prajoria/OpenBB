@@ -135,11 +135,12 @@ def test_parse_currency_leading_minus_negative() -> None:
 
 
 def test_parse_currency_paren_and_minus_do_not_double_negate() -> None:
-    """(($10)) or -($10) style input — negative once, not positive.
+    """``-($10)`` style input — negative once, not positive.
 
     This is a real bug pattern the fidelity variant guards against (uses
     a ``negative`` boolean, not string-based sign inference). Confirms
-    the new helper does the same.
+    the new helper does the same. Doubled-paren nesting like ``(($10))``
+    is covered by ``test_parse_currency_nested_parens_do_not_sign_double``.
     """
     assert parse_currency("-($10.00)") == Decimal("-10.00")
 
@@ -419,22 +420,23 @@ def test_parse_currency_nested_parens_do_not_sign_double(
 @pytest.mark.parametrize(
     "raw",
     [
-        # Shapes the guard regex accepts but Decimal() rejects — the InvalidOperation
-        # fallback must return zero in on_error='zero' mode.
+        # Shapes that fail the pre-strip _WELL_FORMED_US regex (no digit run):
+        # zero-mode must return Decimal("0") via the _fail_or_zero path.
         ".",
         "-.",
     ],
 )
-def test_parse_currency_regex_accepts_but_decimal_rejects_returns_zero(
+def test_parse_currency_no_digits_shape_returns_zero(
     raw: str,
 ) -> None:
-    r"""on_error='zero' mode covers regex-accepts-but-Decimal-rejects shapes.
+    r"""on_error='zero' mode covers no-digits shapes via the well-formed guard.
 
-    Regression test for pr-test-analyzer finding — the well-formed regex
-    ``-?\d*\.?\d*`` fullmatches these but ``Decimal('.')`` raises. The
-    zero-mode fallback branch on the ``except InvalidOperation`` handler
-    is real behavior worth locking in (was previously covered only in
-    the raise-side).
+    ``'.'`` and ``'-.'`` both fail the pre-strip ``_WELL_FORMED_US`` regex
+    (which requires at least one digit run) and route through
+    ``_fail_or_zero``. This test locks in the zero-mode branch of that
+    helper for the no-digits family — the Decimal-raises branch is
+    covered separately in
+    ``test_parse_currency_double_sign_hits_decimal_invalidoperation``.
     """
     assert parse_currency(raw, on_error="zero") == Decimal("0")
 
@@ -451,3 +453,129 @@ def test_parse_currency_sentinel_case_insensitive(raw: str) -> None:
     stored 'N/A' (uppercase). Now the probe upper-cases before lookup.
     """
     assert parse_currency(raw) == Decimal("0")
+
+
+# ---------------------------------------------------------------------------
+# Round-2 review findings (silent-failure-hunter + pr-test-analyzer)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # str.strip('()') is CHARACTER-CLASS based, not matched-pair based, so
+        # multiple leading/trailing parens all get stripped. Old code let
+        # '()', '()()', '(())', '(N/A)()' all reduce to a sentinel string and
+        # silently return Decimal(0) even in on_error='raise' mode.
+        "()",
+        "()()",
+        "(())",
+        "( )",
+        "(N/A)()",
+    ],
+)
+def test_parse_currency_multi_paren_wrapping_is_not_sentinel(raw: str) -> None:
+    """Only a single balanced outer paren-pair counts for sentinel unwrapping.
+
+    Regression test for silent-failure-hunter Round-2 finding — obvious
+    corruption like ``()`` or ``()()`` used to silently return zero
+    because ``str.strip('()')`` treats its argument as a character class,
+    not a matched-pair pattern. New sentinel probe strips at most one
+    outer balanced pair.
+    """
+    with pytest.raises(ValueError, match="parse"):
+        parse_currency(raw)
+
+
+def test_parse_currency_ordering_aware_balanced_parens() -> None:
+    """``)N/A(`` has equal paren counts but wrong ordering — NOT a sentinel.
+
+    Regression test for pr-test-analyzer Round-2 finding — distinguishes
+    ordering-aware balancing (walking-depth) from count-only balancing.
+    A refactor that replaced ``_parens_are_balanced`` with a naive
+    ``count('(') == count(')')`` check would incorrectly treat this
+    as a well-formed wrapped sentinel.
+    """
+    with pytest.raises(ValueError, match="parse"):
+        parse_currency(")N/A(")
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # Combined case-fold + paren-strip — properties tested independently
+        # in existing tests but not composed.
+        "(n/a)",
+        " ( -- ) ",
+        "(  N/a  )",
+    ],
+)
+def test_parse_currency_paren_wrapped_case_insensitive_sentinel(raw: str) -> None:
+    """Paren-wrapping and case-insensitivity compose for sentinel matching.
+
+    Regression test for pr-test-analyzer Round-2 finding — a refactor
+    that upper-cased BEFORE stripping outer parens (or vice-versa in a
+    way that broke composition) would silently pass the two separate
+    tests but fail on the combined case.
+    """
+    assert parse_currency(raw) == Decimal("0")
+
+
+def test_parse_currency_negative_zero_collapses_to_positive_zero() -> None:
+    """``$-0``, ``($0)`` etc. return unsigned ``Decimal('0')``, not ``Decimal('-0')``.
+
+    Regression test for silent-failure-hunter Round-2 finding — ``-0``
+    == ``0`` but ``str(Decimal('-0'))`` is ``'-0'`` and ``.is_signed()``
+    is True, so downstream JSON/CSV serialisation or sign-dispatch code
+    would see spurious negatives.
+    """
+    for raw in ("$-0", "($0)", "(-$0.00)", "-$0.00"):
+        result = parse_currency(raw)
+        assert result == Decimal("0"), f"parse_currency({raw!r}) magnitude"
+        assert (
+            not result.is_signed()
+        ), f"parse_currency({raw!r}) has signed-zero: str={str(result)!r}"
+
+
+def test_parse_currency_excel_style_dollar_minus_100() -> None:
+    """``$-100`` (Excel style — sign after currency symbol) parses correctly.
+
+    Regression test for code-reviewer near-miss — the module docstring
+    lists ``$-100`` as a supported format, but no test exercised it.
+    A regression that assumed sign must precede the currency symbol
+    would silently pass every other test.
+    """
+    assert parse_currency("$-100") == Decimal("-100")
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # '--100' passes the well-formed regex (prefix char class includes '-')
+        # but Decimal('--100') raises InvalidOperation because the '-' chars
+        # aren't stripped (only '+' is in the strip regex). This is the input
+        # shape that actually exercises the try/except at the Decimal() call.
+        # Note: '++100' does NOT reach the except — the strip regex removes
+        # both '+' chars and Decimal('100') parses fine, so it returns 100.
+        "--100",
+    ],
+)
+def test_parse_currency_double_minus_hits_decimal_invalidoperation(
+    raw: str,
+) -> None:
+    """Inputs the well-formed regex accepts but ``Decimal()`` rejects raise ValueError.
+
+    Regression test for pr-test-analyzer Round-2 finding — the earlier
+    ``test_parse_currency_regex_accepts_but_decimal_rejects_returns_zero``
+    used inputs (``'.'``, ``'-.'``) that actually failed the pre-strip
+    well-formed regex and never reached the ``Decimal()`` call. This
+    input (``'--100'``) does reach it, so it locks the exception-type
+    wrapping (``ValueError`` from ``InvalidOperation``).
+    """
+    with pytest.raises(ValueError, match="parse"):
+        parse_currency(raw)
+
+
+def test_parse_currency_double_minus_zero_mode_returns_zero() -> None:
+    """``--100`` in ``on_error='zero'`` mode returns zero via the InvalidOperation branch."""
+    assert parse_currency("--100", on_error="zero") == Decimal("0")

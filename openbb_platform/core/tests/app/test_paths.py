@@ -55,9 +55,16 @@ def test_safe_join_returns_path_object(tmp_path: Path) -> None:
 
 
 def test_safe_join_normalizes_redundant_separators(tmp_path: Path) -> None:
-    """Redundant separators ('./', doubled slashes) collapse without escaping."""
+    """Redundant separators (``./``, ``..`` inside the path) collapse without escaping.
+
+    Uses ``./sub/../report.html`` which pathlib.resolve() collapses to
+    ``root/report.html`` — still inside root. Doubled-slash normalisation
+    happens transparently at the OS layer and isn't specifically tested
+    here; the property this test locks in is that path-normalisation
+    happens BEFORE the containment check (so redundant-but-in-root
+    fragments are accepted rather than accidentally rejected).
+    """
     result = safe_join(tmp_path, "./sub/../report.html")
-    # ./sub/../report.html normalises to root/report.html — still inside root.
     assert result == (tmp_path / "report.html").resolve()
 
 

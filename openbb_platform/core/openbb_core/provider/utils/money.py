@@ -208,12 +208,29 @@ def parse_currency(
     normalised = unicodedata.normalize("NFKC", value).strip()
     normalised = normalised.translate(str.maketrans({"−": "-", "–": "-", "—": "-"}))
 
-    # Sentinel check — case-insensitive, whitespace + balanced outer parens
-    # stripped. A lone '(' or ')' is data corruption, NOT an empty sentinel,
-    # so the balanced-paren guard runs before we strip parens for the probe.
-    if _parens_are_balanced(normalised):
-        sentinel_probe = normalised.strip("()").strip().upper()
-        if sentinel_probe in _SENTINELS:
+    # Sentinel check — case-insensitive. Two shapes accepted:
+    #   1. Bare sentinel: '--', 'N/A', '' (whitespace stripped).
+    #   2. Sentinel wrapped in a SINGLE balanced outer paren pair with
+    #      NON-EMPTY inner content: '(--)', '(N/A)', ' ( n/a ) '.
+    #
+    # Note: ``str.strip('()')`` uses character-class semantics (not
+    # matched-pair semantics), so '()', '()()', '(())' would all collapse
+    # to '' and incorrectly match the empty-sentinel. We check for the
+    # single-pair wrapper explicitly to reject those obvious-corruption
+    # shapes. The interior of the wrapper must itself be non-empty AND a
+    # known sentinel (not the empty string), so '()' and '(  )' do NOT
+    # count as sentinels — they raise as corruption instead.
+    stripped = normalised.strip()
+    if stripped.upper() in _SENTINELS:
+        return Decimal("0")
+    if (
+        len(stripped) >= 2
+        and stripped.startswith("(")
+        and stripped.endswith(")")
+        and _parens_are_balanced(stripped[1:-1])
+    ):
+        inner = stripped[1:-1].strip().upper()
+        if inner and inner in _SENTINELS:
             return Decimal("0")
 
     # Strip the ``USD`` suffix first, BEFORE the well-formed check.
@@ -258,7 +275,7 @@ def _parens_are_balanced(s: str) -> bool:
 
     Uses a running depth counter — any point where depth goes negative
     (close without matching open) is invalid, as is any non-zero final
-    depth. Rejects ``)(`` and ``)(`` even though their counts are equal.
+    depth. Rejects ``)(`` and ``))((`` even though their counts are equal.
     """
     depth = 0
     for ch in s:
