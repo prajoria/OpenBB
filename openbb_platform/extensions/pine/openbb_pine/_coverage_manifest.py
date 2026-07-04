@@ -28,7 +28,11 @@ Contract.
 * ``BUILTINS_IMPLEMENTED`` -- fully-qualified Pine builtin identifiers
   (``ta.sma``, ``math.abs``, ``ta.crossover``, ...). MUST exclude any
   identifier that is only stubbed -- a script using a stub does NOT run
-  unedited.
+  unedited. Entries whose ``builtin_signatures.Signature`` carries
+  ``notes="SIGNATURE_ONLY"`` are C3-typechecked but codegen-deferred; they
+  MUST NOT appear here until the bridge lands and ``notes`` flips to
+  ``"IMPLEMENTED"`` -- otherwise a script that uses them would be
+  mis-attributed as "would run unedited" when in fact it crashes at codegen.
 * ``FEATURES_IMPLEMENTED`` -- the closed vocabulary of grammar features the
   wild-corpus indexer (L0.4) records per script. See the wild-corpus index
   README for the exhaustive list; currently:
