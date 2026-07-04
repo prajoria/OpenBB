@@ -167,3 +167,66 @@ def test_path_traversal_error_message_includes_offending_child(tmp_path: Path) -
         assert "../escape.txt" in str(exc) or "escape.txt" in str(exc)
     else:
         pytest.fail("safe_join did not raise on ../escape.txt")
+
+
+# ---------------------------------------------------------------------------
+# QC self-review findings (added after Phase-6 QC pass on the branch)
+# ---------------------------------------------------------------------------
+
+
+def test_safe_join_rejects_empty_path_object(tmp_path: Path) -> None:
+    """``Path('')`` collapses to '.' via str() — must be caught by the empty guard.
+
+    Regression test for QC finding #4 — the old code checked ``if not str(child)``
+    which is False for ``Path('')`` since ``str(Path('')) == '.'``. That silently
+    returned the root directory itself, letting a caller accidentally treat the
+    root as an output filename.
+    """
+    with pytest.raises(ValueError, match="empty"):
+        safe_join(tmp_path, Path(""))
+
+
+def test_safe_join_rejects_dot_only_child(tmp_path: Path) -> None:
+    """A literal ``.`` child means 'the root itself' — reject as ambiguous.
+
+    Same class of bug as Path('') — resolving to the root directory is almost
+    never what a caller of safe_join wants (they're building an artefact path,
+    not asking 'is this the root?').
+    """
+    with pytest.raises(ValueError, match="empty|dot"):
+        safe_join(tmp_path, ".")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-letter semantics")
+def test_safe_join_rejects_windows_drive_relative_child(tmp_path: Path) -> None:
+    """``C:foo`` is drive-relative on Windows — is_absolute() is False but joining escapes.
+
+    Regression test for QC finding #1 — the highest-severity finding. On Windows,
+    ``PureWindowsPath('C:foo')`` has ``is_absolute() == False`` (it's relative to
+    the CWD of drive C:), so the old absolute-path guard let it through. Path-
+    concatenation then REPLACES the root entirely (``root / 'C:foo' → 'C:foo'``),
+    landing anywhere on drive C: that the CWD points to.
+    """
+    with pytest.raises(PathTraversalError):
+        safe_join(tmp_path, "C:foo")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-letter semantics")
+def test_safe_join_rejects_windows_drive_relative_path_object(tmp_path: Path) -> None:
+    """Same rejection when the caller passes a Path object."""
+    with pytest.raises(PathTraversalError):
+        safe_join(tmp_path, Path("C:foo"))
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows UNC semantics")
+def test_safe_join_rejects_windows_unc_child(tmp_path: Path) -> None:
+    r"""UNC paths ``\\server\share`` are absolute on Windows — must be rejected."""
+    with pytest.raises(PathTraversalError):
+        safe_join(tmp_path, r"\\server\share\file.txt")
+
+
+def test_safe_join_root_with_trailing_slash(tmp_path: Path) -> None:
+    """Trailing slash on root string is normalised — child still lands inside."""
+    root_with_slash = str(tmp_path) + os.sep
+    result = safe_join(root_with_slash, "report.html")
+    assert result == (tmp_path / "report.html").resolve()

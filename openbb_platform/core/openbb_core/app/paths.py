@@ -14,8 +14,10 @@ SHOULD route through ``safe_join`` instead. The helper:
 
 * Rejects ``..`` fragments that escape the root
 * Rejects absolute-path children that would override the root
+* Rejects Windows drive-relative children (``C:foo``) that would silently
+  redirect to another drive
 * Rejects symlinks-inside-root that point outside the root (via ``resolve``)
-* Rejects null bytes and empty child strings outright
+* Rejects null bytes, empty strings, and ``.``-only children outright
 * Requires the root to exist (distinguishes configuration bugs from attacks)
 
 Callers who need a distinct exception type for "attack attempt" vs
@@ -60,14 +62,19 @@ def safe_join(root: str | Path, child: str | Path) -> Path:
     Raises
     ------
     ValueError
-        If ``child`` is empty or contains a null byte.
+        If ``child`` is empty, ``.``, contains a null byte, or is
+        ``Path('')`` (which stringifies to ``'.'``).
+        ``PathTraversalError`` (a subclass) is also raised when the
+        child would escape the root, so ``except ValueError:`` will catch
+        both cases.
     FileNotFoundError
         If ``root`` does not exist on disk. Distinct from
         ``PathTraversalError`` so callers can tell configuration bugs
         (misconfigured export dir) from attack attempts.
     PathTraversalError
         If the resolved child path is not inside ``root`` — covers
-        ``..`` traversal, absolute-path overrides, and symlink escapes.
+        ``..`` traversal, absolute-path overrides, Windows drive-relative
+        children (``C:foo``), and symlink escapes.
 
     Examples
     --------
@@ -98,11 +105,21 @@ def safe_join(root: str | Path, child: str | Path) -> Path:
     are followed and validated. The containment check compares the
     resolved parents, not path strings, to avoid false positives from
     case-only or trailing-slash differences.
+
+    The empty-string and ``.``-only guards are tighter than the pathlib
+    default: ``str(Path(''))`` returns ``'.'`` (not ``''``), and
+    ``root / Path('')`` resolves to root itself. Silently returning root
+    as if it were an in-root filename is almost never what a caller
+    wants, so both patterns are rejected as ambiguous.
     """
-    # Argument validation — cheap, done first.
+    # Coerce to string ONCE for validation checks (Path('') stringifies to '.')
+    # then use Path for path-shape checks.
     child_str = str(child)
-    if not child_str:
-        raise ValueError("safe_join: child path is empty")
+
+    # Empty string ("") and dot-only (".") both reduce to "no filename".
+    # str(Path("")) == "." so the two collapse into the same guard.
+    if child_str in ("", "."):
+        raise ValueError("safe_join: child path is empty or refers to the root itself")
     if "\x00" in child_str:
         raise ValueError("safe_join: null byte in child path is not allowed")
 
@@ -121,6 +138,17 @@ def safe_join(root: str | Path, child: str | Path) -> Path:
     if child_path.is_absolute():
         raise PathTraversalError(
             f"safe_join: absolute child path escapes root: {child!r}"
+        )
+
+    # Reject Windows drive-relative paths ("C:foo") that have a drive
+    # component but are NOT absolute. Joining them REPLACES the root, so
+    # the containment check would still catch the escape if the drives
+    # differ — but if root and child happen to share a drive, the escape
+    # is silent. Belt-and-braces: reject any child with a drive component.
+    if child_path.drive:
+        raise PathTraversalError(
+            f"safe_join: child path has a drive component "
+            f"(drive-relative or absolute): {child!r}"
         )
 
     # Compose then resolve — strict=False so non-existent leaf files

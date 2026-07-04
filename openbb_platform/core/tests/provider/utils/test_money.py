@@ -161,3 +161,120 @@ def test_parse_currency_paren_and_minus_do_not_double_negate() -> None:
 def test_parse_currency_accepts_bare_numbers(raw: str, expected: Decimal) -> None:
     """Bare numeric strings (no $) parse cleanly — common in CSVs."""
     assert parse_currency(raw) == expected
+
+
+# ---------------------------------------------------------------------------
+# QC self-review findings (added after Phase-6 QC pass on the branch)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # Scientific notation — 'e' gets stripped by the letter regex, silently
+        # turning $1e5 (= 100000) into 15 in the old lossy implementation.
+        "$1e5",
+        # Unit suffixes — Fidelity CSVs include these; silently misparses to 1.5
+        # (should raise so caller sees the data corruption).
+        "$1.5M",
+        "$1K",
+        "$1B",
+        # Hex-like prefix — 0x10 -> 010 -> 10 silently (should raise).
+        "$0x10",
+    ],
+)
+def test_parse_currency_rejects_scientific_and_unit_suffixes(raw: str) -> None:
+    """Inputs with 'e', 'K', 'M', 'B', 'x' letters must raise, not silently misparse.
+
+    Regression test for QC finding #2 — the ``[A-Za-z]`` character class in
+    the strip regex used to swallow scientific-notation ``e`` and unit
+    suffixes ``K``/``M``/``B``/``x`` without complaint, producing values
+    off by 3-9 orders of magnitude. This is the worst kind of silent bug:
+    the resulting Decimal looks plausible.
+    """
+    with pytest.raises(ValueError, match="parse"):
+        parse_currency(raw)
+
+
+def test_parse_currency_accepts_usd_suffix_after_fix() -> None:
+    """The ``USD`` currency suffix is still accepted (backward compatibility)."""
+    # Post-fix, the strip regex only removes whitelisted suffix letters (USD)
+    # and rejects everything else. USD suffix must still work.
+    assert parse_currency("$492.05 USD") == Decimal("492.05")
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # Unicode minus sign U+2212 — Excel and PDF copy-paste use this.
+        ("$−100", Decimal("-100")),
+        # Fullwidth hyphen-minus U+FF0D.
+        ("$－50.00", Decimal("-50.00")),
+    ],
+)
+def test_parse_currency_normalises_unicode_minus(raw: str, expected: Decimal) -> None:
+    """Unicode minus variants are normalised to ASCII '-' before sign inference.
+
+    Regression test for QC finding #3 — the old sign check only looked at
+    ASCII hyphen ``-``, so ``$−100`` (U+2212, common in Excel exports) was
+    parsed as raise/zero instead of ``-100``.
+    """
+    assert parse_currency(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # All-letter inputs that used to strip to empty — should now raise
+        # in strict mode because they're clearly not numbers.
+        "USD",
+        "unknown",
+        "$USD",
+        "$",
+    ],
+)
+def test_parse_currency_all_letter_input_raises(raw: str) -> None:
+    """Non-numeric inputs raise in strict mode (was silently returning 0 before).
+
+    Regression test for QC finding #5 — a lone ``USD`` in a money column is
+    almost certainly a header row leaking into data. Better to surface the
+    problem than silently zero the value.
+    """
+    with pytest.raises(ValueError, match="parse"):
+        parse_currency(raw)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "USD",
+        "unknown",
+        "$",
+    ],
+)
+def test_parse_currency_all_letter_input_zero_mode_returns_zero(raw: str) -> None:
+    """In on_error='zero' mode the same non-numeric inputs return zero (legacy compat)."""
+    assert parse_currency(raw, on_error="zero") == Decimal("0")
+
+
+def test_parse_currency_parenthesised_sentinel_returns_zero() -> None:
+    """``(--)`` and ``(N/A)`` inside parens still count as sentinel-zero.
+
+    Regression test for QC finding #7 — the old code set negative=True from
+    the paren, then stripped to empty and raised. Now the sentinel check
+    strips the parens/whitespace first.
+    """
+    assert parse_currency("(--)") == Decimal("0")
+    assert parse_currency("(N/A)") == Decimal("0")
+
+
+def test_parse_currency_multiple_decimals_raises() -> None:
+    """``$1.2.3`` is unambiguously bad input — must raise in strict mode."""
+    with pytest.raises(ValueError, match="parse"):
+        parse_currency("$1.2.3")
+
+
+def test_parse_currency_bare_hyphen_raises() -> None:
+    """A lone ``-`` has no magnitude — must raise (not become negative zero)."""
+    with pytest.raises(ValueError, match="parse"):
+        parse_currency("-")

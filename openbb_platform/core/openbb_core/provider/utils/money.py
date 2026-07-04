@@ -27,23 +27,46 @@ Accepted formats:
 * ``-$183.70``  — leading - prefix (fidelity)
 * ``($605.38)`` — parenthesised negative (fidelity + share_cost_basis)
 * ``$492.05 USD`` — USD suffix (fidelity + espp)
-* ``--``, ``N/A``, empty, ``None`` — sentinels, return ``Decimal("0")``
+* ``$−100``, ``$－100`` — Unicode minus signs (U+2212, U+FF0D) — normalised
+* ``--``, ``N/A``, empty string, and the Python ``None`` value — sentinels,
+  return ``Decimal("0")`` regardless of surrounding whitespace or parentheses.
+
+Explicitly REJECTED (raise ``ValueError`` in strict mode):
+
+* Scientific notation (``$1e5``) — the ``e`` used to be silently stripped
+* Unit suffixes (``$1.5M``, ``$1K``) — the letter used to be silently stripped
+* Multiple decimal points (``$1.2.3``)
+* Bare non-numeric text (``USD``, ``unknown``) — likely header rows leaking
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 from decimal import Decimal, InvalidOperation
 from typing import Literal
 
-# One regex removes all non-numeric characters (letters, currency symbols,
-# whitespace, commas, parentheses, +) — keeping only digits, minus, and
-# decimal point. This is a superset of what each of the 3 sibling sites
-# strips, so no valid input from any of them gets rejected.
-_STRIP_RE = re.compile(r"[+$,()A-Za-z\s]")
-
+# Sentinel strings — always parse to Decimal("0") regardless of on_error mode.
+# Case-insensitive; whitespace and outer parentheses are stripped first.
 _SENTINELS = frozenset({"--", "N/A", ""})
 
+# The strip regex removes ONLY safely-ignorable characters — whitespace, the
+# currency symbol, thousands separators, the sign prefix ``+``, and the
+# parentheses (their sign meaning is captured separately via the negative
+# flag). It does NOT remove letters — that closes the silent-misparse hole
+# where ``$1e5`` used to become ``15`` and ``$1.5M`` used to become ``1.5``.
+_STRIP_RE = re.compile(r"[+$,()\s]")
+
+# The USD suffix is a legacy format from Fidelity/espp CSVs. We strip it
+# BEFORE running the main strip regex so the letters don't trigger the
+# 'unexpected-letters' guard below.
+_USD_SUFFIX_RE = re.compile(r"\s*USD\s*$", re.IGNORECASE)
+
+# Unicode dash variants that should be treated as ASCII '-' for sign
+# inference. Excel exports, PDF copy-paste, and financial data feeds all
+# emit U+2212 (MINUS SIGN) and U+FF0D (FULLWIDTH HYPHEN-MINUS) freely.
+# NFKC normalisation collapses both to ASCII '-' along with many other
+# compatibility equivalents.
 _OnError = Literal["raise", "zero"]
 
 
@@ -59,8 +82,8 @@ def parse_currency(
     value : str | None
         The money string. Supports the union of formats produced by the
         three Tools/ sibling parsers — see the module docstring for the
-        full list. ``None``, empty, and sentinels (``--``, ``N/A``) all
-        return ``Decimal("0")`` regardless of ``on_error`` mode.
+        full list. ``None``, empty strings, and sentinels (``--``, ``N/A``)
+        all return ``Decimal("0")`` regardless of ``on_error`` mode.
     on_error : {"raise", "zero"}, default "raise"
         Behavior for unparseable input:
 
@@ -79,7 +102,10 @@ def parse_currency(
     Raises
     ------
     ValueError
-        * If ``on_error="raise"`` and the input cannot be parsed.
+        * If ``on_error="raise"`` and the input cannot be parsed. This
+          includes inputs with letters other than a trailing USD suffix
+          (``$1.5M``, ``$1e5``, ``unknown``), multiple decimal points,
+          and lone sign characters.
         * If ``on_error`` is not one of the two documented values.
           (This is a caller bug, not a data bug — raise even in "zero"
           mode wouldn't help since the mode itself is unrecognised.)
@@ -106,9 +132,11 @@ def parse_currency(
     Notes
     -----
     Sign inference uses a single ``negative`` flag set from the presence
-    of ``(`` or a leading ``-``. The abs(numeric) computation strips any
-    remaining minus sign after regex cleanup, so ``-($10.00)`` correctly
-    yields ``Decimal("-10.00")`` (negative once, not sign-doubled).
+    of ``(`` or a leading ``-`` (after Unicode NFKC normalisation, so
+    ``−`` U+2212 and ``－`` U+FF0D also count as ``-``). The abs(numeric)
+    computation strips any remaining minus sign after regex cleanup, so
+    ``-($10.00)`` correctly yields ``Decimal("-10.00")`` (negative once,
+    not sign-doubled).
     """
     # Argument validation on the mode itself — fail fast on typos.
     if on_error not in ("raise", "zero"):
@@ -116,20 +144,58 @@ def parse_currency(
             f"parse_currency: on_error must be 'raise' or 'zero', got {on_error!r}"
         )
 
-    # None and sentinel handling — always zero, in either mode.
+    # None and empty-shaped inputs — always zero, in either mode.
     if value is None:
         return Decimal("0")
 
-    stripped = value.strip()
-    if stripped in _SENTINELS:
+    # NFKC normalisation folds compatibility Unicode variants (fullwidth
+    # digits, fullwidth hyphen-minus U+FF0D, fullwidth parens) into their
+    # ASCII equivalents. Note NFKC does NOT fold U+2212 MINUS SIGN — it's
+    # a distinct 'mathematical' character, not a compatibility variant, so
+    # we explicitly translate it to ASCII '-' along with a couple of other
+    # dash-like glyphs that appear in copy-pasted financial data.
+    normalised = unicodedata.normalize("NFKC", value).strip()
+    # U+2212 MINUS SIGN, U+2013 EN DASH, U+2014 EM DASH — all get mapped
+    # to ASCII '-' for sign inference. This is intentionally narrow: we
+    # only fold characters where the alternative (raise/silent-zero) is
+    # clearly worse than the caller's obvious intent.
+    normalised = normalised.translate(str.maketrans({"−": "-", "–": "-", "—": "-"}))
+
+    # Sentinel check — after stripping surrounding whitespace AND
+    # outer parentheses ("(--)" is still a sentinel). We only strip
+    # parens for the sentinel test, not for numeric parsing.
+    sentinel_probe = normalised.strip("()").strip()
+    if sentinel_probe in _SENTINELS:
         return Decimal("0")
+
+    # Strip the ``USD`` suffix first, BEFORE the letter-detection guard.
+    # Anything else that survives with letters is a parse error.
+    numeric_part = _USD_SUFFIX_RE.sub("", normalised)
 
     # Determine sign BEFORE stripping non-numeric chars — otherwise the
     # regex would remove parentheses and we'd lose the negativity hint.
-    negative = stripped.startswith("-") or "(" in stripped
+    # Look for '-' anywhere in the string (not just leading) so that both
+    # ``-$100`` (fidelity style) and ``$-100`` (Excel copy-paste style)
+    # register as negative. The regex strip removes '+' but keeps '-' so
+    # a stray minus in the middle of the digits would still cause
+    # Decimal() to raise — the guard below catches that.
+    negative = "-" in numeric_part or "(" in numeric_part
 
-    # Strip everything that isn't a digit, minus, or decimal point.
-    cleaned = _STRIP_RE.sub("", stripped)
+    # Strip only whitespace, currency symbol, commas, parentheses, and '+'.
+    # Letters (other than the already-stripped USD suffix) will now survive
+    # the strip and cause Decimal() to raise — which is exactly what we want
+    # for '$1e5', '$1.5M', etc.
+    cleaned = _STRIP_RE.sub("", numeric_part)
+
+    # Guard: if the strip left the string containing anything other than
+    # digits, a single '-', and a single '.', it's not a well-formed number.
+    # Decimal() will raise on these too, but this guard produces a clearer
+    # error message and covers the case where cleaned is empty after the
+    # regex (e.g. bare 'USD' collapses to empty and Decimal('') raises).
+    if not cleaned or not re.fullmatch(r"-?\d*\.?\d*", cleaned):
+        if on_error == "zero":
+            return Decimal("0")
+        raise ValueError(f"parse_currency: could not parse {value!r} as a money amount")
 
     try:
         # abs() first so the ``negative`` flag is the sole source of sign,
