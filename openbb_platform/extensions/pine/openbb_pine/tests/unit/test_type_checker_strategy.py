@@ -72,9 +72,13 @@ def _compile_strategy_body(body: str) -> None:
         compile_pine(src, use_cache=False)
     # PF010 = strategy() codegen deferred to bead aeh; that's the expected
     # failure mode for now. When bead aeh lands, this assertion breaks and
-    # tests transition to unconditional-pass.
-    assert "PF010" in str(excinfo.value), (
-        f"expected PF010 codegen deferral, got {excinfo.value!r}"
+    # tests transition to unconditional-pass. Assert against the structured
+    # ``feature`` attribute rather than the stringified error, so a future
+    # refactor of the message body doesn't silently break this check.
+    feature = excinfo.value.feature or ""
+    assert feature.startswith("PF010"), (
+        f"expected PF010 codegen deferral (structured .feature); "
+        f"got feature={feature!r} err={excinfo.value!r}"
     )
 
 
@@ -86,8 +90,11 @@ def _compile_strategy_body(body: str) -> None:
 class TestRegistryShape:
     """Verify the bead h14 additions actually landed in the registry.
 
-    ``_coverage_manifest.py`` and PRD §3.4 L0.5 wild-corpus coverage both key
-    off ``notes="IMPLEMENTED"``, so we validate that flag explicitly.
+    Signature-only entries land here with ``notes="SIGNATURE_ONLY"`` —
+    ``_coverage_manifest.py::BUILTINS_IMPLEMENTED`` explicitly excludes them
+    (a script using them still crashes at codegen with PF010). Bead ``aeh``
+    will flip the notes to ``"IMPLEMENTED"`` when the bridge lands and the
+    coverage manifest will pick them up at that point.
     """
 
     STRATEGY_CALLS = (
@@ -107,12 +114,15 @@ class TestRegistryShape:
     )
 
     @pytest.mark.parametrize("name", STRATEGY_CALLS + STRATEGY_CONSTANTS)
-    def test_entry_exists_and_marked_implemented(self, name: str) -> None:
+    def test_entry_exists_and_marked_signature_only(self, name: str) -> None:
         sig = lookup(name)
         assert sig is not None, f"missing {name!r} in BUILTIN_SIGNATURES"
-        assert sig.notes == "IMPLEMENTED", (
-            f"{name!r} must be notes='IMPLEMENTED' for coverage attribution; "
-            f"got notes={sig.notes!r}"
+        # ``SIGNATURE_ONLY`` is the h14 marker — codegen still raises PF010.
+        # ``IMPLEMENTED`` is the post-aeh marker — bridge is landed. Accept
+        # either so this test survives the bead-aeh flip without a rewrite.
+        assert sig.notes in ("SIGNATURE_ONLY", "IMPLEMENTED"), (
+            f"{name!r} must be notes='SIGNATURE_ONLY' (h14) or "
+            f"'IMPLEMENTED' (post-aeh); got notes={sig.notes!r}"
         )
 
     def test_constants_return_const_string(self) -> None:
@@ -282,10 +292,11 @@ class TestStrategyIllTypedRejection:
 
         Historic note: an INNER-TYPE mismatch (``123`` = const<int> vs
         const<string>) is NOT enforced by C3 today — ``_rule_pt001`` only
-        validates qualifier promotion, not inner-type compatibility. A
-        future bead (tracked by the ``strategy-signatures-inner-type``
-        label) will add that stricter check; this test is intentionally
-        the weaker "qualifier is enforced" contract until then.
+        validates qualifier promotion, not inner-type compatibility. Tracked
+        by bead ``OpenBBTechnical-b29`` ("C3: inner-type validation for
+        strategy.* signatures") — that bead's acceptance flip is exactly
+        this test: strengthen it from the current qualifier-only check to
+        an inner-type rejection when C3 gains inner-type awareness.
         """
         src = _STRATEGY_HEAD + 'strategy.entry(close, "long")\n'
         with pytest.raises(PineTypeError) as excinfo:

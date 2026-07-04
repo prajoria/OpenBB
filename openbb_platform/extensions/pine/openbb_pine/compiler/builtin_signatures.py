@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from openbb_pine.compiler.types import AnyT, PineType, Scalar, TupleT
+from openbb_pine.compiler.types import AnyT, NaT, PineType, Scalar, TupleT
 
 __all__ = [
     "Signature",
@@ -104,16 +104,17 @@ _CONST_COLOR = PineType(qualifier="const", inner=Scalar(kind="color"))
 _CONST_BOOL = PineType(qualifier="const", inner=Scalar(kind="bool"))
 _CONST_STRING = PineType(qualifier="const", inner=Scalar(kind="string"))
 _SERIES_ANY = PineType(qualifier="series", inner=AnyT())
-# Pseudo-void return marker — Pine's imperative statement-like builtins
-# (plot / plotshape / hline, and every strategy.* order-management call) don't
-# yield a meaningful expression value. The convention across this file is to
-# type their return as simple<float>; codegen ignores the return when the
-# call sits in statement position. ``_VOID`` is an alias for readability at
-# the signature call site — semantically identical to ``_SIMPLE_FLOAT``.
-# NOTE: h14's later fix commit refactors this to
-# ``PineType(qualifier="const", inner=NaT())`` per review; the fix will
-# supersede this alias when replayed.
-_VOID = _SIMPLE_FLOAT
+# Pseudo-void return marker — Pine's strategy.* order-management calls don't
+# yield a meaningful expression value. Modelled as ``const<na>`` so a script
+# doing ``x = strategy.entry(...)`` binds ``x`` to ``const<NaT>`` (semantically
+# "no value") rather than the misleading ``simple<float>`` a plot-style alias
+# would produce. Codegen ignores the return when the call sits in statement
+# position. Mirror of ``type_checker._NA``. This is a distinct sentinel — an
+# alias like ``_VOID = _SIMPLE_FLOAT`` would silently change meaning if a
+# future refactor ever touched ``_SIMPLE_FLOAT`` and would let an assignment
+# like ``x = strategy.entry(...)`` claim ``x: simple<float>`` (a value that
+# is never usable).
+_VOID = PineType(qualifier="const", inner=NaT())
 
 
 def _src_length() -> tuple[tuple[str, PineType], ...]:
@@ -542,17 +543,23 @@ BUILTIN_SIGNATURES: dict[str, Signature] = {
     #   ``direction=strategy.long`` and ``default_qty_type=strategy.percent_of_equity``
     #   type-check cleanly instead of raising PineUnsupportedBuiltinError.
     #
-    # Every entry carries ``notes="IMPLEMENTED"`` per the D5 §7.2 convention
-    # so ``_coverage_manifest.py`` can count them as landed and the wild-corpus
-    # coverage metric (PRD §3.4 L0.5) attributes strategy-scoped scripts
-    # correctly.
+    # Every entry carries ``notes="SIGNATURE_ONLY"`` per the D5 §7.2
+    # convention for signature-landed / codegen-deferred surfaces. The
+    # ``IMPLEMENTED`` marker is reserved for entries where the bridge has
+    # landed and the script would ``run unedited`` today; strategy scripts
+    # still hit PF010 at codegen. Bead ``aeh`` will flip these to
+    # ``IMPLEMENTED`` when it lifts the PF010 stub. This convention keeps
+    # ``_coverage_manifest.py::BUILTINS_IMPLEMENTED`` and the PRD §3.4 L0.5
+    # wild-corpus coverage metric honest — ``notes="IMPLEMENTED"`` alone must
+    # not double-count strategy scripts as "would run unedited" when they
+    # actually crash at codegen.
 
     # --- Order-management calls ------------------------------------------------
     "strategy.entry": Signature(
-        # Pine v6 signature (per TradingView Pine reference, cross-checked
-        # against PyneCore's public surface):
+        # Pine v6 signature — matches PyneCore's ``entry()`` in
+        # ``third_party/pynecore/src/pynecore/lib/strategy/__init__.py:3034``:
         #   strategy.entry(id, direction, qty, limit, stop, oca_name,
-        #                  oca_type, comment, alert_message, disable_alert)
+        #                  oca_type, comment, alert_message)
         # ``direction`` is const<string> because it must be ``strategy.long``
         # or ``strategy.short`` (both const<string>). Value-set validation
         # (rejecting "sideways" etc.) is not enforced here — the Signature
@@ -560,6 +567,18 @@ BUILTIN_SIGNATURES: dict[str, Signature] = {
         # per-signature literal-value validation. For now, type-level we
         # require const<string> so bare barewords and series-qualified
         # values are still rejected.
+        #
+        # ``oca_type`` is declared const<string> even though PyneCore uses
+        # the ``_oca.Oca`` StrLiteral sentinel. Rationale: M2 accepts any
+        # const<string>; strict enum validation is deferred to bead ``aeh``
+        # when codegen enforces the enum axis at emission (the bridge will
+        # translate ``"cancel"`` / ``"none"`` / ``"reduce"`` into the
+        # ``_oca.Oca`` sentinel).
+        #
+        # NOTE: PyneCore's ``entry()`` has NO ``disable_alert`` param — it
+        # was in earlier drafts of this signature but would crash at aeh
+        # codegen with ``TypeError: entry() got an unexpected keyword
+        # argument 'disable_alert'``. Dropped to match PyneCore.
         args=(
             ("id", _CONST_STRING),
             ("direction", _CONST_STRING),
@@ -570,10 +589,9 @@ BUILTIN_SIGNATURES: dict[str, Signature] = {
             ("oca_type", _CONST_STRING),
             ("comment", _CONST_STRING),
             ("alert_message", _CONST_STRING),
-            ("disable_alert", _SIMPLE_BOOL),
         ),
         returns=_VOID,
-        notes="IMPLEMENTED",
+        notes="SIGNATURE_ONLY",
     ),
     "strategy.exit": Signature(
         # Pine v6 signature — the widest kwarg surface in the strategy.*
@@ -607,51 +625,62 @@ BUILTIN_SIGNATURES: dict[str, Signature] = {
             ("disable_alert", _SIMPLE_BOOL),
         ),
         returns=_VOID,
-        notes="IMPLEMENTED",
+        notes="SIGNATURE_ONLY",
     ),
     "strategy.close": Signature(
-        # Close a specific position by ``id``. Pine v6:
-        #   strategy.close(id, when, comment, qty, qty_percent,
-        #                  alert_message, immediately, disable_alert)
-        # ``when`` is a soft-deprecated boolean guard (v4 hangover); still
-        # accepted by Pine v6, so we declare it for signature parity.
+        # Close a specific position by ``id``. Matches PyneCore's ``close()``
+        # in ``third_party/pynecore/src/pynecore/lib/strategy/__init__.py:2932``:
+        #   strategy.close(id, comment, qty, qty_percent, alert_message,
+        #                  immediately)
+        # NOTE: earlier drafts of this signature declared ``when`` at position
+        # 2 (a v4 hangover) and ``disable_alert`` at the tail. Both were
+        # DROPPED to match PyneCore:
+        # * ``when`` was removed in Pine v6 and PyneCore's ``close()`` never
+        #   exposed it — declaring it here corrupted positional binding so
+        #   ``strategy.close("id", "closing long")`` would misbind
+        #   ``"closing long"`` (const<string>) to formal ``when``
+        #   (series<bool>) and raise PT001 with a confusing "cannot demote
+        #   const<string> to series<bool>" message.
+        # * ``disable_alert`` would type-check cleanly here but crash at aeh
+        #   codegen with ``TypeError: close() got an unexpected keyword
+        #   argument 'disable_alert'``.
         args=(
             ("id", _CONST_STRING),
-            ("when", _SERIES_BOOL),
             ("comment", _CONST_STRING),
             ("qty", _SIMPLE_FLOAT),
             ("qty_percent", _SIMPLE_FLOAT),
             ("alert_message", _CONST_STRING),
             ("immediately", _SIMPLE_BOOL),
-            ("disable_alert", _SIMPLE_BOOL),
         ),
         returns=_VOID,
-        notes="IMPLEMENTED",
+        notes="SIGNATURE_ONLY",
     ),
     "strategy.close_all": Signature(
-        # Close every open position. Pine v6:
-        #   strategy.close_all(comment, alert_message, immediately,
-        #                      disable_alert)
+        # Close every open position. Matches PyneCore's ``close_all()`` in
+        # ``third_party/pynecore/src/pynecore/lib/strategy/__init__.py:2994``:
+        #   strategy.close_all(comment, alert_message, immediately)
+        # NOTE: earlier drafts declared ``disable_alert`` at the tail; DROPPED
+        # to match PyneCore (would crash at aeh codegen with the same
+        # ``TypeError`` pattern as ``strategy.close``).
         args=(
             ("comment", _CONST_STRING),
             ("alert_message", _CONST_STRING),
             ("immediately", _SIMPLE_BOOL),
-            ("disable_alert", _SIMPLE_BOOL),
         ),
         returns=_VOID,
-        notes="IMPLEMENTED",
+        notes="SIGNATURE_ONLY",
     ),
     "strategy.cancel": Signature(
         # Cancel a specific pending order by ``id``. Single-arg Pine v6 call.
         args=(("id", _CONST_STRING),),
         returns=_VOID,
-        notes="IMPLEMENTED",
+        notes="SIGNATURE_ONLY",
     ),
     "strategy.cancel_all": Signature(
         # Cancel every pending order. Zero-arg — no filter surface in Pine.
         args=(),
         returns=_VOID,
-        notes="IMPLEMENTED",
+        notes="SIGNATURE_ONLY",
     ),
 
     # --- Namespace constants (direction + qty-type enums) ----------------------
@@ -669,11 +698,11 @@ BUILTIN_SIGNATURES: dict[str, Signature] = {
     #     decorator) but the attribute still needs to resolve cleanly; else
     #     the type checker raises PineUnsupportedBuiltinError before ever
     #     reaching the directive walk.
-    "strategy.long":              Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
-    "strategy.short":             Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
-    "strategy.fixed":             Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
-    "strategy.cash":              Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
-    "strategy.percent_of_equity": Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
+    "strategy.long":              Signature(args=(), returns=_CONST_STRING, notes="SIGNATURE_ONLY"),
+    "strategy.short":             Signature(args=(), returns=_CONST_STRING, notes="SIGNATURE_ONLY"),
+    "strategy.fixed":             Signature(args=(), returns=_CONST_STRING, notes="SIGNATURE_ONLY"),
+    "strategy.cash":              Signature(args=(), returns=_CONST_STRING, notes="SIGNATURE_ONLY"),
+    "strategy.percent_of_equity": Signature(args=(), returns=_CONST_STRING, notes="SIGNATURE_ONLY"),
 }
 
 
