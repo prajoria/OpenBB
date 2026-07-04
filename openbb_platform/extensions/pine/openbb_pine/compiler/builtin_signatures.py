@@ -93,24 +93,27 @@ _INPUT_FLOAT = PineType(qualifier="input", inner=Scalar(kind="float"))
 _INPUT_BOOL = PineType(qualifier="input", inner=Scalar(kind="bool"))
 _INPUT_STRING = PineType(qualifier="input", inner=Scalar(kind="string"))
 _CONST_COLOR = PineType(qualifier="const", inner=Scalar(kind="color"))
-# Added for bead y86 (D5 §7.2 request.security signature).
+# _CONST_BOOL / _CONST_STRING / _SERIES_ANY — shared shorthands added by
+# bead y86 (request.security signature, D5 §7.2). _CONST_STRING is used by
+# h14's strategy.entry id/direction args; _CONST_BOOL by request.security's
+# gaps/lookahead kwargs; _SERIES_ANY by request.security's polymorphic
+# ``expression`` shape. See :class:`AnyT` for why _SERIES_ANY uses a dedicated
+# sentinel instead of ``UnknownT(-1)`` (four other type_checker fallback sites
+# use ``UnknownT(-1)`` for "compiler could not infer"; structural equality
+# would silently unify unrelated code paths).
 _CONST_BOOL = PineType(qualifier="const", inner=Scalar(kind="bool"))
-# _CONST_STRING (const<string>) — kept as a shared shorthand for downstream
-# beads (h14's ``strategy.entry`` id/direction args land here). Not
-# referenced by the y86 signature itself (``request.security`` uses
-# ``_SIMPLE_STRING`` per D5 §7.2), so this alias is intentionally unused
-# in this PR — no dead-code removal; the entry is a shared constant.
 _CONST_STRING = PineType(qualifier="const", inner=Scalar(kind="string"))
-# ``_SERIES_ANY`` models Pine's polymorphic ``series<T>`` — request.security's
-# ``expression`` argument and its return type share this shape (T is inferred
-# from ``expression`` per D5 §7.2). We encode "any inner" via the dedicated
-# :class:`AnyT` sentinel (NOT a fresh ``UnknownT``): four other type_checker
-# fallback sites use ``UnknownT(-1)`` for "compiler could not infer", and
-# structural equality on frozen dataclasses (``UnknownT(-1) == UnknownT(-1)``
-# is True) would silently unify unrelated code paths through the sentinel.
-# ``AnyT`` unifies with anything by design (see :func:`unify_inner`) and is
-# safe to share across signatures.
 _SERIES_ANY = PineType(qualifier="series", inner=AnyT())
+# Pseudo-void return marker — Pine's imperative statement-like builtins
+# (plot / plotshape / hline, and every strategy.* order-management call) don't
+# yield a meaningful expression value. The convention across this file is to
+# type their return as simple<float>; codegen ignores the return when the
+# call sits in statement position. ``_VOID`` is an alias for readability at
+# the signature call site — semantically identical to ``_SIMPLE_FLOAT``.
+# NOTE: h14's later fix commit refactors this to
+# ``PineType(qualifier="const", inner=NaT())`` per review; the fix will
+# supersede this alias when replayed.
+_VOID = _SIMPLE_FLOAT
 
 
 def _src_length() -> tuple[tuple[str, PineType], ...]:
@@ -507,6 +510,170 @@ BUILTIN_SIGNATURES: dict[str, Signature] = {
         returns=_SERIES_ANY,
         notes="IMPLEMENTED",
     ),
+
+    # strategy.* signatures (bead 0e9.6.h14 — D5 §7.2)
+    # ---------------------------------------------------------------------------
+    #
+    # Order-management calls (``strategy.entry`` etc.) are declared here so C3
+    # type-checks arg types and populates ``builtins_used`` with the qualified
+    # names. Codegen for these entries is deferred — bead ``aeh`` will lift
+    # the ``PineUnsupportedFeatureError`` PF010 stub in ``codegen.py`` and
+    # wire the calls through the ``openbb_pine.stdlib.strategy`` bridge. Until
+    # then a script that uses these WILL type-check cleanly but fail at
+    # codegen with a clear PF010 error pointing at the M2 tracking issue.
+    #
+    # Signature shape notes:
+    #
+    # * The :class:`Signature` dataclass has no distinct ``kwargs`` field.
+    #   ``args`` is the union of positional AND keyword-only parameters.
+    #   :func:`type_checker._check_call_args` walks positional args by index,
+    #   then keyword args by name-match against the same tuple — so declaring
+    #   ``qty`` / ``limit`` / ``stop`` / etc. as trailing entries yields the
+    #   correct kwarg-binding behaviour with no schema change.
+    #
+    # * Void-returning calls use ``_VOID`` (an alias for ``_SIMPLE_FLOAT``)
+    #   matching the ``plot`` / ``plotshape`` / ``hline`` convention; codegen
+    #   ignores the return when the call sits in statement position.
+    #
+    # * ``strategy.long`` / ``strategy.short`` / ``strategy.fixed`` /
+    #   ``strategy.cash`` / ``strategy.percent_of_equity`` are declared as
+    #   zero-arg ``Signature`` entries mirroring the ``color.red`` pattern
+    #   (attribute-access as a const-typed value). This is what makes
+    #   ``direction=strategy.long`` and ``default_qty_type=strategy.percent_of_equity``
+    #   type-check cleanly instead of raising PineUnsupportedBuiltinError.
+    #
+    # Every entry carries ``notes="IMPLEMENTED"`` per the D5 §7.2 convention
+    # so ``_coverage_manifest.py`` can count them as landed and the wild-corpus
+    # coverage metric (PRD §3.4 L0.5) attributes strategy-scoped scripts
+    # correctly.
+
+    # --- Order-management calls ------------------------------------------------
+    "strategy.entry": Signature(
+        # Pine v6 signature (per TradingView Pine reference, cross-checked
+        # against PyneCore's public surface):
+        #   strategy.entry(id, direction, qty, limit, stop, oca_name,
+        #                  oca_type, comment, alert_message, disable_alert)
+        # ``direction`` is const<string> because it must be ``strategy.long``
+        # or ``strategy.short`` (both const<string>). Value-set validation
+        # (rejecting "sideways" etc.) is not enforced here — the Signature
+        # type system carries no enum-value axis; a later bead may add
+        # per-signature literal-value validation. For now, type-level we
+        # require const<string> so bare barewords and series-qualified
+        # values are still rejected.
+        args=(
+            ("id", _CONST_STRING),
+            ("direction", _CONST_STRING),
+            ("qty", _SIMPLE_FLOAT),
+            ("limit", _SERIES_FLOAT),
+            ("stop", _SERIES_FLOAT),
+            ("oca_name", _CONST_STRING),
+            ("oca_type", _CONST_STRING),
+            ("comment", _CONST_STRING),
+            ("alert_message", _CONST_STRING),
+            ("disable_alert", _SIMPLE_BOOL),
+        ),
+        returns=_VOID,
+        notes="IMPLEMENTED",
+    ),
+    "strategy.exit": Signature(
+        # Pine v6 signature — the widest kwarg surface in the strategy.*
+        # namespace:
+        #   strategy.exit(id, from_entry, qty, qty_percent, profit, limit,
+        #                 loss, stop, trail_price, trail_points, trail_offset,
+        #                 oca_name, comment, comment_profit, comment_loss,
+        #                 comment_trailing, alert_message, alert_profit,
+        #                 alert_loss, alert_trailing, disable_alert)
+        args=(
+            ("id", _CONST_STRING),
+            ("from_entry", _CONST_STRING),
+            ("qty", _SIMPLE_FLOAT),
+            ("qty_percent", _SIMPLE_FLOAT),
+            ("profit", _SIMPLE_FLOAT),
+            ("limit", _SERIES_FLOAT),
+            ("loss", _SIMPLE_FLOAT),
+            ("stop", _SERIES_FLOAT),
+            ("trail_price", _SERIES_FLOAT),
+            ("trail_points", _SIMPLE_FLOAT),
+            ("trail_offset", _SIMPLE_FLOAT),
+            ("oca_name", _CONST_STRING),
+            ("comment", _CONST_STRING),
+            ("comment_profit", _CONST_STRING),
+            ("comment_loss", _CONST_STRING),
+            ("comment_trailing", _CONST_STRING),
+            ("alert_message", _CONST_STRING),
+            ("alert_profit", _CONST_STRING),
+            ("alert_loss", _CONST_STRING),
+            ("alert_trailing", _CONST_STRING),
+            ("disable_alert", _SIMPLE_BOOL),
+        ),
+        returns=_VOID,
+        notes="IMPLEMENTED",
+    ),
+    "strategy.close": Signature(
+        # Close a specific position by ``id``. Pine v6:
+        #   strategy.close(id, when, comment, qty, qty_percent,
+        #                  alert_message, immediately, disable_alert)
+        # ``when`` is a soft-deprecated boolean guard (v4 hangover); still
+        # accepted by Pine v6, so we declare it for signature parity.
+        args=(
+            ("id", _CONST_STRING),
+            ("when", _SERIES_BOOL),
+            ("comment", _CONST_STRING),
+            ("qty", _SIMPLE_FLOAT),
+            ("qty_percent", _SIMPLE_FLOAT),
+            ("alert_message", _CONST_STRING),
+            ("immediately", _SIMPLE_BOOL),
+            ("disable_alert", _SIMPLE_BOOL),
+        ),
+        returns=_VOID,
+        notes="IMPLEMENTED",
+    ),
+    "strategy.close_all": Signature(
+        # Close every open position. Pine v6:
+        #   strategy.close_all(comment, alert_message, immediately,
+        #                      disable_alert)
+        args=(
+            ("comment", _CONST_STRING),
+            ("alert_message", _CONST_STRING),
+            ("immediately", _SIMPLE_BOOL),
+            ("disable_alert", _SIMPLE_BOOL),
+        ),
+        returns=_VOID,
+        notes="IMPLEMENTED",
+    ),
+    "strategy.cancel": Signature(
+        # Cancel a specific pending order by ``id``. Single-arg Pine v6 call.
+        args=(("id", _CONST_STRING),),
+        returns=_VOID,
+        notes="IMPLEMENTED",
+    ),
+    "strategy.cancel_all": Signature(
+        # Cancel every pending order. Zero-arg — no filter surface in Pine.
+        args=(),
+        returns=_VOID,
+        notes="IMPLEMENTED",
+    ),
+
+    # --- Namespace constants (direction + qty-type enums) ----------------------
+    # These are lookup values, not callable functions. The type checker walks
+    # ``_visit_attribute`` -> ``lookup_builtin("strategy.long")`` and reads
+    # ``sig.returns`` as the value's type. Mirror of the ``color.red`` pattern
+    # (bare Attribute yielding a const<T>). Downstream consumers:
+    #   * ``strategy.entry(id, strategy.long)`` — direction kwarg receives a
+    #     const<string> value; PT001 accepts it against the const<string>
+    #     formal (const promotes to any weaker qualifier).
+    #   * ``strategy(default_qty_type=strategy.percent_of_equity)`` — the
+    #     top-level directive's kwarg (parsed by C2's ScriptDirective
+    #     handler). C3 doesn't type-check the directive's kwargs today
+    #     (they're passed opaquely to the emitted ``@script.strategy``
+    #     decorator) but the attribute still needs to resolve cleanly; else
+    #     the type checker raises PineUnsupportedBuiltinError before ever
+    #     reaching the directive walk.
+    "strategy.long":              Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
+    "strategy.short":             Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
+    "strategy.fixed":             Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
+    "strategy.cash":              Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
+    "strategy.percent_of_equity": Signature(args=(), returns=_CONST_STRING, notes="IMPLEMENTED"),
 }
 
 
