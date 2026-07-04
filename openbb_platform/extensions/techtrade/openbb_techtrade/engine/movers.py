@@ -19,12 +19,15 @@ imported lazily inside the default fetcher only, keeping module import light.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import date, timedelta
 from decimal import Decimal
 
 from openbb_techtrade.engine.screener import GICS_SECTOR_ETFS, list_segments
 from openbb_techtrade.models import Mover, MoverList, SegmentConfig
+
+_logger = logging.getLogger(__name__)
 
 # The metrics ``rank_movers`` knows how to order candidates by (mirrors
 # ``SegmentConfig.rank_metric``). ``gap`` / ``rel_volume`` require OHLCV history.
@@ -291,11 +294,13 @@ def _default_candidate_fetcher(
         )
 
     candidates: dict[str, dict] = {}
+    successful_sources: list[str] = []
     for source in ("gainers", "losers", "active"):
         try:
             rows = _call_discovery(getattr(obb.equity.discovery, source))
         except Exception:  # noqa: BLE001, S112 - skip a flaky discovery source
             continue
+        successful_sources.append(source)
         for row in rows:
             symbol = getattr(row, "symbol", None)
             if not symbol or symbol in candidates:
@@ -305,6 +310,19 @@ def _default_candidate_fetcher(
                 "pct_change": getattr(row, "percent_change", None),
                 "volume": getattr(row, "volume", None),
             }
+
+    # R7.3 loud-empty: the discovery firehose (union of gainers/losers/active)
+    # returning zero rows means every source either raised or returned []. This
+    # is different from the intersection-with-universe emptiness above — this
+    # one means the raw feed itself is dead. Emit a WARNING with the source
+    # count so ops can localize the outage.
+    if not candidates:
+        _logger.warning(
+            "discovery feed produced 0 candidates "
+            "(sources_ok=%d/3, provider=fmp_cached, as_of=%s)",
+            len(successful_sources),
+            as_of.isoformat(),
+        )
 
     if needs_ohlcv:
         for symbol, candidate in candidates.items():
@@ -379,6 +397,17 @@ def _fetch_universe_candidates(
             out.append(compute_ohlcv_metrics(symbol, bars))
         except Exception:  # noqa: BLE001, S112 - skip a symbol whose history fails
             continue
+    # R7.3 loud-empty: a non-empty universe producing zero candidates almost
+    # always means every per-symbol OHLCV fetch failed (bad symbols, provider
+    # outage, wrong as_of window). Silent zero here previously required a
+    # full user-driven debug session (bd z7f).
+    if universe and not out:
+        _logger.warning(
+            "no OHLCV history returned for any of %d universe symbols "
+            "(as_of=%s, provider=fmp_cached)",
+            len(seen),
+            as_of.isoformat(),
+        )
     return out
 
 
@@ -461,7 +490,21 @@ def build_mover_list(
 
     if universe is not None:
         allowed = set(universe)
+        pre_filter_count = len(candidates)
         candidates = [c for c in candidates if c.get("symbol") in allowed]
+        # R7.3 loud-empty: a pre-filter non-empty candidate set collapsing to
+        # zero after intersecting with the universe is the exact fingerprint
+        # of bd OpenBBTechnical-z7f (discovery firehose does not intersect
+        # sector-ETF holdings). Emit a WARNING with the arithmetic so any
+        # future recurrence is one grep away.
+        if pre_filter_count > 0 and not candidates:
+            _logger.warning(
+                "segment=%s: universe filter removed all candidates "
+                "(pre_filter=%d, allowed=%d, intersection=0) — see bd z7f",
+                config.segment,
+                pre_filter_count,
+                len(allowed),
+            )
 
     return rank_movers(config.segment, session, candidates, metric=metric, top_n=top_n)
 
