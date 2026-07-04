@@ -82,10 +82,20 @@ build/conda/tmp
 logs/
 portfolio_app/logs/
 
+# Legal artifacts — reference-only, machine-local (see docs/legal/README.md).
+# Signed counsel sign-offs, engagement letters, and redlines stored here per
+# PRD §2 / bead 0e9.4.1 close-out. Authoritative status lives in bd, not git.
+docs/legal/
+
 # Claude Code local config (machine-specific) — ignore the personal bits but
-# keep shared, version-controlled command definitions tracked.
+# keep shared, version-controlled command definitions tracked. Also keep the
+# project-scope settings.json + hooks tracked so team-wide policy (e.g. the
+# branch-protection hook per CLAUDE.md "Branch Protection Policy") is
+# inherited by every clone rather than living per-machine.
 .claude/*
 !.claude/commands/
+!.claude/settings.json
+!.claude/hooks/
 .claude/settings.local.json
 .claude/sessions/
 
