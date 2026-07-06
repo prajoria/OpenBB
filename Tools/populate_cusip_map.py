@@ -167,9 +167,8 @@ def get_sp500_symbols(database: str | None = None) -> list[tuple[str, str]]:
 
 def _profile_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
     """One FMP stable profile lookup -> (cusip, issuer_name) or None."""
-    import re
-
     import requests
+    from openbb_fmp_cached.utils.security import raise_for_status_redacted
 
     try:
         # apikey via params= keeps it out of URL strings that could land in
@@ -184,24 +183,13 @@ def _profile_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
             timeout=REQUEST_TIMEOUT,
         )
         # ``requests`` merges ``params=`` into PreparedRequest.url pre-send,
-        # so ``resp.url`` contains the plaintext apikey. Rewrite it before
-        # ``raise_for_status()`` fires — otherwise the HTTPError message
-        # would leak the key into the ``str(e)[:80]`` truncation below and
-        # into any exception-chain that surfaces upstream.
-        if resp.status_code >= 400:
-            redacted = re.sub(
-                r"([?&])apikey=[^&]*",
-                r"\1apikey=__redacted__",
-                getattr(resp, "url", "") or "",
-                flags=re.IGNORECASE,
-            )
-            try:
-                resp.url = redacted
-                if getattr(resp, "request", None) is not None:
-                    resp.request.url = redacted
-            except (AttributeError, TypeError):
-                pass
-        resp.raise_for_status()
+        # so ``resp.url`` contains the plaintext apikey. Use the shared
+        # ``raise_for_status_redacted`` wrapper — otherwise the HTTPError
+        # message would leak the key into the ``str(e)[:80]`` truncation
+        # below and into any exception-chain that surfaces upstream.
+        # (Round-2 review DRY cleanup: was inline; now consumes the shared
+        # helper via the ``openbb_fmp_cached`` sys.path entry set up above.)
+        raise_for_status_redacted(resp)
         data = resp.json()
     except Exception as e:  # noqa: BLE001
         logger.warning("%s: profile request failed: %s", symbol, str(e)[:80])
