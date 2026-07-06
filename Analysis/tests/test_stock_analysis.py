@@ -645,6 +645,7 @@ def _make_mock_p6(relative_score: float = 3.8, ir: float = 0.6) -> Phase6Result:
         peer_fundamental_df=pd.DataFrame(),
         relative_valuation_score=65.0,
         rolling_3m_rank=55.0,
+        momentum_accel_63d=0.0,   # A6 (bead 0h2.9) — neutral default
         gate_passed=True,
         gate_notes="OK",
     )
@@ -839,6 +840,112 @@ class TestPhase6Rolling3M:
         p6 = _make_mock_p6()
         assert hasattr(p6, "rolling_3m_rank")
         assert 0.0 <= p6.rolling_3m_rank <= 100.0
+
+
+class TestPhase6MomentumAccel:
+    """Verify momentum_accel_63d on Phase6Result (bead OpenBBTechnical-0h2.9).
+
+    A6 rec (reviewer P6): a static 63-day rank misses whether the stock is
+    *improving* or *deteriorating* relative to peers.  Compute the rank at
+    ``t-63`` and at ``t``; accel = ``(rank_t - rank_{t-63}) / 100`` — a
+    scalar in ``[-1.0, +1.0]`` where positive = climbing the peer ladder,
+    negative = falling.  Same 63-day window and same peer-percentile
+    machinery as the existing ``rolling_3m_rank`` — so the arithmetic is
+    zero-drift by construction.
+    """
+
+    def test_mock_p6_has_momentum_accel_field(self):
+        p6 = _make_mock_p6()
+        assert hasattr(p6, "momentum_accel_63d"), (
+            "Phase6Result must carry momentum_accel_63d per bead 0h2.9"
+        )
+
+    def test_momentum_accel_in_valid_range(self):
+        """Range guard — the delta of two percentiles / 100 lives in [-1, +1]."""
+        p6 = _make_mock_p6()
+        assert -1.0 <= p6.momentum_accel_63d <= 1.0
+
+    def test_monotone_improving_ranks_yield_positive_accel(self):
+        """Property test (per bead 0h2.9): a symbol whose peer rank is
+        monotone-improving across the 126-day window must produce positive
+        momentum_accel_63d.
+
+        We synthesize returns for TARGET + 4 peers where TARGET's cumulative
+        return grows from the bottom of the pack in the earlier 63d window
+        to the top in the later 63d window.  The delta-rank / 100 must
+        therefore be strictly positive.
+        """
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        # 126 daily-return rows for 5 symbols. In the earlier 63d window
+        # TARGET has the LOWEST cumulative return (worst rank); in the
+        # later 63d window it has the HIGHEST cumulative return (best rank).
+        rng = np.random.default_rng(seed=42)
+        peer_returns_early = rng.normal(loc=0.001, scale=0.01, size=(63, 4))  # 4 peers
+        target_returns_early = rng.normal(loc=-0.005, scale=0.01, size=(63, 1))  # TARGET worst
+        early_block = np.hstack([target_returns_early, peer_returns_early])
+
+        peer_returns_late = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
+        target_returns_late = rng.normal(loc=0.005, scale=0.01, size=(63, 1))  # TARGET best
+        late_block = np.hstack([target_returns_late, peer_returns_late])
+
+        columns = ["TARGET", "P1", "P2", "P3", "P4"]
+        returns_df = pd.DataFrame(
+            np.vstack([early_block, late_block]),
+            columns=columns,
+        )
+
+        accel = _compute_momentum_accel_63d(returns_df, "TARGET")
+        assert accel > 0.0, (
+            f"Monotone-improving rank must yield positive accel, got {accel:.4f}"
+        )
+
+    def test_monotone_deteriorating_ranks_yield_negative_accel(self):
+        """Symmetric guard: a rank that's collapsing must produce negative accel."""
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(seed=17)
+        peer_returns_early = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
+        target_returns_early = rng.normal(loc=0.005, scale=0.01, size=(63, 1))  # TARGET best
+        early_block = np.hstack([target_returns_early, peer_returns_early])
+
+        peer_returns_late = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
+        target_returns_late = rng.normal(loc=-0.005, scale=0.01, size=(63, 1))  # TARGET worst
+        late_block = np.hstack([target_returns_late, peer_returns_late])
+
+        columns = ["TARGET", "P1", "P2", "P3", "P4"]
+        returns_df = pd.DataFrame(
+            np.vstack([early_block, late_block]),
+            columns=columns,
+        )
+
+        accel = _compute_momentum_accel_63d(returns_df, "TARGET")
+        assert accel < 0.0, (
+            f"Monotone-deteriorating rank must yield negative accel, got {accel:.4f}"
+        )
+
+    def test_insufficient_history_returns_zero(self):
+        """Fewer than 126 rows → cannot compute a t-63 baseline → 0.0 (neutral)."""
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        # Only 100 rows — below the 126 threshold.
+        returns_df = pd.DataFrame(
+            np.random.default_rng(0).normal(size=(100, 3)),
+            columns=["TARGET", "P1", "P2"],
+        )
+        accel = _compute_momentum_accel_63d(returns_df, "TARGET")
+        assert accel == 0.0
+
+    def test_symbol_absent_from_returns_returns_zero(self):
+        """Symbol not in the returns DataFrame → neutral 0.0 (never raises)."""
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        returns_df = pd.DataFrame(
+            np.random.default_rng(0).normal(size=(150, 3)),
+            columns=["P1", "P2", "P3"],
+        )
+        accel = _compute_momentum_accel_63d(returns_df, "TARGET_NOT_HERE")
+        assert accel == 0.0
 
 
 class TestPhase1Tradeability:
