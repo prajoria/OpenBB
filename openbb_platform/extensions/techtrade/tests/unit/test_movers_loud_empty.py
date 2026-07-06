@@ -538,3 +538,139 @@ def test_fetch_universe_candidates_warns_on_partial_scan_degradation(
     msg = warnings[0].getMessage()
     assert "2/5 symbols dropped" in msg
     assert "failed_fetch=2" in msg
+
+
+# --------------------------------------------------------------------------- #
+# Iter-2 boundary coverage — pr-test-analyzer findings.
+# The existing tests pin the ON-boundary (50% and 20% each fires the warning).
+# These new tests pin the OFF-boundary (just below the threshold does NOT
+# warn) so a future refactor that tightens `>=` to `>` (or shifts the
+# multiplier) is caught immediately.
+# --------------------------------------------------------------------------- #
+def test_rank_movers_does_not_warn_at_40pct_drop(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """40% drop (< 50% threshold) MUST NOT warn — boundary guard."""
+    from openbb_techtrade.engine.movers import rank_movers
+
+    candidates = [
+        {"symbol": "A", "pct_change": 0.01, "volume": None},
+        {"symbol": "B", "pct_change": 0.02, "volume": None},
+        {"symbol": "C", "pct_change": 0.03, "volume": 100},
+        {"symbol": "D", "pct_change": 0.04, "volume": 200},
+        {"symbol": "E", "pct_change": 0.05, "volume": 300},
+    ]
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        result = rank_movers("test", date(2024, 1, 10), candidates, metric="volume")
+
+    assert len(result.movers) == 3
+    assert not [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "rank_movers" in r.getMessage()
+    ], "warning must NOT fire at 40% drop (< 50% threshold)"
+
+
+def test_fetch_universe_candidates_does_not_warn_below_20pct_drop(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """~17% drop (1/6, just below 20% threshold) MUST NOT warn — boundary guard."""
+    fake_bars = [
+        SimpleNamespace(open=100.0, high=101.0, low=99.0, close=100.5, volume=1_000_000),
+        SimpleNamespace(open=100.5, high=102.0, low=100.0, close=101.5, volume=1_200_000),
+    ]
+
+    def _sometimes_fail(**kwargs):
+        if kwargs.get("symbol") == "BAD1":
+            raise RuntimeError("simulated per-symbol fetch failure")
+        return SimpleNamespace(results=fake_bars)
+
+    fake_obb = SimpleNamespace(
+        equity=SimpleNamespace(price=SimpleNamespace(historical=_sometimes_fail))
+    )
+    # 6 symbols, 1 fails = 16.67% drop, just below 20% threshold.
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        out = _fetch_universe_candidates(
+            fake_obb,
+            ["A", "B", "C", "D", "E", "BAD1"],
+            as_of=date(2024, 1, 10),
+            ohlcv_lookback=21,
+        )
+
+    assert len(out) == 5
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING], (
+        "warning must NOT fire below 20% drop (16.67% of universe)"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Iter-2 additional coverage — silent-failure-hunter findings F1 + F2.
+# Discovery-path null_symbol tracking and all-falsy universe handling.
+# --------------------------------------------------------------------------- #
+def test_default_candidate_fetcher_warns_with_null_symbol_count_when_rows_have_null_symbols(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """FMP data-quality event: rows returned but every row has symbol=None."""
+    fake_row = SimpleNamespace(symbol=None, percent_change=0.05, volume=1_000_000)
+
+    def _null_symbol_source(*_a, **_kw):
+        return SimpleNamespace(results=[fake_row, fake_row])
+
+    fake_obb = SimpleNamespace(
+        equity=SimpleNamespace(
+            discovery=SimpleNamespace(
+                gainers=_null_symbol_source,
+                losers=_null_symbol_source,
+                active=_null_symbol_source,
+            )
+        )
+    )
+    import openbb
+
+    with (
+        patch.object(openbb, "obb", fake_obb),
+        caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"),
+    ):
+        out = _default_candidate_fetcher(as_of=date(2024, 1, 10))
+
+    assert out == []
+    warnings = [
+        r for r in caplog.records
+        if r.levelno == logging.WARNING and "discovery feed produced 0 candidates" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    msg = warnings[0].getMessage()
+    assert "null_symbols=6" in msg  # 3 sources × 2 null rows each
+    # Distinguishable from "3 sources empty": raised + empty are BOTH empty
+    # lists here, but null_symbols is non-zero.
+    assert "raised=[]" in msg
+    assert "empty=[]" in msg
+
+
+def test_fetch_universe_candidates_warns_distinctly_when_universe_is_all_falsy(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Iter-2 code-reviewer F3 / silent-failure-hunter F2: distinct message
+    when caller passed a garbage universe (all-falsy entries) rather than
+    "0 symbols failed to fetch" which would send ops on a wild-goose chase.
+    """
+    fake_obb = SimpleNamespace(
+        equity=SimpleNamespace(price=SimpleNamespace(historical=lambda **_k: SimpleNamespace(results=[])))
+    )
+
+    with caplog.at_level(logging.WARNING, logger="openbb_techtrade.engine.movers"):
+        out = _fetch_universe_candidates(
+            fake_obb,
+            ["", None, "", None],
+            as_of=date(2024, 1, 10),
+            ohlcv_lookback=21,
+        )
+
+    assert out == []
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    msg = warnings[0].getMessage()
+    assert "all were falsy after dedup" in msg
+    assert "4 symbols" in msg  # len(universe), NOT len(seen)
+    # Must NOT match the OHLCV-failure message format
+    assert "no OHLCV history returned" not in msg
+    assert "empty_history=" not in msg

@@ -321,8 +321,12 @@ def _default_candidate_fetcher(
     # PR #325 review (silent-failure-hunter finding #5): track raised vs
     # empty-but-not-raised discovery sources separately so ops can tell
     # "endpoint dead" from "no market movers today" from partial-outage.
+    # Iter-2: also count null-symbol rows per source so a data-quality event
+    # (FMP returns rows but every row has symbol=None during a symbol-
+    # unification drift) is distinguishable from "endpoint returned []".
     raised_sources: list[str] = []
     empty_sources: list[str] = []
+    null_symbol_count = 0
     for source in ("gainers", "losers", "active"):
         try:
             rows = _call_discovery(getattr(obb.equity.discovery, source))
@@ -334,7 +338,10 @@ def _default_candidate_fetcher(
             continue
         for row in rows:
             symbol = getattr(row, "symbol", None)
-            if not symbol or symbol in candidates:
+            if not symbol:
+                null_symbol_count += 1
+                continue
+            if symbol in candidates:
                 continue
             candidates[symbol] = {
                 "symbol": symbol,
@@ -343,7 +350,9 @@ def _default_candidate_fetcher(
             }
 
     # R7.3 loud-empty. Two warning triggers:
-    #   * TOTAL: no candidates at all → raw feed is dead
+    #   * TOTAL: no candidates at all → raw feed is dead OR every row had
+    #     symbol=None (data-quality event; the null_symbol_count field lets
+    #     ops distinguish the two silent-failure signatures).
     #   * PARTIAL: any source raised or returned empty → caller may be
     #     silently under-sampled (e.g. losers-side moves missing from a
     #     pct_change ranking); PR #325 review (silent-failure-hunter #5)
@@ -353,19 +362,22 @@ def _default_candidate_fetcher(
     if not candidates:
         _logger.warning(
             "discovery feed produced 0 candidates "
-            "(raised=%s, empty=%s, provider=fmp_cached, as_of=%s)",
+            "(raised=%s, empty=%s, null_symbols=%d, provider=fmp_cached, "
+            "as_of=%s)",
             raised_sources or "[]",
             empty_sources or "[]",
+            null_symbol_count,
             as_of.isoformat(),
         )
     elif degraded:
         _logger.warning(
             "discovery feed partially degraded: %d/3 sources produced rows "
-            "(raised=%s, empty=%s, provider=fmp_cached, as_of=%s) — "
-            "ranking may be biased toward the healthy sources",
+            "(raised=%s, empty=%s, null_symbols=%d, provider=fmp_cached, "
+            "as_of=%s) — ranking may be biased toward the healthy sources",
             3 - len(raised_sources) - len(empty_sources),
             raised_sources or "[]",
             empty_sources or "[]",
+            null_symbol_count,
             as_of.isoformat(),
         )
 
@@ -420,6 +432,22 @@ def _fetch_universe_candidates(
     -------
     list[dict]
         One candidate dict per successfully-fetched symbol.
+
+    Warnings
+    --------
+    Emits a ``logging.WARNING`` in three distinct silent-failure scenarios
+    (PR #325 review, silent-failure-hunter findings #2 / #6):
+
+    * **Falsy universe** — ``universe`` was non-empty but every entry was
+      dropped as falsy (``None`` / ``""``). Points ops at the upstream
+      holdings/screener fetcher rather than at OHLCV.
+    * **Total OHLCV failure** — universe had usable symbols but every
+      per-symbol fetch dropped (empty history or exception). Original
+      bd-z7f-class silent failure.
+    * **Partial degradation (>= 20% dropped)** — ranker will produce biased
+      top-N because a substantial fraction of the requested universe never
+      contributed a candidate. Threshold mirrors the "membership-count
+      sanity" heuristic in :func:`~openbb_techtrade.engine.universe.validate_membership`.
     """
     start = (as_of - timedelta(days=ohlcv_lookback * 2 + 10)).isoformat()
     end = as_of.isoformat()
@@ -452,14 +480,29 @@ def _fetch_universe_candidates(
             failed_fetch.append(symbol)
             continue
     # R7.3 loud-empty. Two triggers:
-    #   * TOTAL: universe non-empty, out empty → every symbol dropped (the
-    #     original 90e trigger — the bd-z7f class silent failure).
-    #   * PARTIAL: >= 20% of the requested universe dropped → callers ranking
+    #   * TOTAL: universe had usable symbols, out empty → every symbol dropped
+    #     (the original 90e trigger — the bd-z7f class silent failure).
+    #   * PARTIAL: >= 20% of the processed universe dropped → callers ranking
     #     top-N are silently under-sampled and rankings are biased toward the
     #     symbols that survived. Chosen threshold matches the "membership-
     #     count sanity" heuristic in universe.validate_membership.
+    # Iter-2 (code-reviewer F3 / silent-failure-hunter F2): guard on ``seen``
+    # rather than ``universe`` so a caller passing an all-falsy universe
+    # (e.g. ``["", None]`` from a drifted ETF-holdings response) does not
+    # produce nonsensical "any of 0 universe symbols" warnings that would
+    # send an ops investigator on a wild-goose chase looking for a provider
+    # outage that isn't there. When ``seen`` is empty AND ``universe`` was
+    # non-empty, the caller passed a garbage universe — log that separately.
     skipped = len(empty_history) + len(failed_fetch)
-    if universe and not out:
+    if universe and not seen:
+        _logger.warning(
+            "universe scan received %d symbols but all were falsy after "
+            "dedup (as_of=%s) — check the upstream holdings/screener "
+            "fetcher, symbols may have drifted to None or ''",
+            len(universe),
+            as_of.isoformat(),
+        )
+    elif seen and not out:
         _logger.warning(
             "no OHLCV history returned for any of %d universe symbols "
             "(as_of=%s, provider=fmp_cached, empty_history=%d, failed=%d, "
@@ -470,7 +513,7 @@ def _fetch_universe_candidates(
             len(failed_fetch),
             failed_fetch[0] if failed_fetch else None,
         )
-    elif universe and skipped * 5 >= len(seen):  # >= 20% skipped
+    elif seen and skipped * 5 >= len(seen):  # >= 20% skipped
         _logger.warning(
             "universe scan partially degraded: %d/%d symbols dropped "
             "(empty_history=%d, failed_fetch=%d, as_of=%s, "
@@ -690,8 +733,13 @@ def _resolve_filter_universe(
 
     Returns ``None`` (no filter) unless filtering is enabled *and* the live
     candidate path is in use (no injected ``candidate_fetcher``); a resolution
-    failure also degrades to ``None`` so a thin or unreachable universe never aborts
-    ranking. ``resolve_universe`` is imported lazily to keep module import light.
+    failure also degrades to ``None`` so a thin or unreachable universe never
+    aborts ranking. The resolution failure is logged at ``WARNING`` level with
+    the exception type, source, and benchmark ETF (PR #325 review, silent-
+    failure-hunter finding #2), so an operator can distinguish "sector
+    legitimately empty" from "sector lookup broke and we're returning
+    unfiltered market data". ``resolve_universe`` is imported lazily to keep
+    module import light.
 
     Parameters
     ----------

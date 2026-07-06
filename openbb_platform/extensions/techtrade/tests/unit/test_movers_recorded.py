@@ -154,23 +154,34 @@ def _make_fake_obb_for_universe_path():
 
     ``_fetch_universe_candidates`` calls ``obb.equity.price.historical(...)``
     per symbol; we return two synthetic OHLCV bars per call so
-    :func:`compute_ohlcv_metrics` produces a non-null metric row. The exact
-    numbers don't matter — the load-bearing behavior is that the real code
-    path in :func:`_default_candidate_fetcher` dispatches to the universe
-    branch when ``universe`` is non-empty, and that ``list_movers`` threads
-    it through end-to-end.
+    :func:`compute_ohlcv_metrics` produces a non-null metric row.
+
+    Iter-2 (silent-failure-hunter finding #5): per-symbol distinguishable
+    bars, seeded from the ``symbol`` kwarg's hash. This lets the caller
+    assert on the top-ranked symbol identity — catching bugs like "dropped
+    the symbol kwarg" or "used bars[0] instead of bars[-1]" that identical
+    bars would silently mask.
     """
 
-    def _fake_historical(**_kwargs: object) -> SimpleNamespace:
+    def _fake_historical(*, symbol: str, **_kwargs: object) -> SimpleNamespace:
+        # Deterministic per-symbol seed — hash() would give session-scoped
+        # values; use character-sum for stability across runs.
+        seed = sum(ord(c) for c in symbol) if symbol else 0
+        pct_boost = (seed % 20) / 1000.0  # 0.000 .. 0.019 range
+        vol_boost = (seed % 50) * 100_000  # 0 .. 4_900_000 range
         # Two chronologically-ascending bars — compute_ohlcv_metrics needs
         # >= 2 bars to derive pct_change / gap / rel_volume without falling
         # into its 1-bar degenerate branch.
+        prior_close = 100.0
+        last_close = prior_close * (1.0 + pct_boost)
         bars = [
             SimpleNamespace(
-                open=100.0, high=101.0, low=99.5, close=100.5, volume=1_000_000
+                open=prior_close, high=prior_close + 1.0, low=prior_close - 0.5,
+                close=prior_close, volume=1_000_000,
             ),
             SimpleNamespace(
-                open=100.5, high=102.0, low=100.0, close=101.5, volume=1_200_000
+                open=prior_close, high=last_close + 1.0, low=prior_close - 0.5,
+                close=last_close, volume=1_000_000 + vol_boost,
             ),
         ]
         return SimpleNamespace(results=bars)
@@ -249,6 +260,26 @@ def test_list_movers_information_technology_end_to_end_with_recorded_holdings(
     result_symbols = {m.symbol for m in results[0].movers}
     assert result_symbols.issubset(xlk_symbols), (
         f"movers escaped the XLK universe: {result_symbols - xlk_symbols}"
+    )
+
+    # Iter-2 (silent-failure-hunter finding #5): the fake_obb now returns
+    # per-symbol distinguishable bars (seed = sum of char ordinals mod 20).
+    # Independently compute which XLK symbol should rank #1 by pct_change,
+    # then assert the mover list agrees. This catches bugs like "dropped
+    # the symbol kwarg" or "used bars[0] instead of bars[-1]" that identical
+    # bars would silently mask.
+    def _expected_pct(sym: str) -> float:
+        seed = sum(ord(c) for c in sym)
+        return (seed % 20) / 1000.0
+
+    expected_top = max(xlk_symbols, key=lambda s: (_expected_pct(s), s))
+    top_mover = results[0].movers[0]
+    assert top_mover.symbol == expected_top or _expected_pct(top_mover.symbol) == _expected_pct(expected_top), (
+        f"Top-ranked mover {top_mover.symbol} does not match the expected "
+        f"highest-pct symbol {expected_top}. This can happen if "
+        f"_fetch_universe_candidates dropped the symbol kwarg (all symbols "
+        f"would get identical bars) or used bars[0] instead of bars[-1] "
+        f"(pct_change would be 0 for every symbol)."
     )
 
 
