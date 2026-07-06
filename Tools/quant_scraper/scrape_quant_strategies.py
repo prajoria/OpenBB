@@ -161,9 +161,21 @@ def run_git(action: str, slug: str, local: Path, shallow: bool) -> tuple[str, st
     # hook, prompt for creds) doesn't freeze the executor. 600s = 10 min
     # is generous for shallow clones of typical awesome-quant repos but
     # small enough to catch a truly-stuck subprocess. bd-1uie flags this.
-    proc = subprocess.run(  # noqa: S603
-        cmd, check=False, capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS
-    )
+    # ``subprocess.TimeoutExpired`` is caught + mapped to the same
+    # ``('failed', <detail>)`` contract as returncode-based failures so
+    # a single stalled repo doesn't abort the batch mid-flight (would
+    # otherwise skip the ``.scrape_state.json`` write and lose completed
+    # per-repo statuses — flagged by Round-1 review).
+    try:
+        proc = subprocess.run(  # noqa: S603
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return "failed", f"timed out after {GIT_TIMEOUT_SECONDS}s"
     if proc.returncode != 0:
         return "failed", (proc.stderr or proc.stdout).strip()[:500]
     return ("cloned" if action == "clone" else "updated"), "ok"
@@ -209,7 +221,14 @@ def main(argv: list[str] | None = None) -> int:
     filter_cfg = cfg.get("filter") or {}
     source_cfg = cfg.get("source") or {}
 
-    target = resolve_target(args, cfg, repo_root)
+    try:
+        target = resolve_target(args, cfg, repo_root)
+    except ValueError as exc:
+        # Dash-prefixed target path from any of the 3 sources — surface
+        # cleanly instead of dumping a traceback. Matches the existing
+        # config-error return-2 contract below (bd-1uie / bd-55mp).
+        print(f"ERROR: {exc}")
+        return 2
     if not target:
         print("ERROR: no clone target (set QUANT_REPO_PATH in .env or --target).")
         return 2

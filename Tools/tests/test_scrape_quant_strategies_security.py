@@ -30,6 +30,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 # Ensure quant_scraper is importable — it's a script-style module under Tools/.
 _SCRAPER_DIR = Path(__file__).resolve().parents[1] / "quant_scraper"
 if str(_SCRAPER_DIR) not in sys.path:
@@ -222,4 +224,69 @@ def test_resolve_target_none_when_all_sources_empty(tmp_path, monkeypatch):
     assert result is None
 
 
-import pytest  # noqa: E402
+def test_run_git_timeout_expired_returns_failed_status(tmp_path):
+    """subprocess.TimeoutExpired must be caught and mapped to ('failed', <detail>).
+
+    Regression test for Round-1 review finding (both silent-failure-hunter
+    and code-reviewer flagged). Without this, the first timing-out repo
+    in a batch raises TimeoutExpired out of run_git → work() → ex.map()
+    iteration, aborting the whole batch and skipping the ``.scrape_state
+    .json`` write. Matches the existing ``failed`` status contract used
+    for non-zero returncodes.
+    """
+
+    def fake_run(cmd, *args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 0))
+
+    with patch.object(subprocess, "run", side_effect=fake_run):
+        status, detail = mod.run_git(
+            action="clone",
+            slug="foo/bar",
+            local=tmp_path / "foo__bar",
+            shallow=False,
+        )
+
+    assert status == "failed", f"expected 'failed', got {status!r}"
+    assert (
+        "timed out" in detail.lower()
+    ), f"detail should mention timeout, got: {detail!r}"
+    # And it should NOT raise — that's the whole point.
+
+
+def test_run_git_timeout_expired_pull_path(tmp_path):
+    """Same TimeoutExpired handling on the pull path (parity check)."""
+
+    def fake_run(cmd, *args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 0))
+
+    (tmp_path / "foo__bar").mkdir()
+    with patch.object(subprocess, "run", side_effect=fake_run):
+        status, detail = mod.run_git(
+            action="pull",
+            slug="foo/bar",
+            local=tmp_path / "foo__bar",
+            shallow=False,
+        )
+
+    assert status == "failed"
+    assert "timed out" in detail.lower()
+
+
+def test_main_returns_2_on_dash_prefixed_target_from_cli(tmp_path, capsys):
+    """``main()`` returns 2 (not tracebacks) when resolve_target raises ValueError.
+
+    Regression test for Round-1 review MEDIUM finding — the
+    ``ValueError`` from ``_reject_dash_prefixed_path`` used to bubble
+    unhandled out of ``main`` with a full traceback. Now it prints a
+    clean ERROR line and returns 2, matching the existing config-error
+    contract.
+    """
+    # Note: use --target=-evil (equals syntax) so argparse accepts '-evil'
+    # as a value rather than treating it as another option. In practice
+    # operator CLI attackers also use =, or set QUANT_REPO_PATH/config.toml.
+    argv = ["--target=-evil", "--config", str(tmp_path / "no_such_config.toml")]
+    rc = mod.main(argv)
+    assert rc == 2, f"main() should return 2 on dash-prefixed target, got {rc}"
+    captured = capsys.readouterr()
+    assert "ERROR" in captured.out or "ERROR" in captured.err
+    assert "dash" in (captured.out + captured.err).lower()
