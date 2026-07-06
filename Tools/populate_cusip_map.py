@@ -168,11 +168,28 @@ def get_sp500_symbols(database: str | None = None) -> list[tuple[str, str]]:
 def _profile_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
     """One FMP stable profile lookup -> (cusip, issuer_name) or None."""
     import requests
+    from openbb_fmp_cached.utils.security import raise_for_status_redacted
 
     try:
-        url = f"{FMP_STABLE}/profile?symbol={symbol}&apikey={api_key}"
-        resp = requests.get(url, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
+        # apikey via params= keeps it out of URL strings that could land in
+        # HTTPError.url, tracebacks, or proxy access logs. Also URL-encodes
+        # `symbol` correctly — a value containing '&', '#', '?', or
+        # whitespace would silently break URL parsing under the old
+        # f-string interpolation (bd-6641 / bd-1xgu).
+        url = f"{FMP_STABLE}/profile"
+        resp = requests.get(
+            url,
+            params={"symbol": symbol, "apikey": api_key},
+            timeout=REQUEST_TIMEOUT,
+        )
+        # ``requests`` merges ``params=`` into PreparedRequest.url pre-send,
+        # so ``resp.url`` contains the plaintext apikey. Use the shared
+        # ``raise_for_status_redacted`` wrapper — otherwise the HTTPError
+        # message would leak the key into the ``str(e)[:80]`` truncation
+        # below and into any exception-chain that surfaces upstream.
+        # (Round-2 review DRY cleanup: was inline; now consumes the shared
+        # helper via the ``openbb_fmp_cached`` sys.path entry set up above.)
+        raise_for_status_redacted(resp)
         data = resp.json()
     except Exception as e:  # noqa: BLE001
         logger.warning("%s: profile request failed: %s", symbol, str(e)[:80])
@@ -315,7 +332,7 @@ def main():
     print(f"\n  Universe:    {source_label}")
     print(f"  To resolve:  {len(symbols)} symbols")
     print(f"  Profile EP:  {FMP_STABLE}/profile")
-    print(f"  Target:      sec_13f_cusip_map (via thirteen_f_index helpers)")
+    print("  Target:      sec_13f_cusip_map (via thirteen_f_index helpers)")
     print(f"  Sleep:       {args.sleep}s between calls")
 
     if args.dry_run:
