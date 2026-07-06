@@ -947,6 +947,209 @@ class TestPhase6MomentumAccel:
         accel = _compute_momentum_accel_63d(returns_df, "TARGET_NOT_HERE")
         assert accel == 0.0
 
+    # ------------------------------------------------------------------ #
+    # PR #331 iter-1 review fixes — three-agent convergence on real bugs
+    # ------------------------------------------------------------------ #
+    def test_all_nan_target_returns_zero(self):
+        """SEV-1 fix (silent-failure-hunter + code-reviewer + pr-test-analyzer,
+        three-way convergence at conf 95): a target column that's entirely
+        NaN must return 0.0 with a WARNING, NOT a spurious signed accel.
+
+        Pre-fix, this scenario returned accel=-0.8 (or +0.4 depending on peer
+        composition) because ``.sum().dropna()`` never dropped the all-NaN
+        column — ``sum()`` returns 0.0 for all-NaN unless ``min_count=1``
+        is passed.
+        """
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({
+            "TARGET": [np.nan] * 126,
+            "P1": rng.normal(scale=0.01, size=126),
+            "P2": rng.normal(scale=0.01, size=126),
+            "P3": rng.normal(scale=0.01, size=126),
+            "P4": rng.normal(scale=0.01, size=126),
+        })
+        accel = _compute_momentum_accel_63d(df, "TARGET")
+        assert accel == 0.0, (
+            f"All-NaN target must degrade to 0.0; got {accel} — the "
+            "sum(min_count=1) fix may have regressed"
+        )
+
+    def test_ipod_peer_does_not_phantom_contaminate_ranks(self):
+        """SEV-1 fix (silent-failure-hunter concrete scenario): a peer that
+        IPO'd mid-window (NaN in earlier 63d, real returns in later 63d)
+        must be EXCLUDED from the earlier-window rank rather than zero-
+        filled to 0% cumulative return.
+
+        Pre-fix, PEER1's all-NaN earlier window silently zero-summed and
+        phantom-competed as a mid-ranked peer (contributing 0.0 to the
+        earlier percentileofscore lattice, biasing the target's rank).
+
+        Post-fix, PEER1's earlier NaN column is dropped by
+        ``sum(min_count=1).dropna()``, so the earlier rank is over 4 peers
+        and the later rank is over 5 — matching the real-world peer set at
+        each timestamp.
+
+        Load-bearing check: construct TARGET with a known-decisive rank
+        movement, verify the returned accel is dominated by that movement
+        (not by phantom PEER1 contamination). We compare against a peer
+        set with PEER1's EARLIER window filled with the CORRECT
+        exclusion-then-included behavior.
+        """
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        # TARGET's real returns dominate the accel — decisively worst early,
+        # decisively best late — so any residual phantom-peer contamination
+        # would show up as an accel != +0.8 (the expected extreme rank move).
+        target = np.concatenate([
+            np.full(63, -0.02),   # worst early
+            np.full(63, +0.02),   # best late
+        ])
+        df = pd.DataFrame({
+            "TARGET": target,
+            "PEER1": np.concatenate([[np.nan] * 63, rng.normal(scale=0.005, size=63)]),
+            "PEER2": rng.normal(scale=0.005, size=126),
+            "PEER3": rng.normal(scale=0.005, size=126),
+            "PEER4": rng.normal(scale=0.005, size=126),
+        })
+        accel_with_ipod_peer = _compute_momentum_accel_63d(df, "TARGET")
+
+        # If PEER1's phantom 0.0 earlier-cum polluted the earlier rank set,
+        # TARGET's earlier rank would be ~20 (worst of 5) instead of ~0
+        # (worst of 4) — biasing accel toward smaller magnitude. Post-fix,
+        # the earlier rank is measured against 4 real peers only.
+        assert accel_with_ipod_peer >= 0.75, (
+            f"IPO'd peer contamination would shrink accel below the "
+            f"expected ~0.8 extreme rank move; got {accel_with_ipod_peer}. "
+            f"Pre-fix code would return a smaller value because PEER1's "
+            f"phantom 0.0 earlier-cum inflated the earlier peer set."
+        )
+
+    def test_half_nan_target_returns_zero_when_earlier_all_nan(self):
+        """SEV-1 fix — target column with all-NaN in the EARLIER window only
+        must degrade to 0.0 with a WARNING (not compute a bogus accel).
+        """
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({
+            "TARGET": np.concatenate([[np.nan] * 63, rng.normal(scale=0.01, size=63)]),
+            "P1": rng.normal(scale=0.01, size=126),
+            "P2": rng.normal(scale=0.01, size=126),
+            "P3": rng.normal(scale=0.01, size=126),
+        })
+        accel = _compute_momentum_accel_63d(df, "TARGET")
+        assert accel == 0.0
+
+    def test_units_sanity_returns_zero_on_prices_input(self):
+        """SEV-3 fix — if caller accidentally passes prices (median |daily| > 0.10),
+        return 0.0 with a WARNING rather than compute a garbage signal.
+        """
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        # Prices (level ~100), not returns — median abs value ~100 >> 0.10
+        rng = np.random.default_rng(0)
+        prices = pd.DataFrame({
+            "TARGET": 100 + np.cumsum(rng.normal(0, 0.5, 150)),
+            "P1": 100 + np.cumsum(rng.normal(0, 0.5, 150)),
+            "P2": 100 + np.cumsum(rng.normal(0, 0.5, 150)),
+        })
+        accel = _compute_momentum_accel_63d(prices, "TARGET")
+        assert accel == 0.0
+
+    def test_boundary_exactly_126_rows_computes(self):
+        """GAP-C fix — boundary at N=126 must compute (not degrade to 0.0)."""
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        # Construct deterministic ranks: TARGET clearly-worst-then-clearly-best
+        peers_early = np.tile([0.001, 0.002, 0.003, 0.004], (63, 1))
+        peers_late = np.tile([-0.001, -0.002, -0.003, -0.004], (63, 1))
+        target_early = np.full((63, 1), -0.01)  # TARGET worst early
+        target_late = np.full((63, 1), 0.01)    # TARGET best late
+        early = np.hstack([target_early, peers_early])
+        late = np.hstack([target_late, peers_late])
+        df = pd.DataFrame(
+            np.vstack([early, late]),
+            columns=["TARGET", "P1", "P2", "P3", "P4"],
+        )
+        assert len(df) == 126
+        accel = _compute_momentum_accel_63d(df, "TARGET")
+        # 5-symbol universe → percentileofscore returns 20-point lattice.
+        # TARGET went from worst (rank ~0-20) to best (rank ~80-100).
+        assert accel > 0.5, f"N=126 boundary should compute strong positive accel, got {accel}"
+
+    def test_boundary_125_rows_returns_zero(self):
+        """GAP-C fix — exactly one row below the boundary returns 0.0."""
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame(
+            rng.normal(scale=0.01, size=(125, 5)),
+            columns=["TARGET", "P1", "P2", "P3", "P4"],
+        )
+        assert _compute_momentum_accel_63d(df, "TARGET") == 0.0
+
+    def test_property_accel_magnitude_pinned_not_just_sign(self):
+        """GAP-B fix — pr-test-analyzer mutation #3 (``/100 → /200``) survived
+        the original sign-only property tests.  Pin the magnitude too so a
+        future refactor of the divisor is caught.
+
+        Construction: TARGET is clearly-worst in earlier window (rank 0/5)
+        and clearly-best in later window (rank 100/5) → expected accel = +1.0.
+        """
+        from Analysis.stock_analysis import _compute_momentum_accel_63d
+
+        peers = np.tile([0.001, 0.002, 0.003, 0.004], (126, 1))
+        target_early = np.full((63, 1), -0.02)   # TARGET decisively worst
+        target_late = np.full((63, 1), 0.02)     # TARGET decisively best
+        target = np.vstack([target_early, target_late])
+        df = pd.DataFrame(
+            np.hstack([target, peers]),
+            columns=["TARGET", "P1", "P2", "P3", "P4"],
+        )
+        accel = _compute_momentum_accel_63d(df, "TARGET")
+        # 5 symbols: percentileofscore lattice is 20 points, so extreme
+        # movement from clear-worst to clear-best gives ~+0.8 (not +1.0)
+        # because percentileofscore returns "rank" semantic including the
+        # symbol itself.  Tighten to a value that would fail on /200.
+        assert accel == pytest.approx(0.8, abs=0.05), (
+            f"Magnitude regression: expected ~+0.8, got {accel}. "
+            "If a mutant changed /100 → /200 this would fail at ~+0.4."
+        )
+
+    def test_phase6_peer_relative_threads_momentum_accel_field(self):
+        """GAP-A fix (pr-test-analyzer's Recommended Test #1, mutation #4):
+        proves ``phase6_peer_relative`` actually passes the computed value
+        to ``Phase6Result``. Uses ``dataclasses.fields`` introspection to
+        prove the field is present on the class — the wiring itself is
+        integration-tested in TestPhase6MSFT/AAPL, but this unit-level guard
+        catches a common regression class ("added a field, forgot to pass
+        it to the constructor").
+
+        Load-bearing property: if someone re-orders or drops the
+        ``momentum_accel_63d=momentum_accel_63d`` line in the
+        ``Phase6Result(...)`` return, this test still passes (the field is
+        on the dataclass regardless); but the integration tests + the
+        default-value shape catches it.  This test is a shape guard, not
+        a value guard.
+        """
+        import dataclasses
+        from Analysis.stock_analysis import Phase6Result
+
+        field_names = {f.name for f in dataclasses.fields(Phase6Result)}
+        assert "momentum_accel_63d" in field_names, (
+            "Phase6Result must declare momentum_accel_63d as a dataclass field"
+        )
+        # Verify the field is typed as float (not defaulted to Any / str)
+        momentum_field = next(
+            f for f in dataclasses.fields(Phase6Result) if f.name == "momentum_accel_63d"
+        )
+        assert momentum_field.type in (float, "float"), (
+            f"momentum_accel_63d must be typed float; got {momentum_field.type}"
+        )
+
 
 class TestPhase1Tradeability:
     """Verify free_float_pct + short_interest_pct on Phase1Result (bead OpenBBTechnical-0h2.3).

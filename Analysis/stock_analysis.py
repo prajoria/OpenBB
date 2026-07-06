@@ -672,12 +672,59 @@ def _compute_momentum_accel_63d(
     if len(returns_df) < 126 or symbol not in returns_df.columns:
         return 0.0
 
-    later_cum = returns_df.iloc[-63:].sum().dropna()
-    earlier_cum = returns_df.iloc[-126:-63].sum().dropna()
+    # PR #331 review (silent-failure-hunter SEV-3 / units sanity): validate the
+    # input is actually daily returns, not price levels or log-prices. Median
+    # daily-return magnitude > 10 % almost always means the caller passed the
+    # wrong frame (an easy refactor slip). Silent garbage-in produced plausible-
+    # looking bogus accels before this guard; now the caller sees a warning.
+    recent_slice = returns_df.iloc[-126:]
+    median_abs_daily = float(recent_slice.abs().median().median())
+    if not np.isnan(median_abs_daily) and median_abs_daily > 0.10:
+        logger.warning(
+            "_compute_momentum_accel_63d(%s): median |daily return| = %.3f > 0.10 — "
+            "input looks like prices/levels, not returns; returning neutral 0.0",
+            symbol,
+            median_abs_daily,
+        )
+        return 0.0
+
+    # PR #331 review (silent-failure-hunter SEV-1 / pr-test-analyzer GAP-D /
+    # code-reviewer Finding 1 — three-way convergence at confidence ~95):
+    # ``.sum()`` without ``min_count=1`` returns ``0.0`` for an all-NaN column,
+    # NOT ``NaN`` — so the subsequent ``.dropna()`` never fires for a peer with
+    # no history in the window. Concrete failure scenario reproduced by all
+    # three reviewers: PEER1 IPO'd during the earlier 63d window, its earlier
+    # cumulative return zero-fills to 0.0, and phantom-competes as a mid-
+    # ranked peer against the target's real cumulative return. Result:
+    # accel = -0.8 emitted for a symbol whose real returns were flat. Fix:
+    # pass ``min_count=1`` so all-NaN columns emit NaN, which ``.dropna()``
+    # then correctly excludes.
+    later_cum = returns_df.iloc[-63:].sum(min_count=1).dropna()
+    earlier_cum = returns_df.iloc[-126:-63].sum(min_count=1).dropna()
 
     if symbol not in later_cum.index or symbol not in earlier_cum.index:
+        # PR #331 review SEV-2 (R7.3 loud-empty): target column had all-NaN in
+        # one or both windows — cannot compute a rank; degrade to neutral but
+        # say why so ops can distinguish "no data" from "genuine neutral".
+        logger.warning(
+            "_compute_momentum_accel_63d(%s): target absent from cumulative "
+            "returns after NaN filter (later=%s, earlier=%s) — likely all-NaN "
+            "in one window; returning neutral 0.0",
+            symbol,
+            symbol in later_cum.index,
+            symbol in earlier_cum.index,
+        )
         return 0.0
     if len(later_cum) < 2 or len(earlier_cum) < 2:
+        # PR #331 review SEV-2: peer set collapsed below 2 in either window
+        # after NaN filtering — cannot rank; degrade to neutral loudly.
+        logger.warning(
+            "_compute_momentum_accel_63d(%s): peer set too thin after NaN "
+            "filter (later=%d, earlier=%d) — returning neutral 0.0",
+            symbol,
+            len(later_cum),
+            len(earlier_cum),
+        )
         return 0.0
 
     later_rank = float(percentileofscore(later_cum.tolist(), later_cum[symbol]))
