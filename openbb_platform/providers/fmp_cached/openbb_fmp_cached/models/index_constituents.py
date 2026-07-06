@@ -29,12 +29,16 @@ Usage (standalone):
 import json
 import logging
 import os
+from datetime import (
+    date as dateType,
+    datetime,
+    timedelta,
+)
+from typing import Any, Literal
+
 import pymysql
 import pymysql.cursors
 import requests
-from datetime import date as dateType, datetime, timedelta
-from typing import Any, Dict, List, Literal, Optional
-
 from dateutil import parser
 from openbb_core.provider.abstract.fetcher import Fetcher
 from openbb_core.provider.standard_models.index_constituents import (
@@ -44,7 +48,7 @@ from openbb_core.provider.standard_models.index_constituents import (
 from openbb_core.provider.utils.descriptions import DATA_DESCRIPTIONS
 from pydantic import Field, field_validator
 
-from openbb_fmp_cached.utils.database import execute_query, execute_many, init_database
+from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,7 @@ CACHE_TTL_DAYS = 7
 # ---------------------------------------------------------------------------
 # Query Params
 # ---------------------------------------------------------------------------
+
 
 class FMPCachedIndexConstituentsQueryParams(IndexConstituentsQueryParams):
     """FMP Cached Index Constituents Query Parameters.
@@ -75,6 +80,7 @@ class FMPCachedIndexConstituentsQueryParams(IndexConstituentsQueryParams):
 # Data Model
 # ---------------------------------------------------------------------------
 
+
 class FMPCachedIndexConstituentsData(IndexConstituentsData):
     """FMP Cached Index Constituents Data."""
 
@@ -87,44 +93,44 @@ class FMPCachedIndexConstituentsData(IndexConstituentsData):
         "removed_name": "removedSecurity",
     }
 
-    sector: Optional[str] = Field(
+    sector: str | None = Field(
         default=None,
         description="Sector classification for the constituent company in the index.",
     )
-    industry: Optional[str] = Field(
+    industry: str | None = Field(
         default=None,
         description="Industry classification for the constituent company in the index.",
     )
-    headquarter: Optional[str] = Field(
+    headquarter: str | None = Field(
         default=None,
         description="Location of the company's headquarters.",
     )
-    date_added: Optional[dateType | str] = Field(
+    date_added: dateType | str | None = Field(
         default=None,
         description="Date the constituent company was added to the index.",
     )
-    cik: Optional[str] = Field(
+    cik: str | None = Field(
         description=DATA_DESCRIPTIONS.get("cik", ""),
         default=None,
         coerce_numbers_to_str=True,
     )
-    founded: Optional[dateType | str] = Field(
+    founded: dateType | str | None = Field(
         default=None,
         description="When the company was founded.",
     )
-    removed_symbol: Optional[str] = Field(
+    removed_symbol: str | None = Field(
         default=None,
         description="Symbol of the company removed from the index.",
     )
-    removed_name: Optional[str] = Field(
+    removed_name: str | None = Field(
         default=None,
         description="Name of the company removed from the index.",
     )
-    reason: Optional[str] = Field(
+    reason: str | None = Field(
         default=None,
         description="Reason for the removal from the index.",
     )
-    date: Optional[dateType] = Field(
+    date: dateType | None = Field(
         default=None,
         description="Date of the historical constituent data.",
     )
@@ -203,6 +209,7 @@ ON DUPLICATE KEY UPDATE
 # Database helpers
 # ---------------------------------------------------------------------------
 
+
 def _ensure_table():
     """Create the sp500_constituents table if it doesn't exist."""
     try:
@@ -240,7 +247,7 @@ def _cache_is_fresh(index_name: str) -> bool:
     return False
 
 
-def _read_from_cache(index_name: str) -> List[Dict[str, Any]]:
+def _read_from_cache(index_name: str) -> list[dict[str, Any]]:
     """Read constituents from the existing sp500_constituents table."""
     query = """
     SELECT symbol, security, gics_sector, gics_sub_industry,
@@ -252,24 +259,26 @@ def _read_from_cache(index_name: str) -> List[Dict[str, Any]]:
     rows = execute_query(query)
     results = []
     for row in rows:
-        results.append({
-            "symbol": row["symbol"],
-            "name": row["security"],
-            "sector": row.get("gics_sector"),
-            "subSector": row.get("gics_sub_industry"),
-            "headQuarter": row.get("headquarters_location"),
-            "dateFirstAdded": (
-                row["date_added"].strftime("%Y-%m-%d")
-                if row.get("date_added")
-                else None
-            ),
-            "cik": row.get("cik"),
-            "founded": row.get("founded"),
-        })
+        results.append(
+            {
+                "symbol": row["symbol"],
+                "name": row["security"],
+                "sector": row.get("gics_sector"),
+                "subSector": row.get("gics_sub_industry"),
+                "headQuarter": row.get("headquarters_location"),
+                "dateFirstAdded": (
+                    row["date_added"].strftime("%Y-%m-%d")
+                    if row.get("date_added")
+                    else None
+                ),
+                "cik": row.get("cik"),
+                "founded": row.get("founded"),
+            }
+        )
     return results
 
 
-def _store_in_cache(index_name: str, api_data: List[Dict[str, Any]]) -> None:
+def _store_in_cache(index_name: str, api_data: list[dict[str, Any]]) -> None:
     """Store API response in the existing sp500_constituents table."""
     if not api_data:
         return
@@ -277,32 +286,30 @@ def _store_in_cache(index_name: str, api_data: List[Dict[str, Any]]) -> None:
     batch = []
     now = datetime.now()
     for d in api_data:
-        date_added = _safe_parse_date(
-            d.get("dateFirstAdded") or d.get("date_added")
+        date_added = _safe_parse_date(d.get("dateFirstAdded") or d.get("date_added"))
+        batch.append(
+            (
+                d.get("symbol", ""),
+                d.get("name") or d.get("companyName") or d.get("addedSecurity", ""),
+                d.get("sector"),
+                d.get("subSector") or d.get("industry"),
+                d.get("headQuarter") or d.get("headquarter"),
+                date_added,
+                str(d["cik"]) if d.get("cik") else None,
+                d.get("founded"),
+                now,
+                1,  # is_active
+            )
         )
-        batch.append((
-            d.get("symbol", ""),
-            d.get("name") or d.get("companyName") or d.get("addedSecurity", ""),
-            d.get("sector"),
-            d.get("subSector") or d.get("industry"),
-            d.get("headQuarter") or d.get("headquarter"),
-            date_added,
-            str(d["cik"]) if d.get("cik") else None,
-            d.get("founded"),
-            now,
-            1,  # is_active
-        ))
 
     try:
         rows_affected = execute_many(INSERT_SQL, batch)
-        logger.info(
-            f"Stored {rows_affected} constituents for {index_name} in cache"
-        )
+        logger.info(f"Stored {rows_affected} constituents for {index_name} in cache")
     except Exception as e:
         logger.warning(f"Failed to store {index_name} constituents in cache: {e}")
 
 
-def _safe_parse_date(val) -> Optional[dateType]:
+def _safe_parse_date(val) -> dateType | None:
     """Parse a date value safely, returning None on failure."""
     if not val:
         return None
@@ -318,7 +325,8 @@ def _safe_parse_date(val) -> Optional[dateType]:
 # Public API: populate_cache / get_cache_stats
 # ---------------------------------------------------------------------------
 
-def _get_db_config() -> Dict[str, Any]:
+
+def _get_db_config() -> dict[str, Any]:
     """Read MySQL connection config from OpenBB user_settings.json or env vars.
 
     User and password have no hardcoded defaults; they must be supplied via
@@ -332,7 +340,7 @@ def _get_db_config() -> Dict[str, Any]:
     password = os.getenv("DB_PASSWORD")
     try:
         if os.path.exists(settings_path):
-            with open(settings_path, "r") as f:
+            with open(settings_path) as f:
                 settings = json.load(f)
                 creds = settings.get("credentials", {})
                 host = creds.get("mysql_host", host)
@@ -362,13 +370,10 @@ def _get_api_key() -> str:
     settings_path = os.path.expanduser("~/.openbb_platform/user_settings.json")
     try:
         if os.path.exists(settings_path):
-            with open(settings_path, "r") as f:
+            with open(settings_path) as f:
                 settings = json.load(f)
                 creds = settings.get("credentials", {})
-                return (
-                    creds.get("fmp_api_key")
-                    or creds.get("fmp_cached_api_key", "")
-                )
+                return creds.get("fmp_api_key") or creds.get("fmp_cached_api_key", "")
     except Exception:
         pass
     return ""
@@ -388,15 +393,17 @@ def _get_raw_connection(database: str) -> "pymysql.Connection":
     )
 
 
-def _fetch_from_api_sync() -> List[Dict[str, Any]]:
+def _fetch_from_api_sync() -> list[dict[str, Any]]:
     """Fetch S&P 500 constituents from FMP API (synchronous)."""
     api_key = _get_api_key()
     if not api_key:
         raise ValueError("No FMP API key found in environment or user_settings.json")
 
-    url = f"https://financialmodelingprep.com/stable/sp500-constituent/?apikey={api_key}"
+    url = "https://financialmodelingprep.com/stable/sp500-constituent/"
     logger.info("Fetching S&P 500 constituents from FMP API")
-    response = requests.get(url, timeout=30)
+    # apikey via params= keeps it out of URL strings that could land in
+    # HTTPError.url, tracebacks, or proxy access logs (bd-6641 / bd-ygtq).
+    response = requests.get(url, params={"apikey": api_key}, timeout=30)
     response.raise_for_status()
     data = response.json()
 
@@ -410,7 +417,7 @@ def _fetch_from_api_sync() -> List[Dict[str, Any]]:
     return data
 
 
-def _copy_from_source_db(source_database: str) -> List[Dict[str, Any]]:
+def _copy_from_source_db(source_database: str) -> list[dict[str, Any]]:
     """Read sp500_constituents rows from another MySQL database."""
     logger.info(f"Copying from {source_database}.sp500_constituents")
     conn = _get_raw_connection(source_database)
@@ -419,7 +426,7 @@ def _copy_from_source_db(source_database: str) -> List[Dict[str, Any]]:
             cur.execute(
                 "SELECT * FROM sp500_constituents WHERE is_active = 1 ORDER BY symbol"
             )
-            rows: List[Dict[str, Any]] = list(cur.fetchall())  # type: ignore[arg-type]
+            rows: list[dict[str, Any]] = list(cur.fetchall())  # type: ignore[arg-type]
         logger.info(f"Read {len(rows)} rows from {source_database}")
         return rows
     finally:
@@ -430,7 +437,7 @@ def populate_cache(
     source: str = "api",
     source_database: str = "fmp_cache",
     target_database: str | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Populate the sp500_constituents table from API or another database.
 
     This is the authoritative entry point for seeding / refreshing the
@@ -454,6 +461,7 @@ def populate_cache(
     # Resolve target database name
     if target_database is None:
         from openbb_fmp_cached.utils.database import DatabaseConfig
+
         target_database = DatabaseConfig().config["database"]
 
     assert target_database is not None  # guaranteed by DatabaseConfig fallback
@@ -516,7 +524,7 @@ def populate_cache(
         conn.close()
 
 
-def get_cache_stats(database: str | None = None) -> Dict[str, Any]:
+def get_cache_stats(database: str | None = None) -> dict[str, Any]:
     """Return statistics about the sp500_constituents table.
 
     Args:
@@ -527,6 +535,7 @@ def get_cache_stats(database: str | None = None) -> Dict[str, Any]:
     """
     if database is None:
         from openbb_fmp_cached.utils.database import DatabaseConfig
+
         database = DatabaseConfig().config["database"]
 
     assert database is not None  # guaranteed by DatabaseConfig fallback
@@ -562,11 +571,12 @@ def get_cache_stats(database: str | None = None) -> Dict[str, Any]:
 # FMP API direct fetch (no dependency on openbb_fmp provider)
 # ---------------------------------------------------------------------------
 
+
 async def _fetch_from_fmp_api(
     query: FMPCachedIndexConstituentsQueryParams,
-    credentials: Dict[str, str] | None,
+    credentials: dict[str, str] | None,
     **kwargs: Any,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Fetch index constituents directly from FMP API."""
     from openbb_core.provider.utils.helpers import amake_request
 
@@ -576,7 +586,7 @@ async def _fetch_from_fmp_api(
 
     base_url = "https://financialmodelingprep.com/stable"
     historical = "historical-" if query.historical else ""
-    url = f"{base_url}/{historical}{query.symbol}-constituent/?apikey={api_key}"
+    url = f"{base_url}/{historical}{query.symbol}-constituent/"
 
     logger.info(f"Fetching {query.symbol} constituents from FMP API")
 
@@ -586,7 +596,11 @@ async def _fetch_from_fmp_api(
             raise RuntimeError(f"FMP API error {response.status}: {msg}")
         return await response.json()
 
-    data = await amake_request(url, response_callback=_callback, **kwargs)
+    # apikey via params= keeps it out of URL strings that could land in
+    # tracebacks or proxy access logs (bd-6641 / bd-ygtq).
+    data = await amake_request(
+        url, response_callback=_callback, params={"apikey": api_key}, **kwargs
+    )
 
     if isinstance(data, dict) and data.get("Error Message"):
         raise RuntimeError(f"FMP API error: {data['Error Message']}")
@@ -601,17 +615,18 @@ async def _fetch_from_fmp_api(
 # Fetcher
 # ---------------------------------------------------------------------------
 
+
 class FMPCachedIndexConstituentsFetcher(
     Fetcher[
         FMPCachedIndexConstituentsQueryParams,
-        List[FMPCachedIndexConstituentsData],
+        list[FMPCachedIndexConstituentsData],
     ]
 ):
     """FMP Cached Index Constituents Fetcher with MySQL persistence."""
 
     @staticmethod
     def transform_query(
-        params: Dict[str, Any],
+        params: dict[str, Any],
     ) -> FMPCachedIndexConstituentsQueryParams:
         """Transform the query params."""
         return FMPCachedIndexConstituentsQueryParams(**params)
@@ -619,9 +634,9 @@ class FMPCachedIndexConstituentsFetcher(
     @staticmethod
     async def aextract_data(
         query: FMPCachedIndexConstituentsQueryParams,
-        credentials: Dict[str, str] | None,
+        credentials: dict[str, str] | None,
         **kwargs: Any,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Extract index constituents with database caching."""
 
         # Fix credential mapping: fmp_cached_api_key -> fmp_api_key
@@ -677,8 +692,8 @@ class FMPCachedIndexConstituentsFetcher(
     @staticmethod
     def transform_data(
         query: FMPCachedIndexConstituentsQueryParams,
-        data: List[Dict[str, Any]],
+        data: list[dict[str, Any]],
         **kwargs: Any,
-    ) -> List[FMPCachedIndexConstituentsData]:
+    ) -> list[FMPCachedIndexConstituentsData]:
         """Transform raw data into FMPCachedIndexConstituentsData objects."""
         return [FMPCachedIndexConstituentsData.model_validate(d) for d in data]

@@ -170,8 +170,17 @@ def _profile_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
     import requests
 
     try:
-        url = f"{FMP_STABLE}/profile?symbol={symbol}&apikey={api_key}"
-        resp = requests.get(url, timeout=REQUEST_TIMEOUT)
+        # apikey via params= keeps it out of URL strings that could land in
+        # HTTPError.url, tracebacks, or proxy access logs. Also URL-encodes
+        # `symbol` correctly — a value containing '&', '#', '?', or
+        # whitespace would silently break URL parsing under the old
+        # f-string interpolation (bd-6641 / bd-1xgu).
+        url = f"{FMP_STABLE}/profile"
+        resp = requests.get(
+            url,
+            params={"symbol": symbol, "apikey": api_key},
+            timeout=REQUEST_TIMEOUT,
+        )
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:  # noqa: BLE001
@@ -315,7 +324,7 @@ def main():
     print(f"\n  Universe:    {source_label}")
     print(f"  To resolve:  {len(symbols)} symbols")
     print(f"  Profile EP:  {FMP_STABLE}/profile")
-    print(f"  Target:      sec_13f_cusip_map (via thirteen_f_index helpers)")
+    print("  Target:      sec_13f_cusip_map (via thirteen_f_index helpers)")
     print(f"  Sleep:       {args.sleep}s between calls")
 
     if args.dry_run:
