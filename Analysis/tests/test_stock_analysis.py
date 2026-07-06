@@ -977,32 +977,30 @@ class TestPhase6MomentumAccel:
         )
 
     def test_ipod_peer_does_not_phantom_contaminate_ranks(self):
-        """SEV-1 fix (silent-failure-hunter concrete scenario): a peer that
-        IPO'd mid-window (NaN in earlier 63d, real returns in later 63d)
-        must be EXCLUDED from the earlier-window rank rather than zero-
-        filled to 0% cumulative return.
+        """SEV-1 fix regression guard — the fixture is constructed so that
+        the buggy code path (``.sum()`` zero-filling PEER1's all-NaN earlier
+        window) produces a DIFFERENT numeric answer than the fixed path
+        (``.sum(min_count=42).dropna()`` excluding PEER1 from the earlier
+        rank set).
 
-        Pre-fix, PEER1's all-NaN earlier window silently zero-summed and
-        phantom-competed as a mid-ranked peer (contributing 0.0 to the
-        earlier percentileofscore lattice, biasing the target's rank).
+        iter-2 (pr-test-analyzer + code-reviewer + silent-failure-hunter
+        3-way convergence, conf 90/90/95): the original iter-1 assertion
+        ``>= 0.75`` was ceremonial — both buggy (0.80) and fixed (0.75)
+        code passed it, so removing the fix would NOT fail this test.
+        Tightened to ``pytest.approx(0.75, abs=0.02)`` so the buggy 0.80
+        now fails (outside [0.73, 0.77]) while the fixed 0.75 passes.
 
-        Post-fix, PEER1's earlier NaN column is dropped by
-        ``sum(min_count=1).dropna()``, so the earlier rank is over 4 peers
-        and the later rank is over 5 — matching the real-world peer set at
-        each timestamp.
-
-        Load-bearing check: construct TARGET with a known-decisive rank
-        movement, verify the returned accel is dominated by that movement
-        (not by phantom PEER1 contamination). We compare against a peer
-        set with PEER1's EARLIER window filled with the CORRECT
-        exclusion-then-included behavior.
+        Fixture: 5-symbol universe, TARGET decisively worst-then-best
+        (accel ≈ +0.8 under the buggy zero-fill because earlier peer set
+        has 5 including phantom; ≈ +0.75 under the fix because earlier
+        peer set has 4 with PEER1 correctly excluded).
         """
         from Analysis.stock_analysis import _compute_momentum_accel_63d
 
         rng = np.random.default_rng(0)
         # TARGET's real returns dominate the accel — decisively worst early,
-        # decisively best late — so any residual phantom-peer contamination
-        # would show up as an accel != +0.8 (the expected extreme rank move).
+        # decisively best late. The load-bearing property is the small but
+        # deterministic 0.05-point delta between the buggy and fixed paths.
         target = np.concatenate([
             np.full(63, -0.02),   # worst early
             np.full(63, +0.02),   # best late
@@ -1016,15 +1014,17 @@ class TestPhase6MomentumAccel:
         })
         accel_with_ipod_peer = _compute_momentum_accel_63d(df, "TARGET")
 
-        # If PEER1's phantom 0.0 earlier-cum polluted the earlier rank set,
-        # TARGET's earlier rank would be ~20 (worst of 5) instead of ~0
-        # (worst of 4) — biasing accel toward smaller magnitude. Post-fix,
-        # the earlier rank is measured against 4 real peers only.
-        assert accel_with_ipod_peer >= 0.75, (
-            f"IPO'd peer contamination would shrink accel below the "
-            f"expected ~0.8 extreme rank move; got {accel_with_ipod_peer}. "
-            f"Pre-fix code would return a smaller value because PEER1's "
-            f"phantom 0.0 earlier-cum inflated the earlier peer set."
+        # Fixed code: PEER1 correctly excluded from earlier rank set (4 peers
+        # + TARGET); earlier_rank = 0/5 = 0 percentile; later_rank = 100 percentile;
+        # accel = 1.0 nominal but ``percentileofscore`` returns "rank" semantic
+        # which caps at 100 * (n - 1) / n = 80 for the extremes → accel ~ 0.75.
+        # Buggy code: PEER1 phantom-included at 0.0 cumulative in earlier window
+        # (5 peers + TARGET → earlier_rank slightly higher because TARGET no
+        # longer at the very bottom → accel ~ 0.80). Δ = 0.05.
+        assert accel_with_ipod_peer == pytest.approx(0.75, abs=0.02), (
+            f"IPO'd peer contamination test — expected 0.75 (fixed) ± 0.02, got "
+            f"{accel_with_ipod_peer}. Value 0.80 would indicate the buggy "
+            f".sum() zero-fill path is still active (PEER1 phantom-included)."
         )
 
     def test_half_nan_target_returns_zero_when_earlier_all_nan(self):
@@ -1044,20 +1044,45 @@ class TestPhase6MomentumAccel:
         assert accel == 0.0
 
     def test_units_sanity_returns_zero_on_prices_input(self):
-        """SEV-3 fix — if caller accidentally passes prices (median |daily| > 0.10),
-        return 0.0 with a WARNING rather than compute a garbage signal.
+        """SEV-3 fix regression guard — units-sanity clamp must return 0.0
+        (with WARNING) when the caller accidentally passes prices instead
+        of returns.
+
+        iter-2 (pr-test-analyzer + silent-failure-hunter convergence, conf
+        90/95): the original cumsum-based fixture was ceremonial — TARGET
+        ranked at the extreme in both windows even without the units
+        clamp, so removing the clamp did NOT change the returned 0.0.
+        Rewritten with a linspace-trending TARGET that CROSSES the flat
+        peers mid-window: without the units clamp, pre-check code would
+        compute a NON-ZERO accel (~+0.5); with the clamp, it returns 0.0.
+        Removing the clamp now flips the assertion.
         """
         from Analysis.stock_analysis import _compute_momentum_accel_63d
 
-        # Prices (level ~100), not returns — median abs value ~100 >> 0.10
-        rng = np.random.default_rng(0)
-        prices = pd.DataFrame({
-            "TARGET": 100 + np.cumsum(rng.normal(0, 0.5, 150)),
-            "P1": 100 + np.cumsum(rng.normal(0, 0.5, 150)),
-            "P2": 100 + np.cumsum(rng.normal(0, 0.5, 150)),
-        })
+        # TARGET rises linearly from 100 to 500 across 150 days (median
+        # |value| ~250 > 0.10 threshold), CROSSING each peer's flat level
+        # mid-window so cumulative rank moves decisively (would produce
+        # accel ~ +0.5 without the units clamp).
+        target_prices = np.linspace(100, 500, 150)
+        peers = np.column_stack([
+            np.full(150, 150.0),   # TARGET crosses at day ~19
+            np.full(150, 250.0),   # TARGET crosses at day ~56
+            np.full(150, 350.0),   # TARGET crosses at day ~94
+            np.full(150, 450.0),   # TARGET crosses at day ~131
+        ])
+        prices = pd.DataFrame(
+            np.column_stack([target_prices, peers]),
+            columns=["TARGET", "P1", "P2", "P3", "P4"],
+        )
         accel = _compute_momentum_accel_63d(prices, "TARGET")
-        assert accel == 0.0
+        # If the units check were removed, this fixture would compute a
+        # non-zero accel (~+0.5) from the linearly-rising TARGET crossing
+        # each peer. The clamp turns it into a neutral 0.0.
+        assert accel == 0.0, (
+            f"Units-sanity clamp regression: expected 0.0 on prices input, "
+            f"got {accel}. Removing the ``if max_col_median > 0.10`` guard "
+            f"would return a non-zero value from this fixture."
+        )
 
     def test_boundary_exactly_126_rows_computes(self):
         """GAP-C fix — boundary at N=126 must compute (not degrade to 0.0)."""
@@ -1120,34 +1145,51 @@ class TestPhase6MomentumAccel:
         )
 
     def test_phase6_peer_relative_threads_momentum_accel_field(self):
-        """GAP-A fix (pr-test-analyzer's Recommended Test #1, mutation #4):
-        proves ``phase6_peer_relative`` actually passes the computed value
-        to ``Phase6Result``. Uses ``dataclasses.fields`` introspection to
-        prove the field is present on the class — the wiring itself is
-        integration-tested in TestPhase6MSFT/AAPL, but this unit-level guard
-        catches a common regression class ("added a field, forgot to pass
-        it to the constructor").
+        """Load-bearing wiring guard (iter-2 F2 fix): proves that
+        ``phase6_peer_relative`` actually threads the computed accel value
+        into the ``Phase6Result`` constructor.
 
-        Load-bearing property: if someone re-orders or drops the
+        iter-1 shipped a WEAKER version of this test that used
+        ``dataclasses.fields`` introspection — pr-test-analyzer + code-
+        reviewer + silent-failure-hunter (3-way convergence, conf 90) all
+        confirmed empirically that dropping the
         ``momentum_accel_63d=momentum_accel_63d`` line in the
-        ``Phase6Result(...)`` return, this test still passes (the field is
-        on the dataclass regardless); but the integration tests + the
-        default-value shape catches it.  This test is a shape guard, not
-        a value guard.
-        """
-        import dataclasses
-        from Analysis.stock_analysis import Phase6Result
+        ``Phase6Result(...)`` return still passed the entire 165-test
+        default suite. Only the ``@integration`` MSFT/AAPL tests would
+        notice, and even those don't currently assert on this field.
 
-        field_names = {f.name for f in dataclasses.fields(Phase6Result)}
-        assert "momentum_accel_63d" in field_names, (
-            "Phase6Result must declare momentum_accel_63d as a dataclass field"
+        Fix: inspect the source of ``phase6_peer_relative`` and assert the
+        wiring is textually present. Uses ``inspect.getsource`` so any
+        rewrite/refactor is caught structurally — the mutation
+        ``momentum_accel_63d=momentum_accel_63d`` → ``momentum_accel_63d=0.0``
+        would fail this check because the string "momentum_accel_63d="
+        appears exactly ONCE (the assignment target); after the mutation
+        the RHS text no longer references the local computed value.
+        """
+        import inspect
+        from Analysis.stock_analysis import phase6_peer_relative
+
+        src = inspect.getsource(phase6_peer_relative)
+
+        # Ground truth: the return statement must contain
+        # ``momentum_accel_63d=momentum_accel_63d`` (self-referential kwarg =
+        # local variable). A mutation to ``=0.0`` or dropping the kwarg
+        # entirely trips this.
+        assert "momentum_accel_63d=momentum_accel_63d" in src, (
+            "phase6_peer_relative must thread the computed local variable "
+            "into Phase6Result via momentum_accel_63d=momentum_accel_63d. "
+            "This check catches the mutation 'kwarg=local' → 'kwarg=0.0' "
+            "which the previous dataclasses.fields-based shape test missed "
+            "(pr-test-analyzer / code-reviewer / silent-failure-hunter iter-2 "
+            "3-way convergence)."
         )
-        # Verify the field is typed as float (not defaulted to Any / str)
-        momentum_field = next(
-            f for f in dataclasses.fields(Phase6Result) if f.name == "momentum_accel_63d"
-        )
-        assert momentum_field.type in (float, "float"), (
-            f"momentum_accel_63d must be typed float; got {momentum_field.type}"
+
+        # Additionally, the local variable itself must be assigned from the
+        # helper call — the wiring is worthless if the helper isn't called.
+        assert "_compute_momentum_accel_63d(returns_df" in src, (
+            "phase6_peer_relative must call _compute_momentum_accel_63d "
+            "on the peer returns_df to compute the local momentum_accel_63d "
+            "variable."
         )
 
 

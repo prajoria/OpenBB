@@ -672,55 +672,54 @@ def _compute_momentum_accel_63d(
     if len(returns_df) < 126 or symbol not in returns_df.columns:
         return 0.0
 
-    # PR #331 review (silent-failure-hunter SEV-3 / units sanity): validate the
-    # input is actually daily returns, not price levels or log-prices. Median
-    # daily-return magnitude > 10 % almost always means the caller passed the
-    # wrong frame (an easy refactor slip). Silent garbage-in produced plausible-
-    # looking bogus accels before this guard; now the caller sees a warning.
+    # Units sanity (bd 0h2.9 / PR #331 iter-1): median |daily return| > 10 %
+    # almost always means the caller passed prices / levels instead of returns.
+    # iter-2 (SEV-D): use max across per-column medians so a SINGLE column in
+    # the wrong units triggers the clamp, not just the majority-of-columns case.
     recent_slice = returns_df.iloc[-126:]
-    median_abs_daily = float(recent_slice.abs().median().median())
-    if not np.isnan(median_abs_daily) and median_abs_daily > 0.10:
+    per_col_median = recent_slice.abs().median()
+    max_col_median = float(per_col_median.max())  # NaN-safe: NaN cols excluded
+    if not np.isnan(max_col_median) and max_col_median > 0.10:
         logger.warning(
-            "_compute_momentum_accel_63d(%s): median |daily return| = %.3f > 0.10 — "
-            "input looks like prices/levels, not returns; returning neutral 0.0",
+            "_compute_momentum_accel_63d(%s): max column median |daily| = %.3f > 0.10 — "
+            "at least one column looks like prices/levels, not returns; returning 0.0",
             symbol,
-            median_abs_daily,
+            max_col_median,
         )
         return 0.0
 
-    # PR #331 review (silent-failure-hunter SEV-1 / pr-test-analyzer GAP-D /
-    # code-reviewer Finding 1 — three-way convergence at confidence ~95):
-    # ``.sum()`` without ``min_count=1`` returns ``0.0`` for an all-NaN column,
-    # NOT ``NaN`` — so the subsequent ``.dropna()`` never fires for a peer with
-    # no history in the window. Concrete failure scenario reproduced by all
-    # three reviewers: PEER1 IPO'd during the earlier 63d window, its earlier
-    # cumulative return zero-fills to 0.0, and phantom-competes as a mid-
-    # ranked peer against the target's real cumulative return. Result:
-    # accel = -0.8 emitted for a symbol whose real returns were flat. Fix:
-    # pass ``min_count=1`` so all-NaN columns emit NaN, which ``.dropna()``
-    # then correctly excludes.
-    later_cum = returns_df.iloc[-63:].sum(min_count=1).dropna()
-    earlier_cum = returns_df.iloc[-126:-63].sum(min_count=1).dropna()
+    # NaN handling (bd 0h2.9 / PR #331 iter-1 SEV-1): pd.DataFrame.sum() without
+    # min_count returns 0.0 for all-NaN columns, NOT NaN — so a peer with no
+    # history in a window would phantom-compete with cumulative=0.0. iter-2
+    # (SEV-C): bumped from min_count=1 to min_count=_MIN_OBS_PER_WINDOW so
+    # peers with sparse data (e.g. mid-window IPO with only a handful of bars)
+    # are EXCLUDED rather than included with a systematically-shrunk cumulative
+    # that guarantees them the low-rank extreme.
+    _MIN_OBS_PER_WINDOW = 42  # 2/3 of a 63-day window
+    later_cum = returns_df.iloc[-63:].sum(min_count=_MIN_OBS_PER_WINDOW).dropna()
+    earlier_cum = returns_df.iloc[-126:-63].sum(min_count=_MIN_OBS_PER_WINDOW).dropna()
 
     if symbol not in later_cum.index or symbol not in earlier_cum.index:
-        # PR #331 review SEV-2 (R7.3 loud-empty): target column had all-NaN in
-        # one or both windows — cannot compute a rank; degrade to neutral but
-        # say why so ops can distinguish "no data" from "genuine neutral".
+        # R7.3 loud-empty: target column had insufficient observations in one
+        # or both windows — cannot compute a rank; degrade to neutral loudly.
         logger.warning(
             "_compute_momentum_accel_63d(%s): target absent from cumulative "
-            "returns after NaN filter (later=%s, earlier=%s) — likely all-NaN "
-            "in one window; returning neutral 0.0",
+            "returns after NaN filter (later=%s, earlier=%s) — likely <%d "
+            "non-NaN observations in one window; returning neutral 0.0",
             symbol,
             symbol in later_cum.index,
             symbol in earlier_cum.index,
+            _MIN_OBS_PER_WINDOW,
         )
         return 0.0
-    if len(later_cum) < 2 or len(earlier_cum) < 2:
-        # PR #331 review SEV-2: peer set collapsed below 2 in either window
-        # after NaN filtering — cannot rank; degrade to neutral loudly.
+    # iter-2 (SEV-E): require >= 3 peers so percentileofscore has more than a
+    # 2-item lattice (which discretizes accel to ±0.5, meaningless as a rank
+    # movement signal).
+    if len(later_cum) < 3 or len(earlier_cum) < 3:
         logger.warning(
             "_compute_momentum_accel_63d(%s): peer set too thin after NaN "
-            "filter (later=%d, earlier=%d) — returning neutral 0.0",
+            "filter (later=%d, earlier=%d, min=3) — percentile lattice too "
+            "coarse for meaningful accel; returning neutral 0.0",
             symbol,
             len(later_cum),
             len(earlier_cum),
@@ -2486,14 +2485,21 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
         })
     relative_table = pd.DataFrame(rows).set_index("symbol")
 
-    # Rolling 3-month (63-day) cumulative return
+    # Rolling 3-month (63-day) cumulative return.
+    # PR #331 iter-2 (SEV-B): sibling of the SEV-1 NaN bug fixed in
+    # _compute_momentum_accel_63d. pd.DataFrame.sum() zero-coerces all-NaN
+    # columns, so a delisted / freshly-IPO'd peer would phantom-compete
+    # against the target with a spurious 0.0 cumulative. Applying the same
+    # min_count=1 fix keeps drift with momentum_accel_63d at zero (as the
+    # helper's docstring claims).
     rolling_3m_rank = 50.0  # default
     if len(returns_df) >= 63:
-        rolling_3m = returns_df.iloc[-63:].sum()  # approximate cumulative
+        rolling_3m = returns_df.iloc[-63:].sum(min_count=1)
         relative_table["rolling_3m_return"] = rolling_3m.reindex(relative_table.index)
-        if sym in rolling_3m.index and len(rolling_3m.dropna()) > 1:
+        rolling_3m_clean = rolling_3m.dropna()
+        if sym in rolling_3m_clean.index and len(rolling_3m_clean) > 1:
             rolling_3m_rank = float(percentileofscore(
-                rolling_3m.dropna().tolist(), rolling_3m[sym]
+                rolling_3m_clean.tolist(), rolling_3m_clean[sym]
             ))
 
     # Momentum acceleration — Δ percentile-rank over the trailing 63d
