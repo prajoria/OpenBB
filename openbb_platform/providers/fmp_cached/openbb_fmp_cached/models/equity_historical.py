@@ -37,23 +37,6 @@ from openbb_fmp_cached.utils.database import execute_many, execute_query, init_d
 logger = logging.getLogger(__name__)
 
 
-# Regex + helper for redacting FMP apikey from response URLs before they
-# land in HTTPError messages, tracebacks, or breadcrumb logs. See the
-# comment inside ``_fetch_from_fmp_sync`` for full rationale (bd-6641 /
-# bd-q4b4). Keeps the querystring intact but replaces the key with a
-# fixed placeholder so operators can still see the shape of the request.
-import re as _re  # noqa: E402 - grouped near its sole consumer for clarity
-
-_APIKEY_QS_RE = _re.compile(r"([?&])apikey=[^&]*", _re.IGNORECASE)
-
-
-def _redact_apikey_qs(url: str) -> str:
-    """Return ``url`` with any ``apikey=<...>`` querystring value redacted."""
-    if not url:
-        return url
-    return _APIKEY_QS_RE.sub(r"\1apikey=__redacted__", url)
-
-
 class FMPCachedEquityHistoricalQueryParams(EquityHistoricalQueryParams):
     """FMP Cached Equity Historical Query Parameters.
 
@@ -1155,28 +1138,14 @@ def _fetch_from_fmp_sync(
             f"{len(resp.content):,}",
             _http_elapsed,
         )
-        # Redact apikey from the response URL BEFORE raise_for_status —
-        # ``requests`` merges ``params=`` into PreparedRequest.url pre-send,
-        # so ``resp.url`` contains the plaintext key. If we let
-        # ``raise_for_status()`` fire as-is, the resulting
-        # ``requests.HTTPError`` carries a message like
-        # ``429 Client Error: ... for url: <URL with apikey=...>`` which
-        # then lands in every stderr / Sentry / CI-log surface. Redact by
-        # rewriting the response URL to strip the apikey querystring
-        # BEFORE ``raise_for_status`` is called. bd-6641 / bd-q4b4.
-        if resp.status_code >= 400:
-            _redacted_url = _redact_apikey_qs(resp.url)
-            # Mutate the underlying PreparedRequest so raise_for_status()
-            # uses the redacted URL in its message.
-            try:
-                resp.url = _redacted_url
-                if getattr(resp, "request", None) is not None:
-                    resp.request.url = _redacted_url
-            except (AttributeError, TypeError):
-                # Older/stubbed Response objects may not allow attribute
-                # writes — in that case rewrite the message manually.
-                pass
-        resp.raise_for_status()
+        # Use the shared redaction wrapper — ``requests`` merges ``params=``
+        # into PreparedRequest.url pre-send, so ``resp.url`` contains the
+        # plaintext key. Without redaction, the resulting HTTPError message
+        # would land in every stderr / Sentry / CI-log surface.
+        # bd-6641 / bd-q4b4.
+        from openbb_fmp_cached.utils.security import raise_for_status_redacted
+
+        raise_for_status_redacted(resp)
         body = resp.json()
 
         # Parse response -- FMP may return a list or {"historical": [...]}

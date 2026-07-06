@@ -404,7 +404,14 @@ def _fetch_from_api_sync() -> list[dict[str, Any]]:
     # apikey via params= keeps it out of URL strings that could land in
     # HTTPError.url, tracebacks, or proxy access logs (bd-6641 / bd-ygtq).
     response = requests.get(url, params={"apikey": api_key}, timeout=30)
-    response.raise_for_status()
+    # ``requests`` merges ``params=`` into PreparedRequest.url pre-send, so
+    # ``response.url`` contains the plaintext key. Use the shared redaction
+    # wrapper to rewrite it before ``raise_for_status()`` fires — otherwise
+    # any 4xx/5xx propagates a requests.HTTPError with the apikey in its
+    # message all the way up to the CLI caller / logs.
+    from openbb_fmp_cached.utils.security import raise_for_status_redacted
+
+    raise_for_status_redacted(response)
     data = response.json()
 
     if isinstance(data, dict) and data.get("Error Message"):

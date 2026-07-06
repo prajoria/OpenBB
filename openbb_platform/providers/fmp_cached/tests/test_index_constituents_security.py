@@ -56,3 +56,71 @@ def test_no_apikey_in_url_fstring_in_index_constituents():
         "params={'apikey': api_key}. Sites:\n"
         + "\n".join(f"  L{ln}: {ln_text}" for ln, ln_text in hits)
     )
+
+
+def test_fetch_from_api_sync_http_error_does_not_leak_apikey(monkeypatch):
+    """Round-1 review finding: sync path's raise_for_status() must redact.
+
+    Even after moving apikey to ``params=``, ``requests`` merges params
+    into PreparedRequest.url pre-send, so ``resp.url`` carries the
+    plaintext key. A 4xx/5xx response then produces an
+    ``HTTPError`` whose message reads ``for url: <URL with apikey=...>``
+    that propagates up to the CLI caller and lands in logs.
+
+    Verified fix: ``raise_for_status_redacted`` wrapper mutates
+    ``resp.url`` before ``raise_for_status()`` fires. This test
+    reproduces a 429 and asserts the resulting exception message +
+    ``response.url`` both have the sentinel key redacted.
+    """
+    import requests
+    from openbb_fmp_cached.models import index_constituents as mod
+
+    sentinel = "SENTINEL_KEY_INDEX_CONSTITUENTS"
+
+    def fake_get(url, timeout=None, params=None, **kwargs):
+        merged_url = f"{url}?apikey={params['apikey']}"
+
+        class FakeRequest:
+            def __init__(self, u):
+                self.url = u
+
+        class R:
+            status_code = 429
+            content = b"rate limited"
+            reason = "Too Many Requests"
+
+            def __init__(self):
+                self.url = merged_url
+                self.request = FakeRequest(merged_url)
+
+            def raise_for_status(self):
+                # Match requests.Response behaviour: read self.url at
+                # raise-time so the fix's mutation actually redacts.
+                raise requests.HTTPError(
+                    f"{self.status_code} Client Error: {self.reason} "
+                    f"for url: {self.url}",
+                    response=self,
+                )
+
+            def json(self):
+                return {}
+
+        return R()
+
+    # Monkeypatch top-level requests.get (the module imports it at file top)
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+
+    # Also stub the api_key resolver so we control the sentinel.
+    monkeypatch.setattr(mod, "_get_api_key", lambda: sentinel)
+
+    try:
+        mod._fetch_from_api_sync()
+    except requests.HTTPError as exc:
+        assert sentinel not in str(exc), f"HTTPError leaked apikey in message: {exc!s}"
+        resp = getattr(exc, "response", None)
+        if resp is not None:
+            assert sentinel not in str(
+                getattr(resp, "url", "")
+            ), f"HTTPError.response.url leaked apikey: {resp.url!r}"
+    else:
+        raise AssertionError("_fetch_from_api_sync should have raised on HTTP 429")

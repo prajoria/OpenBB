@@ -167,6 +167,8 @@ def get_sp500_symbols(database: str | None = None) -> list[tuple[str, str]]:
 
 def _profile_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
     """One FMP stable profile lookup -> (cusip, issuer_name) or None."""
+    import re
+
     import requests
 
     try:
@@ -181,6 +183,24 @@ def _profile_cusip(symbol: str, api_key: str) -> tuple[str, str] | None:
             params={"symbol": symbol, "apikey": api_key},
             timeout=REQUEST_TIMEOUT,
         )
+        # ``requests`` merges ``params=`` into PreparedRequest.url pre-send,
+        # so ``resp.url`` contains the plaintext apikey. Rewrite it before
+        # ``raise_for_status()`` fires — otherwise the HTTPError message
+        # would leak the key into the ``str(e)[:80]`` truncation below and
+        # into any exception-chain that surfaces upstream.
+        if resp.status_code >= 400:
+            redacted = re.sub(
+                r"([?&])apikey=[^&]*",
+                r"\1apikey=__redacted__",
+                getattr(resp, "url", "") or "",
+                flags=re.IGNORECASE,
+            )
+            try:
+                resp.url = redacted
+                if getattr(resp, "request", None) is not None:
+                    resp.request.url = redacted
+            except (AttributeError, TypeError):
+                pass
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:  # noqa: BLE001
