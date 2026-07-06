@@ -1064,6 +1064,72 @@ class TestApiKeyNotInUrl:
             captured["params"].get("apikey") == self._SENTINEL_KEY
         ), f"apikey missing from params dict: {captured['params']!r}"
 
+    def test_fetch_from_fmp_sync_http_error_does_not_leak_apikey(self, monkeypatch):
+        """HTTPError from sync path must not leak apikey via exception message.
+
+        Regression test for Phase-6 self-QC finding — even with params=, the
+        ``requests`` library merges params into PreparedRequest.url before
+        sending, so ``resp.url`` and ``HTTPError.__str__()`` contained the
+        apikey. Since ``raise_for_status()`` was called on a 4xx/5xx
+        response, an unhandled traceback landed in stderr/CI logs with the
+        real key in it.
+        """
+        import requests as top_requests
+        from openbb_fmp_cached.models import equity_historical as mod
+
+        def fake_get(url, timeout=None, params=None, **kwargs):
+            merged_url = f"{url}?symbol={params['symbol']}&apikey={params['apikey']}"
+
+            class R:
+                status_code = 429
+                content = b"rate limited"
+                url = merged_url
+
+                def raise_for_status(self):
+                    # Match requests.Response.raise_for_status() behaviour:
+                    # read self.url AT RAISE TIME so the fix (which mutates
+                    # self.url just before this call) actually redacts the
+                    # message. Real requests does the same.
+                    err = top_requests.HTTPError(
+                        f"429 Client Error: Too Many Requests for url: {self.url}",
+                        response=self,
+                    )
+                    raise err
+
+                def json(self):
+                    return {}
+
+            return R()
+
+        monkeypatch.setattr(top_requests, "get", fake_get)
+
+        query = FMPCachedEquityHistoricalQueryParams(
+            symbol="AAPL",
+            start_date=date(2024, 1, 2),
+            end_date=date(2024, 1, 5),
+        )
+        credentials = {
+            "fmp_api_key": self._SENTINEL_KEY,
+            "fmp_cached_api_key": self._SENTINEL_KEY,
+        }
+
+        # Whatever exception the function raises, its message must NOT
+        # contain the apikey.
+        try:
+            mod._fetch_from_fmp_sync(query, credentials)
+        except Exception as exc:  # noqa: BLE001 - we assert on the message
+            assert self._SENTINEL_KEY not in str(
+                exc
+            ), f"HTTPError leaked apikey in message: {exc!s}"
+            # Also check the .response.url (a common Sentry breadcrumb field)
+            resp = getattr(exc, "response", None)
+            if resp is not None:
+                assert self._SENTINEL_KEY not in str(
+                    getattr(resp, "url", "")
+                ), f"HTTPError.response.url leaked apikey: {resp.url!r}"
+        else:
+            pytest.fail("_fetch_from_fmp_sync should have raised on HTTP 429 response")
+
 
 _ASYNC_SENTINEL_KEY = "SENTINEL_ASYNC_API_KEY_MUST_NOT_LEAK"
 
