@@ -26,6 +26,7 @@ from openbb_fmp.models.institutional_ownership import (
     FMPInstitutionalOwnershipFetcher,
     FMPInstitutionalOwnershipQueryParams,
 )
+from pydantic import ValidationError
 
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
@@ -129,18 +130,73 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         data: list[dict],
         **kwargs: Any,
     ) -> list[FMPInstitutionalOwnershipData]:
-        """Transform raw data to FMP model, tolerating missing fields from fallback sources."""
-        validated = []
+        """Transform raw data to FMP model, tolerating missing fields from fallback sources.
+
+        The fallback chain (FMP → yfinance → SEC 13F) may return records
+        with slightly different shapes. This method validates each record
+        against ``FMPInstitutionalOwnershipData`` and skips ones that fail,
+        so a single malformed record doesn't nuke the entire response.
+
+        Failure logging (bd-0bp1)
+        -------------------------
+        Pre-fix each drop was logged at ``debug`` level with no exception
+        context — invisible under the default logging config, so a
+        caller debugging "why is institutional ownership empty for X?"
+        had no log evidence. Post-fix each drop is logged at ``WARNING``
+        with the symbol and the specific ``ValidationError``.
+
+        All-dropped guard (bd-0bp1)
+        ---------------------------
+        If ``data`` is non-empty but EVERY record fails validation, the
+        method raises ``ValueError`` rather than silently returning an
+        empty list. The fallback design assumes at least one source
+        succeeds; a complete drop indicates either schema drift in FMP
+        or all fallback sources broken — both cases where "empty result"
+        is indistinguishable from "no institutional owners for this
+        ticker", which is a fundamentally different answer.
+
+        An input list that is already empty (no records tried) is a
+        valid degenerate case and returns ``[]`` without raising.
+        """
+        validated: list[FMPInstitutionalOwnershipData] = []
+        drops = 0
         for record in data:
             try:
                 validated.append(FMPInstitutionalOwnershipData.model_validate(record))
-            except Exception:
-                # Fallback sources may not have all FMP fields -- skip invalid records
-                # but log for debugging
-                logger.debug(
-                    "Skipping record that does not match FMP schema: %s",
+            except ValidationError as exc:
+                # bd-0bp1: log at WARNING (not debug) with the specific
+                # exception so operators debugging "why is this empty?"
+                # have log evidence. Pre-fix used logger.debug + no exc.
+                # PR #345 silent-failure-hunter (P2): narrow from
+                # ``except Exception`` to ``except ValidationError`` so a
+                # TypeError/AttributeError bug in Pydantic or in the
+                # record dict itself isn't silently mislabeled as
+                # 'schema mismatch' — real bugs propagate; only genuine
+                # schema drift gets the tolerate-and-warn path.
+                drops += 1
+                logger.warning(
+                    "Dropping institutional-ownership record for %s due to "
+                    "schema mismatch: %s",
                     record.get("symbol", "unknown"),
+                    exc,
                 )
+
+        # bd-0bp1: if we had input records but every single one was
+        # dropped, that's a bug not a tolerable state — the fallback
+        # design assumes at least one source produces a valid record.
+        # Raise so the caller sees the schema-drift signal instead of
+        # an ambiguous empty result.
+        if drops and not validated:
+            raise ValueError(
+                f"All {drops} institutional-ownership record(s) failed FMP "
+                f"schema validation for query symbol={query.symbol!r}; see "
+                f"WARNING logs for per-record details. This indicates either "
+                f"schema drift in FMPInstitutionalOwnershipData or a broken "
+                f"fallback source (yfinance / SEC 13F); do NOT return an "
+                f"empty list — that is indistinguishable from 'no owners' "
+                f"(bd-0bp1)."
+            )
+
         return validated
 
 
