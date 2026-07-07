@@ -804,6 +804,273 @@ class TestPhase7Decision:
         assert abs(p7.composite_score - expected_sum) <= 0.5
 
 
+class TestPhase7StopCapAndTrailing:
+    """Verify stop-cap + trailing-stop rules on Phase7Result (bd-0h2.11 / A8).
+
+    Reviewer P7 rec: 'The 2×ATR stop is fixed.' Two additions:
+
+      1. **Stop cap** (``use_stop_cap`` flag): cap the stop distance at
+         ``min(2*ATR, 5% * entry)``. Prevents oversized stops on high-vol
+         stocks where 2*ATR would exceed reasonable risk per share.
+
+      2. **Trailing stop rules** (``use_trailing_stop`` flag): populate
+         ``trailing_stop_rules`` dict with the breakeven-at-+1R + trail-
+         at-+1R-when-price-hits-+2R protocol. Rules field is empty dict
+         when the flag is off (default) — no behavioral change.
+
+    Both flags default to False in ``AnalysisFeatureFlags``, so the
+    pipeline behaves exactly as pre-A8 unless callers opt in.
+    """
+
+    @pytest.fixture
+    def cfg(self) -> AnalysisConfig:
+        return AnalysisConfig(symbol="MSFT")
+
+    @pytest.fixture
+    def cfg_stop_cap(self) -> AnalysisConfig:
+        return AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_stop_cap=True),
+        )
+
+    @pytest.fixture
+    def cfg_trailing(self) -> AnalysisConfig:
+        return AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_trailing_stop=True),
+        )
+
+    # ------------------------------------------------------------------ #
+    # Stop cap tests
+    # ------------------------------------------------------------------ #
+    def test_p7_has_trailing_stop_rules_field(self, cfg):
+        """Field must exist on Phase7Result even when flags are off."""
+        p7 = phase7_decision(
+            cfg,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        assert hasattr(p7, "trailing_stop_rules")
+        assert isinstance(p7.trailing_stop_rules, dict)
+
+    def test_stop_cap_off_by_default_preserves_2atr_stop(self, cfg):
+        """Default flag=off: stop = price - 2*ATR (unchanged from pre-A8).
+
+        Mock p3 has price ~147, atr=2.5 → stop=142.0, distance=5.0.
+        5% cap would be 7.35, so cap doesn't bite even if enabled.
+        With flag off, no cap logic runs regardless.
+        """
+        p7 = phase7_decision(
+            cfg,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        # Mock p3 close is 147.0, atr=2.5 → stop = 147 - 5 = 142.0
+        assert p7.atr_stop == pytest.approx(142.0, abs=0.01)
+        assert p7.risk_per_share == pytest.approx(5.0, abs=0.01)
+
+    def test_stop_cap_on_high_vol_stock_bites(self, cfg_stop_cap):
+        """High-vol fixture: ATR=8 on $50 stock → 2*ATR=16 (32% of price!).
+        Cap at 5% = $2.50. Stop should be capped, risk_per_share=2.50.
+
+        Load-bearing property: reverting the stop-cap fix removes the
+        ``min(...)`` and the stop distance would revert to 16.0.
+        """
+        # Custom p3 fixture with high ATR relative to price.
+        p3 = _make_mock_p3()
+        p3.price_df.loc[:, "close"] = [50.0, 50.0, 50.0]
+        p3.atr = 8.0
+
+        p7 = phase7_decision(
+            cfg_stop_cap,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            p3,
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        # 5% of $50 = $2.50 stop distance → stop = $47.50
+        assert p7.risk_per_share == pytest.approx(2.50, abs=0.01), (
+            f"Expected 5% cap ($2.50) to bite; got risk_per_share={p7.risk_per_share}. "
+            f"Reverting stop-cap logic would return 16.0 (2*ATR)."
+        )
+        assert p7.atr_stop == pytest.approx(47.50, abs=0.01)
+
+    def test_stop_cap_low_vol_stock_uses_2atr(self, cfg_stop_cap):
+        """Low-vol fixture: ATR=0.5 on $100 stock → 2*ATR=1.0 (1% of price).
+        5% cap = $5.00 — doesn't bite. Stop = 2*ATR = $1.00 distance.
+        """
+        p3 = _make_mock_p3()
+        p3.price_df.loc[:, "close"] = [100.0, 100.0, 100.0]
+        p3.atr = 0.5
+
+        p7 = phase7_decision(
+            cfg_stop_cap,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            p3,
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        # 2*ATR = 1.0 is well under 5% ($5) cap → stop_distance = 1.0
+        assert p7.risk_per_share == pytest.approx(1.0, abs=0.01)
+        assert p7.atr_stop == pytest.approx(99.0, abs=0.01)
+
+    def test_stop_cap_off_does_not_cap_high_vol(self, cfg):
+        """Flag off + high-vol fixture: stop distance = 2*ATR (uncapped).
+
+        Load-bearing: this is the parity test — with flag off, the cap
+        logic doesn't run even when the fixture would benefit from it.
+        """
+        p3 = _make_mock_p3()
+        p3.price_df.loc[:, "close"] = [50.0, 50.0, 50.0]
+        p3.atr = 8.0
+
+        p7 = phase7_decision(
+            cfg,  # flag OFF
+            _make_mock_p1(),
+            _make_mock_p2(),
+            p3,
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        # 2*ATR = 16.0 — uncapped despite exceeding 5% of price
+        assert p7.risk_per_share == pytest.approx(16.0, abs=0.01)
+
+    # ------------------------------------------------------------------ #
+    # Trailing stop tests
+    # ------------------------------------------------------------------ #
+    def test_trailing_stop_off_by_default_empty_dict(self, cfg):
+        """Default flag=off: trailing_stop_rules is empty dict."""
+        p7 = phase7_decision(
+            cfg,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        assert p7.trailing_stop_rules == {}
+
+    def test_trailing_stop_on_populates_rules(self, cfg_trailing):
+        """Flag on: trailing_stop_rules dict carries the breakeven +
+        trail-at-+2R protocol. Consumer semantics documented in the rules
+        dict itself.
+        """
+        p7 = phase7_decision(
+            cfg_trailing,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        rules = p7.trailing_stop_rules
+        assert "breakeven_at_r" in rules
+        assert rules["breakeven_at_r"] == 1.0, (
+            "breakeven trigger must fire at +1R per bead spec"
+        )
+        assert "trail_at_r" in rules
+        assert rules["trail_at_r"] == 2.0, (
+            "trailing stop activates when price hits +2R per bead spec"
+        )
+        assert "trail_distance_r" in rules
+        assert rules["trail_distance_r"] == 1.0, (
+            "trail distance is 1R (moves stop up by 1R for every 1R price move)"
+        )
+
+    def test_trailing_stop_on_but_stop_cap_off_are_independent(self, cfg_trailing):
+        """Load-bearing property: enabling use_trailing_stop must NOT
+        implicitly enable use_stop_cap. Verify by using the high-vol
+        fixture — stop should NOT be capped.
+        """
+        p3 = _make_mock_p3()
+        p3.price_df.loc[:, "close"] = [50.0, 50.0, 50.0]
+        p3.atr = 8.0
+
+        p7 = phase7_decision(
+            cfg_trailing,  # trailing on, stop_cap off
+            _make_mock_p1(),
+            _make_mock_p2(),
+            p3,
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        # Trailing rules populated
+        assert p7.trailing_stop_rules != {}
+        # But stop NOT capped
+        assert p7.risk_per_share == pytest.approx(16.0, abs=0.01)
+
+    def test_both_flags_on_compose_correctly(self, cfg):
+        """Load-bearing combination test: both flags on → stop capped +
+        trailing rules populated. Prevents future refactor where the two
+        flags accidentally short-circuit each other.
+        """
+        cfg_both = AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(
+                use_stop_cap=True,
+                use_trailing_stop=True,
+            ),
+        )
+        p3 = _make_mock_p3()
+        p3.price_df.loc[:, "close"] = [50.0, 50.0, 50.0]
+        p3.atr = 8.0
+
+        p7 = phase7_decision(
+            cfg_both,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            p3,
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        assert p7.risk_per_share == pytest.approx(2.50, abs=0.01)   # capped
+        assert p7.trailing_stop_rules["breakeven_at_r"] == 1.0      # trailing on
+
+    def test_phase7_wires_trailing_stop_rules_field(self):
+        """R7.8 AST wiring guard: phase7_decision must thread the
+        trailing_stop_rules value into Phase7Result via the constructor
+        kwarg from a local variable (not a hardcoded literal).
+        """
+        import ast
+        import inspect
+        from stock_analysis import phase7_decision
+
+        tree = ast.parse(inspect.getsource(phase7_decision))
+        matching = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id == "Phase7Result":
+                    for kw in node.keywords:
+                        if kw.arg == "trailing_stop_rules":
+                            matching.append(kw)
+        assert len(matching) >= 1, "phase7_decision must pass trailing_stop_rules"
+        # At least one call site must thread the LOCAL variable, not a literal.
+        assert any(
+            isinstance(kw.value, ast.Name) and kw.value.id == "trailing_stop_rules"
+            for kw in matching
+        ), (
+            "At least one Phase7Result call must have "
+            "trailing_stop_rules=trailing_stop_rules (from local var)."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Integration tests — Phase 1 (MSFT + AAPL)
 # ---------------------------------------------------------------------------

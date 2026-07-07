@@ -492,6 +492,23 @@ class Phase7Result:
     hard_override: str | None
     monitoring_triggers: dict[str, Any]
     handoff: dict[str, Any]
+    trailing_stop_rules: dict[str, float] = field(default_factory=dict)
+    """Trailing-stop protocol parameters (bd-0h2.11 / A8, reviewer P7 rec).
+
+    Empty dict ``{}`` when ``AnalysisFeatureFlags.use_trailing_stop`` is
+    False (default) — preserves pre-A8 behavior. When the flag is on,
+    populated with:
+
+      * ``breakeven_at_r`` — move stop to entry when price reaches +NR
+        (default 1.0 — protect against giving back gains)
+      * ``trail_at_r`` — activate trailing stop when price reaches +NR
+        (default 2.0 — start locking in profits after 2R move)
+      * ``trail_distance_r`` — trailing stop distance in R units
+        (default 1.0 — move stop up by 1R for every 1R price move)
+
+    These are protocol parameters for the execution layer to interpret;
+    the Analysis pipeline does not simulate the trailing behavior itself.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -2951,11 +2968,30 @@ def phase7_decision(
     # --- Execution plan ---
     price = float(p3.price_df["close"].iloc[-1])
     atr   = p3.atr
-    stop  = price - 2 * atr
+    # bd-0h2.11 / A8 — stop cap: min(2*ATR, 5% * entry) prevents oversized
+    # stops on high-vol stocks. Gated by AnalysisFeatureFlags.use_stop_cap
+    # so default behavior is unchanged (2*ATR only). Per reviewer P7 rec.
+    stop_distance = 2 * atr
+    if cfg.feature_flags.use_stop_cap:
+        stop_distance = min(stop_distance, 0.05 * price)
+    stop  = price - stop_distance
     r     = price - stop
     t1    = price + r
     t2    = price + 2 * r
     t3    = price + 3 * r
+
+    # bd-0h2.11 / A8 — trailing-stop protocol (populated as protocol
+    # parameters for the execution layer; the Analysis pipeline itself
+    # does not simulate trailing behavior). Empty dict when the flag is
+    # off — preserves pre-A8 Phase7Result shape for existing consumers.
+    if cfg.feature_flags.use_trailing_stop:
+        trailing_stop_rules = {
+            "breakeven_at_r":    1.0,   # move stop to entry at +1R
+            "trail_at_r":        2.0,   # activate trailing at +2R
+            "trail_distance_r":  1.0,   # trail 1R behind price
+        }
+    else:
+        trailing_stop_rules = {}
 
     # Staged entry tranches based on entry quality
     mos = p4.margin_of_safety if not np.isnan(p4.margin_of_safety) else 0.0
@@ -3004,6 +3040,7 @@ def phase7_decision(
         hard_override=hard_override,
         monitoring_triggers=monitoring_triggers,
         handoff=handoff,
+        trailing_stop_rules=trailing_stop_rules,
     )
 
 
