@@ -335,7 +335,11 @@ def main() -> int:
     parser.add_argument(
         "--api-key",
         default=None,
-        help="Override FMP_API_KEY (else env FMP_API_KEY -> user_settings -> none)",
+        help=(
+            "Override FMP_API_KEY for this run (exports to os.environ so the "
+            "obb provider's own resolver picks it up). Precedence: this flag "
+            "> env FMP_API_KEY > user_settings > none."
+        ),
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
@@ -346,6 +350,16 @@ def main() -> int:
     # the chosen DB. Mirrors the #93 review-fix pattern for enrich_cusip_figi.py.
     if args.database:
         os.environ["DB_NAME"] = args.database
+
+    # --api-key: export to os.environ['FMP_API_KEY'] BEFORE the lazy
+    # ``from openbb import obb`` import fires inside refresh_one_etf so the
+    # provider's own resolver picks it up. Pre-fix (bd-2k86) the flag was
+    # documented as an override but had no runtime effect — the resolved
+    # value was threaded to refresh_one_etf but marked ``# noqa: ARG001 -
+    # reserved for future explicit-key plumbing`` and never reached obb.
+    # Mirrors the --database → os.environ['DB_NAME'] pattern above.
+    if args.api_key:
+        os.environ["FMP_API_KEY"] = args.api_key
 
     extras = (
         [s.strip() for s in args.etfs.split(",") if s and s.strip()]

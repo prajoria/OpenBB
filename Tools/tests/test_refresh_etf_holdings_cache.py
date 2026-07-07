@@ -274,3 +274,86 @@ def test_refresh_universe_aggregates_stats_correctly():
             api_key=None,
         )
     assert stats == {"requested": 5, "populated": 2, "errored": 2, "empty": 1}
+
+
+# ---------------------------------------------------------------------------
+# --api-key CLI flag runtime effect (bd-2k86)
+# ---------------------------------------------------------------------------
+#
+# Pre-fix the --api-key flag's help text promised env-var override behavior
+# ("Override FMP_API_KEY (else env FMP_API_KEY -> user_settings -> none)")
+# but the flag was in fact stubbed: refresh_one_etf's api_key parameter had
+# ``# noqa: ARG001 - reserved for future explicit-key plumbing`` and the
+# resolved value was never threaded into obb.etf.holdings(). Users running
+# ``python refresh_etf_holdings_cache.py --api-key TESTKEY`` saw no warning
+# that their key was ignored; the tool silently used whatever FMP_API_KEY
+# already sat in env / user_settings.
+#
+# Fix (bead option a): set os.environ['FMP_API_KEY'] in main() before the
+# lazy ``from openbb import obb`` import fires, mirroring the --database →
+# os.environ['DB_NAME'] pattern that's already present. The obb provider's
+# own resolver picks up the env var.
+
+
+def test_main_sets_fmp_api_key_env_when_flag_provided(monkeypatch):
+    """main() must export --api-key to os.environ['FMP_API_KEY'] (bd-2k86).
+
+    The refresh_one_etf collaborator is patched so no live network is hit;
+    we only care about what main() did to the environment before that
+    collaborator ran.
+    """
+    # Sentinel value so we can distinguish the CLI-supplied key from any
+    # pre-existing env value.
+    sentinel = "SENTINEL_FMP_KEY_FROM_CLI"
+    # Ensure we start from a known baseline; monkeypatch.delenv + setenv
+    # keep the surrounding session env unchanged post-test.
+    monkeypatch.delenv("FMP_API_KEY", raising=False)
+    monkeypatch.delenv("DB_NAME", raising=False)
+
+    argv = [
+        "refresh_etf_holdings_cache.py",
+        "--dry-run",
+        "--skip-portfolio",  # avoid the DB read path
+        "--api-key",
+        sentinel,
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 1, "issuer_ssga", 10.0, None),
+    ):
+        rc = tool.main()
+
+    assert rc == 0
+    # This is the load-bearing assertion: main() must have exported the
+    # CLI-supplied key so downstream ``from openbb import obb`` sees it.
+    assert os.environ.get("FMP_API_KEY") == sentinel, (
+        "--api-key flag was not exported to os.environ['FMP_API_KEY']; "
+        "the CLI flag remains a silent no-op (bd-2k86)."
+    )
+
+
+def test_main_does_not_export_fmp_api_key_when_flag_absent(monkeypatch):
+    """Regression lock: main() must NOT clobber an ambient FMP_API_KEY when the flag is absent."""
+    # Pre-existing env value that must survive main().
+    monkeypatch.setenv("FMP_API_KEY", "AMBIENT_KEY")
+    monkeypatch.delenv("DB_NAME", raising=False)
+
+    argv = [
+        "refresh_etf_holdings_cache.py",
+        "--dry-run",
+        "--skip-portfolio",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 1, "issuer_ssga", 10.0, None),
+    ):
+        rc = tool.main()
+
+    assert rc == 0
+    # Ambient env-var must be untouched — the CLI flag is an override, not
+    # a clobber-with-empty.
+    assert os.environ.get("FMP_API_KEY") == "AMBIENT_KEY"
