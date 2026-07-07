@@ -126,6 +126,13 @@ def resolve_preset(
         value = getattr(merged, family)
         if value < 0:
             raise ValueError(f"Additive weight {family!r} must be >= 0, got {value}.")
+    # NOTE: since bd-qu2h wired a `__post_init__` guard onto ConfluenceWeights
+    # that enforces ``volume == DEFAULT_WEIGHTS.volume``, ``replace(base, ...)``
+    # above already raises on any non-locked volume override (dataclass
+    # replace() fires __post_init__). This range check is therefore currently
+    # unreachable for the volume-override path, but is retained as the
+    # canonical [0, 1] invariant #75 will reinstate when it wires per-preset
+    # volume through the engine and this file becomes the sole gatekeeper.
     if not 0.0 <= merged.volume <= 1.0:
         raise ValueError(f"volume must be in [0, 1], got {merged.volume}.")
 

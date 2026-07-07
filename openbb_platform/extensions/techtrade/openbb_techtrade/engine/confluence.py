@@ -22,6 +22,7 @@ the score are all ``float`` per the engine-wide Decimal/float discipline.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
@@ -69,7 +70,8 @@ class ConfluenceWeights:
     Raises
     ------
     ValueError
-        If ``volume`` differs from :data:`_LOCKED_VOLUME_AMPLITUDE` (``0.15``).
+        If ``volume`` differs from :data:`DEFAULT_WEIGHTS.volume` (``0.15``,
+        within ``abs_tol=1e-9`` for arithmetically-computed amplitudes).
         Pre-fix (bd-qu2h) this was a silent no-op: the field was read exactly
         nowhere in the engine, so custom values had zero effect on scoring.
     """
@@ -87,7 +89,18 @@ class ConfluenceWeights:
         # construction rather than being quietly discarded. Long-term the #75
         # preset work will wire ``self.volume`` through and this guard can
         # relax to a range check.
-        if self.volume != _LOCKED_VOLUME_AMPLITUDE:
+        #
+        # Tolerance rationale (PR #340 silent-failure-hunter finding): a raw
+        # ``!=`` here trips on arithmetically-computed 0.15 — e.g.
+        # ``3 * 0.05 == 0.15000000000000002`` under IEEE 754. Callers deriving
+        # the amplitude from a step count, a JSON round-trip, or a partial
+        # ``resolve_preset(weights={'volume': ...})`` should see the same
+        # accepted-value semantics as the literal ``0.15``. Use
+        # :func:`math.isclose` with ``abs_tol=1e-9`` — tight enough to catch
+        # genuine overrides (0.1499999999 vs 0.15 differ by 1e-10, but that
+        # is well below any operator-supplied resolution and inside our
+        # tolerance; a genuine override like 0.14 differs by 0.01, far above).
+        if not math.isclose(self.volume, _LOCKED_VOLUME_AMPLITUDE, abs_tol=1e-9):
             raise ValueError(
                 f"volume={self.volume!r} is not supported. The #74 pipeline "
                 f"contract locks the volume amplitude to "

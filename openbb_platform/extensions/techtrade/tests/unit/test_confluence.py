@@ -231,6 +231,34 @@ def test_confluence_weights_default_construction_still_works():
     assert w2.volume == 0.15
 
 
+def test_confluence_weights_accepts_ieee754_computed_amplitude():
+    """The guard must tolerate arithmetically-computed 0.15 (PR #340 review).
+
+    IEEE 754 makes ``3 * 0.05 == 0.15000000000000002`` (not exactly 0.15). A
+    caller who derives the amplitude from a step count, JSON round-trip, or
+    partial ``resolve_preset({'volume': ...})`` computation would hit a
+    spurious ValueError under a raw ``!=`` check. The fix uses
+    :func:`math.isclose` with ``abs_tol=1e-9``; this test locks that in so
+    the tolerance can't silently regress back to a strict equality check.
+    """
+    # ``3 * 0.05`` is the canonical IEEE-754 gotcha used in the PR #340
+    # review; ``sum([0.05] * 3)`` is a second representation that also
+    # yields 0.15000000000000002.
+    assert 3 * 0.05 != 0.15  # sanity: baseline gotcha is real
+    w1 = ConfluenceWeights(volume=3 * 0.05)  # must NOT raise
+    # Field preserves the exact float the caller passed (we don't
+    # silently snap to 0.15 — only accept-or-reject).
+    assert w1.volume == 3 * 0.05
+
+    w2 = ConfluenceWeights(volume=sum([0.05] * 3))
+    assert w2.volume == sum([0.05] * 3)
+
+    # Off by 0.01 (a genuine override) must still raise — the tolerance is
+    # narrow enough to catch real mis-configurations.
+    with pytest.raises(ValueError, match="volume"):
+        ConfluenceWeights(volume=0.14)
+
+
 def test_confluence_weights_error_message_cites_locked_field():
     """The raise message must point the operator at the locked-field reason (bd-c2fr)."""
     with pytest.raises(ValueError) as exc_info:
