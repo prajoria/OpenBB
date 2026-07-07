@@ -56,27 +56,46 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
     async def aextract_data(
         query: FMPFinancialRatiosQueryParams,
         credentials: dict[str, str] | None,
+        *,
+        refresh: bool = False,
         **kwargs: Any,
     ) -> list[dict]:
         """Extract financial ratios data with database persistence.
 
         Cache-bypass keyword (bd-ygoh)
         ------------------------------
-        Pass ``refresh=True`` to skip the cache-read step and refetch
-        every requested symbol from FMP. Use this when you suspect a
-        restatement (methodology fix, amended filing) has changed
-        historical values that the cache still holds. The write path
-        will overwrite the stale rows for those symbols. Default is
-        ``refresh=False`` — cache-first behavior is unchanged.
+        Pass ``refresh=True`` to skip the cache-read step, refetch every
+        requested symbol from FMP, AND unconditionally evict any stale
+        rows for those symbols — even if the fresh fetch returns an
+        empty list (delisting, methodology drop, transient upstream
+        error). Use this when you suspect a restatement (methodology
+        fix, amended filing) has changed historical values that the
+        cache still holds. Default is ``refresh=False`` — cache-first
+        behavior is unchanged.
 
-        The ``refresh`` kwarg is popped BEFORE delegating to upstream
-        FMP (upstream doesn't accept it and would raise TypeError).
+        ``refresh`` is a **direct-fetcher-only escape hatch** (PR #355
+        code-reviewer P1): the OBB router surface at
+        ``obb.equity.fundamental.ratios(...)`` currently does NOT
+        propagate arbitrary kwargs — the ``Query`` builder at
+        ``openbb_core/provider/query.py`` composes ``params = {**
+        standard_dict, **extra_dict}`` which drops unrecognized keys.
+        Callers who need restatement-aware reads via the public router
+        surface must either (a) bypass the cached provider by using
+        ``provider='fmp'`` instead of ``'fmp_cached'`` for the affected
+        call, or (b) wait for the Tier-3 per-row filing_date
+        versioning refactor that will make cache reads restatement-
+        aware without a manual flag. This escape hatch is documented
+        here for scripts and notebooks that import the fetcher class
+        directly.
+
+        Keyword-only slot (PR #355 code-reviewer P2)
+        --------------------------------------------
+        ``refresh`` is declared as a keyword-only argument (after ``*``)
+        rather than popped from ``**kwargs``. Self-documenting; future
+        cache-layer kwargs can't accidentally leak to upstream.
+        Upstream ``FMPFinancialRatiosFetcher.aextract_data`` doesn't
+        accept ``refresh`` and would raise TypeError if it received it.
         """
-        # bd-ygoh: pop the cache-layer `refresh` flag before it can leak
-        # to the upstream FMP fetcher's kwargs (upstream signature
-        # doesn't accept it).
-        refresh = kwargs.pop("refresh", False)
-
         resolved_credentials = _resolve_credentials(credentials)
 
         try:
@@ -100,14 +119,21 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
 
         if refresh:
             # bd-ygoh: bypass the cache-read step entirely. Every
-            # requested symbol goes to upstream; _store_financial_ratios
-            # DELETE-then-INSERTs per-symbol so stale rows are
-            # overwritten cleanly.
+            # requested symbol goes to upstream. PR #355 review P1:
+            # eagerly DELETE the per-symbol cache rows BEFORE the
+            # fetch so a subsequent empty upstream response (delisting,
+            # methodology drop, transient failure) doesn't leave the
+            # stale rows in place. The whole point of refresh=True is
+            # "trust source over cache" — leaving stale rows on empty
+            # response would silently regress to the pre-fix behavior
+            # for exactly the class of restatement (methodology drop)
+            # that this flag was meant to catch.
             logger.info(
                 "financial_ratios refresh=True: bypassing cache for %d symbol(s) "
-                "(bd-ygoh restatement escape hatch)",
+                "and pre-evicting stale rows (bd-ygoh restatement escape hatch)",
                 len(symbols),
             )
+            _evict_symbols_from_cache(symbols)
             symbols_to_fetch = list(symbols)
         else:
             for symbol in symbols:
@@ -240,6 +266,26 @@ def _filter_by_period(
         for item in records
         if str(item.get("period", "")).lower() == period.lower()
     ]
+
+
+def _evict_symbols_from_cache(symbols: list[str]) -> None:
+    """DELETE cached financial_ratios rows for the given symbols (bd-ygoh).
+
+    Called by ``aextract_data`` under ``refresh=True`` BEFORE the
+    upstream fetch, so a subsequent empty-response fetch doesn't leave
+    stale rows behind. This is separate from ``_store_financial_ratios``'s
+    own DELETE-then-INSERT (which fires only when there is fresh data
+    to insert) — the eviction must be unconditional.
+
+    Empty ``symbols`` list is a no-op.
+    """
+    if not symbols:
+        return
+    cleanup_query = "DELETE FROM financial_ratios WHERE symbol = %s"
+    for symbol in symbols:
+        s = symbol.strip()
+        if s:
+            execute_query(cleanup_query, (s,))
 
 
 def _store_financial_ratios(ratios: list[dict[str, Any]]) -> None:
