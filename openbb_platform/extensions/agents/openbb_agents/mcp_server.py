@@ -138,6 +138,14 @@ def collect_tools() -> list[dict]:
             # Only register functions defined in this module (skip re-exports)
             if fn.__module__ != module.__name__:
                 continue
+            # Explicit opt-in — bd-17kv / bd-6bcf trust-boundary fix.
+            # Undecorated public functions are silently skipped rather
+            # than being auto-exposed as callable LLM tools. Run this
+            # check BEFORE the async guard below so undecorated public
+            # async helpers don't log a misleading "Skipping @mcp_tool"
+            # warning (Round-2 review cosmetic finding).
+            if not getattr(fn, "__mcp_exposed__", False):
+                continue
             # Round-1 review MEDIUM: ``async def`` tools would return an
             # un-awaited coroutine from ``fn(**arguments)`` in
             # ``_call_tool_safe``, and ``json.dumps(coro, default=str)``
@@ -152,11 +160,6 @@ def collect_tools() -> list[dict]:
                     "extend _call_tool_safe to await coroutine functions.",
                     name,
                 )
-                continue
-            # Explicit opt-in — bd-17kv / bd-6bcf trust-boundary fix.
-            # Undecorated public functions are silently skipped rather
-            # than being auto-exposed as callable LLM tools.
-            if not getattr(fn, "__mcp_exposed__", False):
                 continue
             seen.add(name)
             doc = inspect.getdoc(fn) or ""
