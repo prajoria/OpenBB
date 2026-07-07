@@ -531,6 +531,7 @@ def _make_mock_p1() -> Phase1Result:
         market_cap=3_000_000_000_000,
         free_float_pct=None,
         short_interest_pct=None,
+        earnings_revision_3m_direction="unknown",   # A7 (bd-0h2.10) — safe default
         gate_passed=True,
         gate_notes="OK",
     )
@@ -1489,6 +1490,162 @@ class TestPhase6MomentumAccel:
         pass
 
 
+class TestPhase1EarningsRevisionDirection:
+    """Verify earnings_revision_3m_direction on Phase1Result (bd-0h2.10 / A7).
+
+    Reviewer's structural gap #2: 'forward-looking inputs'. Compute the
+    net direction of analyst price-target revisions over the trailing 90
+    days from ``obb.equity.estimates.price_target`` (already fetched in
+    Phase 1 as ``price_targets_df``). Returns one of:
+      * ``"up"``      — majority of recent revisions raised the target
+      * ``"down"``    — majority lowered
+      * ``"flat"``    — revisions balanced (< 20% net direction)
+      * ``"unknown"`` — insufficient revisions in the 90d window (< 3)
+
+    Direction is derived from the ``news_title`` field ("raised to X from Y"
+    vs "lowered to X from Y") because the ``price_target_previous`` column
+    is populated inconsistently by FMP. Ties + insufficient data → unknown.
+    """
+
+    def _make_price_targets_df(self, revisions):
+        """Build a price_targets_df fixture from ``[(days_ago, direction), ...]``.
+
+        ``direction`` is one of 'raised', 'lowered', or 'reiterated' — matches
+        the FMP news_title verbs (`raised to $X from $Y`, `lowered to $X from $Y`).
+        """
+        rows = []
+        for days_ago, direction in revisions:
+            title_verb = {
+                "raised": "raised to $500 from $450",
+                "lowered": "lowered to $400 from $450",
+                "reiterated": "reiterated a Buy",
+            }[direction]
+            rows.append({
+                "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=days_ago),
+                "symbol": "MSFT",
+                "analyst_firm": "TestFirm",
+                "price_target": 500.0 if direction == "raised" else 400.0,
+                "news_title": f"Microsoft price target {title_verb}",
+            })
+        return pd.DataFrame(rows)
+
+    def test_mock_p1_has_earnings_revision_field(self):
+        p1 = _make_mock_p1()
+        assert hasattr(p1, "earnings_revision_3m_direction"), (
+            "Phase1Result must carry earnings_revision_3m_direction per bd-0h2.10"
+        )
+
+    def test_helper_up_direction_when_majority_raised(self):
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        # 4 raised, 1 lowered in last 60 days: 4/5 = 80% ups → "up"
+        df = self._make_price_targets_df([
+            (10, "raised"), (25, "raised"), (40, "raised"),
+            (55, "raised"), (60, "lowered"),
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "up"
+
+    def test_helper_down_direction_when_majority_lowered(self):
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        # 4 lowered, 1 raised: 80% downs → "down"
+        df = self._make_price_targets_df([
+            (10, "lowered"), (25, "lowered"), (40, "lowered"),
+            (55, "lowered"), (60, "raised"),
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "down"
+
+    def test_helper_flat_when_balanced(self):
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        # 3 raised, 3 lowered: 0% net direction → "flat"
+        df = self._make_price_targets_df([
+            (5, "raised"), (15, "raised"), (25, "raised"),
+            (35, "lowered"), (45, "lowered"), (55, "lowered"),
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "flat"
+
+    def test_helper_unknown_when_insufficient_revisions(self, caplog):
+        """R7.3 loud-empty — fewer than 3 revisions in 90d window returns
+        'unknown' with a WARNING (not a silent 'flat' misclassification).
+        """
+        import logging
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        # Only 2 revisions in window: below the 3-minimum threshold.
+        df = self._make_price_targets_df([(10, "raised"), (30, "raised")])
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            direction = _compute_earnings_revision_3m_direction(df)
+
+        assert direction == "unknown"
+        warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "insufficient analyst revisions" in r.getMessage()
+        ]
+        assert len(warnings) == 1
+
+    def test_helper_ignores_revisions_older_than_90d(self):
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        # All revisions > 90 days old — should be dropped, then triggers
+        # insufficient-data → "unknown".
+        df = self._make_price_targets_df([
+            (100, "raised"), (120, "raised"), (150, "raised"),
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "unknown"
+
+    def test_helper_reiterated_ratings_dont_count_as_direction(self):
+        """Reiterated ratings are neither up nor down — should be excluded
+        from the ups/downs count. Fixture: 2 raised + 5 reiterated → only
+        2 directional signals → below 3-min threshold → 'unknown'.
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = self._make_price_targets_df([
+            (5, "raised"), (10, "raised"),
+            (20, "reiterated"), (30, "reiterated"), (40, "reiterated"),
+            (50, "reiterated"), (60, "reiterated"),
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "unknown"
+
+    def test_helper_empty_df_returns_unknown(self):
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        assert _compute_earnings_revision_3m_direction(pd.DataFrame()) == "unknown"
+
+    def test_phase1_wires_earnings_revision_field(self):
+        """AST-based wiring guard (R7.8): phase1_company_profile must thread
+        the computed earnings_revision_3m_direction value into Phase1Result.
+
+        Catches mutations like ``kwarg=local`` → ``kwarg="unknown"`` that
+        would freeze the field to a default regardless of the actual data.
+        """
+        import ast
+        import inspect
+        from stock_analysis import phase1_company_profile
+
+        tree = ast.parse(inspect.getsource(phase1_company_profile))
+        matching_kwargs = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id == "Phase1Result":
+                    for kw in node.keywords:
+                        if kw.arg == "earnings_revision_3m_direction":
+                            matching_kwargs.append(kw)
+        assert len(matching_kwargs) >= 1, (
+            "phase1_company_profile must pass earnings_revision_3m_direction "
+            "into Phase1Result(...)."
+        )
+        # The value must be a Name (local variable), not a Constant literal.
+        kw = matching_kwargs[0]
+        assert isinstance(kw.value, ast.Name), (
+            f"earnings_revision_3m_direction should be threaded from a local "
+            f"variable, not a hardcoded literal (got {type(kw.value).__name__})."
+        )
+
+
 class TestPhase1Tradeability:
     """Verify free_float_pct + short_interest_pct on Phase1Result (bead OpenBBTechnical-0h2.3).
 
@@ -1526,6 +1683,7 @@ class TestPhase1Tradeability:
             market_cap=0.0,
             free_float_pct=0.87,
             short_interest_pct=0.05,
+            earnings_revision_3m_direction="unknown",
             gate_passed=False,
             gate_notes="",
         )
@@ -1550,6 +1708,7 @@ class TestPhase1Tradeability:
             market_cap=1_000_000_000_000.0,  # $1T raw
             free_float_pct=0.80,             # 80 % of shares publicly tradeable
             short_interest_pct=None,
+            earnings_revision_3m_direction="unknown",
             gate_passed=False,
             gate_notes="",
         )
