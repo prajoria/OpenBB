@@ -103,8 +103,9 @@ class TestExceptionSanitization:
             raise RuntimeError(self._SENTINEL_LEAKY_MESSAGE)
 
         descriptor = {"name": "leaky_tool", "fn": raising_tool}
-        result_texts = _call_tool_safe(descriptor, arguments={"x": 1})
+        result_texts, is_error = _call_tool_safe(descriptor, arguments={"x": 1})
 
+        assert is_error is True, "raising tool must set is_error=True"
         assert len(result_texts) == 1
         payload = json.loads(result_texts[0])
         assert payload == {
@@ -120,7 +121,7 @@ class TestExceptionSanitization:
             raise RuntimeError(self._SENTINEL_LEAKY_MESSAGE)
 
         descriptor = {"name": "leaky_tool", "fn": raising_tool}
-        result_texts = _call_tool_safe(descriptor, arguments={})
+        result_texts, _is_error = _call_tool_safe(descriptor, arguments={})
         combined = "\n".join(result_texts)
 
         # None of the sensitive fragments must appear
@@ -135,13 +136,18 @@ class TestExceptionSanitization:
             assert (
                 fragment not in combined
             ), f"Sensitive fragment {fragment!r} leaked in payload: {combined!r}"
+        # Also rule out class-name / exception-repr leaks
+        assert (
+            "RuntimeError" not in combined
+        ), f"Exception class name leaked in payload: {combined!r}"
 
     def test_call_tool_safe_logs_full_exception_locally(self, caplog):
-        """The FULL exception details (including str + traceback) are logged locally.
+        """The FULL exception details (str + traceback) are logged locally.
 
         Operators need the full error to debug; only the LLM sees the
-        generic payload. This test asserts the info still reaches the
-        logger so we don't lose debuggability.
+        generic payload. Tightened Round-1 review feedback: asserts the
+        full sentinel message reaches the log (not just any fragment)
+        so the operator-debuggability contract is a hard regression lock.
         """
         import logging
 
@@ -154,8 +160,6 @@ class TestExceptionSanitization:
         with caplog.at_level(logging.ERROR, logger="openbb_agents.mcp_server"):
             _call_tool_safe(descriptor, arguments={})
 
-        # The full sensitive message must be in the logs (that's where the
-        # operator debugs — NOT the LLM channel).
         error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
         assert error_records, "expected an ERROR-level log record"
         combined_log = (
@@ -163,16 +167,15 @@ class TestExceptionSanitization:
             + "\n"
             + "\n".join((r.exc_text or "") for r in error_records)
         )
-        # At least ONE of the sensitive fragments should appear in the log
-        # (the log_full_details expected behavior).
-        assert self._SENTINEL_LEAKY_MESSAGE in combined_log or any(
-            frag in combined_log for frag in ("mysql://admin", "S3CR3T", "sk-live")
+        # Hard invariant: the FULL sentinel message must be in the log.
+        assert (
+            self._SENTINEL_LEAKY_MESSAGE in combined_log
         ), f"Full exception details not logged locally: {combined_log!r}"
         # And the tool name must be in the log for operator triage
         assert "leaky_tool" in combined_log
 
     def test_call_tool_safe_happy_path_returns_json_result(self):
-        """Non-raising tool returns json-serialized result as before."""
+        """Non-raising tool returns json-serialized result + is_error=False."""
         import json
 
         from openbb_agents.mcp_server import _call_tool_safe
@@ -181,18 +184,53 @@ class TestExceptionSanitization:
             return {"doubled": x * 2}
 
         descriptor = {"name": "good_tool", "fn": good_tool}
-        result_texts = _call_tool_safe(descriptor, arguments={"x": 21})
+        result_texts, is_error = _call_tool_safe(descriptor, arguments={"x": 21})
+        assert is_error is False, "happy-path tool must set is_error=False"
         assert len(result_texts) == 1
         assert json.loads(result_texts[0]) == {"doubled": 42}
 
     def test_call_tool_safe_generic_error_on_unknown_tool_name(self):
-        """Unknown tool → generic error, no name-injection leak."""
+        """Unknown tool → generic error + is_error=True, no name-injection leak."""
         import json
 
         from openbb_agents.mcp_server import _call_tool_safe
 
         # Descriptor None means the tool wasn't found — the wrapper should
-        # still return the generic error shape, not raise.
-        result_texts = _call_tool_safe(None, arguments={}, name="ghost_tool")
+        # still return the generic error shape + is_error=True, not raise.
+        result_texts, is_error = _call_tool_safe(None, arguments={}, name="ghost_tool")
+        assert is_error is True, "unknown-tool branch must set is_error=True"
         payload = json.loads(result_texts[0])
         assert payload == {"error": "unknown_tool", "tool": "ghost_tool"}
+
+    def test_call_tool_safe_json_dumps_failure_is_sanitized(self):
+        """A tool returning a non-JSON-serializable value falls through to the sanitized path.
+
+        Round-1 review INFO note: json.dumps sits inside the try, so a
+        TypeError raised there (e.g., set/complex return that even
+        default=str can't handle) is caught by the same except Exception
+        and returns the generic error payload — no leak.
+        """
+        import json
+
+        from openbb_agents.mcp_server import _call_tool_safe
+
+        def unserializable_tool():
+            # A class instance without __str__ / __repr__ raising
+            class Weird:
+                def __str__(self):
+                    raise RuntimeError(
+                        "S3CR3T from failed __str__ at C:/Users/daaji/leak"
+                    )
+
+                __repr__ = __str__
+
+            return {"weird": Weird()}
+
+        descriptor = {"name": "unserializable_tool", "fn": unserializable_tool}
+        result_texts, is_error = _call_tool_safe(descriptor, arguments={})
+        assert is_error is True
+        payload = json.loads(result_texts[0])
+        # Generic tag, no fragments from the failed __str__
+        assert payload == {"error": "tool_failed", "tool": "unserializable_tool"}
+        assert "S3CR3T" not in result_texts[0]
+        assert "C:/Users/daaji" not in result_texts[0]

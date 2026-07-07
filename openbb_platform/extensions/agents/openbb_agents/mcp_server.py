@@ -132,12 +132,28 @@ def collect_tools() -> list[dict]:
 # ── MCP server wiring ────────────────────────────────────────────────────────
 
 
+class _McpToolError(RuntimeError):
+    """Internal marker exception the ``@server.call_tool`` seam raises when
+    ``_call_tool_safe`` reports ``is_error=True``.
+
+    Carries the already-sanitized ``TextContent`` list on ``self.content``
+    so the MCP SDK can surface it as the JSON-RPC error response body
+    while preserving ``isError=True`` on the wire. The exception message
+    itself is intentionally a fixed short string with NO tool-side
+    detail — sensitive state is only in the local operator log.
+    """
+
+    def __init__(self, content: list) -> None:
+        super().__init__("mcp_tool_error")
+        self.content = content
+
+
 def _call_tool_safe(
     descriptor: dict | None,
     arguments: dict,
     name: str | None = None,
-) -> list[str]:
-    """Invoke ``descriptor['fn']`` with ``arguments`` and return the safe payload.
+) -> tuple[list[str], bool]:
+    """Invoke ``descriptor['fn']`` and return ``(payloads, is_error)``.
 
     Wraps the raw tool call with two invariants (bd-9ck7 / bd-lq4l):
 
@@ -151,29 +167,31 @@ def _call_tool_safe(
        exc_info=True)`` for triage, but that channel never reaches the
        LLM client.
 
-    Returns a list of ONE json-encoded string (the MCP protocol wraps
-    it in a ``TextContent`` at the ``@server.call_tool`` seam — kept as
-    a plain string here so this helper is unit-testable without the
-    MCP types).
+    Returns ``(payloads, is_error)`` where ``payloads`` is a list of
+    ONE json-encoded string (kept as a plain string here so this
+    helper is unit-testable without the MCP types). ``is_error`` lets
+    the ``@server.call_tool`` seam preserve the MCP-level error signal
+    the SDK exposes to clients — old code raised ``ValueError`` for
+    unknown tools which the SDK wrapped into a JSON-RPC error response;
+    plain returns produce ``isError=False``, so we re-raise or route
+    via the SDK's error path when appropriate.
 
-    Passing ``descriptor=None`` returns the unknown-tool error variant
-    (``{'error': 'unknown_tool', 'tool': <name>}``). The ``name``
-    argument is only required for that branch; when descriptor is
-    provided it defaults to ``descriptor['name']``.
+    Passing ``descriptor=None`` returns ``(unknown_tool_payload, True)``.
     """
     if descriptor is None:
-        return [json.dumps({"error": "unknown_tool", "tool": name or "?"})]
+        payload = json.dumps({"error": "unknown_tool", "tool": name or "?"})
+        return [payload], True
     tool_name = descriptor.get("name") or name or "?"
     fn = descriptor["fn"]
     try:
         result = fn(**arguments)
-        return [json.dumps(result, default=str)]
+        return [json.dumps(result, default=str)], False
     except Exception as exc:
         # Log full details locally (operator triage channel) — NOT
         # returned to the LLM. Includes str(exc) via %s formatting and
         # the full traceback via exc_info=True.
         logger.error("Tool %r raised: %s", tool_name, exc, exc_info=True)
-        return [json.dumps({"error": "tool_failed", "tool": tool_name})]
+        return [json.dumps({"error": "tool_failed", "tool": tool_name})], True
 
 
 async def _serve() -> None:
@@ -201,9 +219,22 @@ async def _serve() -> None:
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         descriptor = tool_index.get(name)
         # Delegate to the testable helper — see _call_tool_safe for the
-        # LLM-boundary sanitization contract (bd-9ck7 / bd-lq4l).
-        payloads = _call_tool_safe(descriptor, arguments, name=name)
-        return [TextContent(type="text", text=p) for p in payloads]
+        # LLM-boundary sanitization contract (bd-9ck7 / bd-lq4l). The
+        # is_error flag propagates the MCP-level error signal: raising
+        # here lets the SDK wrap the response as isError=True, matching
+        # the pre-fix ValueError-raising semantics on the wire.
+        payloads, is_error = _call_tool_safe(descriptor, arguments, name=name)
+        content = [TextContent(type="text", text=p) for p in payloads]
+        if is_error:
+            # McpError is the SDK's typed error surface; falling back to
+            # a plain RuntimeError still gets wrapped into isError=True
+            # by the framework, so this preserves wire-level parity with
+            # the pre-fix behaviour (which raised ValueError).
+            # Note: the sanitized payloads have already been logged in
+            # _call_tool_safe; the exception message here is a fixed
+            # short string that carries NO tool-side detail.
+            raise _McpToolError(content=content)
+        return content
 
     async with stdio_server() as (read_stream, write_stream):
         init_opts = server.create_initialization_options()
