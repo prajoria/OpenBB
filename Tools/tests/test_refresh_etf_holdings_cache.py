@@ -114,7 +114,9 @@ def test_resolve_universe_unions_spdr_portfolio_extras():
     """All three sources should appear in the union, sorted."""
     with patch.object(tool, "list_portfolio_etfs", return_value=["IVV", "QQQ"]):
         result = tool.resolve_universe(
-            database=None, skip_portfolio=False, extra_etfs=["VOO", "DIA"],
+            database=None,
+            skip_portfolio=False,
+            extra_etfs=["VOO", "DIA"],
         )
     expected_min = set(tool.SPDR_SECTORS) | {"IVV", "QQQ", "VOO", "DIA"}
     assert set(result) == expected_min
@@ -125,7 +127,9 @@ def test_resolve_universe_dedupes():
     """Same ETF arriving from multiple sources appears once."""
     with patch.object(tool, "list_portfolio_etfs", return_value=["XLK", "IVV"]):
         result = tool.resolve_universe(
-            database=None, skip_portfolio=False, extra_etfs=["XLK", "IVV", "VOO"],
+            database=None,
+            skip_portfolio=False,
+            extra_etfs=["XLK", "IVV", "VOO"],
         )
     # XLK is in SPDR_SECTORS AND portfolio AND extras -- still one entry
     assert result.count("XLK") == 1
@@ -136,7 +140,9 @@ def test_resolve_universe_uppercases_and_strips_extras():
     """`--etfs ' ivv ,voo,'` -> {'IVV','VOO'}; blank tokens dropped."""
     with patch.object(tool, "list_portfolio_etfs", return_value=[]):
         result = tool.resolve_universe(
-            database=None, skip_portfolio=False, extra_etfs=[" ivv ", "voo", "", "  "],
+            database=None,
+            skip_portfolio=False,
+            extra_etfs=[" ivv ", "voo", "", "  "],
         )
     assert "IVV" in result
     assert "VOO" in result
@@ -148,7 +154,9 @@ def test_resolve_universe_skip_portfolio_drops_portfolio_etfs():
     """`--skip-portfolio` ignores Portfolio_Positions entirely."""
     with patch.object(tool, "list_portfolio_etfs", return_value=["IVV", "QQQ"]):
         result = tool.resolve_universe(
-            database=None, skip_portfolio=True, extra_etfs=None,
+            database=None,
+            skip_portfolio=True,
+            extra_etfs=None,
         )
     assert "IVV" not in result
     assert "QQQ" not in result
@@ -217,7 +225,9 @@ def test_refresh_one_etf_extracts_data_source_from_first_row_dict():
     fake_obb.obb.etf.holdings = MagicMock(return_value=fake_result)
     with patch.dict(sys.modules, {"openbb": fake_obb}):
         _, row_count, data_source, _, _ = tool.refresh_one_etf(
-            "XLK", dry_run=False, api_key=None,
+            "XLK",
+            dry_run=False,
+            api_key=None,
         )
     assert row_count == 1
     assert data_source == "fmp"
@@ -230,7 +240,9 @@ def test_refresh_one_etf_empty_results_yields_zero_rows_no_error():
     fake_obb.obb.etf.holdings = MagicMock(return_value=fake_result)
     with patch.dict(sys.modules, {"openbb": fake_obb}):
         _, row_count, data_source, _, error = tool.refresh_one_etf(
-            "XLK", dry_run=False, api_key=None,
+            "XLK",
+            dry_run=False,
+            api_key=None,
         )
     assert row_count == 0
     assert data_source is None
@@ -245,17 +257,20 @@ def test_refresh_one_etf_empty_results_yields_zero_rows_no_error():
 def test_refresh_universe_aggregates_stats_correctly():
     """Mix of populated/errored/empty per-ETF outcomes rolls up into the right counts."""
     outcomes = {
-        "XLK": ("XLK", 75, "issuer_ssga", 120.0, None),       # populated
-        "XLF": ("XLF", 72, "issuer_ssga", 110.0, None),       # populated
-        "IVV": ("IVV", 0, None, 15.0, "402 Restricted"),       # errored
-        "QQQ": ("QQQ", 0, None, 20.0, "402 Restricted"),       # errored
-        "VTI": ("VTI", 0, None, 80.0, None),                   # empty (no rows, no err)
+        "XLK": ("XLK", 75, "issuer_ssga", 120.0, None),  # populated
+        "XLF": ("XLF", 72, "issuer_ssga", 110.0, None),  # populated
+        "IVV": ("IVV", 0, None, 15.0, "402 Restricted"),  # errored
+        "QQQ": ("QQQ", 0, None, 20.0, "402 Restricted"),  # errored
+        "VTI": ("VTI", 0, None, 80.0, None),  # empty (no rows, no err)
     }
     with patch.object(
-        tool, "refresh_one_etf",
+        tool,
+        "refresh_one_etf",
         side_effect=lambda etf, **_kw: outcomes[etf],
     ):
         stats = tool.refresh_universe(
-            list(outcomes.keys()), dry_run=False, api_key=None,
+            list(outcomes.keys()),
+            dry_run=False,
+            api_key=None,
         )
     assert stats == {"requested": 5, "populated": 2, "errored": 2, "empty": 1}

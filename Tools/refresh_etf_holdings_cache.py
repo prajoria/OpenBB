@@ -87,8 +87,17 @@ try:
     SPDR_SECTORS: tuple[str, ...] = tuple(sorted(GICS_SECTOR_ETFS.values()))
 except ImportError:  # pragma: no cover - extension absent in some environments
     SPDR_SECTORS = (
-        "XLB", "XLC", "XLE", "XLF", "XLI", "XLK",
-        "XLP", "XLRE", "XLU", "XLV", "XLY",
+        "XLB",
+        "XLC",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLRE",
+        "XLU",
+        "XLV",
+        "XLY",
     )
 
 # Built-in ETF detection set for Portfolio_Positions filtering (L4).
@@ -96,12 +105,26 @@ except ImportError:  # pragma: no cover - extension absent in some environments
 KNOWN_ETFS: frozenset[str] = frozenset(
     set(SPDR_SECTORS)
     | {
-        "SPY", "VOO", "IVV",
-        "QQQ", "DIA",
-        "VTI", "VXUS", "VEU", "VEA", "VWO",
-        "BND", "AGG", "BNDX", "TLT", "IEF",
-        "GLD", "SLV",
-        "ARKK", "ARKW", "ARKG",
+        "SPY",
+        "VOO",
+        "IVV",
+        "QQQ",
+        "DIA",
+        "VTI",
+        "VXUS",
+        "VEU",
+        "VEA",
+        "VWO",
+        "BND",
+        "AGG",
+        "BNDX",
+        "TLT",
+        "IEF",
+        "GLD",
+        "SLV",
+        "ARKK",
+        "ARKW",
+        "ARKG",
     }
 )
 
@@ -233,21 +256,29 @@ def refresh_universe(
             stats["errored"] += 1
             logger.warning(
                 "%-6s [-]               rows=0       elapsed=%dms   ERROR: %s",
-                etf, int(elapsed_ms), error,
+                etf,
+                int(elapsed_ms),
+                error,
             )
         elif row_count == 0 and not dry_run:
             stats["empty"] += 1
             logger.info(
                 "%-6s [-]               rows=0       elapsed=%dms   (empty)",
-                etf, int(elapsed_ms),
+                etf,
+                int(elapsed_ms),
             )
         elif dry_run:
-            logger.info("%-6s [dry-run]                                 (would refresh)", etf)
+            logger.info(
+                "%-6s [dry-run]                                 (would refresh)", etf
+            )
         else:
             stats["populated"] += 1
             logger.info(
                 "%-6s [%-15s] rows=%-7d elapsed=%dms",
-                etf, data_source or "-", row_count, int(elapsed_ms),
+                etf,
+                data_source or "-",
+                row_count,
+                int(elapsed_ms),
             )
     return stats
 
@@ -259,7 +290,9 @@ def refresh_universe(
 
 def _setup_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
 
 
 def _resolve_api_key(api_key_arg: str | None) -> str | None:
@@ -280,23 +313,28 @@ def main() -> int:
         "the 11 GICS sector SPDRs + portfolio-held ETFs + extras.",
     )
     parser.add_argument(
-        "--database", default=None,
+        "--database",
+        default=None,
         help="Target MySQL database (default: from DatabaseConfig)",
     )
     parser.add_argument(
-        "--etfs", default=None,
+        "--etfs",
+        default=None,
         help="Extra comma-separated ETF tickers to refresh atop the defaults",
     )
     parser.add_argument(
-        "--skip-portfolio", action="store_true",
+        "--skip-portfolio",
+        action="store_true",
         help="Skip Portfolio_Positions read; SPDRs + --etfs only",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Print plan + resolved universe; no API calls, no DB writes",
     )
     parser.add_argument(
-        "--api-key", default=None,
+        "--api-key",
+        default=None,
         help="Override FMP_API_KEY (else env FMP_API_KEY -> user_settings -> none)",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -311,12 +349,11 @@ def main() -> int:
 
     extras = (
         [s.strip() for s in args.etfs.split(",") if s and s.strip()]
-        if args.etfs else []
+        if args.etfs
+        else []
     )
 
-    portfolio_etfs = (
-        [] if args.skip_portfolio else list_portfolio_etfs(args.database)
-    )
+    portfolio_etfs = [] if args.skip_portfolio else list_portfolio_etfs(args.database)
     spdr_count = len(SPDR_SECTORS)
     universe = resolve_universe(
         database=args.database,
