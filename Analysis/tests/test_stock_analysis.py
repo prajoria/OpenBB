@@ -1892,6 +1892,124 @@ class TestPhase1EarningsRevisionDirection:
         ]
         assert len(warnings) == 1
 
+    # ------------------------------------------------------------------ #
+    # PR #337 iter-2 verify — regression tests for the regex rework
+    # (silent-hunt S1 non-PT exclusion + S2 participle vocabulary +
+    # pr-test GAP-1 stricter bare-raised + GAP-2 down-vocab symmetry).
+    # ------------------------------------------------------------------ #
+    def test_helper_dividend_and_buyback_news_dont_trigger_direction(self):
+        """iter-2-verify S1 (silent-hunt conf 90): non-PT financial news
+        that uses directional verbs must NOT trigger the regex.
+
+        Prior iter-2 code had a ``to $NNN`` alt-anchor that caught
+        "raised dividend to $0.24", "boosted buyback to $60B", "raised
+        guidance to $5 EPS" as UP revisions. iter-2-verify tightened the
+        regex to require the ``target|PT`` keyword adjacency; these
+        should now register as neither up nor down.
+
+        Load-bearing property: 4 non-PT titles with directional verbs
+        → 0 directional → 'unknown'. Reverting the tightening (restoring
+        the to-$N alt-anchor) causes these to count as up → misclassified.
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": title,
+            }
+            for d, title in [
+                (5, "AAPL raised dividend to $0.24 per share"),
+                (15, "MSFT boosted buyback to $60 billion"),
+                (25, "AMZN raised guidance to $5.00 EPS"),
+                (35, "GOOGL hiked forecast to $10 range"),
+            ]
+        ])
+        # All 4 are non-PT news mentioning directional verbs. None should
+        # register as directional revisions.
+        assert _compute_earnings_revision_3m_direction(df) == "unknown"
+
+    def test_helper_present_participle_verbs_count_as_directional(self):
+        """iter-2-verify S2 (silent-hunt conf 95): FMP headlines use both
+        past-tense (raised/cut/lowered) and present-participle (raising/
+        cutting/lowering) forms. Prior iter-2 code missed the participles.
+
+        Load-bearing property: 3 titles using ONLY participles → 3
+        directional → non-'unknown' verdict (up/down as fixture chooses).
+        Reverting the vocabulary to past-tense-only causes these to
+        register as neither → total_directional < 3 → 'unknown'.
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        # Mixed participles: 2 raising + 1 cutting → up
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": title,
+            }
+            for d, title in [
+                (10, "Wells raising target to $600 from $500"),
+                (20, "MS raising PT to $580"),
+                (30, "Barclays cutting target to $400"),
+            ]
+        ])
+        # 2 up-participles, 1 down-participle → net=1/3 ≈ 0.33 > 0.20 → 'up'
+        assert _compute_earnings_revision_3m_direction(df) == "up"
+
+    def test_helper_bare_raised_ceremonial_fix(self):
+        """iter-2-verify GAP-1 (pr-test-analyzer): fix the ceremonial iter-1
+        test_helper_bare_raised_without_target_is_not_directional. The
+        original had 2 bare-raised + 1 bare-lowered fixtures → under the
+        bare-\\braised\\b mutation, ups=2, downs=0, total=2 < min_revisions=3
+        → returned 'unknown' but for the WRONG reason (count too low).
+
+        Fix: use 3 bare-raised fixtures + 1 bare-lowered so that under the
+        mutation, ups=3, downs=0, total=3 ≥ min_revisions → returns 'up'
+        (buggy) vs 'unknown' (phrase-anchored, correct). Now the load-
+        bearing property is truly the phrase-anchor, not the count.
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": title,
+            }
+            for d, title in [
+                # 4 bare-raised + 1 bare-lowered — all in non-PT contexts
+                (5, "Microsoft: analyst raised concerns about competitive pressure"),
+                (10, "Microsoft: firm raised recession worries for the sector"),
+                (15, "Microsoft: bank raised outlook citing macro risk"),
+                (20, "Microsoft: fund raised its cash position amid volatility"),
+                (30, "Microsoft: pundit lowered growth expectations for AI"),
+            ]
+        ])
+        # With phrase-anchoring: 0 directional → 'unknown'.
+        # Without phrase-anchoring (mutation): ups=4, downs=1, net=0.60 → 'up'.
+        assert _compute_earnings_revision_3m_direction(df) == "unknown"
+
+    def test_helper_trimmed_slashed_downgraded_count_as_down(self):
+        """iter-2-verify GAP-2 (pr-test-analyzer): symmetric down-vocab
+        regression test — mirrors test_helper_hiked_and_boosted_verbs_
+        count_as_up for the DOWN direction. Prior iter-2 code accepted
+        the vocabulary but no test named the verbs; mutation removing
+        ``trimmed|slashed|downgraded`` silently survived.
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": title,
+            }
+            for d, title in [
+                (10, "Microsoft price target trimmed to $450 from $500"),
+                (30, "Microsoft price target slashed to $350 from $500"),
+                (50, "Microsoft downgraded, PT to $400 from $500"),
+            ]
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "down"
+
 
 class TestPhase1Tradeability:
     """Verify free_float_pct + short_interest_pct on Phase1Result (bead OpenBBTechnical-0h2.3).

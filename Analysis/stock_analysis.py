@@ -767,13 +767,29 @@ def _compute_momentum_accel_63d(
 # ("Buy reiterated", "maintained at Overweight") stay excluded — they don't
 # move the target.
 _REVISION_UP_PATTERN = re.compile(
-    r"\b(?:raised|hiked|boosted|increased|upgraded)\b"
-    r"(?:[^.]{0,60}?\b(?:price\s+)?target\b|[^.]{0,20}?\bto\s+\$?\d)",
+    # Verb + target within 60 chars, EITHER order (FMP titles are typically
+    # "price target raised to $NNN" — target first, verb second — but some
+    # headlines use "raised the price target to $NNN" — verb first).
+    r"(?:"
+    r"\b(?:raised|raising|hiked|hiking|boosted|boosting|increased|increasing|"
+    r"upgraded|upgrading)\b[^.]{0,60}?\b(?:price\s+target|target|PT)\b"
+    r"|"
+    r"\b(?:price\s+target|target|PT)\b[^.]{0,60}?"
+    r"\b(?:raised|raising|hiked|hiking|boosted|boosting|increased|increasing|"
+    r"upgraded|upgrading)\b"
+    r")",
     re.IGNORECASE,
 )
 _REVISION_DOWN_PATTERN = re.compile(
-    r"\b(?:lowered|cut|reduced|trimmed|slashed|downgraded)\b"
-    r"(?:[^.]{0,60}?\b(?:price\s+)?target\b|[^.]{0,20}?\bto\s+\$?\d)",
+    r"(?:"
+    r"\b(?:lowered|lowering|cut|cutting|reduced|reducing|trimmed|trimming|"
+    r"slashed|slashing|downgraded|downgrading)\b[^.]{0,60}?"
+    r"\b(?:price\s+target|target|PT)\b"
+    r"|"
+    r"\b(?:price\s+target|target|PT)\b[^.]{0,60}?"
+    r"\b(?:lowered|lowering|cut|cutting|reduced|reducing|trimmed|trimming|"
+    r"slashed|slashing|downgraded|downgrading)\b"
+    r")",
     re.IGNORECASE,
 )
 
