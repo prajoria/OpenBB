@@ -76,7 +76,9 @@ def test_log_partial_gap_severity_small_gap_is_info(caplog):
     """Gap fraction below WARN threshold → INFO level (bd-lyzk)."""
     warn_fraction, _ = _import_severity_thresholds()
     # 1 trading day missing out of 100 → 1% gap, well below default 5% warn.
-    remaining_gaps = [(date(2026, 3, 15), date(2026, 3, 15))]
+    # Use a WEEKDAY — PR #352 review P1 fix made the numerator count
+    # trading days, so a weekend gap contributes 0. 2026-03-16 is Monday.
+    remaining_gaps = [(date(2026, 3, 16), date(2026, 3, 16))]
 
     with caplog.at_level(
         logging.DEBUG, logger="openbb_fmp_cached.models.equity_historical"
@@ -101,15 +103,17 @@ def test_log_partial_gap_severity_small_gap_is_info(caplog):
 
 
 def test_log_partial_gap_severity_moderate_gap_is_warning_with_specifics(caplog):
-    """Gap fraction between WARN and ERROR thresholds → WARNING with dates + count (bd-lyzk)."""
+    """Gap fraction between WARN and ERROR thresholds → WARNING with dates + count (bd-lyzk).
+
+    PR #352 review P1 fix: numerator now counts TRADING days, so the
+    test must construct a gap that yields the right trading-day count
+    (not just calendar days). Mar 2 → Mar 20 2026 is a Mon-Fri span
+    of 15 trading days (19 calendar days including 2 weekends).
+    """
     warn_fraction, error_fraction = _import_severity_thresholds()
     trading_days_requested = 100
-    target_fraction = (warn_fraction + error_fraction) / 2
-    missing_days = int(target_fraction * trading_days_requested)
-    start = date(2026, 3, 1)
-    remaining_gaps = [
-        (start, start + timedelta(days=missing_days - 1)),
-    ]
+    # Target ~15% (midway between 5% WARN and 25% ERROR) = 15 trading days
+    remaining_gaps = [(date(2026, 3, 2), date(2026, 3, 20))]  # 15 tdays
 
     with caplog.at_level(
         logging.DEBUG, logger="openbb_fmp_cached.models.equity_historical"
@@ -125,9 +129,9 @@ def test_log_partial_gap_severity_moderate_gap_is_warning_with_specifics(caplog)
     )
     msg = warning_records[0].getMessage()
     assert "AAPL" in msg, f"warning missing symbol: {msg!r}"
-    assert "2026-03-01" in msg, f"warning missing gap start date: {msg!r}"
+    assert "2026-03-02" in msg, f"warning missing gap start date: {msg!r}"
     assert (
-        "%" in msg or "fraction" in msg.lower() or str(missing_days) in msg
+        "%" in msg or "fraction" in msg.lower() or "trading day" in msg.lower()
     ), f"warning lacks gap-size context (percent / fraction / count): {msg!r}"
 
 
@@ -143,14 +147,14 @@ def test_log_partial_gap_severity_large_gap_is_error(caplog):
     (holidays are a small % even in a short window). Escalate to ERROR
     so ops alerting fires — this is the primary silent-fetch-failure
     signal the bead flags.
+
+    PR #352 review P1: numerator counts trading days. Mar 2 → May 8
+    2026 is ~50 trading days (Mon-Fri span with 9 embedded weekends).
     """
     _, error_fraction = _import_severity_thresholds()
     trading_days_requested = 100
-    missing_days = int((error_fraction + 0.25) * trading_days_requested)
-    start = date(2026, 3, 1)
-    remaining_gaps = [
-        (start, start + timedelta(days=missing_days - 1)),
-    ]
+    # Target ~50% = 50 trading days
+    remaining_gaps = [(date(2026, 3, 2), date(2026, 5, 8))]
 
     with caplog.at_level(
         logging.DEBUG, logger="openbb_fmp_cached.models.equity_historical"
@@ -166,7 +170,7 @@ def test_log_partial_gap_severity_large_gap_is_error(caplog):
     )
     msg = error_records[0].getMessage()
     assert "AAPL" in msg, f"error missing symbol: {msg!r}"
-    assert "2026-03-01" in msg, f"error missing gap start date: {msg!r}"
+    assert "2026-03-02" in msg, f"error missing gap start date: {msg!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -187,4 +191,138 @@ def test_log_partial_gap_severity_zero_trading_days_no_crash(caplog):
     assert caplog.records, (
         "no log emitted for 0-trading-day + non-empty gaps — the severity "
         "helper should still surface the unusual state"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contract 6 — PR #352 review P1: unit-consistency between numerator + denominator.
+# ---------------------------------------------------------------------------
+
+
+def test_log_partial_gap_severity_weekend_spanning_gap_uses_trading_days(caplog):
+    """PR #352 code-reviewer P1: numerator must count trading days, not calendar days.
+
+    Pre-review-fix used ``(end - start).days + 1`` which counted CALENDAR
+    days. A Fri→Wed gap = 5 calendar days but only 3 trading days;
+    over a 20-trading-day window that computed as 25% ERROR when the
+    correct fraction is 15% WARN. This test constructs a
+    weekend-spanning gap and asserts the severity is WARN (not ERROR),
+    which proves the numerator correctly excludes the weekend.
+
+    Empirically verified by silent-failure-hunter: pre-review-fix, a
+    whole-year empty cache reported gap fraction 145.6% and a Fri→Mon
+    closure reported 200.0% — mathematically impossible under the
+    correct trading-day units.
+    """
+    # Fri 2026-03-06 → Wed 2026-03-11 = 6 calendar days but 4 trading
+    # days (Fri, Mon, Tue, Wed). Over 20 trading days denominator:
+    # - Pre-review-fix (calendar num): 6/20 = 30% → ERROR
+    # - Post-review-fix (trading num): 4/20 = 20% → WARNING
+    remaining_gaps = [(date(2026, 3, 6), date(2026, 3, 11))]
+
+    with caplog.at_level(
+        logging.DEBUG, logger="openbb_fmp_cached.models.equity_historical"
+    ):
+        _call_helper("AAPL", remaining_gaps, trading_days_requested=20)
+
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+    error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+
+    # Post-fix: 4 trading days / 20 = 20% → WARN band.
+    assert warning_records, (
+        f"weekend-spanning Fri→Wed gap (4 trading days) over 20-day window "
+        f"should log at WARNING (20%), not ERROR (which would fire if the "
+        f"numerator still counted calendar days at 6/20=30%). All records: "
+        f"{[(r.levelname, r.getMessage()) for r in caplog.records]!r}"
+    )
+    assert not error_records, (
+        f"weekend-spanning gap logged at ERROR — indicates numerator is "
+        f"still counting CALENDAR days (bug: 6/20=30%) instead of TRADING "
+        f"days (correct: 4/20=20%). Got ERROR: "
+        f"{[r.getMessage() for r in error_records]!r}"
+    )
+
+
+def test_log_partial_gap_severity_future_end_date_clipped_at_today(caplog):
+    """PR #352 code-reviewer P1: gap end-dates past today must be clipped.
+
+    Pre-review-fix a caller with ``end_date = today + 3y`` had
+    ``_count_trading_days_in_range`` count ~750 future weekdays in the
+    denominator, then the numerator counted the same future weekdays as
+    "missing" (they will never be filled — FMP can't have the future).
+    Result: gap_fraction ≈ 87% ERROR on a request that was actually
+    fully-fulfilled through today.
+
+    Post-review-fix the numerator clips gap-end-dates at ``today``. A
+    gap fully in the future contributes 0 to missing_days; a gap
+    straddling today contributes only its past-today portion.
+
+    This test constructs an entirely-future gap and asserts NO log fires
+    (it's the "silently return, no report" fast-path — legitimate
+    happy-path for a future-range request).
+    """
+    from datetime import date as _date
+
+    # Gap starts 1 year in the future — entirely unreachable by any
+    # fetch, but not a real miss.
+    future_start = _date.today().replace(year=_date.today().year + 1)
+    future_end = _date(future_start.year, future_start.month, 28)
+    if future_end <= future_start:
+        future_end = _date(future_start.year + 1, 1, 15)
+    remaining_gaps = [(future_start, future_end)]
+
+    with caplog.at_level(
+        logging.DEBUG, logger="openbb_fmp_cached.models.equity_historical"
+    ):
+        _call_helper("AAPL", remaining_gaps, trading_days_requested=250)
+
+    # Post-fix: entirely-future gap → clipped to 0 missing_days →
+    # early-return with NO log. Pre-fix would have logged at ERROR
+    # (250 missing / 250 requested = 100% ERROR).
+    high_records = [r for r in caplog.records if r.levelno >= logging.INFO]
+    assert not high_records, (
+        f"entirely-future gap should be silent (clipped at today), but got "
+        f"records: {[(r.levelname, r.getMessage()) for r in high_records]!r} "
+        f"— pre-fix ERROR was ~100% because numerator counted the future "
+        f"weekdays FMP will never have."
+    )
+
+
+def test_log_partial_gap_severity_capped_range_list_when_many_gaps(caplog):
+    """PR #352 code-reviewer P2: cap formatted range list at 10 (bd-lyzk).
+
+    200 single-day gaps would produce a ~5KB log line and risk Datadog/
+    syslog truncation on the ERROR-level lines ops alerting depends on.
+    Cap at 10 entries + '... and N more' suffix.
+    """
+    # 15 single-day trading-day gaps → will trip the cap (> 10).
+    # Use consecutive weekdays so each is a real trading day.
+    gaps = []
+    d = date(2026, 3, 2)  # Monday
+    added = 0
+    while added < 15:
+        if d.weekday() < 5:
+            gaps.append((d, d))
+            added += 1
+        d += timedelta(days=1)
+
+    with caplog.at_level(
+        logging.DEBUG, logger="openbb_fmp_cached.models.equity_historical"
+    ):
+        _call_helper("AAPL", gaps, trading_days_requested=100)
+
+    # Find the partial-fill log record (there are DEBUG lines from the
+    # holiday-DB helper that we skip past).
+    partial_fill_records = [
+        r for r in caplog.records if "Partial-fill for AAPL" in r.getMessage()
+    ]
+    assert partial_fill_records, (
+        f"no partial-fill record captured. All: "
+        f"{[(r.levelname, r.getMessage()) for r in caplog.records]!r}"
+    )
+    msg = partial_fill_records[0].getMessage()
+    # The cap suffix "... and 5 more" (15 gaps - 10 shown) must appear.
+    assert "... and 5 more" in msg, (
+        f"log message did not include the range-cap suffix — should read "
+        f"'... and N more' when > 10 ranges. Got: {msg!r}"
     )
