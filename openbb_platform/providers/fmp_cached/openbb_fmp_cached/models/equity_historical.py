@@ -48,8 +48,8 @@ logger = logging.getLogger(__name__)
 # splits_only adjustment). bd-o61s.
 _FMP_BASE = "https://financialmodelingprep.com/stable/"
 
-# Intraday interval -> FMP historical-chart endpoint suffix. All seven
-# ``Literal`` values on ``FMPCachedEquityHistoricalQueryParams.interval``
+# Intraday interval -> FMP historical-chart endpoint suffix. All six
+# intraday ``Literal`` values on ``FMPCachedEquityHistoricalQueryParams.interval``
 # are represented; missing an entry means a fetch would silently 4xx
 # from FMP with an empty endpoint path.
 _INTRADAY_ENDPOINTS: dict[str, str] = {
@@ -58,7 +58,6 @@ _INTRADAY_ENDPOINTS: dict[str, str] = {
     "15m": "historical-chart/15min",
     "30m": "historical-chart/30min",
     "1h": "historical-chart/1hour",
-    "60m": "historical-chart/1hour",  # legacy alias
     "4h": "historical-chart/4hour",
 }
 

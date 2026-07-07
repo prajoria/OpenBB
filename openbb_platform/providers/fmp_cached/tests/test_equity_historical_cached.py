@@ -1332,16 +1332,25 @@ class TestIntervalUrlRouting:
         with _pytest.raises(ValueError, match="Unsupported FMP interval"):
             _build_fmp_endpoint(adjustment="splits_only", interval="1w")
 
-    def test_build_fmp_endpoint_supports_60m_legacy_alias(self):
-        """``60m`` legacy alias still routes to the 1h endpoint (backward compat)."""
+    def test_build_fmp_endpoint_raises_on_unsupported_60m_legacy_alias(self):
+        """``60m`` is NOT in the Literal type — verify it raises rather than silently routing.
+
+        The initial fix added a ``'60m'`` entry to ``_INTRADAY_ENDPOINTS``
+        as a "legacy alias" but that was dead code: the ``interval``
+        field's Literal type only accepts ``('1m','5m','15m','30m','1h','4h','1d')``
+        so ``60m`` is unreachable via the public API. Round-1 review flagged
+        the dead branch; removed. This test locks in that any future
+        attempt to route ``60m`` (via ``.model_construct()`` bypass or a
+        misconfigured caller) fails loudly rather than silently.
+        """
+        import pytest as _pytest
+
         from openbb_fmp_cached.models.equity_historical import (
             _build_fmp_endpoint,
         )
 
-        assert (
+        with _pytest.raises(ValueError, match="Unsupported FMP interval"):
             _build_fmp_endpoint(adjustment="splits_only", interval="60m")
-            == "https://financialmodelingprep.com/stable/historical-chart/1hour"
-        )
 
 
 if __name__ == "__main__":
