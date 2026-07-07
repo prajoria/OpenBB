@@ -635,7 +635,33 @@ def _make_mock_p5(sharpe: float = 1.4, mdd: float = -0.22) -> Phase5Result:
     )
 
 
-def _make_mock_p6(relative_score: float = 3.8, ir: float = 0.6) -> Phase6Result:
+def _make_mock_p6(
+    relative_score: float = 3.8,
+    ir: float = 0.6,
+    *,
+    rolling_3m_rank: float = float("nan"),
+    relative_valuation_score: float = float("nan"),
+    momentum_accel_63d: float = float("nan"),
+) -> Phase6Result:
+    """Build a mock Phase6Result for tests that don't need the scalar fields.
+
+    bd-zuw (PR #331 iter-2 silent-failure-hunter SEV-H): the previous defaults
+    (``rolling_3m_rank=55.0``, ``relative_valuation_score=65.0``,
+    ``momentum_accel_63d=0.0``) were "reasonable" values that hid a coverage-
+    decay hazard — when a future PR wires any of these three scalars into a
+    P7 branch that fires on a threshold (e.g. ``if p6.rolling_3m_rank < 30``),
+    every existing mock-based test would silently skip that branch.
+
+    Fix: default all three to ``float('nan')`` so any consumer that uses them
+    in an arithmetic comparison without a NaN guard fails loudly (``nan < 30``
+    is False, ``nan > 30`` is False — but the failure will surface as an
+    obviously-wrong output rather than a silently-skipped branch). Callers who
+    need a specific numeric value must now pass it explicitly via keyword.
+
+    Existing callers of ``_make_mock_p6()`` that don't consume these fields
+    are unaffected; the P7 decision path currently reads only
+    ``relative_score``, ``information_ratio``, and ``sector_etf``.
+    """
     return Phase6Result(
         relative_table=pd.DataFrame(),
         corr_matrix=pd.DataFrame(),
@@ -643,9 +669,9 @@ def _make_mock_p6(relative_score: float = 3.8, ir: float = 0.6) -> Phase6Result:
         information_ratio=ir,
         relative_score=relative_score,
         peer_fundamental_df=pd.DataFrame(),
-        relative_valuation_score=65.0,
-        rolling_3m_rank=55.0,
-        momentum_accel_63d=0.0,   # A6 (bead 0h2.9) — neutral default
+        relative_valuation_score=relative_valuation_score,
+        rolling_3m_rank=rolling_3m_rank,
+        momentum_accel_63d=momentum_accel_63d,
         gate_passed=True,
         gate_notes="OK",
     )
@@ -837,9 +863,31 @@ class TestPhase6Rolling3M:
     """Verify rolling_3m_rank in Phase6Result."""
 
     def test_mock_p6_has_rolling_3m_rank(self):
-        p6 = _make_mock_p6()
+        # bd-zuw: _make_mock_p6 now defaults rolling_3m_rank to NaN; tests
+        # that specifically care about the value must pass it explicitly.
+        p6 = _make_mock_p6(rolling_3m_rank=55.0)
         assert hasattr(p6, "rolling_3m_rank")
         assert 0.0 <= p6.rolling_3m_rank <= 100.0
+
+    def test_mock_p6_defaults_scalars_to_nan(self):
+        """bd-zuw regression guard — the three P6 scalar fields that P7
+        doesn't currently consume default to NaN in _make_mock_p6.
+
+        Load-bearing property: if a future PR adds a P7 branch that reads
+        p6.momentum_accel_63d (or rolling_3m_rank or relative_valuation_score)
+        without a NaN guard, EVERY existing mock-based test would fail
+        loudly (NaN comparisons return False, breaking any threshold-fired
+        branch). This test catches "someone silently restored 55.0 / 65.0
+        / 0.0 defaults thinking they were harmless."
+        """
+        import math
+        p6 = _make_mock_p6()
+        assert math.isnan(p6.rolling_3m_rank), (
+            "_make_mock_p6 must default rolling_3m_rank to NaN so future "
+            "P7 consumers without NaN handling break loudly (bd-zuw)."
+        )
+        assert math.isnan(p6.momentum_accel_63d)
+        assert math.isnan(p6.relative_valuation_score)
 
 
 class TestPhase6MomentumAccel:
@@ -862,7 +910,9 @@ class TestPhase6MomentumAccel:
 
     def test_momentum_accel_in_valid_range(self):
         """Range guard — the delta of two percentiles / 100 lives in [-1, +1]."""
-        p6 = _make_mock_p6()
+        # bd-zuw: _make_mock_p6 now defaults momentum_accel_63d to NaN;
+        # a caller that specifically checks the value must pass it.
+        p6 = _make_mock_p6(momentum_accel_63d=0.0)
         assert -1.0 <= p6.momentum_accel_63d <= 1.0
 
     def test_monotone_improving_ranks_yield_positive_accel(self):
