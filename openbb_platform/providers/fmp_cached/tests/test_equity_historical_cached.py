@@ -1198,6 +1198,151 @@ def test_no_apikey_in_url_fstring_in_equity_historical():
     )
 
 
+# ---------------------------------------------------------------------------
+# Interval → URL routing correctness (bd-o61s, P0)
+# ---------------------------------------------------------------------------
+
+
+class TestIntervalUrlRouting:
+    """Regression tests for OpenBBTechnical-o61s — the URL-building ladder
+    silently returned daily bars when interval was intraday +
+    adjustment != 'splits_only'. Also dropped 15m/30m/4h to an invalid
+    empty endpoint. Fix: mirror upstream FMPEquityHistoricalFetcher's
+    model_validator (adjustment != 'splits_only' → interval must be '1d')
+    AND add explicit branches for the missing intervals.
+    """
+
+    def test_model_validator_rejects_intraday_with_adjustment(self):
+        """``adjustment=unadjusted`` + ``interval=1h`` must raise at query construction.
+
+        Mirrors upstream ``FMPEquityHistoricalFetcher._validate_params``.
+        Pre-fix behaviour: silently returned daily bars.
+        """
+        import pytest as _pytest
+
+        with _pytest.raises(ValueError, match="daily"):
+            FMPCachedEquityHistoricalQueryParams(
+                symbol="AAPL",
+                start_date=date(2024, 1, 2),
+                end_date=date(2024, 1, 5),
+                interval="1h",
+                adjustment="unadjusted",
+            )
+
+    def test_model_validator_rejects_intraday_with_splits_and_dividends(self):
+        """Same guard for the other non-splits_only adjustment."""
+        import pytest as _pytest
+
+        with _pytest.raises(ValueError, match="daily"):
+            FMPCachedEquityHistoricalQueryParams(
+                symbol="AAPL",
+                start_date=date(2024, 1, 2),
+                end_date=date(2024, 1, 5),
+                interval="5m",
+                adjustment="splits_and_dividends",
+            )
+
+    def test_model_validator_accepts_daily_with_any_adjustment(self):
+        """``interval='1d'`` works with all three adjustment values (happy path)."""
+        for adj in ("splits_only", "splits_and_dividends", "unadjusted"):
+            q = FMPCachedEquityHistoricalQueryParams(
+                symbol="AAPL",
+                start_date=date(2024, 1, 2),
+                end_date=date(2024, 1, 5),
+                interval="1d",
+                adjustment=adj,
+            )
+            assert q.adjustment == adj
+
+    def test_model_validator_accepts_intraday_with_splits_only(self):
+        """``splits_only`` is the default and works with any interval."""
+        for interval in ("1m", "5m", "15m", "30m", "1h", "4h", "1d"):
+            q = FMPCachedEquityHistoricalQueryParams(
+                symbol="AAPL",
+                start_date=date(2024, 1, 2),
+                end_date=date(2024, 1, 5),
+                interval=interval,
+                adjustment="splits_only",
+            )
+            assert q.interval == interval
+
+    @pytest.mark.parametrize(
+        "interval,expected_path",
+        [
+            ("5m", "historical-chart/5min"),
+            ("15m", "historical-chart/15min"),
+            ("30m", "historical-chart/30min"),
+            ("1h", "historical-chart/1hour"),
+            ("4h", "historical-chart/4hour"),
+            ("1d", "historical-price-eod/full"),
+        ],
+    )
+    def test_build_fmp_endpoint_covers_every_documented_interval(
+        self, interval, expected_path
+    ):
+        """Every ``Literal`` interval value must map to a real FMP endpoint.
+
+        Pre-fix behaviour: ``15m``/``30m``/``4h`` fell through with
+        ``base_url`` still just ``https://financialmodelingprep.com/stable/``
+        (empty endpoint), producing 4xx from FMP. Fix: new
+        ``_build_fmp_endpoint`` helper is the single source of truth for
+        (adjustment, interval) → URL, tested directly here so we don't
+        need to spin up the async fetch pipeline (which had a pre-
+        existing pytest-asyncio inspect quirk on this provider's env).
+        """
+        from openbb_fmp_cached.models.equity_historical import (
+            _build_fmp_endpoint,
+        )
+
+        # Passing splits_only satisfies the model_validator invariant for
+        # any interval.
+        url = _build_fmp_endpoint(adjustment="splits_only", interval=interval)
+        assert expected_path in url, (
+            f"interval={interval!r} routed to wrong endpoint: got "
+            f"{url!r}, expected substring {expected_path!r}."
+        )
+        # No trailing '?' — the HTTP layer's params= kwarg encodes the
+        # querystring (bd-6641 / bd-ir3f).
+        assert not url.endswith("?")
+
+    def test_build_fmp_endpoint_daily_adjusted_variants(self):
+        """The two daily-adjusted variants each get their own endpoint."""
+        from openbb_fmp_cached.models.equity_historical import (
+            _build_fmp_endpoint,
+        )
+
+        assert (
+            _build_fmp_endpoint(adjustment="unadjusted", interval="1d")
+            == "https://financialmodelingprep.com/stable/historical-price-eod/non-split-adjusted"
+        )
+        assert (
+            _build_fmp_endpoint(adjustment="splits_and_dividends", interval="1d")
+            == "https://financialmodelingprep.com/stable/historical-price-eod/dividend-adjusted"
+        )
+
+    def test_build_fmp_endpoint_raises_on_unknown_interval(self):
+        """Defense in depth: unknown interval raises rather than empty-path silent 4xx."""
+        import pytest as _pytest
+
+        from openbb_fmp_cached.models.equity_historical import (
+            _build_fmp_endpoint,
+        )
+
+        with _pytest.raises(ValueError, match="Unsupported FMP interval"):
+            _build_fmp_endpoint(adjustment="splits_only", interval="1w")
+
+    def test_build_fmp_endpoint_supports_60m_legacy_alias(self):
+        """``60m`` legacy alias still routes to the 1h endpoint (backward compat)."""
+        from openbb_fmp_cached.models.equity_historical import (
+            _build_fmp_endpoint,
+        )
+
+        assert (
+            _build_fmp_endpoint(adjustment="splits_only", interval="60m")
+            == "https://financialmodelingprep.com/stable/historical-chart/1hour"
+        )
+
+
 if __name__ == "__main__":
     # Run tests with different markers
     pytest.main(
