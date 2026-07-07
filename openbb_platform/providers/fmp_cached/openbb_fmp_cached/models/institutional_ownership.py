@@ -87,12 +87,16 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
             return results
 
         # --- Step 2: Try FMP API ---
-        fmp_results = await _try_fmp(query, symbols_to_fetch, resolved_credentials, **kwargs)
+        fmp_results = await _try_fmp(
+            query, symbols_to_fetch, resolved_credentials, **kwargs
+        )
         if fmp_results:
             _store_institutional(fmp_results, data_source="fmp")
             results.extend(fmp_results)
             fetched_symbols = {r.get("symbol", "").upper() for r in fmp_results}
-            symbols_to_fetch = [s for s in symbols_to_fetch if s.upper() not in fetched_symbols]
+            symbols_to_fetch = [
+                s for s in symbols_to_fetch if s.upper() not in fetched_symbols
+            ]
 
         if not symbols_to_fetch:
             return results
@@ -103,7 +107,9 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
             _store_institutional(yf_results, data_source="yfinance")
             results.extend(yf_results)
             fetched_symbols = {r.get("symbol", "").upper() for r in yf_results}
-            symbols_to_fetch = [s for s in symbols_to_fetch if s.upper() not in fetched_symbols]
+            symbols_to_fetch = [
+                s for s in symbols_to_fetch if s.upper() not in fetched_symbols
+            ]
 
         if not symbols_to_fetch:
             return results
@@ -220,7 +226,9 @@ def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
 
     try:
         # Remove old records for the symbols being stored
-        symbols = {(r.get("symbol") or "").strip().upper() for r in records if r.get("symbol")}
+        symbols = {
+            (r.get("symbol") or "").strip().upper() for r in records if r.get("symbol")
+        }
         for symbol in symbols:
             execute_query(cleanup_query, (symbol,))
 
@@ -229,11 +237,13 @@ def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
         for item in records:
             # Attach provenance
             item["data_source"] = data_source
-            params_list.append((
-                (item.get("symbol") or "").upper(),
-                item.get("date", date.today().isoformat()),
-                json.dumps(item, default=str),
-            ))
+            params_list.append(
+                (
+                    (item.get("symbol") or "").upper(),
+                    item.get("date", date.today().isoformat()),
+                    json.dumps(item, default=str),
+                )
+            )
 
         if params_list:
             execute_many(insert_query, params_list)
@@ -363,7 +373,9 @@ async def _try_yfinance(symbols: list[str]) -> list[dict]:
         results = [r for r in fetched if r is not None]
 
         if results:
-            logger.info("yfinance institutional ownership: fetched %d records", len(results))
+            logger.info(
+                "yfinance institutional ownership: fetched %d records", len(results)
+            )
         return results
 
     except ImportError:
@@ -424,7 +436,9 @@ async def _try_sec_13f(symbols: list[str]) -> list[dict]:
 
                 holders = holders_for_cusip(cusips)
                 if not holders:
-                    logger.debug("SEC 13F: no holders for %s (cusips=%s)", symbol, cusips)
+                    logger.debug(
+                        "SEC 13F: no holders for %s (cusips=%s)", symbol, cusips
+                    )
                     continue
 
                 # All rows share the resolved (latest) period.
@@ -434,50 +448,54 @@ async def _try_sec_13f(symbols: list[str]) -> list[dict]:
                 total_value = sum(int(h.get("value_usd") or 0) for h in holders)
 
                 as_of = _period_to_date(period)
-                results.append({
-                    "symbol": symbol.upper(),
-                    "cik": None,
-                    "date": as_of.isoformat(),
-                    "investors_holding": institutions_count,
-                    "last_investors_holding": 0,
-                    "investors_holding_change": 0,
-                    "number_of_13f_shares": total_shares,
-                    "last_number_of_13f_shares": None,
-                    "number_of_13f_shares_change": None,
-                    "total_invested": float(total_value),
-                    "last_total_invested": 0.0,
-                    "total_invested_change": 0.0,
-                    "ownership_percent": 0.0,
-                    "last_ownership_percent": 0.0,
-                    "ownership_percent_change": 0.0,
-                    "new_positions": 0,
-                    "last_new_positions": 0,
-                    "new_positions_change": 0,
-                    "increased_positions": 0,
-                    "last_increased_positions": 0,
-                    "increased_positions_change": 0,
-                    "closed_positions": 0,
-                    "last_closed_positions": 0,
-                    "closed_positions_change": 0,
-                    "reduced_positions": 0,
-                    "last_reduced_positions": 0,
-                    "reduced_positions_change": 0,
-                    "total_calls": 0,
-                    "last_total_calls": 0,
-                    "total_calls_change": 0,
-                    "total_puts": 0,
-                    "last_total_puts": 0,
-                    "total_puts_change": 0,
-                    "put_call_ratio": 0.0,
-                    "last_put_call_ratio": 0.0,
-                    "put_call_ratio_change": 0.0,
-                    "data_source": "sec_13f",
-                })
+                results.append(
+                    {
+                        "symbol": symbol.upper(),
+                        "cik": None,
+                        "date": as_of.isoformat(),
+                        "investors_holding": institutions_count,
+                        "last_investors_holding": 0,
+                        "investors_holding_change": 0,
+                        "number_of_13f_shares": total_shares,
+                        "last_number_of_13f_shares": None,
+                        "number_of_13f_shares_change": None,
+                        "total_invested": float(total_value),
+                        "last_total_invested": 0.0,
+                        "total_invested_change": 0.0,
+                        "ownership_percent": 0.0,
+                        "last_ownership_percent": 0.0,
+                        "ownership_percent_change": 0.0,
+                        "new_positions": 0,
+                        "last_new_positions": 0,
+                        "new_positions_change": 0,
+                        "increased_positions": 0,
+                        "last_increased_positions": 0,
+                        "increased_positions_change": 0,
+                        "closed_positions": 0,
+                        "last_closed_positions": 0,
+                        "closed_positions_change": 0,
+                        "reduced_positions": 0,
+                        "last_reduced_positions": 0,
+                        "reduced_positions_change": 0,
+                        "total_calls": 0,
+                        "last_total_calls": 0,
+                        "total_calls_change": 0,
+                        "total_puts": 0,
+                        "last_total_puts": 0,
+                        "total_puts_change": 0,
+                        "put_call_ratio": 0.0,
+                        "last_put_call_ratio": 0.0,
+                        "put_call_ratio_change": 0.0,
+                        "data_source": "sec_13f",
+                    }
+                )
             except Exception as exc:
                 logger.debug("SEC 13F failed for %s: %s", symbol, exc)
 
         if results:
-            logger.info("SEC 13F institutional ownership: fetched %d records", len(results))
+            logger.info(
+                "SEC 13F institutional ownership: fetched %d records", len(results)
+            )
         return results
 
     except ImportError:

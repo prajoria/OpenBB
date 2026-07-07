@@ -40,9 +40,13 @@ class FMPCachedEquityQuoteFetcher(FMPEquityQuoteFetcher):
             create_equity_quote_table()
         except Exception as exc:
             logger.warning("Quote cache init failed, using direct FMP call: %s", exc)
-            return await FMPEquityQuoteFetcher.aextract_data(query, resolved_credentials, **kwargs)
+            return await FMPEquityQuoteFetcher.aextract_data(
+                query, resolved_credentials, **kwargs
+            )
 
-        symbols = [symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()]
+        symbols = [
+            symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()
+        ]
         results: list[dict] = []
         symbols_to_fetch: list[str] = []
 
@@ -55,7 +59,9 @@ class FMPCachedEquityQuoteFetcher(FMPEquityQuoteFetcher):
 
         if symbols_to_fetch:
             fetch_query = FMPEquityQuoteQueryParams(symbol=",".join(symbols_to_fetch))
-            fresh_data = await FMPEquityQuoteFetcher.aextract_data(fetch_query, resolved_credentials, **kwargs)
+            fresh_data = await FMPEquityQuoteFetcher.aextract_data(
+                fetch_query, resolved_credentials, **kwargs
+            )
             if fresh_data:
                 _store_quotes(fresh_data)
                 results.extend(fresh_data)
@@ -144,7 +150,9 @@ def _store_quotes(quotes: list[dict[str, Any]]) -> None:
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
     """
 
-    symbols = {(item.get("symbol") or "").strip() for item in quotes if item.get("symbol")}
+    symbols = {
+        (item.get("symbol") or "").strip() for item in quotes if item.get("symbol")
+    }
     for symbol in symbols:
         execute_query(cleanup_query, (symbol,))
 

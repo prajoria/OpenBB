@@ -40,9 +40,13 @@ class FMPCachedEquityProfileFetcher(FMPEquityProfileFetcher):
             create_equity_profile_table()
         except Exception as exc:
             logger.warning("Profile cache init failed, using direct FMP call: %s", exc)
-            return await FMPEquityProfileFetcher.aextract_data(query, resolved_credentials, **kwargs)
+            return await FMPEquityProfileFetcher.aextract_data(
+                query, resolved_credentials, **kwargs
+            )
 
-        symbols = [symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()]
+        symbols = [
+            symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()
+        ]
         results: list[dict] = []
         symbols_to_fetch: list[str] = []
 
@@ -55,7 +59,9 @@ class FMPCachedEquityProfileFetcher(FMPEquityProfileFetcher):
 
         if symbols_to_fetch:
             fetch_query = FMPEquityProfileQueryParams(symbol=",".join(symbols_to_fetch))
-            fresh_data = await FMPEquityProfileFetcher.aextract_data(fetch_query, resolved_credentials, **kwargs)
+            fresh_data = await FMPEquityProfileFetcher.aextract_data(
+                fetch_query, resolved_credentials, **kwargs
+            )
             if fresh_data:
                 _store_profiles(fresh_data)
                 results.extend(fresh_data)
