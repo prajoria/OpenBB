@@ -6,8 +6,11 @@ This enables proper relational queries and consistent DataFrame mapping.
 Simple database-backed response persistence without TTL/caching complexity.
 """
 
+import logging
 import os
 from .database import execute_query
+
+logger = logging.getLogger(__name__)
 
 
 def get_table_name(base_name: str) -> str:
@@ -5330,18 +5333,62 @@ FLATTENED_TABLES = {
 
 
 def create_all_flattened_tables():
-    """Create all flattened database tables."""
+    """Create all flattened database tables.
+
+    Iterates the :data:`FLATTENED_TABLES` registry and invokes each
+    schema-creator in turn. Returns a mapping of ``{table_name:
+    schema_result}`` for successfully-created tables.
+
+    Failure semantics (bd-jt4r)
+    ---------------------------
+    On the FIRST DDL failure the loop aborts and re-raises the
+    underlying exception so the operator sees the failure at init time
+    rather than at first cache read. Pre-fix this function swallowed
+    every ``Exception`` and stashed a stringified error under the
+    table name in the results dict — leaving the DB half-provisioned
+    with no alarm and no downstream check for the sentinel string.
+
+    Status is emitted via the module's :data:`logger` at ``INFO`` level
+    (successes) and ``ERROR`` level with traceback (failures). The
+    caller controls stdout/stderr routing via the standard logging
+    handler chain; ASCII-only messages so the log line encodes cleanly
+    under Windows ``cp1252`` consoles (the fork runs on Windows via
+    ``.venv_win`` per CLAUDE.md).
+
+    Returns
+    -------
+    dict[str, Any]
+        Mapping of table name to whatever ``config['schema']()`` returns
+        for that table (typically a truthy sentinel or None).
+
+    Raises
+    ------
+    Exception
+        Whatever the first failing ``config['schema']()`` call raises,
+        propagated verbatim (callers expect the underlying DDL exception
+        type, so ``raise ... from exc`` chaining is deliberately not
+        used).
+    """
     results = {}
-    print(f"Creating {len(FLATTENED_TABLES)} flattened database tables...")
+    logger.info("Creating %d flattened database tables...", len(FLATTENED_TABLES))
 
     for table_name, config in FLATTENED_TABLES.items():
         try:
             result = config["schema"]()
-            results[table_name] = result
-            print(f"✅ Created flattened table: {table_name}")
-        except Exception as e:
-            results[table_name] = f"Error: {str(e)}"
-            print(f"❌ Error creating {table_name}: {e}")
+        except Exception:
+            # bd-jt4r: raise on first failure. Pre-fix a bare
+            # ``except Exception`` swallowed every DDL error and left
+            # the DB half-provisioned. logger.exception records the
+            # full traceback for the operator; the raise then aborts
+            # the loop so downstream tables are NOT half-created.
+            logger.exception(
+                "DDL failed while creating flattened table %r; aborting "
+                "further table creation (bd-jt4r).",
+                table_name,
+            )
+            raise
+        results[table_name] = result
+        logger.info("Created flattened table: %s", table_name)
 
     return results
 
