@@ -645,6 +645,7 @@ def _make_mock_p6(relative_score: float = 3.8, ir: float = 0.6) -> Phase6Result:
         peer_fundamental_df=pd.DataFrame(),
         relative_valuation_score=65.0,
         rolling_3m_rank=55.0,
+        momentum_accel_63d=0.0,   # A6 (bead 0h2.9) — neutral default
         gate_passed=True,
         gate_notes="OK",
     )
@@ -839,6 +840,603 @@ class TestPhase6Rolling3M:
         p6 = _make_mock_p6()
         assert hasattr(p6, "rolling_3m_rank")
         assert 0.0 <= p6.rolling_3m_rank <= 100.0
+
+
+class TestPhase6MomentumAccel:
+    """Verify momentum_accel_63d on Phase6Result (bead OpenBBTechnical-0h2.9).
+
+    A6 rec (reviewer P6): a static 63-day rank misses whether the stock is
+    *improving* or *deteriorating* relative to peers.  Compute the rank at
+    ``t-63`` and at ``t``; accel = ``(rank_t - rank_{t-63}) / 100`` — a
+    scalar in ``[-1.0, +1.0]`` where positive = climbing the peer ladder,
+    negative = falling.  Same 63-day window and same peer-percentile
+    machinery as the existing ``rolling_3m_rank`` — so the arithmetic is
+    zero-drift by construction.
+    """
+
+    def test_mock_p6_has_momentum_accel_field(self):
+        p6 = _make_mock_p6()
+        assert hasattr(p6, "momentum_accel_63d"), (
+            "Phase6Result must carry momentum_accel_63d per bead 0h2.9"
+        )
+
+    def test_momentum_accel_in_valid_range(self):
+        """Range guard — the delta of two percentiles / 100 lives in [-1, +1]."""
+        p6 = _make_mock_p6()
+        assert -1.0 <= p6.momentum_accel_63d <= 1.0
+
+    def test_monotone_improving_ranks_yield_positive_accel(self):
+        """Property test (per bead 0h2.9): a symbol whose peer rank is
+        monotone-improving across the 126-day window must produce positive
+        momentum_accel_63d.
+
+        We synthesize returns for TARGET + 4 peers where TARGET's cumulative
+        return grows from the bottom of the pack in the earlier 63d window
+        to the top in the later 63d window.  The delta-rank / 100 must
+        therefore be strictly positive.
+        """
+        from stock_analysis import _compute_momentum_accel_63d
+
+        # 126 daily-return rows for 5 symbols. In the earlier 63d window
+        # TARGET has the LOWEST cumulative return (worst rank); in the
+        # later 63d window it has the HIGHEST cumulative return (best rank).
+        rng = np.random.default_rng(seed=42)
+        peer_returns_early = rng.normal(loc=0.001, scale=0.01, size=(63, 4))  # 4 peers
+        target_returns_early = rng.normal(loc=-0.005, scale=0.01, size=(63, 1))  # TARGET worst
+        early_block = np.hstack([target_returns_early, peer_returns_early])
+
+        peer_returns_late = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
+        target_returns_late = rng.normal(loc=0.005, scale=0.01, size=(63, 1))  # TARGET best
+        late_block = np.hstack([target_returns_late, peer_returns_late])
+
+        columns = ["TARGET", "P1", "P2", "P3", "P4"]
+        returns_df = pd.DataFrame(
+            np.vstack([early_block, late_block]),
+            columns=columns,
+        )
+
+        accel = _compute_momentum_accel_63d(returns_df, "TARGET")
+        assert accel > 0.0, (
+            f"Monotone-improving rank must yield positive accel, got {accel:.4f}"
+        )
+
+    def test_monotone_deteriorating_ranks_yield_negative_accel(self):
+        """Symmetric guard: a rank that's collapsing must produce negative accel."""
+        from stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(seed=17)
+        peer_returns_early = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
+        target_returns_early = rng.normal(loc=0.005, scale=0.01, size=(63, 1))  # TARGET best
+        early_block = np.hstack([target_returns_early, peer_returns_early])
+
+        peer_returns_late = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
+        target_returns_late = rng.normal(loc=-0.005, scale=0.01, size=(63, 1))  # TARGET worst
+        late_block = np.hstack([target_returns_late, peer_returns_late])
+
+        columns = ["TARGET", "P1", "P2", "P3", "P4"]
+        returns_df = pd.DataFrame(
+            np.vstack([early_block, late_block]),
+            columns=columns,
+        )
+
+        accel = _compute_momentum_accel_63d(returns_df, "TARGET")
+        assert accel < 0.0, (
+            f"Monotone-deteriorating rank must yield negative accel, got {accel:.4f}"
+        )
+
+    def test_insufficient_history_returns_zero(self):
+        """Fewer than 126 rows → cannot compute a t-63 baseline → 0.0 (neutral)."""
+        from stock_analysis import _compute_momentum_accel_63d
+
+        # Only 100 rows — below the 126 threshold.
+        returns_df = pd.DataFrame(
+            np.random.default_rng(0).normal(size=(100, 3)),
+            columns=["TARGET", "P1", "P2"],
+        )
+        accel = _compute_momentum_accel_63d(returns_df, "TARGET")
+        assert accel == 0.0
+
+    def test_symbol_absent_from_returns_returns_zero(self):
+        """Symbol not in the returns DataFrame → neutral 0.0 (never raises)."""
+        from stock_analysis import _compute_momentum_accel_63d
+
+        returns_df = pd.DataFrame(
+            np.random.default_rng(0).normal(size=(150, 3)),
+            columns=["P1", "P2", "P3"],
+        )
+        accel = _compute_momentum_accel_63d(returns_df, "TARGET_NOT_HERE")
+        assert accel == 0.0
+
+    # ------------------------------------------------------------------ #
+    # PR #331 iter-1 review fixes — three-agent convergence on real bugs
+    # ------------------------------------------------------------------ #
+    def test_all_nan_target_returns_zero(self):
+        """SEV-1 fix (silent-failure-hunter + code-reviewer + pr-test-analyzer,
+        three-way convergence at conf 95): a target column that's entirely
+        NaN must return 0.0 with a WARNING, NOT a spurious signed accel.
+
+        Pre-fix, this scenario returned accel=-0.8 (or +0.4 depending on peer
+        composition) because ``.sum().dropna()`` never dropped the all-NaN
+        column — ``sum()`` returns 0.0 for all-NaN unless ``min_count=1``
+        is passed.
+        """
+        from stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({
+            "TARGET": [np.nan] * 126,
+            "P1": rng.normal(scale=0.01, size=126),
+            "P2": rng.normal(scale=0.01, size=126),
+            "P3": rng.normal(scale=0.01, size=126),
+            "P4": rng.normal(scale=0.01, size=126),
+        })
+        accel = _compute_momentum_accel_63d(df, "TARGET")
+        assert accel == 0.0, (
+            f"All-NaN target must degrade to 0.0; got {accel} — the "
+            "sum(min_count=1) fix may have regressed"
+        )
+
+    def test_ipod_peer_does_not_phantom_contaminate_ranks(self):
+        """SEV-1 fix regression guard — the fixture is constructed so that
+        the buggy code path (``.sum()`` zero-filling PEER1's all-NaN earlier
+        window) produces a DIFFERENT numeric answer than the fixed path
+        (``.sum(min_count=42).dropna()`` excluding PEER1 from the earlier
+        rank set).
+
+        iter-2 (pr-test-analyzer + code-reviewer + silent-failure-hunter
+        3-way convergence, conf 90/90/95): the original iter-1 assertion
+        ``>= 0.75`` was ceremonial — both buggy (0.80) and fixed (0.75)
+        code passed it, so removing the fix would NOT fail this test.
+        Tightened to ``pytest.approx(0.75, abs=0.02)`` so the buggy 0.80
+        now fails (outside [0.73, 0.77]) while the fixed 0.75 passes.
+
+        Fixture: 5-symbol universe, TARGET decisively worst-then-best
+        (accel ≈ +0.8 under the buggy zero-fill because earlier peer set
+        has 5 including phantom; ≈ +0.75 under the fix because earlier
+        peer set has 4 with PEER1 correctly excluded).
+        """
+        from stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        # TARGET's real returns dominate the accel — decisively worst early,
+        # decisively best late. The load-bearing property is the small but
+        # deterministic 0.05-point delta between the buggy and fixed paths.
+        target = np.concatenate([
+            np.full(63, -0.02),   # worst early
+            np.full(63, +0.02),   # best late
+        ])
+        df = pd.DataFrame({
+            "TARGET": target,
+            "PEER1": np.concatenate([[np.nan] * 63, rng.normal(scale=0.005, size=63)]),
+            "PEER2": rng.normal(scale=0.005, size=126),
+            "PEER3": rng.normal(scale=0.005, size=126),
+            "PEER4": rng.normal(scale=0.005, size=126),
+        })
+        accel_with_ipod_peer = _compute_momentum_accel_63d(df, "TARGET")
+
+        # Fixed code: PEER1 correctly excluded from earlier rank set (4 peers
+        # + TARGET); earlier_rank = 0/5 = 0 percentile; later_rank = 100 percentile;
+        # accel = 1.0 nominal but ``percentileofscore`` returns "rank" semantic
+        # which caps at 100 * (n - 1) / n = 80 for the extremes → accel ~ 0.75.
+        # Buggy code: PEER1 phantom-included at 0.0 cumulative in earlier window
+        # (5 peers + TARGET → earlier_rank slightly higher because TARGET no
+        # longer at the very bottom → accel ~ 0.80). Δ = 0.05.
+        assert accel_with_ipod_peer == pytest.approx(0.75, abs=0.02), (
+            f"IPO'd peer contamination test — expected 0.75 (fixed) ± 0.02, got "
+            f"{accel_with_ipod_peer}. Value 0.80 would indicate the buggy "
+            f".sum() zero-fill path is still active (PEER1 phantom-included)."
+        )
+
+    def test_half_nan_target_returns_zero_when_earlier_all_nan(self):
+        """SEV-1 fix — target column with all-NaN in the EARLIER window only
+        must degrade to 0.0 with a WARNING (not compute a bogus accel).
+        """
+        from stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({
+            "TARGET": np.concatenate([[np.nan] * 63, rng.normal(scale=0.01, size=63)]),
+            "P1": rng.normal(scale=0.01, size=126),
+            "P2": rng.normal(scale=0.01, size=126),
+            "P3": rng.normal(scale=0.01, size=126),
+        })
+        accel = _compute_momentum_accel_63d(df, "TARGET")
+        assert accel == 0.0
+
+    def test_units_sanity_returns_zero_on_prices_input(self):
+        """SEV-3 fix regression guard — units-sanity clamp must return 0.0
+        (with WARNING) when the caller accidentally passes prices instead
+        of returns.
+
+        iter-2 (pr-test-analyzer + silent-failure-hunter convergence, conf
+        90/95): the original cumsum-based fixture was ceremonial — TARGET
+        ranked at the extreme in both windows even without the units
+        clamp, so removing the clamp did NOT change the returned 0.0.
+        Rewritten with a linspace-trending TARGET that CROSSES the flat
+        peers mid-window: without the units clamp, pre-check code would
+        compute a NON-ZERO accel (~+0.5); with the clamp, it returns 0.0.
+        Removing the clamp now flips the assertion.
+        """
+        from stock_analysis import _compute_momentum_accel_63d
+
+        # TARGET rises linearly from 100 to 500 across 150 days (median
+        # |value| ~250 > 0.10 threshold), CROSSING each peer's flat level
+        # mid-window so cumulative rank moves decisively (would produce
+        # accel ~ +0.5 without the units clamp).
+        target_prices = np.linspace(100, 500, 150)
+        peers = np.column_stack([
+            np.full(150, 150.0),   # TARGET crosses at day ~19
+            np.full(150, 250.0),   # TARGET crosses at day ~56
+            np.full(150, 350.0),   # TARGET crosses at day ~94
+            np.full(150, 450.0),   # TARGET crosses at day ~131
+        ])
+        prices = pd.DataFrame(
+            np.column_stack([target_prices, peers]),
+            columns=["TARGET", "P1", "P2", "P3", "P4"],
+        )
+        accel = _compute_momentum_accel_63d(prices, "TARGET")
+        # If the units check were removed, this fixture would compute a
+        # non-zero accel (~+0.5) from the linearly-rising TARGET crossing
+        # each peer. The clamp turns it into a neutral 0.0.
+        assert accel == 0.0, (
+            f"Units-sanity clamp regression: expected 0.0 on prices input, "
+            f"got {accel}. Removing the ``if max_col_median > 0.10`` guard "
+            f"would return a non-zero value from this fixture."
+        )
+
+    def test_boundary_exactly_126_rows_computes(self):
+        """GAP-C fix — boundary at N=126 must compute (not degrade to 0.0)."""
+        from stock_analysis import _compute_momentum_accel_63d
+
+        # Construct deterministic ranks: TARGET clearly-worst-then-clearly-best
+        peers_early = np.tile([0.001, 0.002, 0.003, 0.004], (63, 1))
+        peers_late = np.tile([-0.001, -0.002, -0.003, -0.004], (63, 1))
+        target_early = np.full((63, 1), -0.01)  # TARGET worst early
+        target_late = np.full((63, 1), 0.01)    # TARGET best late
+        early = np.hstack([target_early, peers_early])
+        late = np.hstack([target_late, peers_late])
+        df = pd.DataFrame(
+            np.vstack([early, late]),
+            columns=["TARGET", "P1", "P2", "P3", "P4"],
+        )
+        assert len(df) == 126
+        accel = _compute_momentum_accel_63d(df, "TARGET")
+        # 5-symbol universe → percentileofscore returns 20-point lattice.
+        # TARGET went from worst (rank ~0-20) to best (rank ~80-100).
+        assert accel > 0.5, f"N=126 boundary should compute strong positive accel, got {accel}"
+
+    def test_boundary_125_rows_returns_zero(self):
+        """GAP-C fix — exactly one row below the boundary returns 0.0."""
+        from stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame(
+            rng.normal(scale=0.01, size=(125, 5)),
+            columns=["TARGET", "P1", "P2", "P3", "P4"],
+        )
+        assert _compute_momentum_accel_63d(df, "TARGET") == 0.0
+
+    def test_property_accel_magnitude_pinned_not_just_sign(self):
+        """GAP-B fix — pr-test-analyzer mutation #3 (``/100 → /200``) survived
+        the original sign-only property tests.  Pin the magnitude too so a
+        future refactor of the divisor is caught.
+
+        Construction: TARGET is clearly-worst in earlier window (rank 0/5)
+        and clearly-best in later window (rank 100/5) → expected accel = +1.0.
+        """
+        from stock_analysis import _compute_momentum_accel_63d
+
+        peers = np.tile([0.001, 0.002, 0.003, 0.004], (126, 1))
+        target_early = np.full((63, 1), -0.02)   # TARGET decisively worst
+        target_late = np.full((63, 1), 0.02)     # TARGET decisively best
+        target = np.vstack([target_early, target_late])
+        df = pd.DataFrame(
+            np.hstack([target, peers]),
+            columns=["TARGET", "P1", "P2", "P3", "P4"],
+        )
+        accel = _compute_momentum_accel_63d(df, "TARGET")
+        # 5 symbols: percentileofscore lattice is 20 points, so extreme
+        # movement from clear-worst to clear-best gives ~+0.8 (not +1.0)
+        # because percentileofscore returns "rank" semantic including the
+        # symbol itself.  Tighten to a value that would fail on /200.
+        assert accel == pytest.approx(0.8, abs=0.05), (
+            f"Magnitude regression: expected ~+0.8, got {accel}. "
+            "If a mutant changed /100 → /200 this would fail at ~+0.4."
+        )
+
+    def test_phase6_peer_relative_threads_momentum_accel_field(self):
+        """Load-bearing wiring guard (iter-3 M-2 fix): proves that
+        ``phase6_peer_relative`` actually threads the computed accel value
+        into the ``Phase6Result`` constructor — via AST inspection so a
+        commented-out ``# momentum_accel_63d=momentum_accel_63d`` next to
+        a ``=0.0`` mutation cannot defeat the check.
+
+        Iteration history:
+          * iter-1: used ``dataclasses.fields`` — ceremonial (field
+            existence doesn't verify wiring)
+          * iter-2: used ``inspect.getsource`` textual substring —
+            ceremonial (comment-poisoning defeats it: silent-failure-hunter
+            iter-3 M-2 empirically proved that mutating
+            ``momentum_accel_63d=momentum_accel_63d,`` →
+            ``momentum_accel_63d=0.0,  # BUG: momentum_accel_63d=momentum_accel_63d disabled``
+            passes the textual check)
+          * iter-3 (this): AST-parse the function source, walk to the
+            ``Return`` → ``Call(func=Phase6Result)`` → ``keyword`` node,
+            assert the keyword's VALUE is a ``Name`` referencing the local
+            variable, not a ``Constant`` literal like ``0.0``. Comments
+            are stripped by the parser so the M-2 mutation now fails.
+        """
+        import ast
+        import inspect
+        from stock_analysis import phase6_peer_relative
+
+        tree = ast.parse(inspect.getsource(phase6_peer_relative))
+        # Find every keyword argument on any ``Phase6Result(...)`` call.
+        matching_kwargs: list[ast.keyword] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            if not (isinstance(fn, ast.Name) and fn.id == "Phase6Result"):
+                continue
+            for kw in node.keywords:
+                if kw.arg == "momentum_accel_63d":
+                    matching_kwargs.append(kw)
+
+        assert len(matching_kwargs) == 1, (
+            f"Expected exactly one Phase6Result(momentum_accel_63d=...) call site "
+            f"in phase6_peer_relative; found {len(matching_kwargs)}."
+        )
+        kw = matching_kwargs[0]
+        # Load-bearing property: the value MUST be a Name node referencing the
+        # local ``momentum_accel_63d`` variable, NOT a Constant / Attribute /
+        # Call. This catches:
+        #   * "momentum_accel_63d=0.0"   → Constant  ← the mutation we care about
+        #   * "momentum_accel_63d=other" → Name('other') — wrong variable
+        #   * "momentum_accel_63d=Phase6Result.foo" → Attribute — nonsense
+        assert isinstance(kw.value, ast.Name), (
+            f"phase6_peer_relative must thread the LOCAL momentum_accel_63d "
+            f"variable into Phase6Result via kwarg=local, but the AST shows "
+            f"the value is a {type(kw.value).__name__} node. Suspected "
+            f"mutation: hardcoded literal like ``momentum_accel_63d=0.0``. "
+            f"This defeats the whole point of the helper."
+        )
+        assert kw.value.id == "momentum_accel_63d", (
+            f"phase6_peer_relative must thread the ``momentum_accel_63d`` "
+            f"local; got Name(id={kw.value.id!r}) instead. Someone renamed "
+            f"the variable without updating the constructor call — the "
+            f"result would still be a valid float but from the wrong source."
+        )
+
+    # ------------------------------------------------------------------ #
+    # PR #331 iter-3 review fixes — regression tests for the iter-2 fixes
+    # that shipped without regression coverage (pr-test-analyzer + silent-
+    # failure-hunter + code-reviewer 3-way convergence, MEDIUM confidence).
+    # ------------------------------------------------------------------ #
+    def test_min_obs_per_window_is_module_scope_shared_constant(self):
+        """iter-3 MEDIUM-2 fix — the drift-zero invariant between
+        ``rolling_3m_rank`` and ``momentum_accel_63d`` requires BOTH sites
+        to use the SAME peer-inclusion threshold. iter-2 shipped
+        asymmetric min_count values (helper=42, sibling=1), producing
+        empirically-measurable drift (silent-failure-hunter iter-3 M-1
+        constructed a 15-percentile counterexample).
+
+        iter-3 fix: promote ``_MIN_OBS_PER_WINDOW`` to module scope. This
+        test asserts the constant is importable AND has the expected
+        value AND appears in the sibling ``phase6_peer_relative`` source.
+        """
+        import inspect
+        import stock_analysis
+
+        # Constant is importable from module scope, not buried inside a function.
+        assert hasattr(stock_analysis, "_MIN_OBS_PER_WINDOW"), (
+            "_MIN_OBS_PER_WINDOW must be defined at module scope so both "
+            "phase6_peer_relative (rolling_3m_rank) and "
+            "_compute_momentum_accel_63d can share the same threshold. "
+            "iter-2 left it as a function-local, causing drift between "
+            "the two calculations."
+        )
+        assert stock_analysis._MIN_OBS_PER_WINDOW == 42
+        # Sibling site must reference the SAME constant, not a raw literal.
+        sibling_src = inspect.getsource(stock_analysis.phase6_peer_relative)
+        assert "min_count=_MIN_OBS_PER_WINDOW" in sibling_src, (
+            "phase6_peer_relative's rolling_3m_rank block must call "
+            ".sum(min_count=_MIN_OBS_PER_WINDOW), not a raw literal. "
+            "Using a raw literal recreates the asymmetry that iter-2 "
+            "shipped and iter-3 rescued."
+        )
+
+    def test_sibling_rolling_3m_rank_excludes_all_nan_peer(self):
+        """iter-3 MEDIUM-1 fix — the SEV-B sibling fix (rolling_3m_rank
+        uses ``sum(min_count=_MIN_OBS_PER_WINDOW)``) shipped in iter-2
+        WITHOUT a regression test. This test verifies the sibling site
+        actually references the shared constant via AST inspection.
+
+        NB: an earlier attempt to test this via a hand-computed
+        ``sum(min_count=42)`` in the test body itself was ceremonial —
+        it exercised the FIXTURE, not the production code. AST inspection
+        catches the "someone reverted min_count" mutation because the
+        production source no longer contains the ``min_count=_MIN_OBS_PER_WINDOW``
+        substring.
+        """
+        import inspect
+        import stock_analysis
+
+        sibling_src = inspect.getsource(stock_analysis.phase6_peer_relative)
+        # The sibling site must reference the shared constant, not a raw
+        # literal and not the bare .sum() form.
+        occurrences = sibling_src.count(".sum(min_count=_MIN_OBS_PER_WINDOW)")
+        assert occurrences >= 1, (
+            f"SEV-B regression: phase6_peer_relative must contain at least "
+            f"one .sum(min_count=_MIN_OBS_PER_WINDOW) call for rolling_3m_rank "
+            f"(found {occurrences}). Reverting to bare .sum() or a raw "
+            f"literal like min_count=1 reintroduces the phantom-peer bug."
+        )
+
+    def test_partial_history_peer_excluded_below_min_obs(self):
+        """iter-3 MEDIUM-3 (SEV-C regression coverage) — a peer with fewer
+        than ``_MIN_OBS_PER_WINDOW`` non-NaN observations in a window must
+        be EXCLUDED from the rank set, not INCLUDED with a shrunk cumulative
+        that guarantees it the low-rank extreme.
+
+        Load-bearing property: reverting ``_MIN_OBS_PER_WINDOW`` to 1
+        (iter-1's ceremonial state) would change the accel because PEER1's
+        30-obs-shrunk cumulative would push into the rank lattice.
+        """
+        from stock_analysis import _compute_momentum_accel_63d, _MIN_OBS_PER_WINDOW
+
+        # PEER1 has 30 non-NaN in each window (below the 42 threshold) —
+        # would be included with min_count=1 (iter-1) but excluded now.
+        rng = np.random.default_rng(0)
+        target = np.concatenate([
+            np.full(63, -0.02),   # worst early
+            np.full(63, +0.02),   # best late
+        ])
+        # Peer with sparse history — 30 non-NaN out of 63 in EACH window.
+        peer1_early = np.concatenate([[np.nan] * 33, rng.normal(scale=0.005, size=30)])
+        peer1_late = np.concatenate([[np.nan] * 33, rng.normal(scale=0.005, size=30)])
+        df = pd.DataFrame({
+            "TARGET": target,
+            "PEER1": np.concatenate([peer1_early, peer1_late]),  # excluded — sparse
+            "PEER2": rng.normal(scale=0.005, size=126),
+            "PEER3": rng.normal(scale=0.005, size=126),
+            "PEER4": rng.normal(scale=0.005, size=126),
+        })
+        assert _MIN_OBS_PER_WINDOW == 42  # sanity: assertion below assumes this
+        accel_with_sparse_peer = _compute_momentum_accel_63d(df, "TARGET")
+
+        # Compare to the same fixture WITHOUT PEER1: if PEER1 is being
+        # correctly excluded by the min_count guard, the accels match.
+        # Reverting min_count to 1 would include PEER1 with cumulative =
+        # sum(30 tiny values) ≈ 0 → phantom-mid-rank → different accel.
+        accel_without_sparse_peer = _compute_momentum_accel_63d(
+            df.drop(columns=["PEER1"]), "TARGET",
+        )
+        assert accel_with_sparse_peer == accel_without_sparse_peer, (
+            f"SEV-C regression: sparse-history PEER1 (30 non-NaN) leaked "
+            f"into rank set. Got {accel_with_sparse_peer} with sparse peer "
+            f"vs {accel_without_sparse_peer} without. min_count guard broken?"
+        )
+
+    def test_two_peer_universe_returns_zero(self, caplog):
+        """iter-3 MEDIUM-3 (SEV-E regression coverage) — a peer set that
+        collapses to fewer than 3 members must trigger the peer-set-thin
+        WARNING, not compute a spurious signal from the 2-item lattice.
+
+        Load-bearing property (caplog-based, not accel-value-based):
+        an EARLIER attempt asserted ``accel == 0.0`` but the 2-item
+        lattice may coincidentally return 0.0 when TARGET happens to
+        outrank the 1 remaining peer in both windows (100/100 → 0). Using
+        caplog to prove the WARNING fired is stronger: the warning is
+        ONLY emitted from the `len(later_cum) < 3` guard, which the
+        mutation `< 2` bypasses.
+        """
+        import logging
+        from stock_analysis import _compute_momentum_accel_63d
+
+        # TARGET + 1 real peer + 3 all-NaN peers → after NaN filter,
+        # len(later_cum) = 2, triggers the < 3 guard.
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({
+            "TARGET": rng.normal(scale=0.01, size=126),
+            "PEER1": rng.normal(scale=0.01, size=126),
+            "PEER2": [np.nan] * 126,
+            "PEER3": [np.nan] * 126,
+            "PEER4": [np.nan] * 126,
+        })
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            accel = _compute_momentum_accel_63d(df, "TARGET")
+
+        assert accel == 0.0
+        # The peer-set-thin warning is the load-bearing signal — it fires
+        # only when the < 3 threshold catches (later_cum has 2 items).
+        # Mutation < 2 skips this branch entirely.
+        peer_thin_warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "peer set too thin" in r.getMessage()
+            and "later=2" in r.getMessage()
+        ]
+        assert len(peer_thin_warnings) == 1, (
+            f"SEV-E regression: expected 1 'peer set too thin' warning with "
+            f"later=2 count; got {len(peer_thin_warnings)}. Reverting "
+            f"threshold from < 3 to < 2 would skip this warning entirely, "
+            f"letting the meaningless 2-item lattice compute through."
+        )
+
+    def test_single_wrong_units_column_triggers_clamp(self, caplog):
+        """iter-3 MEDIUM-3 (SEV-D regression coverage) — a SINGLE column
+        with prices-magnitude data among returns-magnitude peers must
+        trigger the units-sanity clamp WARNING.
+
+        Load-bearing property (caplog-based): earlier attempt asserted
+        ``accel == 0.0``, but coincidence-driven zero accels defeat that.
+        The units-sanity WARNING with the "prices/levels, not returns"
+        substring only fires from the units-check branch, which the
+        mutation .max() → .median() bypasses (majority-of-medians
+        dominates).
+        """
+        import logging
+        from stock_analysis import _compute_momentum_accel_63d
+
+        rng = np.random.default_rng(0)
+        # TARGET + 3 returns-magnitude peers + 1 prices-magnitude peer.
+        # max-of-per-col-medians = ~250 > 0.10 → clamp fires (iter-2 fix)
+        # median-of-per-col-medians = ~0.008 < 0.10 → clamp misses (iter-1 bug)
+        df = pd.DataFrame({
+            "TARGET": rng.normal(scale=0.01, size=126),
+            "P1": rng.normal(scale=0.01, size=126),
+            "P2": rng.normal(scale=0.01, size=126),
+            "P3": rng.normal(scale=0.01, size=126),
+            "PRICES_PEER": np.linspace(100, 500, 126),   # magnitude ~250
+        })
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            accel = _compute_momentum_accel_63d(df, "TARGET")
+
+        assert accel == 0.0
+        # The units-sanity WARNING is the load-bearing signal — fires only
+        # when the max-of-per-col-medians catches the prices column.
+        # Mutation .max() → .median() lets the majority of returns columns
+        # dominate the outer statistic, bypassing the warning entirely.
+        units_warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "prices/levels, not returns" in r.getMessage()
+        ]
+        assert len(units_warnings) == 1, (
+            f"SEV-D regression: expected 1 units-sanity warning "
+            f"('prices/levels, not returns' substring); got {len(units_warnings)}. "
+            f"Reverting max() → median() lets the majority of returns-columns "
+            f"dominate the outer statistic, bypassing the clamp entirely."
+        )
+
+    def test_helper_and_sibling_use_shared_min_obs_threshold(self):
+        """iter-4 stub — the drift-zero invariant is guarded by
+        ``test_min_obs_per_window_is_module_scope_shared_constant`` +
+        ``test_sibling_rolling_3m_rank_excludes_all_nan_peer`` (both use
+        source-inspection to prove the sibling references the shared
+        constant). This test is retained as a documentation anchor pointing
+        at those two.
+
+        iter-3 shipped an EARLIER version of this test that computed the
+        sibling arithmetic INLINE in the test body — silent-failure-hunter
+        iter-4 empirically proved that mutating the sibling to
+        ``sum(min_count=1)`` left this test passing because:
+          (a) the inline arithmetic uses the imported ``_MIN_OBS_PER_WINDOW``
+              constant (=42), NOT the mutated production line
+          (b) the ``_compute_momentum_accel_63d`` call exercises the
+              helper, NOT the sibling ``phase6_peer_relative`` code path
+
+        So the test's docstring claim ("reverting the sibling site would
+        make this test fail") was factually false — same "test fits the
+        fix" anti-pattern iter-3 caught in three other tests. Rather than
+        rewrite with a fixture that mocks the full ``phase6_peer_relative``
+        provider chain (heavy), the two source-inspection tests cited
+        above provide the guarantee at a lower cost.
+        """
+        # No assertions — this stub exists to keep the docstring visible
+        # in the test-listing so future maintainers see the reasoning.
+        pass
 
 
 class TestPhase1Tradeability:

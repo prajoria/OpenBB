@@ -97,6 +97,18 @@ def _last_trading_day(reference: datetime.date | None = None) -> datetime.date:
 PRIMARY_PROVIDER: str = "fmp_cached"
 
 # ---------------------------------------------------------------------------
+# Peer-relative window constants (bd 0h2.9, PR #331 iter-3 MEDIUM-2)
+# ---------------------------------------------------------------------------
+# Shared minimum observations-per-63d-window for peer inclusion in both
+# ``rolling_3m_rank`` (phase6_peer_relative) and ``momentum_accel_63d``
+# (_compute_momentum_accel_63d). Kept at module scope so both sites use the
+# same threshold, preserving the "same peer universe" invariant the docstrings
+# claim.  ``sum(min_count=_MIN_OBS_PER_WINDOW)`` drops a peer whose window is
+# too sparse (e.g. mid-window IPO) rather than including it with a shrunk-
+# to-tiny cumulative that would guarantee it the low-rank extreme.
+_MIN_OBS_PER_WINDOW: int = 42  # 2/3 of a 63-day window
+
+# ---------------------------------------------------------------------------
 # Feature flags (Phase A0 — bead OpenBBTechnical-0h2.1)
 # ---------------------------------------------------------------------------
 # Every flag defaults to ``False`` so the pipeline behaves exactly as it did
@@ -438,6 +450,20 @@ class Phase6Result:
     peer_fundamental_df: pd.DataFrame
     relative_valuation_score: float  # 0-100 quality-value rank
     rolling_3m_rank: float          # Percentile rank of 63-day return vs peers
+    momentum_accel_63d: float       # Δ percentile-rank vs 63d ago, /100 → [-1, +1]
+    """Change in peer-percentile-rank over the trailing 63 trading days,
+    normalised to ``[-1, +1]`` (bead OpenBBTechnical-0h2.9, reviewer P6 rec).
+
+    Static ``rolling_3m_rank`` tells you *where* the symbol sits vs. peers
+    right now; ``momentum_accel_63d`` tells you *how it got there* — climbing
+    the peer ladder (positive) or falling off it (negative).  Computed as
+    ``(rank_t - rank_{t-63}) / 100`` where each rank is the same
+    :func:`scipy.stats.percentileofscore` calculation used for
+    ``rolling_3m_rank`` (so drift between the two is zero by construction).
+    Requires >= 126 daily-return rows; degrades to ``0.0`` (neutral) below
+    that threshold or when the target symbol is absent from the peer
+    returns frame.
+    """
     gate_passed: bool
     gate_notes: str
 
@@ -616,6 +642,109 @@ def _compute_vol_trend(
     if change < -threshold:
         return "contracting"
     return "flat"
+
+
+def _compute_momentum_accel_63d(
+    returns_df: pd.DataFrame,
+    symbol: str,
+) -> float:
+    """Change in peer-percentile-rank over the trailing 63 trading days.
+
+    Reviewer P6 recommendation (bead ``OpenBBTechnical-0h2.9``): a static
+    ``rolling_3m_rank`` tells you *where* the symbol sits vs. peers today
+    but says nothing about *trajectory*.  Two symbols may share
+    ``rolling_3m_rank == 60`` but the one that climbed from 20 → 60 is a
+    very different setup than the one that fell from 90 → 60.
+
+    Computes the percentile rank of the earlier 63-day cumulative return
+    (rows ``-126:-63``) and the later 63-day cumulative return (rows
+    ``-63:``) — both against the peer universe of the same window — then
+    returns ``(rank_t - rank_{t-63}) / 100``, a scalar in ``[-1.0, +1.0]``.
+
+    Uses the same :func:`scipy.stats.percentileofscore` machinery as
+    ``phase6_peer_relative``'s ``rolling_3m_rank`` calculation, so drift
+    between the two values is zero by construction.
+
+    Parameters
+    ----------
+    returns_df : pd.DataFrame
+        Daily returns for the target symbol + peer columns.  Rows are
+        chronologically ascending; columns are symbols.
+    symbol : str
+        Target symbol; must appear as a column in ``returns_df``.
+
+    Returns
+    -------
+    float
+        ``rank_delta / 100`` where each rank is a percentile in ``[0, 100]``,
+        so the return is bounded in ``[-1.0, +1.0]``.  Returns ``0.0``
+        (neutral) when insufficient history (< 126 rows) or when
+        ``symbol`` is absent from ``returns_df`` — never raises.
+    """
+    if len(returns_df) < 126 or symbol not in returns_df.columns:
+        return 0.0
+
+    # Units sanity (bd 0h2.9 / PR #331 iter-1): median |daily return| > 10 %
+    # almost always means the caller passed prices / levels instead of returns.
+    # iter-2 (SEV-D): use max across per-column medians so a SINGLE column in
+    # the wrong units triggers the clamp, not just the majority-of-columns case.
+    recent_slice = returns_df.iloc[-126:]
+    per_col_median = recent_slice.abs().median()
+    max_col_median = float(per_col_median.max())  # NaN-safe: NaN cols excluded
+    if not np.isnan(max_col_median) and max_col_median > 0.10:
+        logger.warning(
+            "_compute_momentum_accel_63d(%s): max column median |daily| = %.3f > 0.10 — "
+            "at least one column looks like prices/levels, not returns; returning 0.0",
+            symbol,
+            max_col_median,
+        )
+        return 0.0
+
+    # NaN handling (bd 0h2.9 / PR #331 iter-1 SEV-1 + iter-2 SEV-C + iter-3
+    # MEDIUM-2): pd.DataFrame.sum() without min_count returns 0.0 for all-NaN
+    # columns, NOT NaN — so a peer with no history in a window would phantom-
+    # compete with cumulative=0.0. Bumped from min_count=1 to the module-level
+    # _MIN_OBS_PER_WINDOW constant so peers with sparse data (e.g. mid-window
+    # IPO with only a handful of bars) are EXCLUDED rather than included with
+    # a systematically-shrunk cumulative. iter-3 promoted the constant to
+    # module scope so the sibling rolling_3m_rank calculation uses the SAME
+    # threshold — restoring the "shared peer universe" property the docstring
+    # claims.
+    later_cum = returns_df.iloc[-63:].sum(min_count=_MIN_OBS_PER_WINDOW).dropna()
+    earlier_cum = returns_df.iloc[-126:-63].sum(min_count=_MIN_OBS_PER_WINDOW).dropna()
+
+    if symbol not in later_cum.index or symbol not in earlier_cum.index:
+        # R7.3 loud-empty: target column had insufficient observations in one
+        # or both windows — cannot compute a rank; degrade to neutral loudly.
+        logger.warning(
+            "_compute_momentum_accel_63d(%s): target absent from cumulative "
+            "returns after NaN filter (later=%s, earlier=%s) — likely <%d "
+            "non-NaN observations in one window; returning neutral 0.0",
+            symbol,
+            symbol in later_cum.index,
+            symbol in earlier_cum.index,
+            _MIN_OBS_PER_WINDOW,
+        )
+        return 0.0
+    # iter-2 (SEV-E) + iter-3 (LOW-1 comment fix): require >= 3 items in each
+    # cumulative Series (target + at least 2 peers). ``percentileofscore`` on
+    # 3 items gives a {0, 50, 100} lattice — coarse but at least admits
+    # non-zero movement between windows. 2 items would only give {50, 100}
+    # so accel would discretize to ±0.5, meaningless as a rank movement.
+    if len(later_cum) < 3 or len(earlier_cum) < 3:
+        logger.warning(
+            "_compute_momentum_accel_63d(%s): peer set too thin after NaN "
+            "filter (later=%d, earlier=%d, min=3) — percentile lattice too "
+            "coarse for meaningful accel; returning neutral 0.0",
+            symbol,
+            len(later_cum),
+            len(earlier_cum),
+        )
+        return 0.0
+
+    later_rank = float(percentileofscore(later_cum.tolist(), later_cum[symbol]))
+    earlier_rank = float(percentileofscore(earlier_cum.tolist(), earlier_cum[symbol]))
+    return (later_rank - earlier_rank) / 100.0
 
 
 def _compute_technicals(df: pd.DataFrame) -> pd.DataFrame:
@@ -2372,15 +2501,27 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
         })
     relative_table = pd.DataFrame(rows).set_index("symbol")
 
-    # Rolling 3-month (63-day) cumulative return
+    # Rolling 3-month (63-day) cumulative return.
+    # PR #331 iter-2 (SEV-B) + iter-3 (MEDIUM-2): use module-level
+    # _MIN_OBS_PER_WINDOW so this calculation and _compute_momentum_accel_63d
+    # share the SAME peer universe. iter-2 shipped min_count=1 which was
+    # asymmetric with the helper's min_count=42, breaking the "drift-zero"
+    # property the docstring claims. iter-3 promoted the constant to module
+    # scope and aligned both sites on 42.
     rolling_3m_rank = 50.0  # default
     if len(returns_df) >= 63:
-        rolling_3m = returns_df.iloc[-63:].sum()  # approximate cumulative
+        rolling_3m = returns_df.iloc[-63:].sum(min_count=_MIN_OBS_PER_WINDOW)
         relative_table["rolling_3m_return"] = rolling_3m.reindex(relative_table.index)
-        if sym in rolling_3m.index and len(rolling_3m.dropna()) > 1:
+        rolling_3m_clean = rolling_3m.dropna()
+        if sym in rolling_3m_clean.index and len(rolling_3m_clean) > 1:
             rolling_3m_rank = float(percentileofscore(
-                rolling_3m.dropna().tolist(), rolling_3m[sym]
+                rolling_3m_clean.tolist(), rolling_3m_clean[sym]
             ))
+
+    # Momentum acceleration — Δ percentile-rank over the trailing 63d
+    # (bead OpenBBTechnical-0h2.9, reviewer P6 rec).  Positive = climbing
+    # the peer ladder, negative = falling.  Neutral 0.0 when < 126 rows.
+    momentum_accel_63d = _compute_momentum_accel_63d(returns_df, sym)
 
     # Correlation matrix
     corr_matrix = returns_df.corr()
@@ -2465,6 +2606,7 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
         peer_fundamental_df=peer_fundamental_df,
         relative_valuation_score=relative_valuation_score,
         rolling_3m_rank=rolling_3m_rank,
+        momentum_accel_63d=momentum_accel_63d,
         gate_passed=gate_passed,
         gate_notes=gate_notes,
     )
