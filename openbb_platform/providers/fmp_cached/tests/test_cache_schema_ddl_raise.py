@@ -181,3 +181,85 @@ def test_create_all_flattened_tables_status_messages_are_ascii_safe():
                 f"log message contains characters that cannot be encoded "
                 f"under Windows cp1252 (bd-jt4r): {msg!r} — {exc}"
             )
+
+
+def test_create_all_flattened_tables_error_path_is_cp1252_safe():
+    """Failure log path must also be cp1252-safe (PR #344 review, P2).
+
+    The happy-path test above only exercises the ``logger.info`` success
+    messages. The failure log uses ``logger.exception(... %r, table_name)``
+    which formats the table name and includes the traceback. This test
+    triggers an actual failure with a Unicode-tainted exception message
+    to prove the error-path log also round-trips through cp1252 without
+    crashing the Windows console.
+    """
+
+    captured_messages: list[str] = []
+
+    class _CaptureHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:  # noqa: D401
+            captured_messages.append(record.getMessage())
+
+    handler = _CaptureHandler()
+    logger = logging.getLogger(cache_schema.__name__)
+    logger.addHandler(handler)
+    old_level = logger.level
+    logger.setLevel(logging.DEBUG)
+
+    # ASCII-only table name (production names are e.g. "balance_sheet");
+    # ASCII-only exception message. The point is to exercise the error
+    # log-emission path, not to prove Unicode in exception messages is
+    # somehow handled — that would be a separate concern (Windows CLI
+    # would need to handle Unicode in traceback text anyway).
+    def _failing_schema():
+        raise RuntimeError("simulated DDL failure for cp1252 test")
+
+    fake_tables = {"failing_table": {"schema": _failing_schema}}
+
+    try:
+        with patch.object(cache_schema, "FLATTENED_TABLES", fake_tables):
+            with pytest.raises(RuntimeError, match="simulated DDL failure"):
+                cache_schema.create_all_flattened_tables()
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(old_level)
+
+    # We should have captured the initial "Creating N tables..." info
+    # AND the error-path "DDL failed while creating..." exception log.
+    assert len(captured_messages) >= 2, (
+        f"expected at least 2 log messages (init + error), got "
+        f"{len(captured_messages)}: {captured_messages!r}"
+    )
+    for msg in captured_messages:
+        try:
+            msg.encode("cp1252")
+        except UnicodeEncodeError as exc:
+            pytest.fail(
+                f"error-path log message contains characters that cannot "
+                f"be encoded under Windows cp1252 (bd-jt4r, PR #344 review): "
+                f"{msg!r} — {exc}"
+            )
+
+
+def test_create_all_tables_is_the_same_object_as_flattened(caplog):
+    """The public ``create_all_tables`` alias must be the SAME callable
+    as ``create_all_flattened_tables`` — not a stale wrapper.
+
+    Pre-fix the alias was a one-line wrapper with its own docstring that
+    said "alias for create_all_flattened_tables" but didn't inherit the
+    full failure-semantics docstring. Post-fix (PR #344 review P1) the
+    alias is a direct name binding so callers get the identical behavior
+    AND the identical docstring — no drift possible.
+    """
+    assert cache_schema.create_all_tables is cache_schema.create_all_flattened_tables, (
+        "create_all_tables must be the SAME function object as "
+        "create_all_flattened_tables (name binding, not wrapper) so the "
+        "docstring cannot drift"
+    )
+    # And the shared docstring must include the load-bearing 'bd-jt4r'
+    # failure-semantics section — proves the alias inherits the full doc.
+    assert cache_schema.create_all_tables.__doc__ is not None
+    assert "bd-jt4r" in cache_schema.create_all_tables.__doc__, (
+        "alias's inherited docstring lost the bd-jt4r failure-semantics "
+        "reference — someone re-wrapped the alias in a plain function"
+    )

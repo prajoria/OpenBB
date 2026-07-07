@@ -5393,9 +5393,21 @@ def create_all_flattened_tables():
     return results
 
 
-def create_all_tables():
-    """Create all database tables (alias for create_all_flattened_tables)."""
-    return create_all_flattened_tables()
+# Public alias — shares the full docstring (including the bd-jt4r failure
+# semantics + logging contract) with the underlying function. Rebound as
+# a name rather than wrapped in a function so callers get the identical
+# behavior + docstring without a stale duplicate.
+#
+# Production callers of this alias (verified via grep across the repo):
+#   - openbb_fmp_cached/utils/database.py::init_database (auto-create path)
+#   - openbb_fmp_cached/utils/__init__.py (re-exported public symbol)
+#   - openbb_platform/providers/fmp_cached/setup_database.py
+# All three previously received the pre-fix return-dict-with-stringified-
+# errors and did not check for the ``"Error: "`` sentinel; the switch to
+# raise-on-first-failure is a strict improvement for each — schema-init
+# failure now surfaces immediately instead of degrading downstream cache
+# reads.
+create_all_tables = create_all_flattened_tables
 
 
 def cleanup_expired_cache():
