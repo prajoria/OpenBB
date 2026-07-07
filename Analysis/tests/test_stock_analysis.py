@@ -1644,6 +1644,253 @@ class TestPhase1EarningsRevisionDirection:
             f"earnings_revision_3m_direction should be threaded from a local "
             f"variable, not a hardcoded literal (got {type(kw.value).__name__})."
         )
+        # iter-2 (code-reviewer CR4): the ast.Name check alone isn't enough
+        # — a mutation like ``earnings_revision_3m_direction=sector`` would
+        # still be Name('sector'), silently mis-wiring. Assert the specific
+        # local variable name.
+        assert kw.value.id == "earnings_revision_3m_direction", (
+            f"earnings_revision_3m_direction should be threaded from the "
+            f"local variable of the SAME name (found Name({kw.value.id!r})). "
+            f"Cross-wiring to a different local variable would produce a "
+            f"valid string type but from the wrong computation."
+        )
+
+    # ------------------------------------------------------------------ #
+    # PR #337 iter-2 review fixes — regression tests for correctness bugs
+    # + coverage gaps identified by 3-agent convergence.
+    # ------------------------------------------------------------------ #
+    def test_helper_cut_verb_counts_as_down(self):
+        """iter-2 CR2 (pr-test mut #6 + silent-hunt F3): the ``\\bcut\\b``
+        regex branch must be exercised. Original iter-1 fixture used only
+        the ``lowered`` verb, so removing ``cut|reduced`` from the regex
+        left all 9 tests passing.
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": f"Microsoft price target cut to $400 from $500",
+            }
+            for d in [10, 30, 50]
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "down"
+
+    def test_helper_reduced_verb_counts_as_down(self):
+        """iter-2 CR2: ``\\breduced\\b`` regex branch coverage."""
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": f"Microsoft price target reduced to $400 from $500",
+            }
+            for d in [10, 30, 50]
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "down"
+
+    def test_helper_hiked_and_boosted_verbs_count_as_up(self):
+        """iter-2 CR2 (silent-hunt F3 vocabulary): ``hiked``, ``boosted``,
+        ``increased``, ``upgraded`` are all common FMP verbs for revisions.
+        Prior to iter-2 they registered as reiterated → false ``unknown``.
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": title,
+            }
+            for d, title in [
+                (10, "Microsoft price target hiked to $600 from $500"),
+                (30, "Microsoft price target boosted to $650"),
+                (50, "Microsoft price target increased to $620 from $500"),
+            ]
+        ])
+        assert _compute_earnings_revision_3m_direction(df) == "up"
+
+    def test_helper_bare_raised_without_target_is_not_directional(self):
+        """iter-2 CR1 (code-reviewer): the original ``\\braised\\b`` regex
+        false-positived on any English use of the word ("analyst raised
+        concerns"). iter-2 phrase-anchors to ``raised ... target`` or
+        ``raised ... to $NNN`` so bare mentions of the word are excluded.
+
+        Load-bearing property: 3 titles with bare ``raised``/``lowered``
+        (no directional context) → 0 directional → ``unknown`` warning.
+        Reverting the phrase-anchoring regex causes these to count and
+        return ``up``/``down``/``flat`` instead.
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": title,
+            }
+            for d, title in [
+                (10, "Microsoft: analyst raised concerns about competitive pressure"),
+                (30, "Microsoft: firm raised recession worries for the sector"),
+                (50, "Microsoft: bank lowered outlook on downside macro risk"),
+            ]
+        ])
+        # All 3 titles contain raised/lowered as bare English words, NOT
+        # in a "raised ... target" or "raised ... to $NNN" context.
+        assert _compute_earnings_revision_3m_direction(df) == "unknown"
+
+    def test_helper_ambiguous_row_is_excluded_not_double_counted(self, caplog):
+        """iter-2 CR1 (silent-hunt F1): a row that matches BOTH the up and
+        down regex (multi-analyst rollup) must be classified as AMBIGUOUS
+        and dropped from the directional count, not double-counted into
+        both ups and downs.
+
+        Load-bearing property: 2 clean-raised + 1 ambiguous row →
+        pre-fix: ups=3, downs=1, total=4 ≥ 3 → returns 'up'
+        post-fix: ups=2, downs=0, total=2 < 3 → returns 'unknown'
+        The caplog message includes the ambiguous count for ops visibility.
+        """
+        import logging
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": title,
+            }
+            for d, title in [
+                (10, "Microsoft price target raised to $600 from $500"),
+                (20, "Microsoft price target raised to $580 from $500"),
+                (30, "Microsoft: Barclays raised target to $500, Morgan Stanley cut target to $400"),
+            ]
+        ])
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            direction = _compute_earnings_revision_3m_direction(df)
+
+        # Post-fix: 2 up-only + 0 down-only + 1 ambiguous → 2 directional
+        # → below min_revisions=3 → 'unknown' with ambiguous_count in log
+        assert direction == "unknown"
+        warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "1 ambiguous" in r.getMessage()
+        ]
+        assert len(warnings) == 1, (
+            f"CR1 regression: expected 1 WARNING mentioning '1 ambiguous'; "
+            f"got {[r.getMessage() for r in caplog.records]}. Pre-fix code "
+            f"would count the multi-analyst row as ups=1 AND downs=1, "
+            f"inflating total_directional to 3 and returning a non-unknown."
+        )
+
+    def test_helper_net_threshold_boundary_at_0_20(self):
+        """iter-2 CR3 (pr-test mut #4 + silent-hunt F6): the ``0.20``
+        boundary uses ``<`` (exclusive), so ``|net_ratio| == 0.20``
+        returns ``up``/``down``, not ``flat``. Original iter-1 tests
+        used ratios of 0.0 (flat) and ±0.60 (up/down), leaving the
+        boundary at 0.20 untested — mutation to ``0.50`` survived.
+
+        Fixture: 3 up + 2 down = 5 directional, ``|3-2|/5 = 0.20``.
+        Load-bearing: mutation ``net_threshold=0.50`` would flip this
+        to ``flat`` (0.20 < 0.50).
+        """
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": title,
+            }
+            for d, title in [
+                (5, "Microsoft price target raised to $500 from $450"),
+                (15, "Microsoft price target raised to $520 from $500"),
+                (25, "Microsoft price target raised to $540 from $520"),
+                (35, "Microsoft price target lowered to $430 from $500"),
+                (45, "Microsoft price target lowered to $410 from $450"),
+            ]
+        ])
+        # net_ratio = (3-2)/5 = 0.20 exactly. Code uses ``< net_threshold``
+        # so 0.20 is NOT < 0.20 → not flat → net_ratio > 0 → 'up'.
+        assert _compute_earnings_revision_3m_direction(df) == "up"
+
+    def test_helper_missing_published_date_column_warns(self, caplog):
+        """iter-2 CR5 (silent-hunt F2): schema drift where 'published_date'
+        column is renamed must WARN, not silently return 'unknown'.
+        """
+        import logging
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        # Column renamed to publishedDate — pandas won't find published_date
+        df = pd.DataFrame([{"publishedDate": "2026-06-01", "news_title": "raised to $500"}])
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            direction = _compute_earnings_revision_3m_direction(df)
+
+        assert direction == "unknown"
+        warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "'published_date' column missing" in r.getMessage()
+        ]
+        assert len(warnings) == 1
+
+    def test_helper_missing_news_title_column_warns(self, caplog):
+        """iter-2 CR5 (silent-hunt F2): schema drift where 'news_title'
+        column is renamed must WARN, not silently return 'unknown'.
+        """
+        import logging
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([{"published_date": "2026-06-01", "newsTitle": "raised to $500"}])
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            direction = _compute_earnings_revision_3m_direction(df)
+
+        assert direction == "unknown"
+        warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "'news_title' column missing" in r.getMessage()
+        ]
+        assert len(warnings) == 1
+
+    def test_helper_empty_df_warns(self, caplog):
+        """iter-2 CR5 (silent-hunt F2): empty df must WARN so operators
+        can distinguish upstream fetcher failure from real 'unknown'.
+        """
+        import logging
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            direction = _compute_earnings_revision_3m_direction(pd.DataFrame())
+
+        assert direction == "unknown"
+        warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "price_targets_df is empty" in r.getMessage()
+        ]
+        assert len(warnings) == 1
+
+    def test_helper_all_older_than_window_warns(self, caplog):
+        """iter-2 CR5 (silent-hunt F2): post-filter-empty (all revisions
+        older than 90d) must WARN, not return 'unknown' silently.
+        """
+        import logging
+        from stock_analysis import _compute_earnings_revision_3m_direction
+
+        df = pd.DataFrame([
+            {
+                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
+                "news_title": f"Microsoft price target raised to $500 from $450",
+            }
+            for d in [100, 120, 150]
+        ])
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            direction = _compute_earnings_revision_3m_direction(df)
+
+        assert direction == "unknown"
+        warnings = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING
+            and "no revisions within" in r.getMessage()
+        ]
+        assert len(warnings) == 1
 
 
 class TestPhase1Tradeability:
