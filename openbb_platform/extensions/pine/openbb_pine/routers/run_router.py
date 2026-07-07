@@ -43,6 +43,7 @@ from openbb_pine.compiler import compile_pine
 from openbb_pine.errors import PineDataValidationError
 from openbb_pine.runtime.executor import run_compiled
 from openbb_pine.runtime.provider_selection import resolve_provider
+from openbb_pine.telemetry import OpenBBTelemetrySink
 
 router = Router(prefix="", description="Compile and run Pine scripts over OHLCV.")
 
@@ -113,12 +114,28 @@ def _compile_and_run(
     Called by BOTH /pine/run (provider mode) and /pine/run_byo (BYO mode).
     Provider validation is the caller's responsibility (resolve_provider
     must fire BEFORE this so PineProviderError propagates cleanly).
+
+    E0.4 telemetry: instantiate a per-request
+    :class:`~openbb_pine.telemetry.OpenBBTelemetrySink`, inject it into
+    ``compile_pine(telemetry=...)``, and (currently) drop the counts on
+    the floor. A follow-up bead will thread the sink's
+    ``get_unsupported_*_counts()`` into the ``OBBject.extra`` envelope so
+    the API response surfaces per-request wild-corpus attribution to the
+    caller (D3 §4.6 already reserves the slot).
     """
+    telemetry_sink = OpenBBTelemetrySink()
     compiled = compile_pine(
         source,
         target_version=6,
         params=params or None,
+        telemetry=telemetry_sink,
     )
+    # NOTE: telemetry_sink.get_unsupported_*_counts() is read here but
+    # not currently surfaced in the response envelope. The follow-up
+    # bead that wires OBBject.extra["pine_unsupported_*"] will consume
+    # them; keeping the sink alive through the return statement so a
+    # future post-run middleware can pick it up if we decide to attach
+    # it to the OBBject before returning.
     return run_compiled(
         compiled,
         provider_or_data=provider_or_data,
