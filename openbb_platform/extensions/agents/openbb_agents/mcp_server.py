@@ -131,6 +131,51 @@ def collect_tools() -> list[dict]:
 
 # ── MCP server wiring ────────────────────────────────────────────────────────
 
+
+def _call_tool_safe(
+    descriptor: dict | None,
+    arguments: dict,
+    name: str | None = None,
+) -> list[str]:
+    """Invoke ``descriptor['fn']`` with ``arguments`` and return the safe payload.
+
+    Wraps the raw tool call with two invariants (bd-9ck7 / bd-lq4l):
+
+    1. **Exception messages are NEVER surfaced to the LLM.** Any raise
+       from the tool returns a generic ``{'error': 'tool_failed',
+       'tool': <name>}`` payload so credential fragments, absolute file
+       paths, DSN strings, HTTP URLs, and other internal state can't be
+       exfiltrated through the MCP boundary via prompt injection.
+    2. **Full details are logged locally.** The operator running the
+       MCP server sees ``str(exc)`` + traceback via ``logger.error(...,
+       exc_info=True)`` for triage, but that channel never reaches the
+       LLM client.
+
+    Returns a list of ONE json-encoded string (the MCP protocol wraps
+    it in a ``TextContent`` at the ``@server.call_tool`` seam — kept as
+    a plain string here so this helper is unit-testable without the
+    MCP types).
+
+    Passing ``descriptor=None`` returns the unknown-tool error variant
+    (``{'error': 'unknown_tool', 'tool': <name>}``). The ``name``
+    argument is only required for that branch; when descriptor is
+    provided it defaults to ``descriptor['name']``.
+    """
+    if descriptor is None:
+        return [json.dumps({"error": "unknown_tool", "tool": name or "?"})]
+    tool_name = descriptor.get("name") or name or "?"
+    fn = descriptor["fn"]
+    try:
+        result = fn(**arguments)
+        return [json.dumps(result, default=str)]
+    except Exception as exc:
+        # Log full details locally (operator triage channel) — NOT
+        # returned to the LLM. Includes str(exc) via %s formatting and
+        # the full traceback via exc_info=True.
+        logger.error("Tool %r raised: %s", tool_name, exc, exc_info=True)
+        return [json.dumps({"error": "tool_failed", "tool": tool_name})]
+
+
 async def _serve() -> None:
     """Build and run the MCP server over stdio."""
     from mcp.server import Server
@@ -155,15 +200,10 @@ async def _serve() -> None:
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         descriptor = tool_index.get(name)
-        if descriptor is None:
-            raise ValueError(f"Unknown tool: {name!r}")
-        fn = descriptor["fn"]
-        try:
-            result = fn(**arguments)
-            return [TextContent(type="text", text=json.dumps(result, default=str))]
-        except Exception as exc:
-            logger.error("Tool %r raised: %s", name, exc, exc_info=True)
-            return [TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+        # Delegate to the testable helper — see _call_tool_safe for the
+        # LLM-boundary sanitization contract (bd-9ck7 / bd-lq4l).
+        payloads = _call_tool_safe(descriptor, arguments, name=name)
+        return [TextContent(type="text", text=p) for p in payloads]
 
     async with stdio_server() as (read_stream, write_stream):
         init_opts = server.create_initialization_options()

@@ -60,10 +60,139 @@ class TestInvocation:
         import pandas as pd
 
         fake = lambda: pd.DataFrame(
-            [{"symbol": "MSFT", "total_quantity": 1, "total_cost_basis": 1.0,
-              "total_current_value": 2.0, "pct_return": 100.0,
-              "portfolio_weight_pct": 100.0}]
+            [
+                {
+                    "symbol": "MSFT",
+                    "total_quantity": 1,
+                    "total_cost_basis": 1.0,
+                    "total_current_value": 2.0,
+                    "pct_return": 100.0,
+                    "portfolio_weight_pct": 100.0,
+                }
+            ]
         )
         result = tools["get_positions"]["fn"](_fetch=fake)
         assert isinstance(result, list)
         assert result[0]["symbol"] == "MSFT"
+
+
+class TestExceptionSanitization:
+    """Regression tests for OpenBBTechnical-9ck7 / lq4l — MCP tool exceptions
+    must NOT leak paths/creds/DSNs to the LLM client.
+
+    The pre-fix code returned ``json.dumps({"error": str(exc)})`` which
+    happily serialized every embedded absolute path, credential fragment,
+    DSN string, or HTTP URL from provider errors back to the LLM.
+
+    Fix: return a generic ``{"error": "tool_failed", "tool": name}`` payload
+    to the LLM, log the full ``str(exc)`` + traceback locally only.
+    """
+
+    _SENTINEL_LEAKY_MESSAGE = (
+        "Connection to mysql://admin:S3CR3T@db.internal:3306/prod failed at "
+        "C:/Users/daaji/AppData/openbb/cache.db with key sk-live-ABC123XYZ"
+    )
+
+    def test_call_tool_safe_returns_generic_error_on_exception(self):
+        """A raising tool returns ``{'error': 'tool_failed', 'tool': ...}`` only."""
+        import json
+
+        from openbb_agents.mcp_server import _call_tool_safe
+
+        def raising_tool(**_kwargs):
+            raise RuntimeError(self._SENTINEL_LEAKY_MESSAGE)
+
+        descriptor = {"name": "leaky_tool", "fn": raising_tool}
+        result_texts = _call_tool_safe(descriptor, arguments={"x": 1})
+
+        assert len(result_texts) == 1
+        payload = json.loads(result_texts[0])
+        assert payload == {
+            "error": "tool_failed",
+            "tool": "leaky_tool",
+        }, f"Non-generic error payload leaked: {payload!r}"
+
+    def test_call_tool_safe_does_not_leak_exception_str(self):
+        """No fragment of the raised exception message appears in the returned payload."""
+        from openbb_agents.mcp_server import _call_tool_safe
+
+        def raising_tool(**_kwargs):
+            raise RuntimeError(self._SENTINEL_LEAKY_MESSAGE)
+
+        descriptor = {"name": "leaky_tool", "fn": raising_tool}
+        result_texts = _call_tool_safe(descriptor, arguments={})
+        combined = "\n".join(result_texts)
+
+        # None of the sensitive fragments must appear
+        for fragment in (
+            "mysql://admin",
+            "S3CR3T",
+            "db.internal",
+            "C:/Users/daaji",
+            "openbb/cache.db",
+            "sk-live-ABC123XYZ",
+        ):
+            assert (
+                fragment not in combined
+            ), f"Sensitive fragment {fragment!r} leaked in payload: {combined!r}"
+
+    def test_call_tool_safe_logs_full_exception_locally(self, caplog):
+        """The FULL exception details (including str + traceback) are logged locally.
+
+        Operators need the full error to debug; only the LLM sees the
+        generic payload. This test asserts the info still reaches the
+        logger so we don't lose debuggability.
+        """
+        import logging
+
+        from openbb_agents.mcp_server import _call_tool_safe
+
+        def raising_tool(**_kwargs):
+            raise RuntimeError(self._SENTINEL_LEAKY_MESSAGE)
+
+        descriptor = {"name": "leaky_tool", "fn": raising_tool}
+        with caplog.at_level(logging.ERROR, logger="openbb_agents.mcp_server"):
+            _call_tool_safe(descriptor, arguments={})
+
+        # The full sensitive message must be in the logs (that's where the
+        # operator debugs — NOT the LLM channel).
+        error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert error_records, "expected an ERROR-level log record"
+        combined_log = (
+            "\n".join(r.getMessage() for r in error_records)
+            + "\n"
+            + "\n".join((r.exc_text or "") for r in error_records)
+        )
+        # At least ONE of the sensitive fragments should appear in the log
+        # (the log_full_details expected behavior).
+        assert self._SENTINEL_LEAKY_MESSAGE in combined_log or any(
+            frag in combined_log for frag in ("mysql://admin", "S3CR3T", "sk-live")
+        ), f"Full exception details not logged locally: {combined_log!r}"
+        # And the tool name must be in the log for operator triage
+        assert "leaky_tool" in combined_log
+
+    def test_call_tool_safe_happy_path_returns_json_result(self):
+        """Non-raising tool returns json-serialized result as before."""
+        import json
+
+        from openbb_agents.mcp_server import _call_tool_safe
+
+        def good_tool(x: int):
+            return {"doubled": x * 2}
+
+        descriptor = {"name": "good_tool", "fn": good_tool}
+        result_texts = _call_tool_safe(descriptor, arguments={"x": 21})
+        assert len(result_texts) == 1
+        assert json.loads(result_texts[0]) == {"doubled": 42}
+
+    def test_call_tool_safe_generic_error_on_unknown_tool_name(self):
+        """Unknown tool → generic error, no name-injection leak."""
+        import json
+
+        from openbb_agents.mcp_server import _call_tool_safe
+
+        # Descriptor None means the tool wasn't found — the wrapper should
+        # still return the generic error shape, not raise.
+        result_texts = _call_tool_safe(None, arguments={}, name="ghost_tool")
+        payload = json.loads(result_texts[0])
+        assert payload == {"error": "unknown_tool", "tool": "ghost_tool"}
