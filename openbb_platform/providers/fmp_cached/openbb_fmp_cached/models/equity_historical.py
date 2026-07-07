@@ -30,11 +30,68 @@ from openbb_core.provider.standard_models.equity_historical import (
 )
 from openbb_core.provider.utils.descriptions import QUERY_DESCRIPTIONS
 from openbb_core.provider.utils.errors import EmptyDataError
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
 logger = logging.getLogger(__name__)
+
+
+# ── FMP endpoint URL construction ─────────────────────────────────────────
+#
+# Explicit (adjustment, interval) -> URL-path map for the FMP stable API.
+# Central table used by both ``_fetch_from_fmp_direct`` (async) and
+# ``_fetch_from_fmp_sync`` (sync) so a future maintainer can't
+# accidentally desync the two ladders (they had already diverged
+# pre-fix — the async version was missing branches for 15m/30m/4h and
+# both silently fell through to the daily endpoint on any non-
+# splits_only adjustment). bd-o61s.
+_FMP_BASE = "https://financialmodelingprep.com/stable/"
+
+# Intraday interval -> FMP historical-chart endpoint suffix. All six
+# intraday ``Literal`` values on ``FMPCachedEquityHistoricalQueryParams.interval``
+# are represented; missing an entry means a fetch would silently 4xx
+# from FMP with an empty endpoint path.
+_INTRADAY_ENDPOINTS: dict[str, str] = {
+    "1m": "historical-chart/1min",
+    "5m": "historical-chart/5min",
+    "15m": "historical-chart/15min",
+    "30m": "historical-chart/30min",
+    "1h": "historical-chart/1hour",
+    "4h": "historical-chart/4hour",
+}
+
+
+def _build_fmp_endpoint(adjustment: str, interval: str) -> str:
+    """Return the FMP endpoint URL for ``(adjustment, interval)``.
+
+    The query params' ``model_validator`` already enforces the
+    invariant that ``adjustment != 'splits_only'`` implies
+    ``interval == '1d'``, so by the time we get here every combination
+    is representable. But this helper is defence-in-depth: if a future
+    refactor drops the validator, unknown interval values raise
+    ``ValueError`` here instead of falling through to an empty endpoint
+    (which used to happen for ``15m``/``30m``/``4h`` before bd-o61s).
+
+    Return value has NO trailing ``?`` — callers pass query params via
+    the underlying HTTP layer's ``params=`` kwarg (bd-6641 / bd-ir3f).
+    """
+    # Adjusted endpoints only exist for daily EOD data.
+    if adjustment == "unadjusted":
+        return _FMP_BASE + "historical-price-eod/non-split-adjusted"
+    if adjustment == "splits_and_dividends":
+        return _FMP_BASE + "historical-price-eod/dividend-adjusted"
+    # adjustment == "splits_only" — either daily EOD or one of the intraday
+    # historical-chart endpoints.
+    if interval == "1d":
+        return _FMP_BASE + "historical-price-eod/full"
+    endpoint = _INTRADAY_ENDPOINTS.get(interval)
+    if endpoint is None:
+        raise ValueError(
+            f"Unsupported FMP interval {interval!r}; "
+            f"expected one of {sorted(_INTRADAY_ENDPOINTS) + ['1d']}"
+        )
+    return _FMP_BASE + endpoint
 
 
 class FMPCachedEquityHistoricalQueryParams(EquityHistoricalQueryParams):
@@ -66,6 +123,26 @@ class FMPCachedEquityHistoricalQueryParams(EquityHistoricalQueryParams):
         description="Include dividend data in the results. "
         "When True, fetches dividend information from FMP and merges it with price data.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_interval_adjustment(cls, values):
+        """Reject adjustment != 'splits_only' on intraday intervals (bd-o61s).
+
+        Mirrors the upstream ``FMPEquityHistoricalFetcher._validate_params``
+        guard: FMP only exposes ``unadjusted`` and ``splits_and_dividends``
+        adjustments on the daily EOD endpoint. Requesting them on an
+        intraday interval used to silently return daily bars — a critical
+        data-corruption footgun for backtests.
+        """
+        if isinstance(values, dict):
+            interval = values.get("interval", "1d")
+            adjustment = values.get("adjustment", "splits_only")
+            if adjustment != "splits_only" and interval != "1d":
+                raise ValueError(
+                    "Adjustment can only be applied to daily ('1d') interval."
+                )
+        return values
 
 
 class FMPCachedEquityHistoricalData(EquityHistoricalData):
@@ -976,21 +1053,15 @@ async def _fetch_from_fmp_direct(
     # Get API key
     api_key = credentials.get("fmp_api_key") if credentials else ""
 
-    # Build base URL based on adjustment and interval
-    base_url = "https://financialmodelingprep.com/stable/"
-
-    if query.adjustment == "unadjusted":
-        base_url += "historical-price-eod/non-split-adjusted?"
-    elif query.adjustment == "splits_and_dividends":
-        base_url += "historical-price-eod/dividend-adjusted?"
-    elif query.interval == "1d":
-        base_url += "historical-price-eod/full?"
-    elif query.interval == "1m":
-        base_url += "historical-chart/1min?"
-    elif query.interval == "5m":
-        base_url += "historical-chart/5min?"
-    elif query.interval in ["60m", "1h"]:
-        base_url += "historical-chart/1hour?"
+    # Build base URL based on adjustment and interval.
+    #
+    # Post-fix (bd-o61s): the model_validator on the query params rejects
+    # ``adjustment != 'splits_only'`` on any intraday interval, so by
+    # the time we reach here the (adjustment, interval) combination is
+    # guaranteed valid. Every ``Literal`` interval value has an explicit
+    # endpoint mapping — an unknown interval slipping through raises
+    # ValueError instead of falling through to an empty endpoint.
+    base_url = _build_fmp_endpoint(query.adjustment, query.interval)
 
     # Strip the trailing '?' — params below will encode into the URL properly
     # via the underlying HTTP layer (keeps apikey OUT of the URL string that
@@ -1079,20 +1150,8 @@ def _fetch_from_fmp_sync(
     if not api_key:
         raise ValueError("No FMP API key provided")
 
-    # Build base URL (same logic as _fetch_from_fmp_direct)
-    base_url = "https://financialmodelingprep.com/stable/"
-    if query.adjustment == "unadjusted":
-        base_url += "historical-price-eod/non-split-adjusted?"
-    elif query.adjustment == "splits_and_dividends":
-        base_url += "historical-price-eod/dividend-adjusted?"
-    elif query.interval == "1d":
-        base_url += "historical-price-eod/full?"
-    elif query.interval == "1m":
-        base_url += "historical-chart/1min?"
-    elif query.interval == "5m":
-        base_url += "historical-chart/5min?"
-    elif query.interval in ("60m", "1h"):
-        base_url += "historical-chart/1hour?"
+    # Build base URL (shared helper with _fetch_from_fmp_direct — bd-o61s).
+    base_url = _build_fmp_endpoint(query.adjustment, query.interval)
 
     # Strip the trailing '?' — params below encode into the URL properly
     # via ``requests`` (keeps apikey OUT of the URL string that lands in
