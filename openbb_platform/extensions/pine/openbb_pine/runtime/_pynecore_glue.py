@@ -29,6 +29,14 @@ spec; the workarounds live here with the rationale next to them.
 
 from __future__ import annotations
 
+# Force the sys.path bridge to fire before any `from pynecore...` import in
+# this module (or in modules that only import this glue, bypassing the
+# `openbb_pine/__init__.py` top-level insertion). Post-E2 the bridge moves
+# into pyne_compiler; keep this import so the ordering guarantee survives
+# the migration.
+from openbb_pine.runtime import pynecore_bridge  # noqa: F401 -- ensure bridge runs
+pynecore_bridge.install_pynecore_path()
+
 from contextlib import contextmanager
 from datetime import datetime, time, timezone
 from typing import TYPE_CHECKING, Any, Callable, Iterator
