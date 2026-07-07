@@ -576,6 +576,92 @@ class TestMissingRangeDetection:
             f"gap exceeded 7 days; post-fix must flag as missing."
         )
 
+    def test_detect_missing_ranges_intraday_symmetric_holiday_filter(self):
+        """PR #348 review (P2): numerator + denominator must use the same holiday set.
+
+        Pre-review-fix the numerator (cached_trading_days) called
+        ``_is_trading_day(d, set())`` — no holidays filtered — while
+        the denominator (trading_days_in_range) used the real holiday
+        set from ``_get_basic_market_holidays``. Result: a cache with
+        bars on holidays inflated the numerator, silently pushing
+        density above 0.9 when it should have been below.
+
+        Rather than construct a synthetic cache that trips both the
+        7-day-gap check AND the density threshold in exactly the right
+        way (fragile — depends on holiday calendar + weekend spacing +
+        endpoint alignment), this test asserts the code-level invariant
+        directly at the CODE line: the density-numerator comprehension
+        must reference the SAME ``holidays`` variable that
+        ``_count_trading_days_in_range`` uses.
+
+        This is a source-level lock analogous to the ``model_copy`` lint
+        in test_query_forwarding.py — catches the regression in the
+        code, not just via a synthetic behavioral path.
+        """
+        import inspect
+        import re
+
+        from openbb_fmp_cached.models import equity_historical
+
+        source_lines = inspect.getsource(
+            equity_historical._detect_missing_ranges
+        ).splitlines()
+
+        # Strip comments and docstring content — only look at executable
+        # lines. The buggy line was ``if start_date <= d <= end_date and
+        # _is_trading_day(d, set())`` inside the density-numerator
+        # comprehension; the fixed line uses ``... _is_trading_day(d,
+        # holidays)``. My own review comment on the fix mentions the
+        # buggy shape textually, so a naive ``substring in source``
+        # check false-positives on that comment.
+        code_lines = []
+        in_docstring = False
+        for line in source_lines:
+            stripped = line.strip()
+            # Skip line comments
+            if stripped.startswith("#"):
+                continue
+            # Toggle triple-quoted docstring blocks
+            if '"""' in stripped:
+                if in_docstring:
+                    in_docstring = False
+                    # Handle single-line docstrings too
+                    if stripped.count('"""') == 2:
+                        pass
+                    continue
+                else:
+                    in_docstring = True
+                    if stripped.count('"""') == 2:
+                        in_docstring = False
+                    continue
+            if in_docstring:
+                continue
+            code_lines.append(line)
+
+        code = "\n".join(code_lines)
+
+        # Now look for the buggy pattern in EXECUTABLE code only.
+        buggy_pattern = re.compile(r"_is_trading_day\s*\(\s*d\s*,\s*set\s*\(\s*\)\s*\)")
+        assert not buggy_pattern.search(code), (
+            "density numerator uses `_is_trading_day(d, set())` in "
+            "executable code — this is the pre-review-fix asymmetric-"
+            "holidays bug (PR #348 hunter P2). Cached bars on holidays "
+            "would inflate the numerator while the denominator excludes "
+            "those days, silently pushing density above the 0.9 threshold. "
+            "Use the same `holidays` variable both numerator and "
+            "denominator share via _get_basic_market_holidays."
+        )
+
+        # Positive assertion: the source MUST reference `holidays` in the
+        # density numerator's `_is_trading_day` call.
+        good_pattern = re.compile(r"_is_trading_day\s*\(\s*d\s*,\s*holidays\s*\)")
+        assert good_pattern.search(code), (
+            "density numerator does not filter with `_is_trading_day(d, "
+            "holidays)` — the symmetric-filter fix (PR #348 review) requires "
+            "the numerator to use the same holiday set as _count_trading"
+            "_days_in_range's denominator."
+        )
+
 
 class TestTradingDayLogic:
     """Test trading day and holiday logic."""

@@ -645,14 +645,20 @@ def _detect_missing_ranges(
         # the vast majority of the window has zero bars.
         trading_days_in_range = _count_trading_days_in_range(start_date, end_date)
         if trading_days_in_range > 0:
-            # cached_dates may include weekends/holidays returned by the
-            # cache row for whatever reason — count only the trading-day
-            # entries so the numerator matches the denominator's
-            # trading-day-only universe.
+            # PR #348 silent-failure-hunter (P2): use the SAME holiday
+            # set for numerator and denominator. Pre-review-fix the
+            # numerator filtered with ``_is_trading_day(d, set())`` (no
+            # holidays) while ``_count_trading_days_in_range`` used the
+            # real holiday set — so a cache with bars ON holidays
+            # (MLK/Good Friday/Memorial Day/Juneteenth) inflated the
+            # numerator while shrinking the denominator, silently
+            # pushing density above the 0.9 threshold when it should
+            # have been below. Symmetric filtering closes that hole.
+            holidays = _get_basic_market_holidays(start_date.year, end_date.year)
             cached_trading_days = sum(
                 1
                 for d in cached_dates
-                if start_date <= d <= end_date and _is_trading_day(d, set())
+                if start_date <= d <= end_date and _is_trading_day(d, holidays)
             )
             density = cached_trading_days / trading_days_in_range
             # 0.9 = at least 90% of trading days must have a cached bar.
