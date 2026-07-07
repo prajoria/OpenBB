@@ -974,18 +974,80 @@ class TestDataNormalisation:
                     query, invalid_records
                 )
 
-    def test_transform_data_empty_input_does_not_raise(self):
-        """Empty input list is a valid degenerate case, NOT the 'all dropped' bug."""
+    def test_transform_data_empty_input_does_not_raise(self, caplog):
+        """Empty input list is a valid degenerate case, NOT the 'all dropped' bug.
+
+        PR #345 silent-failure-hunter (P2): the original version of this
+        test only checked the return value. If a future refactor emits
+        a log line on empty input (e.g. ``logger.info("nothing to
+        validate")``), that would silently slip through and the
+        "empty ≠ all-dropped" contract would rot. The added log-silence
+        assertion locks in that empty-input takes the fast-path with
+        NO logging at all.
+        """
+        import logging
+
         from openbb_fmp.models.institutional_ownership import (
             FMPInstitutionalOwnershipQueryParams,
         )
 
         query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
-        # An empty input list is DIFFERENT from "all records failed
-        # validation" — no records means no signal about schema drift.
-        # Return empty; do not raise.
-        result = FMPCachedInstitutionalOwnershipFetcher.transform_data(query, [])
+        with caplog.at_level(
+            logging.DEBUG,
+            logger="openbb_fmp_cached.models.institutional_ownership",
+        ):
+            # An empty input list is DIFFERENT from "all records failed
+            # validation" — no records means no signal about schema drift.
+            # Return empty; do not raise; do NOT emit any log records.
+            result = FMPCachedInstitutionalOwnershipFetcher.transform_data(query, [])
+
         assert result == []
+        # No records tried → no logging. This is what distinguishes
+        # empty-input from the all-dropped path (which emits N WARNINGs
+        # + 1 raise).
+        assert caplog.records == [], (
+            f"empty-input path should be silent — no drops, no attempts, "
+            f"no logs. Captured: {[r.getMessage() for r in caplog.records]!r}"
+        )
+
+    def test_transform_data_narrow_except_lets_non_validation_errors_propagate(self):
+        """Non-ValidationError exceptions must NOT be mislabeled as schema mismatch (PR #345 review, P2).
+
+        Pre-PR-#345-review the ``except Exception`` was too broad — a
+        ``TypeError`` or ``AttributeError`` from a bug in Pydantic itself
+        or in the record dict would be silently swallowed and logged as
+        'schema mismatch', hiding the real bug. The narrowed
+        ``except ValidationError`` now lets non-validation errors
+        propagate so they surface as real bugs.
+        """
+        from unittest.mock import patch
+
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+        from openbb_fmp_cached.models.institutional_ownership import (
+            FMPInstitutionalOwnershipData,
+        )
+
+        query = FMPInstitutionalOwnershipQueryParams(symbol="TSLA")
+        boom = RuntimeError(
+            "simulated non-validation error (e.g. bug in Pydantic internals)"
+        )
+
+        # Patch model_validate to raise a RuntimeError (not a
+        # ValidationError). Pre-fix (with ``except Exception``) this
+        # would be silently caught, incremented in ``drops``, and
+        # eventually mislabeled as 'All ... records failed FMP schema
+        # validation'. Post-fix the RuntimeError propagates as-is.
+        with patch.object(
+            FMPInstitutionalOwnershipData,
+            "model_validate",
+            side_effect=boom,
+        ):
+            with pytest.raises(RuntimeError, match="simulated non-validation"):
+                FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                    query, [{"symbol": "TSLA"}]
+                )
 
 
 # ---------------------------------------------------------------------------

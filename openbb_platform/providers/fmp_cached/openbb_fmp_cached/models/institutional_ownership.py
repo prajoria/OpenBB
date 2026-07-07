@@ -26,6 +26,7 @@ from openbb_fmp.models.institutional_ownership import (
     FMPInstitutionalOwnershipFetcher,
     FMPInstitutionalOwnershipQueryParams,
 )
+from pydantic import ValidationError
 
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
@@ -162,10 +163,16 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         for record in data:
             try:
                 validated.append(FMPInstitutionalOwnershipData.model_validate(record))
-            except Exception as exc:
+            except ValidationError as exc:
                 # bd-0bp1: log at WARNING (not debug) with the specific
                 # exception so operators debugging "why is this empty?"
                 # have log evidence. Pre-fix used logger.debug + no exc.
+                # PR #345 silent-failure-hunter (P2): narrow from
+                # ``except Exception`` to ``except ValidationError`` so a
+                # TypeError/AttributeError bug in Pydantic or in the
+                # record dict itself isn't silently mislabeled as
+                # 'schema mismatch' — real bugs propagate; only genuine
+                # schema drift gets the tolerate-and-warn path.
                 drops += 1
                 logger.warning(
                     "Dropping institutional-ownership record for %s due to "
