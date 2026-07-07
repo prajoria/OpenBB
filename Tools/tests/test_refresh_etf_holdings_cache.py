@@ -114,7 +114,9 @@ def test_resolve_universe_unions_spdr_portfolio_extras():
     """All three sources should appear in the union, sorted."""
     with patch.object(tool, "list_portfolio_etfs", return_value=["IVV", "QQQ"]):
         result = tool.resolve_universe(
-            database=None, skip_portfolio=False, extra_etfs=["VOO", "DIA"],
+            database=None,
+            skip_portfolio=False,
+            extra_etfs=["VOO", "DIA"],
         )
     expected_min = set(tool.SPDR_SECTORS) | {"IVV", "QQQ", "VOO", "DIA"}
     assert set(result) == expected_min
@@ -125,7 +127,9 @@ def test_resolve_universe_dedupes():
     """Same ETF arriving from multiple sources appears once."""
     with patch.object(tool, "list_portfolio_etfs", return_value=["XLK", "IVV"]):
         result = tool.resolve_universe(
-            database=None, skip_portfolio=False, extra_etfs=["XLK", "IVV", "VOO"],
+            database=None,
+            skip_portfolio=False,
+            extra_etfs=["XLK", "IVV", "VOO"],
         )
     # XLK is in SPDR_SECTORS AND portfolio AND extras -- still one entry
     assert result.count("XLK") == 1
@@ -136,7 +140,9 @@ def test_resolve_universe_uppercases_and_strips_extras():
     """`--etfs ' ivv ,voo,'` -> {'IVV','VOO'}; blank tokens dropped."""
     with patch.object(tool, "list_portfolio_etfs", return_value=[]):
         result = tool.resolve_universe(
-            database=None, skip_portfolio=False, extra_etfs=[" ivv ", "voo", "", "  "],
+            database=None,
+            skip_portfolio=False,
+            extra_etfs=[" ivv ", "voo", "", "  "],
         )
     assert "IVV" in result
     assert "VOO" in result
@@ -148,7 +154,9 @@ def test_resolve_universe_skip_portfolio_drops_portfolio_etfs():
     """`--skip-portfolio` ignores Portfolio_Positions entirely."""
     with patch.object(tool, "list_portfolio_etfs", return_value=["IVV", "QQQ"]):
         result = tool.resolve_universe(
-            database=None, skip_portfolio=True, extra_etfs=None,
+            database=None,
+            skip_portfolio=True,
+            extra_etfs=None,
         )
     assert "IVV" not in result
     assert "QQQ" not in result
@@ -217,7 +225,9 @@ def test_refresh_one_etf_extracts_data_source_from_first_row_dict():
     fake_obb.obb.etf.holdings = MagicMock(return_value=fake_result)
     with patch.dict(sys.modules, {"openbb": fake_obb}):
         _, row_count, data_source, _, _ = tool.refresh_one_etf(
-            "XLK", dry_run=False, api_key=None,
+            "XLK",
+            dry_run=False,
+            api_key=None,
         )
     assert row_count == 1
     assert data_source == "fmp"
@@ -230,7 +240,9 @@ def test_refresh_one_etf_empty_results_yields_zero_rows_no_error():
     fake_obb.obb.etf.holdings = MagicMock(return_value=fake_result)
     with patch.dict(sys.modules, {"openbb": fake_obb}):
         _, row_count, data_source, _, error = tool.refresh_one_etf(
-            "XLK", dry_run=False, api_key=None,
+            "XLK",
+            dry_run=False,
+            api_key=None,
         )
     assert row_count == 0
     assert data_source is None
@@ -245,17 +257,163 @@ def test_refresh_one_etf_empty_results_yields_zero_rows_no_error():
 def test_refresh_universe_aggregates_stats_correctly():
     """Mix of populated/errored/empty per-ETF outcomes rolls up into the right counts."""
     outcomes = {
-        "XLK": ("XLK", 75, "issuer_ssga", 120.0, None),       # populated
-        "XLF": ("XLF", 72, "issuer_ssga", 110.0, None),       # populated
-        "IVV": ("IVV", 0, None, 15.0, "402 Restricted"),       # errored
-        "QQQ": ("QQQ", 0, None, 20.0, "402 Restricted"),       # errored
-        "VTI": ("VTI", 0, None, 80.0, None),                   # empty (no rows, no err)
+        "XLK": ("XLK", 75, "issuer_ssga", 120.0, None),  # populated
+        "XLF": ("XLF", 72, "issuer_ssga", 110.0, None),  # populated
+        "IVV": ("IVV", 0, None, 15.0, "402 Restricted"),  # errored
+        "QQQ": ("QQQ", 0, None, 20.0, "402 Restricted"),  # errored
+        "VTI": ("VTI", 0, None, 80.0, None),  # empty (no rows, no err)
     }
     with patch.object(
-        tool, "refresh_one_etf",
+        tool,
+        "refresh_one_etf",
         side_effect=lambda etf, **_kw: outcomes[etf],
     ):
         stats = tool.refresh_universe(
-            list(outcomes.keys()), dry_run=False, api_key=None,
+            list(outcomes.keys()),
+            dry_run=False,
+            api_key=None,
         )
     assert stats == {"requested": 5, "populated": 2, "errored": 2, "empty": 1}
+
+
+# ---------------------------------------------------------------------------
+# --api-key CLI flag runtime effect (bd-2k86)
+# ---------------------------------------------------------------------------
+#
+# Pre-fix the --api-key flag's help text promised env-var override behavior
+# ("Override FMP_API_KEY (else env FMP_API_KEY -> user_settings -> none)")
+# but the flag was in fact stubbed: refresh_one_etf's api_key parameter had
+# ``# noqa: ARG001 - reserved for future explicit-key plumbing`` and the
+# resolved value was never threaded into obb.etf.holdings(). Users running
+# ``python refresh_etf_holdings_cache.py --api-key TESTKEY`` saw no warning
+# that their key was ignored; the tool silently used whatever FMP_API_KEY
+# already sat in env / user_settings.
+#
+# Fix (bead option a): set os.environ['FMP_API_KEY'] in main() before the
+# lazy ``from openbb import obb`` import fires, mirroring the --database →
+# os.environ['DB_NAME'] pattern that's already present. The obb provider's
+# own resolver picks up the env var.
+
+
+def test_main_sets_fmp_api_key_env_when_flag_provided(monkeypatch):
+    """main() must export --api-key to os.environ['FMP_API_KEY'] (bd-2k86).
+
+    The refresh_one_etf collaborator is patched so no live network is hit;
+    we only care about what main() did to the environment before that
+    collaborator ran.
+    """
+    # Sentinel value so we can distinguish the CLI-supplied key from any
+    # pre-existing env value.
+    sentinel = "SENTINEL_FMP_KEY_FROM_CLI"
+    # Ensure we start from a known baseline; monkeypatch.delenv + setenv
+    # keep the surrounding session env unchanged post-test.
+    monkeypatch.delenv("FMP_API_KEY", raising=False)
+    monkeypatch.delenv("DB_NAME", raising=False)
+
+    argv = [
+        "refresh_etf_holdings_cache.py",
+        "--dry-run",
+        "--skip-portfolio",  # avoid the DB read path
+        "--api-key",
+        sentinel,
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 1, "issuer_ssga", 10.0, None),
+    ):
+        rc = tool.main()
+
+    assert rc == 0
+    # This is the load-bearing assertion: main() must have exported the
+    # CLI-supplied key so downstream ``from openbb import obb`` sees it.
+    assert os.environ.get("FMP_API_KEY") == sentinel, (
+        "--api-key flag was not exported to os.environ['FMP_API_KEY']; "
+        "the CLI flag remains a silent no-op (bd-2k86)."
+    )
+
+
+def test_main_does_not_export_fmp_api_key_when_flag_absent(monkeypatch):
+    """Regression lock: main() must NOT clobber an ambient FMP_API_KEY when the flag is absent."""
+    # Pre-existing env value that must survive main().
+    monkeypatch.setenv("FMP_API_KEY", "AMBIENT_KEY")
+    monkeypatch.delenv("DB_NAME", raising=False)
+
+    argv = [
+        "refresh_etf_holdings_cache.py",
+        "--dry-run",
+        "--skip-portfolio",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 1, "issuer_ssga", 10.0, None),
+    ):
+        rc = tool.main()
+
+    assert rc == 0
+    # Ambient env-var must be untouched — the CLI flag is an override, not
+    # a clobber-with-empty.
+    assert os.environ.get("FMP_API_KEY") == "AMBIENT_KEY"
+
+
+def test_main_whitespace_only_api_key_does_not_pollute_env(monkeypatch):
+    """--api-key '  ' must NOT export whitespace to env (PR #341 review, P3 fix).
+
+    Pre-fix the whitespace-only value was truthy under the ``if args.api_key:``
+    guard, so it exported ``'  '`` into ``os.environ['FMP_API_KEY']``. The
+    credentials loader's own ``if not value: continue`` truthy check would
+    then accept the whitespace and hand it to the provider, which fails
+    with an opaque error message far from the mis-configuration. The
+    ``.strip()`` guard on both the check and the value blocks this.
+    """
+    monkeypatch.setenv("FMP_API_KEY", "AMBIENT_KEY")
+    monkeypatch.delenv("DB_NAME", raising=False)
+
+    argv = [
+        "refresh_etf_holdings_cache.py",
+        "--dry-run",
+        "--skip-portfolio",
+        "--api-key",
+        "   ",  # whitespace-only — semantically empty
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 1, "issuer_ssga", 10.0, None),
+    ):
+        rc = tool.main()
+
+    assert rc == 0
+    # Whitespace-only override is treated as "no override" — ambient env
+    # survives untouched, matching the ``--api-key ""`` (argparse-native
+    # falsy default) and no-flag behaviors.
+    assert os.environ.get("FMP_API_KEY") == "AMBIENT_KEY"
+
+
+def test_main_api_key_value_is_stripped(monkeypatch):
+    """Leading/trailing whitespace on --api-key must NOT reach os.environ (PR #341 review)."""
+    monkeypatch.delenv("FMP_API_KEY", raising=False)
+    monkeypatch.delenv("DB_NAME", raising=False)
+
+    argv = [
+        "refresh_etf_holdings_cache.py",
+        "--dry-run",
+        "--skip-portfolio",
+        "--api-key",
+        "  TOKEN_WITH_WHITESPACE  ",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 1, "issuer_ssga", 10.0, None),
+    ):
+        rc = tool.main()
+
+    assert rc == 0
+    # Stored value is stripped — no leading/trailing whitespace pollution.
+    assert os.environ.get("FMP_API_KEY") == "TOKEN_WITH_WHITESPACE"
