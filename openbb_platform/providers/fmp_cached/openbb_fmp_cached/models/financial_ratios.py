@@ -1,4 +1,25 @@
-"""Cached financial_ratios model for FMP with dedicated database persistence."""
+"""Cached financial_ratios model for FMP with dedicated database persistence.
+
+Restatement handling (bd-ygoh)
+------------------------------
+The cache reads are gated purely on ``cached_at`` (via
+``FINANCIAL_RATIOS_TTL_DAYS``). Once a symbol's rows are cached, the
+1-day TTL keeps them fresh from a wall-clock perspective — but the
+FMP source can restate historical ratios (methodology fix, amended
+filing) at any time. Pre-fix a restatement would silently disagree
+with the cache until the row aged out.
+
+Post-fix (option B from bd-ygoh): callers who suspect a restatement
+pass ``refresh=True`` to ``aextract_data`` to BYPASS the cache-read
+step and refetch every requested symbol. The write path
+(``_store_financial_ratios``) already DELETE-then-INSERTs per symbol,
+so the refetch cleanly overwrites the stale rows.
+
+The proper fix (option A: persist ``acceptedDate``/``filing_date`` and
+version rows per-(symbol, date, filing_date)) is deferred to a Tier-3
+refactor with its own schema migration — tracked separately. Until
+then, ``refresh=True`` is the tactical escape hatch.
+"""
 
 import json
 import logging
@@ -16,6 +37,10 @@ from openbb_fmp_cached.utils.database import execute_many, execute_query, init_d
 
 logger = logging.getLogger(__name__)
 
+# See module docstring above for the restatement-handling design note
+# (bd-ygoh). This 1-day TTL is wall-clock-only; it does NOT detect
+# source-side restatements. Callers who need restatement-aware reads
+# should pass ``refresh=True`` to ``aextract_data``.
 FINANCIAL_RATIOS_TTL_DAYS = 1
 
 
@@ -33,7 +58,25 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
         credentials: dict[str, str] | None,
         **kwargs: Any,
     ) -> list[dict]:
-        """Extract financial ratios data with database persistence."""
+        """Extract financial ratios data with database persistence.
+
+        Cache-bypass keyword (bd-ygoh)
+        ------------------------------
+        Pass ``refresh=True`` to skip the cache-read step and refetch
+        every requested symbol from FMP. Use this when you suspect a
+        restatement (methodology fix, amended filing) has changed
+        historical values that the cache still holds. The write path
+        will overwrite the stale rows for those symbols. Default is
+        ``refresh=False`` — cache-first behavior is unchanged.
+
+        The ``refresh`` kwarg is popped BEFORE delegating to upstream
+        FMP (upstream doesn't accept it and would raise TypeError).
+        """
+        # bd-ygoh: pop the cache-layer `refresh` flag before it can leak
+        # to the upstream FMP fetcher's kwargs (upstream signature
+        # doesn't accept it).
+        refresh = kwargs.pop("refresh", False)
+
         resolved_credentials = _resolve_credentials(credentials)
 
         try:
@@ -55,12 +98,24 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
         results: list[dict] = []
         symbols_to_fetch: list[str] = []
 
-        for symbol in symbols:
-            cached = _get_cached_financial_ratios(symbol, query)
-            if cached:
-                results.extend(cached)
-            else:
-                symbols_to_fetch.append(symbol)
+        if refresh:
+            # bd-ygoh: bypass the cache-read step entirely. Every
+            # requested symbol goes to upstream; _store_financial_ratios
+            # DELETE-then-INSERTs per-symbol so stale rows are
+            # overwritten cleanly.
+            logger.info(
+                "financial_ratios refresh=True: bypassing cache for %d symbol(s) "
+                "(bd-ygoh restatement escape hatch)",
+                len(symbols),
+            )
+            symbols_to_fetch = list(symbols)
+        else:
+            for symbol in symbols:
+                cached = _get_cached_financial_ratios(symbol, query)
+                if cached:
+                    results.extend(cached)
+                else:
+                    symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
             fetch_query = query.model_copy(
