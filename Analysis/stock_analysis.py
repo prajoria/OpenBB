@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 # Date helpers
 # ---------------------------------------------------------------------------
 
+
 def _last_trading_day(reference: datetime.date | None = None) -> datetime.date:
     """Return the most recent completed trading day (Mon–Fri) before *reference*.
 
@@ -139,13 +140,11 @@ class AnalysisConfig:
             datetime.date.today() - datetime.timedelta(days=365 + 90)
         ).isoformat()
     )
-    end_date: str = field(
-        default_factory=lambda: _last_trading_day().isoformat()
-    )
+    end_date: str = field(default_factory=lambda: _last_trading_day().isoformat())
     provider: str = PRIMARY_PROVIDER
     risk_free_rate: float = 0.02
     max_portfolio_allocation: float = 0.04  # 4 % hard cap
-    enforce_gates: bool = False             # Stop pipeline on gate failure
+    enforce_gates: bool = False  # Stop pipeline on gate failure
 
     def __post_init__(self) -> None:
         if self.provider != PRIMARY_PROVIDER:
@@ -189,13 +188,13 @@ class Phase2Result:
     balance_df: pd.DataFrame
     cash_df: pd.DataFrame
     ratios_df: pd.DataFrame
-    kpi_df: pd.DataFrame            # Summary KPI table (latest values)
-    roe_decomp_df: pd.DataFrame     # DuPont decomposition
-    score: float                    # Weighted 0-5 score
-    accruals_ratio: float           # Sloan accruals ratio (latest)
-    gross_profitability: float      # Novy-Marx ratio (latest)
-    operating_leverage: float       # 5Y average operating leverage
-    dilution_5y: float              # Net share change over 5Y
+    kpi_df: pd.DataFrame  # Summary KPI table (latest values)
+    roe_decomp_df: pd.DataFrame  # DuPont decomposition
+    score: float  # Weighted 0-5 score
+    accruals_ratio: float  # Sloan accruals ratio (latest)
+    gross_profitability: float  # Novy-Marx ratio (latest)
+    operating_leverage: float  # 5Y average operating leverage
+    dilution_5y: float  # Net share change over 5Y
     gate_passed: bool
     gate_notes: str
 
@@ -204,15 +203,15 @@ class Phase2Result:
 class Phase3Result:
     """Outputs of Phase 3: Technical Analysis & Trade Timing."""
 
-    price_df: pd.DataFrame          # OHLCV + all computed indicators
-    signals: dict[str, bool]        # Boolean signal map (11 conditions)
-    bullish_count: int              # Number of True signals (gate: >= 6)
-    entry_quality: str              # "High Conviction" / "Standard" / "Cautious"
-    fib_levels: dict[str, float]    # Fibonacci retracement levels
-    atr: float                      # Latest ATR(14)
-    days_to_earnings: int           # Trading days to next earnings
-    earnings_safe_window: bool      # True if > 5 days away
-    weekly_trend_bullish: bool      # Weekly chart regime check
+    price_df: pd.DataFrame  # OHLCV + all computed indicators
+    signals: dict[str, bool]  # Boolean signal map (11 conditions)
+    bullish_count: int  # Number of True signals (gate: >= 6)
+    entry_quality: str  # "High Conviction" / "Standard" / "Cautious"
+    fib_levels: dict[str, float]  # Fibonacci retracement levels
+    atr: float  # Latest ATR(14)
+    days_to_earnings: int  # Trading days to next earnings
+    earnings_safe_window: bool  # True if > 5 days away
+    weekly_trend_bullish: bool  # Weekly chart regime check
     gate_passed: bool
     gate_notes: str
 
@@ -221,16 +220,16 @@ class Phase3Result:
 class Phase4Result:
     """Outputs of Phase 4: Valuation & Fair Value Estimation."""
 
-    multiples_df: pd.DataFrame      # Current multiples table
+    multiples_df: pd.DataFrame  # Current multiples table
     dcf_fair_value: float
-    margin_of_safety: float         # (dcf_fair_value - price) / dcf_fair_value
-    sensitivity_df: pd.DataFrame    # 3x3 WACC x g_term grid
-    implied_growth: float           # Reverse-DCF implied short-term growth
-    roic_wacc_spread: float         # ROIC - WACC (latest)
+    margin_of_safety: float  # (dcf_fair_value - price) / dcf_fair_value
+    sensitivity_df: pd.DataFrame  # 3x3 WACC x g_term grid
+    implied_growth: float  # Reverse-DCF implied short-term growth
+    roic_wacc_spread: float  # ROIC - WACC (latest)
     piotroski: float
     altman: float
-    valuation_verdict: str          # "Undervalued" / "Fair Value" / "Overvalued"
-    entry_recommendation: str       # Combined valuation+technical verdict
+    valuation_verdict: str  # "Undervalued" / "Fair Value" / "Overvalued"
+    entry_recommendation: str  # Combined valuation+technical verdict
     historical_multiples_df: pd.DataFrame  # 5Y annual multiples trend
     multiples_vs_median: dict[str, float]  # current / 5Y median - 1
     gate_passed: bool
@@ -241,7 +240,7 @@ class Phase4Result:
 class Phase5Result:
     """Outputs of Phase 5: Risk Assessment & Portfolio Context."""
 
-    risk_kpi_df: pd.DataFrame       # All risk KPIs in one table
+    risk_kpi_df: pd.DataFrame  # All risk KPIs in one table
     sharpe: float
     sortino: float
     calmar: float
@@ -254,10 +253,10 @@ class Phase5Result:
     cvar_95: float
     ulcer_index: float
     kelly_fraction: float
-    conviction_size: float          # Conviction-based position size (%)
-    half_kelly_size: float          # Half-Kelly position size (%)
-    recommended_size: float         # Lower of conviction vs half-Kelly
-    portfolio_fit: str              # "Core" / "Satellite" / "Reject"
+    conviction_size: float  # Conviction-based position size (%)
+    half_kelly_size: float  # Half-Kelly position size (%)
+    recommended_size: float  # Lower of conviction vs half-Kelly
+    portfolio_fit: str  # "Core" / "Satellite" / "Reject"
     stress_scenarios: dict[str, float]
     gate_passed: bool
     gate_notes: str
@@ -267,14 +266,14 @@ class Phase5Result:
 class Phase6Result:
     """Outputs of Phase 6: Market Segment, ETF Benchmark & Peer Relative Analysis."""
 
-    relative_table: pd.DataFrame    # Annualised metrics for universe
+    relative_table: pd.DataFrame  # Annualised metrics for universe
     corr_matrix: pd.DataFrame
     sector_etf: str
     information_ratio: float
-    relative_score: float           # 5-block score (0-5)
+    relative_score: float  # 5-block score (0-5)
     peer_fundamental_df: pd.DataFrame
     relative_valuation_score: float  # 0-100 quality-value rank
-    rolling_3m_rank: float          # Percentile rank of 63-day return vs peers
+    rolling_3m_rank: float  # Percentile rank of 63-day return vs peers
     gate_passed: bool
     gate_notes: str
 
@@ -284,7 +283,7 @@ class Phase7Result:
     """Outputs of Phase 7: Decision, Execution & Monitoring."""
 
     composite_score: float
-    action_label: str               # "Strong Buy" / "Buy" / "Hold/Watch" / "Avoid"
+    action_label: str  # "Strong Buy" / "Buy" / "Hold/Watch" / "Avoid"
     score_breakdown: dict[str, float]
     entry_quality: str
     atr_stop: float
@@ -293,7 +292,7 @@ class Phase7Result:
     target_2r: float
     target_3r: float
     staged_entry: dict[str, float]  # Tranche sizes (% of target)
-    time_stop_date: str             # Entry + 63 calendar days
+    time_stop_date: str  # Entry + 63 calendar days
     hard_override: str | None
     monitoring_triggers: dict[str, Any]
     handoff: dict[str, Any]
@@ -319,7 +318,9 @@ def _to_df(result: Any) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def _latest_col(df: pd.DataFrame, candidates: list[str], default: float = float("nan")) -> float:
+def _latest_col(
+    df: pd.DataFrame, candidates: list[str], default: float = float("nan")
+) -> float:
     """Return the latest non-null value from the first matching column."""
     for col in candidates:
         if col in df.columns:
@@ -358,7 +359,9 @@ def _cagr(series: pd.Series, years: int = 5) -> float:
         return float("nan")
 
 
-def _compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+def _compute_adx(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+) -> pd.Series:
     """Compute ADX(period) using Wilder smoothing."""
     up_move = high.diff()
     dn_move = -low.diff()
@@ -376,12 +379,14 @@ def _compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int 
 
     pdi = 100 * pdm_w / atr_w.replace(0, np.nan)
     ndi = 100 * ndm_w / atr_w.replace(0, np.nan)
-    dx  = 100 * (pdi - ndi).abs() / (pdi + ndi).replace(0, np.nan)
+    dx = 100 * (pdi - ndi).abs() / (pdi + ndi).replace(0, np.nan)
     adx = dx.ewm(alpha=alpha, adjust=False).mean()
     return adx
 
 
-def _compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+def _compute_atr(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
+) -> pd.Series:
     """Compute Average True Range."""
     tr = pd.concat(
         [high - low, (high - close.shift()).abs(), (low - close.shift()).abs()], axis=1
@@ -392,11 +397,11 @@ def _compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int 
 def _compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     """Compute RSI using Wilder smoothing."""
     delta = close.diff()
-    gain  = delta.clip(lower=0)
-    loss  = (-delta).clip(lower=0)
+    gain = delta.clip(lower=0)
+    loss = (-delta).clip(lower=0)
     avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
     avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
-    rs   = avg_gain / avg_loss.replace(0, np.nan)
+    rs = avg_gain / avg_loss.replace(0, np.nan)
     return 100 - 100 / (1 + rs)
 
 
@@ -420,46 +425,46 @@ def _compute_technicals(df: pd.DataFrame) -> pd.DataFrame:
     v = df["volume"]
 
     # --- Trend ---
-    df["sma_50"]  = c.rolling(50).mean()
+    df["sma_50"] = c.rolling(50).mean()
     df["sma_200"] = c.rolling(200).mean()
-    df["adx"]     = _compute_adx(h, lo, c, 14)
-    df["atr"]     = _compute_atr(h, lo, c, 14)
+    df["adx"] = _compute_adx(h, lo, c, 14)
+    df["atr"] = _compute_atr(h, lo, c, 14)
 
     # VWAP (cumulative from start of window)
     typical = (h + lo + c) / 3
     df["vwap"] = (typical * v).cumsum() / v.cumsum()
 
     # Ichimoku (9, 26, 52)
-    df["tenkan"] = (h.rolling(9).max()  + lo.rolling(9).min())  / 2
-    df["kijun"]  = (h.rolling(26).max() + lo.rolling(26).min()) / 2
+    df["tenkan"] = (h.rolling(9).max() + lo.rolling(9).min()) / 2
+    df["kijun"] = (h.rolling(26).max() + lo.rolling(26).min()) / 2
     df["span_a"] = ((df["tenkan"] + df["kijun"]) / 2).shift(26)
     df["span_b"] = ((h.rolling(52).max() + lo.rolling(52).min()) / 2).shift(26)
     df["chikou"] = c.shift(-26)
 
     # --- Momentum ---
-    df["rsi"]     = _compute_rsi(c, 14)
+    df["rsi"] = _compute_rsi(c, 14)
 
     # MACD (12, 26, 9)
     ema12 = c.ewm(span=12, adjust=False).mean()
     ema26 = c.ewm(span=26, adjust=False).mean()
-    df["macd"]        = ema12 - ema26
+    df["macd"] = ema12 - ema26
     df["macd_signal"] = df["macd"].ewm(span=9, adjust=False).mean()
-    df["macd_hist"]   = df["macd"] - df["macd_signal"]
+    df["macd_hist"] = df["macd"] - df["macd_signal"]
 
     # Stochastic (14, 3, 3)
-    low14  = lo.rolling(14).min()
+    low14 = lo.rolling(14).min()
     high14 = h.rolling(14).max()
     df["stoch_k"] = 100 * (c - low14) / (high14 - low14).replace(0, np.nan)
     df["stoch_d"] = df["stoch_k"].rolling(3).mean()
 
     # Rate of Change
-    df["roc_20"]  = c.pct_change(20)  * 100
-    df["roc_60"]  = c.pct_change(60)  * 100
+    df["roc_20"] = c.pct_change(20) * 100
+    df["roc_60"] = c.pct_change(60) * 100
     df["roc_120"] = c.pct_change(120) * 100
 
     # 52-week high proximity
-    df["high_52w"]        = c.rolling(252).max()
-    df["dist_52w_high"]   = (df["high_52w"] - c) / df["high_52w"]
+    df["high_52w"] = c.rolling(252).max()
+    df["dist_52w_high"] = (df["high_52w"] - c) / df["high_52w"]
 
     # --- Volatility ---
     # Bollinger Bands (20, 2)
@@ -472,12 +477,12 @@ def _compute_technicals(df: pd.DataFrame) -> pd.DataFrame:
     # --- Volume ---
     # OBV
     obv_vals = (np.sign(c.diff()) * v).fillna(0).cumsum()
-    df["obv"]       = obv_vals
+    df["obv"] = obv_vals
     df["obv_slope"] = obv_vals.diff(20)  # 20-day OBV change
 
     # Breakout Volume Ratio
-    vol_20_avg         = v.rolling(20).mean()
-    df["vol_ratio"]    = v / vol_20_avg.replace(0, np.nan)
+    vol_20_avg = v.rolling(20).mean()
+    df["vol_ratio"] = v / vol_20_avg.replace(0, np.nan)
 
     # Chaikin Money Flow CMF(21)
     mfm = ((c - lo) - (h - c)) / (h - lo).replace(0, np.nan)
@@ -500,11 +505,9 @@ def _dcf_single(
     if wacc <= g_term:
         g_term = wacc - 0.01
 
-    pv_explicit = sum(
-        fcf0 * (1 + g_short) ** t / (1 + wacc) ** t for t in range(1, 6)
-    )
+    pv_explicit = sum(fcf0 * (1 + g_short) ** t / (1 + wacc) ** t for t in range(1, 6))
     fcf_5 = fcf0 * (1 + g_short) ** 5
-    tv    = fcf_5 * (1 + g_term) / (wacc - g_term)
+    tv = fcf_5 * (1 + g_term) / (wacc - g_term)
     pv_tv = tv / (1 + wacc) ** 5
 
     if shares <= 0:
@@ -520,7 +523,7 @@ def _dcf_sensitivity(
     shares: float,
 ) -> pd.DataFrame:
     """Build a 3×3 sensitivity table: rows = WACC ±1%, cols = g_term ±0.5%."""
-    wacc_steps   = [wacc_base - 0.01, wacc_base, wacc_base + 0.01]
+    wacc_steps = [wacc_base - 0.01, wacc_base, wacc_base + 0.01]
     g_term_steps = [g_term_base - 0.005, g_term_base, g_term_base + 0.005]
     rows = {}
     for w in wacc_steps:
@@ -573,7 +576,7 @@ def _score_phase1(p1: Phase1Result) -> float:
 def _score_phase4(p4: Phase4Result) -> float:
     """Phase 4 valuation score from MOS + Piotroski + Altman."""
     score = 2.5
-    mos   = p4.margin_of_safety
+    mos = p4.margin_of_safety
     if mos >= 0.25:
         score += 1.0
     elif mos >= 0.15:
@@ -658,18 +661,18 @@ def _build_handoff(
 # Sector ETF map
 # ---------------------------------------------------------------------------
 _SECTOR_ETF_MAP: dict[str, str] = {
-    "Technology":             "XLK",
-    "Financial Services":     "XLF",
-    "Financial":              "XLF",
-    "Healthcare":             "XLV",
-    "Health Care":            "XLV",
-    "Industrials":            "XLI",
-    "Consumer Cyclical":      "XLY",
-    "Consumer Defensive":     "XLP",
-    "Energy":                 "XLE",
-    "Basic Materials":        "XLB",
-    "Utilities":              "XLU",
-    "Real Estate":            "XLRE",
+    "Technology": "XLK",
+    "Financial Services": "XLF",
+    "Financial": "XLF",
+    "Healthcare": "XLV",
+    "Health Care": "XLV",
+    "Industrials": "XLI",
+    "Consumer Cyclical": "XLY",
+    "Consumer Defensive": "XLP",
+    "Energy": "XLE",
+    "Basic Materials": "XLB",
+    "Utilities": "XLU",
+    "Real Estate": "XLRE",
     "Communication Services": "XLC",
 }
 
@@ -713,9 +716,11 @@ def phase1_company_profile(cfg: AnalysisConfig) -> Phase1Result:
     prv = cfg.provider
 
     profile_df = _to_df(obb.equity.profile(symbol=sym, provider=prv))
-    quote_df   = _to_df(obb.equity.price.quote(symbol=sym, provider=prv))
+    quote_df = _to_df(obb.equity.price.quote(symbol=sym, provider=prv))
     metrics_df = _to_df(
-        obb.equity.fundamental.metrics(symbol=sym, period="annual", limit=5, provider=prv)
+        obb.equity.fundamental.metrics(
+            symbol=sym, period="annual", limit=5, provider=prv
+        )
     )
 
     # Peers
@@ -723,7 +728,9 @@ def phase1_company_profile(cfg: AnalysisConfig) -> Phase1Result:
         peers_raw = _to_df(obb.equity.compare.peers(symbol=sym, provider=prv))
         if "peers_list" in peers_raw.columns:
             raw_peers = peers_raw["peers_list"].iloc[0]
-            peers = raw_peers if isinstance(raw_peers, list) else str(raw_peers).split(",")
+            peers = (
+                raw_peers if isinstance(raw_peers, list) else str(raw_peers).split(",")
+            )
             peers = [p.strip() for p in peers if p.strip() and p.strip() != sym]
         else:
             peers = list(peers_raw.get("symbol", pd.Series([])).tolist())
@@ -765,15 +772,15 @@ def phase1_company_profile(cfg: AnalysisConfig) -> Phase1Result:
         price_targets_df = pd.DataFrame()
 
     # Extract key fields
-    sector   = _safe_str(profile_df, ["sector"])
+    sector = _safe_str(profile_df, ["sector"])
     industry = _safe_str(profile_df, ["industry"])
-    mktcap   = _latest_col(quote_df, ["market_cap", "marketCap"], default=0.0)
+    mktcap = _latest_col(quote_df, ["market_cap", "marketCap"], default=0.0)
     if mktcap == 0.0:
         mktcap = _latest_col(metrics_df, ["market_cap", "marketCap"], default=0.0)
 
     # Gate: pass if business is understandable (we have profile + sector)
     gate_passed = bool(sector and not profile_df.empty)
-    gate_notes  = "OK" if gate_passed else "Profile data missing — do not proceed"
+    gate_notes = "OK" if gate_passed else "Profile data missing — do not proceed"
 
     return Phase1Result(
         profile_df=profile_df,
@@ -828,10 +835,24 @@ def phase2_fundamentals(cfg: AnalysisConfig) -> Phase2Result:
     sym = cfg.symbol
     prv = cfg.provider
 
-    income_df  = _to_df(obb.equity.fundamental.income( symbol=sym, period="annual", limit=5, provider=prv))
-    balance_df = _to_df(obb.equity.fundamental.balance(symbol=sym, period="annual", limit=5, provider=prv))
-    cash_df    = _to_df(obb.equity.fundamental.cash(   symbol=sym, period="annual", limit=5, provider=prv))
-    ratios_df  = _to_df(obb.equity.fundamental.ratios( symbol=sym, period="annual", limit=5, provider=prv))
+    income_df = _to_df(
+        obb.equity.fundamental.income(
+            symbol=sym, period="annual", limit=5, provider=prv
+        )
+    )
+    balance_df = _to_df(
+        obb.equity.fundamental.balance(
+            symbol=sym, period="annual", limit=5, provider=prv
+        )
+    )
+    cash_df = _to_df(
+        obb.equity.fundamental.cash(symbol=sym, period="annual", limit=5, provider=prv)
+    )
+    ratios_df = _to_df(
+        obb.equity.fundamental.ratios(
+            symbol=sym, period="annual", limit=5, provider=prv
+        )
+    )
 
     # Ensure chronological order (oldest first for CAGR)
     for df in [income_df, balance_df, cash_df, ratios_df]:
@@ -840,24 +861,24 @@ def phase2_fundamentals(cfg: AnalysisConfig) -> Phase2Result:
             df.reset_index(drop=True, inplace=True)
 
     # --- Growth KPIs ---
-    rev_col  = _find_col(income_df,  ["revenue", "total_revenue"])
-    eps_col  = _find_col(income_df,  ["eps_diluted", "eps", "basic_earnings_per_share"])
-    fcf_col  = _find_col(cash_df,    ["free_cash_flow", "freeCashFlow"])
+    rev_col = _find_col(income_df, ["revenue", "total_revenue"])
+    eps_col = _find_col(income_df, ["eps_diluted", "eps", "basic_earnings_per_share"])
+    fcf_col = _find_col(cash_df, ["free_cash_flow", "freeCashFlow"])
 
-    revenue_cagr = _cagr(income_df[rev_col], 5)  if rev_col  else float("nan")
-    eps_cagr     = _cagr(income_df[eps_col], 5)  if eps_col  else float("nan")
-    fcf_cagr     = _cagr(cash_df[fcf_col],   5)  if fcf_col  else float("nan")
+    revenue_cagr = _cagr(income_df[rev_col], 5) if rev_col else float("nan")
+    eps_cagr = _cagr(income_df[eps_col], 5) if eps_col else float("nan")
+    fcf_cagr = _cagr(cash_df[fcf_col], 5) if fcf_col else float("nan")
 
     # --- Profitability ---
-    gp_col   = _find_col(income_df, ["gross_profit", "grossProfit"])
-    oi_col   = _find_col(income_df, ["operating_income", "operatingIncome"])
-    ni_col   = _find_col(income_df, ["net_income", "netIncome"])
-    ta_col   = _find_col(balance_df,["total_assets", "totalAssets"])
+    gp_col = _find_col(income_df, ["gross_profit", "grossProfit"])
+    oi_col = _find_col(income_df, ["operating_income", "operatingIncome"])
+    ni_col = _find_col(income_df, ["net_income", "netIncome"])
+    ta_col = _find_col(balance_df, ["total_assets", "totalAssets"])
 
-    gross_margin   = _pct_last(income_df, gp_col,  income_df, rev_col)
-    op_margin      = _pct_last(income_df, oi_col,  income_df, rev_col)
-    net_margin     = _pct_last(income_df, ni_col,  income_df, rev_col)
-    roic           = _latest_col(ratios_df, ["roic", "return_on_invested_capital"])
+    gross_margin = _pct_last(income_df, gp_col, income_df, rev_col)
+    op_margin = _pct_last(income_df, oi_col, income_df, rev_col)
+    net_margin = _pct_last(income_df, ni_col, income_df, rev_col)
+    roic = _latest_col(ratios_df, ["roic", "return_on_invested_capital"])
 
     # Gross profitability (Novy-Marx): gross_profit / total_assets
     gross_profitability = float("nan")
@@ -868,65 +889,84 @@ def phase2_fundamentals(cfg: AnalysisConfig) -> Phase2Result:
         )
 
     # --- Balance Sheet ---
-    de_ratio    = _latest_col(ratios_df, ["debt_equity_ratio", "debtEquityRatio", "debt_to_equity"])
-    curr_ratio  = _latest_col(ratios_df, ["current_ratio",     "currentRatio"])
-    int_cov     = _latest_col(ratios_df, ["interest_coverage", "interestCoverage"])
+    de_ratio = _latest_col(
+        ratios_df, ["debt_equity_ratio", "debtEquityRatio", "debt_to_equity"]
+    )
+    curr_ratio = _latest_col(ratios_df, ["current_ratio", "currentRatio"])
+    int_cov = _latest_col(ratios_df, ["interest_coverage", "interestCoverage"])
 
     # Net Debt / EBITDA (derived)
     ebitda_col = _find_col(income_df, ["ebitda", "EBITDA"])
-    debt_col   = _find_col(balance_df,["total_debt", "totalDebt", "long_term_debt"])
-    cash_eq    = _find_col(balance_df,["cash_and_equivalents", "cashAndCashEquivalents", "cash"])
+    debt_col = _find_col(balance_df, ["total_debt", "totalDebt", "long_term_debt"])
+    cash_eq = _find_col(
+        balance_df, ["cash_and_equivalents", "cashAndCashEquivalents", "cash"]
+    )
     net_debt_ebitda = float("nan")
     if debt_col and cash_eq and ebitda_col:
-        net_debt  = balance_df[debt_col].iloc[-1] - balance_df[cash_eq].iloc[-1]
-        ebitda_v  = income_df[ebitda_col].iloc[-1]
+        net_debt = balance_df[debt_col].iloc[-1] - balance_df[cash_eq].iloc[-1]
+        ebitda_v = income_df[ebitda_col].iloc[-1]
         net_debt_ebitda = float(net_debt / ebitda_v) if ebitda_v != 0 else float("nan")
 
     # --- Cash Flow Quality ---
-    cfo_col  = _find_col(cash_df, ["operating_cash_flow", "netCashProvidedByOperatingActivities"])
-    cfo_ni   = float("nan")
+    cfo_col = _find_col(
+        cash_df, ["operating_cash_flow", "netCashProvidedByOperatingActivities"]
+    )
+    cfo_ni = float("nan")
     fcf_margin = float("nan")
-    capex_rev  = float("nan")
+    capex_rev = float("nan")
     if cfo_col and ni_col:
-        cfo_v  = cash_df[cfo_col].iloc[-1]
-        ni_v   = income_df[ni_col].iloc[-1]
+        cfo_v = cash_df[cfo_col].iloc[-1]
+        ni_v = income_df[ni_col].iloc[-1]
         cfo_ni = float(cfo_v / ni_v) if ni_v != 0 else float("nan")
     if fcf_col and rev_col:
         fcf_margin = float(cash_df[fcf_col].iloc[-1] / income_df[rev_col].iloc[-1])
     capex_col = _find_col(cash_df, ["capital_expenditures", "capitalExpenditures"])
     if capex_col and rev_col:
-        capex_rev = float(abs(cash_df[capex_col].iloc[-1]) / income_df[rev_col].iloc[-1])
+        capex_rev = float(
+            abs(cash_df[capex_col].iloc[-1]) / income_df[rev_col].iloc[-1]
+        )
 
     # --- Accruals Ratio (Sloan) ---
     accruals_ratio = float("nan")
     try:
         if ni_col and cfo_col and ta_col and cash_eq and debt_col:
-            accruals    = income_df[ni_col] - cash_df[cfo_col]
-            noa         = (balance_df[ta_col] - balance_df[cash_eq]) - \
-                          (balance_df[_find_col(balance_df, ["total_liabilities", "totalLiabilities"])] -
-                           balance_df[debt_col])
-            noa_avg     = noa.rolling(2, min_periods=1).mean()
+            accruals = income_df[ni_col] - cash_df[cfo_col]
+            noa = (balance_df[ta_col] - balance_df[cash_eq]) - (
+                balance_df[
+                    _find_col(balance_df, ["total_liabilities", "totalLiabilities"])
+                ]
+                - balance_df[debt_col]
+            )
+            noa_avg = noa.rolling(2, min_periods=1).mean()
             accruals_ratio = float((accruals / noa_avg).iloc[-1])
     except Exception:  # noqa: BLE001
         pass
 
     # --- DuPont ROE Decomposition ---
-    te_col = _find_col(balance_df, ["total_equity", "totalEquity", "stockholders_equity"])
+    te_col = _find_col(
+        balance_df, ["total_equity", "totalEquity", "stockholders_equity"]
+    )
     roe_decomp_df = pd.DataFrame()
     try:
         if ni_col and rev_col and ta_col and te_col:
-            nm   = income_df[ni_col].values / income_df[rev_col].replace(0, np.nan).values
-            ta   = balance_df[ta_col].values
-            at   = income_df[rev_col].values / ((ta[:-1] + ta[1:]) / 2 + 1e-9)  # rolling avg
-            te   = balance_df[te_col].values
-            em   = ta / (te + 1e-9)
-            n    = min(len(nm), len(em), len(te))
-            roe_decomp_df = pd.DataFrame({
-                "net_margin":       nm[:n],
-                "asset_turnover":   np.pad(at, (1, 0), constant_values=np.nan)[:n],
-                "equity_multiplier": em[:n],
-                "roe_check":        nm[:n] * np.pad(at, (1, 0), constant_values=np.nan)[:n] * em[:n],
-            })
+            nm = income_df[ni_col].values / income_df[rev_col].replace(0, np.nan).values
+            ta = balance_df[ta_col].values
+            at = income_df[rev_col].values / (
+                (ta[:-1] + ta[1:]) / 2 + 1e-9
+            )  # rolling avg
+            te = balance_df[te_col].values
+            em = ta / (te + 1e-9)
+            n = min(len(nm), len(em), len(te))
+            roe_decomp_df = pd.DataFrame(
+                {
+                    "net_margin": nm[:n],
+                    "asset_turnover": np.pad(at, (1, 0), constant_values=np.nan)[:n],
+                    "equity_multiplier": em[:n],
+                    "roe_check": nm[:n]
+                    * np.pad(at, (1, 0), constant_values=np.nan)[:n]
+                    * em[:n],
+                }
+            )
     except Exception:  # noqa: BLE001
         pass
 
@@ -935,10 +975,16 @@ def phase2_fundamentals(cfg: AnalysisConfig) -> Phase2Result:
         asset_turn_trend = float(roe_decomp_df["asset_turnover"].diff().mean())
 
     # --- Share Dilution ---
-    shares_col   = _find_col(income_df, ["shares_outstanding", "weighted_average_shares",
-                                          "weighted_average_diluted_shares_outstanding"])
-    shares_col2  = _find_col(ratios_df,  ["shares_outstanding"])
-    dilution_5y  = float("nan")
+    shares_col = _find_col(
+        income_df,
+        [
+            "shares_outstanding",
+            "weighted_average_shares",
+            "weighted_average_diluted_shares_outstanding",
+        ],
+    )
+    shares_col2 = _find_col(ratios_df, ["shares_outstanding"])
+    dilution_5y = float("nan")
     if shares_col and len(income_df) >= 2:
         s = income_df[shares_col].dropna()
         if len(s) >= 2:
@@ -953,14 +999,20 @@ def phase2_fundamentals(cfg: AnalysisConfig) -> Phase2Result:
     try:
         if oi_col and rev_col:
             pct_ebit = income_df[oi_col].pct_change().replace([np.inf, -np.inf], np.nan)
-            pct_rev  = income_df[rev_col].pct_change().replace([np.inf, -np.inf], np.nan)
+            pct_rev = income_df[rev_col].pct_change().replace([np.inf, -np.inf], np.nan)
             operating_leverage = float((pct_ebit / pct_rev).mean())
     except Exception:  # noqa: BLE001
         pass
 
     # --- SG&A Efficiency Trend ---
-    sga_col = _find_col(income_df, ["selling_general_administrative_expenses",
-                                     "sga", "selling_and_marketing_expenses"])
+    sga_col = _find_col(
+        income_df,
+        [
+            "selling_general_administrative_expenses",
+            "sga",
+            "selling_and_marketing_expenses",
+        ],
+    )
     sga_trend = float("nan")
     if sga_col and rev_col:
         try:
@@ -970,39 +1022,41 @@ def phase2_fundamentals(cfg: AnalysisConfig) -> Phase2Result:
             pass
 
     # --- Dividend FCF Payout ---
-    div_col  = _find_col(cash_df, ["dividends_paid", "common_stock_dividends_paid"])
+    div_col = _find_col(cash_df, ["dividends_paid", "common_stock_dividends_paid"])
     fcf_payout_ratio = float("nan")
     if div_col and fcf_col:
         try:
             divs = cash_df[div_col].abs()
             fcfs = cash_df[fcf_col]
             if divs.sum() > 0:
-                fcf_payout_ratio = float((divs / fcfs).replace([np.inf, -np.inf], np.nan).iloc[-1])
+                fcf_payout_ratio = float(
+                    (divs / fcfs).replace([np.inf, -np.inf], np.nan).iloc[-1]
+                )
         except Exception:  # noqa: BLE001
             pass
 
     # --- Build KPI summary DataFrame ---
     kpi_data = {
-        "revenue_cagr_5y":       revenue_cagr,
-        "eps_cagr_5y":           eps_cagr,
-        "fcf_cagr_5y":           fcf_cagr,
-        "gross_margin":          gross_margin,
-        "operating_margin":      op_margin,
-        "net_margin":            net_margin,
-        "roic":                  roic,
-        "gross_profitability":   gross_profitability,
-        "debt_equity":           de_ratio,
-        "current_ratio":         curr_ratio,
-        "interest_coverage":     int_cov,
-        "net_debt_ebitda":       net_debt_ebitda,
-        "cfo_net_income":        cfo_ni,
-        "fcf_margin":            fcf_margin,
-        "capex_revenue":         capex_rev,
-        "accruals_ratio_sloan":  accruals_ratio,
-        "dilution_5y":           dilution_5y,
-        "operating_leverage":    operating_leverage,
-        "sga_trend":             sga_trend,
-        "fcf_payout_ratio":      fcf_payout_ratio,
+        "revenue_cagr_5y": revenue_cagr,
+        "eps_cagr_5y": eps_cagr,
+        "fcf_cagr_5y": fcf_cagr,
+        "gross_margin": gross_margin,
+        "operating_margin": op_margin,
+        "net_margin": net_margin,
+        "roic": roic,
+        "gross_profitability": gross_profitability,
+        "debt_equity": de_ratio,
+        "current_ratio": curr_ratio,
+        "interest_coverage": int_cov,
+        "net_debt_ebitda": net_debt_ebitda,
+        "cfo_net_income": cfo_ni,
+        "fcf_margin": fcf_margin,
+        "capex_revenue": capex_rev,
+        "accruals_ratio_sloan": accruals_ratio,
+        "dilution_5y": dilution_5y,
+        "operating_leverage": operating_leverage,
+        "sga_trend": sga_trend,
+        "fcf_payout_ratio": fcf_payout_ratio,
     }
     kpi_df = pd.DataFrame([kpi_data])
 
@@ -1010,12 +1064,11 @@ def phase2_fundamentals(cfg: AnalysisConfig) -> Phase2Result:
     score = _score_fundamentals(kpi_data, accruals_ratio, gross_profitability)
 
     # Gate
-    gate_passed = score >= 3.5 and (
-        np.isnan(accruals_ratio) or accruals_ratio < 0.20
-    )
-    gate_notes = (
-        f"Score {score:.2f}/5.0 — {'PASS' if gate_passed else 'FAIL'}"
-        + (f"; Accruals ratio {accruals_ratio:.2%} ELEVATED" if (not np.isnan(accruals_ratio) and accruals_ratio > 0.15) else "")
+    gate_passed = score >= 3.5 and (np.isnan(accruals_ratio) or accruals_ratio < 0.20)
+    gate_notes = f"Score {score:.2f}/5.0 — {'PASS' if gate_passed else 'FAIL'}" + (
+        f"; Accruals ratio {accruals_ratio:.2%} ELEVATED"
+        if (not np.isnan(accruals_ratio) and accruals_ratio > 0.15)
+        else ""
     )
 
     return Phase2Result(
@@ -1044,8 +1097,10 @@ def _find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
 
 
 def _pct_last(
-    num_df: pd.DataFrame, num_col: str | None,
-    den_df: pd.DataFrame, den_col: str | None,
+    num_df: pd.DataFrame,
+    num_col: str | None,
+    den_df: pd.DataFrame,
+    den_col: str | None,
 ) -> float:
     """Compute ratio of last values across two DataFrames."""
     if num_col and den_col:
@@ -1058,7 +1113,9 @@ def _pct_last(
     return float("nan")
 
 
-def _score_fundamentals(kpis: dict, accruals_ratio: float, gross_profitability: float) -> float:
+def _score_fundamentals(
+    kpis: dict, accruals_ratio: float, gross_profitability: float
+) -> float:
     """Produce a simplified weighted Phase 2 composite score (0-5 scale).
 
     Weights (v1.1):
@@ -1069,6 +1126,7 @@ def _score_fundamentals(kpis: dict, accruals_ratio: float, gross_profitability: 
         Cash flow quality    15%
         Structural           10%
     """
+
     def clamp(x: float, lo: float, hi: float) -> float:
         return max(lo, min(hi, x))
 
@@ -1084,14 +1142,17 @@ def _score_fundamentals(kpis: dict, accruals_ratio: float, gross_profitability: 
     eps_cagr = kpis.get("eps_cagr_5y", float("nan"))
     fcf_cagr = kpis.get("fcf_cagr_5y", float("nan"))
     growth_scores = [v for v in [rev_cagr, eps_cagr, fcf_cagr] if not np.isnan(v)]
-    growth_sc = float(np.mean([clamp((g + 0.05) / 0.20 * 4 + 1, 1, 5) for g in growth_scores])) \
-        if growth_scores else 2.5
+    growth_sc = (
+        float(np.mean([clamp((g + 0.05) / 0.20 * 4 + 1, 1, 5) for g in growth_scores]))
+        if growth_scores
+        else 2.5
+    )
 
     # Profitability (0-5)
-    gm   = kpis.get("gross_margin", float("nan"))
-    om   = kpis.get("operating_margin", float("nan"))
+    gm = kpis.get("gross_margin", float("nan"))
+    om = kpis.get("operating_margin", float("nan"))
     roic = kpis.get("roic", float("nan"))
-    gp   = gross_profitability
+    gp = gross_profitability
     prof_parts = []
     if not np.isnan(gm):
         prof_parts.append(clamp(gm / 0.40 * 4 + 1, 1, 5))
@@ -1104,14 +1165,14 @@ def _score_fundamentals(kpis: dict, accruals_ratio: float, gross_profitability: 
     prof_sc = float(np.mean(prof_parts)) if prof_parts else 2.5
 
     # Capital efficiency
-    dil   = kpis.get("dilution_5y", float("nan"))
+    dil = kpis.get("dilution_5y", float("nan"))
     dil_sc = 5.0 - clamp((dil + 0.10) / 0.20 * 4, 0, 4) if not np.isnan(dil) else 2.5
     cap_sc = (prof_sc + dil_sc) / 2
 
     # Balance sheet
-    de     = kpis.get("debt_equity", float("nan"))
-    ic     = kpis.get("interest_coverage", float("nan"))
-    nde    = kpis.get("net_debt_ebitda", float("nan"))
+    de = kpis.get("debt_equity", float("nan"))
+    ic = kpis.get("interest_coverage", float("nan"))
+    nde = kpis.get("net_debt_ebitda", float("nan"))
     bs_parts = []
     if not np.isnan(de):
         bs_parts.append(clamp(4.0 - de * 0.8, 1, 5))
@@ -1122,8 +1183,8 @@ def _score_fundamentals(kpis: dict, accruals_ratio: float, gross_profitability: 
     bs_sc = float(np.mean(bs_parts)) if bs_parts else 2.5
 
     # Cash flow quality
-    cfo_ni  = kpis.get("cfo_net_income",    float("nan"))
-    fcf_mg  = kpis.get("fcf_margin",        float("nan"))
+    cfo_ni = kpis.get("cfo_net_income", float("nan"))
+    fcf_mg = kpis.get("fcf_margin", float("nan"))
     cf_parts = []
     if not np.isnan(cfo_ni):
         cf_parts.append(clamp((cfo_ni - 0.5) / 0.7 * 4 + 1, 1, 5))
@@ -1135,16 +1196,18 @@ def _score_fundamentals(kpis: dict, accruals_ratio: float, gross_profitability: 
 
     # Structural (10%)
     op_lev = kpis.get("operating_leverage", float("nan"))
-    struct_sc = clamp(4.0 - max(0.0, op_lev - 1.0), 1, 5) if not np.isnan(op_lev) else 2.5
+    struct_sc = (
+        clamp(4.0 - max(0.0, op_lev - 1.0), 1, 5) if not np.isnan(op_lev) else 2.5
+    )
 
     # Hard floor: if any category <= 1.5, cap final at 3.8
     categories = [growth_sc, prof_sc, cap_sc, bs_sc, cf_sc, struct_sc]
     composite = (
         growth_sc * 0.20
-        + prof_sc  * 0.20
-        + cap_sc   * 0.20
-        + bs_sc    * 0.15
-        + cf_sc    * 0.15
+        + prof_sc * 0.20
+        + cap_sc * 0.20
+        + bs_sc * 0.15
+        + cf_sc * 0.15
         + struct_sc * 0.10
     )
     if any(sc <= 1.5 for sc in categories):
@@ -1212,16 +1275,27 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
     # --- Weekly resampled indicators ---
     weekly_trend_bullish = False
     try:
-        weekly_df = price_df.resample("W").agg(
-            {"open": "first", "high": "max", "low": "min",
-             "close": "last", "volume": "sum"}
-        ).dropna(subset=["close"])
+        weekly_df = (
+            price_df.resample("W")
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                }
+            )
+            .dropna(subset=["close"])
+        )
         if len(weekly_df) >= 20:
             weekly_sma20 = weekly_df["close"].rolling(20).mean()
-            weekly_adx   = _compute_adx(weekly_df["high"], weekly_df["low"], weekly_df["close"], 14)
+            weekly_adx = _compute_adx(
+                weekly_df["high"], weekly_df["low"], weekly_df["close"], 14
+            )
             last_close_w = weekly_df["close"].iloc[-1]
             last_sma20_w = weekly_sma20.iloc[-1]
-            last_adx_w   = weekly_adx.iloc[-1]
+            last_adx_w = weekly_adx.iloc[-1]
             weekly_trend_bullish = bool(
                 not np.isnan(last_sma20_w)
                 and last_close_w > last_sma20_w
@@ -1233,12 +1307,14 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
 
     # --- Latest values ---
     last = price_df.iloc[-1]
-    c    = last["close"]
+    c = last["close"]
 
     # Fibonacci levels
-    swing_high = float(price_df["close"].rolling(min(252, len(price_df))).max().iloc[-1])
-    swing_low  = float(price_df["close"].rolling(min(252, len(price_df))).min().iloc[-1])
-    fib_range  = swing_high - swing_low
+    swing_high = float(
+        price_df["close"].rolling(min(252, len(price_df))).max().iloc[-1]
+    )
+    swing_low = float(price_df["close"].rolling(min(252, len(price_df))).min().iloc[-1])
+    fib_range = swing_high - swing_low
     fib_levels = {
         "23.6%": round(swing_high - 0.236 * fib_range, 4),
         "38.2%": round(swing_high - 0.382 * fib_range, 4),
@@ -1265,8 +1341,7 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
             not np.isnan(last.get("adx", np.nan)) and last["adx"] >= 20
         ),
         "rsi_pullback": safe_bool(
-            not np.isnan(last.get("rsi", np.nan))
-            and 40 <= last["rsi"] <= 60
+            not np.isnan(last.get("rsi", np.nan)) and 40 <= last["rsi"] <= 60
         ),
         "macd_bullish": safe_bool(
             not np.isnan(last.get("macd", np.nan))
@@ -1277,8 +1352,7 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
             not np.isnan(last.get("obv_slope", np.nan)) and last["obv_slope"] > 0
         ),
         "volume_ratio_normal": safe_bool(
-            not np.isnan(last.get("vol_ratio", np.nan))
-            and last["vol_ratio"] <= 2.5
+            not np.isnan(last.get("vol_ratio", np.nan)) and last["vol_ratio"] <= 2.5
         ),
         "above_vwap": safe_bool(
             not np.isnan(last.get("vwap", np.nan)) and c > last["vwap"]
@@ -1309,7 +1383,8 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
             and not np.isnan(last.get("bb_width", np.nan))
             and not np.isnan(last.get("bb_upper", np.nan))
             and len(price_df) >= 120
-            and last["bb_width"] < price_df["bb_width"].rolling(120, min_periods=60).quantile(0.20).iloc[-1]
+            and last["bb_width"]
+            < price_df["bb_width"].rolling(120, min_periods=60).quantile(0.20).iloc[-1]
             and c > last["bb_upper"]
         ),
     }
@@ -1317,7 +1392,12 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
     bullish_count = sum(signals.values())
 
     # Entry quality label
-    high_conviction_conditions = ["above_vwap", "above_cloud", "momentum_positive", "weekly_trend_bullish"]
+    high_conviction_conditions = [
+        "above_vwap",
+        "above_cloud",
+        "momentum_positive",
+        "weekly_trend_bullish",
+    ]
     high_conviction = all(signals.get(c, False) for c in high_conviction_conditions)
     if high_conviction and bullish_count >= 6:
         entry_quality = "High Conviction"
@@ -1326,10 +1406,15 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
     else:
         entry_quality = "Cautious"
 
-    atr_latest = float(last.get("atr", price_df["atr"].dropna().iloc[-1] if "atr" in price_df.columns else 0.0))
+    atr_latest = float(
+        last.get(
+            "atr",
+            price_df["atr"].dropna().iloc[-1] if "atr" in price_df.columns else 0.0,
+        )
+    )
 
     gate_passed = bullish_count >= 6 and earnings_safe_window
-    gate_notes  = (
+    gate_notes = (
         f"{bullish_count}/{len(signals)} bullish conditions"
         + (" — EARNINGS RISK" if not earnings_safe_window else "")
         + (" — WEEKLY TREND BEARISH" if not weekly_trend_bullish else "")
@@ -1376,21 +1461,25 @@ def phase4_valuation(
     sym = cfg.symbol
     prv = cfg.provider
 
-    income_df  = p2.income_df
+    income_df = p2.income_df
     balance_df = p2.balance_df
-    cash_df    = p2.cash_df
-    ratios_df  = p2.ratios_df
+    cash_df = p2.cash_df
+    ratios_df = p2.ratios_df
 
     # --- Current price from Phase 3 ---
     current_price = float(p3.price_df["close"].iloc[-1])
 
     # --- Extract multiples from ratios_df ---
-    pe        = _latest_col(ratios_df, ["price_earnings_ratio",   "pe_ratio", "pe"])
-    ev_ebitda = _latest_col(ratios_df, ["enterprise_value_multiple", "ev_to_ebitda", "ev_ebitda"])
-    p_fcf     = _latest_col(ratios_df, ["price_to_free_cash_flow", "price_to_free_cash_flow_ratio"])
-    p_s       = _latest_col(ratios_df, ["price_to_sales", "price_to_sales_ratio"])
+    pe = _latest_col(ratios_df, ["price_earnings_ratio", "pe_ratio", "pe"])
+    ev_ebitda = _latest_col(
+        ratios_df, ["enterprise_value_multiple", "ev_to_ebitda", "ev_ebitda"]
+    )
+    p_fcf = _latest_col(
+        ratios_df, ["price_to_free_cash_flow", "price_to_free_cash_flow_ratio"]
+    )
+    p_s = _latest_col(ratios_df, ["price_to_sales", "price_to_sales_ratio"])
     piotroski = _latest_col(ratios_df, ["piotroski_score", "piotroski"])
-    altman    = _latest_col(ratios_df, ["altman_z_score", "altman"])
+    altman = _latest_col(ratios_df, ["altman_z_score", "altman"])
 
     # --- EV/EBIT ---
     oi_col = _find_col(income_df, ["operating_income", "operatingIncome"])
@@ -1402,15 +1491,17 @@ def phase4_valuation(
         ev_ebit = float(ev_val / oi_v) if oi_v != 0 else float("nan")
 
     # --- Price-to-Gross-Profit ---
-    gp_col     = _find_col(income_df, ["gross_profit", "grossProfit"])
-    shares_col = _find_col(income_df, ["shares_outstanding", "weighted_average_diluted_shares_outstanding"])
-    p_gross    = float("nan")
+    gp_col = _find_col(income_df, ["gross_profit", "grossProfit"])
+    shares_col = _find_col(
+        income_df, ["shares_outstanding", "weighted_average_diluted_shares_outstanding"]
+    )
+    p_gross = float("nan")
     if gp_col and shares_col:
         gp_v = income_df[gp_col].dropna().iloc[-1]
         sh_v = income_df[shares_col].dropna().iloc[-1]
         if gp_v != 0 and sh_v > 0:
             mktcap_v = current_price * sh_v
-            p_gross  = float(mktcap_v / gp_v)
+            p_gross = float(mktcap_v / gp_v)
 
     # --- Earnings Yield ---
     eps_col = _find_col(income_df, ["eps_diluted", "eps", "basic_earnings_per_share"])
@@ -1420,26 +1511,30 @@ def phase4_valuation(
         if current_price > 0 and not np.isnan(eps_v):
             earnings_yield = float(eps_v / current_price)
 
-    multiples_df = pd.DataFrame([{
-        "price":          current_price,
-        "pe":             pe,
-        "ev_ebitda":      ev_ebitda,
-        "ev_ebit":        ev_ebit,
-        "p_fcf":          p_fcf,
-        "p_s":            p_s,
-        "p_gross_profit": p_gross,
-        "earnings_yield": earnings_yield,
-        "piotroski":      piotroski,
-        "altman_z":       altman,
-    }])
+    multiples_df = pd.DataFrame(
+        [
+            {
+                "price": current_price,
+                "pe": pe,
+                "ev_ebitda": ev_ebitda,
+                "ev_ebit": ev_ebit,
+                "p_fcf": p_fcf,
+                "p_s": p_s,
+                "p_gross_profit": p_gross,
+                "earnings_yield": earnings_yield,
+                "piotroski": piotroski,
+                "altman_z": altman,
+            }
+        ]
+    )
 
     # --- DCF ---
-    fcf_col  = _find_col(cash_df, ["free_cash_flow", "freeCashFlow"])
-    wacc     = _latest_col(ratios_df, ["wacc", "weighted_average_cost_of_capital"])
+    fcf_col = _find_col(cash_df, ["free_cash_flow", "freeCashFlow"])
+    wacc = _latest_col(ratios_df, ["wacc", "weighted_average_cost_of_capital"])
     if np.isnan(wacc) or wacc <= 0:
         wacc = 0.09
 
-    fcf0   = float("nan")
+    fcf0 = float("nan")
     if fcf_col:
         fcf_v = cash_df[fcf_col].dropna()
         if not fcf_v.empty:
@@ -1453,18 +1548,23 @@ def phase4_valuation(
     if np.isnan(shares_out) or shares_out <= 0:
         # Fallback: market cap / price
         try:
-            shares_out = float(_latest_col(p2.metrics_df if hasattr(p2, "metrics_df") else pd.DataFrame(),
-                                            ["shares_outstanding"], default=float("nan")))
+            shares_out = float(
+                _latest_col(
+                    p2.metrics_df if hasattr(p2, "metrics_df") else pd.DataFrame(),
+                    ["shares_outstanding"],
+                    default=float("nan"),
+                )
+            )
         except Exception:  # noqa: BLE001
             shares_out = float("nan")
 
     # Revenue CAGR as g_short proxy
-    rev_col   = _find_col(income_df, ["revenue", "total_revenue"])
-    g_short   = _cagr(income_df[rev_col], 5) if rev_col else 0.05
+    rev_col = _find_col(income_df, ["revenue", "total_revenue"])
+    g_short = _cagr(income_df[rev_col], 5) if rev_col else 0.05
     if np.isnan(g_short) or g_short < -0.10:
         g_short = 0.05
-    g_short   = min(g_short, 0.25)  # cap heroic growth
-    g_term    = 0.025
+    g_short = min(g_short, 0.25)  # cap heroic growth
+    g_term = 0.025
 
     dcf_fair_value = float("nan")
     margin_of_safety = float("nan")
@@ -1479,8 +1579,10 @@ def phase4_valuation(
         # Reverse-DCF
         try:
             implied_growth = brentq(
-                lambda g: _dcf_single(fcf0, g, g_term, wacc, shares_out) - current_price,
-                -0.10, 0.30,
+                lambda g: _dcf_single(fcf0, g, g_term, wacc, shares_out)
+                - current_price,
+                -0.10,
+                0.30,
                 xtol=1e-6,
             )
         except Exception:  # noqa: BLE001
@@ -1488,7 +1590,9 @@ def phase4_valuation(
 
     # --- ROIC - WACC Spread ---
     roic_val = _latest_col(ratios_df, ["roic", "return_on_invested_capital"])
-    roic_wacc_spread = float(roic_val - wacc) if not np.isnan(roic_val) else float("nan")
+    roic_wacc_spread = (
+        float(roic_val - wacc) if not np.isnan(roic_val) else float("nan")
+    )
 
     # --- Valuation verdict ---
     mos = margin_of_safety if not np.isnan(margin_of_safety) else 0.0
@@ -1504,7 +1608,9 @@ def phase4_valuation(
     if mos >= 0.15 and bull >= 6:
         entry_rec = "Strong Entry — value and timing aligned"
     elif mos >= 0.15 and bull >= 3:
-        entry_rec = "Partial Entry — fundamental case strong; wait for technical improvement"
+        entry_rec = (
+            "Partial Entry — fundamental case strong; wait for technical improvement"
+        )
     elif mos >= 0.15 and bull < 3:
         entry_rec = "Wait — cheap but technically broken"
     elif 0.0 <= mos < 0.15 and bull >= 6:
@@ -1550,7 +1656,11 @@ def phase4_valuation(
     for key in hist_mult_cols:
         if key in historical_multiples_df.columns:
             median_val = historical_multiples_df[key].dropna().median()
-            current_val = multiples_df[key].iloc[0] if key in multiples_df.columns else pe if key == "pe" else float("nan")
+            current_val = (
+                multiples_df[key].iloc[0]
+                if key in multiples_df.columns
+                else pe if key == "pe" else float("nan")
+            )
             if key == "ev_ebitda":
                 current_val = ev_ebitda
             elif key == "p_s":
@@ -1559,7 +1669,11 @@ def phase4_valuation(
                 current_val = p_fcf
             elif key == "pe":
                 current_val = pe
-            if not np.isnan(median_val) and median_val != 0 and not np.isnan(current_val):
+            if (
+                not np.isnan(median_val)
+                and median_val != 0
+                and not np.isnan(current_val)
+            ):
                 multiples_vs_median[key] = float(current_val / median_val - 1)
             else:
                 multiples_vs_median[key] = float("nan")
@@ -1604,25 +1718,37 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
 
     sym = cfg.symbol
     prv = cfg.provider
-    rf  = cfg.risk_free_rate
+    rf = cfg.risk_free_rate
 
-    sym_df   = _to_df(obb.equity.price.historical(
-        symbol=sym, start_date=cfg.start_technicals, end_date=cfg.end_date,
-        interval="1d", provider=prv))
-    bench_df = _to_df(obb.equity.price.historical(
-        symbol=cfg.benchmark, start_date=cfg.start_technicals, end_date=cfg.end_date,
-        interval="1d", provider=prv))
+    sym_df = _to_df(
+        obb.equity.price.historical(
+            symbol=sym,
+            start_date=cfg.start_technicals,
+            end_date=cfg.end_date,
+            interval="1d",
+            provider=prv,
+        )
+    )
+    bench_df = _to_df(
+        obb.equity.price.historical(
+            symbol=cfg.benchmark,
+            start_date=cfg.start_technicals,
+            end_date=cfg.end_date,
+            interval="1d",
+            provider=prv,
+        )
+    )
 
-    sym_df.columns   = [c.lower() for c in sym_df.columns]
+    sym_df.columns = [c.lower() for c in sym_df.columns]
     bench_df.columns = [c.lower() for c in bench_df.columns]
 
     # Returns
-    sym_ret   = sym_df["close"].pct_change().dropna()
+    sym_ret = sym_df["close"].pct_change().dropna()
     bench_ret = bench_df["close"].pct_change().dropna()
 
     # Align
     idx = sym_ret.index.intersection(bench_ret.index)
-    sym_ret   = sym_ret.loc[idx]
+    sym_ret = sym_ret.loc[idx]
     bench_ret = bench_ret.loc[idx]
 
     annual_ret = float(sym_ret.mean() * 252)
@@ -1636,44 +1762,54 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
     sortino = (annual_ret - rf) / downside_vol if downside_vol > 0 else float("nan")
 
     # Beta
-    cov    = float(sym_ret.cov(bench_ret))
-    var_b  = float(bench_ret.var())
-    beta   = cov / var_b if var_b > 0 else float("nan")
+    cov = float(sym_ret.cov(bench_ret))
+    var_b = float(bench_ret.var())
+    beta = cov / var_b if var_b > 0 else float("nan")
 
     # Jensen's Alpha
     bench_ann_ret = float(bench_ret.mean() * 252)
-    alpha = annual_ret - (rf + beta * (bench_ann_ret - rf)) if not np.isnan(beta) else float("nan")
+    alpha = (
+        annual_ret - (rf + beta * (bench_ann_ret - rf))
+        if not np.isnan(beta)
+        else float("nan")
+    )
 
     # Regime-conditional beta
-    up_mask   = bench_ret > 0
-    dn_mask   = bench_ret < 0
-    beta_up   = float(sym_ret[up_mask].cov(bench_ret[up_mask]) / bench_ret[up_mask].var()) \
-                if bench_ret[up_mask].var() > 0 else float("nan")
-    beta_down = float(sym_ret[dn_mask].cov(bench_ret[dn_mask]) / bench_ret[dn_mask].var()) \
-                if bench_ret[dn_mask].var() > 0 else float("nan")
+    up_mask = bench_ret > 0
+    dn_mask = bench_ret < 0
+    beta_up = (
+        float(sym_ret[up_mask].cov(bench_ret[up_mask]) / bench_ret[up_mask].var())
+        if bench_ret[up_mask].var() > 0
+        else float("nan")
+    )
+    beta_down = (
+        float(sym_ret[dn_mask].cov(bench_ret[dn_mask]) / bench_ret[dn_mask].var())
+        if bench_ret[dn_mask].var() > 0
+        else float("nan")
+    )
 
     # VaR / CVaR (95%)
-    var_95  = float(sym_ret.quantile(0.05))
+    var_95 = float(sym_ret.quantile(0.05))
     cvar_95 = float(sym_ret[sym_ret <= var_95].mean())
 
     # Max Drawdown & Ulcer Index
     equity_curve = (1 + sym_ret).cumprod()
-    rolling_max  = equity_curve.cummax()
+    rolling_max = equity_curve.cummax()
     drawdown_ser = (equity_curve / rolling_max) - 1
     max_drawdown = float(drawdown_ser.min())
-    ulcer_index  = float(np.sqrt((drawdown_ser ** 2).mean()))
+    ulcer_index = float(np.sqrt((drawdown_ser**2).mean()))
 
     # Calmar
     calmar = (annual_ret / abs(max_drawdown)) if max_drawdown != 0 else float("nan")
 
     # Gain-to-Pain
-    gains  = float(sym_ret[sym_ret > 0].sum())
-    pains  = float(sym_ret[sym_ret < 0].abs().sum())
+    gains = float(sym_ret[sym_ret > 0].sum())
+    pains = float(sym_ret[sym_ret < 0].abs().sum())
     gain_to_pain = gains / pains if pains > 0 else float("nan")
 
     # Kelly criterion
     win_rate = float((sym_ret > 0).mean())
-    avg_win  = float(sym_ret[sym_ret > 0].mean())
+    avg_win = float(sym_ret[sym_ret > 0].mean())
     avg_loss = float(sym_ret[sym_ret < 0].abs().mean())
     kelly_fraction = float("nan")
     if avg_loss > 0:
@@ -1682,14 +1818,20 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
 
     # Position sizing
     conviction_score_proxy = min(max(sharpe, 0), 5)  # repurposed as proxy
-    conviction_size = max(0.01, min(0.01 + max(0.0, conviction_score_proxy - 2) * 0.01, cfg.max_portfolio_allocation))
+    conviction_size = max(
+        0.01,
+        min(
+            0.01 + max(0.0, conviction_score_proxy - 2) * 0.01,
+            cfg.max_portfolio_allocation,
+        ),
+    )
     half_kelly_size = float("nan")
     if not np.isnan(kelly_fraction) and kelly_fraction > 0:
         half_kelly_size = 0.5 * kelly_fraction * cfg.max_portfolio_allocation
 
-    recommended_size = float(min(
-        v for v in [conviction_size, half_kelly_size] if not np.isnan(v)
-    ))
+    recommended_size = float(
+        min(v for v in [conviction_size, half_kelly_size] if not np.isnan(v))
+    )
 
     # Fundamental risk adjustments (applied externally after Phase 2 is known)
     # Computed here as notes only; caller applies them after having p2
@@ -1697,10 +1839,13 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
 
     # Portfolio fit
     core_candidate = (
-        not np.isnan(sharpe)     and sharpe > 1.0
-        and abs(max_drawdown)    < 0.35
-        and not np.isnan(beta_down) and (np.isnan(beta_up) or beta_down <= beta_up * 1.2)
-        and not np.isnan(calmar) and calmar > 0.8
+        not np.isnan(sharpe)
+        and sharpe > 1.0
+        and abs(max_drawdown) < 0.35
+        and not np.isnan(beta_down)
+        and (np.isnan(beta_up) or beta_down <= beta_up * 1.2)
+        and not np.isnan(calmar)
+        and calmar > 0.8
     )
     reject = abs(max_drawdown) > 0.60 or (not np.isnan(cvar_95) and cvar_95 < -0.08)
     if reject:
@@ -1712,31 +1857,37 @@ def phase5_risk(cfg: AnalysisConfig) -> Phase5Result:
 
     # Stress scenarios (estimated)
     stress_scenarios = {
-        "market_correction_20pct": float(-0.20 * (beta_down if not np.isnan(beta_down) else beta)),
-        "rates_up_100bps":         float(-0.10),   # approximate sector-neutral estimate
-        "sector_shock_30pct":      float(-0.30 * 0.85),  # assuming ~0.85 sector correlation
+        "market_correction_20pct": float(
+            -0.20 * (beta_down if not np.isnan(beta_down) else beta)
+        ),
+        "rates_up_100bps": float(-0.10),  # approximate sector-neutral estimate
+        "sector_shock_30pct": float(-0.30 * 0.85),  # assuming ~0.85 sector correlation
     }
 
     # Assemble KPI table
-    risk_kpi_df = pd.DataFrame([{
-        "sharpe":        round(sharpe, 4),
-        "sortino":       round(sortino, 4),
-        "jensen_alpha":  round(alpha, 4),
-        "beta":          round(beta, 4),
-        "beta_up":       round(beta_up, 4),
-        "beta_down":     round(beta_down, 4),
-        "calmar":        round(calmar, 4),
-        "gain_to_pain":  round(gain_to_pain, 4),
-        "var_95":        round(var_95, 4),
-        "cvar_95":       round(cvar_95, 4),
-        "max_drawdown":  round(max_drawdown, 4),
-        "ulcer_index":   round(ulcer_index, 4),
-        "annual_return": round(annual_ret, 4),
-        "annual_vol":    round(annual_vol, 4),
-    }])
+    risk_kpi_df = pd.DataFrame(
+        [
+            {
+                "sharpe": round(sharpe, 4),
+                "sortino": round(sortino, 4),
+                "jensen_alpha": round(alpha, 4),
+                "beta": round(beta, 4),
+                "beta_up": round(beta_up, 4),
+                "beta_down": round(beta_down, 4),
+                "calmar": round(calmar, 4),
+                "gain_to_pain": round(gain_to_pain, 4),
+                "var_95": round(var_95, 4),
+                "cvar_95": round(cvar_95, 4),
+                "max_drawdown": round(max_drawdown, 4),
+                "ulcer_index": round(ulcer_index, 4),
+                "annual_return": round(annual_ret, 4),
+                "annual_vol": round(annual_vol, 4),
+            }
+        ]
+    )
 
     gate_passed = portfolio_fit != "Reject"
-    gate_notes  = (
+    gate_notes = (
         f"Portfolio fit: {portfolio_fit} | "
         f"Sharpe {sharpe:.2f} | MaxDD {max_drawdown:.1%} | "
         f"Rec. size {recommended_size:.1%}"
@@ -1789,24 +1940,26 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
 
     sym = cfg.symbol
     prv = cfg.provider
-    rf  = cfg.risk_free_rate
+    rf = cfg.risk_free_rate
 
     sector_etf_sym = _sector_etf(p1.sector)
-    peers          = p1.peers[:8]   # cap at 8 for API efficiency
-    universe       = [sym] + peers + [sector_etf_sym, "SPY"]
-    universe       = list(dict.fromkeys(universe))  # deduplicate preserving order
+    peers = p1.peers[:8]  # cap at 8 for API efficiency
+    universe = [sym] + peers + [sector_etf_sym, "SPY"]
+    universe = list(dict.fromkeys(universe))  # deduplicate preserving order
 
     # Fetch prices for universe
     price_map: dict[str, pd.Series] = {}
     for ticker in universe:
         try:
-            df = _to_df(obb.equity.price.historical(
-                symbol=ticker,
-                start_date=cfg.start_technicals,
-                end_date=cfg.end_date,
-                interval="1d",
-                provider=prv,
-            ))
+            df = _to_df(
+                obb.equity.price.historical(
+                    symbol=ticker,
+                    start_date=cfg.start_technicals,
+                    end_date=cfg.end_date,
+                    interval="1d",
+                    provider=prv,
+                )
+            )
             df.columns = [c.lower() for c in df.columns]
             if "close" in df.columns and not df.empty:
                 price_map[ticker] = df["close"]
@@ -1817,7 +1970,7 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
         raise RuntimeError(f"Could not fetch prices for target symbol {sym}")
 
     # Align all to common dates
-    prices_df  = pd.DataFrame(price_map).dropna(how="all")
+    prices_df = pd.DataFrame(price_map).dropna(how="all")
     returns_df = prices_df.pct_change().dropna(how="all")
 
     # Per-symbol annualised metrics
@@ -1826,27 +1979,29 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
         ret_s = returns_df[ticker].dropna()
         if ret_s.empty:
             continue
-        ann_ret  = float(ret_s.mean() * 252)
-        ann_vol  = float(ret_s.std()  * np.sqrt(252))
-        sharpe   = (ann_ret - rf) / ann_vol if ann_vol > 0 else float("nan")
-        dv       = float(ret_s[ret_s < 0].std() * np.sqrt(252))
-        sortino  = (ann_ret - rf) / dv if dv > 0 else float("nan")
-        eq_c     = (1 + ret_s).cumprod()
-        mdd      = float((eq_c / eq_c.cummax() - 1).min())
-        var95    = float(ret_s.quantile(0.05))
-        cvar95   = float(ret_s[ret_s <= var95].mean())
-        calmar   = ann_ret / abs(mdd) if mdd != 0 else float("nan")
-        rows.append({
-            "symbol":     ticker,
-            "ann_return": ann_ret,
-            "ann_vol":    ann_vol,
-            "sharpe":     sharpe,
-            "sortino":    sortino,
-            "calmar":     calmar,
-            "max_dd":     mdd,
-            "var_95":     var95,
-            "cvar_95":    cvar95,
-        })
+        ann_ret = float(ret_s.mean() * 252)
+        ann_vol = float(ret_s.std() * np.sqrt(252))
+        sharpe = (ann_ret - rf) / ann_vol if ann_vol > 0 else float("nan")
+        dv = float(ret_s[ret_s < 0].std() * np.sqrt(252))
+        sortino = (ann_ret - rf) / dv if dv > 0 else float("nan")
+        eq_c = (1 + ret_s).cumprod()
+        mdd = float((eq_c / eq_c.cummax() - 1).min())
+        var95 = float(ret_s.quantile(0.05))
+        cvar95 = float(ret_s[ret_s <= var95].mean())
+        calmar = ann_ret / abs(mdd) if mdd != 0 else float("nan")
+        rows.append(
+            {
+                "symbol": ticker,
+                "ann_return": ann_ret,
+                "ann_vol": ann_vol,
+                "sharpe": sharpe,
+                "sortino": sortino,
+                "calmar": calmar,
+                "max_dd": mdd,
+                "var_95": var95,
+                "cvar_95": cvar95,
+            }
+        )
     relative_table = pd.DataFrame(rows).set_index("symbol")
 
     # Rolling 3-month (63-day) cumulative return
@@ -1855,9 +2010,9 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
         rolling_3m = returns_df.iloc[-63:].sum()  # approximate cumulative
         relative_table["rolling_3m_return"] = rolling_3m.reindex(relative_table.index)
         if sym in rolling_3m.index and len(rolling_3m.dropna()) > 1:
-            rolling_3m_rank = float(percentileofscore(
-                rolling_3m.dropna().tolist(), rolling_3m[sym]
-            ))
+            rolling_3m_rank = float(
+                percentileofscore(rolling_3m.dropna().tolist(), rolling_3m[sym])
+            )
 
     # Correlation matrix
     corr_matrix = returns_df.corr()
@@ -1869,16 +2024,18 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
         active = active.dropna()
         if len(active) > 10:
             ir_ann_excess = float(active.mean() * 252)
-            te            = float(active.std() * np.sqrt(252))
+            te = float(active.std() * np.sqrt(252))
             information_ratio = ir_ann_excess / te if te > 0 else float("nan")
 
     # --- Peer fundamental quality overlay ---
     peer_metrics_list = []
     for peer in peers:
         try:
-            m = _to_df(obb.equity.fundamental.metrics(
-                symbol=peer, period="annual", limit=1, provider=prv
-            ))
+            m = _to_df(
+                obb.equity.fundamental.metrics(
+                    symbol=peer, period="annual", limit=1, provider=prv
+                )
+            )
             if not m.empty:
                 m["symbol"] = peer
                 peer_metrics_list.append(m.iloc[[0]])
@@ -1887,27 +2044,37 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
 
     peer_fundamental_df = (
         pd.concat(peer_metrics_list, ignore_index=True).set_index("symbol")
-        if peer_metrics_list else pd.DataFrame()
+        if peer_metrics_list
+        else pd.DataFrame()
     )
 
     # Target metrics for relative valuation
-    target_metrics = _to_df(obb.equity.fundamental.metrics(
-        symbol=sym, period="annual", limit=1, provider=prv
-    ))
-    target_pe   = _latest_col(target_metrics,   ["price_earnings_ratio",  "pe_ratio"])
-    target_ev   = _latest_col(target_metrics,   ["ev_to_ebitda"])
-    target_roic = _latest_col(target_metrics,   ["roic",  "return_on_invested_capital"])
-    target_fcfm = _latest_col(target_metrics,   ["free_cash_flow_yield"])
+    target_metrics = _to_df(
+        obb.equity.fundamental.metrics(
+            symbol=sym, period="annual", limit=1, provider=prv
+        )
+    )
+    target_pe = _latest_col(target_metrics, ["price_earnings_ratio", "pe_ratio"])
+    target_ev = _latest_col(target_metrics, ["ev_to_ebitda"])
+    target_roic = _latest_col(target_metrics, ["roic", "return_on_invested_capital"])
+    target_fcfm = _latest_col(target_metrics, ["free_cash_flow_yield"])
 
     # Relative valuation score (0-100): low PE + high ROIC = best
-    relative_valuation_score = 50.0   # default if no peer data
+    relative_valuation_score = 50.0  # default if no peer data
     if not peer_fundamental_df.empty:
-        pe_col  = _find_col(peer_fundamental_df, ["pe_ratio", "price_earnings_ratio"])
-        roic_col = _find_col(peer_fundamental_df, ["roic", "return_on_invested_capital"])
-        if pe_col and not np.isnan(target_pe) and roic_col and not np.isnan(target_roic):
-            pe_vals   = peer_fundamental_df[pe_col].dropna().tolist()
+        pe_col = _find_col(peer_fundamental_df, ["pe_ratio", "price_earnings_ratio"])
+        roic_col = _find_col(
+            peer_fundamental_df, ["roic", "return_on_invested_capital"]
+        )
+        if (
+            pe_col
+            and not np.isnan(target_pe)
+            and roic_col
+            and not np.isnan(target_roic)
+        ):
+            pe_vals = peer_fundamental_df[pe_col].dropna().tolist()
             roic_vals = peer_fundamental_df[roic_col].dropna().tolist()
-            pe_rank   = percentileofscore(pe_vals,   target_pe)   if pe_vals   else 50.0
+            pe_rank = percentileofscore(pe_vals, target_pe) if pe_vals else 50.0
             roic_rank = percentileofscore(roic_vals, target_roic) if roic_vals else 50.0
             # Low PE percentile = cheap (invert), high ROIC = quality
             relative_valuation_score = (100 - pe_rank) * 0.5 + roic_rank * 0.5
@@ -1925,12 +2092,14 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
     )
 
     gate_passed = relative_score >= 3.5
-    gate_notes  = (
+    gate_notes = (
         f"Relative score {relative_score:.2f}/5.0 | "
         f"IR vs ETF {information_ratio:.2f} | "
-        + ("ETF may be superior — consider passive alternative"
-           if not np.isnan(information_ratio) and information_ratio < 0.0
-           else "Active premium justified")
+        + (
+            "ETF may be superior — consider passive alternative"
+            if not np.isnan(information_ratio) and information_ratio < 0.0
+            else "Active premium justified"
+        )
     )
 
     return Phase6Result(
@@ -1960,13 +2129,17 @@ def _score_relative(
     """Compute 5-block relative scorecard (0-5 scale)."""
     scores: list[float] = []
 
-    peer_syms = [s for s in relative_table.index if s not in (sym, sector_etf_sym, "SPY")]
+    peer_syms = [
+        s for s in relative_table.index if s not in (sym, sector_etf_sym, "SPY")
+    ]
 
     # Block 1: Return rank (20%)
     if "ann_return" in relative_table.columns and sym in relative_table.index:
         all_ret = relative_table["ann_return"].dropna()
         if len(all_ret) > 1:
-            pct = percentileofscore(all_ret.tolist(), float(all_ret.get(sym, all_ret.median())))
+            pct = percentileofscore(
+                all_ret.tolist(), float(all_ret.get(sym, all_ret.median()))
+            )
             scores.append(1 + pct / 25)  # 0th → 1, 100th → 5
         else:
             scores.append(2.5)
@@ -1977,7 +2150,9 @@ def _score_relative(
     if "sharpe" in relative_table.columns and sym in relative_table.index:
         sh_vals = relative_table["sharpe"].dropna()
         if len(sh_vals) > 1:
-            pct = percentileofscore(sh_vals.tolist(), float(relative_table.loc[sym, "sharpe"]))
+            pct = percentileofscore(
+                sh_vals.tolist(), float(relative_table.loc[sym, "sharpe"])
+            )
             scores.append(1 + pct / 25)
         else:
             scores.append(2.5)
@@ -1989,7 +2164,9 @@ def _score_relative(
         dd_vals = relative_table["max_dd"].dropna()
         if len(dd_vals) > 1:
             # Lower MDD = better = higher percentile rank (invert)
-            pct = 100 - percentileofscore(dd_vals.tolist(), float(relative_table.loc[sym, "max_dd"]))
+            pct = 100 - percentileofscore(
+                dd_vals.tolist(), float(relative_table.loc[sym, "max_dd"])
+            )
             scores.append(1 + pct / 25)
         else:
             scores.append(2.5)
@@ -2001,7 +2178,7 @@ def _score_relative(
     if sector_etf_sym in returns_df.columns and sym in returns_df.columns:
         active = returns_df[sym] - returns_df[sector_etf_sym]
         window_results = [
-            float(active.iloc[i:i+30].sum()) > 0
+            float(active.iloc[i : i + 30].sum()) > 0
             for i in range(0, max(1, len(active) - 30), 5)
         ]
         if window_results:
@@ -2044,20 +2221,20 @@ def phase7_decision(
 
     scores: dict[str, float] = {
         "business_quality": _score_phase1(p1),
-        "fundamentals":     p2.score,
-        "technicals":       tech_raw,
-        "valuation":        _score_phase4(p4),
-        "risk_fit":         _score_phase5(p5),
-        "peer_relative":    p6.relative_score,
+        "fundamentals": p2.score,
+        "technicals": tech_raw,
+        "valuation": _score_phase4(p4),
+        "risk_fit": _score_phase5(p5),
+        "peer_relative": p6.relative_score,
     }
 
     weights: dict[str, float] = {
         "business_quality": 0.08,
-        "fundamentals":     0.25,
-        "technicals":       0.15,
-        "valuation":        0.20,
-        "risk_fit":         0.12,
-        "peer_relative":    0.20,
+        "fundamentals": 0.25,
+        "technicals": 0.15,
+        "valuation": 0.20,
+        "risk_fit": 0.12,
+        "peer_relative": 0.20,
     }
 
     composite = sum(scores[k] * weights[k] for k in weights)
@@ -2072,13 +2249,19 @@ def phase7_decision(
 
     if not np.isnan(p2.accruals_ratio) and p2.accruals_ratio > 0.20:
         composite = min(composite, 2.8)
-        hard_override = (hard_override or "") + " | Accruals Ratio > 20% — capped at Hold/Watch"
+        hard_override = (
+            hard_override or ""
+        ) + " | Accruals Ratio > 20% — capped at Hold/Watch"
 
     # Balance sheet safety cap
     bs_safety_score = scores.get("fundamentals", 2.5)  # proxy via fundamentals
-    if p2.score >= 3.5 and (not np.isnan(p2.accruals_ratio) and p2.accruals_ratio > 0.10):
+    if p2.score >= 3.5 and (
+        not np.isnan(p2.accruals_ratio) and p2.accruals_ratio > 0.10
+    ):
         composite = min(composite, 3.8)
-        hard_override = (hard_override or "") + " | Leverage quality cap applied (accruals > 10% with high P2 score)"
+        hard_override = (
+            hard_override or ""
+        ) + " | Leverage quality cap applied (accruals > 10% with high P2 score)"
 
     # Earnings override
     earnings_note = ""
@@ -2091,33 +2274,39 @@ def phase7_decision(
         scores["technicals"] = min(scores["technicals"], 2.0)
         # Recompute composite with capped technicals
         composite = sum(scores[k] * weights[k] for k in weights)
-        hard_override = (hard_override or "") + " | Weekly trend bearish — technical score capped at 2.0"
+        hard_override = (
+            hard_override or ""
+        ) + " | Weekly trend bearish — technical score capped at 2.0"
 
     # Information Ratio override
     ir_note = ""
-    if not np.isnan(p6.information_ratio) and p6.information_ratio < 0 and p6.relative_score < 3.0:
+    if (
+        not np.isnan(p6.information_ratio)
+        and p6.information_ratio < 0
+        and p6.relative_score < 3.0
+    ):
         ir_note = f"⚠ Consider ETF {p6.sector_etf} — stock underperforms benchmark on risk-adjusted basis (IR={p6.information_ratio:.2f})"
 
     action_label = _decision_label(composite)
 
     # --- Execution plan ---
     price = float(p3.price_df["close"].iloc[-1])
-    atr   = p3.atr
-    stop  = price - 2 * atr
-    r     = price - stop
-    t1    = price + r
-    t2    = price + 2 * r
-    t3    = price + 3 * r
+    atr = p3.atr
+    stop = price - 2 * atr
+    r = price - stop
+    t1 = price + r
+    t2 = price + 2 * r
+    t3 = price + 3 * r
 
     # Staged entry tranches based on entry quality
     mos = p4.margin_of_safety if not np.isnan(p4.margin_of_safety) else 0.0
-    eq  = _entry_quality_label(mos, p3.bullish_count)
+    eq = _entry_quality_label(mos, p3.bullish_count)
 
     tranche_map = {
         "High Conviction": {"tranche_1": 0.50, "tranche_2": 0.25, "tranche_3": 0.25},
-        "Value Entry":     {"tranche_1": 0.33, "tranche_2": 0.33, "tranche_3": 0.34},
-        "Momentum Entry":  {"tranche_1": 0.40, "tranche_2": 0.30, "tranche_3": 0.30},
-        "Wait":            {"tranche_1": 0.00, "tranche_2": 0.00, "tranche_3": 0.00},
+        "Value Entry": {"tranche_1": 0.33, "tranche_2": 0.33, "tranche_3": 0.34},
+        "Momentum Entry": {"tranche_1": 0.40, "tranche_2": 0.30, "tranche_3": 0.30},
+        "Wait": {"tranche_1": 0.00, "tranche_2": 0.00, "tranche_3": 0.00},
     }
     staged_entry = tranche_map.get(eq, tranche_map["Wait"])
 
@@ -2129,14 +2318,14 @@ def phase7_decision(
 
     # Monitoring triggers
     monitoring_triggers: dict[str, Any] = {
-        "revenue_miss_threshold":    -0.05,
-        "gross_margin_decline":      -0.02,
-        "dilution_12m":               0.03,
-        "mos_negative":               0.00,
-        "weekly_death_cross":         True,
+        "revenue_miss_threshold": -0.05,
+        "gross_margin_decline": -0.02,
+        "dilution_12m": 0.03,
+        "mos_negative": 0.00,
+        "weekly_death_cross": True,
         "peer_sharpe_rank_threshold": 0.50,
-        "earnings_note":              earnings_note or "OK",
-        "ir_note":                    ir_note or "OK",
+        "earnings_note": earnings_note or "OK",
+        "ir_note": ir_note or "OK",
     }
 
     handoff = _build_handoff(p1, p2, p3, p4, p5, p6, composite)
@@ -2179,10 +2368,15 @@ def run_full_analysis(cfg: AnalysisConfig) -> dict[str, Any]:
 
     def _gate_check(phase_name: str, result: Any, results: dict) -> bool:
         """Return True if gate failed and pipeline should stop."""
-        if cfg.enforce_gates and hasattr(result, "gate_passed") and not result.gate_passed:
+        if (
+            cfg.enforce_gates
+            and hasattr(result, "gate_passed")
+            and not result.gate_passed
+        ):
             logger.warning(
                 "Gate FAILED at %s: %s — stopping pipeline",
-                phase_name, getattr(result, "gate_notes", ""),
+                phase_name,
+                getattr(result, "gate_notes", ""),
             )
             results["stopped_at"] = phase_name
             # Synthesize a P7 result indicating gate failure
@@ -2249,7 +2443,9 @@ def run_full_analysis(cfg: AnalysisConfig) -> dict[str, Any]:
 
     logger.info(
         "Analysis complete: %s — %s (score %.3f)",
-        cfg.symbol, p7.action_label, p7.composite_score
+        cfg.symbol,
+        p7.action_label,
+        p7.composite_score,
     )
 
     return results
