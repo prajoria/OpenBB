@@ -554,12 +554,68 @@ def _analyze_cache_gaps(
         return [], [(query.start_date, query.end_date)]
 
 
+# bd-isvv: minimum fraction of trading days in the requested window that
+# MUST have at least one cached bar before the intraday shortcut can
+# declare the cache "complete". Pre-fix any endpoint-covering cache with
+# no >7-day gaps passed the shortcut, causing hot-path silent-data-loss
+# for sparse caches. 0.9 = at least 90% of trading days represented.
+# See ``_detect_missing_ranges`` docstring for why the check has to
+# operate at day granularity (cached_dates is a per-day set).
+_INTRADAY_MIN_CACHED_DAYS_FRACTION = 0.9
+
+
+def _count_trading_days_in_range(start_date: date, end_date: date) -> int:
+    """Count US trading days (Mon-Fri, excluding basic holidays) in [start, end].
+
+    Used by the intraday density guard in :func:`_detect_missing_ranges`
+    to compute the denominator of the density fraction. Uses the same
+    holiday set as the daily-interval branch for consistency.
+    """
+    if end_date < start_date:
+        return 0
+    holidays = _get_basic_market_holidays(start_date.year, end_date.year)
+    count = 0
+    d = start_date
+    while d <= end_date:
+        if _is_trading_day(d, holidays):
+            count += 1
+        d += timedelta(days=1)
+    return count
+
+
 def _detect_missing_ranges(
     start_date: date, end_date: date, cached_dates: set[date], interval: str
 ) -> list[tuple[date, date]]:
     """Detect missing date ranges based on interval and market days.
 
     Excludes known market holidays from missing ranges to avoid unnecessary API calls.
+
+    Intraday density guard (bd-isvv)
+    --------------------------------
+    Pre-fix the intraday shortcut returned ``[]`` (i.e. "cache is complete")
+    whenever three conditions held: min(cached_dates) ≤ start_date,
+    max(cached_dates) ≥ end_date, and no consecutive-cached-date gap
+    exceeded 7 days. But ``cached_dates`` is a **set of DAYS** (multiple
+    bars on the same day collapse into one entry), so a 6-month intraday
+    request whose cache holds only endpoint bars plus a handful of
+    weekly samples would satisfy all three conditions and be silently
+    reported as complete — hot-path data-loss for every intraday
+    backtest.
+
+    Post-fix a density check runs before the shortcut can fire: for each
+    intraday interval the number of cached trading days must reach a
+    minimum fraction of the trading days in the requested window. If
+    density is below threshold, the full range is returned as missing so
+    the fetcher refills the cache instead of trusting the sparse
+    remnant.
+
+    The density thresholds are all 0.9 (i.e. 90% of trading days in the
+    window must have at least one cached bar) because ``cached_dates``
+    is a per-day set — it cannot distinguish "one bar per day" from
+    "hundreds of bars per day". A conservative "most days must be
+    represented" check is the strongest per-day signal we can extract.
+    Fine-grained per-timestamp density would need the raw bar list,
+    which this function does not receive.
     """
 
     if interval != "1d":
@@ -579,6 +635,42 @@ def _detect_missing_ranges(
         for i in range(1, len(sorted_dates)):
             gap = (sorted_dates[i] - sorted_dates[i - 1]).days
             if gap > 7:  # Significant gap detected
+                return [(start_date, end_date)]
+
+        # bd-isvv density guard: even if endpoints are covered and no
+        # 7-day gap fires, refuse to declare the cache complete unless
+        # most trading days in the window have at least one cached bar.
+        # This catches the sparse-endpoints-only + weekly-samples class
+        # of silent-data-loss where all the endpoint/gap checks pass but
+        # the vast majority of the window has zero bars.
+        trading_days_in_range = _count_trading_days_in_range(start_date, end_date)
+        if trading_days_in_range > 0:
+            # cached_dates may include weekends/holidays returned by the
+            # cache row for whatever reason — count only the trading-day
+            # entries so the numerator matches the denominator's
+            # trading-day-only universe.
+            cached_trading_days = sum(
+                1
+                for d in cached_dates
+                if start_date <= d <= end_date and _is_trading_day(d, set())
+            )
+            density = cached_trading_days / trading_days_in_range
+            # 0.9 = at least 90% of trading days must have a cached bar.
+            # See docstring for why we can only check density at day
+            # granularity, not per-timestamp.
+            if density < _INTRADAY_MIN_CACHED_DAYS_FRACTION:
+                logger.info(
+                    "Intraday cache density below threshold for %s: %d cached "
+                    "trading days out of %d in [%s, %s] (%.1f%% < %.0f%%) — "
+                    "refetching full range (bd-isvv).",
+                    interval,
+                    cached_trading_days,
+                    trading_days_in_range,
+                    start_date,
+                    end_date,
+                    density * 100,
+                    _INTRADAY_MIN_CACHED_DAYS_FRACTION * 100,
+                )
                 return [(start_date, end_date)]
 
         return []  # Assume complete for intraday if no significant gaps

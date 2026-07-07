@@ -1,7 +1,7 @@
 """Comprehensive tests for the new FMP Cached Equity Historical model with gap detection."""
 
 import contextlib
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from openbb_fmp.models.equity_historical import (
@@ -441,6 +441,140 @@ class TestMissingRangeDetection:
         # For intraday with gaps, should be conservative and request full range
         assert len(missing_ranges) == 1
         assert missing_ranges[0] == (start_date, end_date)
+
+    # ---- bd-isvv: sparse-cache silent-data-loss guard ---------------------
+    #
+    # Pre-fix (bd-isvv) the intraday shortcut at equity_historical.py:557
+    # returned [] (no missing ranges = "cache is complete") whenever three
+    # conditions held:
+    #   1. min(cached_dates) <= start_date
+    #   2. max(cached_dates) >= end_date
+    #   3. no consecutive-cached-date gap exceeded 7 days
+    # A 6-month intraday request with only endpoint bars + a couple mid-range
+    # samples satisfies all three conditions AND is silently reported as
+    # complete — hot-path data-loss for every intraday backtest. Post-fix
+    # the detector requires the cached bar density to be plausible for the
+    # interval before it can claim completeness.
+    #
+    # Density thresholds (bars-per-cached-trading-day) come from expected US
+    # session length (~6.5h). For the coverage check we look at cached_dates
+    # cardinality relative to the number of trading days in the requested
+    # range — cached_dates is a SET OF DAYS (multiple bars/day collapse to
+    # one entry), so density = |cached_dates| / trading_days_in_range must
+    # be >= threshold for the "cache is complete" fast-path to fire.
+
+    def test_detect_missing_ranges_intraday_sparse_endpoints_only(self):
+        """bd-isvv: cache with only endpoint bars must NOT report 'complete'.
+
+        6-month request, cache holds bars only at the two endpoint dates
+        (min/max cover the range, no gap > 7 days between the two entries
+        after adding intermediate weekly samples — but density is
+        effectively zero). Pre-fix returned []; post-fix returns the full
+        range as missing.
+        """
+        start_date = date(2026, 1, 5)  # Monday
+        end_date = date(2026, 6, 30)  # Tuesday, ~180 days = ~125 trading days
+
+        # 4 cached dates spanning the range, spaced every ~60 days. Under
+        # the pre-fix rule this satisfies min<=start, max>=end, gap<=7
+        # weeks... wait, gap is checked in DAYS not weeks. 60 > 7 so the
+        # pre-fix WOULD have caught this. Use a smaller sample where the
+        # pre-fix silent-drop actually fires.
+        # 26 cached dates spaced 7 days apart (weekly samples) — every
+        # consecutive gap is EXACTLY 7 days, and current code uses
+        # ``> 7`` so 7-day gaps do NOT trigger the fallback.
+        cached_dates = set()
+        d = start_date
+        while d <= end_date:
+            cached_dates.add(d)
+            d += timedelta(days=7)
+        # Ensure endpoints are covered
+        cached_dates.add(start_date)
+        cached_dates.add(end_date)
+
+        # ~26 weekly samples over ~125 trading days = 0.2 cached-dates
+        # per trading day. For 1h data we expect 1 cached-date per
+        # trading day (every trading day should have at least SOME 1h
+        # bars). Density well below threshold → must report missing.
+
+        missing_ranges = _detect_missing_ranges(
+            start_date, end_date, cached_dates, "1h"
+        )
+        assert len(missing_ranges) == 1, (
+            f"sparse intraday cache (~{len(cached_dates)} dates over ~125 "
+            f"trading days) reported {missing_ranges!r} — pre-fix bd-isvv "
+            f"silently returned [] (i.e. 'complete'), causing hot-path "
+            f"intraday data-loss."
+        )
+        assert missing_ranges[0] == (start_date, end_date), (
+            f"missing range must cover the FULL requested window, got "
+            f"{missing_ranges[0]!r}"
+        )
+
+    def test_detect_missing_ranges_intraday_dense_still_complete(self):
+        """Regression lock: dense intraday cache (every trading day) → [].
+
+        The density check must NOT cause spurious re-fetches when the
+        cache genuinely IS complete. Every trading day in the range has
+        at least one cached bar (i.e. |cached_dates| == trading_days),
+        so density = 1.0 which is at or above every interval's
+        threshold.
+        """
+        # 2-week window with a bar on every trading day.
+        start_date = date(2026, 1, 5)  # Monday
+        end_date = date(2026, 1, 16)  # Friday, 10 trading days
+
+        cached_dates = set()
+        d = start_date
+        while d <= end_date:
+            if d.weekday() < 5:  # Mon-Fri
+                cached_dates.add(d)
+            d += timedelta(days=1)
+
+        # Every trading day has a bar → density is 1.0 → complete for
+        # every interval.
+        for interval in ("1m", "5m", "15m", "30m", "1h", "4h"):
+            missing_ranges = _detect_missing_ranges(
+                start_date, end_date, cached_dates, interval
+            )
+            assert missing_ranges == [], (
+                f"dense cache (bar every trading day) at interval={interval!r} "
+                f"was reported as incomplete: {missing_ranges!r} — the density "
+                f"threshold is too strict and causes spurious re-fetches."
+            )
+
+    def test_detect_missing_ranges_intraday_missing_middle_days(self):
+        """bd-isvv: cache with endpoints + only a few middle days must refetch.
+
+        A 30-day range where cache covers endpoints + 3 middle days but
+        misses 20+ trading days in between. Pre-fix: min≤start, max≥end,
+        and the max consecutive gap is < 7 days (adjacent samples every
+        ~5 days apart) → return []. Post-fix: density check flags this
+        as insufficient.
+        """
+        start_date = date(2026, 1, 5)  # Monday
+        end_date = date(2026, 2, 2)  # ~20 trading days
+
+        cached_dates = {
+            date(2026, 1, 5),
+            date(2026, 1, 8),
+            date(2026, 1, 12),
+            date(2026, 1, 16),
+            date(2026, 1, 20),
+            date(2026, 1, 26),
+            date(2026, 2, 2),
+        }
+        # 7 cached days out of ~20 trading days = 35% density. For 1h
+        # (expected 1 date/day), this is below threshold and MUST refetch.
+
+        missing_ranges = _detect_missing_ranges(
+            start_date, end_date, cached_dates, "1h"
+        )
+        assert len(missing_ranges) == 1, (
+            f"partial intraday cache (~35% density) reported {missing_ranges!r} "
+            f"— pre-fix bd-isvv would have returned [] because no consecutive "
+            f"gap exceeded 7 days; post-fix must flag as missing."
+        )
 
 
 class TestTradingDayLogic:
