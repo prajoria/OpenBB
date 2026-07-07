@@ -127,8 +127,31 @@ def collect_tools() -> list[dict]:
         for name, fn in inspect.getmembers(module, inspect.isfunction):
             if name.startswith("_") or name in seen:
                 continue
+            # Belt-and-braces vs. Round-1 review LOW finding:
+            # ``public_alias = _private`` at module scope would surface
+            # ``_private`` under a public name. ``getmembers`` returns
+            # the alias's public name in the loop variable, so also
+            # check ``fn.__name__`` — the actual defined name of the
+            # underlying function.
+            if fn.__name__.startswith("_"):
+                continue
             # Only register functions defined in this module (skip re-exports)
             if fn.__module__ != module.__name__:
+                continue
+            # Round-1 review MEDIUM: ``async def`` tools would return an
+            # un-awaited coroutine from ``fn(**arguments)`` in
+            # ``_call_tool_safe``, and ``json.dumps(coro, default=str)``
+            # would serialise ``'<coroutine object …>'`` back to the LLM
+            # as a 'successful' result — silent failure the operator
+            # wouldn't see. Reject at registration time instead so the
+            # mistake surfaces loudly at server startup.
+            if inspect.iscoroutinefunction(fn):
+                logger.warning(
+                    "Skipping @mcp_tool %r: async functions are not supported "
+                    "by the sync _call_tool_safe path. Convert to sync, or "
+                    "extend _call_tool_safe to await coroutine functions.",
+                    name,
+                )
                 continue
             # Explicit opt-in — bd-17kv / bd-6bcf trust-boundary fix.
             # Undecorated public functions are silently skipped rather
