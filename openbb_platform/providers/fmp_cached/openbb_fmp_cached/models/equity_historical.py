@@ -310,8 +310,21 @@ class FMPCachedEquityHistoricalFetcher(
                 try:
                     complete_data, remaining_gaps = _analyze_cache_gaps(single_query)
                     if remaining_gaps:
-                        logger.warning(
-                            f"Still have {len(remaining_gaps)} gaps after caching for {symbol}"
+                        # bd-lyzk: severity-scaled logging — small gaps
+                        # are legitimate background noise (holidays / IPO
+                        # pre-history / delistings), moderate gaps warrant
+                        # operator attention with specific dates, and large
+                        # gaps escalate to ERROR for ops alerting (almost
+                        # certainly a silent fetch failure). Pre-fix the
+                        # single logger.warning with just the count gave
+                        # operators no way to identify which dates were
+                        # missing OR distinguish real fetch failures from
+                        # tolerable data holes.
+                        trading_days_requested = _count_trading_days_in_range(
+                            single_query.start_date, single_query.end_date
+                        )
+                        _log_partial_gap_severity(
+                            symbol, remaining_gaps, trading_days_requested
                         )
 
                     # Always use complete_data from cache as it includes both previous cache + newly stored data
@@ -562,6 +575,176 @@ def _analyze_cache_gaps(
 # See ``_detect_missing_ranges`` docstring for why the check has to
 # operate at day granularity (cached_dates is a per-day set).
 _INTRADAY_MIN_CACHED_DAYS_FRACTION = 0.9
+
+
+# bd-lyzk: severity thresholds for partial-gap-fill logging after
+# a fetch completes but ``_analyze_cache_gaps`` still reports missing
+# ranges. Small gaps (< WARN) are legitimate background noise (holidays
+# outside the basic holiday set, IPO pre-history, delistings, ranges
+# extending into the future); moderate gaps (WARN..ERROR) warrant an
+# operator-visible log with specifics; large gaps (>= ERROR) are almost
+# certainly a silent fetch failure and escalate to ERROR-level for ops
+# alerting. Do NOT raise on any of these — see ``_log_partial_gap_severity``
+# docstring for why raising would break legitimate calls.
+_PARTIAL_GAP_WARN_FRACTION = 0.05
+_PARTIAL_GAP_ERROR_FRACTION = 0.25
+
+# PR #352 code-reviewer P2: cap the number of gap ranges formatted into
+# a single log message. 200 single-day gaps → ~5KB log line, risking
+# Datadog/syslog truncation on the ERROR-level lines we care about most.
+_MAX_FORMATTED_GAP_RANGES = 10
+
+
+def _format_gap_ranges(remaining_gaps: list[tuple[date, date]]) -> str:
+    """Format ``remaining_gaps`` as a compact string, capped at ``_MAX_FORMATTED_GAP_RANGES``.
+
+    PR #352 code-reviewer (P2): pre-review-fix formatted every range
+    inline, so a caller with 200 single-day gaps produced a ~5KB log
+    line that risked Datadog/syslog truncation on the ERROR-level lines
+    that ops alerting depends on. Cap at 10 with a ``... and N more``
+    suffix so the log stays scannable and the total line length stays
+    predictable.
+    """
+    if len(remaining_gaps) <= _MAX_FORMATTED_GAP_RANGES:
+        return ", ".join(f"({start}→{end})" for start, end in remaining_gaps)
+    head = remaining_gaps[:_MAX_FORMATTED_GAP_RANGES]
+    remaining = len(remaining_gaps) - _MAX_FORMATTED_GAP_RANGES
+    return (
+        ", ".join(f"({start}→{end})" for start, end in head)
+        + f", ... and {remaining} more"
+    )
+
+
+def _log_partial_gap_severity(
+    symbol: str,
+    remaining_gaps: list[tuple[date, date]],
+    trading_days_requested: int,
+) -> None:
+    """Log partial-fetch-completion gaps at severity matched to gap fraction (bd-lyzk).
+
+    Called after the post-fetch re-analysis of the cache — if ``remaining_gaps``
+    is non-empty, some requested trading days are still absent. The pre-fix
+    code emitted a single ``logger.warning`` with just the count, which:
+
+    * Gave operators no way to identify WHICH dates were missing so they could
+      re-request specific windows.
+    * Buried real silent-fetch-failures under legitimate background noise
+      (halts, IPO pre-history, delistings — all of which leave real
+      unfillable gaps at WARNING level).
+
+    Post-fix the log severity scales with the gap fraction:
+
+    * ``0 < gap_fraction < _PARTIAL_GAP_WARN_FRACTION`` → INFO. Small gaps
+      are usually holidays outside the basic set (regional half-days,
+      NYSE special closures) or IPO pre-history — noisy at WARNING.
+    * ``_PARTIAL_GAP_WARN_FRACTION <= gap_fraction < _PARTIAL_GAP_ERROR_FRACTION``
+      → WARNING. Includes the specific gap ranges + missing count +
+      percentage so an operator debugging "why is my backtest sparse?"
+      can immediately see what's missing.
+    * ``gap_fraction >= _PARTIAL_GAP_ERROR_FRACTION`` → ERROR. Large
+      missing fraction is almost certainly a silent fetch failure
+      (partial response, upstream 200 with empty body); ERROR is
+      the right severity for ops alerting to fire.
+
+    Zero-trading-day denominator is handled defensively (log at
+    WARNING with the raw gap list, since we can't compute a fraction).
+
+    Design note — why NOT raise on remaining_gaps
+    ----------------------------------------------
+    FMP legitimately does not have data for many valid requests:
+    trading halts, IPO pre-history, delistings, ranges extending past
+    ``today``. Raising on any non-empty ``remaining_gaps`` would break
+    all of those legitimate calls. The severity-scaled log makes the
+    silent-fetch-failure case (large gap fraction) loud enough for
+    ops alerting without penalizing the "FMP has real data holes"
+    case.
+    """
+    if not remaining_gaps:
+        return
+
+    if trading_days_requested <= 0:
+        # Edge case: 0-trading-day denominator can't compute a fraction,
+        # but non-empty gaps in a 0-trading-day window is genuinely
+        # unusual — log at WARNING with the raw gap list (capped).
+        logger.warning(
+            "Partial-fill for %s: %d gap range(s) in a window with 0 "
+            "trading days: %s (bd-lyzk).",
+            symbol,
+            len(remaining_gaps),
+            _format_gap_ranges(remaining_gaps),
+        )
+        return
+
+    # PR #352 code-reviewer P1: numerator must be TRADING DAYS to match
+    # the denominator. Pre-review-fix used ``(end - start).days + 1``
+    # which counts CALENDAR days, so a weekend-spanning gap inflated
+    # the fraction by ~40% (7 calendar / 5 trading). A legitimate
+    # 90-cal-day delisting hole in a 260-td year would compute as
+    # ~35% ERROR instead of the correct ~25% — exactly the false-
+    # positive class the severity guard is supposed to prevent.
+    #
+    # PR #352 code-reviewer P1: also clip gap end-dates at ``today``
+    # so a request with ``end_date = today + 3y`` doesn't ERROR on the
+    # future-weekday portion FMP can't have (~750 spurious "missing"
+    # trading days over 3 future years). The caller's denominator
+    # should already be clipped by _count_trading_days_in_range, but
+    # the numerator must clip too so the units stay symmetric.
+    today = date.today()
+    missing_days = 0
+    for gap_start, gap_end in remaining_gaps:
+        clipped_end = min(gap_end, today)
+        if clipped_end < gap_start:
+            continue  # entire gap is in the future — not a real miss
+        missing_days += _count_trading_days_in_range(gap_start, clipped_end)
+
+    if missing_days == 0:
+        # All gaps were in the future — treat as no-op silently. This
+        # is the "user requested end_date past today" happy path.
+        return
+
+    gap_fraction = missing_days / trading_days_requested
+    percent = gap_fraction * 100
+
+    formatted_ranges = _format_gap_ranges(remaining_gaps)
+
+    if gap_fraction < _PARTIAL_GAP_WARN_FRACTION:
+        logger.info(
+            "Partial-fill for %s: %d missing trading day(s) / %d requested (%.1f%%) "
+            "in ranges [%s]; below WARN threshold %.0f%% so likely holidays "
+            "outside the basic set or IPO pre-history (bd-lyzk).",
+            symbol,
+            missing_days,
+            trading_days_requested,
+            percent,
+            formatted_ranges,
+            _PARTIAL_GAP_WARN_FRACTION * 100,
+        )
+    elif gap_fraction < _PARTIAL_GAP_ERROR_FRACTION:
+        logger.warning(
+            "Partial-fill for %s: %d missing trading day(s) / %d requested (%.1f%%) "
+            "in ranges [%s]; above WARN threshold %.0f%%. Investigate "
+            "whether FMP legitimately lacks these dates or the fetch was "
+            "incomplete (bd-lyzk).",
+            symbol,
+            missing_days,
+            trading_days_requested,
+            percent,
+            formatted_ranges,
+            _PARTIAL_GAP_WARN_FRACTION * 100,
+        )
+    else:
+        logger.error(
+            "Partial-fill for %s: %d missing trading day(s) / %d requested (%.1f%%) "
+            "in ranges [%s]; above ERROR threshold %.0f%% — almost certainly "
+            "a silent fetch failure (partial 200 response, upstream "
+            "unavailable). Re-request the missing ranges (bd-lyzk).",
+            symbol,
+            missing_days,
+            trading_days_requested,
+            percent,
+            formatted_ranges,
+            _PARTIAL_GAP_ERROR_FRACTION * 100,
+        )
 
 
 def _count_trading_days_in_range(start_date: date, end_date: date) -> int:
