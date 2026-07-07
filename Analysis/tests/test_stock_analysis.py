@@ -537,7 +537,23 @@ def _make_mock_p1() -> Phase1Result:
     )
 
 
-def _make_mock_p2(score: float = 4.0, accruals: float = 0.05) -> Phase2Result:
+def _make_mock_p2(
+    score: float = 4.0,
+    accruals: float = 0.05,
+    *,
+    dilution_5y: float = float("nan"),
+    operating_leverage: float = float("nan"),
+) -> Phase2Result:
+    """Build a mock Phase2Result.
+
+    bd-zuw widening (PR #331 iter-3 silent-hunt L-6): scalars NOT currently
+    consumed by P7's decision logic default to ``float('nan')`` so that when
+    a future PR wires them into a threshold-fired branch, every existing
+    mock-based test fails LOUDLY (NaN comparisons return False, breaking
+    any silent skip). Currently-consumed fields (score, accruals_ratio,
+    gross_profitability) keep sensible numeric defaults — those already have
+    coverage in P7 tests.
+    """
     return Phase2Result(
         income_df=pd.DataFrame(),
         balance_df=pd.DataFrame(),
@@ -548,14 +564,20 @@ def _make_mock_p2(score: float = 4.0, accruals: float = 0.05) -> Phase2Result:
         score=score,
         accruals_ratio=accruals,
         gross_profitability=0.40,
-        operating_leverage=1.3,
-        dilution_5y=-0.05,
+        operating_leverage=operating_leverage,
+        dilution_5y=dilution_5y,
         gate_passed=True,
         gate_notes="OK",
     )
 
 
-def _make_mock_p3(bullish_count: int = 7, earnings_safe: bool = True, weekly_bull: bool = True) -> Phase3Result:
+def _make_mock_p3(
+    bullish_count: int = 7,
+    earnings_safe: bool = True,
+    weekly_bull: bool = True,
+    *,
+    days_to_earnings: int = 30,   # KEPT non-NaN — used by P3 gate + P7 earnings_note
+) -> Phase3Result:
     # Minimal price DataFrame with ATR
     price_df = pd.DataFrame(
         {"close": [145.0, 146.0, 147.0], "atr": [2.5, 2.5, 2.5]},
@@ -580,7 +602,7 @@ def _make_mock_p3(bullish_count: int = 7, earnings_safe: bool = True, weekly_bul
         entry_quality="High Conviction" if bullish_count >= 8 else "Standard",
         fib_levels={"38.2%": 140.0, "50.0%": 138.0, "61.8%": 136.0},
         atr=2.5,
-        days_to_earnings=30,
+        days_to_earnings=days_to_earnings,
         earnings_safe_window=earnings_safe,
         weekly_trend_bullish=weekly_bull,
         gate_passed=bullish_count >= 6 and earnings_safe,
@@ -588,15 +610,26 @@ def _make_mock_p3(bullish_count: int = 7, earnings_safe: bool = True, weekly_bul
     )
 
 
-def _make_mock_p4(mos: float = 0.18, altman: float = 3.5) -> Phase4Result:
+def _make_mock_p4(
+    mos: float = 0.18,
+    altman: float = 3.5,
+    *,
+    implied_growth: float = float("nan"),
+    peg_ratio: float = float("nan"),
+    roic_wacc_spread: float = float("nan"),
+) -> Phase4Result:
+    """Build a mock Phase4Result. bd-zuw widening: implied_growth,
+    peg_ratio, roic_wacc_spread default NaN since P7 doesn't threshold
+    on them today. Callers who need specific values pass via keyword.
+    """
     return Phase4Result(
         multiples_df=pd.DataFrame([{"pe": 25.0, "ev_ebitda": 18.0}]),
         dcf_fair_value=175.0,
         margin_of_safety=mos,
         sensitivity_df=pd.DataFrame(),
-        implied_growth=0.08,
-        roic_wacc_spread=0.07,
-        peg_ratio=1.5,        # A5: Peter Lynch's PEG (1.0 cheap / 2.0 expensive)
+        implied_growth=implied_growth,
+        roic_wacc_spread=roic_wacc_spread,
+        peg_ratio=peg_ratio,
         piotroski=7.0,
         altman=altman,
         valuation_verdict="Undervalued" if mos >= 0.15 else "Fair Value",
@@ -608,27 +641,50 @@ def _make_mock_p4(mos: float = 0.18, altman: float = 3.5) -> Phase4Result:
     )
 
 
-def _make_mock_p5(sharpe: float = 1.4, mdd: float = -0.22) -> Phase5Result:
+def _make_mock_p5(
+    sharpe: float = 1.4,
+    mdd: float = -0.22,
+    *,
+    sortino: float = float("nan"),
+    calmar: float = float("nan"),
+    gain_to_pain: float = float("nan"),
+    beta: float = float("nan"),
+    beta_up: float = float("nan"),
+    beta_down: float = float("nan"),
+    var_95: float = float("nan"),
+    cvar_95: float = float("nan"),
+    ulcer_index: float = float("nan"),
+    kurtosis: float = float("nan"),
+    skewness: float = float("nan"),
+    kelly_fraction: float = float("nan"),
+    conviction_size: float = float("nan"),
+    half_kelly_size: float = float("nan"),
+    recommended_size: float = float("nan"),
+) -> Phase5Result:
+    """Build a mock Phase5Result. bd-zuw widening: 15 unused scalars
+    NaN-defaulted. sharpe / max_drawdown / portfolio_fit / vol_63d_trend
+    stay at sensible defaults — those already have P7 coverage.
+    """
     return Phase5Result(
         risk_kpi_df=pd.DataFrame([{"sharpe": sharpe}]),
         sharpe=sharpe,
-        sortino=1.8,
-        calmar=1.5,
-        gain_to_pain=1.3,
+        sortino=sortino,
+        calmar=calmar,
+        gain_to_pain=gain_to_pain,
         max_drawdown=mdd,
-        beta=0.9,
-        beta_up=0.8,
-        beta_down=1.0,
-        var_95=-0.018,
-        cvar_95=-0.032,
-        ulcer_index=4.5,
-        kurtosis=4.2,        # empirically typical for daily equity returns (excess kurtosis)
-        skewness=-0.3,       # slight negative skew is normal for stocks
-        vol_63d_trend="flat",  # A3: expanding / contracting / flat
-        kelly_fraction=0.18,
-        conviction_size=0.03,
-        half_kelly_size=0.036,
-        recommended_size=0.03,
+        beta=beta,
+        beta_up=beta_up,
+        beta_down=beta_down,
+        var_95=var_95,
+        cvar_95=cvar_95,
+        ulcer_index=ulcer_index,
+        kurtosis=kurtosis,
+        skewness=skewness,
+        vol_63d_trend="flat",  # A3: string field — NaN not applicable
+        kelly_fraction=kelly_fraction,
+        conviction_size=conviction_size,
+        half_kelly_size=half_kelly_size,
+        recommended_size=recommended_size,
         portfolio_fit="Core",
         stress_scenarios={"market_correction_20pct": -0.20},
         gate_passed=True,
@@ -1329,6 +1385,52 @@ class TestPhase6Rolling3M:
         )
         assert math.isnan(p6.momentum_accel_63d)
         assert math.isnan(p6.relative_valuation_score)
+
+    def test_mock_p2_p3_p4_p5_default_unused_scalars_to_nan(self):
+        """bd-zuw widening (PR #331 iter-3 silent-hunt L-6): symmetric
+        NaN-default coverage-decay guard for _make_mock_p2/p3/p4/p5.
+
+        Load-bearing property: same as p6 test — each currently-unused
+        scalar defaults to NaN so the FIRST future PR that wires the
+        field into a P7 branch causes all existing mock-based tests to
+        fail LOUDLY (visible NaN in output) rather than silently skip
+        the branch.
+
+        Not testing DataFrame/dict/list fields — those default to empty
+        containers which have no coverage-decay hazard.
+        """
+        import math
+        p2 = _make_mock_p2()
+        assert math.isnan(p2.dilution_5y)
+        assert math.isnan(p2.operating_leverage)
+
+        # p3 has NO NaN defaults — days_to_earnings is used by P3's own
+        # gate + P7 earnings_note, and other unused fields are dicts/lists.
+        # This assertion documents the exception.
+        p3 = _make_mock_p3()
+        assert p3.days_to_earnings == 30, (
+            "days_to_earnings intentionally kept as int default (used by "
+            "P3 gate + P7 earnings_note). If future PR adds a threshold "
+            "on this, convert to NaN-defaulted like the p2 fields."
+        )
+
+        p4 = _make_mock_p4()
+        assert math.isnan(p4.implied_growth)
+        assert math.isnan(p4.peg_ratio)
+        assert math.isnan(p4.roic_wacc_spread)
+
+        p5 = _make_mock_p5()
+        # 14 unused scalars on P5 — the ratio-of-ratios and stress metrics
+        # not currently consumed by P7's composite scoring.
+        for field_name in [
+            "sortino", "calmar", "gain_to_pain", "beta", "beta_up", "beta_down",
+            "var_95", "cvar_95", "ulcer_index", "kurtosis", "skewness",
+            "kelly_fraction", "conviction_size", "half_kelly_size", "recommended_size",
+        ]:
+            assert math.isnan(getattr(p5, field_name)), (
+                f"_make_mock_p5 must default {field_name} to NaN per bd-zuw "
+                f"widening; got {getattr(p5, field_name)}"
+            )
 
 
 class TestPhase6MomentumAccel:
