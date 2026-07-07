@@ -10,8 +10,9 @@ from openbb_fmp.models.equity_quote import (
     FMPEquityQuoteFetcher,
     FMPEquityQuoteQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_equity_quote_table
-from openbb_fmp_cached.utils.database import execute_query, execute_many, init_database
+from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
 logger = logging.getLogger(__name__)
 

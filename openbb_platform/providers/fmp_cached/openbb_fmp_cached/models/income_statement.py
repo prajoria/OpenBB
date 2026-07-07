@@ -10,6 +10,7 @@ from openbb_fmp.models.income_statement import (
     FMPIncomeStatementFetcher,
     FMPIncomeStatementQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_income_statement_table
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 

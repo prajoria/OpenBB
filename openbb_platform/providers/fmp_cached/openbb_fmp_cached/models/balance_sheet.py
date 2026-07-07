@@ -10,6 +10,7 @@ from openbb_fmp.models.balance_sheet import (
     FMPBalanceSheetFetcher,
     FMPBalanceSheetQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_balance_sheet_table
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 

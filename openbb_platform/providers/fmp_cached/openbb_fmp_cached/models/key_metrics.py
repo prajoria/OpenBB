@@ -10,8 +10,9 @@ from openbb_fmp.models.key_metrics import (
     FMPKeyMetricsFetcher,
     FMPKeyMetricsQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_key_metrics_table
-from openbb_fmp_cached.utils.database import execute_query, execute_many, init_database
+from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
 logger = logging.getLogger(__name__)
 

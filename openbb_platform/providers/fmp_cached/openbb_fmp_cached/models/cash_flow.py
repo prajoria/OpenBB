@@ -10,6 +10,7 @@ from openbb_fmp.models.cash_flow import (
     FMPCashFlowStatementFetcher,
     FMPCashFlowStatementQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_cash_flow_table
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 

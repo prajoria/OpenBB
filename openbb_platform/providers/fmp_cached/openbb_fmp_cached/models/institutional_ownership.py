@@ -18,7 +18,7 @@ Database Schema:
 
 import json
 import logging
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from openbb_fmp.models.institutional_ownership import (
@@ -26,6 +26,7 @@ from openbb_fmp.models.institutional_ownership import (
     FMPInstitutionalOwnershipFetcher,
     FMPInstitutionalOwnershipQueryParams,
 )
+
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
 logger = logging.getLogger(__name__)
@@ -295,6 +296,7 @@ async def _try_yfinance(symbols: list[str]) -> list[dict]:
     """
     try:
         import asyncio
+
         from yfinance import Ticker
 
         results = []

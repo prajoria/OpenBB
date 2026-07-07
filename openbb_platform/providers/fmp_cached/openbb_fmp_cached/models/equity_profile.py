@@ -10,6 +10,7 @@ from openbb_fmp.models.equity_profile import (
     FMPEquityProfileFetcher,
     FMPEquityProfileQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_equity_profile_table
 from openbb_fmp_cached.utils.database import execute_query, init_database
 
