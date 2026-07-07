@@ -58,7 +58,9 @@ class FMPCachedEquityQuoteFetcher(FMPEquityQuoteFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPEquityQuoteQueryParams(symbol=",".join(symbols_to_fetch))
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
+            )
             fresh_data = await FMPEquityQuoteFetcher.aextract_data(
                 fetch_query, resolved_credentials, **kwargs
             )

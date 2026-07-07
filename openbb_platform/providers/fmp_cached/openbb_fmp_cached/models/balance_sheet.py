@@ -62,10 +62,8 @@ class FMPCachedBalanceSheetFetcher(FMPBalanceSheetFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPBalanceSheetQueryParams(
-                symbol=",".join(symbols_to_fetch),
-                period=query.period,
-                limit=query.limit,
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
             )
             fresh_data = await FMPBalanceSheetFetcher.aextract_data(
                 fetch_query,

@@ -58,7 +58,9 @@ class FMPCachedEquityProfileFetcher(FMPEquityProfileFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPEquityProfileQueryParams(symbol=",".join(symbols_to_fetch))
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
+            )
             fresh_data = await FMPEquityProfileFetcher.aextract_data(
                 fetch_query, resolved_credentials, **kwargs
             )

@@ -115,7 +115,7 @@ async def _try_fmp(
 ) -> list[dict]:
     """FMP API tier. Returns [] on 402 / any error (never raises)."""
     try:
-        fetch_query = FMPEtfHoldingsQueryParams(symbol=symbol)
+        fetch_query = query.model_copy(update={"symbol": symbol})
         raw = await FMPEtfHoldingsFetcher.aextract_data(
             fetch_query,
             credentials,

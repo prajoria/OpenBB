@@ -270,11 +270,7 @@ async def _try_fmp(
 ) -> list[dict]:
     """Try fetching from the FMP institutional ownership endpoint."""
     try:
-        fetch_query = FMPInstitutionalOwnershipQueryParams(
-            symbol=",".join(symbols),
-            year=query.year,
-            quarter=query.quarter,
-        )
+        fetch_query = query.model_copy(update={"symbol": ",".join(symbols)})
         raw = await FMPInstitutionalOwnershipFetcher.aextract_data(
             fetch_query, credentials, **kwargs
         )

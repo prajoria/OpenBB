@@ -62,10 +62,8 @@ class FMPCachedCashFlowStatementFetcher(FMPCashFlowStatementFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPCashFlowStatementQueryParams(
-                symbol=",".join(symbols_to_fetch),
-                period=query.period,
-                limit=query.limit,
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
             )
             fresh_data = await FMPCashFlowStatementFetcher.aextract_data(
                 fetch_query,

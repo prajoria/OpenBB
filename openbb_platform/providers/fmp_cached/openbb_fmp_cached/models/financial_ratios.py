@@ -62,11 +62,8 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPFinancialRatiosQueryParams(
-                symbol=",".join(symbols_to_fetch),
-                ttm=query.ttm,
-                period=query.period,
-                limit=query.limit,
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
             )
             fresh_data = await FMPFinancialRatiosFetcher.aextract_data(
                 fetch_query,
