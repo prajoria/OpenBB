@@ -70,6 +70,7 @@ _TYPE_MAP: dict[Any, dict] = {
 # import path). The decorator itself lives in ``_mcp_tool.py`` to avoid
 # a circular import — tool modules import the decorator, and this module
 # imports the tool modules to build the registry.
+from openbb_agents._mcp_tool import mcp_tool  # noqa: E402,F401
 
 
 def build_input_schema(fn: Any) -> dict:
