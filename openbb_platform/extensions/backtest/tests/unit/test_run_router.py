@@ -246,15 +246,36 @@ def test_run_explicit_param_overrides_config_engine(monkeypatch):
     assert requested == ["vectorized"]
 
 
-def test_run_config_engine_event_auto_default(monkeypatch):
-    """The bug scenario: BacktestConfig(engine='event') + bare run(config)."""
+def test_run_honors_config_engine_vectorized_when_param_is_auto(monkeypatch):
+    """Symmetric to the event-fallback test: config.engine='vectorized' must
+    also be honored when engine= is default 'auto' (bd-q7u5).
+
+    Pre-fix a caller using ``BacktestConfig(engine='vectorized')`` + bare
+    ``obb.backtest.run(config=config)`` on a path-dependent strategy would
+    have been silently routed to the event engine by the ``auto`` policy
+    (because ``config.engine`` was dead). Post-fix the config's explicit
+    ``'vectorized'`` beats the path-dependence heuristic — the caller's
+    explicit choice wins.
+
+    This test closes the P2 asymmetry review finding on PR #339: the other
+    four bd-q7u5 tests all exercise ``config.engine='event'`` fallback but
+    never ``'vectorized'``.
+    """
     from openbb_backtest.routers import run_router as rr
 
     requested = _patch_run_collaborators(monkeypatch)
-    # Pre-fix: this silently used "auto" → "vectorized" (the field on config
-    # was dead). Post-fix: config.engine wins, so we resolve to "event".
-    asyncio.run(rr.run(_config(engine="event")))
-    assert requested == ["event"]
+    asyncio.run(
+        rr.run(
+            _config(engine="vectorized"),
+            strategy_params={"path_dependent": True},
+        )
+    )
+    # config.engine='vectorized' takes precedence over the path-dependent
+    # auto-routing that would otherwise pick 'event'.
+    assert requested == ["vectorized"], (
+        "config.engine='vectorized' was silently dropped — the router failed to "
+        "fall back to config when engine=default 'auto' (bd-q7u5)."
+    )
 
 
 def test_run_both_auto_still_resolves_via_path_dependence(monkeypatch):
