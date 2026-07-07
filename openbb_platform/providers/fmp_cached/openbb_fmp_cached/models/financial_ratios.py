@@ -10,6 +10,7 @@ from openbb_fmp.models.financial_ratios import (
     FMPFinancialRatiosFetcher,
     FMPFinancialRatiosQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_financial_ratios_table
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
@@ -39,14 +40,18 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
             init_database()
             create_financial_ratios_table()
         except Exception as exc:
-            logger.warning("Financial ratios cache init failed, using direct FMP call: %s", exc)
+            logger.warning(
+                "Financial ratios cache init failed, using direct FMP call: %s", exc
+            )
             return await FMPFinancialRatiosFetcher.aextract_data(
                 query,
                 resolved_credentials,
                 **kwargs,
             )
 
-        symbols = [symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()]
+        symbols = [
+            symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()
+        ]
         results: list[dict] = []
         symbols_to_fetch: list[str] = []
 
@@ -58,11 +63,8 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPFinancialRatiosQueryParams(
-                symbol=",".join(symbols_to_fetch),
-                ttm=query.ttm,
-                period=query.period,
-                limit=query.limit,
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
             )
             fresh_data = await FMPFinancialRatiosFetcher.aextract_data(
                 fetch_query,
@@ -76,9 +78,11 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
         return sorted(
             results,
             key=lambda item: (
-                symbols.index(item.get("symbol", ""))
-                if item.get("symbol") in symbols
-                else len(symbols),
+                (
+                    symbols.index(item.get("symbol", ""))
+                    if item.get("symbol") in symbols
+                    else len(symbols)
+                ),
                 item.get("date", ""),
             ),
             reverse=True,
@@ -158,19 +162,29 @@ def _get_cached_financial_ratios(
 def _filter_by_ttm(records: list[dict[str, Any]], ttm: str) -> list[dict[str, Any]]:
     """Filter financial ratios records by TTM selection."""
     if ttm == "only":
-        return [item for item in records if str(item.get("period", "")).upper() == "TTM"]
+        return [
+            item for item in records if str(item.get("period", "")).upper() == "TTM"
+        ]
     if ttm == "exclude":
-        return [item for item in records if str(item.get("period", "")).upper() != "TTM"]
+        return [
+            item for item in records if str(item.get("period", "")).upper() != "TTM"
+        ]
     return records
 
 
-def _filter_by_period(records: list[dict[str, Any]], period: str) -> list[dict[str, Any]]:
+def _filter_by_period(
+    records: list[dict[str, Any]], period: str
+) -> list[dict[str, Any]]:
     """Filter financial ratios records by requested period when not TTM."""
     if not period:
         return records
     if period.upper() == "TTM":
         return records
-    return [item for item in records if str(item.get("period", "")).lower() == period.lower()]
+    return [
+        item
+        for item in records
+        if str(item.get("period", "")).lower() == period.lower()
+    ]
 
 
 def _store_financial_ratios(ratios: list[dict[str, Any]]) -> None:
@@ -194,7 +208,9 @@ def _store_financial_ratios(ratios: list[dict[str, Any]]) -> None:
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
     """
 
-    symbols = {(item.get("symbol") or "").strip() for item in ratios if item.get("symbol")}
+    symbols = {
+        (item.get("symbol") or "").strip() for item in ratios if item.get("symbol")
+    }
     for symbol in symbols:
         execute_query(cleanup_query, (symbol,))
 

@@ -10,6 +10,7 @@ from openbb_fmp.models.income_statement import (
     FMPIncomeStatementFetcher,
     FMPIncomeStatementQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_income_statement_table
 from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
@@ -39,14 +40,18 @@ class FMPCachedIncomeStatementFetcher(FMPIncomeStatementFetcher):
             init_database()
             create_income_statement_table()
         except Exception as exc:
-            logger.warning("Income statement cache init failed, using direct FMP call: %s", exc)
+            logger.warning(
+                "Income statement cache init failed, using direct FMP call: %s", exc
+            )
             return await FMPIncomeStatementFetcher.aextract_data(
                 query,
                 resolved_credentials,
                 **kwargs,
             )
 
-        symbols = [symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()]
+        symbols = [
+            symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()
+        ]
         results: list[dict] = []
         symbols_to_fetch: list[str] = []
 
@@ -58,10 +63,8 @@ class FMPCachedIncomeStatementFetcher(FMPIncomeStatementFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPIncomeStatementQueryParams(
-                symbol=",".join(symbols_to_fetch),
-                period=query.period,
-                limit=query.limit,
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
             )
             fresh_data = await FMPIncomeStatementFetcher.aextract_data(
                 fetch_query,
@@ -75,9 +78,11 @@ class FMPCachedIncomeStatementFetcher(FMPIncomeStatementFetcher):
         return sorted(
             results,
             key=lambda item: (
-                symbols.index(item.get("symbol", ""))
-                if item.get("symbol") in symbols
-                else len(symbols),
+                (
+                    symbols.index(item.get("symbol", ""))
+                    if item.get("symbol") in symbols
+                    else len(symbols)
+                ),
                 item.get("date", ""),
             ),
             reverse=True,
@@ -150,16 +155,24 @@ def _get_cached_income_statement(
     return loaded[:max_records]
 
 
-def _filter_by_period(records: list[dict[str, Any]], period: str) -> list[dict[str, Any]]:
+def _filter_by_period(
+    records: list[dict[str, Any]], period: str
+) -> list[dict[str, Any]]:
     """Filter income statement records by requested period."""
     if not period:
         return records
 
     normalized = period.upper()
     if normalized == "TTM":
-        return [item for item in records if str(item.get("period", "")).upper() == "TTM"]
+        return [
+            item for item in records if str(item.get("period", "")).upper() == "TTM"
+        ]
 
-    return [item for item in records if str(item.get("period", "")).lower() == period.lower()]
+    return [
+        item
+        for item in records
+        if str(item.get("period", "")).lower() == period.lower()
+    ]
 
 
 def _store_income_statement(statements: list[dict[str, Any]]) -> None:
@@ -179,7 +192,9 @@ def _store_income_statement(statements: list[dict[str, Any]]) -> None:
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
     """
 
-    symbols = {(item.get("symbol") or "").strip() for item in statements if item.get("symbol")}
+    symbols = {
+        (item.get("symbol") or "").strip() for item in statements if item.get("symbol")
+    }
     for symbol in symbols:
         execute_query(cleanup_query, (symbol,))
 

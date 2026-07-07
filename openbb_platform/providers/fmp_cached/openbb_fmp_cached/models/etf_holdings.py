@@ -62,7 +62,9 @@ def _get_cached_etf_holdings(etf_symbol: str) -> list[dict]:
             try:
                 loaded.append(json.loads(payload))
             except json.JSONDecodeError as exc:
-                logger.warning("etf_holdings cache: bad JSON for %s: %s", etf_symbol, exc)
+                logger.warning(
+                    "etf_holdings cache: bad JSON for %s: %s", etf_symbol, exc
+                )
                 continue
         else:
             loaded.append(payload)
@@ -97,7 +99,9 @@ def _store_etf_holdings(
             execute_many(insert_sql, params_list)
             logger.info(
                 "Cached %d etf_holdings rows for %s (source=%s)",
-                len(params_list), etf, data_source,
+                len(params_list),
+                etf,
+                data_source,
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning("etf_holdings cache write for %s failed: %s", etf_symbol, exc)
@@ -111,9 +115,11 @@ async def _try_fmp(
 ) -> list[dict]:
     """FMP API tier. Returns [] on 402 / any error (never raises)."""
     try:
-        fetch_query = FMPEtfHoldingsQueryParams(symbol=symbol)
+        fetch_query = query.model_copy(update={"symbol": symbol})
         raw = await FMPEtfHoldingsFetcher.aextract_data(
-            fetch_query, credentials, **kwargs,
+            fetch_query,
+            credentials,
+            **kwargs,
         )
         return list(raw or [])
     except Exception as exc:  # noqa: BLE001
@@ -127,6 +133,7 @@ async def _try_issuer(symbol: str) -> list[dict]:
         from openbb_fmp_cached.models.etf_holdings_issuer import (  # noqa: PLC0415
             fetch_issuer_holdings,
         )
+
         return await asyncio.to_thread(fetch_issuer_holdings, symbol)
     except Exception as exc:  # noqa: BLE001
         logger.warning("issuer-tier %s failed: %s", symbol, exc)

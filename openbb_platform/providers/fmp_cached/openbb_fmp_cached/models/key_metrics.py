@@ -10,8 +10,9 @@ from openbb_fmp.models.key_metrics import (
     FMPKeyMetricsFetcher,
     FMPKeyMetricsQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_key_metrics_table
-from openbb_fmp_cached.utils.database import execute_query, execute_many, init_database
+from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,16 @@ class FMPCachedKeyMetricsFetcher(FMPKeyMetricsFetcher):
             init_database()
             create_key_metrics_table()
         except Exception as exc:
-            logger.warning("Key metrics cache init failed, using direct FMP call: %s", exc)
-            return await FMPKeyMetricsFetcher.aextract_data(query, resolved_credentials, **kwargs)
+            logger.warning(
+                "Key metrics cache init failed, using direct FMP call: %s", exc
+            )
+            return await FMPKeyMetricsFetcher.aextract_data(
+                query, resolved_credentials, **kwargs
+            )
 
-        symbols = [symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()]
+        symbols = [
+            symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()
+        ]
         results: list[dict] = []
         symbols_to_fetch: list[str] = []
 
@@ -54,13 +61,12 @@ class FMPCachedKeyMetricsFetcher(FMPKeyMetricsFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPKeyMetricsQueryParams(
-                symbol=",".join(symbols_to_fetch),
-                ttm=query.ttm,
-                period=query.period,
-                limit=query.limit,
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
             )
-            fresh_data = await FMPKeyMetricsFetcher.aextract_data(fetch_query, resolved_credentials, **kwargs)
+            fresh_data = await FMPKeyMetricsFetcher.aextract_data(
+                fetch_query, resolved_credentials, **kwargs
+            )
             if fresh_data:
                 _store_key_metrics(fresh_data)
                 results.extend(fresh_data)
@@ -68,7 +74,11 @@ class FMPCachedKeyMetricsFetcher(FMPKeyMetricsFetcher):
         return sorted(
             results,
             key=lambda item: (
-                symbols.index(item.get("symbol", "")) if item.get("symbol") in symbols else len(symbols),
+                (
+                    symbols.index(item.get("symbol", ""))
+                    if item.get("symbol") in symbols
+                    else len(symbols)
+                ),
                 item.get("date", ""),
             ),
             reverse=True,
@@ -110,7 +120,9 @@ def _resolve_credentials(credentials: dict[str, str] | None) -> dict[str, str] |
     return credentials
 
 
-def _get_cached_key_metrics(symbol: str, query_params: FMPKeyMetricsQueryParams) -> list[dict[str, Any]]:
+def _get_cached_key_metrics(
+    symbol: str, query_params: FMPKeyMetricsQueryParams
+) -> list[dict[str, Any]]:
     """Read recent key metrics data from cache."""
     freshness_cutoff = datetime.now() - timedelta(days=KEY_METRICS_TTL_DAYS)
     query = """
@@ -134,9 +146,17 @@ def _get_cached_key_metrics(symbol: str, query_params: FMPKeyMetricsQueryParams)
         loaded.append(json.loads(payload) if isinstance(payload, str) else payload)
 
     if query_params.ttm == "only":
-        loaded = [item for item in loaded if str(item.get("fiscal_period", "")).upper() == "TTM"]
+        loaded = [
+            item
+            for item in loaded
+            if str(item.get("fiscal_period", "")).upper() == "TTM"
+        ]
     elif query_params.ttm == "exclude":
-        loaded = [item for item in loaded if str(item.get("fiscal_period", "")).upper() != "TTM"]
+        loaded = [
+            item
+            for item in loaded
+            if str(item.get("fiscal_period", "")).upper() != "TTM"
+        ]
 
     if query_params.limit and query_params.ttm != "only":
         loaded = loaded[: query_params.limit]
@@ -160,7 +180,9 @@ def _store_key_metrics(metrics: list[dict[str, Any]]) -> None:
     ) VALUES (%s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
     """
 
-    symbols = {(item.get("symbol") or "").strip() for item in metrics if item.get("symbol")}
+    symbols = {
+        (item.get("symbol") or "").strip() for item in metrics if item.get("symbol")
+    }
     for symbol in symbols:
         execute_query(cleanup_query, (symbol,))
 
