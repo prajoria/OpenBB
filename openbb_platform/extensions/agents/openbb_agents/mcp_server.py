@@ -136,16 +136,25 @@ class _McpToolError(RuntimeError):
     """Internal marker exception the ``@server.call_tool`` seam raises when
     ``_call_tool_safe`` reports ``is_error=True``.
 
-    Carries the already-sanitized ``TextContent`` list on ``self.content``
-    so the MCP SDK can surface it as the JSON-RPC error response body
-    while preserving ``isError=True`` on the wire. The exception message
-    itself is intentionally a fixed short string with NO tool-side
-    detail — sensitive state is only in the local operator log.
+    The MCP SDK's error path (see ``mcp/server/lowlevel/server.py`` —
+    ``_make_error_result(str(error_message))`` in v1.26+) reads ONLY
+    ``str(exc)`` when building the wire response and drops any custom
+    attributes. So the exception message itself IS the sanitized
+    payload — no other channel survives.
+
+    Round-2 review verified this empirically by round-tripping a real
+    ``Server`` and ``CallToolRequest``; an earlier design that carried
+    the payload on ``self.content`` had that attribute silently
+    discarded, leaving only the constant string ``'mcp_tool_error'``
+    on the wire. The current shape ensures the sanitized
+    ``{'error': …, 'tool': …}`` JSON reaches the LLM as the wire
+    content, and ``isError=True`` is preserved by the SDK's error-
+    wrapping automatically.
     """
 
-    def __init__(self, content: list) -> None:
-        super().__init__("mcp_tool_error")
-        self.content = content
+    def __init__(self, payload: str) -> None:
+        # payload IS the message; SDK's _make_error_result reads str(self).
+        super().__init__(payload)
 
 
 def _call_tool_safe(
@@ -226,14 +235,18 @@ async def _serve() -> None:
         payloads, is_error = _call_tool_safe(descriptor, arguments, name=name)
         content = [TextContent(type="text", text=p) for p in payloads]
         if is_error:
-            # McpError is the SDK's typed error surface; falling back to
-            # a plain RuntimeError still gets wrapped into isError=True
-            # by the framework, so this preserves wire-level parity with
-            # the pre-fix behaviour (which raised ValueError).
-            # Note: the sanitized payloads have already been logged in
-            # _call_tool_safe; the exception message here is a fixed
-            # short string that carries NO tool-side detail.
-            raise _McpToolError(content=content)
+            # The MCP SDK's error path (v1.26+ Server._handle_request)
+            # calls ``_make_error_result(str(exc))`` and DROPS any
+            # custom attributes on the exception. So the exception
+            # message MUST be the sanitized JSON payload — anything
+            # else disappears on the wire. Round-2 review verified
+            # this empirically via a live SDK round-trip.
+            # Note: the sanitized payload was already logged as an
+            # ERROR via _call_tool_safe; no sensitive state re-enters
+            # the traceback here (payloads[0] is the same generic
+            # ``{'error': …, 'tool': …}`` json that would have gone
+            # in the returned content anyway).
+            raise _McpToolError(payloads[0])
         return content
 
     async with stdio_server() as (read_stream, write_stream):

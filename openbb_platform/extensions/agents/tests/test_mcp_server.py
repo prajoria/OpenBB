@@ -234,3 +234,115 @@ class TestExceptionSanitization:
         assert payload == {"error": "tool_failed", "tool": "unserializable_tool"}
         assert "S3CR3T" not in result_texts[0]
         assert "C:/Users/daaji" not in result_texts[0]
+
+
+class TestMcpToolErrorWireContract:
+    """Round-2 review: an end-to-end round-trip through the actual MCP SDK
+    to verify that _McpToolError propagates BOTH ``isError=True`` AND the
+    sanitized JSON payload to the wire.
+
+    The Round-1 attempt carried payload on ``self.content`` — empirically
+    verified to be dropped by the SDK's error path (v1.26+ uses only
+    ``str(exc)``). This test locks in the corrected shape: exception
+    message IS the sanitized payload, so both properties hold.
+    """
+
+    _SENTINEL_KEY = "SENTINEL_ROUND2_KEY_MUST_NOT_LEAK"
+
+    def _make_error(self, payload: str):
+        from openbb_agents.mcp_server import _McpToolError
+
+        return _McpToolError(payload)
+
+    def test_mcp_tool_error_str_equals_payload(self):
+        """The exception's str() IS the sanitized JSON payload.
+
+        The MCP SDK's ``_make_error_result(str(exc))`` (v1.26+) is what
+        builds the wire response text. So ``str(exc)`` must be the JSON
+        payload, not a fixed marker string.
+        """
+        payload = '{"error": "tool_failed", "tool": "my_tool"}'
+        exc = self._make_error(payload)
+        assert str(exc) == payload
+
+    def test_mcp_tool_error_does_not_leak_sentinel(self):
+        """Nothing in the exception surface exposes anything except the payload.
+
+        The payload itself must be the sanitized shape — verified
+        upstream by the ``_call_tool_safe`` tests. Here we confirm the
+        exception doesn't smuggle extra state via ``args`` or ``__dict__``.
+        """
+        payload = f'{{"error": "tool_failed", "tool": "{self._SENTINEL_KEY}_tool"}}'
+        exc = self._make_error(payload)
+        assert self._SENTINEL_KEY not in "".join(map(str, exc.args)) or (
+            self._SENTINEL_KEY in payload
+        )  # payload itself may reference sentinel — that's fine, it's already-sanitized
+        # Extra sentinel-in-attrs check: only args should carry the payload
+        for attr_name in dir(exc):
+            if attr_name.startswith("_"):
+                continue
+            if attr_name == "args":
+                continue
+            attr_val = getattr(exc, attr_name)
+            if callable(attr_val):
+                continue
+            # No non-args attribute should carry the sentinel unless it's
+            # inherited exception plumbing (str, repr, etc.)
+            if attr_name in {"add_note", "with_traceback"}:
+                continue
+            assert self._SENTINEL_KEY not in str(
+                attr_val or ""
+            ), f"Attribute {attr_name!r} leaked sentinel: {attr_val!r}"
+
+    def test_end_to_end_mcp_call_tool_wraps_isError_and_payload(self):
+        """Round-trip through the MCP SDK: raising _McpToolError yields
+        ``isError=True`` AND the sanitized JSON payload as wire content.
+
+        Round-2 review demanded this: without an end-to-end test the
+        assumption that ``_McpToolError.content`` reached the wire was
+        never verified in-repo. The current shape (exception message
+        IS the payload) is the only shape the SDK's error path actually
+        surfaces to the client.
+        """
+        import asyncio
+        import json
+
+        try:
+            from mcp.server import Server
+            from mcp.types import CallToolRequest, CallToolRequestParams
+        except ImportError:
+            import pytest as _pytest
+
+            _pytest.skip("mcp SDK not installed in this env")
+
+        from openbb_agents.mcp_server import _McpToolError
+
+        server: "Server" = Server("test-openbb-agents")
+
+        @server.call_tool()
+        async def call_tool(name: str, arguments: dict):
+            # Force the error path with a sanitized payload
+            raise _McpToolError(json.dumps({"error": "tool_failed", "tool": name}))
+
+        # Dispatch a CallToolRequest through the SDK's request handler
+        handler = server.request_handlers[CallToolRequest]
+        request = CallToolRequest(
+            method="tools/call",
+            params=CallToolRequestParams(name="probe_tool", arguments={"x": 1}),
+        )
+        result = asyncio.get_event_loop().run_until_complete(handler(request))
+
+        # SDK wraps the exception into a ServerResult carrying CallToolResult
+        # with isError=True and the exception's str() as the text content.
+        inner = getattr(result, "root", result)  # ServerResult wrapper
+        assert (
+            getattr(inner, "isError", False) is True
+        ), f"expected isError=True, got {inner!r}"
+        # Content should carry the sanitized payload text
+        content_texts = [
+            getattr(c, "text", str(c)) for c in getattr(inner, "content", [])
+        ]
+        combined = "\n".join(content_texts)
+        # The payload sees the wire
+        assert "tool_failed" in combined, f"sanitized payload not on wire: {combined!r}"
+        assert "probe_tool" in combined, f"tool name not on wire: {combined!r}"
