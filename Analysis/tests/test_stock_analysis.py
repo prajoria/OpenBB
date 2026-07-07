@@ -139,9 +139,28 @@ class TestHelpers:
         # end_date must be strictly before today (never includes current session)
         assert cfg.end_date < datetime.date.today().isoformat()
 
-    def test_analysis_config_wrong_provider_warns(self):
-        with pytest.warns(UserWarning, match="not the supported value"):
+    def test_analysis_config_wrong_provider_raises(self):
+        """Non-``fmp_cached`` provider must raise, not just warn (bd-omi).
+
+        CLAUDE.md's Analysis Module 'Provider rule' documents
+        ``PRIMARY_PROVIDER = 'fmp_cached'`` as *enforced*. Warnings get
+        silently swallowed in notebooks, batch jobs, and CI test runs,
+        so a soft ``UserWarning`` cannot actually prevent a caller from
+        burning uncached FMP quota or getting a different-schema
+        response. This test locks in that the constructor now raises
+        ``ValueError`` on any non-``fmp_cached`` provider.
+        """
+        with pytest.raises(ValueError, match="fmp_cached"):
             AnalysisConfig(symbol="TSLA", provider="fmp")
+        # Verify the error message points at CLAUDE.md so the operator
+        # knows why their override was rejected.
+        with pytest.raises(ValueError, match="CLAUDE.md|Provider rule"):
+            AnalysisConfig(symbol="TSLA", provider="yfinance")
+
+    def test_analysis_config_default_provider_still_works(self):
+        """Regression lock: the default (fmp_cached) constructor path is unchanged."""
+        cfg = AnalysisConfig(symbol="TSLA")
+        assert cfg.provider == "fmp_cached"
 
     # --- _last_trading_day ---------------------------------------------------
 

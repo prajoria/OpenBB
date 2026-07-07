@@ -47,7 +47,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -147,12 +146,16 @@ class AnalysisConfig:
     enforce_gates: bool = False  # Stop pipeline on gate failure
 
     def __post_init__(self) -> None:
+        # CLAUDE.md's Analysis Module 'Provider rule' declares fmp_cached
+        # as *enforced* — every phase function propagates cfg.provider
+        # through to live obb.* calls, so a soft warning cannot actually
+        # prevent a caller from burning uncached FMP quota or getting a
+        # different-schema response. Raise instead of warn (bd-omi).
         if self.provider != PRIMARY_PROVIDER:
-            warnings.warn(
-                f"provider='{self.provider}' is not the supported value "
-                f"'{PRIMARY_PROVIDER}'.  Results may be inconsistent.",
-                UserWarning,
-                stacklevel=2,
+            raise ValueError(
+                f"provider={self.provider!r} is not supported. "
+                f"Analysis/stock_analysis.py requires provider={PRIMARY_PROVIDER!r} "
+                f"(see CLAUDE.md 'Analysis Module → Provider rule')."
             )
 
 
