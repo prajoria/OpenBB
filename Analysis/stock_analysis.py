@@ -97,6 +97,18 @@ def _last_trading_day(reference: datetime.date | None = None) -> datetime.date:
 PRIMARY_PROVIDER: str = "fmp_cached"
 
 # ---------------------------------------------------------------------------
+# Peer-relative window constants (bd 0h2.9, PR #331 iter-3 MEDIUM-2)
+# ---------------------------------------------------------------------------
+# Shared minimum observations-per-63d-window for peer inclusion in both
+# ``rolling_3m_rank`` (phase6_peer_relative) and ``momentum_accel_63d``
+# (_compute_momentum_accel_63d). Kept at module scope so both sites use the
+# same threshold, preserving the "same peer universe" invariant the docstrings
+# claim.  ``sum(min_count=_MIN_OBS_PER_WINDOW)`` drops a peer whose window is
+# too sparse (e.g. mid-window IPO) rather than including it with a shrunk-
+# to-tiny cumulative that would guarantee it the low-rank extreme.
+_MIN_OBS_PER_WINDOW: int = 42  # 2/3 of a 63-day window
+
+# ---------------------------------------------------------------------------
 # Feature flags (Phase A0 — bead OpenBBTechnical-0h2.1)
 # ---------------------------------------------------------------------------
 # Every flag defaults to ``False`` so the pipeline behaves exactly as it did
@@ -688,14 +700,16 @@ def _compute_momentum_accel_63d(
         )
         return 0.0
 
-    # NaN handling (bd 0h2.9 / PR #331 iter-1 SEV-1): pd.DataFrame.sum() without
-    # min_count returns 0.0 for all-NaN columns, NOT NaN — so a peer with no
-    # history in a window would phantom-compete with cumulative=0.0. iter-2
-    # (SEV-C): bumped from min_count=1 to min_count=_MIN_OBS_PER_WINDOW so
-    # peers with sparse data (e.g. mid-window IPO with only a handful of bars)
-    # are EXCLUDED rather than included with a systematically-shrunk cumulative
-    # that guarantees them the low-rank extreme.
-    _MIN_OBS_PER_WINDOW = 42  # 2/3 of a 63-day window
+    # NaN handling (bd 0h2.9 / PR #331 iter-1 SEV-1 + iter-2 SEV-C + iter-3
+    # MEDIUM-2): pd.DataFrame.sum() without min_count returns 0.0 for all-NaN
+    # columns, NOT NaN — so a peer with no history in a window would phantom-
+    # compete with cumulative=0.0. Bumped from min_count=1 to the module-level
+    # _MIN_OBS_PER_WINDOW constant so peers with sparse data (e.g. mid-window
+    # IPO with only a handful of bars) are EXCLUDED rather than included with
+    # a systematically-shrunk cumulative. iter-3 promoted the constant to
+    # module scope so the sibling rolling_3m_rank calculation uses the SAME
+    # threshold — restoring the "shared peer universe" property the docstring
+    # claims.
     later_cum = returns_df.iloc[-63:].sum(min_count=_MIN_OBS_PER_WINDOW).dropna()
     earlier_cum = returns_df.iloc[-126:-63].sum(min_count=_MIN_OBS_PER_WINDOW).dropna()
 
@@ -712,9 +726,11 @@ def _compute_momentum_accel_63d(
             _MIN_OBS_PER_WINDOW,
         )
         return 0.0
-    # iter-2 (SEV-E): require >= 3 peers so percentileofscore has more than a
-    # 2-item lattice (which discretizes accel to ±0.5, meaningless as a rank
-    # movement signal).
+    # iter-2 (SEV-E) + iter-3 (LOW-1 comment fix): require >= 3 items in each
+    # cumulative Series (target + at least 2 peers). ``percentileofscore`` on
+    # 3 items gives a {0, 50, 100} lattice — coarse but at least admits
+    # non-zero movement between windows. 2 items would only give {50, 100}
+    # so accel would discretize to ±0.5, meaningless as a rank movement.
     if len(later_cum) < 3 or len(earlier_cum) < 3:
         logger.warning(
             "_compute_momentum_accel_63d(%s): peer set too thin after NaN "
@@ -2486,15 +2502,15 @@ def phase6_peer_relative(cfg: AnalysisConfig, p1: Phase1Result) -> Phase6Result:
     relative_table = pd.DataFrame(rows).set_index("symbol")
 
     # Rolling 3-month (63-day) cumulative return.
-    # PR #331 iter-2 (SEV-B): sibling of the SEV-1 NaN bug fixed in
-    # _compute_momentum_accel_63d. pd.DataFrame.sum() zero-coerces all-NaN
-    # columns, so a delisted / freshly-IPO'd peer would phantom-compete
-    # against the target with a spurious 0.0 cumulative. Applying the same
-    # min_count=1 fix keeps drift with momentum_accel_63d at zero (as the
-    # helper's docstring claims).
+    # PR #331 iter-2 (SEV-B) + iter-3 (MEDIUM-2): use module-level
+    # _MIN_OBS_PER_WINDOW so this calculation and _compute_momentum_accel_63d
+    # share the SAME peer universe. iter-2 shipped min_count=1 which was
+    # asymmetric with the helper's min_count=42, breaking the "drift-zero"
+    # property the docstring claims. iter-3 promoted the constant to module
+    # scope and aligned both sites on 42.
     rolling_3m_rank = 50.0  # default
     if len(returns_df) >= 63:
-        rolling_3m = returns_df.iloc[-63:].sum(min_count=1)
+        rolling_3m = returns_df.iloc[-63:].sum(min_count=_MIN_OBS_PER_WINDOW)
         relative_table["rolling_3m_return"] = rolling_3m.reindex(relative_table.index)
         rolling_3m_clean = rolling_3m.dropna()
         if sym in rolling_3m_clean.index and len(rolling_3m_clean) > 1:
