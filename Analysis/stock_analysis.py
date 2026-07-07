@@ -48,6 +48,7 @@ from __future__ import annotations
 import datetime
 import logging
 import os
+import re
 import warnings
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -334,6 +335,11 @@ class Phase1Result:
     because ``fmp_cached`` does not expose short-interest data — follow-up
     bead will add a secondary provider (finra or similar) if we want to lift
     the single-provider constraint here."""
+    earnings_revision_3m_direction: str
+    """Net direction of analyst price-target revisions over the trailing 90d
+    (bd-0h2.10 / A7, reviewer's structural gap #2 — forward-looking inputs).
+    One of ``"up"`` / ``"down"`` / ``"flat"`` / ``"unknown"``. Computed from
+    ``price_targets_df`` via :func:`_compute_earnings_revision_3m_direction`."""
     gate_passed: bool
     gate_notes: str
 
@@ -745,6 +751,175 @@ def _compute_momentum_accel_63d(
     later_rank = float(percentileofscore(later_cum.tolist(), later_cum[symbol]))
     earlier_rank = float(percentileofscore(earlier_cum.tolist(), earlier_cum[symbol]))
     return (later_rank - earlier_rank) / 100.0
+
+
+# Regex patterns for analyst-revision news title parsing (bd-0h2.10 / A7).
+# FMP price_target news_titles follow a family of patterns like:
+#   "<Firm> price target raised to $<X> from $<Y>"
+#   "<Firm> price target lowered/cut/reduced/trimmed/slashed to $<X> from $<Y>"
+#   "<Firm> price target hiked/boosted/increased to $<X> from $<Y>"
+# iter-2 (CR1 phrase-anchoring): require the verb to be adjacent to "target"
+# or "price target" to avoid false positives like "raised concerns" /
+# "raised recession worries" / "raised outlook on downside" which match a
+# bare \braised\b but are NOT directional revisions.
+# iter-2 (CR2 vocabulary): broadened patterns to cover the common FMP verbs
+# beyond the original raised/lowered/cut/reduced set. Reiterated ratings
+# ("Buy reiterated", "maintained at Overweight") stay excluded — they don't
+# move the target.
+_REVISION_UP_PATTERN = re.compile(
+    # Verb + target within 60 chars, EITHER order (FMP titles are typically
+    # "price target raised to $NNN" — target first, verb second — but some
+    # headlines use "raised the price target to $NNN" — verb first).
+    r"(?:"
+    r"\b(?:raised|raising|hiked|hiking|boosted|boosting|increased|increasing|"
+    r"upgraded|upgrading)\b[^.]{0,60}?\b(?:price\s+target|target|PT)\b"
+    r"|"
+    r"\b(?:price\s+target|target|PT)\b[^.]{0,60}?"
+    r"\b(?:raised|raising|hiked|hiking|boosted|boosting|increased|increasing|"
+    r"upgraded|upgrading)\b"
+    r")",
+    re.IGNORECASE,
+)
+_REVISION_DOWN_PATTERN = re.compile(
+    r"(?:"
+    r"\b(?:lowered|lowering|cut|cutting|reduced|reducing|trimmed|trimming|"
+    r"slashed|slashing|downgraded|downgrading)\b[^.]{0,60}?"
+    r"\b(?:price\s+target|target|PT)\b"
+    r"|"
+    r"\b(?:price\s+target|target|PT)\b[^.]{0,60}?"
+    r"\b(?:lowered|lowering|cut|cutting|reduced|reducing|trimmed|trimming|"
+    r"slashed|slashing|downgraded|downgrading)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _compute_earnings_revision_3m_direction(
+    price_targets_df: pd.DataFrame,
+    *,
+    window_days: int = 90,
+    min_revisions: int = 3,
+    net_threshold: float = 0.20,
+) -> str:
+    """Classify the net direction of analyst price-target revisions.
+
+    Reviewer's structural gap #2 (bd-0h2.10 / A7): the pipeline lacks
+    forward-looking inputs. Analyst revisions are the earliest signal of
+    consensus estimate changes — a stock with a majority-up revision
+    stream in the last 3 months has forward-looking momentum that pure-
+    price data can't capture.
+
+    Parameters
+    ----------
+    price_targets_df : pd.DataFrame
+        Output of ``obb.equity.estimates.price_target(...).to_df()``, with
+        columns ``published_date`` and ``news_title``. Both must be present;
+        empty / malformed frames return ``"unknown"``.
+    window_days : int, default 90
+        Trailing-days window for the revision count. 90 ≈ 3 months.
+    min_revisions : int, default 3
+        Minimum directional (raised or lowered) revisions in the window
+        for a non-``unknown`` verdict. Reiterated ratings are excluded.
+    net_threshold : float, default 0.20
+        Minimum ``|ups - downs| / (ups + downs)`` for a non-``flat``
+        verdict. Boundary is *exclusive*: exactly ``0.20`` returns
+        ``"up"``/``"down"``, not ``"flat"``.
+
+    Returns
+    -------
+    str
+        One of ``"up"``, ``"down"``, ``"flat"``, ``"unknown"``. Never raises.
+
+    Notes
+    -----
+    Direction is binary — a stock with 10 raises averaging +$1 and 3 cuts
+    averaging −$50 returns ``"up"`` despite negative net dollar impact
+    (iter-1 silent-hunt F4). Magnitude-weighted direction is deferred to
+    Phase D per the original bead scope. Consumers should treat this
+    field as a categorical signal, not a magnitude.
+    """
+    # iter-2 (CR5 R7.3 loud-empty): each of the 5 degenerate paths now
+    # emits a WARNING with the specific reason so an operator can
+    # distinguish "no data" from "schema drift" from "insufficient signal".
+    if price_targets_df is None or price_targets_df.empty:
+        logger.warning(
+            "_compute_earnings_revision_3m_direction: price_targets_df is "
+            "%s — returning 'unknown' (upstream fetcher may have failed)",
+            "None" if price_targets_df is None else "empty",
+        )
+        return "unknown"
+    if "published_date" not in price_targets_df.columns:
+        logger.warning(
+            "_compute_earnings_revision_3m_direction: 'published_date' column "
+            "missing from price_targets_df (schema drift?) — returning 'unknown'"
+        )
+        return "unknown"
+    if "news_title" not in price_targets_df.columns:
+        logger.warning(
+            "_compute_earnings_revision_3m_direction: 'news_title' column "
+            "missing from price_targets_df (schema drift?) — returning 'unknown'"
+        )
+        return "unknown"
+
+    # Filter to the trailing window.
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=window_days)
+    df = price_targets_df.copy()
+    # Normalise any date/datetime → tz-aware datetime for comparison.
+    n_before = len(df)
+    df["_pub"] = pd.to_datetime(df["published_date"], utc=True, errors="coerce")
+    df = df.dropna(subset=["_pub"])
+    # iter-2 (F5): warn when a significant fraction of dates were coerced
+    # to NaT — usually a schema/format-drift signal.
+    dropped_nat = n_before - len(df)
+    if dropped_nat > 0 and dropped_nat * 2 >= n_before:  # >= 50% dropped
+        logger.warning(
+            "_compute_earnings_revision_3m_direction: dropped %d/%d rows "
+            "with unparseable published_date — check FMP schema",
+            dropped_nat, n_before,
+        )
+    df = df[df["_pub"] >= cutoff]
+
+    if df.empty:
+        logger.warning(
+            "_compute_earnings_revision_3m_direction: no revisions within "
+            "%dd window after date filter — returning 'unknown'",
+            window_days,
+        )
+        return "unknown"
+
+    # iter-2 (CR1 double-count fix): compute row-level up/down masks
+    # separately, then take mutually-exclusive per-row classification. A row
+    # matching BOTH patterns (e.g. "Barclays raised target to $X, Morgan
+    # Stanley cut target to $Y" — a multi-analyst rollup) is AMBIGUOUS and
+    # excluded from the directional count entirely, rather than double-
+    # counting into both ups and downs.
+    titles = df["news_title"].astype(str)
+    up_mask = titles.str.contains(_REVISION_UP_PATTERN, na=False)
+    down_mask = titles.str.contains(_REVISION_DOWN_PATTERN, na=False)
+    up_only_mask = up_mask & ~down_mask
+    down_only_mask = down_mask & ~up_mask
+    ambiguous_count = int((up_mask & down_mask).sum())
+    ups = int(up_only_mask.sum())
+    downs = int(down_only_mask.sum())
+    total_directional = ups + downs
+
+    if total_directional < min_revisions:
+        # R7.3 loud-empty: not enough signal to call direction.
+        logger.warning(
+            "_compute_earnings_revision_3m_direction: insufficient analyst "
+            "revisions in %dd window (%d directional, %d ambiguous, need "
+            ">= %d) — returning 'unknown'",
+            window_days,
+            total_directional,
+            ambiguous_count,
+            min_revisions,
+        )
+        return "unknown"
+
+    net_ratio = (ups - downs) / total_directional
+    if abs(net_ratio) < net_threshold:
+        return "flat"
+    return "up" if net_ratio > 0 else "down"
 
 
 def _compute_technicals(df: pd.DataFrame) -> pd.DataFrame:
@@ -1293,6 +1468,13 @@ def phase1_company_profile(cfg: AnalysisConfig) -> Phase1Result:
     gate_passed = bool(sector and not profile_df.empty)
     gate_notes  = "OK" if gate_passed else "Profile data missing — do not proceed"
 
+    # Forward-looking analyst-revision direction (bd-0h2.10 / A7,
+    # reviewer's structural gap #2). Reuses the price_targets_df fetched
+    # above — no additional provider call.
+    earnings_revision_3m_direction = _compute_earnings_revision_3m_direction(
+        price_targets_df
+    )
+
     return Phase1Result(
         profile_df=profile_df,
         quote_df=quote_df,
@@ -1307,6 +1489,7 @@ def phase1_company_profile(cfg: AnalysisConfig) -> Phase1Result:
         market_cap=mktcap,
         free_float_pct=free_float_pct,
         short_interest_pct=short_interest_pct,
+        earnings_revision_3m_direction=earnings_revision_3m_direction,
         gate_passed=gate_passed,
         gate_notes=gate_notes,
     )
