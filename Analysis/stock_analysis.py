@@ -110,6 +110,32 @@ PRIMARY_PROVIDER: str = "fmp_cached"
 _MIN_OBS_PER_WINDOW: int = 42  # 2/3 of a 63-day window
 
 # ---------------------------------------------------------------------------
+# Stop-cap constant (bd 0h2.11 / PR #343 iter-1 silent-hunt F6)
+# ---------------------------------------------------------------------------
+# Fraction-of-entry ceiling for stop distance when
+# ``AnalysisFeatureFlags.use_stop_cap`` is True. Chosen so 2*ATR is capped
+# roughly at the retail day-trader risk-of-ruin threshold — position
+# sizing downstream uses risk_per_share as the divisor, so a stop
+# distance > 5% of entry demands impossibly-small share counts. Changing
+# this materially affects downstream sizing; a future refactor should
+# have a specific numerical rationale.
+_STOP_CAP_PCT_OF_ENTRY: float = 0.05
+
+# ---------------------------------------------------------------------------
+# Trailing-stop protocol defaults (bd 0h2.11 / A8)
+# ---------------------------------------------------------------------------
+# Protocol parameters emitted to Phase7Result.trailing_stop_rules when
+# ``AnalysisFeatureFlags.use_trailing_stop`` is True. The Analysis
+# pipeline emits these as documentation for the execution layer; it does
+# not simulate trailing behavior itself. All values are in units of R
+# (risk_per_share multiples), so they scale with the stock's own ATR.
+_TRAILING_STOP_DEFAULTS: dict[str, float] = {
+    "breakeven_at_r":    1.0,   # move stop to entry when price reaches +1R
+    "trail_at_r":        2.0,   # activate trailing stop at +2R
+    "trail_distance_r":  1.0,   # trail 1R behind price
+}
+
+# ---------------------------------------------------------------------------
 # Feature flags (Phase A0 — bead OpenBBTechnical-0h2.1)
 # ---------------------------------------------------------------------------
 # Every flag defaults to ``False`` so the pipeline behaves exactly as it did
@@ -2967,13 +2993,40 @@ def phase7_decision(
 
     # --- Execution plan ---
     price = float(p3.price_df["close"].iloc[-1])
+    # PR #343 iter-1 silent-hunt F3: guard against corrupted price feeds.
+    # Negative price + use_stop_cap silently inverts the stop-cap arithmetic
+    # (min(2*ATR, negative-cap) picks the negative, giving a stop ABOVE
+    # entry). Fail loudly rather than emit a bad execution plan.
+    assert price > 0, (
+        f"phase7_decision: price must be positive, got {price!r} "
+        f"(check p3.price_df['close'] for data corruption)"
+    )
     atr   = p3.atr
     # bd-0h2.11 / A8 — stop cap: min(2*ATR, 5% * entry) prevents oversized
     # stops on high-vol stocks. Gated by AnalysisFeatureFlags.use_stop_cap
     # so default behavior is unchanged (2*ATR only). Per reviewer P7 rec.
+    #
+    # INVARIANT (iter-1 code-reviewer F1): 2*atr MUST remain the first
+    # argument to min(). Python's built-in min is order-dependent for NaN:
+    # `min(NaN, x)` returns NaN (propagates the failure downstream —
+    # desired) but `min(x, NaN)` returns x (silently masks NaN ATR to
+    # the cap — WRONG, would emit a bogus stop). Do not reorder.
     stop_distance = 2 * atr
     if cfg.feature_flags.use_stop_cap:
-        stop_distance = min(stop_distance, 0.05 * price)
+        capped = min(stop_distance, _STOP_CAP_PCT_OF_ENTRY * price)
+        # iter-1 silent-hunt F2: log when the cap actually bites so ops
+        # can distinguish a 5%-capped stop from a 2*ATR stop that happens
+        # to equal the same value. INFO level (not WARNING) — a cap
+        # firing is intended behavior, not degradation.
+        if capped < stop_distance:
+            logger.info(
+                "phase7_decision: stop-cap fired (2*ATR=%.4f capped to "
+                "%.1f%% * price=%.4f)",
+                stop_distance,
+                _STOP_CAP_PCT_OF_ENTRY * 100,
+                capped,
+            )
+        stop_distance = capped
     stop  = price - stop_distance
     r     = price - stop
     t1    = price + r
@@ -2984,12 +3037,18 @@ def phase7_decision(
     # parameters for the execution layer; the Analysis pipeline itself
     # does not simulate trailing behavior). Empty dict when the flag is
     # off — preserves pre-A8 Phase7Result shape for existing consumers.
-    if cfg.feature_flags.use_trailing_stop:
-        trailing_stop_rules = {
-            "breakeven_at_r":    1.0,   # move stop to entry at +1R
-            "trail_at_r":        2.0,   # activate trailing at +2R
-            "trail_distance_r":  1.0,   # trail 1R behind price
-        }
+    #
+    # iter-1 silent-hunt F1 (VERIFIED merge blocker): also force empty
+    # when action_label == 'Avoid'. Without this, the pipeline emits a
+    # full execution plan (staged_entry, stop, trailing rules) for a
+    # stock it itself says to avoid — a downstream automated executor
+    # reading trailing_stop_rules without cross-checking action_label
+    # would open a position on a distressed stock. Mirroring the flag-
+    # off semantics ("no protocol for a non-trade") makes the intent
+    # explicit at the field level rather than requiring every consumer
+    # to remember the cross-check.
+    if cfg.feature_flags.use_trailing_stop and action_label != "Avoid":
+        trailing_stop_rules = dict(_TRAILING_STOP_DEFAULTS)
     else:
         trailing_stop_rules = {}
 
@@ -3086,6 +3145,13 @@ def run_full_analysis(cfg: AnalysisConfig) -> dict[str, Any]:
                 hard_override=f"Pipeline stopped at {phase_name}: {getattr(result, 'gate_notes', '')}",
                 monitoring_triggers={},
                 handoff={"stopped_at": phase_name},
+                # PR #343 iter-1 code-reviewer F2: explicit empty rules on
+                # the gate-failure synth path. default_factory=dict would
+                # also produce {} but being explicit here pins the intent
+                # ("gate failed — no execution plan applies") for a future
+                # reader who greps for trailing_stop_rules and expects to
+                # find every construction site.
+                trailing_stop_rules={},
             )
             return True
         return False

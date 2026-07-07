@@ -1070,6 +1070,179 @@ class TestPhase7StopCapAndTrailing:
             "trailing_stop_rules=trailing_stop_rules (from local var)."
         )
 
+    # ------------------------------------------------------------------ #
+    # PR #343 iter-1 review fixes — regression tests for silent-hunt
+    # findings F1 (Avoid contradiction), F2 (silent cap), F3 (negative
+    # price), F6 (constants hoisted).
+    # ------------------------------------------------------------------ #
+    def test_trailing_stop_rules_empty_when_action_label_is_avoid(self):
+        """iter-1 silent-hunt F1 (VERIFIED merge blocker, conf 95): pipeline
+        must NOT emit execution parameters for a stock it says to avoid.
+
+        Fixture: use_trailing_stop=True + distressed-Altman p4 → Altman
+        override forces action_label='Avoid'. trailing_stop_rules MUST be
+        empty dict despite the flag being on — the alternative (populated
+        rules on an Avoid stock) is a silent contradiction that a
+        downstream automated executor would act on.
+
+        Load-bearing property: removing the ``and action_label != 'Avoid'``
+        guard causes the trailing_stop_rules dict to be populated
+        regardless — this test then fails.
+        """
+        cfg_trailing = AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_trailing_stop=True),
+        )
+        p7 = phase7_decision(
+            cfg_trailing,
+            _make_mock_p1(),
+            _make_mock_p2(score=4.5),
+            _make_mock_p3(bullish_count=9),
+            _make_mock_p4(mos=0.25, altman=1.5),  # distressed → Avoid
+            _make_mock_p5(sharpe=1.8),
+            _make_mock_p6(relative_score=4.2),
+        )
+        assert p7.action_label == "Avoid"
+        assert p7.trailing_stop_rules == {}, (
+            f"iter-1 silent-hunt F1: trailing_stop_rules must be empty "
+            f"when action_label='Avoid' (got {p7.trailing_stop_rules}). "
+            f"Pipeline was emitting execution protocol parameters for a "
+            f"stock it itself flagged as distressed — silent contradiction "
+            f"that downstream automated executor could act on."
+        )
+
+    def test_stop_cap_emits_info_log_when_cap_actually_bites(self, caplog):
+        """iter-1 silent-hunt F2: when the 5% cap actually reduces the stop
+        distance, an INFO log line must fire with the arithmetic. Prior
+        to iter-1, the cap fired silently and ops had no way to tell a
+        capped stop from a 2*ATR stop that happened to equal the same
+        value.
+
+        Load-bearing property: removing the ``if capped < stop_distance``
+        log block silences the diagnostic; this test asserts the log
+        substring fires. Also asserts the log does NOT fire when the cap
+        doesn't bite (avoid-noise, R7.3 spirit).
+        """
+        import logging
+        cfg_stop_cap = AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_stop_cap=True),
+        )
+        # High-vol fixture: 2*ATR=$16, 5% cap=$2.50 → cap bites
+        p3 = _make_mock_p3()
+        p3.price_df.loc[:, "close"] = [50.0, 50.0, 50.0]
+        p3.atr = 8.0
+
+        with caplog.at_level(logging.INFO, logger="stock_analysis"):
+            p7 = phase7_decision(
+                cfg_stop_cap,
+                _make_mock_p1(),
+                _make_mock_p2(),
+                p3,
+                _make_mock_p4(),
+                _make_mock_p5(),
+                _make_mock_p6(),
+            )
+
+        assert p7.risk_per_share == pytest.approx(2.50, abs=0.01)
+        stop_cap_logs = [
+            r for r in caplog.records
+            if r.levelno == logging.INFO
+            and "stop-cap fired" in r.getMessage()
+        ]
+        assert len(stop_cap_logs) == 1, (
+            f"iter-1 silent-hunt F2: expected 1 INFO log 'stop-cap fired' "
+            f"substring when the cap actually reduces stop distance; "
+            f"got {[r.getMessage() for r in caplog.records]}"
+        )
+        msg = stop_cap_logs[0].getMessage()
+        assert "16" in msg   # 2*ATR value
+        assert "2.5" in msg  # capped value
+
+    def test_stop_cap_no_log_when_cap_does_not_bite(self, caplog):
+        """iter-1 silent-hunt F2 (avoid-noise negative): when 2*ATR <
+        5% cap, the log line must NOT fire — no cap-fired event to
+        report. R7.3 non-noise guarantee.
+        """
+        import logging
+        cfg_stop_cap = AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_stop_cap=True),
+        )
+        # Low-vol fixture: 2*ATR=1.0, 5% cap=5.0 → cap does NOT bite
+        p3 = _make_mock_p3()
+        p3.price_df.loc[:, "close"] = [100.0, 100.0, 100.0]
+        p3.atr = 0.5
+
+        with caplog.at_level(logging.INFO, logger="stock_analysis"):
+            phase7_decision(
+                cfg_stop_cap,
+                _make_mock_p1(),
+                _make_mock_p2(),
+                p3,
+                _make_mock_p4(),
+                _make_mock_p5(),
+                _make_mock_p6(),
+            )
+
+        stop_cap_logs = [
+            r for r in caplog.records
+            if "stop-cap fired" in r.getMessage()
+        ]
+        assert len(stop_cap_logs) == 0, (
+            f"stop-cap log fired when cap did not bite (2*ATR=1.0 < "
+            f"5% cap=5.0): {[r.getMessage() for r in stop_cap_logs]}"
+        )
+
+    def test_negative_price_raises_assertion_error(self):
+        """iter-1 silent-hunt F3 (conf 90): a corrupted price feed producing
+        a negative close must fail loudly (AssertionError), not silently
+        emit a bad execution plan.
+
+        Prior to iter-1, negative price + use_stop_cap silently produced
+        a stop ABOVE entry price (min(2*ATR, negative-cap) picks the
+        negative → stop = price - (-2.5) = price + 2.5). A long position
+        with a stop above entry triggers immediately on any move.
+
+        Load-bearing property: removing the ``assert price > 0`` line
+        allows the bad-signal path to complete without error.
+        """
+        cfg = AnalysisConfig(symbol="MSFT")
+        # Inject negative price into the p3 fixture
+        p3 = _make_mock_p3()
+        p3.price_df.loc[:, "close"] = [-50.0, -50.0, -50.0]
+
+        with pytest.raises(AssertionError, match="price must be positive"):
+            phase7_decision(
+                cfg,
+                _make_mock_p1(),
+                _make_mock_p2(),
+                p3,
+                _make_mock_p4(),
+                _make_mock_p5(),
+                _make_mock_p6(),
+            )
+
+    def test_stop_cap_constant_and_trailing_defaults_at_module_scope(self):
+        """iter-1 silent-hunt F6: 5% cap and trailing-stop protocol
+        defaults are hoisted to module-level constants for testability
+        and refactor discoverability.
+
+        Load-bearing property: an accidental inline literal (e.g. someone
+        writes ``0.05`` back into phase7_decision) breaks this test
+        because the constants are checked for their intended values.
+        """
+        from stock_analysis import (
+            _STOP_CAP_PCT_OF_ENTRY,
+            _TRAILING_STOP_DEFAULTS,
+        )
+        assert _STOP_CAP_PCT_OF_ENTRY == 0.05
+        assert _TRAILING_STOP_DEFAULTS == {
+            "breakeven_at_r":    1.0,
+            "trail_at_r":        2.0,
+            "trail_distance_r":  1.0,
+        }
+
 
 # ---------------------------------------------------------------------------
 # Integration tests — Phase 1 (MSFT + AAPL)
