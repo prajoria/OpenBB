@@ -1269,6 +1269,7 @@ class TestIntervalUrlRouting:
     @pytest.mark.parametrize(
         "interval,expected_path",
         [
+            ("1m", "historical-chart/1min"),
             ("5m", "historical-chart/5min"),
             ("15m", "historical-chart/15min"),
             ("30m", "historical-chart/30min"),
