@@ -204,6 +204,79 @@ def test_run_unknown_engine_raises_engine_selection_error(monkeypatch):
         asyncio.run(rr.run(_config(), engine="turbo"))
 
 
+# ---- config.engine precedence (bd-q7u5) ---------------------------------
+#
+# BacktestConfig declares an ``engine: EngineName`` field (models.py:108) but
+# pre-fix ``run()`` silently ignored it — it always used the ``engine=``
+# parameter's value (default ``"auto"``). The precedence rule is:
+#
+#   * If ``engine=`` is anything other than the ``"auto"`` sentinel, the
+#     explicit call-site override wins over ``config.engine``.
+#   * If ``engine="auto"`` (the default), fall back to ``config.engine`` so
+#     the config field is finally honored.
+#
+# These four tests lock in each corner of the truth table.
+
+
+def test_run_honors_config_engine_when_param_is_auto(monkeypatch):
+    """config.engine='event' + engine='auto' (default) → event engine (bd-q7u5)."""
+    from openbb_backtest.routers import run_router as rr
+
+    requested = _patch_run_collaborators(monkeypatch)
+    # Explicitly do NOT pass engine=, so the router sees the default "auto"
+    # and MUST fall back to the config's engine field.
+    asyncio.run(rr.run(_config(engine="event")))
+    assert requested == ["event"], (
+        "config.engine='event' was silently dropped — the router failed to "
+        "fall back to config when engine=default 'auto' (bd-q7u5)."
+    )
+
+
+def test_run_explicit_param_overrides_config_engine(monkeypatch):
+    """engine='vector' (explicit) beats config.engine='event' (bd-q7u5).
+
+    Locks in the precedence rule: explicit call-site overrides win over stored
+    config defaults. This matches the ergonomics of every other override in the
+    router surface.
+    """
+    from openbb_backtest.routers import run_router as rr
+
+    requested = _patch_run_collaborators(monkeypatch)
+    asyncio.run(rr.run(_config(engine="event"), engine="vector"))
+    assert requested == ["vectorized"]
+
+
+def test_run_config_engine_event_auto_default(monkeypatch):
+    """The bug scenario: BacktestConfig(engine='event') + bare run(config)."""
+    from openbb_backtest.routers import run_router as rr
+
+    requested = _patch_run_collaborators(monkeypatch)
+    # Pre-fix: this silently used "auto" → "vectorized" (the field on config
+    # was dead). Post-fix: config.engine wins, so we resolve to "event".
+    asyncio.run(rr.run(_config(engine="event")))
+    assert requested == ["event"]
+
+
+def test_run_both_auto_still_resolves_via_path_dependence(monkeypatch):
+    """Regression: engine='auto' + config.engine='auto' preserves auto-routing.
+
+    When neither side pins an engine, the ``resolve_engine("auto", ...)``
+    policy still runs — path-dependent strategies go to ``event``, everything
+    else to ``vectorized``.
+    """
+    from openbb_backtest.routers import run_router as rr
+
+    requested = _patch_run_collaborators(monkeypatch)
+    asyncio.run(
+        rr.run(
+            _config(engine="auto"),
+            engine="auto",
+            strategy_params={"path_dependent": True},
+        )
+    )
+    assert requested == ["event"]
+
+
 def test_engine_for_lazily_imports_and_returns_registered_engine():
     # No monkeypatch: proves the lazy import + registry lookup wires the real
     # engine (heavy engine modules are only imported when first needed).
