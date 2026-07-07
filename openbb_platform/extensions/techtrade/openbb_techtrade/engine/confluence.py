@@ -29,6 +29,16 @@ from typing import Literal
 from openbb_techtrade.models import IndicatorPanel, IndicatorVote, MoverSignal
 
 
+# Module-level constant carrying the volume amplitude that ``volume_confirmation``
+# actually applies. Kept as a bare float (not a ``ConfluenceWeights`` attribute)
+# so ``ConfluenceWeights.__post_init__`` can reject non-matching overrides at
+# construction time without a chicken-and-egg on ``DEFAULT_WEIGHTS`` bootstrap
+# (bd-qu2h). Callers should NEVER hardcode 0.15 elsewhere — read
+# ``DEFAULT_WEIGHTS.volume`` (which equals this constant) so the coupling is
+# explicit.
+_LOCKED_VOLUME_AMPLITUDE: float = 0.15
+
+
 @dataclass(frozen=True)
 class ConfluenceWeights:
     """Family weights for the composite score (PRD §12.2 / §20 Q4 — LOCKED).
@@ -48,14 +58,45 @@ class ConfluenceWeights:
     volatility : float
         Additive weight on the volatility family (default ``0.20``).
     volume : float
-        Amplitude of the volume confirmation multiplier (default ``0.15``); applied
-        as ``1 + volume · mean(volume_votes)``, *not* as an additive family vote.
+        Nominal volume multiplier amplitude, LOCKED to ``0.15`` for the #74
+        pipeline contract (bd-qu2h, bd-c2fr). ``volume_confirmation`` hardcodes
+        this amplitude via :data:`DEFAULT_WEIGHTS.volume`; passing any other
+        value here raises :class:`ValueError` at construction time rather than
+        silently discarding the override. The per-preset override path is
+        deferred to #75, which owns preset reweighting; until then the field
+        exists only to keep the public dataclass shape stable.
+
+    Raises
+    ------
+    ValueError
+        If ``volume`` differs from :data:`_LOCKED_VOLUME_AMPLITUDE` (``0.15``).
+        Pre-fix (bd-qu2h) this was a silent no-op: the field was read exactly
+        nowhere in the engine, so custom values had zero effect on scoring.
     """
 
     trend: float = 0.40
     momentum: float = 0.25
     volatility: float = 0.20
-    volume: float = 0.15
+    volume: float = _LOCKED_VOLUME_AMPLITUDE
+
+    def __post_init__(self) -> None:
+        # bd-qu2h: ``volume_confirmation`` hardcodes ``DEFAULT_WEIGHTS.volume``
+        # and never reads ``self.volume``, so pre-fix a caller writing
+        # ``ConfluenceWeights(volume=0.35)`` silently got 0.15 with no error.
+        # Raise on any mismatch so the mis-configuration surfaces at
+        # construction rather than being quietly discarded. Long-term the #75
+        # preset work will wire ``self.volume`` through and this guard can
+        # relax to a range check.
+        if self.volume != _LOCKED_VOLUME_AMPLITUDE:
+            raise ValueError(
+                f"volume={self.volume!r} is not supported. The #74 pipeline "
+                f"contract locks the volume amplitude to "
+                f"{_LOCKED_VOLUME_AMPLITUDE} — ``volume_confirmation`` "
+                f"hardcodes ``DEFAULT_WEIGHTS.volume`` and never reads "
+                f"``self.volume`` (bd-qu2h). Per-preset override is deferred "
+                f"to #75; until then, only ``volume={_LOCKED_VOLUME_AMPLITUDE}`` "
+                f"is accepted."
+            )
 
 
 #: The shipped Q4 default weights (un-tuned, honest baseline; #75 supplies presets).

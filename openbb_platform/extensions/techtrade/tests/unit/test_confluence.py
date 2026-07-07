@@ -177,7 +177,12 @@ def test_votes_fully_reconcile_the_score():
 
 def test_votes_reconcile_under_non_default_weights():
     """Assert the votes still reconstruct the score under custom weights (volume amplitude is fixed)."""
-    weights = ConfluenceWeights(trend=0.5, momentum=0.3, volatility=0.1, volume=0.25)
+    # Volume must equal DEFAULT_WEIGHTS.volume (0.15) per bd-qu2h — the field is
+    # engine-fixed and __post_init__ raises on override. Custom trend/momentum/
+    # volatility are still honored (the whole point of ConfluenceWeights).
+    weights = ConfluenceWeights(
+        trend=0.5, momentum=0.3, volatility=0.1, volume=DEFAULT_WEIGHTS.volume
+    )
     score, votes = composite_score(_gold_panel(), weights=weights)
 
     def _mean_family(family: str) -> float:
@@ -185,8 +190,7 @@ def test_votes_reconcile_under_non_default_weights():
         return sum(vals) / len(vals) if vals else 0.0
 
     w = {v.family: v.weight for v in votes}
-    # Volume votes carry the FIXED amplitude actually applied (0.15), not weights.volume (0.25),
-    # so reconstructing vc from the stamped weight matches the real multiplier.
+    # Volume votes carry the FIXED amplitude actually applied (0.15).
     assert w["volume"] == pytest.approx(0.15)
     raw = (
         w["trend"] * _mean_family("trend")
@@ -195,6 +199,48 @@ def test_votes_reconcile_under_non_default_weights():
     )
     vc = 1.0 + w["volume"] * _mean_family("volume")
     assert max(-1.0, min(1.0, raw * vc)) == pytest.approx(score)
+
+
+# ---- volume-field enforcement (bd-qu2h + bd-c2fr) -----------------------
+#
+# ConfluenceWeights.volume is declared as a public field but volume_confirmation()
+# hardcodes DEFAULT_WEIGHTS.volume and never reads self.volume. Pre-fix a caller
+# writing ConfluenceWeights(volume=0.35) silently got 0.15 with no error. The
+# guard now raises at construction time so the mis-configuration surfaces
+# immediately instead of quietly discarding the value.
+
+
+def test_confluence_weights_raises_on_non_default_volume():
+    """Non-DEFAULT_WEIGHTS.volume must raise ValueError (bd-qu2h)."""
+    with pytest.raises(ValueError, match="volume"):
+        ConfluenceWeights(volume=0.35)
+    # Both above and below the locked amplitude should raise.
+    with pytest.raises(ValueError, match="volume"):
+        ConfluenceWeights(volume=0.0)
+    with pytest.raises(ValueError, match="0.15|DEFAULT_WEIGHTS"):
+        ConfluenceWeights(trend=0.40, momentum=0.25, volatility=0.20, volume=0.25)
+
+
+def test_confluence_weights_default_construction_still_works():
+    """Regression lock: default ConfluenceWeights() and explicit volume=0.15 both work."""
+    # Default construction — the DEFAULT_WEIGHTS bootstrap path.
+    w1 = ConfluenceWeights()
+    assert w1.volume == 0.15
+    # Explicit but matching the locked amplitude — allowed.
+    w2 = ConfluenceWeights(trend=0.5, momentum=0.3, volatility=0.05, volume=0.15)
+    assert w2.volume == 0.15
+
+
+def test_confluence_weights_error_message_cites_locked_field():
+    """The raise message must point the operator at the locked-field reason (bd-c2fr)."""
+    with pytest.raises(ValueError) as exc_info:
+        ConfluenceWeights(volume=0.30)
+    msg = str(exc_info.value)
+    # Message should mention the field name, the current locked value, and
+    # give the caller a pointer to where the override will actually be
+    # honored (#75 preset work) so they know why their override was rejected.
+    assert "volume" in msg
+    assert "0.15" in msg
 
 
 def test_volume_confirms_long_known_short_side_inversion():
