@@ -613,7 +613,15 @@ async def _fetch_from_fmp_api(
         raise RuntimeError(f"FMP API error: {data['Error Message']}")
 
     if not isinstance(data, list):
-        return []
+        # bd-wwvk: raise on any non-list, non-error-message response.
+        # Pre-fix returned [] silently, which downstream looked identical
+        # to "index has no members" — indistinguishable from a real API
+        # malfunction (rate-limit dict, HTML error page, None). Matches
+        # the sibling sync helper's behavior at
+        # ``_fetch_from_fmp_api_sync`` (line ~420). Naming ``type(data)``
+        # in the message so operators debugging "why is my index empty?"
+        # can trace what shape came back from FMP.
+        raise RuntimeError(f"Unexpected API response type: {type(data)}")
 
     return data
 
