@@ -63,6 +63,15 @@ _TYPE_MAP: dict[Any, dict] = {
 }
 
 
+# ── explicit-opt-in marker for LLM exposure ────────────────────────────────
+
+# Re-export ``mcp_tool`` from the standalone module so callers can use
+# ``from openbb_agents.mcp_server import mcp_tool`` (backward-compatible
+# import path). The decorator itself lives in ``_mcp_tool.py`` to avoid
+# a circular import — tool modules import the decorator, and this module
+# imports the tool modules to build the registry.
+
+
 def build_input_schema(fn: Any) -> dict:
     """Derive a JSON Schema ``inputSchema`` from a function's type hints.
 
@@ -96,7 +105,13 @@ def build_input_schema(fn: Any) -> dict:
 
 
 def collect_tools() -> list[dict]:
-    """Scan ``_TOOL_MODULES`` and return one descriptor dict per public function.
+    """Scan ``_TOOL_MODULES`` and return one descriptor per ``@mcp_tool``-decorated function.
+
+    Trust-boundary invariant (bd-17kv / bd-6bcf): a function reaches the
+    LLM iff it carries ``__mcp_exposed__ = True`` (set by the
+    :func:`mcp_tool` decorator). Auto-discovery of every public function
+    is off. Underscore-prefixed names are still excluded even if
+    someone accidentally decorates one — belt-and-braces.
 
     Each descriptor has keys:
         name        – function name (used as MCP tool name)
@@ -113,6 +128,11 @@ def collect_tools() -> list[dict]:
                 continue
             # Only register functions defined in this module (skip re-exports)
             if fn.__module__ != module.__name__:
+                continue
+            # Explicit opt-in — bd-17kv / bd-6bcf trust-boundary fix.
+            # Undecorated public functions are silently skipped rather
+            # than being auto-exposed as callable LLM tools.
+            if not getattr(fn, "__mcp_exposed__", False):
                 continue
             seen.add(name)
             doc = inspect.getdoc(fn) or ""

@@ -20,7 +20,10 @@ profile lookup are used.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
+
+from openbb_agents._mcp_tool import mcp_tool
 
 # ``data`` is importable because openbb_agents/__init__.py injects
 # portfolio_app/src onto sys.path.
@@ -51,9 +54,10 @@ def _default_profile(symbol: str) -> dict:
     return {"symbol": symbol, "sector": "Unknown"}
 
 
+@mcp_tool
 def get_positions(
     *,
-    _fetch: Optional[Callable[[], Any]] = None,
+    _fetch: Callable[[], Any] | None = None,
 ) -> list[dict]:
     """Return all current positions from the sanitized portfolio basket.
 
@@ -83,10 +87,11 @@ def get_positions(
     return out
 
 
+@mcp_tool
 def get_sector_exposure(
     *,
-    _fetch: Optional[Callable[[], Any]] = None,
-    _profile: Optional[Callable[[str], dict]] = None,
+    _fetch: Callable[[], Any] | None = None,
+    _profile: Callable[[str], dict] | None = None,
 ) -> list[dict]:
     """Aggregate portfolio market value by GICS sector.
 
