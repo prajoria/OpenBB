@@ -204,7 +204,7 @@ def refresh_one_etf(
     etf: str,
     *,
     dry_run: bool,
-    api_key: str | None,  # noqa: ARG001 - reserved for future explicit-key plumbing
+    api_key: str | None,  # noqa: ARG001 - signature compat; see _resolve_api_key NOTE
 ) -> tuple[str, int, str | None, float, str | None]:
     """Call obb.etf.holdings for one ETF; return a (status) tuple.
 
