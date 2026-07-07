@@ -36,7 +36,13 @@ def _gold_panel() -> IndicatorPanel:
     return IndicatorPanel(
         symbol="GOLD",
         as_of=_AS_OF,
-        trend={"macd_hist": 0.85, "adx": 28.0, "ema_fast": 121.5, "ema_slow": 117.0, "ema_cross": 4.5},
+        trend={
+            "macd_hist": 0.85,
+            "adx": 28.0,
+            "ema_fast": 121.5,
+            "ema_slow": 117.0,
+            "ema_cross": 4.5,
+        },
         momentum={"rsi": 64.0, "stoch_k": 80.0, "stoch_d": 72.0},
         volatility={"bb_pctb": 0.92, "atr": 3.1, "kc_upper": 124.0, "kc_lower": 116.0},
         volume={"obv_slope": 12.0, "cmf": 0.18},
@@ -49,7 +55,13 @@ def _flat_panel() -> IndicatorPanel:
     return IndicatorPanel(
         symbol="FLAT",
         as_of=_AS_OF,
-        trend={"macd_hist": 0.10, "adx": 10.0, "ema_fast": 99.9, "ema_slow": 100.1, "ema_cross": -0.2},
+        trend={
+            "macd_hist": 0.10,
+            "adx": 10.0,
+            "ema_fast": 99.9,
+            "ema_slow": 100.1,
+            "ema_cross": -0.2,
+        },
         momentum={"rsi": 50.0, "stoch_k": 50.0, "stoch_d": 50.0},
         volatility={"bb_pctb": 0.50, "atr": 1.0, "kc_upper": 102.0, "kc_lower": 98.0},
         volume={"obv_slope": 0.0, "cmf": 0.0},
@@ -109,18 +121,23 @@ def test_volatility_bbpctb_regime_aware_and_atr_silent():
     """Assert %B votes continuation in a trend regime, flips in a range regime, and ATR never votes."""
     trend_vote = {v.name: v for v in volatility_votes(_gold_panel(), regime="trend")}
     range_vote = {v.name: v for v in volatility_votes(_gold_panel(), regime="range")}
-    assert trend_vote["bb_pctb"].vote == pytest.approx(0.84)   # 2*(0.92-0.5)
+    assert trend_vote["bb_pctb"].vote == pytest.approx(0.84)  # 2*(0.92-0.5)
     assert range_vote["bb_pctb"].vote == pytest.approx(-0.84)  # mean-revert flip
     assert "atr" not in trend_vote  # ATR sets stops (§13), never votes
-    assert all(v.family == "volatility" and v.weight == pytest.approx(0.20) for v in trend_vote.values())
+    assert all(
+        v.family == "volatility" and v.weight == pytest.approx(0.20)
+        for v in trend_vote.values()
+    )
 
 
 def test_volume_confirmation_amplifies_and_damps():
     """Assert volume confirmation is 1 + 0.15*v: 1.15 when OBV/CMF agree, 1.0 when neutral."""
     assert volume_confirmation(_gold_panel()) == pytest.approx(1.15)  # v = +1
-    assert volume_confirmation(_flat_panel()) == pytest.approx(1.0)   # v = 0
-    bearish = IndicatorPanel(symbol="B", as_of=_AS_OF, volume={"obv_slope": -5.0, "cmf": -0.2})
-    assert volume_confirmation(bearish) == pytest.approx(0.85)        # v = -1
+    assert volume_confirmation(_flat_panel()) == pytest.approx(1.0)  # v = 0
+    bearish = IndicatorPanel(
+        symbol="B", as_of=_AS_OF, volume={"obv_slope": -5.0, "cmf": -0.2}
+    )
+    assert volume_confirmation(bearish) == pytest.approx(0.85)  # v = -1
 
 
 def test_voters_omit_missing_keys():
@@ -148,8 +165,11 @@ def test_votes_fully_reconcile_the_score():
         return sum(vals) / len(vals) if vals else 0.0
 
     w = {v.family: v.weight for v in votes}  # one weight per family
-    raw = w["trend"] * _mean_family("trend") + w["momentum"] * _mean_family("momentum") + \
-        w["volatility"] * _mean_family("volatility")
+    raw = (
+        w["trend"] * _mean_family("trend")
+        + w["momentum"] * _mean_family("momentum")
+        + w["volatility"] * _mean_family("volatility")
+    )
     vc = 1.0 + w["volume"] * _mean_family("volume")
     rebuilt = max(-1.0, min(1.0, raw * vc))
     assert rebuilt == pytest.approx(score)
@@ -168,8 +188,11 @@ def test_votes_reconcile_under_non_default_weights():
     # Volume votes carry the FIXED amplitude actually applied (0.15), not weights.volume (0.25),
     # so reconstructing vc from the stamped weight matches the real multiplier.
     assert w["volume"] == pytest.approx(0.15)
-    raw = w["trend"] * _mean_family("trend") + w["momentum"] * _mean_family("momentum") + \
-        w["volatility"] * _mean_family("volatility")
+    raw = (
+        w["trend"] * _mean_family("trend")
+        + w["momentum"] * _mean_family("momentum")
+        + w["volatility"] * _mean_family("volatility")
+    )
     vc = 1.0 + w["volume"] * _mean_family("volume")
     assert max(-1.0, min(1.0, raw * vc)) == pytest.approx(score)
 
@@ -183,43 +206,66 @@ def test_volume_confirms_long_known_short_side_inversion():
     base_trend = {"macd_hist": 0.85, "adx": 28.0, "ema_cross": 4.5}
     base_mom = {"rsi": 64.0, "stoch_k": 80.0, "stoch_d": 72.0}
     bullish_vol = {"obv_slope": 12.0, "cmf": 0.18}
-    long_with_vol = IndicatorPanel(symbol="L", as_of=_AS_OF, trend=base_trend, momentum=base_mom, volume=bullish_vol)
-    long_no_vol = IndicatorPanel(symbol="LN", as_of=_AS_OF, trend=base_trend, momentum=base_mom)
+    long_with_vol = IndicatorPanel(
+        symbol="L",
+        as_of=_AS_OF,
+        trend=base_trend,
+        momentum=base_mom,
+        volume=bullish_vol,
+    )
+    long_no_vol = IndicatorPanel(
+        symbol="LN", as_of=_AS_OF, trend=base_trend, momentum=base_mom
+    )
     # Bullish volume amplifies a long (vc=1.15): |score| grows.
     assert abs(composite_score(long_with_vol)[0]) > abs(composite_score(long_no_vol)[0])
 
     short_trend = {"macd_hist": -0.85, "adx": 28.0, "ema_cross": -4.5}
     short_mom = {"rsi": 36.0, "stoch_k": 72.0, "stoch_d": 80.0}
-    short_with_vol = IndicatorPanel(symbol="S", as_of=_AS_OF, trend=short_trend, momentum=short_mom, volume=bullish_vol)
-    short_no_vol = IndicatorPanel(symbol="SN", as_of=_AS_OF, trend=short_trend, momentum=short_mom)
+    short_with_vol = IndicatorPanel(
+        symbol="S",
+        as_of=_AS_OF,
+        trend=short_trend,
+        momentum=short_mom,
+        volume=bullish_vol,
+    )
+    short_no_vol = IndicatorPanel(
+        symbol="SN", as_of=_AS_OF, trend=short_trend, momentum=short_mom
+    )
     # Same bullish volume on a SHORT also grows |score| (vc=1.15) -- the known inversion, not a confirm/damp.
-    assert abs(composite_score(short_with_vol)[0]) > abs(composite_score(short_no_vol)[0])
+    assert abs(composite_score(short_with_vol)[0]) > abs(
+        composite_score(short_no_vol)[0]
+    )
 
 
 def test_score_ceiling_under_default_weights_is_below_one():
     """Assert an all-aligned panel tops out at 0.85*1.15 = 0.9775 under the Q4 weights (clip never fires)."""
     strong = IndicatorPanel(
-        symbol="S", as_of=_AS_OF,
+        symbol="S",
+        as_of=_AS_OF,
         trend={"macd_hist": 9.0, "adx": 60.0, "ema_cross": 5.0},
         momentum={"rsi": 95.0, "stoch_k": 99.0, "stoch_d": 10.0},
         volatility={"bb_pctb": 3.0},
         volume={"obv_slope": 9.0, "cmf": 0.9},
     )
     score, _ = composite_score(strong)
-    assert score == pytest.approx(0.9775)  # raw 0.85 * vc 1.15; the 0.85 ceiling is intentional
+    assert score == pytest.approx(
+        0.9775
+    )  # raw 0.85 * vc 1.15; the 0.85 ceiling is intentional
 
 
 def test_score_is_clipped_into_unit_interval():
     """Assert over-unity weights actually engage the [-1, +1] clip (not a vacuous bound)."""
     strong = IndicatorPanel(
-        symbol="S", as_of=_AS_OF,
+        symbol="S",
+        as_of=_AS_OF,
         trend={"macd_hist": 9.0, "adx": 60.0, "ema_cross": 5.0},
         momentum={"rsi": 95.0, "stoch_k": 99.0, "stoch_d": 10.0},
         volatility={"bb_pctb": 3.0},
         volume={"obv_slope": 9.0, "cmf": 0.9},
     )
     bearish = IndicatorPanel(
-        symbol="X", as_of=_AS_OF,
+        symbol="X",
+        as_of=_AS_OF,
         trend={"macd_hist": -9.0, "adx": 60.0, "ema_cross": -5.0},
         momentum={"rsi": 5.0, "stoch_k": 10.0, "stoch_d": 99.0},
         volatility={"bb_pctb": -3.0},
@@ -263,7 +309,12 @@ def test_build_signal_assembles_full_mover_signal():
     assert signal.direction == "long"
     assert signal.rank_in_segment == 1
     assert len(signal.votes) == 7
-    assert {v.family for v in signal.votes} == {"trend", "momentum", "volatility", "volume"}
+    assert {v.family for v in signal.votes} == {
+        "trend",
+        "momentum",
+        "volatility",
+        "volume",
+    }
 
 
 def test_build_signal_flat_when_score_below_threshold():
@@ -287,8 +338,13 @@ def test_consumes_real_indicator_panel_end_to_end():
     open_ = close + rng.normal(0, 0.4, 220)
     vol = rng.integers(1_000, 8_000, 220).astype(float)
     rows = [
-        {"open": float(open_[i]), "high": float(high[i]), "low": float(low[i]),
-         "close": float(close[i]), "volume": float(vol[i])}
+        {
+            "open": float(open_[i]),
+            "high": float(high[i]),
+            "low": float(low[i]),
+            "close": float(close[i]),
+            "volume": float(vol[i]),
+        }
         for i in range(220)
     ]
     panel = build_indicator_panel("REAL", _AS_OF, rows)

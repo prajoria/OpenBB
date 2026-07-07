@@ -126,7 +126,9 @@ def _mean(values: Iterable[float]) -> float:
     return sum(materialized) / len(materialized)
 
 
-def trend_votes(panel: IndicatorPanel, *, adx_gate: float = 20.0) -> list[IndicatorVote]:
+def trend_votes(
+    panel: IndicatorPanel, *, adx_gate: float = 20.0
+) -> list[IndicatorVote]:
     """Emit the trend-family votes: ADX-gated ``macd_hist`` and ``ema_cross`` (PRD §12.1).
 
     ``macd_hist`` votes its sign, damped by trend strength: full strength when
@@ -153,7 +155,9 @@ def trend_votes(panel: IndicatorPanel, *, adx_gate: float = 20.0) -> list[Indica
 
     if "macd_hist" in trend:
         adx = trend.get("adx")
-        gate = 1.0 if (adx is None or adx > adx_gate) else _clip(adx / adx_gate, 0.0, 1.0)
+        gate = (
+            1.0 if (adx is None or adx > adx_gate) else _clip(adx / adx_gate, 0.0, 1.0)
+        )
         votes.append(
             IndicatorVote(
                 family="trend",
@@ -207,7 +211,12 @@ def momentum_votes(panel: IndicatorPanel) -> list[IndicatorVote]:
         else:
             vote = 0.0
         votes.append(
-            IndicatorVote(family="momentum", name="rsi", vote=vote, weight=DEFAULT_WEIGHTS.momentum)
+            IndicatorVote(
+                family="momentum",
+                name="rsi",
+                vote=vote,
+                weight=DEFAULT_WEIGHTS.momentum,
+            )
         )
 
     if "stoch_k" in momentum and "stoch_d" in momentum:
@@ -255,7 +264,12 @@ def volatility_votes(
     base = _clip(2.0 * (volatility["bb_pctb"] - 0.5), -1.0, 1.0)
     vote = base if regime == "trend" else -base
     return [
-        IndicatorVote(family="volatility", name="bb_pctb", vote=vote, weight=DEFAULT_WEIGHTS.volatility)
+        IndicatorVote(
+            family="volatility",
+            name="bb_pctb",
+            vote=vote,
+            weight=DEFAULT_WEIGHTS.volatility,
+        )
     ]
 
 
@@ -283,7 +297,10 @@ def _volume_votes(panel: IndicatorPanel) -> list[IndicatorVote]:
         if name in volume:
             votes.append(
                 IndicatorVote(
-                    family="volume", name=name, vote=_sign(volume[name]), weight=DEFAULT_WEIGHTS.volume
+                    family="volume",
+                    name=name,
+                    vote=_sign(volume[name]),
+                    weight=DEFAULT_WEIGHTS.volume,
                 )
             )
     return votes
@@ -365,7 +382,11 @@ def composite_score(
             # Additive families carry the weight used in ``raw``; volume carries the
             # fixed amplitude ``volume_confirmation`` actually applies, so the votes
             # reconcile the score for any ``weights`` (not just DEFAULT_WEIGHTS).
-            weight=DEFAULT_WEIGHTS.volume if v.family == "volume" else getattr(weights, v.family),
+            weight=(
+                DEFAULT_WEIGHTS.volume
+                if v.family == "volume"
+                else getattr(weights, v.family)
+            ),
         )
         for v in raw_votes
     ]
@@ -382,7 +403,9 @@ def composite_score(
     return score, votes
 
 
-def direction_for(score: float, *, entry_threshold: float = 0.4) -> Literal["long", "short", "flat"]:
+def direction_for(
+    score: float, *, entry_threshold: float = 0.4
+) -> Literal["long", "short", "flat"]:
     """Bucket a composite ``score`` into a trade direction (PRD §12.2, L5).
 
     The threshold edges are inclusive: ``score == +entry_threshold`` → ``"long"``.
