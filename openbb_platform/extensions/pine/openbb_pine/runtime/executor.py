@@ -39,11 +39,11 @@ import pandas as pd
 from openbb_core.app.model.obbject import OBBject
 
 from openbb_pine.attribution import POWERED_BY_FULL
-from openbb_pine.errors import (
+from openbb_pine.compiler_errors import (
     PineExecTimeoutError,
-    PineProviderError,
     PineSecurityError,
 )
+from openbb_pine.errors import PineProviderError
 from openbb_pine.runtime._pynecore_glue import (
     capture_alerts,
     ensure_pyne_header,

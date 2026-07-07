@@ -426,7 +426,7 @@ def assert_code_registered(code: str) -> None:
         # Deferred import so this module has no import-time dependency on
         # errors.py (which would create a cycle if error_codes.py grew
         # richer catalog metadata sourced from the error classes).
-        from openbb_pine.errors import PineInternalCompilerError
+        from openbb_pine.compiler_errors import PineInternalCompilerError
 
         raise PineInternalCompilerError(
             rule="IC001",
