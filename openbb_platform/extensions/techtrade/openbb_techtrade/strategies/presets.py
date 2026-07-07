@@ -47,8 +47,12 @@ FIXED_VOLUME = DEFAULT_WEIGHTS.volume
 #: ``mean_revert`` and ``breakout`` tilt the additive trio while preserving its 0.85 sum.
 PRESETS: dict[str, ConfluenceWeights] = {
     "trend_follow": DEFAULT_WEIGHTS,
-    "mean_revert": ConfluenceWeights(trend=0.20, momentum=0.40, volatility=0.25, volume=FIXED_VOLUME),
-    "breakout": ConfluenceWeights(trend=0.25, momentum=0.15, volatility=0.45, volume=FIXED_VOLUME),
+    "mean_revert": ConfluenceWeights(
+        trend=0.20, momentum=0.40, volatility=0.25, volume=FIXED_VOLUME
+    ),
+    "breakout": ConfluenceWeights(
+        trend=0.25, momentum=0.15, volatility=0.45, volume=FIXED_VOLUME
+    ),
 }
 
 #: The additive family names (volume is the multiplier, validated separately).
@@ -107,17 +111,28 @@ def resolve_preset(
     unknown = set(weights) - _VALID_FAMILIES
     if unknown:
         valid = ", ".join(sorted(_VALID_FAMILIES))
-        raise ValueError(f"Unknown weight family/families {sorted(unknown)}; valid families are: {valid}.")
+        raise ValueError(
+            f"Unknown weight family/families {sorted(unknown)}; valid families are: {valid}."
+        )
 
     # Every key is now a known ConfluenceWeights field, so replace() merges the override
     # over the base (unset families keep the preset's value) -- the dataclass analogue of
     # the ``model_copy(update=...)`` merge used for MoverSignal in engine/signals.py.
-    merged = replace(base, **{family: float(value) for family, value in weights.items()})
+    merged = replace(
+        base, **{family: float(value) for family, value in weights.items()}
+    )
 
     for family in _ADDITIVE_FAMILIES:
         value = getattr(merged, family)
         if value < 0:
             raise ValueError(f"Additive weight {family!r} must be >= 0, got {value}.")
+    # NOTE: since bd-qu2h wired a `__post_init__` guard onto ConfluenceWeights
+    # that enforces ``volume == DEFAULT_WEIGHTS.volume``, ``replace(base, ...)``
+    # above already raises on any non-locked volume override (dataclass
+    # replace() fires __post_init__). This range check is therefore currently
+    # unreachable for the volume-override path, but is retained as the
+    # canonical [0, 1] invariant #75 will reinstate when it wires per-preset
+    # volume through the engine and this file becomes the sole gatekeeper.
     if not 0.0 <= merged.volume <= 1.0:
         raise ValueError(f"volume must be in [0, 1], got {merged.volume}.")
 
