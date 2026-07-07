@@ -5256,213 +5256,76 @@ def create_yield_curve_table():
     return execute_query(query)
 
 
-
 # Complete table configuration for all 67 entities
 FLATTENED_TABLES = {
-    "analyst_estimates": {
-        "schema": create_analyst_estimates_table
-    },
-    "available_indices": {
-        "schema": create_available_indices_table
-    },
-    "balance_sheet": {
-        "schema": create_balance_sheet_table
-    },
-    "balance_sheet_growth": {
-        "schema": create_balance_sheet_growth_table
-    },
-    "calendar_dividend": {
-        "schema": create_calendar_dividend_table
-    },
-    "calendar_earnings": {
-        "schema": create_calendar_earnings_table
-    },
-    "calendar_events": {
-        "schema": create_calendar_events_table
-    },
-    "calendar_ipo": {
-        "schema": create_calendar_ipo_table
-    },
-    "calendar_splits": {
-        "schema": create_calendar_splits_table
-    },
-    "cash_flow": {
-        "schema": create_cash_flow_table
-    },
-    "cash_flow_growth": {
-        "schema": create_cash_flow_growth_table
-    },
-    "company_filings": {
-        "schema": create_company_filings_table
-    },
-    "company_news": {
-        "schema": create_company_news_table
-    },
-    "crypto_historical": {
-        "schema": create_crypto_historical_table
-    },
-    "crypto_search": {
-        "schema": create_crypto_search_table
-    },
-    "currency_historical": {
-        "schema": create_currency_historical_table
-    },
-    "currency_pairs": {
-        "schema": create_currency_pairs_table
-    },
-    "currency_snapshots": {
-        "schema": create_currency_snapshots_table
-    },
-    "discovery_filings": {
-        "schema": create_discovery_filings_table
-    },
-    "earnings_call_transcript": {
-        "schema": create_earnings_call_transcript_table
-    },
-    "economic_calendar": {
-        "schema": create_economic_calendar_table
-    },
-    "equity_gainers": {
-        "schema": create_equity_gainers_table
-    },
-    "equity_historical": {
-        "schema": create_equity_historical_table
-    },
-    "equity_losers": {
-        "schema": create_equity_losers_table
-    },
-    "equity_most_active": {
-        "schema": create_equity_most_active_table
-    },
-    "equity_ownership": {
-        "schema": create_equity_ownership_table
-    },
-    "equity_peers": {
-        "schema": create_equity_peers_table
-    },
-    "equity_profile": {
-        "schema": create_equity_profile_table
-    },
-    "equity_quote": {
-        "schema": create_equity_quote_table
-    },
-    "equity_screener": {
-        "schema": create_equity_screener_table
-    },
-    "esg_score": {
-        "schema": create_esg_score_table
-    },
-    "etf_countries": {
-        "schema": create_etf_countries_table
-    },
-    "etf_equity_exposure": {
-        "schema": create_etf_equity_exposure_table
-    },
-    "etf_holdings": {
-        "schema": create_etf_holdings_table
-    },
-    "etf_info": {
-        "schema": create_etf_info_table
-    },
-    "etf_search": {
-        "schema": create_etf_search_table
-    },
-    "etf_sectors": {
-        "schema": create_etf_sectors_table
-    },
-    "executive_compensation": {
-        "schema": create_executive_compensation_table
-    },
-    "financial_ratios": {
-        "schema": create_financial_ratios_table
-    },
-    "forward_ebitda_estimates": {
-        "schema": create_forward_ebitda_estimates_table
-    },
-    "forward_eps_estimates": {
-        "schema": create_forward_eps_estimates_table
-    },
-    "government_trades": {
-        "schema": create_government_trades_table
-    },
-    "historical_dividends": {
-        "schema": create_historical_dividends_table
-    },
-    "historical_employees": {
-        "schema": create_historical_employees_table
-    },
-    "historical_eps": {
-        "schema": create_historical_eps_table
-    },
-    "historical_market_cap": {
-        "schema": create_historical_market_cap_table
-    },
-    "historical_splits": {
-        "schema": create_historical_splits_table
-    },
-    "income_statement": {
-        "schema": create_income_statement_table
-    },
-    "income_statement_growth": {
-        "schema": create_income_statement_growth_table
-    },
-    "index_constituents": {
-        "schema": create_index_constituents_table
-    },
-    "index_historical": {
-        "schema": create_index_historical_table
-    },
-    "insider_trading": {
-        "schema": create_insider_trading_table
-    },
-    "institutional_ownership": {
-        "schema": create_institutional_ownership_table
-    },
-    "key_executives": {
-        "schema": create_key_executives_table
-    },
-    "key_metrics": {
-        "schema": create_key_metrics_table
-    },
-    "market_snapshots": {
-        "schema": create_market_snapshots_table
-    },
-    "nport_disclosure": {
-        "schema": create_nport_disclosure_table
-    },
-    "price_performance": {
-        "schema": create_price_performance_table
-    },
-    "price_target": {
-        "schema": create_price_target_table
-    },
-    "price_target_consensus": {
-        "schema": create_price_target_consensus_table
-    },
-    "revenue_business_line": {
-        "schema": create_revenue_business_line_table
-    },
-    "revenue_geographic": {
-        "schema": create_revenue_geographic_table
-    },
-    "risk_premium": {
-        "schema": create_risk_premium_table
-    },
-    "share_statistics": {
-        "schema": create_share_statistics_table
-    },
-    "treasury_rates": {
-        "schema": create_treasury_rates_table
-    },
-    "complementary_market_yields": {
-        "schema": create_complementary_market_yields_table
-    },
-    "world_news": {
-        "schema": create_world_news_table
-    },
-    "yield_curve": {
-        "schema": create_yield_curve_table
-    },
+    "analyst_estimates": {"schema": create_analyst_estimates_table},
+    "available_indices": {"schema": create_available_indices_table},
+    "balance_sheet": {"schema": create_balance_sheet_table},
+    "balance_sheet_growth": {"schema": create_balance_sheet_growth_table},
+    "calendar_dividend": {"schema": create_calendar_dividend_table},
+    "calendar_earnings": {"schema": create_calendar_earnings_table},
+    "calendar_events": {"schema": create_calendar_events_table},
+    "calendar_ipo": {"schema": create_calendar_ipo_table},
+    "calendar_splits": {"schema": create_calendar_splits_table},
+    "cash_flow": {"schema": create_cash_flow_table},
+    "cash_flow_growth": {"schema": create_cash_flow_growth_table},
+    "company_filings": {"schema": create_company_filings_table},
+    "company_news": {"schema": create_company_news_table},
+    "crypto_historical": {"schema": create_crypto_historical_table},
+    "crypto_search": {"schema": create_crypto_search_table},
+    "currency_historical": {"schema": create_currency_historical_table},
+    "currency_pairs": {"schema": create_currency_pairs_table},
+    "currency_snapshots": {"schema": create_currency_snapshots_table},
+    "discovery_filings": {"schema": create_discovery_filings_table},
+    "earnings_call_transcript": {"schema": create_earnings_call_transcript_table},
+    "economic_calendar": {"schema": create_economic_calendar_table},
+    "equity_gainers": {"schema": create_equity_gainers_table},
+    "equity_historical": {"schema": create_equity_historical_table},
+    "equity_losers": {"schema": create_equity_losers_table},
+    "equity_most_active": {"schema": create_equity_most_active_table},
+    "equity_ownership": {"schema": create_equity_ownership_table},
+    "equity_peers": {"schema": create_equity_peers_table},
+    "equity_profile": {"schema": create_equity_profile_table},
+    "equity_quote": {"schema": create_equity_quote_table},
+    "equity_screener": {"schema": create_equity_screener_table},
+    "esg_score": {"schema": create_esg_score_table},
+    "etf_countries": {"schema": create_etf_countries_table},
+    "etf_equity_exposure": {"schema": create_etf_equity_exposure_table},
+    "etf_holdings": {"schema": create_etf_holdings_table},
+    "etf_info": {"schema": create_etf_info_table},
+    "etf_search": {"schema": create_etf_search_table},
+    "etf_sectors": {"schema": create_etf_sectors_table},
+    "executive_compensation": {"schema": create_executive_compensation_table},
+    "financial_ratios": {"schema": create_financial_ratios_table},
+    "forward_ebitda_estimates": {"schema": create_forward_ebitda_estimates_table},
+    "forward_eps_estimates": {"schema": create_forward_eps_estimates_table},
+    "government_trades": {"schema": create_government_trades_table},
+    "historical_dividends": {"schema": create_historical_dividends_table},
+    "historical_employees": {"schema": create_historical_employees_table},
+    "historical_eps": {"schema": create_historical_eps_table},
+    "historical_market_cap": {"schema": create_historical_market_cap_table},
+    "historical_splits": {"schema": create_historical_splits_table},
+    "income_statement": {"schema": create_income_statement_table},
+    "income_statement_growth": {"schema": create_income_statement_growth_table},
+    "index_constituents": {"schema": create_index_constituents_table},
+    "index_historical": {"schema": create_index_historical_table},
+    "insider_trading": {"schema": create_insider_trading_table},
+    "institutional_ownership": {"schema": create_institutional_ownership_table},
+    "key_executives": {"schema": create_key_executives_table},
+    "key_metrics": {"schema": create_key_metrics_table},
+    "market_snapshots": {"schema": create_market_snapshots_table},
+    "nport_disclosure": {"schema": create_nport_disclosure_table},
+    "price_performance": {"schema": create_price_performance_table},
+    "price_target": {"schema": create_price_target_table},
+    "price_target_consensus": {"schema": create_price_target_consensus_table},
+    "revenue_business_line": {"schema": create_revenue_business_line_table},
+    "revenue_geographic": {"schema": create_revenue_geographic_table},
+    "risk_premium": {"schema": create_risk_premium_table},
+    "share_statistics": {"schema": create_share_statistics_table},
+    "treasury_rates": {"schema": create_treasury_rates_table},
+    "complementary_market_yields": {"schema": create_complementary_market_yields_table},
+    "world_news": {"schema": create_world_news_table},
+    "yield_curve": {"schema": create_yield_curve_table},
 }
 
 
@@ -5470,7 +5333,7 @@ def create_all_flattened_tables():
     """Create all flattened database tables."""
     results = {}
     print(f"Creating {len(FLATTENED_TABLES)} flattened database tables...")
-    
+
     for table_name, config in FLATTENED_TABLES.items():
         try:
             result = config["schema"]()
@@ -5479,7 +5342,7 @@ def create_all_flattened_tables():
         except Exception as e:
             results[table_name] = f"Error: {str(e)}"
             print(f"❌ Error creating {table_name}: {e}")
-    
+
     return results
 
 
@@ -5506,10 +5369,38 @@ def table_exists(table_name: str) -> bool:
 def get_common_field_names():
     """Get list of common field names used across entities."""
     return [
-        'symbol', 'date', 'period', 'currency', 'exchange',
-        'open', 'high', 'low', 'close', 'volume', 'vwap', 'change_amount', 'change_percent',
-        'company_name', 'sector', 'industry', 'country', 'market_cap', 'price', 'beta',
-        'revenue', 'cost_of_revenue', 'gross_profit', 'operating_income', 'net_income',
-        'total_assets', 'total_liabilities', 'total_equity', 'cash_and_cash_equivalents',
-        'operating_cash_flow', 'free_cash_flow', 'pe_ratio', 'pb_ratio', 'debt_to_equity'
+        "symbol",
+        "date",
+        "period",
+        "currency",
+        "exchange",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "vwap",
+        "change_amount",
+        "change_percent",
+        "company_name",
+        "sector",
+        "industry",
+        "country",
+        "market_cap",
+        "price",
+        "beta",
+        "revenue",
+        "cost_of_revenue",
+        "gross_profit",
+        "operating_income",
+        "net_income",
+        "total_assets",
+        "total_liabilities",
+        "total_equity",
+        "cash_and_cash_equivalents",
+        "operating_cash_flow",
+        "free_cash_flow",
+        "pe_ratio",
+        "pb_ratio",
+        "debt_to_equity",
     ]
