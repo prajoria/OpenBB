@@ -856,8 +856,17 @@ class TestDataNormalisation:
         assert obj.symbol == "NVDA"
         assert obj.investors_holding == 150
 
-    def test_transform_data_tolerates_partial_records(self):
-        """transform_data should skip records that don't match FMP schema."""
+    def test_transform_data_tolerates_partial_records(self, caplog):
+        """transform_data should skip records that don't match FMP schema — but LOUDLY (bd-0bp1).
+
+        Pre-fix (bd-0bp1) the skip was logged at ``debug`` level with no
+        exception context, which is invisible under the default logging
+        config. Post-fix the drop is logged at ``WARNING`` with the
+        symbol AND the specific validation error so operators debugging
+        "why is institutional ownership empty for X?" have log evidence.
+        """
+        import logging
+
         from openbb_fmp.models.institutional_ownership import (
             FMPInstitutionalOwnershipQueryParams,
         )
@@ -865,12 +874,118 @@ class TestDataNormalisation:
         valid_record = _fmp_record("MSFT")
         invalid_record = {"symbol": "TSLA", "some_field": 42}  # Missing required fields
         query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT,TSLA")
-        result = FMPCachedInstitutionalOwnershipFetcher.transform_data(
-            query, [valid_record, invalid_record]
-        )
-        # Only valid record should pass through
+        with caplog.at_level(
+            logging.WARNING,
+            logger="openbb_fmp_cached.models.institutional_ownership",
+        ):
+            result = FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                query, [valid_record, invalid_record]
+            )
+
+        # Only valid record should pass through — the tolerate-partial
+        # invariant is preserved.
         assert len(result) == 1
         assert result[0].symbol == "MSFT"
+
+        # bd-0bp1: the drop MUST be visible at WARNING level (not debug).
+        # Pre-fix this list would be empty because logger.debug is
+        # filtered out under the caplog.at_level(WARNING) threshold.
+        warning_records = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warning_records, (
+            "no WARNING-level records captured — schema-invalid record was "
+            "silently dropped at debug level (bd-0bp1)"
+        )
+        # And the log message must name the specific symbol so the
+        # operator knows which record dropped.
+        assert any("TSLA" in r.getMessage() for r in warning_records), (
+            f"warning log did not mention the dropped symbol 'TSLA' — "
+            f"operator can't correlate the drop to a specific record. "
+            f"Captured: {[r.getMessage() for r in warning_records]}"
+        )
+
+    def test_transform_data_warning_includes_validation_error_message(self, caplog):
+        """The warning log MUST include the underlying ValidationError text (bd-0bp1)."""
+        import logging
+
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        invalid_record = {"symbol": "TSLA", "some_field": 42}
+        query = FMPInstitutionalOwnershipQueryParams(symbol="TSLA")
+        with caplog.at_level(
+            logging.WARNING,
+            logger="openbb_fmp_cached.models.institutional_ownership",
+        ):
+            # Also give it a valid record so the "all dropped" raise
+            # doesn't fire — we're only testing the per-record warning
+            # message shape here.
+            FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                query, [_fmp_record("MSFT"), invalid_record]
+            )
+
+        warning_records = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warning_records, "no WARNING captured for the invalid record"
+        # The exact ValidationError text is Pydantic's; we assert at least
+        # ONE of the missing-field indicators appears (Pydantic v2's
+        # ValidationError names 'validation error' / 'field required' /
+        # 'missing' — any of these proves the exception context reached
+        # the log).
+        msg = " ".join(r.getMessage() for r in warning_records)
+        assert any(
+            token in msg.lower()
+            for token in ("validation", "missing", "required", "field")
+        ), (
+            f"warning log lacks any Pydantic-validation context — operator "
+            f"has to guess what schema mismatch caused the drop. "
+            f"Captured: {msg!r}"
+        )
+
+    def test_transform_data_raises_if_all_records_fail_validation(self, caplog):
+        """If EVERY record fails validation, that's a bug not a tolerable state (bd-0bp1).
+
+        The fallback design (FMP → yfinance → SEC 13F) assumes at least
+        one source succeeds. A complete drop means either (a) schema
+        drift in FMP, or (b) all fallback sources are broken. Either way
+        returning an empty list silently is worse than raising — the
+        empty result is indistinguishable from "this ticker has no
+        institutional owners", which is a fundamentally different
+        answer.
+        """
+        import logging
+
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        # ALL records are malformed → transform_data should raise.
+        invalid_records = [
+            {"symbol": "TSLA", "some_field": 42},
+            {"symbol": "MSFT", "other_field": "junk"},
+        ]
+        query = FMPInstitutionalOwnershipQueryParams(symbol="TSLA,MSFT")
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="openbb_fmp_cached.models.institutional_ownership",
+        ):
+            with pytest.raises(ValueError, match="institutional"):
+                FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                    query, invalid_records
+                )
+
+    def test_transform_data_empty_input_does_not_raise(self):
+        """Empty input list is a valid degenerate case, NOT the 'all dropped' bug."""
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
+        # An empty input list is DIFFERENT from "all records failed
+        # validation" — no records means no signal about schema drift.
+        # Return empty; do not raise.
+        result = FMPCachedInstitutionalOwnershipFetcher.transform_data(query, [])
+        assert result == []
 
 
 # ---------------------------------------------------------------------------
