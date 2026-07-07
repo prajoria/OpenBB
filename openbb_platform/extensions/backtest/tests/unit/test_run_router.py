@@ -47,15 +47,26 @@ def _mk_result(engine_name: str, equity=(100000.0, 101000.0), *, with_positions=
     )
 
     metrics = PerformanceMetrics(
-        cagr=0.1, sharpe=1.0, sortino=1.0, calmar=1.0, max_drawdown=-0.05,
-        volatility=0.1, var_95=-0.02, cvar_95=-0.03, win_rate=0.6,
-        profit_factor=1.5, turnover=2.0,
+        cagr=0.1,
+        sharpe=1.0,
+        sortino=1.0,
+        calmar=1.0,
+        max_drawdown=-0.05,
+        volatility=0.1,
+        var_95=-0.02,
+        cvar_95=-0.03,
+        win_rate=0.6,
+        profit_factor=1.5,
+        turnover=2.0,
     )
     positions = (
         [
             PositionSnapshot(
-                date=datetime(2021, 1, 4), symbol="AAA",
-                quantity=Decimal("10"), market_value=Decimal("1000"), weight=1.0,
+                date=datetime(2021, 1, 4),
+                symbol="AAA",
+                quantity=Decimal("10"),
+                market_value=Decimal("1000"),
+                weight=1.0,
             )
         ]
         if with_positions
@@ -63,8 +74,10 @@ def _mk_result(engine_name: str, equity=(100000.0, 101000.0), *, with_positions=
     )
     equity_curve = [
         EquityPoint(
-            date=datetime(2021, 1, 4 + i), equity=Decimal(str(v)),
-            cash=Decimal("0"), exposure=1.0,
+            date=datetime(2021, 1, 4 + i),
+            equity=Decimal(str(v)),
+            cash=Decimal("0"),
+            exposure=1.0,
         )
         for i, v in enumerate(equity)
     ]
@@ -176,7 +189,9 @@ def test_run_auto_picks_event_for_path_dependent_strategy(monkeypatch):
     from openbb_backtest.routers import run_router as rr
 
     requested = _patch_run_collaborators(monkeypatch)
-    asyncio.run(rr.run(_config(), engine="auto", strategy_params={"path_dependent": True}))
+    asyncio.run(
+        rr.run(_config(), engine="auto", strategy_params={"path_dependent": True})
+    )
     assert requested == ["event"]
 
 
@@ -213,8 +228,13 @@ def _ohlcv_frame() -> pd.DataFrame:
         for sess in _SESSIONS:
             rows.append(
                 {
-                    "symbol": sym, "session": sess, "open": price, "high": price,
-                    "low": price, "close": price, "volume": 1_000_000.0,
+                    "symbol": sym,
+                    "session": sess,
+                    "open": price,
+                    "high": price,
+                    "low": price,
+                    "close": price,
+                    "volume": 1_000_000.0,
                 }
             )
             price *= step
@@ -274,7 +294,9 @@ def test_sweep_returns_obbject_sweep_result(monkeypatch, _registered_tilt):
     from openbb_backtest.routers import run_router as rr
     from openbb_core.app.model.obbject import OBBject
 
-    monkeypatch.setattr(rr, "_build_feed", lambda config, provider: _MatrixFeed(_ohlcv_frame()))
+    monkeypatch.setattr(
+        rr, "_build_feed", lambda config, provider: _MatrixFeed(_ohlcv_frame())
+    )
     out = asyncio.run(
         rr.sweep(
             _config(strategy=_registered_tilt),
@@ -291,7 +313,9 @@ def test_sweep_returns_obbject_sweep_result(monkeypatch, _registered_tilt):
 def test_sweep_selects_best_combo(monkeypatch, _registered_tilt):
     from openbb_backtest.routers import run_router as rr
 
-    monkeypatch.setattr(rr, "_build_feed", lambda config, provider: _MatrixFeed(_ohlcv_frame()))
+    monkeypatch.setattr(
+        rr, "_build_feed", lambda config, provider: _MatrixFeed(_ohlcv_frame())
+    )
     out = asyncio.run(
         rr.sweep(
             _config(strategy=_registered_tilt),
@@ -357,9 +381,7 @@ def test_run_sweep_reconcile_routes_registered():
     from openbb_backtest.routers import run_router as rr
 
     paths = {
-        route.path
-        for route in rr.router.api_router.routes
-        if hasattr(route, "path")
+        route.path for route in rr.router.api_router.routes if hasattr(route, "path")
     }
     assert {"/run", "/sweep", "/reconcile"} <= paths
 
@@ -371,9 +393,17 @@ def test_sweep_result_data_model_roundtrips():
     from openbb_backtest.models import PerformanceMetrics, SweepPoint, SweepResult
 
     m = PerformanceMetrics(
-        cagr=0.1, sharpe=1.0, sortino=1.0, calmar=1.0, max_drawdown=-0.05,
-        volatility=0.1, var_95=-0.02, cvar_95=-0.03, win_rate=0.6,
-        profit_factor=1.5, turnover=2.0,
+        cagr=0.1,
+        sharpe=1.0,
+        sortino=1.0,
+        calmar=1.0,
+        max_drawdown=-0.05,
+        volatility=0.1,
+        var_95=-0.02,
+        cvar_95=-0.03,
+        win_rate=0.6,
+        profit_factor=1.5,
+        turnover=2.0,
     )
     sr = SweepResult(
         results=[SweepPoint(params={"tilt": 1.0}, metrics=m)],
@@ -391,8 +421,11 @@ def test_reconciliation_report_data_model_fields():
     from openbb_backtest.models import ReconciliationReport
 
     report = ReconciliationReport(
-        passed=True, max_divergence=1e-9, tolerance=1e-6,
-        reference_engine="event", candidate_engine="vectorized",
+        passed=True,
+        max_divergence=1e-9,
+        tolerance=1e-6,
+        reference_engine="event",
+        candidate_engine="vectorized",
     )
     assert report.passed is True
     assert report.reference_engine == "event"

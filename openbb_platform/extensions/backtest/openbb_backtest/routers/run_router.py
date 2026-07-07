@@ -149,7 +149,12 @@ async def run(
     strategy: Strategy = _strategy_factory(config.strategy)(**(strategy_params or {}))
     path_dependent = bool(getattr(strategy, "path_dependent", False))
     engine_name = resolve_engine(engine, path_dependent=path_dependent)
-    logger.debug("run: strategy=%s engine=%s provider=%s", config.strategy, engine_name, provider_name)
+    logger.debug(
+        "run: strategy=%s engine=%s provider=%s",
+        config.strategy,
+        engine_name,
+        provider_name,
+    )
 
     feed = _build_feed(config, provider_name)
     broker = _build_broker(config)
@@ -204,7 +209,9 @@ async def sweep(
     provider_name = resolve_provider(provider)
     feed = _build_feed(config, provider_name)
     factory = _strategy_factory(config.strategy)
-    logger.debug("sweep: strategy=%s combos=%s rank_by=%s", config.strategy, param_grid, rank_by)
+    logger.debug(
+        "sweep: strategy=%s combos=%s rank_by=%s", config.strategy, param_grid, rank_by
+    )
 
     engine_result = _engine_sweep(factory, param_grid, config, feed, rank_by=rank_by)
     model = SweepResult(
@@ -271,11 +278,19 @@ def reconcile(
     broker = _build_broker(config)
     reference = _engine_for("event")
     candidate = _engine_for("vectorized")
-    logger.debug("reconcile: strategy=%s strict=%s tol=%s", config.strategy, strict, tolerance)
+    logger.debug(
+        "reconcile: strategy=%s strict=%s tol=%s", config.strategy, strict, tolerance
+    )
 
     report = _engine_reconcile(
-        reference, candidate, strategy, config, feed, broker,
-        tolerance=tolerance, strict=strict,
+        reference,
+        candidate,
+        strategy,
+        config,
+        feed,
+        broker,
+        tolerance=tolerance,
+        strict=strict,
     )
     return OBBject(
         results=ReconciliationReport(
