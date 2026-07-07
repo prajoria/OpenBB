@@ -300,6 +300,18 @@ def _resolve_api_key(api_key_arg: str | None) -> str | None:
 
     Mirrors Tools/populate_cusip_map.py's pattern; user_settings is left to the
     provider's own internal resolver inside obb.etf.holdings.
+
+    NOTE (bd-2k86): post-fix, ``main()`` is the single source of truth for
+    plumbing the CLI flag — it exports ``os.environ['FMP_API_KEY']`` before
+    the lazy ``from openbb import obb`` import fires, and the obb provider
+    reads the env-var directly. This function is therefore vestigial in the
+    current call graph: the returned value is threaded to ``refresh_one_etf``
+    where it is marked ``# noqa: ARG001`` and discarded. Retained rather than
+    deleted so any future refactor that wires the parameter into
+    ``obb.etf.holdings(credentials=...)`` has a clean shape to fill in; do
+    NOT re-enable the parameter chain WITHOUT also removing the env-var side
+    channel above, otherwise the tool ends up with two config paths and
+    silently re-introduces bd-2k86.
     """
     if api_key_arg:
         return api_key_arg
@@ -338,7 +350,8 @@ def main() -> int:
         help=(
             "Override FMP_API_KEY for this run (exports to os.environ so the "
             "obb provider's own resolver picks it up). Precedence: this flag "
-            "> env FMP_API_KEY > user_settings > none."
+            "> repo .env (loaded via python-dotenv override=True at module "
+            "import) > shell FMP_API_KEY > user_settings > none."
         ),
     )
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -358,8 +371,12 @@ def main() -> int:
     # value was threaded to refresh_one_etf but marked ``# noqa: ARG001 -
     # reserved for future explicit-key plumbing`` and never reached obb.
     # Mirrors the --database → os.environ['DB_NAME'] pattern above.
-    if args.api_key:
-        os.environ["FMP_API_KEY"] = args.api_key
+    # ``.strip()`` guards against ``--api-key "  "`` polluting env with
+    # whitespace that would then survive the credentials loader's
+    # ``if not value`` truthy check and surface as an opaque provider error;
+    # ``--api-key ""`` still no-ops silently (argparse-native falsy default).
+    if args.api_key and args.api_key.strip():
+        os.environ["FMP_API_KEY"] = args.api_key.strip()
 
     extras = (
         [s.strip() for s in args.etfs.split(",") if s and s.strip()]

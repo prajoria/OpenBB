@@ -357,3 +357,63 @@ def test_main_does_not_export_fmp_api_key_when_flag_absent(monkeypatch):
     # Ambient env-var must be untouched — the CLI flag is an override, not
     # a clobber-with-empty.
     assert os.environ.get("FMP_API_KEY") == "AMBIENT_KEY"
+
+
+def test_main_whitespace_only_api_key_does_not_pollute_env(monkeypatch):
+    """--api-key '  ' must NOT export whitespace to env (PR #341 review, P3 fix).
+
+    Pre-fix the whitespace-only value was truthy under the ``if args.api_key:``
+    guard, so it exported ``'  '`` into ``os.environ['FMP_API_KEY']``. The
+    credentials loader's own ``if not value: continue`` truthy check would
+    then accept the whitespace and hand it to the provider, which fails
+    with an opaque error message far from the mis-configuration. The
+    ``.strip()`` guard on both the check and the value blocks this.
+    """
+    monkeypatch.setenv("FMP_API_KEY", "AMBIENT_KEY")
+    monkeypatch.delenv("DB_NAME", raising=False)
+
+    argv = [
+        "refresh_etf_holdings_cache.py",
+        "--dry-run",
+        "--skip-portfolio",
+        "--api-key",
+        "   ",  # whitespace-only — semantically empty
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 1, "issuer_ssga", 10.0, None),
+    ):
+        rc = tool.main()
+
+    assert rc == 0
+    # Whitespace-only override is treated as "no override" — ambient env
+    # survives untouched, matching the ``--api-key ""`` (argparse-native
+    # falsy default) and no-flag behaviors.
+    assert os.environ.get("FMP_API_KEY") == "AMBIENT_KEY"
+
+
+def test_main_api_key_value_is_stripped(monkeypatch):
+    """Leading/trailing whitespace on --api-key must NOT reach os.environ (PR #341 review)."""
+    monkeypatch.delenv("FMP_API_KEY", raising=False)
+    monkeypatch.delenv("DB_NAME", raising=False)
+
+    argv = [
+        "refresh_etf_holdings_cache.py",
+        "--dry-run",
+        "--skip-portfolio",
+        "--api-key",
+        "  TOKEN_WITH_WHITESPACE  ",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 1, "issuer_ssga", 10.0, None),
+    ):
+        rc = tool.main()
+
+    assert rc == 0
+    # Stored value is stripped — no leading/trailing whitespace pollution.
+    assert os.environ.get("FMP_API_KEY") == "TOKEN_WITH_WHITESPACE"
