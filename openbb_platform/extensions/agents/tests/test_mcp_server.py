@@ -317,7 +317,7 @@ class TestMcpToolErrorWireContract:
 
         from openbb_agents.mcp_server import _McpToolError
 
-        server: "Server" = Server("test-openbb-agents")
+        server: Server = Server("test-openbb-agents")
 
         @server.call_tool()
         async def call_tool(name: str, arguments: dict):
@@ -346,3 +346,234 @@ class TestMcpToolErrorWireContract:
         # The payload sees the wire
         assert "tool_failed" in combined, f"sanitized payload not on wire: {combined!r}"
         assert "probe_tool" in combined, f"tool name not on wire: {combined!r}"
+
+
+class TestExplicitAllowlist:
+    """Regression tests for OpenBBTechnical-17kv / 6bcf — MCP tools must be
+    exposed by explicit ``@mcp_tool`` opt-in, not by auto-discovery.
+
+    Pre-fix behaviour: any public function in ``_TOOL_MODULES`` was
+    silently registered as an LLM-callable tool. A single naming mistake
+    (``def cancel_order`` instead of ``def _cancel_order``) would
+    promote a mutating operation into the LLM's tool set — a serious
+    trust-boundary regression waiting to happen.
+
+    Post-fix behaviour: ``collect_tools`` requires ``fn.__mcp_exposed__
+    is True`` (set by the ``@mcp_tool`` decorator). New public functions
+    default to NOT-exposed. Adding a tool now needs a deliberate
+    reviewer-visible decorator line.
+    """
+
+    def test_mcp_tool_decorator_marks_function_exposed(self):
+        """``@mcp_tool`` sets ``__mcp_exposed__ = True`` and returns the fn unchanged."""
+        from openbb_agents.mcp_server import mcp_tool
+
+        @mcp_tool
+        def sample_tool(x: int) -> dict:
+            """Sample."""
+            return {"x": x}
+
+        assert getattr(sample_tool, "__mcp_exposed__", False) is True
+        # Decorator returns the function unchanged (callable + same behavior)
+        assert sample_tool(x=42) == {"x": 42}
+
+    def test_undecorated_public_function_is_not_exposed(self):
+        """Public functions WITHOUT ``@mcp_tool`` must NOT be discovered.
+
+        This is the security invariant: safe-default 'private unless
+        explicitly marked exposed'. The pre-fix behaviour inverted this.
+        """
+        import types
+
+        from openbb_agents.mcp_server import collect_tools, mcp_tool
+
+        # Create a fake tool module inline with 1 decorated + 1 undecorated
+        # public function. Register it into _TOOL_MODULES via monkeypatching
+        # so we don't affect the real portfolio_tools registry.
+        fake_module = types.ModuleType("fake_tools_module")
+
+        @mcp_tool
+        def deliberately_exposed(x: int) -> dict:
+            """Deliberately exposed tool."""
+            return {"x": x}
+
+        def silently_public(x: int) -> dict:
+            """Public but MUST NOT be auto-exposed."""
+            return {"x": x}
+
+        deliberately_exposed.__module__ = fake_module.__name__
+        silently_public.__module__ = fake_module.__name__
+        fake_module.deliberately_exposed = deliberately_exposed
+        fake_module.silently_public = silently_public
+
+        import openbb_agents.mcp_server as mod
+
+        original_modules = mod._TOOL_MODULES
+        try:
+            mod._TOOL_MODULES = [fake_module]
+            tools = collect_tools()
+            names = {t["name"] for t in tools}
+            assert (
+                "deliberately_exposed" in names
+            ), f"decorated function should be exposed; got: {names}"
+            assert (
+                "silently_public" not in names
+            ), f"undecorated public function must NOT be exposed; got: {names}"
+        finally:
+            mod._TOOL_MODULES = original_modules
+
+    def test_real_portfolio_tools_use_decorator(self):
+        """The two real portfolio tools currently exposed must carry the decorator.
+
+        Regression lock: if the fix accidentally dropped the decorator
+        from one of them, ``get_positions`` or ``get_sector_exposure``
+        would silently disappear from the MCP tool list.
+        """
+        from openbb_agents.tools import portfolio_tools
+
+        assert getattr(portfolio_tools.get_positions, "__mcp_exposed__", False) is True
+        assert (
+            getattr(portfolio_tools.get_sector_exposure, "__mcp_exposed__", False)
+            is True
+        )
+
+    def test_underscore_prefixed_decorated_still_excluded(self):
+        """Even ``@mcp_tool`` on a ``_prefixed`` function does NOT expose it.
+
+        Belt-and-braces: the double check (both ``__mcp_exposed__ =
+        True`` AND non-underscore name) prevents someone from
+        accidentally exposing an internal helper by decorating it.
+        """
+        import types
+
+        from openbb_agents.mcp_server import collect_tools, mcp_tool
+
+        fake_module = types.ModuleType("fake_tools_underscore")
+
+        @mcp_tool
+        def _hidden_helper(x: int) -> dict:
+            """Underscore-prefixed helper — decorator does NOT override."""
+            return {"x": x}
+
+        _hidden_helper.__module__ = fake_module.__name__
+        fake_module._hidden_helper = _hidden_helper
+
+        import openbb_agents.mcp_server as mod
+
+        original_modules = mod._TOOL_MODULES
+        try:
+            mod._TOOL_MODULES = [fake_module]
+            tools = collect_tools()
+            names = {t["name"] for t in tools}
+            assert (
+                "_hidden_helper" not in names
+            ), f"underscore-prefixed name must never be exposed; got: {names}"
+        finally:
+            mod._TOOL_MODULES = original_modules
+
+    def test_underscore_prefixed_via_alias_still_excluded(self):
+        """Round-1 review LOW: ``public = _private`` alias must NOT expose the underscore fn.
+
+        Attack: define ``_hidden_tool`` with ``@mcp_tool``, then alias
+        ``public_name = _hidden_tool`` at module scope. ``getmembers``
+        returns the alias under the public name, and the old check only
+        looked at ``name.startswith("_")`` (the loop variable, which is
+        ``public_name``) — the underlying ``fn.__name__`` (``_hidden_tool``)
+        was ignored. Fix: also skip if ``fn.__name__.startswith("_")``.
+        """
+        import types
+
+        from openbb_agents._mcp_tool import mcp_tool
+        from openbb_agents.mcp_server import collect_tools
+
+        fake_module = types.ModuleType("fake_tools_alias")
+
+        @mcp_tool
+        def _hidden_tool(x: int) -> dict:
+            """Private, but decorated."""
+            return {"x": x}
+
+        _hidden_tool.__module__ = fake_module.__name__
+        fake_module._hidden_tool = _hidden_tool
+        # Alias — this is the attack vector Round-1 review flagged.
+        fake_module.exposed_via_alias = _hidden_tool
+
+        import openbb_agents.mcp_server as mod
+
+        original_modules = mod._TOOL_MODULES
+        try:
+            mod._TOOL_MODULES = [fake_module]
+            tools = collect_tools()
+            names = {t["name"] for t in tools}
+            assert "_hidden_tool" not in names
+            # The alias exposes the underscore-prefixed *fn.__name__*, so
+            # the belt-and-braces underscore skip must catch it too.
+            assert (
+                "exposed_via_alias" not in names
+            ), f"alias of underscore-prefixed fn must be rejected; got: {names}"
+        finally:
+            mod._TOOL_MODULES = original_modules
+
+    def test_async_functions_rejected_at_registration(self):
+        """Round-1 review MEDIUM: ``async def`` tools must be rejected up front.
+
+        _call_tool_safe does ``fn(**arguments)`` without ``await``, so an
+        ``async def`` would return an un-awaited coroutine. json.dumps
+        then serializes ``'<coroutine object …>'`` back to the LLM as
+        the successful result — silent-failure the operator won't see.
+
+        Fix: ``collect_tools`` rejects coroutine functions at registration
+        time so the mistake surfaces at import (or import-time discovery)
+        rather than at call time with a garbage response.
+        """
+        import types
+
+        from openbb_agents._mcp_tool import mcp_tool
+        from openbb_agents.mcp_server import collect_tools
+
+        fake_module = types.ModuleType("fake_tools_async")
+
+        @mcp_tool
+        async def async_bad_tool(x: int) -> dict:
+            """Async — invalid for MCP tool exposure via sync _call_tool_safe."""
+            return {"x": x}
+
+        async_bad_tool.__module__ = fake_module.__name__
+        fake_module.async_bad_tool = async_bad_tool
+
+        import openbb_agents.mcp_server as mod
+
+        original_modules = mod._TOOL_MODULES
+        try:
+            mod._TOOL_MODULES = [fake_module]
+            tools = collect_tools()
+            names = {t["name"] for t in tools}
+            assert "async_bad_tool" not in names, (
+                f"async function must NOT be registered as an MCP tool; "
+                f"got: {names}. _call_tool_safe would return a coroutine "
+                f"repr to the LLM as a 'successful' result."
+            )
+        finally:
+            mod._TOOL_MODULES = original_modules
+
+    def test_decorator_preserves_function_metadata(self):
+        """Round-1 review LOW: verify @mcp_tool preserves __name__/__doc__/signature.
+
+        The decorator is a pure attribute-setter (no wrapping), so this
+        is trivially true. The test locks that invariant in against a
+        future refactor that might introduce functools.wraps or a
+        wrapper function.
+        """
+        import inspect
+
+        from openbb_agents._mcp_tool import mcp_tool
+
+        @mcp_tool
+        def sample_tool(x: int, y: int = 3) -> dict:
+            """Sample docstring — must survive decoration."""
+            return {"x": x, "y": y}
+
+        assert sample_tool.__name__ == "sample_tool"
+        assert sample_tool.__doc__ == "Sample docstring — must survive decoration."
+        sig = inspect.signature(sample_tool)
+        assert list(sig.parameters) == ["x", "y"]

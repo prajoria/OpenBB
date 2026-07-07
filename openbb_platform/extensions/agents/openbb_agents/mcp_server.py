@@ -63,6 +63,16 @@ _TYPE_MAP: dict[Any, dict] = {
 }
 
 
+# ── explicit-opt-in marker for LLM exposure ────────────────────────────────
+
+# Re-export ``mcp_tool`` from the standalone module so callers can use
+# ``from openbb_agents.mcp_server import mcp_tool`` (backward-compatible
+# import path). The decorator itself lives in ``_mcp_tool.py`` to avoid
+# a circular import — tool modules import the decorator, and this module
+# imports the tool modules to build the registry.
+from openbb_agents._mcp_tool import mcp_tool  # noqa: E402,F401
+
+
 def build_input_schema(fn: Any) -> dict:
     """Derive a JSON Schema ``inputSchema`` from a function's type hints.
 
@@ -96,7 +106,13 @@ def build_input_schema(fn: Any) -> dict:
 
 
 def collect_tools() -> list[dict]:
-    """Scan ``_TOOL_MODULES`` and return one descriptor dict per public function.
+    """Scan ``_TOOL_MODULES`` and return one descriptor per ``@mcp_tool``-decorated function.
+
+    Trust-boundary invariant (bd-17kv / bd-6bcf): a function reaches the
+    LLM iff it carries ``__mcp_exposed__ = True`` (set by the
+    :func:`mcp_tool` decorator). Auto-discovery of every public function
+    is off. Underscore-prefixed names are still excluded even if
+    someone accidentally decorates one — belt-and-braces.
 
     Each descriptor has keys:
         name        – function name (used as MCP tool name)
@@ -111,8 +127,39 @@ def collect_tools() -> list[dict]:
         for name, fn in inspect.getmembers(module, inspect.isfunction):
             if name.startswith("_") or name in seen:
                 continue
+            # Belt-and-braces vs. Round-1 review LOW finding:
+            # ``public_alias = _private`` at module scope would surface
+            # ``_private`` under a public name. ``getmembers`` returns
+            # the alias's public name in the loop variable, so also
+            # check ``fn.__name__`` — the actual defined name of the
+            # underlying function.
+            if fn.__name__.startswith("_"):
+                continue
             # Only register functions defined in this module (skip re-exports)
             if fn.__module__ != module.__name__:
+                continue
+            # Explicit opt-in — bd-17kv / bd-6bcf trust-boundary fix.
+            # Undecorated public functions are silently skipped rather
+            # than being auto-exposed as callable LLM tools. Run this
+            # check BEFORE the async guard below so undecorated public
+            # async helpers don't log a misleading "Skipping @mcp_tool"
+            # warning (Round-2 review cosmetic finding).
+            if not getattr(fn, "__mcp_exposed__", False):
+                continue
+            # Round-1 review MEDIUM: ``async def`` tools would return an
+            # un-awaited coroutine from ``fn(**arguments)`` in
+            # ``_call_tool_safe``, and ``json.dumps(coro, default=str)``
+            # would serialise ``'<coroutine object …>'`` back to the LLM
+            # as a 'successful' result — silent failure the operator
+            # wouldn't see. Reject at registration time instead so the
+            # mistake surfaces loudly at server startup.
+            if inspect.iscoroutinefunction(fn):
+                logger.warning(
+                    "Skipping @mcp_tool %r: async functions are not supported "
+                    "by the sync _call_tool_safe path. Convert to sync, or "
+                    "extend _call_tool_safe to await coroutine functions.",
+                    name,
+                )
                 continue
             seen.add(name)
             doc = inspect.getdoc(fn) or ""
