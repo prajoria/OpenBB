@@ -6,8 +6,11 @@ This enables proper relational queries and consistent DataFrame mapping.
 Simple database-backed response persistence without TTL/caching complexity.
 """
 
+import logging
 import os
 from .database import execute_query
+
+logger = logging.getLogger(__name__)
 
 
 def get_table_name(base_name: str) -> str:
@@ -5256,236 +5259,155 @@ def create_yield_curve_table():
     return execute_query(query)
 
 
-
 # Complete table configuration for all 67 entities
 FLATTENED_TABLES = {
-    "analyst_estimates": {
-        "schema": create_analyst_estimates_table
-    },
-    "available_indices": {
-        "schema": create_available_indices_table
-    },
-    "balance_sheet": {
-        "schema": create_balance_sheet_table
-    },
-    "balance_sheet_growth": {
-        "schema": create_balance_sheet_growth_table
-    },
-    "calendar_dividend": {
-        "schema": create_calendar_dividend_table
-    },
-    "calendar_earnings": {
-        "schema": create_calendar_earnings_table
-    },
-    "calendar_events": {
-        "schema": create_calendar_events_table
-    },
-    "calendar_ipo": {
-        "schema": create_calendar_ipo_table
-    },
-    "calendar_splits": {
-        "schema": create_calendar_splits_table
-    },
-    "cash_flow": {
-        "schema": create_cash_flow_table
-    },
-    "cash_flow_growth": {
-        "schema": create_cash_flow_growth_table
-    },
-    "company_filings": {
-        "schema": create_company_filings_table
-    },
-    "company_news": {
-        "schema": create_company_news_table
-    },
-    "crypto_historical": {
-        "schema": create_crypto_historical_table
-    },
-    "crypto_search": {
-        "schema": create_crypto_search_table
-    },
-    "currency_historical": {
-        "schema": create_currency_historical_table
-    },
-    "currency_pairs": {
-        "schema": create_currency_pairs_table
-    },
-    "currency_snapshots": {
-        "schema": create_currency_snapshots_table
-    },
-    "discovery_filings": {
-        "schema": create_discovery_filings_table
-    },
-    "earnings_call_transcript": {
-        "schema": create_earnings_call_transcript_table
-    },
-    "economic_calendar": {
-        "schema": create_economic_calendar_table
-    },
-    "equity_gainers": {
-        "schema": create_equity_gainers_table
-    },
-    "equity_historical": {
-        "schema": create_equity_historical_table
-    },
-    "equity_losers": {
-        "schema": create_equity_losers_table
-    },
-    "equity_most_active": {
-        "schema": create_equity_most_active_table
-    },
-    "equity_ownership": {
-        "schema": create_equity_ownership_table
-    },
-    "equity_peers": {
-        "schema": create_equity_peers_table
-    },
-    "equity_profile": {
-        "schema": create_equity_profile_table
-    },
-    "equity_quote": {
-        "schema": create_equity_quote_table
-    },
-    "equity_screener": {
-        "schema": create_equity_screener_table
-    },
-    "esg_score": {
-        "schema": create_esg_score_table
-    },
-    "etf_countries": {
-        "schema": create_etf_countries_table
-    },
-    "etf_equity_exposure": {
-        "schema": create_etf_equity_exposure_table
-    },
-    "etf_holdings": {
-        "schema": create_etf_holdings_table
-    },
-    "etf_info": {
-        "schema": create_etf_info_table
-    },
-    "etf_search": {
-        "schema": create_etf_search_table
-    },
-    "etf_sectors": {
-        "schema": create_etf_sectors_table
-    },
-    "executive_compensation": {
-        "schema": create_executive_compensation_table
-    },
-    "financial_ratios": {
-        "schema": create_financial_ratios_table
-    },
-    "forward_ebitda_estimates": {
-        "schema": create_forward_ebitda_estimates_table
-    },
-    "forward_eps_estimates": {
-        "schema": create_forward_eps_estimates_table
-    },
-    "government_trades": {
-        "schema": create_government_trades_table
-    },
-    "historical_dividends": {
-        "schema": create_historical_dividends_table
-    },
-    "historical_employees": {
-        "schema": create_historical_employees_table
-    },
-    "historical_eps": {
-        "schema": create_historical_eps_table
-    },
-    "historical_market_cap": {
-        "schema": create_historical_market_cap_table
-    },
-    "historical_splits": {
-        "schema": create_historical_splits_table
-    },
-    "income_statement": {
-        "schema": create_income_statement_table
-    },
-    "income_statement_growth": {
-        "schema": create_income_statement_growth_table
-    },
-    "index_constituents": {
-        "schema": create_index_constituents_table
-    },
-    "index_historical": {
-        "schema": create_index_historical_table
-    },
-    "insider_trading": {
-        "schema": create_insider_trading_table
-    },
-    "institutional_ownership": {
-        "schema": create_institutional_ownership_table
-    },
-    "key_executives": {
-        "schema": create_key_executives_table
-    },
-    "key_metrics": {
-        "schema": create_key_metrics_table
-    },
-    "market_snapshots": {
-        "schema": create_market_snapshots_table
-    },
-    "nport_disclosure": {
-        "schema": create_nport_disclosure_table
-    },
-    "price_performance": {
-        "schema": create_price_performance_table
-    },
-    "price_target": {
-        "schema": create_price_target_table
-    },
-    "price_target_consensus": {
-        "schema": create_price_target_consensus_table
-    },
-    "revenue_business_line": {
-        "schema": create_revenue_business_line_table
-    },
-    "revenue_geographic": {
-        "schema": create_revenue_geographic_table
-    },
-    "risk_premium": {
-        "schema": create_risk_premium_table
-    },
-    "share_statistics": {
-        "schema": create_share_statistics_table
-    },
-    "treasury_rates": {
-        "schema": create_treasury_rates_table
-    },
-    "complementary_market_yields": {
-        "schema": create_complementary_market_yields_table
-    },
-    "world_news": {
-        "schema": create_world_news_table
-    },
-    "yield_curve": {
-        "schema": create_yield_curve_table
-    },
+    "analyst_estimates": {"schema": create_analyst_estimates_table},
+    "available_indices": {"schema": create_available_indices_table},
+    "balance_sheet": {"schema": create_balance_sheet_table},
+    "balance_sheet_growth": {"schema": create_balance_sheet_growth_table},
+    "calendar_dividend": {"schema": create_calendar_dividend_table},
+    "calendar_earnings": {"schema": create_calendar_earnings_table},
+    "calendar_events": {"schema": create_calendar_events_table},
+    "calendar_ipo": {"schema": create_calendar_ipo_table},
+    "calendar_splits": {"schema": create_calendar_splits_table},
+    "cash_flow": {"schema": create_cash_flow_table},
+    "cash_flow_growth": {"schema": create_cash_flow_growth_table},
+    "company_filings": {"schema": create_company_filings_table},
+    "company_news": {"schema": create_company_news_table},
+    "crypto_historical": {"schema": create_crypto_historical_table},
+    "crypto_search": {"schema": create_crypto_search_table},
+    "currency_historical": {"schema": create_currency_historical_table},
+    "currency_pairs": {"schema": create_currency_pairs_table},
+    "currency_snapshots": {"schema": create_currency_snapshots_table},
+    "discovery_filings": {"schema": create_discovery_filings_table},
+    "earnings_call_transcript": {"schema": create_earnings_call_transcript_table},
+    "economic_calendar": {"schema": create_economic_calendar_table},
+    "equity_gainers": {"schema": create_equity_gainers_table},
+    "equity_historical": {"schema": create_equity_historical_table},
+    "equity_losers": {"schema": create_equity_losers_table},
+    "equity_most_active": {"schema": create_equity_most_active_table},
+    "equity_ownership": {"schema": create_equity_ownership_table},
+    "equity_peers": {"schema": create_equity_peers_table},
+    "equity_profile": {"schema": create_equity_profile_table},
+    "equity_quote": {"schema": create_equity_quote_table},
+    "equity_screener": {"schema": create_equity_screener_table},
+    "esg_score": {"schema": create_esg_score_table},
+    "etf_countries": {"schema": create_etf_countries_table},
+    "etf_equity_exposure": {"schema": create_etf_equity_exposure_table},
+    "etf_holdings": {"schema": create_etf_holdings_table},
+    "etf_info": {"schema": create_etf_info_table},
+    "etf_search": {"schema": create_etf_search_table},
+    "etf_sectors": {"schema": create_etf_sectors_table},
+    "executive_compensation": {"schema": create_executive_compensation_table},
+    "financial_ratios": {"schema": create_financial_ratios_table},
+    "forward_ebitda_estimates": {"schema": create_forward_ebitda_estimates_table},
+    "forward_eps_estimates": {"schema": create_forward_eps_estimates_table},
+    "government_trades": {"schema": create_government_trades_table},
+    "historical_dividends": {"schema": create_historical_dividends_table},
+    "historical_employees": {"schema": create_historical_employees_table},
+    "historical_eps": {"schema": create_historical_eps_table},
+    "historical_market_cap": {"schema": create_historical_market_cap_table},
+    "historical_splits": {"schema": create_historical_splits_table},
+    "income_statement": {"schema": create_income_statement_table},
+    "income_statement_growth": {"schema": create_income_statement_growth_table},
+    "index_constituents": {"schema": create_index_constituents_table},
+    "index_historical": {"schema": create_index_historical_table},
+    "insider_trading": {"schema": create_insider_trading_table},
+    "institutional_ownership": {"schema": create_institutional_ownership_table},
+    "key_executives": {"schema": create_key_executives_table},
+    "key_metrics": {"schema": create_key_metrics_table},
+    "market_snapshots": {"schema": create_market_snapshots_table},
+    "nport_disclosure": {"schema": create_nport_disclosure_table},
+    "price_performance": {"schema": create_price_performance_table},
+    "price_target": {"schema": create_price_target_table},
+    "price_target_consensus": {"schema": create_price_target_consensus_table},
+    "revenue_business_line": {"schema": create_revenue_business_line_table},
+    "revenue_geographic": {"schema": create_revenue_geographic_table},
+    "risk_premium": {"schema": create_risk_premium_table},
+    "share_statistics": {"schema": create_share_statistics_table},
+    "treasury_rates": {"schema": create_treasury_rates_table},
+    "complementary_market_yields": {"schema": create_complementary_market_yields_table},
+    "world_news": {"schema": create_world_news_table},
+    "yield_curve": {"schema": create_yield_curve_table},
 }
 
 
 def create_all_flattened_tables():
-    """Create all flattened database tables."""
+    """Create all flattened database tables.
+
+    Iterates the :data:`FLATTENED_TABLES` registry and invokes each
+    schema-creator in turn. Returns a mapping of ``{table_name:
+    schema_result}`` for successfully-created tables.
+
+    Failure semantics (bd-jt4r)
+    ---------------------------
+    On the FIRST DDL failure the loop aborts and re-raises the
+    underlying exception so the operator sees the failure at init time
+    rather than at first cache read. Pre-fix this function swallowed
+    every ``Exception`` and stashed a stringified error under the
+    table name in the results dict — leaving the DB half-provisioned
+    with no alarm and no downstream check for the sentinel string.
+
+    Status is emitted via the module's :data:`logger` at ``INFO`` level
+    (successes) and ``ERROR`` level with traceback (failures). The
+    caller controls stdout/stderr routing via the standard logging
+    handler chain; ASCII-only messages so the log line encodes cleanly
+    under Windows ``cp1252`` consoles (the fork runs on Windows via
+    ``.venv_win`` per CLAUDE.md).
+
+    Returns
+    -------
+    dict[str, Any]
+        Mapping of table name to whatever ``config['schema']()`` returns
+        for that table (typically a truthy sentinel or None).
+
+    Raises
+    ------
+    Exception
+        Whatever the first failing ``config['schema']()`` call raises,
+        propagated verbatim (callers expect the underlying DDL exception
+        type, so ``raise ... from exc`` chaining is deliberately not
+        used).
+    """
     results = {}
-    print(f"Creating {len(FLATTENED_TABLES)} flattened database tables...")
-    
+    logger.info("Creating %d flattened database tables...", len(FLATTENED_TABLES))
+
     for table_name, config in FLATTENED_TABLES.items():
         try:
             result = config["schema"]()
-            results[table_name] = result
-            print(f"✅ Created flattened table: {table_name}")
-        except Exception as e:
-            results[table_name] = f"Error: {str(e)}"
-            print(f"❌ Error creating {table_name}: {e}")
-    
+        except Exception:
+            # bd-jt4r: raise on first failure. Pre-fix a bare
+            # ``except Exception`` swallowed every DDL error and left
+            # the DB half-provisioned. logger.exception records the
+            # full traceback for the operator; the raise then aborts
+            # the loop so downstream tables are NOT half-created.
+            logger.exception(
+                "DDL failed while creating flattened table %r; aborting "
+                "further table creation (bd-jt4r).",
+                table_name,
+            )
+            raise
+        results[table_name] = result
+        logger.info("Created flattened table: %s", table_name)
+
     return results
 
 
-def create_all_tables():
-    """Create all database tables (alias for create_all_flattened_tables)."""
-    return create_all_flattened_tables()
+# Public alias — shares the full docstring (including the bd-jt4r failure
+# semantics + logging contract) with the underlying function. Rebound as
+# a name rather than wrapped in a function so callers get the identical
+# behavior + docstring without a stale duplicate.
+#
+# Production callers of this alias (verified via grep across the repo):
+#   - openbb_fmp_cached/utils/database.py::init_database (auto-create path)
+#   - openbb_fmp_cached/utils/__init__.py (re-exported public symbol)
+#   - openbb_platform/providers/fmp_cached/setup_database.py
+# All three previously received the pre-fix return-dict-with-stringified-
+# errors and did not check for the ``"Error: "`` sentinel; the switch to
+# raise-on-first-failure is a strict improvement for each — schema-init
+# failure now surfaces immediately instead of degrading downstream cache
+# reads.
+create_all_tables = create_all_flattened_tables
 
 
 def cleanup_expired_cache():
@@ -5506,10 +5428,38 @@ def table_exists(table_name: str) -> bool:
 def get_common_field_names():
     """Get list of common field names used across entities."""
     return [
-        'symbol', 'date', 'period', 'currency', 'exchange',
-        'open', 'high', 'low', 'close', 'volume', 'vwap', 'change_amount', 'change_percent',
-        'company_name', 'sector', 'industry', 'country', 'market_cap', 'price', 'beta',
-        'revenue', 'cost_of_revenue', 'gross_profit', 'operating_income', 'net_income',
-        'total_assets', 'total_liabilities', 'total_equity', 'cash_and_cash_equivalents',
-        'operating_cash_flow', 'free_cash_flow', 'pe_ratio', 'pb_ratio', 'debt_to_equity'
+        "symbol",
+        "date",
+        "period",
+        "currency",
+        "exchange",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "vwap",
+        "change_amount",
+        "change_percent",
+        "company_name",
+        "sector",
+        "industry",
+        "country",
+        "market_cap",
+        "price",
+        "beta",
+        "revenue",
+        "cost_of_revenue",
+        "gross_profit",
+        "operating_income",
+        "net_income",
+        "total_assets",
+        "total_liabilities",
+        "total_equity",
+        "cash_and_cash_equivalents",
+        "operating_cash_flow",
+        "free_cash_flow",
+        "pe_ratio",
+        "pb_ratio",
+        "debt_to_equity",
     ]
