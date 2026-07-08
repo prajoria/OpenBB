@@ -3174,19 +3174,38 @@ def phase7_decision(
     # --- Hard overrides ---
     hard_override: str | None = None
 
+    # bd-29n fix: track the tightest cap applied so the weekly-trend
+    # recompute below can reapply it. Prior code let the recompute
+    # unconditionally overwrite `composite`, silently discarding earlier
+    # min() caps — a distressed stock (Altman<1.81, cap 2.0) with
+    # bearish weekly trend would carry a "forced Avoid" hard_override
+    # label but a recomputed composite well above the 2.0 cap.
+    #
+    # INVARIANT (bd-29n / R7.11 reviewer NIT): every composite cap
+    # below MUST update BOTH `composite` and `composite_cap` — the
+    # weekly-trend recompute at the bottom of this block relies on
+    # `composite_cap` to reapply the tightest cap post-recompute.
+    # Adding a new cap without updating `composite_cap` silently
+    # reintroduces bd-29n for that override. If you're adding a cap,
+    # write the pair (`composite = min(...)` + `composite_cap = min(...)`).
+    composite_cap: float = float("inf")   # inf = no cap applied yet
+
     altman = p4.altman
     if not np.isnan(altman) and altman < 1.81:
         composite = min(composite, 2.0)
+        composite_cap = min(composite_cap, 2.0)
         hard_override = "Altman Z-Score < 1.81 — distress risk; forced Avoid"
 
     if not np.isnan(p2.accruals_ratio) and p2.accruals_ratio > 0.20:
         composite = min(composite, 2.8)
+        composite_cap = min(composite_cap, 2.8)
         hard_override = (hard_override or "") + " | Accruals Ratio > 20% — capped at Hold/Watch"
 
     # Balance sheet safety cap
     bs_safety_score = scores.get("fundamentals", 2.5)  # proxy via fundamentals
     if p2.score >= 3.5 and (not np.isnan(p2.accruals_ratio) and p2.accruals_ratio > 0.10):
         composite = min(composite, 3.8)
+        composite_cap = min(composite_cap, 3.8)
         hard_override = (hard_override or "") + " | Leverage quality cap applied (accruals > 10% with high P2 score)"
 
     # Earnings override
@@ -3198,8 +3217,13 @@ def phase7_decision(
     # Weekly trend override
     if not p3.weekly_trend_bullish:
         scores["technicals"] = min(scores["technicals"], 2.0)
-        # Recompute composite with capped technicals
-        composite = sum(scores[k] * weights[k] for k in weights)
+        # Recompute composite with capped technicals — then REAPPLY the
+        # composite_cap so an earlier Altman/accruals/BS-safety hard-
+        # override still bites (bd-29n fix). Without the min(..., cap)
+        # here, a distressed stock's composite would silently lift back
+        # above the cap and the action_label cutoffs would give the
+        # wrong label despite hard_override saying "forced Avoid".
+        composite = min(sum(scores[k] * weights[k] for k in weights), composite_cap)
         hard_override = (hard_override or "") + " | Weekly trend bearish — technical score capped at 2.0"
 
     # Information Ratio override
