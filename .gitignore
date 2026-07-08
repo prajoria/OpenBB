@@ -141,3 +141,8 @@ C*nb_code.txt
 # FinanceToolkit local checkout (formerly a submodule pinned to prajoria/FinanceToolkit)
 # Untracked as of #19; the extension now depends on the published inancetoolkit PyPI package.
 /FinanceToolkit/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
