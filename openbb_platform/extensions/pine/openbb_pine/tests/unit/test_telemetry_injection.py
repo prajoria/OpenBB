@@ -89,6 +89,18 @@ def test_compiler_modules_do_not_import_openbb_pine_telemetry_at_runtime() -> No
                 runtime_imports.append(
                     f"line {node.lineno}: {ast.unparse(node)}"
                 )
+            elif isinstance(node, ast.ImportFrom) and node.module == "openbb_pine":
+                # ``from openbb_pine import telemetry`` binds the telemetry
+                # submodule as a runtime name — same coupling as
+                # ``import openbb_pine.telemetry``. The plain
+                # ``from openbb_pine.telemetry import X`` form is caught
+                # by the branch above; this one catches the module-bind
+                # variant that would otherwise slip past.
+                for alias in node.names:
+                    if alias.name == "telemetry":
+                        runtime_imports.append(
+                            f"line {node.lineno}: {ast.unparse(node)}"
+                        )
             elif isinstance(node, ast.Import):
                 for alias in node.names:
                     if alias.name == "openbb_pine.telemetry":
@@ -259,15 +271,53 @@ def test_injected_sink_receives_type_checker_signal() -> None:
 
 def test_injected_sink_receives_v5_migration_signal() -> None:
     """migrate_v5_to_v6's PF003 raise MUST call
-    ``sink.record_unsupported_feature('PF003')`` on the injected sink."""
+    ``sink.record_unsupported_feature('PF003')`` on the injected sink.
+
+    Uses an ``iff(a, b, foo(1, 2))`` fixture: the third arg contains a
+    parenthesised nested call, so the ``[^,()]+?`` char class in
+    V5_REWRITES cannot match past ``foo`` (the ``(`` is excluded from
+    the class). The rewrite therefore cannot fire AT ALL — the literal
+    ``iff(`` survives verbatim and the sentinel scan fires exactly once
+    against exactly one residual ``iff(`` occurrence. Bounded-match, not
+    coincidental: this pins the assertion to ``{"PF003": 1}`` even if
+    the migration regex is later tightened or relaxed.
+    """
     from openbb_pine.compiler.v5_migration import migrate_v5_to_v6
     from openbb_pine.telemetry import OpenBBTelemetrySink
 
     sink = OpenBBTelemetrySink()
 
-    # A v5 source containing an unhandled-v5 construct: nested ``iff(...)``
-    # calls that the three-arg simple-expr V5_REWRITES regex cannot rewrite,
-    # so they fall through to the PF003 sentinel scan.
+    v5_src_with_unhandled = (
+        "//@version=5\nindicator(\"t\")\n"
+        # Third arg contains parens → char class [^,()] can't match →
+        # 3-arg regex fails → literal iff( survives → sentinel fires once.
+        "x = iff(close > 0, 1, foo(1, 2))\n"
+    )
+    with pytest.raises(PineUnsupportedFeatureError):
+        migrate_v5_to_v6(v5_src_with_unhandled, telemetry=sink)
+
+    # Exact-match assertion: exactly one PF003 fire for exactly one
+    # residual ``iff(`` sentinel. Equality (not ``.get(...) == 1``)
+    # catches accidental cross-fires.
+    assert sink.get_unsupported_feature_counts() == {"PF003": 1}
+
+
+def test_injected_sink_receives_v5_migration_signal_nested_iff() -> None:
+    """Regression companion: the nested-arg ``iff(c1, iff(c2, 1, 2), 3)``
+    form the plan originally called out. The 3-arg regex ``[^,()]+?`` in
+    V5_REWRITES cannot match past the inner ``iff(``'s parens, so the
+    outer ``iff(`` also survives the rewrite loop and the sentinel scan
+    fires exactly once.
+
+    Kept alongside the parens-in-arg fixture above so BOTH the
+    nested-iff and the nested-non-iff paren paths are covered — regex
+    changes that break either will surface here.
+    """
+    from openbb_pine.compiler.v5_migration import migrate_v5_to_v6
+    from openbb_pine.telemetry import OpenBBTelemetrySink
+
+    sink = OpenBBTelemetrySink()
+
     v5_src_with_unhandled = (
         "//@version=5\nindicator(\"t\")\n"
         "x = iff(close > 0, iff(close > 1, 1, 2), 3)\n"
@@ -275,7 +325,7 @@ def test_injected_sink_receives_v5_migration_signal() -> None:
     with pytest.raises(PineUnsupportedFeatureError):
         migrate_v5_to_v6(v5_src_with_unhandled, telemetry=sink)
 
-    assert sink.get_unsupported_feature_counts().get("PF003") == 1
+    assert sink.get_unsupported_feature_counts() == {"PF003": 1}
 
 
 def test_injected_sink_receives_detect_pine_version_signal() -> None:

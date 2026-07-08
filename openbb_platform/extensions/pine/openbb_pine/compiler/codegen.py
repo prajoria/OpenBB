@@ -123,7 +123,8 @@ if TYPE_CHECKING:  # pragma: no cover — imports for typing only
     # E2 will rewrite this import to ``from pyne_compiler.telemetry
     # import TelemetrySink``. Kept behind TYPE_CHECKING so the compiler
     # never actually imports ``openbb_pine.telemetry`` at runtime — the
-    # E0.4 injection contract (see plan Task E0.4).
+    # E0.4 injection contract (see plan Task E0.4, Step 5 and design doc
+    # §6.E0.4; the ``openbb_pine.telemetry`` module docstring recaps it).
     from openbb_pine.telemetry import TelemetrySink
 
 __all__ = [

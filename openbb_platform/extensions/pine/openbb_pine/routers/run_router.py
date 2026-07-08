@@ -117,11 +117,26 @@ def _compile_and_run(
 
     E0.4 telemetry: instantiate a per-request
     :class:`~openbb_pine.telemetry.OpenBBTelemetrySink`, inject it into
-    ``compile_pine(telemetry=...)``, and (currently) drop the counts on
-    the floor. A follow-up bead will thread the sink's
-    ``get_unsupported_*_counts()`` into the ``OBBject.extra`` envelope so
-    the API response surfaces per-request wild-corpus attribution to the
-    caller (D3 §4.6 already reserves the slot).
+    ``compile_pine(telemetry=...)``, then surface the per-request counts
+    on the returned ``OBBject.extra`` under the ``"pine_telemetry"`` key
+    (D3 §4.6 already reserves the slot). The envelope shape is::
+
+        extra["pine_telemetry"] = {
+            "unsupported_features": {"PF010": 1, ...},
+            "unsupported_builtins": {"ta.ichimoku": 1, ...},
+        }
+
+    Both maps are empty when the compile succeeded without touching any
+    unsupported code path — the keys are always present so downstream
+    consumers can address them unconditionally.
+
+    We intentionally namespace under ``pine_telemetry`` (nested dict)
+    rather than flat ``pine_unsupported_*`` keys so the envelope stays
+    tidy when more counter dimensions land (compile-cache hit rate,
+    codegen node-count, PyneCore exec time). Per-request isolation is
+    strict — the module-global :data:`openbb_pine.telemetry._DEFAULT_SINK`
+    is NOT written to from this path; use ``compile_pine(telemetry=...)``
+    to observe compiler-side counts from tests or operator tooling.
     """
     telemetry_sink = OpenBBTelemetrySink()
     compiled = compile_pine(
@@ -130,13 +145,7 @@ def _compile_and_run(
         params=params or None,
         telemetry=telemetry_sink,
     )
-    # NOTE: telemetry_sink.get_unsupported_*_counts() is read here but
-    # not currently surfaced in the response envelope. The follow-up
-    # bead that wires OBBject.extra["pine_unsupported_*"] will consume
-    # them; keeping the sink alive through the return statement so a
-    # future post-run middleware can pick it up if we decide to attach
-    # it to the OBBject before returning.
-    return run_compiled(
+    obbject = run_compiled(
         compiled,
         provider_or_data=provider_or_data,
         symbol=symbol,
@@ -146,6 +155,14 @@ def _compile_and_run(
         params=params,
         timeout_s=timeout_s,
     )
+    # Surface per-request telemetry on the OBBject envelope. ``run_compiled``
+    # always returns an OBBject with a dict ``extra`` (see
+    # ``runtime/executor.py``), so we mutate in place — no None guard needed.
+    obbject.extra["pine_telemetry"] = {
+        "unsupported_features": telemetry_sink.get_unsupported_feature_counts(),
+        "unsupported_builtins": telemetry_sink.get_unsupported_builtin_counts(),
+    }
+    return obbject
 
 
 # ---------------------------------------------------------------------------

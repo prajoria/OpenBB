@@ -21,6 +21,25 @@ Post-E0.4 shape (see plan Task E0.4 and design doc §6.E0.4):
   remove the free functions in a follow-up bead after every caller
   migrates.
 
+.. warning::
+
+   The module-global :data:`_DEFAULT_SINK` (and by extension the free
+   ``record_unsupported_*`` writers) is **compiler-decoupled post-E0.4**.
+   Nothing in the compiler or the router path writes to it in production
+   any more — the compiler always goes through the injected
+   :class:`TelemetrySink`, and the router owns a fresh per-request
+   :class:`OpenBBTelemetrySink` that it surfaces on
+   ``OBBject.extra["pine_telemetry"]``. Tests that want to observe
+   compiler-side telemetry MUST inject a sink via
+   ``compile_pine(telemetry=<sink>)`` and read counts off THAT sink;
+   calling ``reset_metrics()`` and then inspecting the module-global
+   counters after a compile will silently see zeros. The
+   ``TestTelemetryCounters`` block in ``tests/unit/test_error_model.py``
+   still passes because it calls ``record_unsupported_*`` directly — it
+   does NOT prove the compiler wrote through. See
+   ``tests/unit/test_telemetry_injection.py`` for the injected-sink
+   pattern.
+
 Two counter dimensions per sink:
 
 * ``pine_unsupported_builtin_total{name}`` — incremented every time the
@@ -152,11 +171,20 @@ class OpenBBTelemetrySink:
 #
 # Post-E0.4 the compiler NEVER calls these free functions — it goes through
 # the injected sink. The compiler and the module-global sink are therefore
-# fully decoupled; the module-global exists only for back-compat with
+# fully decoupled; the module-global exists ONLY for back-compat with
 # out-of-compiler callers.
+#
+# WARNING: Do NOT add new callers of ``record_unsupported_*`` (the writers)
+# outside of tests that are explicitly documenting the back-compat surface.
+# The free readers stay useful for that surface only; production observers
+# should read counts off a per-request :class:`OpenBBTelemetrySink` via
+# ``compile_pine(telemetry=<sink>)`` and either surface them on
+# ``OBBject.extra["pine_telemetry"]`` (router path) or accept a sink
+# directly (test path). A follow-up bead will delete the free writers
+# once ``tests/unit/test_error_model.py`` migrates to the injected form.
 
 
-_DEFAULT_SINK = OpenBBTelemetrySink()
+_DEFAULT_SINK = OpenBBTelemetrySink()  # noqa: E305 — deliberate module global; see WARNING above
 
 
 def record_unsupported_builtin(name: str) -> None:
