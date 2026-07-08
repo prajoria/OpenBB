@@ -1300,6 +1300,628 @@ class TestPhase7StopCapAndTrailing:
         }
 
 
+class TestPhase7RegimeAdjustment:
+    """Verify P7 composite-weight and staged_entry regime adjustment
+    (bd-0h2.14 / B2 + bd-0h2.15 / B3).
+
+    Reviewer P7 Q-1: the composite scoring and position sizing should
+    adapt to the current market regime. A high-quality stock in a crisis
+    regime should still be avoided — correlations go to 1.0 and every
+    long trade bleeds. This suite verifies:
+
+      1. **Weight shift** (``use_regime_input`` flag): TRENDING_BULL shifts
+         weight from risk_fit → technicals; CRISIS shifts weight from
+         technicals → risk_fit. RANGING / TRENDING_BEAR keep default.
+
+      2. **Tranche multiplier**: staged_entry.tranche_* × regime
+         multiplier. TRENDING_BEAR halves position size; CRISIS zeros
+         all tranches ("do not open a new position in a crisis").
+
+      3. **Regime field**: ``Phase7Result.regime`` records the input
+         regime for downstream inspection / logging.
+
+      4. **Loud empty**: use_regime_input=True + regime=None/UNKNOWN
+         warns and falls back to default weights (R7.3).
+
+      5. **Backward compat**: flag off = exact pre-B2 output including
+         the same composite, tranches, and no regime field impact.
+    """
+
+    @pytest.fixture
+    def cfg(self) -> AnalysisConfig:
+        return AnalysisConfig(symbol="MSFT")
+
+    @pytest.fixture
+    def cfg_regime(self) -> AnalysisConfig:
+        return AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_regime_input=True),
+        )
+
+    # ------------------------------------------------------------------ #
+    # Regime field on Phase7Result
+    # ------------------------------------------------------------------ #
+    def test_p7_has_regime_field_defaulting_to_unknown(self, cfg):
+        """Phase7Result.regime defaults to UNKNOWN when no regime
+        supplied. R7.3 loud-empty: preserves "we don't know" as a
+        first-class output rather than silently defaulting to BULL.
+        """
+        from openbb_regime import MarketRegime
+        p7 = phase7_decision(
+            cfg,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+        )
+        assert hasattr(p7, "regime"), "Phase7Result must expose a regime field"
+        assert p7.regime == MarketRegime.UNKNOWN
+
+    def test_p7_regime_field_records_input_regime(self, cfg_regime):
+        """When use_regime_input=True and regime supplied, the field
+        echoes the input so downstream consumers can log / diff it.
+        """
+        from openbb_regime import MarketRegime
+        p7 = phase7_decision(
+            cfg_regime,
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
+            regime=MarketRegime.TRENDING_BULL,
+        )
+        assert p7.regime == MarketRegime.TRENDING_BULL
+
+    # ------------------------------------------------------------------ #
+    # Weight adjustment tests (B2)
+    # ------------------------------------------------------------------ #
+    def test_trending_bull_shifts_weight_to_technicals(self, cfg_regime):
+        """TRENDING_BULL: technicals 0.15 → 0.30, risk_fit 0.12 → 0.10.
+        Other blocks proportionally rebalanced to preserve sum=1.0.
+
+        R7.11 load-bearing: the composite MUST differ from default (a
+        mutation that left the weight table unchanged for BULL would
+        make bull.composite == default.composite → test fails).
+
+        Direction of composite change depends on which block scores are
+        higher-weighted-in-default vs technicals — we don't assert
+        direction, only that a non-trivial delta exists AND that the
+        technicals-block weight is materially higher (this is the
+        semantic invariant the reviewer specified).
+        """
+        from openbb_regime import MarketRegime
+        from stock_analysis import _regime_weights
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        # Baseline (flag off)
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        # BULL regime with flag on
+        bull = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.TRENDING_BULL,
+        )
+        # 1. Non-trivial composite delta (proves the weight table was
+        # actually applied — a no-op branch would produce equality).
+        assert abs(bull.composite_score - default.composite_score) > 0.01, (
+            f"BULL composite should differ meaningfully from default "
+            f"(non-trivial weight shift). Got bull={bull.composite_score} "
+            f"vs default={default.composite_score}, delta="
+            f"{bull.composite_score - default.composite_score:.4f}."
+        )
+        # 2. Technicals weight semantically higher than default (the
+        # reviewer's spec — BULL biases toward technicals).
+        bull_weights = _regime_weights(MarketRegime.TRENDING_BULL)
+        assert bull_weights["technicals"] > 0.15, (
+            f"BULL must shift weight TO technicals; got "
+            f"{bull_weights['technicals']} (default is 0.15)."
+        )
+
+    def test_crisis_shifts_weight_to_risk_fit(self, cfg_regime):
+        """CRISIS: technicals 0.10, risk_fit 0.30 in the reviewer spec.
+
+        Whether composite goes up or down depends on which block scores
+        higher in the mocks; assert only the direction of the WEIGHTS,
+        not composite deltas. R7.11 load-bearing: mutating the weight
+        table for CRISIS to leave weights alone would make composite
+        equal the default — this test catches that.
+        """
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        crisis = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.CRISIS,
+        )
+        # Distinct composite → the regime table actually altered weights
+        assert crisis.composite_score != default.composite_score, (
+            f"CRISIS must produce a distinct composite from default "
+            f"(non-trivial weight shift). Got crisis="
+            f"{crisis.composite_score} vs default={default.composite_score}."
+        )
+
+    def test_ranging_regime_preserves_default_composite(self, cfg_regime):
+        """RANGING: no weight adjustment (per bead spec — only BULL and
+        CRISIS have distinct weight tables). R7.11 load-bearing:
+        mutating the RANGING branch to apply BULL weights would flip
+        this test.
+        """
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        ranging = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.RANGING,
+        )
+        assert ranging.composite_score == default.composite_score
+
+    def test_bear_regime_preserves_default_composite(self, cfg_regime):
+        """TRENDING_BEAR: no weight table shift (only tranche sizing
+        changes for BEAR — see B3 tests). Composite should match
+        default.
+        """
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        bear = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.TRENDING_BEAR,
+        )
+        assert bear.composite_score == default.composite_score
+
+    def test_flag_off_ignores_regime_kwarg(self, cfg):
+        """use_regime_input=False → regime kwarg is inert. The Phase7Result
+        may still record the regime (audit trail) but composite/tranches
+        MUST match the no-regime path.
+        """
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        without_regime = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+        with_bull = phase7_decision(
+            cfg, p1, p2, p3, p4, p5, p6, regime=MarketRegime.TRENDING_BULL,
+        )
+        assert with_bull.composite_score == without_regime.composite_score
+        assert with_bull.staged_entry == without_regime.staged_entry
+
+    def test_regime_weights_sum_to_one_bull(self, cfg_regime):
+        """R7.4 seam contract: the regime-adjusted weight table MUST
+        still sum to 1.0. If it doesn't, composite is on a different
+        scale from the default and score cutoffs (Avoid/Hold/Buy) become
+        meaningless.
+        """
+        from stock_analysis import _regime_weights
+        from openbb_regime import MarketRegime
+        w = _regime_weights(MarketRegime.TRENDING_BULL)
+        assert abs(sum(w.values()) - 1.0) < 1e-9, (
+            f"Regime weight table for TRENDING_BULL must sum to 1.0 "
+            f"(got {sum(w.values())}). Otherwise composite scale drifts "
+            f"and action_label cutoffs are meaningless."
+        )
+
+    def test_regime_weights_sum_to_one_crisis(self, cfg_regime):
+        from stock_analysis import _regime_weights
+        from openbb_regime import MarketRegime
+        w = _regime_weights(MarketRegime.CRISIS)
+        assert abs(sum(w.values()) - 1.0) < 1e-9
+
+    def test_regime_weights_match_bull_spec(self):
+        """R7.11 load-bearing: pin BULL weight values. Mutation to any
+        weight would flip this test.
+        """
+        from stock_analysis import _regime_weights
+        from openbb_regime import MarketRegime
+        w = _regime_weights(MarketRegime.TRENDING_BULL)
+        assert w["technicals"] == 0.30
+        assert w["risk_fit"] == 0.10
+
+    def test_regime_weights_match_crisis_spec(self):
+        from stock_analysis import _regime_weights
+        from openbb_regime import MarketRegime
+        w = _regime_weights(MarketRegime.CRISIS)
+        assert w["technicals"] == 0.10
+        assert w["risk_fit"] == 0.30
+
+    # ------------------------------------------------------------------ #
+    # Tranche multiplier tests (B3)
+    # ------------------------------------------------------------------ #
+    def test_bull_regime_preserves_full_tranches(self, cfg_regime):
+        """TRENDING_BULL multiplier is 1.0 — no scaling."""
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        bull = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.TRENDING_BULL,
+        )
+        assert bull.staged_entry == default.staged_entry
+
+    def test_bear_regime_halves_tranches(self, cfg_regime):
+        """TRENDING_BEAR multiplier is 0.5 — position sizes halved."""
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        bear = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.TRENDING_BEAR,
+        )
+        for tranche in ("tranche_1", "tranche_2", "tranche_3"):
+            assert bear.staged_entry[tranche] == pytest.approx(
+                default.staged_entry[tranche] * 0.5
+            ), f"BEAR should halve {tranche}: got {bear.staged_entry[tranche]}"
+
+    def test_crisis_regime_zeros_tranches(self, cfg_regime):
+        """CRISIS multiplier is 0.0 — never open new position in crisis."""
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        crisis = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.CRISIS,
+        )
+        for tranche in ("tranche_1", "tranche_2", "tranche_3"):
+            assert crisis.staged_entry[tranche] == 0.0, (
+                f"CRISIS must zero {tranche}: got "
+                f"{crisis.staged_entry[tranche]}. Bug: regime multiplier "
+                f"not applied or wrong value."
+            )
+
+    def test_ranging_preserves_full_tranches(self, cfg_regime):
+        """RANGING multiplier is 1.0."""
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        ranging = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.RANGING,
+        )
+        assert ranging.staged_entry == default.staged_entry
+
+    def test_tranche_multiplier_at_module_scope(self):
+        """R7.10 module-scope constants for regime → multiplier mapping.
+
+        iter-1 F1 fix: multiplier is now behind a lazy accessor
+        ``_regime_tranche_multiplier()`` so ``import stock_analysis``
+        stays cheap when ``openbb_regime`` is not installed AND
+        ``use_regime_input`` is off.
+        """
+        from stock_analysis import _regime_tranche_multiplier
+        from openbb_regime import MarketRegime
+        table = _regime_tranche_multiplier()
+        assert table[MarketRegime.TRENDING_BULL] == 1.0
+        assert table[MarketRegime.RANGING] == 1.0
+        assert table[MarketRegime.TRENDING_BEAR] == 0.5
+        assert table[MarketRegime.CRISIS] == 0.0
+        # UNKNOWN falls back to 1.0 (no scaling)
+        assert table[MarketRegime.UNKNOWN] == 1.0
+
+    # ------------------------------------------------------------------ #
+    # Loud-empty / edge-case tests (R7.3)
+    # ------------------------------------------------------------------ #
+    def test_flag_on_with_none_regime_warns_and_falls_back(self, cfg_regime, caplog):
+        """use_regime_input=True but regime=None: WARNING + default
+        weights. Prevents silent-BULL-when-flag-on drift.
+
+        R7.11 load-bearing (caplog assertion): if the warning is removed,
+        no records match and the test flips to failed — the value-only
+        assertion (composite == default) could pass coincidentally on
+        other bugs.
+        """
+        import logging
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            result = phase7_decision(
+                cfg_regime, p1, p2, p3, p4, p5, p6, regime=None,
+            )
+        assert result.composite_score == default.composite_score
+        warnings = [
+            r for r in caplog.records
+            if "regime input" in r.getMessage() and "None" in r.getMessage()
+        ]
+        assert len(warnings) == 1, (
+            f"use_regime_input=True + regime=None must emit WARNING; "
+            f"got: {[r.getMessage() for r in caplog.records]}"
+        )
+
+    def test_flag_on_with_unknown_regime_warns_and_falls_back(self, cfg_regime, caplog):
+        """use_regime_input=True + regime=UNKNOWN: same fallback + WARNING."""
+        import logging
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        default = phase7_decision(
+            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+        )
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            result = phase7_decision(
+                cfg_regime, p1, p2, p3, p4, p5, p6,
+                regime=MarketRegime.UNKNOWN,
+            )
+        assert result.composite_score == default.composite_score
+        warnings = [
+            r for r in caplog.records
+            if "UNKNOWN" in r.getMessage() and "regime" in r.getMessage()
+        ]
+        assert len(warnings) == 1
+
+    def test_crisis_tranche_zeroing_preserves_targets(self, cfg_regime):
+        """CRISIS zeros tranches BUT preserves stop/targets — the
+        pipeline still emits a valid execution plan for pre-existing
+        positions to trail out of, even if it forbids new entries.
+        """
+        from openbb_regime import MarketRegime
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        crisis = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.CRISIS,
+        )
+        # Targets and stop are still computed (execution layer needs
+        # them for any pre-existing position management).
+        assert crisis.atr_stop > 0
+        assert crisis.target_1r > 0
+
+    def test_regime_ast_wired_into_composite_calc(self):
+        """R7.8 AST wiring guard: phase7_decision must actually READ
+        `regime` and pass it to the weight-table selector. Prevents a
+        future refactor from making regime an inert parameter.
+
+        iter-1 pr-test HIGH F2 fix: previous version accepted ANY call
+        to _regime_weights, so a mutation adding
+        ``_ = _regime_weights(MarketRegime.UNKNOWN)`` (regime input
+        ignored) would silently pass. Now walks the AST for a Call
+        whose args include ``regime`` (the parameter name) AND whose
+        return value is assigned to a Name equal to ``weights``.
+        """
+        import ast
+        import inspect
+        from stock_analysis import phase7_decision
+        src = inspect.getsource(phase7_decision)
+        tree = ast.parse(src)
+
+        wired = False
+        for node in ast.walk(tree):
+            # Look for `<name> = _regime_weights(<something involving regime>)`
+            if isinstance(node, ast.Assign):
+                if (
+                    len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)
+                    and node.targets[0].id == "weights"
+                    and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and node.value.func.id == "_regime_weights"
+                ):
+                    # Verify at least one arg references the `regime` name
+                    for arg in node.value.args:
+                        if isinstance(arg, ast.Name) and arg.id == "regime":
+                            wired = True
+                            break
+        assert wired, (
+            "phase7_decision must assign weights = _regime_weights(regime) "
+            "inside the use_regime_input branch — either the Call is "
+            "missing, its result is not assigned to `weights`, or its arg "
+            "is not the `regime` parameter (e.g. hardcoded)."
+        )
+
+    def test_run_full_analysis_threads_regime_to_phase7(self):
+        """iter-1 pr-test HIGH F3: without this, the entire regime feature
+        is inert from the top-level entry — every call to
+        ``run_full_analysis`` with ``use_regime_input=True`` would hit
+        the None→WARNING+fallback branch.
+
+        R7.8 AST wiring guard: verify ``phase7_decision`` inside
+        ``run_full_analysis`` receives the ``regime`` argument (not
+        a hardcoded None).
+        """
+        import ast
+        import inspect
+        from stock_analysis import run_full_analysis
+        src = inspect.getsource(run_full_analysis)
+        tree = ast.parse(src)
+
+        found_regime_kwarg = False
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "phase7_decision"
+            ):
+                for kw in node.keywords:
+                    if kw.arg == "regime" and isinstance(kw.value, ast.Name):
+                        if kw.value.id == "regime":
+                            found_regime_kwarg = True
+        assert found_regime_kwarg, (
+            "run_full_analysis must call "
+            "phase7_decision(..., regime=regime) — else the top-level "
+            "entry silently ignores the regime feature."
+        )
+
+    def test_regime_weights_raises_typeerror_on_string_input(self):
+        """iter-1 silent-hunt HIGH F4: reject non-MarketRegime input
+        (e.g. raw strings like ``"crisis"``, ints, other enums) rather
+        than silently returning default weights + KeyError-ing on the
+        downstream tranche lookup.
+
+        R7.11 load-bearing: mutating _regime_weights to accept
+        anything (drop the isinstance guard) would flip this test.
+        """
+        from stock_analysis import _regime_weights
+        with pytest.raises(TypeError, match="expected MarketRegime instance"):
+            _regime_weights("crisis")   # lowercase str: dangerous silent fallthrough
+        with pytest.raises(TypeError, match="expected MarketRegime instance"):
+            _regime_weights(0)          # int
+        with pytest.raises(TypeError, match="expected MarketRegime instance"):
+            _regime_weights(None)       # None (before coercion)
+
+    def test_p7_post_init_coerces_garbage_regime_to_unknown(self, caplog):
+        """iter-1 silent-hunt MEDIUM F5: Phase7Result.__post_init__ must
+        coerce ANY non-MarketRegime input to UNKNOWN with a WARNING,
+        not just None. Prevents downstream `.regime` accesses from
+        blowing up on typed garbage.
+
+        R7.9 caplog assertion: the warning is the load-bearing signal
+        that the coercion happened.
+        """
+        import logging
+        from openbb_regime import MarketRegime
+        # Construct a Phase7Result with garbage regime; __post_init__
+        # should coerce and warn.
+        with caplog.at_level(logging.WARNING):
+            p7 = Phase7Result(
+                composite_score=0.0,
+                action_label="Test",
+                score_breakdown={},
+                entry_quality="Wait",
+                atr_stop=0.0,
+                risk_per_share=0.0,
+                target_1r=0.0,
+                target_2r=0.0,
+                target_3r=0.0,
+                staged_entry={"tranche_1": 0.0, "tranche_2": 0.0, "tranche_3": 0.0},
+                time_stop_date="2026-01-01",
+                hard_override=None,
+                monitoring_triggers={},
+                handoff={},
+                regime="crisis",   # lowercase str — not a MarketRegime
+            )
+        assert p7.regime == MarketRegime.UNKNOWN, (
+            f"non-MarketRegime input to Phase7Result.regime must coerce "
+            f"to UNKNOWN; got {p7.regime!r} (type {type(p7.regime).__name__})"
+        )
+        warnings = [
+            r for r in caplog.records
+            if "non-MarketRegime" in r.getMessage()
+        ]
+        assert len(warnings) >= 1, (
+            f"__post_init__ must emit WARNING when coercing non-MarketRegime "
+            f"regime; got: {[r.getMessage() for r in caplog.records]}"
+        )
+
+    def test_gate_failure_synth_p7_has_unknown_regime(self):
+        """iter-1 pr-test MEDIUM F7: gate-failure synth path constructs
+        a Phase7Result with no explicit regime — verify the result
+        carries MarketRegime.UNKNOWN (either via explicit kwarg or
+        via __post_init__ coercion).
+        """
+        from openbb_regime import MarketRegime
+        # Trigger a gate failure by constructing a Phase3Result with
+        # gate_passed=False and enforce_gates=True. We synth a minimal
+        # p1/p2 that will pass their own gates, then run through the
+        # pipeline until phase3 fails.
+        # Simpler: directly construct the synth path outcome the way
+        # _gate_check does.
+        synth = Phase7Result(
+            composite_score=0.0,
+            action_label="Gate Failed",
+            score_breakdown={},
+            entry_quality="Wait",
+            atr_stop=0.0,
+            risk_per_share=0.0,
+            target_1r=0.0,
+            target_2r=0.0,
+            target_3r=0.0,
+            staged_entry={"tranche_1": 0.0, "tranche_2": 0.0, "tranche_3": 0.0},
+            time_stop_date="2026-01-01",
+            hard_override="Gate failed at p3",
+            monitoring_triggers={},
+            handoff={"stopped_at": "p3"},
+            trailing_stop_rules={},
+            # regime kwarg omitted — __post_init__ should coerce None → UNKNOWN
+        )
+        assert synth.regime == MarketRegime.UNKNOWN
+
+    def test_altman_distress_cap_applies_regardless_of_regime(self, cfg_regime):
+        """iter-1 pr-test MEDIUM F11 (hard-override × regime interaction):
+        Altman < 1.81 caps composite at 2.0. Verify this cap still bites
+        under BULL regime (where the un-capped composite would otherwise
+        be higher due to technicals weight shift).
+
+        R7.11 load-bearing: mutating the Altman cap to only apply under
+        the default weight table would flip this test.
+        """
+        from openbb_regime import MarketRegime
+        # Construct p4 with distressed Altman
+        p4 = _make_mock_p4()
+        p4.altman = 1.5   # distress zone
+        p1, p2, p3, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p5(), _make_mock_p6(),
+        )
+        result = phase7_decision(
+            cfg_regime, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.TRENDING_BULL,
+        )
+        assert result.composite_score <= 2.0, (
+            f"Altman distress cap (composite <= 2.0) must bite regardless "
+            f"of regime; got composite={result.composite_score} under BULL "
+            f"regime with altman={p4.altman}."
+        )
+
+    def test_regime_must_be_kwarg_only(self):
+        """iter-1 pr-test LOW: the `*` marker enforces kwarg-only.
+        Positional-passing regime is a TypeError.
+        """
+        from openbb_regime import MarketRegime
+        cfg = AnalysisConfig(symbol="MSFT")
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        with pytest.raises(TypeError):
+            phase7_decision(cfg, p1, p2, p3, p4, p5, p6, MarketRegime.CRISIS)   # positional!
+
+
 # ---------------------------------------------------------------------------
 # Integration tests — Phase 1 (MSFT + AAPL)
 # ---------------------------------------------------------------------------
