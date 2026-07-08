@@ -136,6 +136,140 @@ _TRAILING_STOP_DEFAULTS: dict[str, float] = {
 }
 
 # ---------------------------------------------------------------------------
+# Regime-adjusted composite weights (bd 0h2.14 / B2)
+# ---------------------------------------------------------------------------
+# Reviewer P7 Q-1: the P7 composite scoring should adapt to the current
+# market regime. In TRENDING_BULL, technical momentum is the higher-
+# probability signal (correlations break, individual stock strength
+# matters more) — bias weight toward the technicals block. In CRISIS,
+# individual stock quality dominates less than the ability to weather
+# a drawdown — bias toward risk_fit (Sharpe / MaxDD / drawdown history).
+#
+# RANGING and TRENDING_BEAR keep the default table — the reviewer's spec
+# only distinguishes the two extreme regimes.
+#
+# INVARIANT: each regime's weight table MUST sum to 1.0. Otherwise the
+# composite scale drifts and Avoid/Hold/Buy cutoffs become meaningless
+# (see test_regime_weights_sum_to_one_bull / _crisis, R7.4 seam contract).
+# Values shift the technicals ↔ risk_fit pair AND rebalance the remaining
+# blocks proportionally to preserve the sum-to-1.0 invariant.
+_DEFAULT_COMPOSITE_WEIGHTS: dict[str, float] = {
+    "business_quality": 0.08,
+    "fundamentals":     0.25,
+    "technicals":       0.15,
+    "valuation":        0.20,
+    "risk_fit":         0.12,
+    "peer_relative":    0.20,
+}
+
+# Bull: technicals up (0.15 → 0.30), risk_fit down (0.12 → 0.10). Net delta
+# +0.13, redistributed by shrinking the four unchanged blocks proportionally
+# (each takes -0.13 / 0.73 ≈ 17.8% haircut relative to their default).
+_BULL_COMPOSITE_WEIGHTS: dict[str, float] = {
+    "business_quality": 0.0657,
+    "fundamentals":     0.2055,
+    "technicals":       0.30,
+    "valuation":        0.1644,
+    "risk_fit":         0.10,
+    "peer_relative":    0.1644,
+}
+
+# Crisis: risk_fit up (0.12 → 0.30), technicals down (0.15 → 0.10). Net delta
+# +0.13, redistributed the same way.
+_CRISIS_COMPOSITE_WEIGHTS: dict[str, float] = {
+    "business_quality": 0.0657,
+    "fundamentals":     0.2055,
+    "technicals":       0.10,
+    "valuation":        0.1644,
+    "risk_fit":         0.30,
+    "peer_relative":    0.1644,
+}
+
+# ---------------------------------------------------------------------------
+# Regime tranche multipliers (bd 0h2.15 / B3)
+# ---------------------------------------------------------------------------
+# Reviewer P7 Q-1 continued: staged_entry.tranche_* should scale by regime.
+# BULL / RANGING: full size (no scaling).
+# BEAR: half size (uncertainty premium — the tape is against you).
+# CRISIS: zero (never open a new position while correlations are at 1.0
+# and every trade bleeds together — the pre-existing position management
+# is what stops/targets are for).
+# UNKNOWN: fall back to 1.0 (behave like the flag is off — the R7.3
+# loud-empty path handles the WARNING at the caller layer, this table
+# just needs a defined value so `[regime]` dict lookup doesn't KeyError).
+#
+# iter-1 code-reviewer + silent-hunter HIGH F1: TRULY LAZY. Previous
+# version invoked _make_regime_tranche_multiplier() at module scope
+# (line 214), defeating the "lazy import" docstring — any environment
+# without openbb_regime installed broke `import stock_analysis` even
+# with use_regime_input=False. Now: cache is populated on first call
+# to _regime_tranche_multiplier(), preserving the flag-off default-
+# reversibility guarantee.
+_REGIME_TRANCHE_MULTIPLIER_CACHE: dict | None = None
+
+
+def _regime_tranche_multiplier() -> dict:
+    """Return the regime → tranche-multiplier lookup table.
+
+    Lazy: only imports openbb_regime on first call, so environments
+    without the regime extension can still ``import stock_analysis``
+    as long as ``use_regime_input`` stays False.
+    """
+    global _REGIME_TRANCHE_MULTIPLIER_CACHE
+    if _REGIME_TRANCHE_MULTIPLIER_CACHE is None:
+        from openbb_regime import MarketRegime
+        _REGIME_TRANCHE_MULTIPLIER_CACHE = {
+            MarketRegime.TRENDING_BULL:  1.0,
+            MarketRegime.RANGING:        1.0,
+            MarketRegime.TRENDING_BEAR:  0.5,
+            MarketRegime.CRISIS:         0.0,
+            MarketRegime.UNKNOWN:        1.0,
+        }
+    return _REGIME_TRANCHE_MULTIPLIER_CACHE
+
+
+def _regime_weights(regime) -> dict[str, float]:
+    """Return the composite-weight table for a given regime.
+
+    Parameters
+    ----------
+    regime : MarketRegime
+        The current market regime.
+
+    Returns
+    -------
+    dict[str, float]
+        The 6-block weight table for that regime; always sums to 1.0.
+
+    Raises
+    ------
+    TypeError
+        If ``regime`` is not a :class:`MarketRegime` instance. iter-1
+        silent-hunt F4 fix: reject garbage rather than silently return
+        default (which would mask the caller's bug + then KeyError on
+        the downstream tranche lookup). ``MarketRegime`` extends ``str``
+        so ``regime="crisis"`` would silently equality-compare against
+        no enum member (all values are UPPERCASE), fall through, and
+        return default weights + KeyError on the tranche dict lookup.
+        Rejecting non-enum types at the seam prevents both.
+    """
+    from openbb_regime import MarketRegime
+    if not isinstance(regime, MarketRegime):
+        raise TypeError(
+            f"_regime_weights: expected MarketRegime instance, got "
+            f"{type(regime).__name__} ({regime!r}). Use MarketRegime "
+            f"lookup (e.g. MarketRegime('CRISIS') or MarketRegime.CRISIS) "
+            f"to coerce external inputs — do not pass raw strings."
+        )
+    if regime == MarketRegime.TRENDING_BULL:
+        return dict(_BULL_COMPOSITE_WEIGHTS)
+    if regime == MarketRegime.CRISIS:
+        return dict(_CRISIS_COMPOSITE_WEIGHTS)
+    # RANGING, TRENDING_BEAR, UNKNOWN → default weights
+    return dict(_DEFAULT_COMPOSITE_WEIGHTS)
+
+
+# ---------------------------------------------------------------------------
 # Feature flags (Phase A0 — bead OpenBBTechnical-0h2.1)
 # ---------------------------------------------------------------------------
 # Every flag defaults to ``False`` so the pipeline behaves exactly as it did
@@ -535,6 +669,46 @@ class Phase7Result:
     These are protocol parameters for the execution layer to interpret;
     the Analysis pipeline does not simulate the trailing behavior itself.
     """
+
+    regime: Any = None
+    """MarketRegime input recorded on the result (bd-0h2.14 / B2).
+
+    Defaults to ``MarketRegime.UNKNOWN`` in ``phase7_decision`` when no
+    regime is supplied (via the ``__post_init__`` hook — the field
+    default is ``None`` at the dataclass level to avoid importing
+    ``openbb_regime`` at Analysis-module import time).
+
+    When ``AnalysisFeatureFlags.use_regime_input`` is True, this field
+    records the regime that was used to select the composite-weight
+    table and staged_entry multiplier. Present for auditability and
+    downstream logging — the actual behavior change lives in the
+    composite score and staged_entry tranches.
+
+    Typed as ``Any`` to keep the dataclass free of openbb_regime import
+    cycles; the runtime value is always a ``MarketRegime`` enum member.
+    """
+
+    def __post_init__(self) -> None:
+        """Coerce None → MarketRegime.UNKNOWN so downstream consumers
+        can safely dict-lookup on ``result.regime``.
+
+        iter-1 silent-hunt F5: also coerce any non-MarketRegime input
+        (int, str, other enum) → UNKNOWN with a WARNING. Silent
+        acceptance of typed garbage is worse than silent acceptance of
+        None because downstream .regime lookups would fail unpredictably.
+        """
+        from openbb_regime import MarketRegime
+        if self.regime is None:
+            self.regime = MarketRegime.UNKNOWN
+        elif not isinstance(self.regime, MarketRegime):
+            logger.warning(
+                "Phase7Result: regime field received non-MarketRegime "
+                "value %r (type=%s); coercing to MarketRegime.UNKNOWN. "
+                "Callers should pass a MarketRegime instance — see "
+                "stock_analysis.phase7_decision docstring.",
+                self.regime, type(self.regime).__name__,
+            )
+            self.regime = MarketRegime.UNKNOWN
 
 
 # ---------------------------------------------------------------------------
@@ -2921,10 +3095,29 @@ def phase7_decision(
     p4: Phase4Result,
     p5: Phase5Result,
     p6: Phase6Result,
+    *,
+    regime: Any = None,
 ) -> Phase7Result:
     """Phase 7 — Composite score, action label, execution plan, monitoring triggers.
 
     No new API calls — uses prior phase results only.
+
+    Parameters
+    ----------
+    regime : MarketRegime | None, keyword-only
+        Current market regime (bd-0h2.14 / B2). When
+        ``cfg.feature_flags.use_regime_input`` is True and this is a
+        concrete regime (not None, not ``MarketRegime.UNKNOWN``), the
+        composite-weight table shifts (BULL biases toward technicals,
+        CRISIS biases toward risk_fit) and the staged_entry tranches
+        scale by the regime multiplier (BEAR halves, CRISIS zeros).
+
+        When the flag is on but ``regime`` is ``None`` or ``UNKNOWN``,
+        the function emits a WARNING and falls back to the default
+        weight table + no tranche scaling (R7.3 loud-empty).
+
+        When the flag is off, this parameter is ignored (still recorded
+        on ``Phase7Result.regime`` for audit trail).
 
     Returns
     -------
@@ -2942,16 +3135,41 @@ def phase7_decision(
         "peer_relative":    p6.relative_score,
     }
 
-    weights: dict[str, float] = {
-        "business_quality": 0.08,
-        "fundamentals":     0.25,
-        "technicals":       0.15,
-        "valuation":        0.20,
-        "risk_fit":         0.12,
-        "peer_relative":    0.20,
-    }
+    # bd-0h2.14 / B2 — regime-adjusted composite weights. Default table
+    # applies unless use_regime_input is True AND a concrete regime is
+    # supplied. Loud-empty (R7.3) on flag-on-but-degenerate-regime:
+    # WARNING + fall back to default so ops can distinguish "regime
+    # feature disabled" from "regime detector returned nothing usable".
+    from openbb_regime import MarketRegime as _MarketRegime  # local to avoid top-level cycle
+    if cfg.feature_flags.use_regime_input:
+        if regime is None:
+            logger.warning(
+                "phase7_decision: use_regime_input=True but regime input "
+                "is None — falling back to default composite weights + "
+                "no tranche scaling. Caller should supply a concrete "
+                "MarketRegime (or pass regime=MarketRegime.UNKNOWN "
+                "explicitly to acknowledge the degraded state)."
+            )
+            weights = _regime_weights(_MarketRegime.UNKNOWN)
+            _effective_regime_for_tranche = _MarketRegime.UNKNOWN
+        elif regime == _MarketRegime.UNKNOWN:
+            logger.warning(
+                "phase7_decision: use_regime_input=True but regime is "
+                "UNKNOWN (regime detector returned no confident "
+                "classification) — falling back to default composite "
+                "weights + no tranche scaling."
+            )
+            weights = _regime_weights(_MarketRegime.UNKNOWN)
+            _effective_regime_for_tranche = _MarketRegime.UNKNOWN
+        else:
+            weights = _regime_weights(regime)
+            _effective_regime_for_tranche = regime
+    else:
+        weights = dict(_DEFAULT_COMPOSITE_WEIGHTS)
+        _effective_regime_for_tranche = _MarketRegime.UNKNOWN  # inert path
 
     composite = sum(scores[k] * weights[k] for k in weights)
+
 
     # --- Hard overrides ---
     hard_override: str | None = None
@@ -3064,6 +3282,18 @@ def phase7_decision(
     }
     staged_entry = tranche_map.get(eq, tranche_map["Wait"])
 
+    # bd-0h2.15 / B3 — regime-scaled tranche sizes. BULL/RANGING keep
+    # full size; BEAR halves position; CRISIS zeros all tranches.
+    # Applied ONLY when use_regime_input is True — flag-off path uses
+    # the raw tranche_map to preserve pre-B3 behavior exactly.
+    if cfg.feature_flags.use_regime_input:
+        multiplier = _regime_tranche_multiplier()[_effective_regime_for_tranche]
+        if multiplier != 1.0:
+            staged_entry = {
+                k: v * multiplier for k, v in staged_entry.items()
+            }
+
+
     # Time stop — 63 calendar days from the analysis end date (last completed
     # trading day), not from today, so the window is anchored to the data.
     time_stop_date = (
@@ -3100,6 +3330,7 @@ def phase7_decision(
         monitoring_triggers=monitoring_triggers,
         handoff=handoff,
         trailing_stop_rules=trailing_stop_rules,
+        regime=regime,   # bd-0h2.14 / B2 — always recorded (audit trail)
     )
 
 
@@ -3108,12 +3339,21 @@ def phase7_decision(
 # ---------------------------------------------------------------------------
 
 
-def run_full_analysis(cfg: AnalysisConfig) -> dict[str, Any]:
+def run_full_analysis(cfg: AnalysisConfig, *, regime: Any = None) -> dict[str, Any]:
     """Run all 7 phases in sequence and return a results dictionary.
 
     Parameters
     ----------
     cfg : AnalysisConfig
+    regime : MarketRegime | None, keyword-only
+        Current market regime (bd-0h2.14 / B2). When
+        ``cfg.feature_flags.use_regime_input`` is True, this value is
+        threaded into ``phase7_decision`` to select the composite-weight
+        table and staged_entry multiplier. Downstream callers (CLI /
+        REST router / Workspace widget) should fetch SPY + VIX daily
+        bars and call ``openbb_regime.detect_market_regime()`` to
+        compute this argument. When the flag is off, this value is
+        ignored (still recorded on ``Phase7Result.regime`` for audit).
 
     Returns
     -------
@@ -3152,9 +3392,23 @@ def run_full_analysis(cfg: AnalysisConfig) -> dict[str, Any]:
                 # reader who greps for trailing_stop_rules and expects to
                 # find every construction site.
                 trailing_stop_rules={},
+                # PR #B2 iter-1 code-reviewer NIT: explicit UNKNOWN on
+                # the synth path so the intent is pinned at the call
+                # site (a gate-failure result never carries a real
+                # regime). The __post_init__ would coerce None→UNKNOWN
+                # anyway, but future-proof against the coercion being
+                # removed as part of an F5 refactor.
+                regime=_gate_check_unknown_regime(),
             )
             return True
         return False
+
+    def _gate_check_unknown_regime():
+        """Return MarketRegime.UNKNOWN; wraps the import so the gate-
+        failure synth path doesn't force openbb_regime at module load.
+        """
+        from openbb_regime import MarketRegime
+        return MarketRegime.UNKNOWN
 
     results: dict[str, Any] = {}
 
@@ -3195,7 +3449,12 @@ def run_full_analysis(cfg: AnalysisConfig) -> dict[str, Any]:
         return results
 
     logger.info("Phase 7 — Decision")
-    p7 = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+    # iter-1 pr-test HIGH F3: thread regime through so callers can enable
+    # use_regime_input meaningfully. Without this the top-level entry
+    # always hits the None→WARNING+fallback branch even when the flag
+    # is on. Downstream (CLI, REST router in B4) fetches SPY+VIX and
+    # calls openbb_regime.detect_market_regime() then passes the result.
+    p7 = phase7_decision(cfg, p1, p2, p3, p4, p5, p6, regime=regime)
     results["p7"] = p7
 
     logger.info(
