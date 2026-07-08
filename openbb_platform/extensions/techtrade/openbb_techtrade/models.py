@@ -24,7 +24,17 @@ class Mover(Data):
     """A single ranked top-mover within a segment (a row of a MoverList)."""
 
     symbol: str = Field(description="Instrument symbol.")
-    pct_change: float = Field(description="Percent change over the ranking window.")
+    pct_change: float = Field(
+        description=(
+            "Percent change over the ranking window, as a HUMAN PERCENT "
+            "(1.38 means +1.38%, NOT 0.0138). This differs from "
+            "openbb_core.provider.standard_models.equity_performance."
+            "EquityPerformanceData.percent_change which is a fraction. "
+            "The conversion happens at the compute_ohlcv_metrics boundary "
+            "(bd-lw3 fix, Option B2) so downstream display code is "
+            "trivially correct: f'{m.pct_change:+.2f}%'."
+        ),
+    )
     volume: Decimal = Field(description="Share volume over the ranking window.")
     rank: int = Field(description="One-based rank of the mover within its segment.")
 

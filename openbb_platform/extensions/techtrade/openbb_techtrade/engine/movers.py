@@ -19,12 +19,15 @@ imported lazily inside the default fetcher only, keeping module import light.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import date, timedelta
 from decimal import Decimal
 
 from openbb_techtrade.engine.screener import GICS_SECTOR_ETFS, list_segments
 from openbb_techtrade.models import Mover, MoverList, SegmentConfig
+
+logger = logging.getLogger(__name__)
 
 # The metrics ``rank_movers`` knows how to order candidates by (mirrors
 # ``SegmentConfig.rank_metric``). ``gap`` / ``rel_volume`` require OHLCV history.
@@ -210,8 +213,19 @@ def compute_ohlcv_metrics(symbol: str, ohlcv_rows: list) -> dict:
     last_volume_raw = _get(last, "volume")
     last_volume = _as_float(last_volume_raw)
 
-    pct_change = (last_close - prev_close) / prev_close if prev_close else 0.0
-    gap = (last_open - prev_close) / prev_close if prev_close else 0.0
+    # bd-lw3 (Option B2): store pct_change and gap as HUMAN PERCENT (1.38
+    # for a +1.38% move), NOT as a fraction (0.0138). Rationale:
+    # Mover.pct_change is a techtrade-native presentation field consumed
+    # by notebooks / exports / the Workspace widget — a human percent is
+    # the least-surprising unit at that layer, and it makes display code
+    # trivially correct (`f"{m.pct_change:+.2f}%"` renders as "+1.38%",
+    # not "+0.01%"). The Mover model docstring pins this contract.
+    #
+    # INVARIANT: any future consumer that needs a fraction MUST divide
+    # by 100 explicitly at the boundary. rel_volume is a ratio-of-volumes
+    # (not a change ratio) and is NOT multiplied — see the model note.
+    pct_change = ((last_close - prev_close) / prev_close * 100.0) if prev_close else 0.0
+    gap = ((last_open - prev_close) / prev_close * 100.0) if prev_close else 0.0
 
     prior_volumes = [_as_float(_get(r, "volume")) for r in rows[:-1]]
     mean_prior = sum(prior_volumes) / len(prior_volumes) if prior_volumes else 0.0
@@ -232,16 +246,22 @@ def _default_candidate_fetcher(
     calendar: str = "XNYS",
     ohlcv_lookback: int = 21,
     needs_ohlcv: bool = False,
+    universe: list[str] | None = None,
 ) -> list[dict]:
-    """Build live mover candidates from the discovery feed (integration-only).
+    """Build live mover candidates (integration-only).
 
-    Unions ``obb.equity.discovery.gainers``, ``.losers`` and ``.active`` by symbol
-    (first occurrence wins), capturing ``pct_change`` and ``volume``. When
-    ``needs_ohlcv`` is set (i.e. the metric is ``gap`` / ``rel_volume``), recent
-    history from ``obb.equity.price.historical`` is fetched per symbol and merged via
-    :func:`compute_ohlcv_metrics`. Every external call is guarded so a flaky source
-    or symbol is skipped rather than aborting the whole fetch. ``openbb`` is imported
-    lazily and all live calls use ``fmp_cached``.
+    bd-lw3 fix: when ``universe`` is provided, take the per-symbol OHLCV
+    path for ALL metrics (not just gap/rel_volume) — this is R7.5
+    "narrow-then-fan-out". Rationale: the discovery firehose only
+    populates the top-50 gainers/losers/active market-wide, so an
+    intersection with a sector universe collapses to whatever handful
+    of names happen to be in both today (5-ish for XLK). Worse,
+    ``EquityPerformanceData.volume`` is not populated by FMP so every
+    discovery-sourced candidate silently carries ``volume=None`` →
+    ``volume=0`` after coercion.
+
+    Legacy behavior (no universe): union ``obb.equity.discovery.gainers``,
+    ``.losers`` and ``.active`` by symbol (first occurrence wins).
 
     Parameters
     ----------
@@ -253,7 +273,13 @@ def _default_candidate_fetcher(
     ohlcv_lookback : int, optional
         Number of trailing OHLCV bars to keep per symbol. Defaults to ``21``.
     needs_ohlcv : bool, optional
-        Whether to fetch and merge OHLCV-derived metrics. Defaults to ``False``.
+        Whether to fetch and merge OHLCV-derived metrics on the discovery path.
+        Ignored when ``universe`` is supplied (that path is always OHLCV-driven).
+        Defaults to ``False``.
+    universe : list[str] | None, optional
+        When provided, bypass the discovery firehose and fetch per-symbol OHLCV
+        for every universe member (bd-lw3 fix). ``needs_ohlcv`` is implicitly
+        True on this path.
 
     Returns
     -------
@@ -261,6 +287,18 @@ def _default_candidate_fetcher(
         Candidate dicts keyed minimally by ``symbol`` plus available metric fields.
     """
     from openbb import obb
+
+    # bd-lw3: universe path — narrow-then-fan-out. Fetch per-symbol OHLCV
+    # and derive real pct_change/volume/gap/rel_volume for the resolved
+    # universe. Skip the discovery-firehose union entirely.
+    if universe is not None:
+        return _fetch_universe_candidates(
+            universe, as_of,
+            ohlcv_lookback=ohlcv_lookback,
+            history_fetcher=lambda symbol, **kw: obb.equity.price.historical(
+                symbol=symbol, provider="fmp_cached", **kw,
+            ).results or [],
+        )
 
     candidates: dict[str, dict] = {}
     for source in ("gainers", "losers", "active"):
@@ -272,9 +310,13 @@ def _default_candidate_fetcher(
             symbol = getattr(row, "symbol", None)
             if not symbol or symbol in candidates:
                 continue
+            # bd-lw3 Option B2: the discovery-path pct_change is stored as
+            # a fraction by EquityPerformanceData; convert to percent so
+            # Mover.pct_change contract is uniform across both paths.
+            raw_pct = getattr(row, "percent_change", None)
             candidates[symbol] = {
                 "symbol": symbol,
-                "pct_change": getattr(row, "percent_change", None),
+                "pct_change": raw_pct * 100.0 if raw_pct is not None else None,
                 "volume": getattr(row, "volume", None),
             }
 
@@ -291,11 +333,94 @@ def _default_candidate_fetcher(
                 bars = (history.results or [])[-ohlcv_lookback:]
                 # Intentionally overwrites the discovery pct_change / volume with the
                 # OHLCV-derived descriptive values that back gap / rel_volume ranking.
+                # compute_ohlcv_metrics already returns pct_change as percent.
                 candidate.update(compute_ohlcv_metrics(symbol, bars))
             except Exception:  # noqa: BLE001, S112 - skip a symbol whose history fails
                 continue
 
     return list(candidates.values())
+
+
+def _fetch_universe_candidates(
+    universe: list[str],
+    as_of: date,
+    *,
+    ohlcv_lookback: int = 21,
+    history_fetcher: Callable[..., list] | None = None,
+) -> list[dict]:
+    """Per-constituent OHLCV → candidate dicts with REAL metrics (bd-lw3).
+
+    Implements R7.5 narrow-then-fan-out for the movers pipeline: given a
+    resolved universe, fetch per-symbol OHLCV history and derive real
+    ``pct_change`` / ``volume`` / ``gap`` / ``rel_volume`` via
+    :func:`compute_ohlcv_metrics`. Skips (with WARNING per R7.3) any
+    symbol whose history fetch fails or returns empty — never silently
+    ranks a symbol with zeros from a failed fetch.
+
+    Parameters
+    ----------
+    universe : list[str]
+        The resolved universe (e.g. XLK constituents for the
+        Information Technology sector).
+    as_of : date
+        Resolved session date; bounds the OHLCV ``end_date``.
+    ohlcv_lookback : int, optional
+        Number of trailing bars to keep per symbol. Defaults to ``21``.
+    history_fetcher : Callable, optional
+        Injectable OHLCV fetcher for tests. Signature:
+        ``fetcher(symbol, start_date=..., end_date=...) -> list[bar]``.
+        When omitted the caller is expected to pass one (production
+        callers wrap ``obb.equity.price.historical``).
+
+    Returns
+    -------
+    list[dict]
+        Candidate dicts (one per universe member with valid history).
+        Each dict is the output of :func:`compute_ohlcv_metrics`.
+    """
+    if history_fetcher is None:
+        raise ValueError(
+            "_fetch_universe_candidates requires a history_fetcher "
+            "(inject via _default_candidate_fetcher or test fake)."
+        )
+
+    out: list[dict] = []
+    start_iso = (as_of - timedelta(days=ohlcv_lookback * 2 + 10)).isoformat()
+    end_iso = as_of.isoformat()
+
+    for symbol in universe:
+        try:
+            bars = history_fetcher(symbol, start_date=start_iso, end_date=end_iso)
+        except Exception as exc:  # noqa: BLE001
+            # R7.3 loud-empty: name the symbol AND the error so ops can
+            # distinguish a broken symbol from a broken fetcher.
+            logger.warning(
+                "movers: OHLCV fetch failed for %s: %s — dropping from candidate pool",
+                symbol, exc,
+            )
+            continue
+        bars = list(bars or [])[-ohlcv_lookback:]
+        if not bars:
+            logger.warning(
+                "movers: no OHLCV bars for %s (empty response) — dropping",
+                symbol,
+            )
+            continue
+        out.append(compute_ohlcv_metrics(symbol, bars))
+
+    # iter-1 reviewer soft NIT: R7.3 aggregate loud-empty. Per-symbol
+    # warnings scale with |universe| but a distant reader scanning logs
+    # sees "many warnings about individual symbols" rather than "the
+    # provider is down". Emit one summary line at the boundary so ops
+    # can distinguish these two failure modes at a glance.
+    if len(universe) > 0 and len(out) == 0:
+        logger.warning(
+            "movers: 0/%d candidates fetched from universe — check "
+            "provider health (all per-symbol fetches failed or returned "
+            "empty)",
+            len(universe),
+        )
+    return out
 
 
 def _call_discovery(fetch: Callable[..., object]) -> list:
@@ -333,9 +458,15 @@ def build_mover_list(
 
     Snaps ``as_of`` to a session, fetches candidates through the (injectable)
     ``candidate_fetcher``, optionally filters them to ``universe``, and ranks via
-    :func:`rank_movers`. The fetcher is always invoked as
-    ``fetcher(as_of=session, calendar=calendar, needs_ohlcv=...)``; injected fakes
-    must therefore accept ``**kwargs`` (tests use ``def fake(as_of, **kwargs)``).
+    :func:`rank_movers`. The fetcher is invoked as
+    ``fetcher(as_of=session, calendar=calendar, needs_ohlcv=..., universe=universe)``;
+    injected fakes must therefore accept ``**kwargs`` (tests use
+    ``def fake(as_of, **kwargs)``). The ``universe`` kwarg was added in
+    bd-lw3 so the fetcher can take the R7.5 narrow-then-fan-out path for
+    ALL metrics (not just gap/rel_volume) — fakes that ignore ``universe``
+    still work because ``build_mover_list`` post-filters as a safety net.
+    Fakes that use strict keyword signatures (no ``**kwargs``) MUST accept
+    ``universe`` to remain compatible.
 
     Parameters
     ----------
@@ -365,12 +496,21 @@ def build_mover_list(
     top_n = top_n if top_n is not None else config.top_n
     fetcher = candidate_fetcher or _default_candidate_fetcher
 
+    # bd-lw3: pass universe through to the fetcher so it can take the
+    # narrow-then-fan-out OHLCV path for ALL metrics (not just
+    # gap/rel_volume). Prior code post-filtered candidates AFTER a
+    # discovery-firehose fetch, silently collapsing the pool to
+    # `universe ∩ discovery_top_150` (often < 10 for sector scans).
     candidates = fetcher(
         as_of=session,
         calendar=calendar,
         needs_ohlcv=metric in _OHLCV_METRICS,
+        universe=universe,
     )
 
+    # Post-filter kept as a safety net for injected test fetchers that
+    # don't honor the universe kwarg. When the default fetcher runs and
+    # universe was passed, this is a no-op (fetcher already restricted).
     if universe is not None:
         allowed = set(universe)
         candidates = [c for c in candidates if c.get("symbol") in allowed]
