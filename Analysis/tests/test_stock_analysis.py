@@ -1922,6 +1922,225 @@ class TestPhase7RegimeAdjustment:
             phase7_decision(cfg, p1, p2, p3, p4, p5, p6, MarketRegime.CRISIS)   # positional!
 
 
+class TestPhase7HardOverridePreservation:
+    """bd-29n regression tests: weekly-trend recompute must preserve
+    earlier hard-override composite caps (Altman <1.81 → 2.0; accruals
+    >20% → 2.8; balance-sheet safety → 3.8).
+
+    The pre-fix code (Analysis/stock_analysis.py:3202) unconditionally
+    recomputed ``composite = sum(scores[k] * weights[k] for k in weights)``
+    inside the ``if not p3.weekly_trend_bullish`` branch, discarding
+    any ``min()`` cap that fired earlier. A distressed stock (Altman
+    1.5, weekly trend bearish) would carry a "forced Avoid" hard_override
+    label but a composite of ~2.92 — well above the 2.0 cap that
+    action_label cutoffs use.
+
+    Found in PR-B2 iter-1 code-review; aggravated by BULL regime's
+    higher technicals weight (0.30 vs 0.15 default), which widens the
+    recomputed composite's range.
+    """
+
+    @pytest.fixture
+    def cfg(self) -> AnalysisConfig:
+        return AnalysisConfig(symbol="MSFT")
+
+    @pytest.fixture
+    def cfg_regime_bull(self) -> AnalysisConfig:
+        return AnalysisConfig(
+            symbol="MSFT",
+            feature_flags=AnalysisFeatureFlags(use_regime_input=True),
+        )
+
+    # ------------------------------------------------------------------ #
+    # Altman cap × weekly-trend interaction
+    # ------------------------------------------------------------------ #
+    def test_altman_cap_survives_weekly_trend_recompute(self, cfg):
+        """The bug reproducer: Altman=1.5 (distress → cap 2.0) AND
+        weekly_trend_bullish=False (triggers recompute). Composite
+        MUST stay <= 2.0.
+
+        R7.11 load-bearing: reverting the fix (letting the recompute
+        overwrite ``composite`` without reapplying caps) flips this
+        from PASS → FAIL. Verified via mutation before ship.
+        """
+        p4 = _make_mock_p4()
+        p4.altman = 1.5   # distress
+        p3 = _make_mock_p3(weekly_bull=False)   # triggers recompute
+        p1, p2, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(),
+            _make_mock_p5(), _make_mock_p6(),
+        )
+        result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+        assert result.composite_score <= 2.0, (
+            f"Altman distress cap (composite <= 2.0) must survive the "
+            f"weekly-trend recompute; got composite={result.composite_score}. "
+            f"hard_override={result.hard_override}"
+        )
+        # Also verify the override chain is documented correctly
+        assert "Altman" in (result.hard_override or "")
+        assert "Weekly trend bearish" in (result.hard_override or "")
+
+    def test_altman_cap_survives_recompute_under_bull_regime(self, cfg_regime_bull):
+        """Same reproducer with use_regime_input=True + BULL regime.
+        Under BULL, technicals weight is 0.30 (vs 0.15 default) so the
+        recomputed composite has an even wider spread from the cap.
+
+        R7.11 load-bearing: this is a stricter test than the default-
+        weights version because BULL weights amplify the bug.
+        """
+        from openbb_regime import MarketRegime
+        p4 = _make_mock_p4()
+        p4.altman = 1.5
+        p3 = _make_mock_p3(weekly_bull=False)
+        p1, p2, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(),
+            _make_mock_p5(), _make_mock_p6(),
+        )
+        result = phase7_decision(
+            cfg_regime_bull, p1, p2, p3, p4, p5, p6,
+            regime=MarketRegime.TRENDING_BULL,
+        )
+        assert result.composite_score <= 2.0, (
+            f"Altman cap must survive weekly-trend recompute under BULL "
+            f"regime; got composite={result.composite_score}. "
+            f"hard_override={result.hard_override}"
+        )
+
+    # ------------------------------------------------------------------ #
+    # Accruals cap × weekly-trend interaction
+    # ------------------------------------------------------------------ #
+    def test_accruals_cap_survives_weekly_trend_recompute(self, cfg):
+        """Accruals >20% caps composite at 2.8. Weekly-trend recompute
+        must not lift composite back above the cap.
+        """
+        p2 = _make_mock_p2()
+        p2.accruals_ratio = 0.25   # > 20% → cap 2.8
+        p3 = _make_mock_p3(weekly_bull=False)
+        p1, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p4(),
+            _make_mock_p5(), _make_mock_p6(),
+        )
+        result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+        assert result.composite_score <= 2.8, (
+            f"Accruals cap (composite <= 2.8) must survive weekly-trend "
+            f"recompute; got composite={result.composite_score}."
+        )
+        assert "Accruals" in (result.hard_override or "")
+
+    # ------------------------------------------------------------------ #
+    # BS-safety cap × weekly-trend interaction
+    # ------------------------------------------------------------------ #
+    def test_bs_safety_cap_survives_weekly_trend_recompute(self, cfg):
+        """Balance-sheet safety cap (P2 score >= 3.5 AND accruals > 10%)
+        caps composite at 3.8. Weekly-trend recompute must not lift.
+
+        Fixture amplified so pre-cap composite > 3.8 (P2=5.0,
+        peer_relative=5.0, high Sharpe) — otherwise the cap doesn't
+        actually bite and the test is ceremonial.
+        """
+        p2 = _make_mock_p2()
+        p2.score = 5.0                # max P2
+        p2.accruals_ratio = 0.15      # >10% but <20% → BS safety cap only
+        p3 = _make_mock_p3(weekly_bull=False, bullish_count=9)
+        p6 = _make_mock_p6()
+        p6.relative_score = 5.0       # max peer_relative
+        p1, p4, p5 = (
+            _make_mock_p1(), _make_mock_p4(),
+            _make_mock_p5(sharpe=3.0),
+        )
+        result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+        assert result.composite_score <= 3.8, (
+            f"BS-safety cap (composite <= 3.8) must survive weekly-trend "
+            f"recompute; got composite={result.composite_score}."
+        )
+        assert "Leverage quality" in (result.hard_override or "")
+
+    # ------------------------------------------------------------------ #
+    # Multiple caps applied — tightest wins
+    # ------------------------------------------------------------------ #
+    def test_multiple_caps_tightest_wins_across_recompute(self, cfg):
+        """Altman (cap 2.0) + accruals (cap 2.8) both fire — final
+        composite must respect the TIGHTEST cap (2.0), not the loosest,
+        AND survive the weekly-trend recompute.
+        """
+        p2 = _make_mock_p2()
+        p2.accruals_ratio = 0.25   # → cap 2.8
+        p4 = _make_mock_p4()
+        p4.altman = 1.5            # → cap 2.0 (tighter)
+        p3 = _make_mock_p3(weekly_bull=False)
+        p1, p5, p6 = _make_mock_p1(), _make_mock_p5(), _make_mock_p6()
+        result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+        assert result.composite_score <= 2.0, (
+            f"Tightest cap (2.0 from Altman) must apply; got composite="
+            f"{result.composite_score}."
+        )
+
+    def test_altman_and_bs_safety_pair_tightest_wins(self, cfg):
+        """Reviewer NIT: cover the Altman × BS-safety cap-pair permutation
+        (Altman=1.5 → cap 2.0; BS-safety fires because P2>=3.5 + accruals
+        in (0.10, 0.20] → cap 3.8). Tightest (2.0 from Altman) must win.
+
+        Not filed as a test earlier because `test_multiple_caps_tightest_
+        wins_across_recompute` covered Altman × accruals; this pins the
+        third pair for parity + guards against a future refactor that
+        reorders / re-conditionals the BS-safety branch differently.
+        """
+        p2 = _make_mock_p2()
+        p2.score = 4.0
+        p2.accruals_ratio = 0.15   # >10% but <=20% → BS-safety only
+        p4 = _make_mock_p4()
+        p4.altman = 1.5            # → cap 2.0
+        p3 = _make_mock_p3(weekly_bull=False)
+        p1, p5, p6 = _make_mock_p1(), _make_mock_p5(), _make_mock_p6()
+        result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+        assert result.composite_score <= 2.0, (
+            f"Tightest cap (2.0 from Altman, not 3.8 from BS-safety) "
+            f"must apply; got composite={result.composite_score}."
+        )
+        assert "Altman" in (result.hard_override or "")
+        assert "Leverage quality" in (result.hard_override or "")
+
+    # ------------------------------------------------------------------ #
+    # No-op paths — caps that don't fire shouldn't cap
+    # ------------------------------------------------------------------ #
+    def test_no_caps_fire_composite_unchanged(self, cfg):
+        """Healthy Altman + healthy accruals + weekly bearish: composite
+        equals the raw sum (no cap should apply, only the technicals
+        capping to 2.0 which is a score-level not composite-level cap).
+        """
+        p3 = _make_mock_p3(weekly_bull=False)
+        p1, p2, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p4(),
+            _make_mock_p5(), _make_mock_p6(),
+        )
+        result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+        # No composite-level cap fires — composite should equal the
+        # sum(scores * weights) after weekly-trend technical cap.
+        # Just verify hard_override reflects ONLY the weekly-trend
+        # override (not Altman / accruals / BS).
+        assert "Altman" not in (result.hard_override or "")
+        assert "Accruals" not in (result.hard_override or "")
+        assert "Weekly trend bearish" in (result.hard_override or "")
+
+    def test_weekly_bullish_path_unaffected_by_fix(self, cfg):
+        """Sanity check: the fix must NOT change behavior when weekly
+        trend is bullish (the recompute branch doesn't fire).
+
+        R7.11 load-bearing: mutating the fix to always reapply caps
+        (even when recompute didn't run) would leave this test still
+        green — the caps just don't fire on healthy fundamentals.
+        Included as a regression barrier against overzealous refactor.
+        """
+        p1, p2, p3, p4, p5, p6 = (
+            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(weekly_bull=True),
+            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+        )
+        result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
+        # composite is ~3.60 for default mocks — well below any cap.
+        assert result.composite_score > 2.0
+        assert "Weekly trend bearish" not in (result.hard_override or "")
+
+
 # ---------------------------------------------------------------------------
 # Integration tests — Phase 1 (MSFT + AAPL)
 # ---------------------------------------------------------------------------
