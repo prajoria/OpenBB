@@ -157,12 +157,16 @@ class TestDetectMarketRegime:
         vix = _make_vix_df(250, "crisis")
         assert detect_market_regime(spy, vix) == MarketRegime.CRISIS
 
-    def test_trending_bear_fixture(self):
-        """SPY below 200d, VIX elevated but not crisis → TRENDING_BEAR."""
+    def test_below_sma_with_high_vix_reclassifies_as_crisis(self):
+        """iter-1 code-reviewer LOW-5: renamed from `test_trending_bear_fixture`
+        whose docstring/assertion contradicted (docstring said BEAR, assertion
+        expected CRISIS). The behavior is correct: high VIX (35 >= 30)
+        triggers CRISIS regardless of SPY position — see docstring on
+        _classify_raw and test_crisis_takes_precedence_over_bull for the
+        design rationale.
+        """
         spy = _make_spy_df(250, "below_sma_5pct")
         vix = _make_vix_df(250, "high_35")
-        # spy below + vix 35 → CRISIS (35 >= 30) — this fixture actually
-        # exercises the crisis branch. Update to mid_25 for pure bear.
         assert detect_market_regime(spy, vix) == MarketRegime.CRISIS
 
     def test_trending_bear_with_moderate_vix(self):
@@ -264,6 +268,189 @@ class TestDetectMarketRegime:
         assert _SPY_BELOW_THRESHOLD_PCT == -0.03
         assert _VIX_LOW_THRESHOLD == 20.0
         assert _VIX_HIGH_THRESHOLD == 30.0
+
+    # ------------------------------------------------------------------ #
+    # PR-B1 iter-1 review regression tests
+    # ------------------------------------------------------------------ #
+    def test_crisis_fires_on_high_vix_even_with_bull_spy(self):
+        """iter-1 code-reviewer NOVEL-2 fix: CRISIS fires on ``vix >= 30``
+        regardless of SPY trend. Prior gating (``spy_vs_sma <= -3% AND
+        vix >= 30``) missed melt-up-then-panic events like Jan 2018
+        vol-mageddon and Feb 2020 pre-crash where SPY was still above
+        the 200d SMA when VIX spiked.
+
+        Load-bearing: reverting the guard to require ``spy_vs_sma <= -3%``
+        would make this test flip from CRISIS to RANGING.
+        """
+        # SPY +5% above SMA, VIX 40 (panic) → CRISIS
+        assert _classify_raw(105.0, 100.0, 40.0) == MarketRegime.CRISIS
+
+    def test_crisis_fires_on_high_vix_with_ranging_spy(self):
+        """SPY at SMA (RANGING zone) + VIX 35 → CRISIS (not RANGING).
+        Prior code returned RANGING here; the fix widens CRISIS.
+        """
+        assert _classify_raw(100.0, 100.0, 35.0) == MarketRegime.CRISIS
+
+    def test_spy_boundary_at_exactly_3pct_above(self):
+        """iter-1 pr-test M8 fix: pin the ``>=`` boundary on SPY_ABOVE.
+        A mutation from ``>=`` to ``>`` would flip the boundary case
+        from BULL to RANGING.
+        """
+        # SPY exactly +3% above SMA, VIX 15 (low) → BULL (>=)
+        assert _classify_raw(103.0, 100.0, 15.0) == MarketRegime.TRENDING_BULL
+
+    def test_spy_boundary_at_exactly_3pct_below(self):
+        """SPY exactly -3% below SMA, VIX 25 → BEAR (<=)."""
+        assert _classify_raw(97.0, 100.0, 25.0) == MarketRegime.TRENDING_BEAR
+
+    def test_vix_boundary_at_exactly_20(self):
+        """VIX at exactly the low threshold (20.0) is NOT strictly < 20 →
+        NOT BULL even with SPY above SMA → RANGING.
+
+        Documents the asymmetric semantics: SPY uses >=, VIX_LOW uses <.
+        """
+        assert _classify_raw(105.0, 100.0, 20.0) == MarketRegime.RANGING
+
+    def test_vix_boundary_at_exactly_30(self):
+        """VIX at exactly the high threshold (30.0) fires CRISIS (>=)."""
+        assert _classify_raw(105.0, 100.0, 30.0) == MarketRegime.CRISIS
+
+    def test_hysteresis_behavioral_distinguishes_3_from_1(self):
+        """iter-1 pr-test M5 fix: previously the only test pinning
+        _HYSTERESIS_DAYS=3 was a constant-value assertion, not a
+        behavioral test. Mutating to 2 or 1 didn't cause any behavioral
+        test to fail.
+
+        This test constructs a fixture where 1-day and 3-day hysteresis
+        produce DIFFERENT regimes: SPY stable-bull for 245 days, then
+        the tail 5 days flip VIX between low and high. Under 3-day
+        hysteresis, walkback returns BULL (last stable). Under 1-day
+        hysteresis, the latest single day drives the answer (varies).
+        """
+        # 250 days of bull setup
+        spy = _make_spy_df(250, "above_sma_5pct")
+        vix = _make_vix_df(250, "low_15")
+        # Flip VIX to 35 (CRISIS trigger) on the very last day
+        vix.iloc[-1, vix.columns.get_loc("close")] = 35.0
+
+        # Under 3-day hysteresis: last 3 = [BULL, BULL, CRISIS] → mixed →
+        # walkback finds [BULL, BULL, BULL] earlier → returns BULL
+        result = detect_market_regime(spy, vix)
+        # Under 1-day hysteresis (mutation): returns CRISIS (latest single
+        # day). If someone mutates _HYSTERESIS_DAYS to 1, this test fails.
+        assert result == MarketRegime.TRENDING_BULL
+
+    def test_enum_case_insensitive_construction(self):
+        """iter-1 silent-hunt F1 fix: MarketRegime('crisis') /
+        MarketRegime('Crisis') / MarketRegime('CRISIS') all resolve to
+        the same member. Protects consumers who round-trip through the
+        enum from external string inputs.
+        """
+        assert MarketRegime("crisis") == MarketRegime.CRISIS
+        assert MarketRegime("Crisis") == MarketRegime.CRISIS
+        assert MarketRegime("CRISIS") == MarketRegime.CRISIS
+        assert MarketRegime("trending_bull") == MarketRegime.TRENDING_BULL
+        assert MarketRegime("TRENDING_BULL") == MarketRegime.TRENDING_BULL
+        # Invalid values still raise ValueError as normal enum behavior
+        with pytest.raises(ValueError):
+            MarketRegime("not_a_regime")
+
+    def test_mixed_unknown_in_hysteresis_window_returns_unknown(self, caplog):
+        """iter-1 silent-hunt F5 fix: intermittent VIX gaps in the
+        trailing hysteresis window must return UNKNOWN + warn, not
+        silently return a confident regime based on the earlier good days.
+
+        Load-bearing property: reverting the UNKNOWN-in-window guard
+        would return TRENDING_BULL here (the majority of the earlier
+        window is bull-like), which would be a false positive since
+        VIX is broken on half the recent days.
+        """
+        spy = _make_spy_df(250, "above_sma_5pct")
+        vix = _make_vix_df(250, "low_15")
+        # Inject NaN into VIX for 2 of the 3 hysteresis-window days
+        # (indices -1, -3 — leaves -2 as the sole non-NaN in window)
+        vix.iloc[-3, vix.columns.get_loc("close")] = float("nan")
+        vix.iloc[-1, vix.columns.get_loc("close")] = float("nan")
+
+        with caplog.at_level(logging.WARNING, logger="openbb_regime.detector"):
+            result = detect_market_regime(spy, vix)
+
+        assert result == MarketRegime.UNKNOWN, (
+            f"Mixed-UNKNOWN in hysteresis window must return UNKNOWN; "
+            f"got {result}. Reverting the F5 guard would return a "
+            f"confident regime based on stale earlier-good days."
+        )
+        warnings = [r for r in caplog.records if "contains UNKNOWN" in r.getMessage()]
+        assert len(warnings) == 1
+
+    def test_whipsaw_walkback_emits_warning(self, caplog):
+        """iter-1 F2 + code-reviewer NOVEL-1: walkback-rescue must
+        emit a WARNING so consumers can distinguish 'confirmed regime'
+        from 'walked back through whipsaw'. Prior code was silent.
+        """
+        # Construct fixture where hysteresis window is whipsawing but
+        # a stable regime exists earlier in the walkback window.
+        spy = _make_spy_df(250, "above_sma_5pct")
+        vix = _make_vix_df(250, "low_15")
+        # Introduce whipsaw in the last 3 days
+        vix.iloc[-3, vix.columns.get_loc("close")] = 15.0
+        vix.iloc[-2, vix.columns.get_loc("close")] = 25.0  # RANGING
+        vix.iloc[-1, vix.columns.get_loc("close")] = 15.0
+
+        with caplog.at_level(logging.WARNING, logger="openbb_regime.detector"):
+            result = detect_market_regime(spy, vix)
+
+        assert result == MarketRegime.TRENDING_BULL   # walked back to stable
+        warnings = [r for r in caplog.records if "whipsaw" in r.getMessage()]
+        assert len(warnings) == 1, (
+            f"walkback rescue must emit a WARNING. Got: "
+            f"{[r.getMessage() for r in caplog.records]}"
+        )
+
+    def test_novel1_walkback_now_sees_prior_stable_regime_across_100_days(self):
+        """iter-1 code-reviewer NOVEL-1 fix: extended walkback from 4 to 33
+        days must actually change behavior on a whipsaw where the last 4
+        days contain NO stable 3-day slice, but the last 33 days DO.
+
+        Load-bearing property (R7.11 verified via mutation): with
+        _WALKBACK_DAYS reverted to _HYSTERESIS_DAYS+1 (=4), the fixture
+        below leaves walkback with only 4 daily regimes to inspect;
+        the last 3-day slice is whipsawing → falls through the walkback
+        loop → returns UNKNOWN. With the new 33-day window it finds the
+        stable pre-whipsaw CRISIS regime.
+
+        Construction:
+        * 250 days SPY bull setup + VIX HIGH (CRISIS) → CRISIS baseline
+        * Days -3..-1: whipsaw VIX 15 / 40 / 15 (no 3-day stable slice
+          in trailing 4 days; last 3-day slice is [CRISIS, RANGING?, CRISIS])
+
+        Note: walkback iterates backwards from most recent; it returns
+        the FIRST stable slice it hits. Since CRISIS dominates days
+        -33..-4 uniformly, walkback finds a stable CRISIS slice near the
+        tail (before the whipsaw). Under the mutation (4-day window),
+        walkback only sees the 4 whipsaw days → no stable slice → UNKNOWN.
+        """
+        spy = _make_spy_df(250, "above_sma_5pct")
+        # Fill VIX with high values (CRISIS) throughout — no BULL slice exists
+        vix = _make_vix_df(250, "low_15")
+        vix["close"] = 40.0   # all-CRISIS baseline
+        # Whipsaw at the tail (no 3-day stable slice in last 4 days)
+        vix.iloc[-3, vix.columns.get_loc("close")] = 15.0
+        vix.iloc[-2, vix.columns.get_loc("close")] = 40.0
+        vix.iloc[-1, vix.columns.get_loc("close")] = 15.0
+
+        result = detect_market_regime(spy, vix)
+        # With 33-day walkback: finds a stable CRISIS slice ~4 days
+        # before the whipsaw (days -6..-4 = [CRISIS, CRISIS, CRISIS]).
+        # Mutation to _WALKBACK_DAYS=_HYSTERESIS_DAYS+1 (=4): only sees
+        # days -4..-1 = [CRISIS, whipsaw...] → no stable slice → UNKNOWN.
+        assert result == MarketRegime.CRISIS, (
+            f"Extended walkback (33 days) must find the stable CRISIS "
+            f"slice that the old 4-day walkback would miss; got {result}. "
+            f"Getting UNKNOWN or a different regime means either the "
+            f"fixture is wrong OR _WALKBACK_DAYS was reverted to "
+            f"_HYSTERESIS_DAYS+1."
+        )
 
 
 class TestMarketRegimeEnum:

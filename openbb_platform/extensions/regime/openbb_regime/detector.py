@@ -15,16 +15,23 @@ Four regimes are distinguished by two signals:
 1. **SPY trend vs 200d SMA** — is the market above or below its long-term
    trend? Below-and-falling is bearish; above-and-rising is bullish.
 2. **VIX level** — is fear compressed (< 20 = complacent bull), moderate
-   (20-30 = uncertain range), or elevated (> 30 = crisis)?
+   (20-30 = uncertain range), or elevated (>= 30 = crisis)?
 
 ============= ============== =====================================
  SPY vs 200d   VIX level      Regime
 ============= ============== =====================================
- Above         < 20            ``TRENDING_BULL``
+ (any)         >= 30           ``CRISIS`` (VIX takes precedence)
+ Above (+3%)   < 20            ``TRENDING_BULL``
+ Below (-3%)   < 30            ``TRENDING_BEAR``
  Around (±3%)  20-30           ``RANGING``
- Below         < 30            ``TRENDING_BEAR``
- Below         >= 30           ``CRISIS``
 ============= ============== =====================================
+
+**CRISIS precedence** (iter-1 code-reviewer NOVEL-2): high VIX fires
+CRISIS regardless of SPY trend. During melt-up-then-panic events (e.g.
+Jan 2018 vol-mageddon, Feb 2020 pre-crash) SPY can still be above the
+200d SMA while VIX spikes past 30 — correlations go to 1.0 anyway and
+every long trade bleeds together. The prior narrower gating
+(``spy_vs_sma <= -3% AND vix >= 30``) missed these events.
 
 Hysteresis
 ----------
@@ -75,6 +82,16 @@ class MarketRegime(str, Enum):
     """Coarse classification of current market state.
 
     Enum values are strings for cheap serialization (JSON / logs / REST).
+
+    **Case-insensitive constructor** (iter-1 silent-hunt F1): to protect
+    downstream consumers who might inadvertently write
+    ``if regime == "crisis"`` (lowercase) and get a silent False,
+    ``MarketRegime("crisis")`` / ``MarketRegime("Crisis")`` all resolve
+    to :attr:`CRISIS` via the ``_missing_`` hook. Direct equality with
+    a lowercase string literal (``regime == "crisis"``) still returns
+    False — the constructor is the enforcement point for callers who
+    round-trip through the enum. Use ``MarketRegime(user_input)`` when
+    accepting external strings, not ``str.upper()`` sprinkled around.
     """
 
     TRENDING_BULL = "TRENDING_BULL"
@@ -87,12 +104,30 @@ class MarketRegime(str, Enum):
     empty pattern: emit a WARNING at each UNKNOWN branch so operators can
     tell why the classifier degraded."""
 
+    @classmethod
+    def _missing_(cls, value):
+        """Case-insensitive lookup for string values (iter-1 F1 fix)."""
+        if isinstance(value, str):
+            upper = value.upper()
+            for member in cls:
+                if member.value == upper:
+                    return member
+        return None
+
 
 def _classify_raw(spy_close: float, spy_sma200: float, vix: float) -> MarketRegime:
     """Instantaneous classification without hysteresis (pure function).
 
     Encapsulates the threshold table so hysteresis logic can call it per
     day without duplicating the branch logic.
+
+    **Precedence** (iter-1 code-reviewer NOVEL-2): CRISIS fires on high
+    VIX **regardless of SPY trend**. During melt-up-then-panic events
+    (e.g. Jan 2018 vol-mageddon, Feb 2020 pre-crash) SPY can still be
+    above the 200d SMA while VIX spikes past 30 — correlations go to
+    1.0 anyway and every long trade bleeds together. The prior gating
+    (``spy_vs_sma <= -3% AND vix >= 30``) was too narrow and would
+    miss these events. Now CRISIS = ``vix >= 30`` alone.
     """
     if spy_sma200 == 0 or np.isnan(spy_sma200):
         return MarketRegime.UNKNOWN
@@ -100,9 +135,9 @@ def _classify_raw(spy_close: float, spy_sma200: float, vix: float) -> MarketRegi
     if np.isnan(vix) or np.isnan(spy_vs_sma):
         return MarketRegime.UNKNOWN
 
-    # CRISIS takes precedence — high VIX regardless of trend means correlations
-    # go to 1.0 and every long trade bleeds together.
-    if spy_vs_sma <= _SPY_BELOW_THRESHOLD_PCT and vix >= _VIX_HIGH_THRESHOLD:
+    # CRISIS takes precedence — high VIX regardless of trend means
+    # correlations go to 1.0 and every long trade bleeds together.
+    if vix >= _VIX_HIGH_THRESHOLD:
         return MarketRegime.CRISIS
     if spy_vs_sma >= _SPY_ABOVE_THRESHOLD_PCT and vix < _VIX_LOW_THRESHOLD:
         return MarketRegime.TRENDING_BULL
@@ -196,9 +231,15 @@ def detect_market_regime(
     # hysteresis window (last _HYSTERESIS_DAYS + 1 days).
     spy_sma = spy["close"].rolling(_SPY_TREND_LOOKBACK).mean()
 
-    # Align SPY + VIX on the trailing window. If VIX has fewer aligned
-    # rows than SPY (holiday mismatch, delayed close), degrade gracefully.
-    window = _HYSTERESIS_DAYS + 1
+    # Align SPY + VIX on the trailing walk-back window. iter-1 code-reviewer
+    # NOVEL-1: extended from _HYSTERESIS_DAYS+1 to +30 so the whipsaw walk-
+    # back has genuine visibility into the prior stable regime. The original
+    # 4-day window meant "the regime 4 days ago" — inadequate for the
+    # docstring claim "prior stable regime we were in before the whipsaw".
+    # 30-day window covers a full month of trading and comfortably includes
+    # the classifier's prior stable state in almost all real market regimes.
+    _WALKBACK_DAYS = _HYSTERESIS_DAYS + 30
+    window = _WALKBACK_DAYS
     recent_dates = spy.index[-window:]
     aligned_vix = vix["close"].reindex(recent_dates)
     if aligned_vix.isna().sum() >= window:
@@ -209,7 +250,7 @@ def detect_market_regime(
         )
         return MarketRegime.UNKNOWN
 
-    # Per-day classification across the hysteresis window.
+    # Per-day classification across the walk-back window.
     daily_regimes: list[MarketRegime] = []
     for date in recent_dates:
         close = float(spy.loc[date, "close"])
@@ -217,24 +258,53 @@ def detect_market_regime(
         vix_val = float(aligned_vix.loc[date]) if not np.isnan(aligned_vix.loc[date]) else float("nan")
         daily_regimes.append(_classify_raw(close, sma, vix_val))
 
+    # iter-1 silent-hunt F5: guard against mixed-UNKNOWN in the trailing
+    # hysteresis window. If VIX is intermittently broken (some days NaN,
+    # some days good) the classifier would silently return whichever
+    # regime held on the earlier good days — but the caller has NO SIGNAL
+    # that data was degraded. Emit a WARNING + return UNKNOWN when the
+    # trailing _HYSTERESIS_DAYS contains any UNKNOWN + no stable regime.
+    hysteresis_window = daily_regimes[-_HYSTERESIS_DAYS:]
+    if MarketRegime.UNKNOWN in hysteresis_window and len(set(hysteresis_window)) > 1:
+        logger.warning(
+            "detect_market_regime: hysteresis window %s contains UNKNOWN "
+            "(likely intermittent VIX gaps) — returning UNKNOWN rather "
+            "than a possibly-stale confirmed regime",
+            [r.value for r in hysteresis_window],
+        )
+        return MarketRegime.UNKNOWN
+
     # Hysteresis: the "confirmed" regime is the LAST regime that held for
     # _HYSTERESIS_DAYS consecutive days. If nothing has held that long,
-    # return the first (oldest) daily classification as the fallback —
-    # this handles the initial-startup case.
-    #
-    # Read the tail backwards; the current regime is confirmed iff the
-    # last _HYSTERESIS_DAYS daily classifications all match.
+    # walk backwards through the WALKBACK window to find the most recent
+    # stable regime — this approximates "the regime we were in before the
+    # whipsaw started". iter-1 F2: emit a WARNING when the fallback fires
+    # so consumers can distinguish "confirmed regime" from "walk-back
+    # rescue" (which is inherently less confident).
     latest = daily_regimes[-1]
-    hysteresis_window = daily_regimes[-_HYSTERESIS_DAYS:]
     if len(set(hysteresis_window)) == 1:
         # All _HYSTERESIS_DAYS agree on the latest classification.
         return latest
-    # Whipsaw: latest hasn't persisted. Fall back to the most recent
-    # classification that DID hold for _HYSTERESIS_DAYS consecutive days,
-    # walking backwards. If none, return the oldest observation
-    # (approximates "the regime we were in before the whipsaw started").
-    for i in range(len(daily_regimes) - _HYSTERESIS_DAYS, -1, -1):
+    # Whipsaw: latest hasn't persisted. Walk backwards through the WALKBACK
+    # window looking for a _HYSTERESIS_DAYS-agreeing slice.
+    for i in range(len(daily_regimes) - _HYSTERESIS_DAYS - 1, -1, -1):
         window_slice = daily_regimes[i : i + _HYSTERESIS_DAYS]
         if len(set(window_slice)) == 1:
+            days_ago = len(daily_regimes) - (i + _HYSTERESIS_DAYS)
+            logger.warning(
+                "detect_market_regime: hysteresis whipsaw over trailing "
+                "%dd — falling back to %s (last stable regime, %d days ago)",
+                _HYSTERESIS_DAYS,
+                window_slice[0].value,
+                days_ago,
+            )
             return window_slice[0]
-    return daily_regimes[0]
+    # No stable regime anywhere in the walk-back window — return UNKNOWN
+    # loudly rather than a 30-day-old classification of dubious meaning.
+    logger.warning(
+        "detect_market_regime: no stable regime found in trailing %dd "
+        "walk-back window — returning UNKNOWN (market is genuinely "
+        "unstable or classifier thresholds are miscalibrated)",
+        window,
+    )
+    return MarketRegime.UNKNOWN
