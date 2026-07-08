@@ -17,6 +17,11 @@ MOVE-list symbol below via ``noqa: F401``. The shim is deliberately narrow:
 * It is a **pure re-export** (``is`` identity holds — tests assert this).
 * It carries every symbol that used to live in ``errors.py`` before the
   split, so no downstream caller sees a ``NameError``.
+* MOVE-list symbols are intentionally **excluded from** ``__all__`` so
+  ``from openbb_pine.errors import *`` only pulls in STAY symbols. This
+  nudges wildcard-import callers to the new home
+  (``from openbb_pine.compiler_errors import PineSyntaxError``) without
+  breaking explicit imports through the shim (PR #351 review).
 * It is scheduled for removal in the release after Pine extraction ships
   (see Pine Extraction Design §13.5 in
   ``docs/superpowers/specs/2026-07-06-pine-extraction-to-pynecore-design.md``).
@@ -254,25 +259,15 @@ class PineDataValidationError(PineError):
 
 __all__ = [
     # STAY-list (provider-side) — new-canonical home is this module.
+    # MOVE-list symbols (PineSyntaxError, PineTypeError, Diagnostic, …) are
+    # deliberately excluded so that `from openbb_pine.errors import *` only
+    # pulls in STAY symbols. This nudges wildcard-import callers toward the
+    # new canonical home (`from openbb_pine.compiler_errors import …`) while
+    # explicit `from openbb_pine.errors import PineSyntaxError` still works
+    # via the module-level re-exports above for the one-release shim window.
+    # See PR #351 review + Pine Extraction Design §13.5 (bead OpenBBTechnical-3cf).
     "PineProviderError",
     "PineFMPRequiredError",
     "PineFMPUnreachableError",
     "PineDataValidationError",
-    # MOVE-list re-exports (one-release shim; canonical home is compiler_errors).
-    "Diagnostic",
-    "PineError",
-    "PineCompileError",
-    "PineSyntaxError",
-    "PineTypeError",
-    "PineUnsupportedBuiltinError",
-    "PineUnsupportedFeatureError",
-    "PineCodegenError",
-    "PineInternalCompilerError",
-    "PineDataResolverError",
-    "PineSecurityContextNotFoundError",
-    "PineCacheError",
-    "PineRuntimeError",
-    "PineStrategyNotYetImplementedError",
-    "PineSecurityError",
-    "PineExecTimeoutError",
 ]

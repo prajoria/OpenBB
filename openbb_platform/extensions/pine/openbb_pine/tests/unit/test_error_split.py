@@ -40,3 +40,36 @@ def test_provider_errors_are_NOT_in_compiler_errors() -> None:
         assert not hasattr(compiler_errors, provider_only), (
             f"{provider_only} is provider-side, must NOT leak into compiler_errors"
         )
+
+
+def test_wildcard_import_from_errors_only_yields_stay_symbols() -> None:
+    """PR #351 review: ``from openbb_pine.errors import *`` must yield ONLY
+    the STAY-list (provider) symbols. MOVE-list symbols remain importable
+    via explicit ``from openbb_pine.errors import PineSyntaxError`` for the
+    one-release shim window, but wildcard callers get nudged toward the
+    new canonical home (``openbb_pine.compiler_errors``)."""
+    from openbb_pine import errors
+    stay = {
+        "PineProviderError", "PineFMPRequiredError",
+        "PineFMPUnreachableError", "PineDataValidationError",
+    }
+    move = {
+        "PineError", "Diagnostic", "PineCompileError", "PineSyntaxError",
+        "PineTypeError", "PineUnsupportedBuiltinError",
+        "PineUnsupportedFeatureError", "PineCodegenError",
+        "PineInternalCompilerError", "PineCacheError",
+        "PineRuntimeError", "PineStrategyNotYetImplementedError",
+        "PineSecurityError", "PineExecTimeoutError",
+        "PineDataResolverError", "PineSecurityContextNotFoundError",
+    }
+    exported = set(errors.__all__)
+    assert exported == stay, (
+        f"errors.__all__ must expose ONLY STAY symbols; got extras: "
+        f"{exported - stay}, missing: {stay - exported}"
+    )
+    leaked = exported & move
+    assert not leaked, f"MOVE symbols leaked into wildcard export: {leaked}"
+
+    # Explicit-attribute access still works for MOVE symbols during the shim window.
+    assert errors.PineSyntaxError is not None
+    assert errors.Diagnostic is not None
