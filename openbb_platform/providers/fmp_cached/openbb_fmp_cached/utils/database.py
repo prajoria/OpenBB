@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class DatabaseConfig:
     """Database configuration manager."""
-    
+
     def __init__(self):
         """Initialize database configuration from user settings."""
         self.config = self._load_config()
@@ -26,8 +26,7 @@ class DatabaseConfig:
         default credential pair in source.
         """
         missing = [
-            field for field in ("user", "password")
-            if not self.config.get(field)
+            field for field in ("user", "password") if not self.config.get(field)
         ]
         if missing:
             raise ValueError(
@@ -37,14 +36,14 @@ class DatabaseConfig:
                 "'mysql_password') or via the DB_USER/DB_PASSWORD environment "
                 "variables. No default credentials are provided."
             )
-    
+
     def _load_config(self) -> Dict[str, Any]:
         """Load database configuration from OpenBB user settings, with environment variable fallback."""
-        
+
         # Check if we're in test mode
         is_test_mode = os.getenv("FMP_CACHE_TEST_MODE", "false").lower() == "true"
         test_database = "openbb_fmp_cache_test" if is_test_mode else "openbb_fmp_cache"
-        
+
         # No hardcoded credential defaults: user/password must come from
         # OpenBB user_settings.json or environment variables. We fail fast
         # (see _require_credentials) if they are missing.
@@ -55,56 +54,75 @@ class DatabaseConfig:
             "password": None,
             "database": test_database,
             "charset": "utf8mb4",
-            "test_mode": is_test_mode
+            "test_mode": is_test_mode,
         }
-        
+
         # First try OpenBB user settings (preferred)
         settings_path = os.path.expanduser("~/.openbb_platform/user_settings.json")
-        
+
         try:
             if os.path.exists(settings_path):
-                with open(settings_path, 'r') as f:
+                with open(settings_path, "r") as f:
                     settings = json.load(f)
                     credentials = settings.get("credentials", {})
-                    
+
                     # Check if MySQL credentials are configured (try multiple naming patterns)
                     mysql_keys = [
-                        "mysql_host", "mysql_user", "mysql_password", "mysql_database",
-                        "db_host", "db_user", "db_password", "db_database",
-                        "database_host", "database_user", "database_password", "database_name"
+                        "mysql_host",
+                        "mysql_user",
+                        "mysql_password",
+                        "mysql_database",
+                        "db_host",
+                        "db_user",
+                        "db_password",
+                        "db_database",
+                        "database_host",
+                        "database_user",
+                        "database_password",
+                        "database_name",
                     ]
-                    
+
                     if any(key in credentials for key in mysql_keys):
                         # Try multiple naming patterns for each field
-                        host = (credentials.get("mysql_host") or 
-                               credentials.get("db_host") or 
-                               credentials.get("database_host") or 
-                               default_config["host"])
-                        
-                        port = int(credentials.get("mysql_port") or 
-                                  credentials.get("db_port") or 
-                                  credentials.get("database_port") or 
-                                  default_config["port"])
-                        
-                        user = (credentials.get("mysql_user") or 
-                               credentials.get("db_user") or 
-                               credentials.get("database_user") or 
-                               default_config["user"])
-                        
-                        password = (credentials.get("mysql_password") or 
-                                   credentials.get("db_password") or 
-                                   credentials.get("database_password") or 
-                                   default_config["password"])
-                        
-                        database = (credentials.get("mysql_database") or 
-                                   credentials.get("db_database") or 
-                                   credentials.get("database_name") or 
-                                   default_config["database"])
-                        
+                        host = (
+                            credentials.get("mysql_host")
+                            or credentials.get("db_host")
+                            or credentials.get("database_host")
+                            or default_config["host"]
+                        )
+
+                        port = int(
+                            credentials.get("mysql_port")
+                            or credentials.get("db_port")
+                            or credentials.get("database_port")
+                            or default_config["port"]
+                        )
+
+                        user = (
+                            credentials.get("mysql_user")
+                            or credentials.get("db_user")
+                            or credentials.get("database_user")
+                            or default_config["user"]
+                        )
+
+                        password = (
+                            credentials.get("mysql_password")
+                            or credentials.get("db_password")
+                            or credentials.get("database_password")
+                            or default_config["password"]
+                        )
+
+                        database = (
+                            credentials.get("mysql_database")
+                            or credentials.get("db_database")
+                            or credentials.get("database_name")
+                            or default_config["database"]
+                        )
+
                         # Override with test database if in test mode
                         if is_test_mode:
                             database = "openbb_fmp_cache_test"
-                        
+
                         config = {
                             "host": host,
                             "port": port,
@@ -112,19 +130,21 @@ class DatabaseConfig:
                             "password": password,
                             "database": database,
                             "charset": default_config["charset"],
-                            "test_mode": is_test_mode
+                            "test_mode": is_test_mode,
                         }
-                        
-                        logger.info(f"Using MySQL configuration from OpenBB user settings: {user}@{host}:{port}/{database}")
+
+                        logger.info(
+                            f"Using MySQL configuration from OpenBB user settings: {user}@{host}:{port}/{database}"
+                        )
                         return config
         except Exception as e:
             logger.warning(f"Failed to load OpenBB user settings: {e}")
-        
+
         # Fallback to environment variables
         env_database = os.getenv("DB_NAME", default_config["database"])
         if is_test_mode:
             env_database = "openbb_fmp_cache_test"
-            
+
         env_config = {
             "host": os.getenv("DB_HOST", default_config["host"]),
             "port": int(os.getenv("DB_PORT", str(default_config["port"]))),
@@ -132,41 +152,43 @@ class DatabaseConfig:
             "password": os.getenv("DB_PASSWORD", default_config["password"]),
             "database": env_database,
             "charset": default_config["charset"],
-            "test_mode": is_test_mode
+            "test_mode": is_test_mode,
         }
-        
+
         # If any environment variables are set, use them
-        if any(os.getenv(var) for var in ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"]):
+        if any(
+            os.getenv(var) for var in ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"]
+        ):
             logger.info("Using MySQL configuration from environment variables")
             return env_config
-        
+
         # Final fallback to defaults
         logger.info("Using default MySQL configuration")
         return default_config
-    
+
     @property
     def connection_params(self) -> Dict[str, Any]:
         """Get connection parameters for pymysql."""
         params = self.config.copy()
         # Remove non-pymysql parameters
-        params.pop('test_mode', None)
+        params.pop("test_mode", None)
         return params
 
 
 class ConnectionPool:
     """Simple synchronous MySQL connection manager."""
-    
+
     def __init__(self, config: DatabaseConfig):
         """Initialize MySQL connection manager."""
         self.config = config
-    
+
     @contextmanager
     def get_connection(self):
         """Get MySQL database connection (context manager)."""
         connection = pymysql.connect(
             **self.config.connection_params,
             cursorclass=pymysql.cursors.DictCursor,
-            autocommit=True
+            autocommit=True,
         )
         try:
             yield connection
@@ -196,7 +218,7 @@ def execute_query(query: str, params: tuple = ()) -> Any:
     with pool.get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(query, params)
-            if query.strip().upper().startswith('SELECT'):
+            if query.strip().upper().startswith("SELECT"):
                 return cursor.fetchall()
             return cursor.rowcount
 
@@ -212,28 +234,28 @@ def execute_many(query: str, params_list: list) -> int:
 
 def init_database(auto_create: bool = None):
     """Initialize MySQL database and create tables if they don't exist.
-    
+
     Args:
         auto_create: If True, automatically create database and tables.
                     If False, skip creation and use existing database.
                     If None (default), use FMP_CACHE_AUTO_CREATE_DB environment variable.
                     Defaults to False if environment variable is not set.
-    
+
     Returns:
         True if database/tables were created or already exist, False otherwise.
     """
     # Determine whether to auto-create based on explicit flag or environment variable
     if auto_create is None:
         auto_create = os.getenv("FMP_CACHE_AUTO_CREATE_DB", "false").lower() == "true"
-    
+
     if not auto_create:
         logger.info("Skipping database/table creation (FMP_CACHE_AUTO_CREATE_DB=false)")
         return True
-    
+
     config = DatabaseConfig()
     temp_config = config.connection_params.copy()
     database_name = temp_config.pop("database", "openbb_fmp_cache")
-    
+
     # Connect to MySQL without specifying database to create it
     connection = pymysql.connect(**temp_config)
     try:
@@ -242,9 +264,10 @@ def init_database(auto_create: bool = None):
             logger.info(f"Database '{database_name}' ready")
     finally:
         connection.close()
-    
+
     # Now create tables in the target database
     from .cache_schema import create_all_tables
+
     result = create_all_tables()
     logger.info("Database initialization complete")
     return result
