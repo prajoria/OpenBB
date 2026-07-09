@@ -232,6 +232,207 @@ def execute_many(query: str, params_list: list) -> int:
             return cursor.rowcount
 
 
+# ---------------------------------------------------------------------------
+# Tier-0 safety helpers (bd-kh08)
+# ---------------------------------------------------------------------------
+#
+# Design spec:
+#   docs/superpowers/specs/2026-07-08-bd-kh08-tier0-db-helpers-design.md
+#
+# safe_identifier — validates a caller-controlled string against a strict
+#   regex allowlist BEFORE it can be interpolated into a DDL identifier
+#   position. Fixes the CREATE-DATABASE SQL-injection cluster (bd-y5fn /
+#   v9ri / 20zx / o1oy). Not a general SQL escape — use parameterized
+#   queries for value positions.
+#
+# replace_rows — DELETE + INSERT wrapped in a single explicit transaction
+#   on a fresh autocommit=False connection. Fixes the DELETE-then-INSERT
+#   data-loss cluster where a mid-batch INSERT failure leaves the cache
+#   empty (bd-ihdn / n3sf / 2650 / gykp / hyzu).
+
+
+import re as _re  # local alias — module already imports os but not re
+
+# MySQL 8.x unquoted identifier grammar (SQL-92 subset): 1-64 chars,
+# leading letter/underscore, alphanumeric+underscore body. Rejects the
+# entire universe of "identifiers-that-are-actually-SQL-fragments".
+_IDENTIFIER_ALLOWLIST = _re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+
+
+def safe_identifier(name: str) -> str:
+    """Validate a SQL identifier against a strict regex allowlist (bd-kh08).
+
+    MySQL's parameterized-query API does not accept identifier positions
+    (database / table / column names) — only values. This helper is the
+    ONLY approved way to interpolate a caller-controlled string into a
+    DDL identifier position.
+
+    Rules (matches MySQL 8.x unquoted identifier grammar, SQL-92 subset):
+      * 1-64 characters
+      * Must start with a letter (``A-Z``, ``a-z``) or underscore
+      * Remaining chars: letters, digits, underscores
+
+    Parameters
+    ----------
+    name : str
+        The candidate identifier. Typically a database name from a CLI
+        arg or config file that will be interpolated into a DDL statement
+        (e.g. ``CREATE DATABASE IF NOT EXISTS {name}``).
+
+    Returns
+    -------
+    str
+        ``name`` unchanged if valid — so callers can write
+        ``f"CREATE DATABASE IF NOT EXISTS {safe_identifier(db)}"``.
+
+    Raises
+    ------
+    ValueError
+        On any input that doesn't match the allowlist. The message
+        includes ``repr(name)`` so operators can trace what was
+        rejected.
+
+    Notes
+    -----
+    NOT a general SQL escape — for value positions, use ``execute_query``
+    with parameterized ``%s`` placeholders. This helper is *only* for
+    DDL identifier positions that can't be parameterized.
+    """
+    if not isinstance(name, str) or not _IDENTIFIER_ALLOWLIST.match(name):
+        raise ValueError(
+            f"Invalid SQL identifier: {name!r}. Identifiers must match "
+            f"the MySQL 8.x unquoted grammar (1-64 chars, leading "
+            f"letter/underscore, alphanumeric+underscore body). Rejecting "
+            f"loudly to prevent DDL injection (bd-kh08)."
+        )
+    return name
+
+
+def replace_rows(
+    table: str,
+    where_col: str,
+    where_val: Any,
+    rows: list[dict[str, Any]],
+    *,
+    columns: list[str] | None = None,
+) -> int:
+    """Atomically DELETE + INSERT rows in a single transaction (bd-kh08).
+
+    Wraps DELETE + INSERT in a single explicit transaction on a fresh
+    ``autocommit=False`` connection. Fixes the autocommit + DELETE-then-
+    INSERT data-loss class where a partial-write failure between the
+    DELETE and the INSERT leaves the cache empty (bd-ihdn, bd-n3sf,
+    bd-2650, bd-gykp, bd-hyzu).
+
+    Parameters
+    ----------
+    table : str
+        SQL table name. Passed through :func:`safe_identifier` (defense
+        in depth — the ``INSERT INTO {table}`` position cannot be
+        parameterized).
+    where_col : str
+        Column name for the ``DELETE ... WHERE {where_col} = %s`` clause.
+        Passed through :func:`safe_identifier`.
+    where_val : Any
+        Value the WHERE clause matches. Parameterized — NOT interpolated.
+    rows : list[dict[str, Any]]
+        Row dicts to INSERT. An empty list is a valid degenerate case
+        (just does the DELETE atomically) — the contract is "either
+        everything happens or nothing happens", including the empty
+        case.
+    columns : list[str] | None, optional
+        Explicit column list for the INSERT. If ``None`` (default), the
+        columns are inferred from the SORTED union of keys across all
+        ``rows`` (deterministic across Python versions, log-diff-stable).
+
+    Returns
+    -------
+    int
+        Number of rows inserted (from ``cursor.rowcount`` after the
+        INSERT — 0 if ``rows`` was empty or the INSERT was skipped).
+
+    Raises
+    ------
+    ValueError
+        If ``table`` or ``where_col`` fails :func:`safe_identifier`.
+    Exception
+        Whatever the underlying DB raises. The transaction is rolled
+        back FIRST, so the pre-existing rows survive.
+
+    Notes
+    -----
+    Uses a fresh ``pymysql.connect(..., autocommit=False)`` connection,
+    NOT the shared pool. The pool's connections have ``autocommit=True``
+    baked in at get-time, and toggling autocommit mid-connection is a
+    known pymysql footgun. Fresh connection + explicit
+    commit/rollback/close is simpler and correct (design decision D3).
+    """
+    # Defense in depth: both identifiers land in un-parameterizable
+    # positions in the SQL string below, so they MUST be allowlist-
+    # validated first.
+    safe_table = safe_identifier(table)
+    safe_where = safe_identifier(where_col)
+
+    # Column inference — sorted union of keys across all rows. Sorted
+    # is deterministic (independent of Python's dict-hash-randomization)
+    # and makes the resulting SQL diff-stable in logs (design D4).
+    if columns is None:
+        keys: set[str] = set()
+        for row in rows:
+            keys.update(row.keys())
+        columns = sorted(keys)
+
+    # Validate every column name too — same DDL-injection defense.
+    for col in columns:
+        safe_identifier(col)
+
+    delete_sql = f"DELETE FROM {safe_table} WHERE {safe_where} = %s"
+    inserted = 0
+
+    conn = pymysql.connect(
+        **DatabaseConfig().connection_params,
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=False,
+    )
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(delete_sql, (where_val,))
+            if rows and columns:
+                col_list = ", ".join(columns)
+                placeholders = ", ".join(["%s"] * len(columns))
+                insert_sql = (
+                    f"INSERT INTO {safe_table} ({col_list}) " f"VALUES ({placeholders})"
+                )
+                # Build the parameter tuples in the same column order.
+                # Missing keys default to None (represents SQL NULL) so
+                # the caller doesn't have to pre-fill every dict.
+                params_list = [tuple(row.get(col) for col in columns) for row in rows]
+                cursor.executemany(insert_sql, params_list)
+                inserted = cursor.rowcount
+        conn.commit()
+    except Exception:
+        # bd-kh08: rollback FIRST so the pre-existing rows survive,
+        # then re-raise so the caller can decide what to do.
+        try:
+            conn.rollback()
+        except Exception as rollback_exc:  # noqa: BLE001
+            # Rollback itself failed — log and swallow so we don't
+            # mask the original exception the caller cares about.
+            logger.error(
+                "replace_rows rollback failed for table %r: %s",
+                safe_table,
+                rollback_exc,
+            )
+        raise
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001
+            pass  # best-effort close; don't mask user-visible errors
+
+    return inserted
+
+
 def init_database(auto_create: bool = None):
     """Initialize MySQL database and create tables if they don't exist.
 
