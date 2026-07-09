@@ -213,22 +213,35 @@ class TestStoreInstitutional:
                 f"(D1: rows partitioned per symbol)"
             )
 
+    @patch("openbb_fmp_cached.models.institutional_ownership.logger")
     @patch("openbb_fmp_cached.models.institutional_ownership.replace_rows")
-    def test_atomicity_fail_propagates_and_stops(self, mock_replace: MagicMock) -> None:
-        """Site-level exception handler swallows for cache best-effort.
+    def test_per_symbol_failure_is_isolated_and_named(
+        self, mock_replace: MagicMock, mock_logger: MagicMock
+    ) -> None:
+        """D1 (fail-continue): a mid-batch failure isolates to that one symbol.
 
-        Site currently wraps DELETE+INSERT in ``try: ... except Exception:
-        logger.warning(...)``. Post-fix that wrapper is preserved so cache
-        failures don't break the READ path — but a mid-batch failure must
-        NOT allow the loop to continue writing subsequent symbols
-        successfully to a torn cache state (since replace_rows is per-symbol
-        atomic, the safe behavior is to log and stop).
+        Post-review-fix (PR #418 silent-failure-hunter P1-1, P1-2): pre-fix
+        the try/except was OUTSIDE the loop, causing the first failure to
+        abort every remaining symbol and log only ONE generic warning
+        that didn't identify the failing symbol. Post-fix each symbol
+        gets its own try/except, so:
+
+        1. Exactly ``len(unique_symbols)`` replace_rows calls fire — even
+           if some fail (fail-continue, not fail-fast).
+        2. The warning log line for a failed symbol MUST include the
+           symbol name so operators can trace which write died.
+        3. Symbols after the failure MUST still be attempted.
+
+        The pre-fix test used ``call_count >= 2`` which locked NEITHER
+        design and would silently accept either "abort on first failure"
+        or "continue past failure" — a future refactor could break either
+        contract without CI catching it.
         """
         from openbb_fmp_cached.models.institutional_ownership import (
             _store_institutional,
         )
 
-        # 3 unique symbols; fail on 2nd call.
+        # 3 unique symbols; MSFT ok, AAPL fails, GOOGL MUST still be tried.
         mock_replace.side_effect = [None, RuntimeError("mysql down"), None]
         records = [
             _record_institutional("MSFT"),
@@ -236,18 +249,41 @@ class TestStoreInstitutional:
             _record_institutional("GOOGL"),
         ]
 
-        # Site-level try/except swallows the exception (best-effort cache).
+        # No exception propagates — per-symbol swallow.
         _store_institutional(records)
 
-        # Must have called replace_rows at LEAST twice (up to and including
-        # the failing call). The 3rd call may or may not fire depending on
-        # whether the except is inside or outside the loop. Post-fix decision
-        # (D4): keep the site-level exception surface, DO NOT continue after
-        # a failure — one bad symbol shouldn't mask further symbol failures
-        # by burying only the first exception.
-        assert mock_replace.call_count >= 2, (
-            "Failed on 2nd symbol; must have called replace_rows at least "
-            "twice (1st success + failing 2nd)"
+        # (1) EXACTLY 3 calls — GOOGL must have been attempted despite
+        # AAPL's failure. Locks D1 fail-continue.
+        assert mock_replace.call_count == 3, (
+            f"D1 says fail-continue: 3 symbols in, all 3 must be attempted "
+            f"regardless of mid-batch failures. Got {mock_replace.call_count} "
+            f"— if this is 2, the try/except moved OUTSIDE the loop (fail-fast) "
+            f"regression that silently drops subsequent symbols."
+        )
+
+        # (2) The failed-symbol warning MUST name the specific symbol.
+        # Pre-fix log line was "Failed to cache institutional ownership "
+        # "data: <exc>" — no symbol identification. Post-fix must include
+        # the symbol so operators can grep for AAPL failures specifically.
+        warning_calls = [c for c in mock_logger.warning.call_args_list if c.args]
+        assert warning_calls, "A failed symbol MUST log a warning."
+        # Look for the specific symbol name in the log format or args.
+        aapl_warned = any(
+            "AAPL" in str(c.args) or ("AAPL" in c.args if len(c.args) > 1 else False)
+            for c in warning_calls
+        )
+        assert aapl_warned, (
+            f"Warning for failed symbol MUST name the symbol (AAPL). "
+            f"Got: {warning_calls}. Pre-fix log line was generic "
+            f"('Failed to cache institutional ownership data: ...') — the "
+            f"post-review-fix log format must include the specific sym."
+        )
+
+        # (3) The calls actually went to MSFT, AAPL, GOOGL in order.
+        called_symbols = [c.args[2] for c in mock_replace.call_args_list]
+        assert called_symbols == ["MSFT", "AAPL", "GOOGL"], (
+            f"Order matters for D1: the loop must not reorder. "
+            f"Got: {called_symbols}"
         )
 
 

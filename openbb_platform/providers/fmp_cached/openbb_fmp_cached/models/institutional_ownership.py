@@ -277,12 +277,21 @@ def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
     failure between the DELETE and the INSERT no longer wipes prior cached
     quarters for the symbol.
 
-    D1: one transaction per symbol (independent) — one bad symbol still
-    logs and the loop moves on rather than reverting everything, matching
-    the pre-fix "best effort per-symbol" surface.
+    D1: one transaction per symbol (independent) — a per-symbol failure
+    logs a warning naming that symbol and the loop continues with the
+    remaining symbols. This matches the pre-fix "best effort per-symbol"
+    surface where each symbol's execute_query DELETE either committed
+    on its own (autocommit=True pre-fix) or failed independently.
     D6: empty records = no-op (no DELETE fires).
-    D4: outer try/except preserved — cache failure MUST NOT break the
-    read path, so we swallow the exception surface at the site level.
+    D4: per-symbol try/except swallows so a single-symbol write failure
+    MUST NOT block cache writes for the other symbols in the batch, and
+    MUST NOT propagate to the read path in ``aextract_data``.
+
+    Post-review-fix (PR #418 silent-failure-hunter P1-1): pre-fix version
+    had the try/except OUTSIDE the loop, meaning the first mid-batch
+    failure aborted every remaining symbol with only ONE warning that
+    didn't identify which symbol died. Now each symbol gets its own
+    try/except with the symbol name in the warning.
     """
     if not records:
         return
@@ -304,8 +313,9 @@ def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
         )
 
     total_inserted = 0
-    try:
-        for sym, rows in by_symbol.items():
+    succeeded: list[str] = []
+    for sym, rows in by_symbol.items():
+        try:
             replace_rows(
                 "institutional_ownership",
                 "symbol",
@@ -314,16 +324,22 @@ def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
                 columns=["symbol", "date", "data_json"],
             )
             total_inserted += len(rows)
-
-        if total_inserted:
-            logger.info(
-                "Cached %d institutional ownership records (source=%s) for %s",
-                total_inserted,
-                data_source,
-                ", ".join(sorted(by_symbol.keys())),
+            succeeded.append(sym)
+        except Exception as exc:
+            # Per-symbol swallow (D1 + D4) — log the specific symbol so
+            # operators can trace which write failed and which are un-
+            # attempted-vs-attempted. Loop continues with next symbol.
+            logger.warning(
+                "Failed to cache institutional ownership for %s: %s", sym, exc
             )
-    except Exception as exc:
-        logger.warning("Failed to cache institutional ownership data: %s", exc)
+
+    if total_inserted:
+        logger.info(
+            "Cached %d institutional ownership records (source=%s) for %s",
+            total_inserted,
+            data_source,
+            ", ".join(sorted(succeeded)),
+        )
 
 
 # ---------------------------------------------------------------------------
