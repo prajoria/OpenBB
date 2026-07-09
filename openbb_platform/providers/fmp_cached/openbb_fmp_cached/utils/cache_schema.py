@@ -8,16 +8,38 @@ Simple database-backed response persistence without TTL/caching complexity.
 
 import logging
 import os
-from .database import execute_query
+from .database import execute_query, safe_identifier
 
 logger = logging.getLogger(__name__)
 
 
 def get_table_name(base_name: str) -> str:
-    """Get table name with test prefix if in test mode."""
+    """Get table name with test prefix if in test mode.
+
+    Every ``base_name`` is validated by :func:`safe_identifier` BEFORE the
+    ``test_`` prefix is applied (bd-9loj/20zx). ~60 create-table functions
+    in this module f-string-interpolate the return value of this helper
+    into ``CREATE TABLE`` DDL, so a structurally-enforced allowlist here
+    protects the entire surface without changing any of the ~60 callers.
+
+    Raises
+    ------
+    ValueError
+        If ``base_name`` (or the ``test_``-prefixed composed name) fails
+        the MySQL identifier allowlist.
+    """
+    # Validate the base BEFORE composition — a malicious base combined
+    # with the ``test_`` prefix would still contain the injection payload
+    # (``test_balance_sheet; DROP TABLE users; --``).
+    safe_identifier(base_name)
     is_test_mode = os.getenv("FMP_CACHE_TEST_MODE", "false").lower() == "true"
     if is_test_mode:
-        return f"test_{base_name}"
+        # Compose and re-validate — the ``test_`` prefix can only produce
+        # a valid identifier if the base was already valid (which we just
+        # checked), but the re-validation is defense-in-depth against a
+        # future refactor that swaps in a different prefix source.
+        composed = f"test_{base_name}"
+        return safe_identifier(composed)
     return base_name
 
 

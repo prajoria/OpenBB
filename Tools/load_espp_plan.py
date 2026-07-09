@@ -341,7 +341,7 @@ ON DUPLICATE KEY UPDATE
 def get_connection(database: Optional[str] = None):
     """Get a pymysql connection, optionally overriding the database name."""
     import pymysql
-    from openbb_fmp_cached.utils.database import DatabaseConfig
+    from openbb_fmp_cached.utils.database import DatabaseConfig, safe_identifier
 
     config = DatabaseConfig()
     params = config.connection_params
@@ -350,10 +350,14 @@ def get_connection(database: Optional[str] = None):
 
     # Ensure the database exists
     db_name = params.pop("database")
+    # bd-9loj/y5fn: validate --database BEFORE any DB work. Rejection
+    # happens loudly (ValueError) before pymysql.connect fires, so a
+    # malicious CLI value cannot reach the DDL string.
+    safe_db_name = safe_identifier(db_name)
     conn = pymysql.connect(**params)
     try:
         with conn.cursor() as cur:
-            cur.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
+            cur.execute(f"CREATE DATABASE IF NOT EXISTS `{safe_db_name}`")
     finally:
         conn.close()
 
