@@ -526,12 +526,17 @@ def init_database(auto_create: bool = None):
     temp_config = config.connection_params.copy()
     database_name = temp_config.pop("database", "openbb_fmp_cache")
 
+    # bd-9loj/o1oy: validate the database name BEFORE any DB work.
+    # Rejection happens loudly (ValueError) before pymysql.connect fires,
+    # so a malicious config value cannot reach the DDL string.
+    safe_database_name = safe_identifier(database_name)
+
     # Connect to MySQL without specifying database to create it
     connection = pymysql.connect(**temp_config)
     try:
         with connection.cursor() as cursor:
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {database_name}")
-            logger.info(f"Database '{database_name}' ready")
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {safe_database_name}")
+            logger.info(f"Database '{safe_database_name}' ready")
     finally:
         connection.close()
 
