@@ -106,10 +106,10 @@ class _RecordingStub(_DataProviderStub):
         self.fetch_impl = fetch_impl
         self.calls: list[dict[str, object]] = []
 
-    def stream(self, symbol, timeframe, *, start=None, end=None):  # noqa: D401
+    def stream(self, symbol, timeframe, *, start=None, end=None, include_gaps=False):  # noqa: D401
         raise NotImplementedError("_RecordingStub does not implement stream() for E0")
 
-    def fetch(self, symbol, timeframe, *, start=None, end=None):
+    def fetch(self, symbol, timeframe, *, start=None, end=None, include_gaps=False):
         self.calls.append(
             {"symbol": symbol, "timeframe": timeframe, "start": start, "end": end}
         )
@@ -297,6 +297,11 @@ class TestProviderPath:
         assert len(stub.calls) == 1
         assert stub.calls[0]["symbol"] == "SPY"
         assert stub.calls[0]["timeframe"] == "1D"
+        # Omitted primary_start / primary_end must forward as None so a
+        # future default change (e.g. datetime.now(UTC)) is caught here
+        # rather than silently altering provider fetch windows.
+        assert stub.calls[0]["start"] is None
+        assert stub.calls[0]["end"] is None
         # Aligned to primary index.
         assert list(result["ctx_0"].index) == list(primary.index)
 
