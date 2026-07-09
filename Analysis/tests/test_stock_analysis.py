@@ -138,7 +138,7 @@ class TestHelpers:
 
     def test_analysis_config_wrong_provider_warns(self):
         with pytest.warns(UserWarning, match="not the supported value"):
-            AnalysisConfig(symbol="TSLA", provider="fmp")
+            AnalysisConfig(symbol="TSLA", provider="fmp")  # provider-purity-exempt: intentionally tests the wrong-provider warning branch
 
     # --- _last_trading_day ---------------------------------------------------
 
