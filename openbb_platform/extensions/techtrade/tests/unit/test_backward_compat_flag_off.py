@@ -1,0 +1,193 @@
+"""Backward-compat AC-1 golden invariance suite (bd-7ct.8, bd-73s).
+
+**The single most important test in the bd-7ct foundation PR.** Proves
+that with ``use_extended_confluence_panel=False`` (the default), every
+observable of the pipeline is byte-identical to the pre-bd-7ct state.
+
+If any test in this file flips red on a future PR without an explicit
+acceptance criterion change, the flag-off path has drifted — the exact
+scenario the design spec §D1 says must not happen.
+
+**Golden fixture:** frozen panel + signal snapshots for NVDA / PG /
+SPY at a specific date (2025-06-16), computed on the recorded basket
+(bd-7ct.7 / bd-8ah). Regeneration requires ``TECHTRADE_REGEN_GOLDEN=1``
+and reviewer approval — the frozen values are the reference every
+downstream family PR compares against for classic-path invariance.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+from openbb_techtrade.engine import confluence, indicators
+from openbb_techtrade.engine.panel_config import (
+    PANEL_CLASSIC,
+    PANEL_EXTENDED,
+    PanelConfig,
+)
+from openbb_techtrade.testing import assert_matches_golden
+
+from tests.fixtures import load_basket
+
+GOLDEN_DIR = Path(__file__).parent.parent / "golden" / "flag_off_invariance"
+
+# Fixed as-of dates to anchor the golden. Picked after the recorded fixture
+# start dates (some symbols like NVDA start mid-2021 due to fmp_cached data
+# range) and give ~4 years of history for stable indicators.
+AS_OF = date(2025, 6, 16)
+
+
+def _panel_for(symbol: str, basket: dict) -> object:
+    """Build a classic panel for `symbol` at the AS_OF date."""
+    df = basket[symbol].sort_index()
+    # Slice to as-of; the parquet may or may not include this exact bar,
+    # so use the last available bar <= AS_OF.
+    df_thru = df[df.index.date <= AS_OF]
+    if len(df_thru) < 100:
+        pytest.skip(
+            f"insufficient bars for {symbol} through {AS_OF} "
+            f"(only {len(df_thru)})"
+        )
+    records = df_thru.reset_index().to_dict(orient="records")
+    return indicators.build_indicator_panel(
+        symbol=symbol,
+        as_of=df_thru.index[-1].date(),
+        ohlcv_rows=records,
+    )
+
+
+def _panel_to_dict(panel) -> dict:
+    """Serialise IndicatorPanel to a plain dict for golden comparison.
+
+    **``candles`` intentionally omitted:** pandas-ta-classic's
+    candlestick pattern detection depends on which subset of
+    ``cdl_*`` names are registered at call time, which varies by test
+    ordering (module-level state in the pandas-ta accessor). Making
+    the golden depend on ``candles`` produces flaky assertions that
+    only fire under specific test-execution orderings. Since the four
+    directional families (trend/momentum/volatility/volume) are what
+    the confluence panel expansion actually touches, restricting the
+    golden to those four keys is both sufficient AND stable.
+    """
+    return {
+        "symbol": panel.symbol,
+        "as_of": panel.as_of.isoformat(),
+        "trend": {k: v for k, v in panel.trend.items()},
+        "momentum": {k: v for k, v in panel.momentum.items()},
+        "volatility": {k: v for k, v in panel.volatility.items()},
+        "volume": {k: v for k, v in panel.volume.items()},
+    }
+
+
+def _signal_to_dict(sig) -> dict:
+    """Serialise MoverSignal to a plain dict."""
+    return {
+        "symbol": sig.symbol,
+        "segment": sig.segment,
+        "as_of": sig.as_of.isoformat(),
+        "score": sig.score,
+        "direction": sig.direction,
+        "rank_in_segment": sig.rank_in_segment,
+        "votes": [
+            {
+                "family": v.family, "name": v.name,
+                "vote": v.vote, "weight": v.weight,
+            }
+            for v in sig.votes
+        ],
+    }
+
+
+class TestPanelInvarianceFlagOff:
+    """The classic-panel bytes for each basket symbol at the anchor date
+    must never change without deliberate golden regen. Every family PR
+    (bd-luy/40v/z43/alj) runs these tests — flag-off invariance is the
+    line they must not cross.
+
+    iter-1 pr-test M2: extended from 3/5 basket coverage (NVDA/PG/SPY)
+    to the full 5/5 (adds XOM cyclical + PLTR recent-IPO). A regression
+    that only shows on XOM or PLTR was previously invisible.
+    """
+
+    @pytest.mark.parametrize("symbol", ["NVDA", "PG", "XOM", "PLTR", "SPY"])
+    def test_classic_panel_matches_golden(self, symbol):
+        basket = load_basket()
+        panel = _panel_for(symbol, basket)
+        assert_matches_golden(
+            name=f"panel_{symbol}_2025-06-16",
+            payload=_panel_to_dict(panel),
+            fixture_dir=GOLDEN_DIR,
+        )
+
+
+class TestSignalInvarianceFlagOff:
+    """Same guarantee at the signal layer: classic score + votes for each
+    basket symbol at the anchor date must be byte-identical."""
+
+    @pytest.mark.parametrize("symbol", ["NVDA", "PG", "XOM", "PLTR", "SPY"])
+    def test_classic_signal_matches_golden(self, symbol):
+        basket = load_basket()
+        panel = _panel_for(symbol, basket)
+        signal = confluence.build_signal(panel, segment="TEST_SECTOR")
+        assert_matches_golden(
+            name=f"signal_{symbol}_2025-06-16",
+            payload=_signal_to_dict(signal),
+            fixture_dir=GOLDEN_DIR,
+        )
+
+
+class TestExtendedMatchesClassicToday:
+    """In bd-7ct (pass-through stubs), extended MUST be byte-identical to
+    classic. When family PRs land, this test will be updated to
+    ``set(classic.keys).issubset(set(extended.keys))``."""
+
+    @pytest.mark.parametrize("symbol", ["NVDA", "PG", "XOM", "PLTR", "SPY"])
+    def test_extended_signal_equals_classic_today(self, symbol):
+        basket = load_basket()
+        panel_classic = indicators.build_indicator_panel(
+            symbol=symbol,
+            as_of=basket[symbol].index[-1].date(),
+            ohlcv_rows=basket[symbol].reset_index().to_dict(orient="records"),
+            panel_config=PANEL_CLASSIC,
+        )
+        panel_extended = indicators.build_indicator_panel(
+            symbol=symbol,
+            as_of=basket[symbol].index[-1].date(),
+            ohlcv_rows=basket[symbol].reset_index().to_dict(orient="records"),
+            panel_config=PANEL_EXTENDED,
+        )
+        assert panel_classic == panel_extended
+
+        sig_classic = confluence.build_signal(
+            panel_classic, segment="TEST", panel_config=PANEL_CLASSIC,
+        )
+        sig_extended = confluence.build_signal(
+            panel_extended, segment="TEST", panel_config=PANEL_EXTENDED,
+        )
+        assert sig_classic.score == sig_extended.score
+        assert sig_classic.votes == sig_extended.votes
+
+
+class TestConstructedPanelConfigWorks:
+    """R7.11: pinning the sentinel constants isn't the same as pinning
+    ``PanelConfig(panel="classic")`` construction from string values.
+    Both paths must produce the same behavior."""
+
+    def test_constructed_classic_equals_sentinel(self):
+        basket = load_basket()
+        panel_via_sentinel = indicators.build_indicator_panel(
+            symbol="NVDA",
+            as_of=basket["NVDA"].index[-1].date(),
+            ohlcv_rows=basket["NVDA"].reset_index().to_dict(orient="records"),
+            panel_config=PANEL_CLASSIC,
+        )
+        panel_via_construct = indicators.build_indicator_panel(
+            symbol="NVDA",
+            as_of=basket["NVDA"].index[-1].date(),
+            ohlcv_rows=basket["NVDA"].reset_index().to_dict(orient="records"),
+            panel_config=PanelConfig(panel="classic"),
+        )
+        assert panel_via_sentinel == panel_via_construct
