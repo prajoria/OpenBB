@@ -7,9 +7,7 @@ and D2 section 1.
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -21,12 +19,6 @@ __all__ = [
 __version__ = "0.1.0"  # PRD section 11.2
 PINE_VERSION = "6"  # PRD section 13.1
 
-# Path: openbb_pine/__init__.py -> parents[0] = openbb_pine,
-# [1] = pine (extension dir), [2] = extensions, [3] = openbb_platform, [4] = repo root.
-_VENDOR_SRC = (
-    Path(__file__).resolve().parents[4] / "third_party" / "pynecore" / "src"
-)
-
 # Canonical location for the bundled-widget catalog. Kept as a module-level
 # constant so both the P2 widget helper (:func:`_load_bundled_widgets`) and
 # the P3 MCP registration hook (:mod:`openbb_pine.mcp_tools`) point at the
@@ -36,27 +28,19 @@ _ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 _WIDGETS_JSON = _ASSETS_DIR / "widgets.json"
 
 
-def _install_pynecore_path() -> str | None:
-    """Install the vendored PyneCore on sys.path lazily and guarded.
+def _install_pynecore_path() -> None:
+    """Delegate to :func:`openbb_pine.runtime.pynecore_bridge.install_pynecore_path`.
 
-    Returns the inserted path string, or None if a PyPI ``pynesys-pynecore``
-    install already wins. Idempotent: re-importing the extension does not
-    insert the same path twice.
+    Historic entry point retained so callers importing this private name
+    from earlier revisions of the module keep working. The actual sys.path
+    logic now lives in :mod:`openbb_pine.runtime.pynecore_bridge`, which
+    will migrate to ``pyne_compiler`` in E2 (see Pine Extraction Design §6.E0.5).
     """
-    if importlib.util.find_spec("pynecore") is not None:
-        return None  # PyPI install (or prior insert) wins
-    if not _VENDOR_SRC.is_dir():
-        raise ImportError(
-            f"openbb-pine: PyneCore is neither installed (`pip install "
-            f"pynesys-pynecore`) nor present at {_VENDOR_SRC!s}. See PRD section 4.4."
-        )
-    src = str(_VENDOR_SRC)
-    if src not in sys.path:
-        sys.path.insert(0, src)
-    return src
+    from openbb_pine.runtime.pynecore_bridge import install_pynecore_path
+    install_pynecore_path()
 
 
-_VENDOR_INSERTED: str | None = _install_pynecore_path()
+_install_pynecore_path()  # module-load-time invocation preserved
 
 
 def _load_bundled_widgets() -> dict[str, dict[str, Any]]:
