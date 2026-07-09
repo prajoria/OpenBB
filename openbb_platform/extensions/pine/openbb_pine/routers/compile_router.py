@@ -32,7 +32,7 @@ from pydantic import Field
 from typing_extensions import Annotated
 
 from openbb_pine import __version__ as _pine_version
-from openbb_pine.errors import PineSyntaxError  # noqa: F401  - re-exported error class
+from openbb_pine.compiler_errors import PineSyntaxError  # noqa: F401  - re-exported error class
 from openbb_pine.routers._models import PineCompileRequest, PineCompileResponse
 
 router = Router(
