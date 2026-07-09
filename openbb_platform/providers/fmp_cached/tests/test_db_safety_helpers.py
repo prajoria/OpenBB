@@ -293,3 +293,147 @@ class TestReplaceRows:
             "transaction semantics require autocommit=False so the "
             "DELETE + INSERT commit/rollback atomically (bd-kh08 D3)."
         )
+
+    # ---- PR #414 review-fix regression tests ------------------------------
+
+    def test_rejects_non_empty_rows_with_empty_columns(self):
+        """PR #414 hunter P1: rows + columns=[] MUST raise, not silently DELETE-only.
+
+        Pre-review-fix ``if rows and columns:`` gated the INSERT on both
+        being truthy — a caller passing non-empty rows + explicit
+        ``columns=[]`` would DELETE then silently skip INSERT and commit,
+        producing the exact "cache empty after replace_rows" failure the
+        helper exists to prevent.
+        """
+        from openbb_fmp_cached.utils.database import replace_rows
+
+        with pytest.raises(ValueError, match="non-empty rows but no columns"):
+            replace_rows(
+                "my_table",
+                "symbol",
+                "AAPL",
+                [{"a": 1}, {"b": 2}],
+                columns=[],
+            )
+
+    def test_rejects_non_empty_rows_of_empty_dicts_inferred(self):
+        """PR #414 hunter P1: rows=[{},{}] with inferred columns also rejected.
+
+        Inferred columns come from the union of row keys. If every row
+        is an empty dict, the inferred columns list is empty → same
+        DELETE-then-silent-skip failure mode. Reject loudly.
+        """
+        from openbb_fmp_cached.utils.database import replace_rows
+
+        with pytest.raises(ValueError, match="non-empty rows but no columns"):
+            replace_rows("my_table", "symbol", "AAPL", [{}, {}])
+
+    def test_explicit_columns_missing_key_raises_keyerror(self):
+        """PR #414 code-reviewer P2: explicit columns are a caller contract.
+
+        Pre-review-fix ``row.get(col)`` silently substituted None (SQL
+        NULL) when a row was missing an explicit column — inconsistent
+        with safe_identifier's loud-rejection philosophy. A typo in the
+        explicit columns list became a silent SQL NULL. Post-fix, missing
+        keys under EXPLICIT columns raise KeyError with the row index
+        and the missing key.
+        """
+        from openbb_fmp_cached.utils.database import replace_rows
+
+        fake = _FakeConn()
+        rows = [
+            {"symbol": "AAPL", "value": 1},
+            {"symbol": "AAPL"},  # missing 'value'
+        ]
+        with self._patch_connect(fake):
+            with pytest.raises(KeyError, match="value"):
+                replace_rows(
+                    "my_table",
+                    "symbol",
+                    "AAPL",
+                    rows,
+                    columns=["symbol", "value"],
+                )
+
+    def test_inferred_columns_missing_key_becomes_null(self):
+        """PR #414 code-reviewer P2: inferred columns keep None-fill (regression lock).
+
+        Inferred columns come from the union of keys across rows. Some
+        rows genuinely have fewer keys — None-fill is the correct
+        default there. Only EXPLICIT columns raise on missing keys.
+        """
+        from openbb_fmp_cached.utils.database import replace_rows
+
+        fake = _FakeConn()
+        rows = [
+            {"symbol": "AAPL", "value": 1},
+            {"symbol": "AAPL"},  # missing 'value' — becomes None
+        ]
+        with self._patch_connect(fake):
+            n = replace_rows("my_table", "symbol", "AAPL", rows)
+
+        assert n == 2
+        # Second row's tuple should have None for the missing 'value' column.
+        _, params = fake.executemany_calls[0]
+        # Columns inferred + sorted: ['symbol', 'value']
+        assert params[1] == ("AAPL", None)
+
+    def test_rollback_failure_log_includes_original_exception(self, caplog):
+        """PR #414 code-reviewer P2: rollback-failure log must name the ORIGINAL exception.
+
+        Pre-review-fix the log only showed why rollback broke, not why
+        rollback was needed. Post-fix the log includes both — operators
+        debugging cache corruption see the full causal chain.
+        """
+        import logging
+
+        from openbb_fmp_cached.utils.database import replace_rows
+
+        original_exc = RuntimeError("original failure from INSERT")
+        fake = _FakeConn(executemany_raises=original_exc)
+        # Force rollback itself to fail so we hit the log branch.
+        fake.rollback = MagicMock(side_effect=RuntimeError("rollback failure"))
+
+        with caplog.at_level(logging.ERROR, logger="openbb_fmp_cached.utils.database"):
+            with self._patch_connect(fake):
+                with pytest.raises(RuntimeError, match="original failure"):
+                    replace_rows("my_table", "symbol", "AAPL", [{"a": 1}])
+
+        # The error log MUST mention the original exception, not just
+        # the rollback failure. Otherwise operators lose the causal
+        # chain in monitoring systems.
+        error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert error_records, "no ERROR-level log captured on rollback failure"
+        msg = error_records[0].getMessage()
+        assert "original failure" in msg, (
+            f"rollback-failure log doesn't name the original exception. "
+            f"Log message: {msg!r}"
+        )
+
+
+class TestSafeIdentifierNonStr:
+    """PR #414 code-reviewer P2: cover the isinstance guard."""
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            123,  # int
+            b"my_table",  # bytes
+            None,
+            ["my_table"],  # list
+            object(),  # arbitrary object
+            12.5,  # float
+        ],
+    )
+    def test_rejects_non_str_inputs(self, bad):
+        """isinstance guard rejects non-str inputs.
+
+        Pre-review-fix this branch had zero test coverage — if someone
+        refactored the isinstance check away, the tests stayed GREEN
+        and the regression surfaced as TypeError at runtime (regex
+        won't accept non-str).
+        """
+        from openbb_fmp_cached.utils.database import safe_identifier
+
+        with pytest.raises(ValueError):
+            safe_identifier(bad)
