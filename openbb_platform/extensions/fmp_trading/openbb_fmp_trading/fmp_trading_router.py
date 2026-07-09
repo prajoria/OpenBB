@@ -14,9 +14,12 @@ Critical Design Constraint in the Phase 1 plan and ``package_builder.build_func_
 from __future__ import annotations
 
 from importlib import import_module
+from pathlib import Path
 
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
+
+from openbb_fmp_trading.core.doctor import run_doctor
 
 router = Router(
     prefix="",
@@ -45,5 +48,19 @@ _include_subrouters()
 
 @router.command(methods=["GET"])
 def doctor() -> OBBject:
-    """Return an fmp_trading health report (stub — populated in Task 6)."""
-    return OBBject(results={"status": "stub", "phase": "P1.1"})
+    """Return an fmp_trading environment health report.
+
+    Checks: FMP credentials, MySQL cache reachability, exchange_calendars data,
+    techtrade installation + version, [agent] / [xlsxwriter] / [validation]
+    extras, and remaining monthly bandwidth budget.
+
+    Return annotation is bare ``OBBject`` per the Critical Design Constraint
+    (see the Phase 1 plan header). The ``HealthReport`` model is instantiated
+    inside the function body and its ``.model_dump()`` becomes ``results``.
+    """
+    state_path = Path.home() / ".openbb_platform" / "fmp_trading" / "bandwidth.json"
+    report = run_doctor(
+        bandwidth_state_path=state_path,
+        bandwidth_budget_bytes=50 * 1024**3,
+    )
+    return OBBject(results=report.model_dump(mode="json"))
