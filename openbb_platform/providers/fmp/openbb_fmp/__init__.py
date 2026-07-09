@@ -1,6 +1,8 @@
 """FMP Provider Modules."""
 
 from openbb_core.provider.abstract.provider import Provider
+from openbb_fmp.models.aftermarket_quote import FMPAftermarketQuoteFetcher
+from openbb_fmp.models.aftermarket_trade import FMPAftermarketTradeFetcher
 from openbb_fmp.models.analyst_estimates import FMPAnalystEstimatesFetcher
 from openbb_fmp.models.available_indices import FMPAvailableIndicesFetcher
 from openbb_fmp.models.balance_sheet import FMPBalanceSheetFetcher
@@ -24,12 +26,18 @@ from openbb_fmp.models.earnings_call_transcript import FMPEarningsCallTranscript
 from openbb_fmp.models.economic_calendar import FMPEconomicCalendarFetcher
 from openbb_fmp.models.equity_gainers import FMPGainersFetcher
 from openbb_fmp.models.equity_historical import FMPEquityHistoricalFetcher
+from openbb_fmp.models.equity_intraday_historical import (
+    FMPEquityIntradayHistoricalFetcher,
+)
 from openbb_fmp.models.equity_losers import FMPLosersFetcher
 from openbb_fmp.models.equity_most_active import FMPEquityActiveFetcher
 from openbb_fmp.models.equity_ownership import FMPEquityOwnershipFetcher
 from openbb_fmp.models.equity_peers import FMPEquityPeersFetcher
 from openbb_fmp.models.equity_profile import FMPEquityProfileFetcher
 from openbb_fmp.models.equity_quote import FMPEquityQuoteFetcher
+from openbb_fmp.models.equity_quote_batch_short import (
+    FMPEquityQuoteBatchShortFetcher,
+)
 from openbb_fmp.models.equity_screener import FMPEquityScreenerFetcher
 from openbb_fmp.models.esg_score import FMPEsgScoreFetcher
 from openbb_fmp.models.etf_countries import FMPEtfCountriesFetcher
@@ -38,6 +46,7 @@ from openbb_fmp.models.etf_holdings import FMPEtfHoldingsFetcher
 from openbb_fmp.models.etf_info import FMPEtfInfoFetcher
 from openbb_fmp.models.etf_search import FMPEtfSearchFetcher
 from openbb_fmp.models.etf_sectors import FMPEtfSectorsFetcher
+from openbb_fmp.models.exchange_market_hours import FMPExchangeMarketHoursFetcher
 from openbb_fmp.models.executive_compensation import FMPExecutiveCompensationFetcher
 from openbb_fmp.models.financial_ratios import FMPFinancialRatiosFetcher
 from openbb_fmp.models.forward_ebitda_estimates import FMPForwardEbitdaEstimatesFetcher
@@ -65,6 +74,9 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.technical_indicator_intraday import (
+    FMPTechnicalIndicatorIntradayFetcher,
+)
 from openbb_fmp.models.treasury_rates import FMPTreasuryRatesFetcher
 from openbb_fmp.models.world_news import FMPWorldNewsFetcher
 from openbb_fmp.models.yield_curve import FMPYieldCurveFetcher
@@ -76,6 +88,8 @@ fmp_provider = Provider(
 stock market information (news, currencies, and stock prices).""",
     credentials=["api_key"],
     fetcher_dict={
+        "AftermarketQuote": FMPAftermarketQuoteFetcher,
+        "AftermarketTrade": FMPAftermarketTradeFetcher,
         "AnalystEstimates": FMPAnalystEstimatesFetcher,
         "AvailableIndices": FMPAvailableIndicesFetcher,
         "BalanceSheet": FMPBalanceSheetFetcher,
@@ -99,12 +113,14 @@ stock market information (news, currencies, and stock prices).""",
         "EconomicCalendar": FMPEconomicCalendarFetcher,
         "EquityActive": FMPEquityActiveFetcher,
         "EquityHistorical": FMPEquityHistoricalFetcher,
+        "EquityIntradayHistorical": FMPEquityIntradayHistoricalFetcher,
         "EquityOwnership": FMPEquityOwnershipFetcher,
         "EquityPeers": FMPEquityPeersFetcher,
         "EquityInfo": FMPEquityProfileFetcher,
         "EquityGainers": FMPGainersFetcher,
         "EquityLosers": FMPLosersFetcher,
         "EquityQuote": FMPEquityQuoteFetcher,
+        "EquityQuoteBatchShort": FMPEquityQuoteBatchShortFetcher,
         "EquityScreener": FMPEquityScreenerFetcher,
         "EsgScore": FMPEsgScoreFetcher,
         "EtfCountries": FMPEtfCountriesFetcher,
@@ -114,6 +130,7 @@ stock market information (news, currencies, and stock prices).""",
         "EtfPricePerformance": FMPPricePerformanceFetcher,
         "EtfSearch": FMPEtfSearchFetcher,
         "EtfSectors": FMPEtfSectorsFetcher,
+        "ExchangeMarketHours": FMPExchangeMarketHoursFetcher,
         "ExecutiveCompensation": FMPExecutiveCompensationFetcher,
         "FinancialRatios": FMPFinancialRatiosFetcher,
         "ForwardEbitdaEstimates": FMPForwardEbitdaEstimatesFetcher,
@@ -140,6 +157,7 @@ stock market information (news, currencies, and stock prices).""",
         "RevenueGeographic": FMPRevenueGeographicFetcher,
         "RiskPremium": FMPRiskPremiumFetcher,
         "ShareStatistics": FMPShareStatisticsFetcher,
+        "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,
         "EtfHistorical": FMPEquityHistoricalFetcher,
