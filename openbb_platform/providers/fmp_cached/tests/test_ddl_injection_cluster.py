@@ -200,20 +200,35 @@ class TestGetTableName:
         with pytest.raises(ValueError):
             get_table_name("balance_sheet; DROP TABLE users; --")
 
-    def test_rejects_malicious_base_name_in_test_mode(self, monkeypatch):
-        """test-mode prefix must not save malicious base names.
+    def test_rejects_length_that_would_overflow_composed_name_in_test_mode(
+        self, monkeypatch
+    ):
+        """PR #416 code-reviewer P2: exercise the composed-name re-validation.
 
-        Pre-fix ``get_table_name`` would prepend ``test_`` and return
-        the composed string — but the composed ``test_balance_sheet;
-        DROP TABLE users; --`` is still an injection payload. Post-fix
-        the base is validated BEFORE the prefix is applied.
+        The plain ``safe_identifier`` check on the base catches everything
+        the composed check would catch, EXCEPT one case: a base that fits
+        the 64-char cap on its own but overflows when prefixed with
+        ``test_`` (5 chars). Pre-fix the composed name would silently
+        exceed MySQL's identifier limit; post-fix the second
+        ``safe_identifier`` call at cache_schema.py:37 catches it. This
+        test proves the second call isn't dead code.
+
+        Pre-review-fix version of this test just repeated
+        ``test_rejects_malicious_base_name`` with FMP_CACHE_TEST_MODE=true
+        — same code path, redundant coverage.
         """
         monkeypatch.setenv("FMP_CACHE_TEST_MODE", "true")
 
         from openbb_fmp_cached.utils.cache_schema import get_table_name
 
+        # 60-char base: passes safe_identifier on its own (<= 64), but
+        # composed as "test_" + 60 = 65 chars — exceeds MySQL cap.
+        base = "a" * 60
+        assert len(base) == 60  # sanity: within the 64-char cap
+        assert len(f"test_{base}") == 65  # composed exceeds the cap
+
         with pytest.raises(ValueError):
-            get_table_name("balance_sheet; DROP TABLE users; --")
+            get_table_name(base)
 
     def test_accepts_valid_base_name(self, monkeypatch):
         """Regression lock: standard snake_case table names still work."""

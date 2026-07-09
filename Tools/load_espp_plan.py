@@ -361,7 +361,7 @@ def get_connection(database: Optional[str] = None):
     finally:
         conn.close()
 
-    params["database"] = db_name
+    params["database"] = safe_db_name
     return pymysql.connect(
         **params,
         cursorclass=pymysql.cursors.DictCursor,
