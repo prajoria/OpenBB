@@ -334,15 +334,34 @@ class TestStoreBalanceSheets:
         assert {c.args[2] for c in mock_replace.call_args_list} == {"MSFT", "AAPL"}
 
     @patch("openbb_fmp_cached.models.balance_sheet.replace_rows")
-    def test_atomicity_fail_propagates_and_stops(self, mock_replace: MagicMock) -> None:
+    def test_atomicity_fail_fast_aborts_remaining_symbols(
+        self, mock_replace: MagicMock
+    ) -> None:
+        """D-propagate (P2-2 filed as bd-e3v8): balance_sheet has no site-level
+        try/except, so a mid-batch failure aborts the loop AND propagates to
+        the caller. Tightened from PR #418 code-reviewer P2 — pre-fix used
+        2 symbols which couldn't distinguish fail-fast from fail-continue.
+        """
         from openbb_fmp_cached.models.balance_sheet import _store_balance_sheets
 
-        mock_replace.side_effect = [None, RuntimeError("mysql down")]
+        # 3 symbols; fail on 2nd. If code fail-fast: exactly 2 calls, then
+        # propagates. If code fail-continue: would be 3 calls (regression).
+        mock_replace.side_effect = [None, RuntimeError("mysql down"), None]
         with pytest.raises(RuntimeError, match="mysql down"):
             _store_balance_sheets(
-                [_record_balance_sheet("MSFT"), _record_balance_sheet("AAPL")]
+                [
+                    _record_balance_sheet("MSFT"),
+                    _record_balance_sheet("AAPL"),
+                    _record_balance_sheet("GOOGL"),
+                ]
             )
-        assert mock_replace.call_count == 2
+        assert mock_replace.call_count == 2, (
+            f"balance_sheet has no site-level try/except; a mid-batch failure "
+            f"MUST abort the loop (call_count == 2). Got {mock_replace.call_count} "
+            f"— if 3, a try/except silently landed inside the loop turning this "
+            f"into fail-continue (which for the 6 unwrapped sites would silently "
+            f"swallow bd-e3v8's follow-up fix)."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +381,7 @@ class TestStoreCashFlow:
         assert mock_replace.call_count == 1
         args, _ = mock_replace.call_args
         assert args[0] == "cash_flow"
+        assert args[1] == "symbol"
         assert args[2] == "MSFT"
         assert args[3][0]["operating_cash_flow"] == 10
         assert args[3][0]["free_cash_flow"] == 7
@@ -383,13 +403,20 @@ class TestStoreCashFlow:
         assert mock_replace.call_count == 2
 
     @patch("openbb_fmp_cached.models.cash_flow.replace_rows")
-    def test_atomicity_fail_propagates_and_stops(self, mock_replace: MagicMock) -> None:
+    def test_atomicity_fail_fast_aborts_remaining_symbols(
+        self, mock_replace: MagicMock
+    ) -> None:
+        """No site-level try/except → 2nd failure aborts + propagates (bd-e3v8)."""
         from openbb_fmp_cached.models.cash_flow import _store_cash_flow_statements
 
-        mock_replace.side_effect = [None, RuntimeError("boom")]
+        mock_replace.side_effect = [None, RuntimeError("boom"), None]
         with pytest.raises(RuntimeError, match="boom"):
             _store_cash_flow_statements(
-                [_record_cash_flow("MSFT"), _record_cash_flow("AAPL")]
+                [
+                    _record_cash_flow("MSFT"),
+                    _record_cash_flow("AAPL"),
+                    _record_cash_flow("GOOGL"),
+                ]
             )
         assert mock_replace.call_count == 2
 
@@ -411,6 +438,7 @@ class TestStoreIncomeStatement:
         assert mock_replace.call_count == 1
         args, _ = mock_replace.call_args
         assert args[0] == "income_statement"
+        assert args[1] == "symbol"
         assert args[2] == "MSFT"
         assert args[3][0]["revenue"] == 100
         assert args[3][0]["net_income"] == 20
@@ -432,13 +460,20 @@ class TestStoreIncomeStatement:
         assert mock_replace.call_count == 2
 
     @patch("openbb_fmp_cached.models.income_statement.replace_rows")
-    def test_atomicity_fail_propagates_and_stops(self, mock_replace: MagicMock) -> None:
+    def test_atomicity_fail_fast_aborts_remaining_symbols(
+        self, mock_replace: MagicMock
+    ) -> None:
+        """No site-level try/except → 2nd failure aborts + propagates (bd-e3v8)."""
         from openbb_fmp_cached.models.income_statement import _store_income_statement
 
-        mock_replace.side_effect = [None, RuntimeError("boom")]
+        mock_replace.side_effect = [None, RuntimeError("boom"), None]
         with pytest.raises(RuntimeError, match="boom"):
             _store_income_statement(
-                [_record_income_statement("MSFT"), _record_income_statement("AAPL")]
+                [
+                    _record_income_statement("MSFT"),
+                    _record_income_statement("AAPL"),
+                    _record_income_statement("GOOGL"),
+                ]
             )
         assert mock_replace.call_count == 2
 
@@ -460,6 +495,7 @@ class TestStoreFinancialRatios:
         assert mock_replace.call_count == 1
         args, _ = mock_replace.call_args
         assert args[0] == "financial_ratios"
+        assert args[1] == "symbol"
         assert args[2] == "MSFT"
         assert args[3][0]["pe_ratio"] == 20.0
 
@@ -480,13 +516,20 @@ class TestStoreFinancialRatios:
         assert mock_replace.call_count == 2
 
     @patch("openbb_fmp_cached.models.financial_ratios.replace_rows")
-    def test_atomicity_fail_propagates_and_stops(self, mock_replace: MagicMock) -> None:
+    def test_atomicity_fail_fast_aborts_remaining_symbols(
+        self, mock_replace: MagicMock
+    ) -> None:
+        """No site-level try/except → 2nd failure aborts + propagates (bd-e3v8)."""
         from openbb_fmp_cached.models.financial_ratios import _store_financial_ratios
 
-        mock_replace.side_effect = [None, RuntimeError("boom")]
+        mock_replace.side_effect = [None, RuntimeError("boom"), None]
         with pytest.raises(RuntimeError, match="boom"):
             _store_financial_ratios(
-                [_record_financial_ratios("MSFT"), _record_financial_ratios("AAPL")]
+                [
+                    _record_financial_ratios("MSFT"),
+                    _record_financial_ratios("AAPL"),
+                    _record_financial_ratios("GOOGL"),
+                ]
             )
         assert mock_replace.call_count == 2
 
@@ -508,6 +551,7 @@ class TestStoreKeyMetrics:
         assert mock_replace.call_count == 1
         args, _ = mock_replace.call_args
         assert args[0] == "key_metrics"
+        assert args[1] == "symbol"
         assert args[2] == "MSFT"
         assert args[3][0]["market_cap"] == 1_000_000_000
 
@@ -526,13 +570,20 @@ class TestStoreKeyMetrics:
         assert mock_replace.call_count == 2
 
     @patch("openbb_fmp_cached.models.key_metrics.replace_rows")
-    def test_atomicity_fail_propagates_and_stops(self, mock_replace: MagicMock) -> None:
+    def test_atomicity_fail_fast_aborts_remaining_symbols(
+        self, mock_replace: MagicMock
+    ) -> None:
+        """No site-level try/except → 2nd failure aborts + propagates (bd-e3v8)."""
         from openbb_fmp_cached.models.key_metrics import _store_key_metrics
 
-        mock_replace.side_effect = [None, RuntimeError("boom")]
+        mock_replace.side_effect = [None, RuntimeError("boom"), None]
         with pytest.raises(RuntimeError, match="boom"):
             _store_key_metrics(
-                [_record_key_metrics("MSFT"), _record_key_metrics("AAPL")]
+                [
+                    _record_key_metrics("MSFT"),
+                    _record_key_metrics("AAPL"),
+                    _record_key_metrics("GOOGL"),
+                ]
             )
         assert mock_replace.call_count == 2
 
@@ -554,6 +605,7 @@ class TestStoreQuotes:
         assert mock_replace.call_count == 1
         args, _ = mock_replace.call_args
         assert args[0] == "equity_quote"
+        assert args[1] == "symbol"
         assert args[2] == "MSFT"
         assert args[3][0]["price"] == 100.0
         assert args[3][0]["exchange"] == "NASDAQ"
@@ -573,12 +625,21 @@ class TestStoreQuotes:
         assert mock_replace.call_count == 2
 
     @patch("openbb_fmp_cached.models.equity_quote.replace_rows")
-    def test_atomicity_fail_propagates_and_stops(self, mock_replace: MagicMock) -> None:
+    def test_atomicity_fail_fast_aborts_remaining_symbols(
+        self, mock_replace: MagicMock
+    ) -> None:
+        """No site-level try/except → 2nd failure aborts + propagates (bd-e3v8)."""
         from openbb_fmp_cached.models.equity_quote import _store_quotes
 
-        mock_replace.side_effect = [None, RuntimeError("boom")]
+        mock_replace.side_effect = [None, RuntimeError("boom"), None]
         with pytest.raises(RuntimeError, match="boom"):
-            _store_quotes([_record_equity_quote("MSFT"), _record_equity_quote("AAPL")])
+            _store_quotes(
+                [
+                    _record_equity_quote("MSFT"),
+                    _record_equity_quote("AAPL"),
+                    _record_equity_quote("GOOGL"),
+                ]
+            )
         assert mock_replace.call_count == 2
 
 
