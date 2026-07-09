@@ -2,7 +2,9 @@
 
 from openbb_core.provider.abstract.provider import Provider
 
-# Import original FMP fetchers  
+# Import original FMP fetchers
+from openbb_fmp.models.aftermarket_quote import FMPAftermarketQuoteFetcher
+from openbb_fmp.models.aftermarket_trade import FMPAftermarketTradeFetcher
 from openbb_fmp.models.available_indices import FMPAvailableIndicesFetcher
 from openbb_fmp_cached.models.balance_sheet import FMPCachedBalanceSheetFetcher
 from openbb_fmp.models.balance_sheet_growth import FMPBalanceSheetGrowthFetcher
@@ -28,9 +30,15 @@ from openbb_fmp.models.equity_gainers import FMPGainersFetcher
 # Import independent cached fetchers (with database persistence)
 from openbb_fmp_cached.models.analyst_estimates import FMPCachedAnalystEstimatesFetcher
 from openbb_fmp_cached.models.equity_historical import FMPCachedEquityHistoricalFetcher
+from openbb_fmp.models.equity_intraday_historical import (
+    FMPEquityIntradayHistoricalFetcher,
+)
 from openbb_fmp_cached.models.equity_peers import FMPCachedEquityPeersFetcher
 from openbb_fmp_cached.models.equity_profile import FMPCachedEquityProfileFetcher
 from openbb_fmp_cached.models.equity_quote import FMPCachedEquityQuoteFetcher
+from openbb_fmp.models.equity_quote_batch_short import (
+    FMPEquityQuoteBatchShortFetcher,
+)
 from openbb_fmp_cached.models.etf_holdings import FMPCachedEtfHoldingsFetcher
 from openbb_fmp_cached.models.index_constituents import FMPCachedIndexConstituentsFetcher
 from openbb_fmp_cached.models.key_metrics import FMPCachedKeyMetricsFetcher
@@ -46,6 +54,7 @@ from openbb_fmp.models.etf_holdings import FMPEtfHoldingsFetcher
 from openbb_fmp.models.etf_info import FMPEtfInfoFetcher
 from openbb_fmp.models.etf_search import FMPEtfSearchFetcher
 from openbb_fmp.models.etf_sectors import FMPEtfSectorsFetcher
+from openbb_fmp.models.exchange_market_hours import FMPExchangeMarketHoursFetcher
 from openbb_fmp.models.executive_compensation import FMPExecutiveCompensationFetcher
 from openbb_fmp_cached.models.financial_ratios import FMPCachedFinancialRatiosFetcher
 from openbb_fmp.models.forward_ebitda_estimates import FMPForwardEbitdaEstimatesFetcher
@@ -71,6 +80,9 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.technical_indicator_intraday import (
+    FMPTechnicalIndicatorIntradayFetcher,
+)
 from openbb_fmp.models.treasury_rates import FMPTreasuryRatesFetcher
 from openbb_fmp.models.world_news import FMPWorldNewsFetcher
 from openbb_fmp.models.yield_curve import FMPYieldCurveFetcher
@@ -156,6 +168,16 @@ def create_all_cached_fetchers():
         ("TreasuryRates", FMPTreasuryRatesFetcher),
         ("WorldNews", FMPWorldNewsFetcher),
         ("YieldCurve", FMPYieldCurveFetcher),
+        # Phase-0 intraday fetchers (fmp-day-trading PRD 2026-07-06 §5.1).
+        # All tier-2 passthrough initially; Phase 2 (P2.1) promotes intraday
+        # bars + aftermarket-quote to tier-1 dedicated caching, and Phase 2
+        # (P2.2) wraps exchange-market-hours with the new 24h TTL helper.
+        ("AftermarketQuote", FMPAftermarketQuoteFetcher),
+        ("AftermarketTrade", FMPAftermarketTradeFetcher),
+        ("EquityIntradayHistorical", FMPEquityIntradayHistoricalFetcher),
+        ("EquityQuoteBatchShort", FMPEquityQuoteBatchShortFetcher),
+        ("ExchangeMarketHours", FMPExchangeMarketHoursFetcher),
+        ("TechnicalIndicatorIntraday", FMPTechnicalIndicatorIntradayFetcher),
         ("GovernmentTrades", FMPGovernmentTradesFetcher),
     ]
     
