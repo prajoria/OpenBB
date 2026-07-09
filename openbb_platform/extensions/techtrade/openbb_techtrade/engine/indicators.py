@@ -488,6 +488,7 @@ def build_indicator_panel(
     ohlcv_rows: list,
     *,
     config: IndicatorConfig | None = None,
+    panel_config=None,
 ) -> IndicatorPanel:
     """Build a per-symbol :class:`IndicatorPanel` from OHLCV history (pure, no network).
 
@@ -543,14 +544,33 @@ def build_indicator_panel(
         from openbb_techtrade.tuning.tuned_defaults import lookup_tuned_for_symbol  # noqa: PLC0415
         config = lookup_tuned_for_symbol(symbol) or DEFAULT_CONFIG
 
+    # bd-7ct.4 (bd-nx3): panel_config dispatch. Resolved ONCE per build
+    # (per design spec §D1 — no per-vote branching in hot paths). Lazy
+    # import so environments that never opt into the extended panel are
+    # not forced to load engine.panel_config at module-import time.
+    if panel_config is None:
+        from openbb_techtrade.engine.panel_config import PANEL_CLASSIC  # noqa: PLC0415
+        panel_config = PANEL_CLASSIC
+    if panel_config.panel == "extended":
+        from openbb_techtrade.engine import indicators_ext  # noqa: PLC0415
+        _trend_fn = indicators_ext._compute_trend_ext
+        _momentum_fn = indicators_ext._compute_momentum_ext
+        _volatility_fn = indicators_ext._compute_volatility_ext
+        _volume_fn = indicators_ext._compute_volume_ext
+    else:
+        _trend_fn = _compute_trend
+        _momentum_fn = _compute_momentum
+        _volatility_fn = _compute_volatility
+        _volume_fn = _compute_volume
+
     df = ohlcv_to_frame(ohlcv_rows)
     return IndicatorPanel(
         symbol=symbol,
         as_of=as_of,
-        trend=_compute_trend(df, config),
-        momentum=_compute_momentum(df, config),
-        volatility=_compute_volatility(df, config),
-        volume=_compute_volume(df, config),
+        trend=_trend_fn(df, config),
+        momentum=_momentum_fn(df, config),
+        volatility=_volatility_fn(df, config),
+        volume=_volume_fn(df, config),
         candles=_compute_candles(df),
     )
 

@@ -280,6 +280,7 @@ def technical_panel(
     *,
     config: IndicatorConfig = DEFAULT_CONFIG,
     obb_loader: Callable[[], object] | None = None,
+    panel_config=None,
 ) -> IndicatorPanel:
     """Build an :class:`IndicatorPanel` sourcing covered indicators from ``technical``.
 
@@ -325,8 +326,42 @@ def technical_panel(
     # Resolve the obb seam: an injected loader forces the technical leg (tests);
     # otherwise use the live loader only when the real extension is importable.
     if obb_loader is None and not _obb_technical_available():
-        return build_indicator_panel(symbol, as_of, ohlcv_rows, config=config)
+        # bd-7ct.5 (bd-ctt): forward panel_config to the classic fallback.
+        # In the fallback path, build_indicator_panel handles dispatch to
+        # the _ext stubs; a None panel_config resolves to PANEL_CLASSIC
+        # there (double-default is intentional — keeps the fallback path
+        # byte-identical to pre-bd-7ct when no kwarg is supplied).
+        return build_indicator_panel(
+            symbol, as_of, ohlcv_rows,
+            config=config, panel_config=panel_config,
+        )
     loader = obb_loader or _load_obb
+
+    # bd-7ct.5 caveat: the tech leg below always uses classic panel keys
+    # (`_compute_technical_trend/momentum/volatility`). Family PRs
+    # (bd-luy/40v/z43) will add `_compute_technical_*_ext` mirrors when
+    # they land — until then, callers that pass `panel_config=PANEL_EXTENDED`
+    # on a machine with obb.technical installed silently get the classic
+    # panel from the tech branch, and the extended stubs from the fallback
+    # branch only. Since the stubs are pass-through in bd-7ct, this is
+    # observationally identical — but it's a real limitation to close
+    # in the family PRs.
+    #
+    # iter-1 code-reviewer YELLOW (a): emit a WARNING when a caller
+    # explicitly requests the extended panel on this branch so future
+    # "why is my extended flag doing nothing on my openbb_technical
+    # box?" tickets have a hint in the logs. Costs nothing today
+    # (stubs pass through so behavior is unchanged) but is the loud
+    # signal family PRs need to observe when they partially wire the
+    # tech-leg mirrors.
+    if panel_config is not None and getattr(panel_config, "panel", None) == "extended":
+        _logger.warning(
+            "technical_panel: PANEL_EXTENDED requested but tech-leg "
+            "mirrors (_compute_technical_*_ext) not yet implemented — "
+            "silently downgrading to classic panel for symbol %s. "
+            "Family PRs (bd-luy/40v/z43) will address this.",
+            symbol,
+        )
 
     # Build the frame here (outside the try) so empty/invalid input raises
     # ValueError cleanly rather than being caught below and mislabelled a

@@ -340,6 +340,16 @@ class AnalysisFeatureFlags:
         "Overvalued".  Because ``valuation_verdict`` feeds ``gate_passed``,
         this can flip a stock from gate-pass to gate-fail — hence gated
         behind a flag (see PR #304 review C1/I1 / bead OpenBBTechnical-0h2.35).
+    use_extended_confluence_panel : bool
+        Phase-Confluence-Expansion foundation (bd-7ct) — opt in to the
+        extended techtrade confluence panel. Default False preserves the
+        14-key / 7-vote classic panel byte-identically. When True, the
+        techtrade engine builds an extended panel (currently a pass-through
+        stub in bd-7ct; family PRs bd-luy/40v/z43/alj will populate it with
+        best-of-class industry-standard indicators, each gated on measured
+        out-of-sample forward IC from the bd-7ct.10 harness). See:
+        docs/superpowers/specs/2026-07-08-confluence-panel-expansion-design.md
+        and docs/superpowers/plans/2026-07-08-bd-7ct-confluence-foundation.md.
 
     Env-var overrides
     -----------------
@@ -358,6 +368,7 @@ class AnalysisFeatureFlags:
     use_trailing_stop: bool = False
     use_stop_cap: bool = False
     use_peg_tightening: bool = False
+    use_extended_confluence_panel: bool = False
 
     @classmethod
     def from_env(cls) -> "AnalysisFeatureFlags":
