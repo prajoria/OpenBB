@@ -10,6 +10,9 @@ packages = [{ include = "openbb_fmp_trading" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 openbb-core = "^1.6.10"
+# openbb_core_journal ships as part of openbb-core's distribution (in-tree
+# sibling package under openbb_platform/core/openbb_core_journal/). No
+# separate dep required; core's pyproject.toml packages list re-exports it.
 openbb-techtrade = "^0.1.0"
 pandas = "*"
 numpy = "*"
