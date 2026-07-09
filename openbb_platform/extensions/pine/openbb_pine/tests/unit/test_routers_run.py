@@ -187,6 +187,159 @@ def test_run_threads_params_and_timeout_through():
 
 
 # ---------------------------------------------------------------------------
+# E0.4 observability wire-up — OBBject.extra["pine_telemetry"]
+# ---------------------------------------------------------------------------
+
+
+def test_run_injects_fresh_telemetry_sink_into_compile_pine():
+    """Each ``/pine/run`` call MUST inject a fresh
+    :class:`OpenBBTelemetrySink` (not the module-global) into
+    ``compile_pine(telemetry=...)``. Per-request isolation is the whole
+    reason E0.4 exists — a shared module-global would cross-contaminate
+    counts between concurrent requests.
+    """
+    from openbb_pine.routers.run_router import run
+    from openbb_pine.telemetry import _DEFAULT_SINK, OpenBBTelemetrySink
+
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
+        mock_run.return_value = _fake_obbject()
+        _run_async(run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL"))
+
+    injected = mock_compile.call_args.kwargs["telemetry"]
+    assert isinstance(injected, OpenBBTelemetrySink)
+    assert injected is not _DEFAULT_SINK  # NOT the module-global
+
+
+def test_run_surfaces_telemetry_on_obbject_extra_pine_telemetry():
+    """After compile+run, the returned OBBject.extra MUST carry a
+    ``pine_telemetry`` sub-dict shaped
+    ``{"unsupported_features": {...}, "unsupported_builtins": {...}}``.
+
+    Pins the observability wire-up so the sink's counts are not silently
+    dropped on return (the pre-fix regression this test exists to lock).
+    We simulate a compile that recorded two counts by mutating the
+    injected sink from inside the mocked ``compile_pine`` — the router
+    then reads and surfaces them.
+    """
+    from openbb_pine.routers.run_router import run
+
+    def _fake_compile(*args, **kwargs):
+        # Record two entries on the injected sink so the router has
+        # non-empty counts to surface. Matches the compiler-side
+        # ``sink.record_unsupported_*`` contract.
+        sink = kwargs["telemetry"]
+        sink.record_unsupported_feature("PF010")
+        sink.record_unsupported_builtin("ta.ichimoku")
+        return _mock_compiled()
+
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch(
+             "openbb_pine.routers.run_router.compile_pine",
+             side_effect=_fake_compile,
+         ):
+        mock_run.return_value = _fake_obbject()
+        result = _run_async(
+            run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL")
+        )
+
+    assert "pine_telemetry" in result.extra
+    pt = result.extra["pine_telemetry"]
+    assert pt == {
+        "unsupported_features": {"PF010": 1},
+        "unsupported_builtins": {"ta.ichimoku": 1},
+    }
+
+
+def test_run_surfaces_empty_telemetry_when_compile_had_no_unsupported():
+    """When the compile succeeded without touching any unsupported code
+    path, the ``pine_telemetry`` sub-dict MUST still be present with
+    empty maps — so downstream consumers can address the keys
+    unconditionally instead of guarding with ``.get()``.
+    """
+    from openbb_pine.routers.run_router import run
+
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:
+        mock_compile.return_value = _mock_compiled()
+        mock_run.return_value = _fake_obbject()
+        result = _run_async(
+            run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL")
+        )
+
+    assert result.extra["pine_telemetry"] == {
+        "unsupported_features": {},
+        "unsupported_builtins": {},
+    }
+
+
+def test_run_byo_also_surfaces_telemetry_on_obbject_extra():
+    """The BYO path shares ``_compile_and_run`` so it MUST surface
+    telemetry with the same envelope shape."""
+    from openbb_pine.routers.run_router import run_byo
+
+    def _fake_compile(*args, **kwargs):
+        kwargs["telemetry"].record_unsupported_feature("PF010")
+        return _mock_compiled()
+
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
+         patch(
+             "openbb_pine.routers.run_router.compile_pine",
+             side_effect=_fake_compile,
+         ):
+        mock_run.return_value = _fake_obbject()
+        result = _run_async(
+            run_byo(source=_TRIVIAL_SRC, records=_sample_records(3))
+        )
+
+    assert result.extra["pine_telemetry"] == {
+        "unsupported_features": {"PF010": 1},
+        "unsupported_builtins": {},
+    }
+
+
+def test_run_telemetry_sinks_are_per_request_isolated():
+    """Two successive ``/pine/run`` calls MUST see independent sinks —
+    counts from call #1 MUST NOT bleed into call #2.
+
+    We use ``side_effect=lambda: _fake_obbject()`` on ``run_compiled``
+    (rather than ``return_value``) so each call gets a fresh OBBject —
+    otherwise the router's ``.extra`` mutation would clobber r1 when r2
+    runs and both assertions would inspect the same dict.
+    """
+    from openbb_pine.routers.run_router import run
+
+    def _fake_compile_records_pf010(*args, **kwargs):
+        kwargs["telemetry"].record_unsupported_feature("PF010")
+        return _mock_compiled()
+
+    def _fake_compile_clean(*args, **kwargs):
+        return _mock_compiled()
+
+    with patch("openbb_pine.routers.run_router.run_compiled") as mock_run:
+        mock_run.side_effect = lambda *a, **kw: _fake_obbject()
+        with patch(
+            "openbb_pine.routers.run_router.compile_pine",
+            side_effect=_fake_compile_records_pf010,
+        ):
+            r1 = _run_async(
+                run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL")
+            )
+        with patch(
+            "openbb_pine.routers.run_router.compile_pine",
+            side_effect=_fake_compile_clean,
+        ):
+            r2 = _run_async(
+                run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL")
+            )
+
+    assert r1 is not r2  # fresh OBBject per call
+    assert r1.extra["pine_telemetry"]["unsupported_features"] == {"PF010": 1}
+    assert r2.extra["pine_telemetry"]["unsupported_features"] == {}
+
+
+# ---------------------------------------------------------------------------
 # /pine/run_byo — BYO records mode
 # ---------------------------------------------------------------------------
 
