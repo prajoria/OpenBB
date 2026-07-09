@@ -12,7 +12,11 @@ from openbb_fmp.models.equity_quote import (
 )
 
 from openbb_fmp_cached.utils.cache_schema import create_equity_quote_table
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,50 +136,50 @@ def _get_cached_quote(symbol: str) -> dict[str, Any] | None:
 
 
 def _store_quotes(quotes: list[dict[str, Any]]) -> None:
-    """Persist quote records in cache."""
-    cleanup_query = "DELETE FROM equity_quote WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO equity_quote (
-        symbol,
-        exchange,
-        price,
-        open,
-        high,
-        low,
-        volume,
-        market_cap,
-        currency,
-        change_amount,
-        change_percent,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    """Persist quote records atomically per symbol (bd-n3sf)."""
+    if not quotes:
+        return
 
-    symbols = {
-        (item.get("symbol") or "").strip() for item in quotes if item.get("symbol")
-    }
-    for symbol in symbols:
-        execute_query(cleanup_query, (symbol,))
-
-    params_list = [
-        (
-            item.get("symbol"),
-            item.get("exchange"),
-            item.get("price"),
-            item.get("open"),
-            item.get("dayHigh"),
-            item.get("dayLow"),
-            item.get("volume"),
-            item.get("marketCap"),
-            item.get("currency"),
-            item.get("change"),
-            item.get("changePercentage"),
-            json.dumps(item),
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in quotes:
+        sym = (item.get("symbol") or "").strip()
+        if not sym:
+            continue
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "exchange": item.get("exchange"),
+                "price": item.get("price"),
+                "open": item.get("open"),
+                "high": item.get("dayHigh"),
+                "low": item.get("dayLow"),
+                "volume": item.get("volume"),
+                "market_cap": item.get("marketCap"),
+                "currency": item.get("currency"),
+                "change_amount": item.get("change"),
+                "change_percent": item.get("changePercentage"),
+                "data_json": json.dumps(item),
+            }
         )
-        for item in quotes
-    ]
 
-    if params_list:
-        execute_many(insert_query, params_list)
+    for sym, rows in by_symbol.items():
+        replace_rows(
+            "equity_quote",
+            "symbol",
+            sym,
+            rows,
+            columns=[
+                "symbol",
+                "exchange",
+                "price",
+                "open",
+                "high",
+                "low",
+                "volume",
+                "market_cap",
+                "currency",
+                "change_amount",
+                "change_percent",
+                "data_json",
+            ],
+        )

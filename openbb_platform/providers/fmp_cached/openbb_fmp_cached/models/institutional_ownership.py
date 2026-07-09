@@ -28,7 +28,11 @@ from openbb_fmp.models.institutional_ownership import (
 )
 from pydantic import ValidationError
 
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -266,49 +270,57 @@ def _get_cached_institutional(symbol: str) -> list[dict]:
 
 
 def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
-    """Persist institutional ownership records in MySQL cache."""
+    """Persist institutional ownership records in MySQL cache (bd-n3sf/ihdn).
+
+    Routes per-symbol DELETE+INSERT through ``replace_rows()`` from bd-kh08
+    (PR #414) so each symbol's cache write is atomic — a partial-write
+    failure between the DELETE and the INSERT no longer wipes prior cached
+    quarters for the symbol.
+
+    D1: one transaction per symbol (independent) — one bad symbol still
+    logs and the loop moves on rather than reverting everything, matching
+    the pre-fix "best effort per-symbol" surface.
+    D6: empty records = no-op (no DELETE fires).
+    D4: outer try/except preserved — cache failure MUST NOT break the
+    read path, so we swallow the exception surface at the site level.
+    """
     if not records:
         return
 
-    cleanup_query = "DELETE FROM institutional_ownership WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO institutional_ownership (
-        symbol,
-        date,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    # Group records by (uppercased) symbol so each symbol is one txn (D1).
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in records:
+        sym = (item.get("symbol") or "").strip().upper()
+        if not sym:
+            continue
+        # Attach provenance in-place (preserves pre-fix mutation semantics).
+        item["data_source"] = data_source
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date", date.today().isoformat()),
+                "data_json": json.dumps(item, default=str),
+            }
+        )
 
+    total_inserted = 0
     try:
-        # Remove old records for the symbols being stored
-        symbols = {
-            (r.get("symbol") or "").strip().upper() for r in records if r.get("symbol")
-        }
-        for symbol in symbols:
-            execute_query(cleanup_query, (symbol,))
-
-        # Insert new records
-        params_list = []
-        for item in records:
-            # Attach provenance
-            item["data_source"] = data_source
-            params_list.append(
-                (
-                    (item.get("symbol") or "").upper(),
-                    item.get("date", date.today().isoformat()),
-                    json.dumps(item, default=str),
-                )
+        for sym, rows in by_symbol.items():
+            replace_rows(
+                "institutional_ownership",
+                "symbol",
+                sym,
+                rows,
+                columns=["symbol", "date", "data_json"],
             )
+            total_inserted += len(rows)
 
-        if params_list:
-            execute_many(insert_query, params_list)
+        if total_inserted:
             logger.info(
                 "Cached %d institutional ownership records (source=%s) for %s",
-                len(params_list),
+                total_inserted,
                 data_source,
-                ", ".join(sorted({p[0] for p in params_list})),
+                ", ".join(sorted(by_symbol.keys())),
             )
     except Exception as exc:
         logger.warning("Failed to cache institutional ownership data: %s", exc)

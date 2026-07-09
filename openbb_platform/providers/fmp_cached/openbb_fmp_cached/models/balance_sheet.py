@@ -12,7 +12,11 @@ from openbb_fmp.models.balance_sheet import (
 )
 
 from openbb_fmp_cached.utils.cache_schema import create_balance_sheet_table
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -176,42 +180,49 @@ def _filter_by_period(
 
 
 def _store_balance_sheets(statements: list[dict[str, Any]]) -> None:
-    """Persist balance sheet records in cache."""
-    cleanup_query = "DELETE FROM balance_sheet WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO balance_sheet (
-        symbol,
-        date,
-        period,
-        currency,
-        total_assets,
-        total_liabilities,
-        total_equity,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
+    """Persist balance sheet records in cache atomically per symbol (bd-n3sf).
+
+    Groups records by symbol; each symbol's DELETE+INSERT runs in a single
+    transaction via ``replace_rows()`` (bd-kh08), so a partial-write
+    failure cannot leave the cache empty of the symbol's history.
     """
+    if not statements:
+        return
 
-    symbols = {
-        (item.get("symbol") or "").strip() for item in statements if item.get("symbol")
-    }
-    for symbol in symbols:
-        execute_query(cleanup_query, (symbol,))
-
-    params_list = [
-        (
-            item.get("symbol"),
-            item.get("date"),
-            item.get("period"),
-            item.get("reportedCurrency"),
-            item.get("totalAssets"),
-            item.get("totalLiabilities"),
-            item.get("totalStockholdersEquity") or item.get("totalEquity"),
-            json.dumps(item),
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in statements:
+        sym = (item.get("symbol") or "").strip()
+        if not sym:
+            continue
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date"),
+                "period": item.get("period"),
+                "currency": item.get("reportedCurrency"),
+                "total_assets": item.get("totalAssets"),
+                "total_liabilities": item.get("totalLiabilities"),
+                "total_equity": (
+                    item.get("totalStockholdersEquity") or item.get("totalEquity")
+                ),
+                "data_json": json.dumps(item),
+            }
         )
-        for item in statements
-    ]
 
-    if params_list:
-        execute_many(insert_query, params_list)
+    for sym, rows in by_symbol.items():
+        replace_rows(
+            "balance_sheet",
+            "symbol",
+            sym,
+            rows,
+            columns=[
+                "symbol",
+                "date",
+                "period",
+                "currency",
+                "total_assets",
+                "total_liabilities",
+                "total_equity",
+                "data_json",
+            ],
+        )

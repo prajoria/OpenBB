@@ -33,7 +33,11 @@ from openbb_fmp.models.financial_ratios import (
 )
 
 from openbb_fmp_cached.utils.cache_schema import create_financial_ratios_table
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -289,48 +293,57 @@ def _evict_symbols_from_cache(symbols: list[str]) -> None:
 
 
 def _store_financial_ratios(ratios: list[dict[str, Any]]) -> None:
-    """Persist financial ratios records in cache."""
-    cleanup_query = "DELETE FROM financial_ratios WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO financial_ratios (
-        symbol,
-        date,
-        period,
-        currency,
-        pe_ratio,
-        pb_ratio,
-        debt_to_equity,
-        current_ratio,
-        roe,
-        roa,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    """Persist financial ratios records atomically per symbol (bd-n3sf)."""
+    if not ratios:
+        return
 
-    symbols = {
-        (item.get("symbol") or "").strip() for item in ratios if item.get("symbol")
-    }
-    for symbol in symbols:
-        execute_query(cleanup_query, (symbol,))
-
-    params_list = [
-        (
-            item.get("symbol"),
-            item.get("date"),
-            item.get("period"),
-            item.get("reportedCurrency"),
-            item.get("priceToEarningsRatio") or item.get("priceToEarningsRatioTTM"),
-            item.get("priceToBookRatio") or item.get("priceToBookRatioTTM"),
-            item.get("debtToEquityRatio") or item.get("debtToEquityRatioTTM"),
-            item.get("currentRatio") or item.get("currentRatioTTM"),
-            item.get("returnOnEquity") or item.get("returnOnEquityTTM"),
-            item.get("returnOnAssets") or item.get("returnOnAssetsTTM"),
-            json.dumps(item),
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in ratios:
+        sym = (item.get("symbol") or "").strip()
+        if not sym:
+            continue
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date"),
+                "period": item.get("period"),
+                "currency": item.get("reportedCurrency"),
+                "pe_ratio": (
+                    item.get("priceToEarningsRatio")
+                    or item.get("priceToEarningsRatioTTM")
+                ),
+                "pb_ratio": (
+                    item.get("priceToBookRatio") or item.get("priceToBookRatioTTM")
+                ),
+                "debt_to_equity": (
+                    item.get("debtToEquityRatio") or item.get("debtToEquityRatioTTM")
+                ),
+                "current_ratio": (
+                    item.get("currentRatio") or item.get("currentRatioTTM")
+                ),
+                "roe": item.get("returnOnEquity") or item.get("returnOnEquityTTM"),
+                "roa": item.get("returnOnAssets") or item.get("returnOnAssetsTTM"),
+                "data_json": json.dumps(item),
+            }
         )
-        for item in ratios
-    ]
 
-    if params_list:
-        execute_many(insert_query, params_list)
+    for sym, rows in by_symbol.items():
+        replace_rows(
+            "financial_ratios",
+            "symbol",
+            sym,
+            rows,
+            columns=[
+                "symbol",
+                "date",
+                "period",
+                "currency",
+                "pe_ratio",
+                "pb_ratio",
+                "debt_to_equity",
+                "current_ratio",
+                "roe",
+                "roa",
+                "data_json",
+            ],
+        )

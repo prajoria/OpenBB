@@ -12,7 +12,11 @@ from openbb_fmp.models.cash_flow import (
 )
 
 from openbb_fmp_cached.utils.cache_schema import create_cash_flow_table
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -176,42 +180,42 @@ def _filter_by_period(
 
 
 def _store_cash_flow_statements(statements: list[dict[str, Any]]) -> None:
-    """Persist cash flow statement records in cache."""
-    cleanup_query = "DELETE FROM cash_flow WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO cash_flow (
-        symbol,
-        date,
-        period,
-        currency,
-        operating_cash_flow,
-        capital_expenditure,
-        free_cash_flow,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    """Persist cash flow statement records atomically per symbol (bd-n3sf)."""
+    if not statements:
+        return
 
-    symbols = {
-        (item.get("symbol") or "").strip() for item in statements if item.get("symbol")
-    }
-    for symbol in symbols:
-        execute_query(cleanup_query, (symbol,))
-
-    params_list = [
-        (
-            item.get("symbol"),
-            item.get("date"),
-            item.get("period"),
-            item.get("reportedCurrency"),
-            item.get("operatingCashFlow"),
-            item.get("capitalExpenditure"),
-            item.get("freeCashFlow"),
-            json.dumps(item),
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in statements:
+        sym = (item.get("symbol") or "").strip()
+        if not sym:
+            continue
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date"),
+                "period": item.get("period"),
+                "currency": item.get("reportedCurrency"),
+                "operating_cash_flow": item.get("operatingCashFlow"),
+                "capital_expenditure": item.get("capitalExpenditure"),
+                "free_cash_flow": item.get("freeCashFlow"),
+                "data_json": json.dumps(item),
+            }
         )
-        for item in statements
-    ]
 
-    if params_list:
-        execute_many(insert_query, params_list)
+    for sym, rows in by_symbol.items():
+        replace_rows(
+            "cash_flow",
+            "symbol",
+            sym,
+            rows,
+            columns=[
+                "symbol",
+                "date",
+                "period",
+                "currency",
+                "operating_cash_flow",
+                "capital_expenditure",
+                "free_cash_flow",
+                "data_json",
+            ],
+        )
