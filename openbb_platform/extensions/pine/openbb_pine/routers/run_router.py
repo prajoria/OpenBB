@@ -41,7 +41,7 @@ from openbb_core.app.router import Router
 
 from openbb_pine.compiler import compile_pine
 from openbb_pine.errors import PineDataValidationError
-from openbb_pine.runtime.executor import run_compiled
+from openbb_pine.runtime.executor_shell import run_compiled
 from openbb_pine.runtime.provider_selection import resolve_provider
 from openbb_pine.telemetry import OpenBBTelemetrySink
 
@@ -157,7 +157,7 @@ def _compile_and_run(
     )
     # Surface per-request telemetry on the OBBject envelope. ``run_compiled``
     # always returns an OBBject with a dict ``extra`` (see
-    # ``runtime/executor.py``), so we mutate in place — no None guard needed.
+    # ``runtime/executor_shell.py``), so we mutate in place — no None guard needed.
     obbject.extra["pine_telemetry"] = {
         "unsupported_features": telemetry_sink.get_unsupported_feature_counts(),
         "unsupported_builtins": telemetry_sink.get_unsupported_builtin_counts(),

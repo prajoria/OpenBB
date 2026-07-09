@@ -1,7 +1,14 @@
-"""Tests for ``openbb_pine.runtime.executor`` -- D2 section 6 (R7).
+"""Tests for ``openbb_pine.runtime.executor_shell`` -- D2 section 6 (R7).
 
 End-to-end tests for ``run_compiled``: the OBBject.results + .extra contract
 that downstream surfaces (REST, MCP, Workspace widget) consume.
+
+Post-E0.3 split (bd-9zb) these tests moved from ``test_executor.py`` to
+``test_executor_shell.py`` — the executor now lives in two modules
+(core + shell) and this file exercises the openbb-fork-facing shell that
+wires providers + attribution around the shared ``executor_core`` loop.
+The provider-agnostic core tests live in the sibling
+``test_executor_core.py``.
 
 Strategy: the compiler (D1 / C5) is not yet online, so we hand-build
 ``CompiledModule`` instances directly. The provider layer (R1/R2) is exercised
@@ -30,7 +37,7 @@ from openbb_pine.errors import (
     PineProviderError,
     PineSecurityError,
 )
-from openbb_pine.runtime.executor import _resolve_data_source, run_compiled
+from openbb_pine.runtime.executor_shell import _resolve_data_source, run_compiled
 
 _HAS_SIGALRM = hasattr(signal, "SIGALRM")
 
