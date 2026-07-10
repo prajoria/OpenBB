@@ -338,27 +338,48 @@ def _get_db_config() -> dict[str, Any]:
     host, port = "localhost", 3306
     user = os.getenv("DB_USER")
     password = os.getenv("DB_PASSWORD")
-    try:
-        if os.path.exists(settings_path):
-            with open(settings_path, encoding="utf-8") as f:
+
+    # bd-gv1e: narrow the try scope to I/O + JSON parse ONLY. Shape errors
+    # (wrong-type credentials block) and value errors (non-int port) MUST
+    # surface as their real exceptions so operators can debug the misconfig
+    # — pre-fix ``except Exception: pass`` masked them behind a generic
+    # "Missing MySQL credential(s)" downstream error.
+    settings: dict[str, Any] | None = None
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, encoding="utf-8-sig") as f:
                 settings = json.load(f)
-                creds = settings.get("credentials", {})
-                host = creds.get("mysql_host", host)
-                port = int(creds.get("mysql_port", port))
-                user = creds.get("mysql_user", user)
-                password = creds.get("mysql_password", password)
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
-        # bd-gv1e: narrow the swallow to file/parse errors and log a
-        # WARNING so operators see credential-file corruption / tampering
-        # instead of a silent fallback to env vars. Any OTHER exception
-        # (TypeError, KeyError, etc.) is a bug and MUST propagate — bare
-        # ``except:`` pre-fix would silently return env-fallback config
-        # and hide the real bug.
-        logger.warning(
-            "Failed to read %s: %s. Falling back to env vars.",
-            settings_path,
-            exc,
-        )
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+            # File/parse errors legitimately warrant env-var fallback with
+            # a WARNING log for operator visibility (security angle:
+            # PermissionError from tampering must NOT be silent).
+            logger.warning(
+                "Failed to read %s: %s. Falling back to env vars.",
+                settings_path,
+                exc,
+            )
+            settings = None
+
+    if isinstance(settings, dict):
+        creds = settings.get("credentials", {})
+        if not isinstance(creds, dict):
+            # Shape drift — surface it loudly, do NOT silently fall back.
+            raise TypeError(
+                f"{settings_path}: 'credentials' must be a JSON object, "
+                f"got {type(creds).__name__}"
+            )
+        host = creds.get("mysql_host", host)
+        raw_port = creds.get("mysql_port", port)
+        try:
+            port = int(raw_port) if raw_port is not None else port
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{settings_path}: 'mysql_port' must be an integer, "
+                f"got {raw_port!r}: {exc}"
+            ) from exc
+        user = creds.get("mysql_user", user)
+        password = creds.get("mysql_password", password)
+
     missing = [n for n, v in (("user", user), ("password", password)) if not v]
     if missing:
         raise ValueError(
@@ -378,19 +399,29 @@ def _get_api_key() -> str:
         return api_key
 
     settings_path = os.path.expanduser("~/.openbb_platform/user_settings.json")
-    try:
-        if os.path.exists(settings_path):
-            with open(settings_path, encoding="utf-8") as f:
+
+    # bd-gv1e: narrow try scope to I/O + JSON parse only (see _get_db_config).
+    settings: dict[str, Any] | None = None
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, encoding="utf-8-sig") as f:
                 settings = json.load(f)
-                creds = settings.get("credentials", {})
-                return creds.get("fmp_api_key") or creds.get("fmp_cached_api_key", "")
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
-        # bd-gv1e: narrow the swallow — see _get_db_config for rationale.
-        logger.warning(
-            "Failed to read %s: %s. Falling back to empty API key.",
-            settings_path,
-            exc,
-        )
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+            logger.warning(
+                "Failed to read %s: %s. Falling back to empty API key.",
+                settings_path,
+                exc,
+            )
+            settings = None
+
+    if isinstance(settings, dict):
+        creds = settings.get("credentials", {})
+        if not isinstance(creds, dict):
+            raise TypeError(
+                f"{settings_path}: 'credentials' must be a JSON object, "
+                f"got {type(creds).__name__}"
+            )
+        return creds.get("fmp_api_key") or creds.get("fmp_cached_api_key", "")
     return ""
 
 
