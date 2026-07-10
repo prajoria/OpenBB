@@ -76,7 +76,15 @@ class FMPCachedIncomeStatementFetcher(FMPIncomeStatementFetcher):
                 **kwargs,
             )
             if fresh_data:
-                _store_income_statement(fresh_data)
+                # bd-e3v8: cache write failure MUST NOT discard fresh data.
+                try:
+                    _store_income_statement(fresh_data)
+                except Exception as exc:
+                    logger.warning(
+                        "Income statement cache write failed (data returned "
+                        "anyway): %s",
+                        exc,
+                    )
                 results.extend(fresh_data)
 
         return sorted(

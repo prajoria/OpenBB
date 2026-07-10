@@ -76,7 +76,18 @@ class FMPCachedBalanceSheetFetcher(FMPBalanceSheetFetcher):
                 **kwargs,
             )
             if fresh_data:
-                _store_balance_sheets(fresh_data)
+                # bd-e3v8 (D4): cache write failure MUST NOT discard the
+                # freshly-fetched data — the user paid the FMP API cost.
+                # Match the site-level try/except pattern from
+                # institutional_ownership and etf_holdings.
+                try:
+                    _store_balance_sheets(fresh_data)
+                except Exception as exc:
+                    logger.warning(
+                        "Balance sheet cache write failed (data returned "
+                        "anyway): %s",
+                        exc,
+                    )
                 results.extend(fresh_data)
 
         return sorted(
