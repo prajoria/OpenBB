@@ -82,7 +82,7 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
 
         # --- Step 1: Check cache ---
         for symbol in symbols:
-            cached = _get_cached_institutional(symbol)
+            cached = _get_cached_institutional(symbol, query.year, query.quarter)
             if cached:
                 results.extend(cached)
                 logger.info("Institutional ownership cache HIT for %s", symbol)
@@ -240,8 +240,29 @@ def _resolve_credentials(credentials: dict[str, str] | None) -> dict[str, str] |
 # ---------------------------------------------------------------------------
 
 
-def _get_cached_institutional(symbol: str) -> list[dict]:
-    """Read fresh institutional ownership data from MySQL cache."""
+def _get_cached_institutional(
+    symbol: str,
+    year: int | None,
+    quarter: int | None,
+) -> list[dict]:
+    """Read fresh institutional ownership data from MySQL cache (bd-uolr).
+
+    Filters by exact (symbol, year, quarter) match on the JSON payload.
+    When year OR quarter is None, treats as cache-miss and returns [] so
+    the caller falls through to FMP fetch (which applies its own
+    default-latest-quarter logic — duplicating that client-side would
+    risk drift).
+
+    Pre-fix filtered only by symbol, silently returning whatever period
+    was most-recently cached for that symbol regardless of the caller's
+    year/quarter — poisoning historical time-series analytics.
+    """
+    # D2: without both year AND quarter, we can't build a deterministic
+    # cache key that matches what FMP would compute. Skip cache; fall
+    # through to fetch.
+    if year is None or quarter is None:
+        return []
+
     freshness_cutoff = datetime.now() - timedelta(days=INSTITUTIONAL_OWNERSHIP_TTL_DAYS)
     query = """
     SELECT data_json
@@ -260,12 +281,18 @@ def _get_cached_institutional(symbol: str) -> list[dict]:
     if not rows:
         return []
 
+    # D3: in-memory filter on the JSON payload's year/quarter fields.
+    # bd-porh (future architectural PIT refactor) may promote these to
+    # schema columns; this in-memory filter is the minimum-risk correctness
+    # fix that unblocks historical time-series analytics today.
     loaded = []
     for row in rows:
         payload = row.get("data_json")
         if not payload:
             continue
-        loaded.append(json.loads(payload) if isinstance(payload, str) else payload)
+        decoded = json.loads(payload) if isinstance(payload, str) else payload
+        if decoded.get("year") == year and decoded.get("quarter") == quarter:
+            loaded.append(decoded)
     return loaded
 
 
