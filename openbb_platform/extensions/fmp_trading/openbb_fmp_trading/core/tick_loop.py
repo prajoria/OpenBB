@@ -46,9 +46,21 @@ def run_tick(session: Any, tick_ts: datetime) -> list[Any]:
     events.append(tick_event)
     session.emit(tick_event)
 
+    # Flat-by-close discipline runs BEFORE the signal cascade. During the
+    # FORCE_CLOSE window, we synthesize exit plans for every open position
+    # and route them through _process_signal (the chokepoint) so the same
+    # RiskManager + journal path applies — no bypass.
+    from openbb_fmp_trading.core.flat_by_close import WindowState, enter_flat_window
+    window = enter_flat_window(tick_ts)
+    if window == WindowState.FORCE_CLOSE:
+        events.extend(_force_close_positions(session, tick))
+
     # Signal cascade only runs on bar-close ticks. This is the "OODA" step:
     # observe the closed bar, decide via techtrade, act through the
-    # RiskManager-guarded chokepoint.
+    # RiskManager-guarded chokepoint. The NO_NEW_OPENS + FORCE_CLOSE
+    # windows do NOT short-circuit here — the RiskManager's G1 gate is
+    # what rejects new opens, so any techtrade signal fires normally and
+    # gets vetoed downstream (that veto is the audit trail we want).
     if _is_signal_bar_close(tick_ts, session.plan.preset):
         signals = _run_techtrade_signals(session.plan, tick)
         for sig in signals:
@@ -167,3 +179,43 @@ def _to_float_or_none(v: Any) -> float | None:
         return float(v)
     except (TypeError, ValueError):
         return None
+
+
+def _force_close_positions(session: Any, tick: Any) -> list[Any]:
+    """Route every open position through _process_signal as a synthetic exit.
+
+    Called during the FORCE_CLOSE window (P4). We do NOT bypass
+    _process_signal — the whole point of the chokepoint is that even
+    end-of-day flatten operations go through RiskManager (which will
+    approve exits regardless of gates that block opens).
+
+    Position source: ``session.broker.positions()`` returns an iterable of
+    Position-like objects with ``.symbol`` and ``.qty`` (signed: positive=long,
+    negative=short). Each becomes a one-order synthetic plan.
+    """
+    from types import SimpleNamespace
+
+    events: list[Any] = []
+    if not hasattr(session, "broker") or not hasattr(session.broker, "positions"):
+        return events
+
+    positions = list(session.broker.positions() or [])
+    for pos in positions:
+        qty = getattr(pos, "qty", None)
+        symbol = getattr(pos, "symbol", None)
+        if not symbol or qty is None or qty == 0:
+            continue
+        exit_intent = "CLOSE_LONG" if qty > 0 else "CLOSE_SHORT"
+        exit_order = SimpleNamespace(
+            ref=f"forceclose-{symbol}",
+            symbol=symbol,
+            qty=abs(qty),
+            intent=exit_intent,
+        )
+        exit_plan = SimpleNamespace(
+            symbol=symbol,
+            intent=exit_intent,
+            orders=[exit_order],
+        )
+        events.extend(session._process_signal(exit_plan, tick))
+    return events
