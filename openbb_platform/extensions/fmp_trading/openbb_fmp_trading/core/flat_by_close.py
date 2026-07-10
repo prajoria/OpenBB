@@ -26,12 +26,20 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from enum import Enum
+from zoneinfo import ZoneInfo
 
 import exchange_calendars as xcals
 
 # Shared calendar handle — the same "XNYS" (NYSE) calendar the RiskManager
 # uses. Reused across calls; xcals caches session lookups internally.
 _CALENDAR = xcals.get_calendar("XNYS")
+
+# Exchange timezone. All window logic reasons in ET; callers pass either
+# tz-aware UTC or tz-aware ET datetimes and we convert internally. A naive
+# datetime is a bug — the security review flagged this as HIGH severity
+# (tick_ts arrives from run_tick as UTC and naive .time() would silently
+# return the wrong window state).
+_ET = ZoneInfo("America/New_York")
 
 # Default full-session cutoffs (16:00 ET close): stop opens at 15:50,
 # force-close at 15:55. On half-days these shift by _CLOSE_MINUS_OPEN_STOP
@@ -55,28 +63,46 @@ class WindowState(str, Enum):
 
 
 def enter_flat_window(
-    now_et: datetime,
+    now: datetime,
     no_new_opens_time: time | None = None,
     force_close_time: time | None = None,
 ) -> WindowState:
-    """Compute the current flat-by-close state for a wall-clock ET datetime.
+    """Compute the current flat-by-close state for a tz-aware datetime.
 
-    On a full session (16:00 close), the defaults are 15:50 / 15:55.
+    On a full session (16:00 ET close), the defaults are 15:50 / 15:55.
     On a half-day session, the times get auto-shifted so the same
     (10-min-warn, 5-min-force) spacing applies relative to the actual close.
 
+    Timezone contract (security-review HIGH #1): ``now`` MUST be tz-aware.
+    Naive datetimes are a bug — the caller almost certainly holds UTC (that's
+    what ``run_tick`` receives) and passing it naively would make 19:56 UTC
+    look like 19:56 ET which is 4 hours past the actual force-close window.
+    We convert to America/New_York internally so callers can pass whatever
+    tz-aware datetime they hold without an out-of-band conversion.
+
     Args:
-        now_et:               Current wall-clock time interpreted as ET.
-                              Callers that hold UTC must convert first;
-                              this helper does no timezone math to keep
-                              the reasoning local.
+        now:                  Tz-aware datetime in any timezone. Converted
+                              to America/New_York internally before the
+                              cutoff comparison.
         no_new_opens_time:    Override the no-new-opens cutoff (test injection).
         force_close_time:     Override the force-close cutoff (test injection).
 
     Returns:
         WindowState indicating how the RiskManager and tick loop should
         treat this tick.
+
+    Raises:
+        ValueError: if ``now`` is naive (missing tzinfo). This is a
+                    defensive assertion — the previous shipped version
+                    silently accepted naive UTC and produced wrong-window
+                    verdicts (see security-review finding #1).
     """
+    if now.tzinfo is None:
+        raise ValueError(
+            "enter_flat_window requires a tz-aware datetime; got naive. "
+            "Pass tick_ts.astimezone(...) or attach tzinfo=timezone.utc first."
+        )
+    now_et = now.astimezone(_ET)
     session_date: date = now_et.date()
 
     # Only auto-scale to half-days when the caller hasn't pinned custom times.

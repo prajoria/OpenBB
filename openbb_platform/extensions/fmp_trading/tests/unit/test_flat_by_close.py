@@ -22,12 +22,19 @@ from __future__ import annotations
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 
+_ET = ZoneInfo("America/New_York")
+
 
 class TestWindowStateBoundaries:
-    """enter_flat_window returns the right state at each inflection."""
+    """enter_flat_window returns the right state at each inflection.
+
+    All inputs are tz-aware (per the security-fixed contract). We test at
+    ET-native times so the intent is legible in the test body.
+    """
 
     def test_normal_before_15_50(self):
         from openbb_fmp_trading.core.flat_by_close import (
@@ -36,7 +43,7 @@ class TestWindowStateBoundaries:
         )
 
         assert (
-            enter_flat_window(datetime(2026, 7, 6, 15, 49))
+            enter_flat_window(datetime(2026, 7, 6, 15, 49, tzinfo=_ET))
             == WindowState.NORMAL
         )
 
@@ -47,7 +54,7 @@ class TestWindowStateBoundaries:
         )
 
         assert (
-            enter_flat_window(datetime(2026, 7, 6, 15, 50))
+            enter_flat_window(datetime(2026, 7, 6, 15, 50, tzinfo=_ET))
             == WindowState.NO_NEW_OPENS
         )
 
@@ -58,7 +65,7 @@ class TestWindowStateBoundaries:
         )
 
         assert (
-            enter_flat_window(datetime(2026, 7, 6, 15, 51))
+            enter_flat_window(datetime(2026, 7, 6, 15, 51, tzinfo=_ET))
             == WindowState.NO_NEW_OPENS
         )
 
@@ -69,7 +76,7 @@ class TestWindowStateBoundaries:
         )
 
         assert (
-            enter_flat_window(datetime(2026, 7, 6, 15, 55))
+            enter_flat_window(datetime(2026, 7, 6, 15, 55, tzinfo=_ET))
             == WindowState.FORCE_CLOSE
         )
 
@@ -80,7 +87,7 @@ class TestWindowStateBoundaries:
         )
 
         assert (
-            enter_flat_window(datetime(2026, 7, 6, 15, 56))
+            enter_flat_window(datetime(2026, 7, 6, 15, 56, tzinfo=_ET))
             == WindowState.FORCE_CLOSE
         )
 
@@ -92,17 +99,64 @@ class TestWindowStateBoundaries:
             enter_flat_window,
         )
 
-        # Pretend we want no-opens at 10:00, force-close at 10:05
+        # Pretend we want no-opens at 10:00 ET, force-close at 10:05 ET
         assert enter_flat_window(
-            datetime(2026, 7, 6, 10, 4),
+            datetime(2026, 7, 6, 10, 4, tzinfo=_ET),
             no_new_opens_time=time(10, 0),
             force_close_time=time(10, 5),
         ) == WindowState.NO_NEW_OPENS
         assert enter_flat_window(
-            datetime(2026, 7, 6, 10, 5),
+            datetime(2026, 7, 6, 10, 5, tzinfo=_ET),
             no_new_opens_time=time(10, 0),
             force_close_time=time(10, 5),
         ) == WindowState.FORCE_CLOSE
+
+
+class TestUTCToETTimezoneContract:
+    """Security-review regression guard: UTC datetimes convert correctly.
+
+    2026-07-06 is in EDT (UTC-4). 19:49 UTC == 15:49 EDT (NORMAL);
+    19:56 UTC == 15:56 EDT (FORCE_CLOSE). Before the security fix, the
+    naive .time() path would treat 19:49 UTC as if it were 19:49 ET,
+    silently returning FORCE_CLOSE — a broken risk control.
+    """
+
+    def test_utc_1949_is_et_1549_normal(self):
+        from openbb_fmp_trading.core.flat_by_close import (
+            WindowState,
+            enter_flat_window,
+        )
+
+        assert enter_flat_window(
+            datetime(2026, 7, 6, 19, 49, tzinfo=timezone.utc)
+        ) == WindowState.NORMAL
+
+    def test_utc_1956_is_et_1556_force_close(self):
+        from openbb_fmp_trading.core.flat_by_close import (
+            WindowState,
+            enter_flat_window,
+        )
+
+        assert enter_flat_window(
+            datetime(2026, 7, 6, 19, 56, tzinfo=timezone.utc)
+        ) == WindowState.FORCE_CLOSE
+
+    def test_utc_1951_is_et_1551_no_new_opens(self):
+        from openbb_fmp_trading.core.flat_by_close import (
+            WindowState,
+            enter_flat_window,
+        )
+
+        assert enter_flat_window(
+            datetime(2026, 7, 6, 19, 51, tzinfo=timezone.utc)
+        ) == WindowState.NO_NEW_OPENS
+
+    def test_naive_datetime_raises(self):
+        """Defensive assertion: naive datetime is a caller bug."""
+        from openbb_fmp_trading.core.flat_by_close import enter_flat_window
+
+        with pytest.raises(ValueError, match="tz-aware"):
+            enter_flat_window(datetime(2026, 7, 6, 15, 49))
 
 
 class TestAC6RejectionAt1551:
@@ -284,3 +338,92 @@ class TestForceCloseCascade:
             tick_ts=datetime(2026, 7, 6, 19, 49, tzinfo=timezone.utc),
         )
         broker.submit.assert_not_called()
+
+    def test_force_close_idempotent_across_ticks(self, monkeypatch):
+        """Security-review fix #2: repeated FORCE_CLOSE ticks must not
+        resubmit exit orders for symbols already queued this session-date.
+
+        Without the dedup ledger, a 5-second tick cadence would fire
+        _force_close_positions 12+ times per minute, stacking duplicate
+        exit orders in the broker queue."""
+        from openbb_fmp_trading.core import tick_loop
+        from openbb_fmp_trading.core.session import IntradaySession
+
+        pos = MagicMock(symbol="MSFT", qty=Decimal("10"))
+        rm = MagicMock()
+        rm.propose_trade.return_value = MagicMock(
+            verdict="APPROVED", reason_code=None, gate=None, reason=None
+        )
+        broker = MagicMock()
+        broker.positions.return_value = [pos]  # same position present every tick
+        broker.submit.return_value = MagicMock(
+            price=Decimal("430"), qty=Decimal("10"), commission=Decimal("1")
+        )
+
+        monkeypatch.setattr(
+            tick_loop, "_fetch_batch_quote",
+            lambda symbols, provider: [{"symbol": s, "price": "430"} for s in symbols],
+        )
+        monkeypatch.setattr(
+            tick_loop, "_is_signal_bar_close", lambda ts, preset: False
+        )
+
+        session = IntradaySession(
+            plan=self._plan(),
+            journal=MagicMock(),
+            risk_manager=rm,
+            broker=broker,
+            bandwidth=MagicMock(),
+        )
+        # Three FORCE_CLOSE ticks (15:56, 15:57, 15:58 ET) — same session-date
+        for minute in (56, 57, 58):
+            tick_loop.run_tick(
+                session,
+                tick_ts=datetime(2026, 7, 6, 19, minute, tzinfo=timezone.utc),
+            )
+        # broker.submit called exactly ONCE despite three FORCE_CLOSE ticks
+        assert broker.submit.call_count == 1
+
+    def test_force_close_isolates_per_symbol_failure(self, monkeypatch):
+        """Security-review fix #3: a failing _process_signal for one symbol
+        must not prevent flattening the rest of the book."""
+        from openbb_fmp_trading.core import tick_loop
+        from openbb_fmp_trading.core.session import IntradaySession
+
+        pos_msft = MagicMock(symbol="MSFT", qty=Decimal("10"))
+        pos_aapl = MagicMock(symbol="AAPL", qty=Decimal("5"))
+
+        rm = MagicMock()
+        rm.propose_trade.return_value = MagicMock(
+            verdict="APPROVED", reason_code=None, gate=None, reason=None
+        )
+        broker = MagicMock()
+        broker.positions.return_value = [pos_msft, pos_aapl]
+        # First submit raises (MSFT), second succeeds (AAPL)
+        broker.submit.side_effect = [
+            RuntimeError("simulated broker outage for MSFT"),
+            MagicMock(price=Decimal("212"), qty=Decimal("5"), commission=Decimal("1")),
+        ]
+
+        monkeypatch.setattr(
+            tick_loop, "_fetch_batch_quote",
+            lambda symbols, provider: [{"symbol": s, "price": "1"} for s in symbols],
+        )
+        monkeypatch.setattr(
+            tick_loop, "_is_signal_bar_close", lambda ts, preset: False
+        )
+
+        session = IntradaySession(
+            plan=self._plan(),
+            journal=MagicMock(),
+            risk_manager=rm,
+            broker=broker,
+            bandwidth=MagicMock(),
+        )
+        # Should NOT raise despite MSFT's failure
+        tick_loop.run_tick(
+            session,
+            tick_ts=datetime(2026, 7, 6, 19, 56, tzinfo=timezone.utc),
+        )
+        # AAPL still got its exit attempt after MSFT failed
+        assert broker.submit.call_count == 2

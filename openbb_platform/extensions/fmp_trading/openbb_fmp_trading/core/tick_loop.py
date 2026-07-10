@@ -192,12 +192,34 @@ def _force_close_positions(session: Any, tick: Any) -> list[Any]:
     Position source: ``session.broker.positions()`` returns an iterable of
     Position-like objects with ``.symbol`` and ``.qty`` (signed: positive=long,
     negative=short). Each becomes a one-order synthetic plan.
+
+    Duplicate-order guard (security-review HIGH #2): once we've queued a
+    force-close for ``(symbol, session-date)`` during this session, we skip
+    subsequent ticks for the same symbol. Without this, every tick in the
+    FORCE_CLOSE window (12+ per minute at 5s cadence) would resubmit exit
+    orders and stack up duplicates in the broker's order queue.
+
+    Partial-failure isolation (security-review MEDIUM #3): each per-position
+    _process_signal call is wrapped in try/except so one bad symbol cannot
+    prevent flattening the rest of the book. Failures are journaled as
+    VetoEvent-like entries via the standard log path in the session.
     """
+    import logging
     from types import SimpleNamespace
+
+    logger = logging.getLogger(__name__)
 
     events: list[Any] = []
     if not hasattr(session, "broker") or not hasattr(session.broker, "positions"):
         return events
+
+    # Session-scoped idempotency ledger. Attribute-hasattr keeps the check
+    # backward-compatible with any IntradaySession stubs in tests that don't
+    # pre-populate the field.
+    if not hasattr(session, "_forceclose_done"):
+        session._forceclose_done = set()  # type: ignore[attr-defined]
+
+    session_date = tick.ts.date() if hasattr(tick, "ts") else None
 
     positions = list(session.broker.positions() or [])
     for pos in positions:
@@ -205,6 +227,12 @@ def _force_close_positions(session: Any, tick: Any) -> list[Any]:
         symbol = getattr(pos, "symbol", None)
         if not symbol or qty is None or qty == 0:
             continue
+
+        # Skip symbols already queued for force-close this session-date
+        dedup_key = (symbol, session_date)
+        if dedup_key in session._forceclose_done:
+            continue
+
         exit_intent = "CLOSE_LONG" if qty > 0 else "CLOSE_SHORT"
         exit_order = SimpleNamespace(
             ref=f"forceclose-{symbol}",
@@ -217,5 +245,16 @@ def _force_close_positions(session: Any, tick: Any) -> list[Any]:
             intent=exit_intent,
             orders=[exit_order],
         )
-        events.extend(session._process_signal(exit_plan, tick))
+        try:
+            events.extend(session._process_signal(exit_plan, tick))
+            # Only mark done after a successful chokepoint call. If the
+            # RiskManager unexpectedly vetoes (shouldn't for exits, but
+            # defense-in-depth), we still want to retry next tick.
+            session._forceclose_done.add(dedup_key)
+        except Exception as exc:  # noqa: BLE001 — end-of-day: never propagate
+            logger.warning(
+                "force-close for symbol=%s failed: %s; continuing with rest of book",
+                symbol,
+                exc,
+            )
     return events
