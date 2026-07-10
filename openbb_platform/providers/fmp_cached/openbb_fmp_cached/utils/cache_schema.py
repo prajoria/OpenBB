@@ -5259,6 +5259,9 @@ def create_yield_curve_table():
 
 # Complete table configuration for all 67 entities
 FLATTENED_TABLES = {
+    "aftermarket_quote": {
+        "schema": create_aftermarket_quote_table
+    },
     "analyst_estimates": {
         "schema": create_analyst_estimates_table
     },
@@ -5327,6 +5330,9 @@ FLATTENED_TABLES = {
     },
     "equity_historical": {
         "schema": create_equity_historical_table
+    },
+    "equity_intraday_historical": {
+        "schema": create_equity_intraday_historical_table
     },
     "equity_losers": {
         "schema": create_equity_losers_table
@@ -5486,6 +5492,86 @@ def create_all_flattened_tables():
 def create_all_tables():
     """Create all database tables (alias for create_all_flattened_tables)."""
     return create_all_flattened_tables()
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 P2.1 — intraday tier-1 tables
+# ---------------------------------------------------------------------------
+# These two tables back the tier-1 gap-detection / TTL caches promoted from
+# tier-2 passthrough per fmp-day-trading PRD §5.2. See
+# openbb_fmp_cached/models/equity_intraday_historical.py and
+# openbb_fmp_cached/models/aftermarket_quote.py for the fetchers that read
+# and write them.
+#
+# equity_intraday_historical: one row per (symbol, interval_type, ts).
+#   Same-session tail bars are marked is_valid=FALSE so the next call
+#   refetches them (critical correctness rule: a 5-min bar opened at 10:00
+#   doesn't finalize until 10:05, so a mid-session read at 10:03 has an
+#   incomplete last bar).
+#
+# aftermarket_quote: one row per symbol with a 60s TTL. HIT if
+#   cached_at > now - 60s; MISS otherwise. No gap detection.
+
+
+def create_equity_intraday_historical_table():
+    """Create equity_intraday_historical table (fmp-day-trading PRD §5.2)."""
+    query = """
+    CREATE TABLE IF NOT EXISTS equity_intraday_historical (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+        symbol VARCHAR(50) NOT NULL,
+        interval_type VARCHAR(10) NOT NULL,
+        ts DATETIME(0) NOT NULL,
+
+        open_price DECIMAL(18,6) DEFAULT NULL,
+        high_price DECIMAL(18,6) DEFAULT NULL,
+        low_price DECIMAL(18,6) DEFAULT NULL,
+        close_price DECIMAL(18,6) DEFAULT NULL,
+        volume BIGINT DEFAULT NULL,
+
+        is_extended BOOLEAN DEFAULT FALSE,
+        additional_fields JSON DEFAULT NULL,
+
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_valid BOOLEAN DEFAULT TRUE,
+
+        INDEX idx_symbol (symbol),
+        INDEX idx_symbol_interval_ts (symbol, interval_type, ts DESC),
+        INDEX idx_cached_at (cached_at),
+        INDEX idx_is_valid (is_valid),
+
+        UNIQUE KEY unique_symbol_interval_ts (symbol, interval_type, ts)
+
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
+
+
+def create_aftermarket_quote_table():
+    """Create aftermarket_quote table (fmp-day-trading PRD §5.2 — 60s TTL)."""
+    query = """
+    CREATE TABLE IF NOT EXISTS aftermarket_quote (
+        symbol VARCHAR(50) NOT NULL PRIMARY KEY,
+
+        price DECIMAL(18,6) DEFAULT NULL,
+        bid DECIMAL(18,6) DEFAULT NULL,
+        ask DECIMAL(18,6) DEFAULT NULL,
+        bid_size INTEGER DEFAULT NULL,
+        ask_size INTEGER DEFAULT NULL,
+        volume BIGINT DEFAULT NULL,
+        timestamp DATETIME(0) DEFAULT NULL,
+
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_valid BOOLEAN DEFAULT TRUE,
+
+        INDEX idx_cached_at (cached_at),
+        INDEX idx_is_valid (is_valid)
+
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
 
 
 def cleanup_expired_cache():

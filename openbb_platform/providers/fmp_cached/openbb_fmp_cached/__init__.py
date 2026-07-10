@@ -3,7 +3,6 @@
 from openbb_core.provider.abstract.provider import Provider
 
 # Import original FMP fetchers
-from openbb_fmp.models.aftermarket_quote import FMPAftermarketQuoteFetcher
 from openbb_fmp.models.aftermarket_trade import FMPAftermarketTradeFetcher
 from openbb_fmp.models.available_indices import FMPAvailableIndicesFetcher
 from openbb_fmp_cached.models.balance_sheet import FMPCachedBalanceSheetFetcher
@@ -30,8 +29,11 @@ from openbb_fmp.models.equity_gainers import FMPGainersFetcher
 # Import independent cached fetchers (with database persistence)
 from openbb_fmp_cached.models.analyst_estimates import FMPCachedAnalystEstimatesFetcher
 from openbb_fmp_cached.models.equity_historical import FMPCachedEquityHistoricalFetcher
-from openbb_fmp.models.equity_intraday_historical import (
-    FMPEquityIntradayHistoricalFetcher,
+from openbb_fmp_cached.models.equity_intraday_historical import (
+    FMPCachedEquityIntradayHistoricalFetcher,
+)
+from openbb_fmp_cached.models.aftermarket_quote import (
+    FMPCachedAftermarketQuoteFetcher,
 )
 from openbb_fmp_cached.models.equity_peers import FMPCachedEquityPeersFetcher
 from openbb_fmp_cached.models.equity_profile import FMPCachedEquityProfileFetcher
@@ -95,9 +97,11 @@ def create_all_cached_fetchers():
     """Create cached versions of all FMP fetcher classes."""
     # Fetchers with dedicated database persistence (use directly, no wrapping)
     dedicated_fetchers = {
+        "AftermarketQuote": FMPCachedAftermarketQuoteFetcher,
         "AnalystEstimates": FMPCachedAnalystEstimatesFetcher,
         "EquityHistorical": FMPCachedEquityHistoricalFetcher,
         "EquityInfo": FMPCachedEquityProfileFetcher,
+        "EquityIntradayHistorical": FMPCachedEquityIntradayHistoricalFetcher,
         "EquityPeers": FMPCachedEquityPeersFetcher,
         "EquityQuote": FMPCachedEquityQuoteFetcher,
         "EtfHistorical": FMPCachedEquityHistoricalFetcher,
@@ -169,12 +173,13 @@ def create_all_cached_fetchers():
         ("WorldNews", FMPWorldNewsFetcher),
         ("YieldCurve", FMPYieldCurveFetcher),
         # Phase-0 intraday fetchers (fmp-day-trading PRD 2026-07-06 §5.1).
-        # All tier-2 passthrough initially; Phase 2 (P2.1) promotes intraday
-        # bars + aftermarket-quote to tier-1 dedicated caching, and Phase 2
-        # (P2.2) wraps exchange-market-hours with the new 24h TTL helper.
-        ("AftermarketQuote", FMPAftermarketQuoteFetcher),
+        # NOTE (P2.1): AftermarketQuote + EquityIntradayHistorical promoted
+        # to tier-1 dedicated_fetchers above. The four entries kept here
+        # remain tier-2 passthrough forever per PRD §5.1 (batch-short IS the
+        # cheap poll primitive so caching would defeat the point; indicators
+        # are rarely used; hours + trades gain no caching benefit today).
+        # Phase 2 (P2.2) may wrap ExchangeMarketHours with a 24h TTL helper.
         ("AftermarketTrade", FMPAftermarketTradeFetcher),
-        ("EquityIntradayHistorical", FMPEquityIntradayHistoricalFetcher),
         ("EquityQuoteBatchShort", FMPEquityQuoteBatchShortFetcher),
         ("ExchangeMarketHours", FMPExchangeMarketHoursFetcher),
         ("TechnicalIndicatorIntraday", FMPTechnicalIndicatorIntradayFetcher),
