@@ -45,9 +45,9 @@ Paths under `openbb_platform/providers/fmp_cached/openbb_fmp_cached/` (provider 
 | `extensions/fmp_trading/.../tests/unit/test_flat_by_close.py` | Unit tests for the flat-by-close state machine (AC-6). | P2.5 |
 | `extensions/fmp_trading/.../tests/golden/test_no_look_ahead.py` | Golden AC-5 test: bar-t close signal fills at t+1 open. | P2.6 |
 | `extensions/fmp_trading/.../tests/integration/test_full_session.py` | End-to-end mock-FMP → 6.5h simulated session (AC-1). | P2.7 |
-| `providers/fmp_cached/.../tests/unit/test_intraday_gap_detection.py` | Gap-detection + tail-invalidation coverage for the new tier-1 fetcher. | P2.1 |
-| `providers/fmp_cached/.../tests/unit/test_aftermarket_quote_ttl.py` | 60s TTL hit/miss coverage. | P2.1 |
-| `providers/fmp_cached/.../tests/unit/test_ttl_wrapper.py` | `create_ttl_wrapper_class` unit tests + `ExchangeMarketHours` regression. | P2.2 |
+| `providers/fmp_cached/tests/test_intraday_gap_detection.py` | Gap-detection + tail-invalidation coverage for the new tier-1 fetcher. | P2.1 |
+| `providers/fmp_cached/tests/test_aftermarket_quote_ttl.py` | 60s TTL hit/miss coverage. | P2.1 |
+| `providers/fmp_cached/tests/test_ttl_wrapper.py` | `create_ttl_wrapper_class` unit tests + `ExchangeMarketHours` regression. | P2.2 |
 
 **Out of scope for Phase 2** (belongs to later phases — do NOT create here):
 - Any file under `openbb_fmp_trading/agent/` → Phase 3
@@ -59,447 +59,385 @@ Paths under `openbb_platform/providers/fmp_cached/openbb_fmp_cached/` (provider 
 
 ## Task P2.1: Upgrade intraday bars + aftermarket quote to tier-1 caching
 
-**Consumes:** existing tier-2 registration for `EquityIntradayHistoricalFetcher` + `AftermarketQuoteFetcher` (Phase 0.2); existing gap-detection pattern in `models/equity_historical.py`; MySQL cache pool from `utils/db.py`.
+**Consumes:** existing tier-2 registration for `EquityIntradayHistoricalFetcher` + `AftermarketQuoteFetcher` (Phase 0.2); existing gap-detection pattern in `models/equity_historical.py`; the sync SQL helpers `execute_query` / `execute_many` in `utils/database.py`; MySQL init via `init_database()`.
 **Produces:** two new MySQL tables; two new tier-1 fetchers; ≥95% cache hit rate on same-day replays (AC-3); same-session tail-invalidation invariant asserted by test.
 
 **Files:**
 - Modify: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/utils/cache_schema.py`
 - Rewrite: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/equity_intraday_historical.py`
 - Rewrite: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/aftermarket_quote.py`
-- Create: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_intraday_gap_detection.py`
-- Create: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_aftermarket_quote_ttl.py`
+- Modify: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/__init__.py` (promote both classes from tier-2 `fetcher_mapping` into tier-1 `dedicated_fetchers`; remove now-unused raw-fmp imports)
+- Create: `openbb_platform/providers/fmp_cached/tests/test_intraday_gap_detection.py`
+- Create: `openbb_platform/providers/fmp_cached/tests/test_aftermarket_quote_ttl.py`
 
 - [ ] **Step 1: Add the two new tables to `cache_schema.py` (RED first — write failing schema test)**
 
-Append to the `SCHEMA_STATEMENTS` tuple in `cache_schema.py` (exact DDL from PRD §5.2 — do not paraphrase):
+The real `cache_schema.py` uses a **function-per-table pattern** — one `create_<name>_table()` function that returns `execute_query(DDL)`, plus a `FLATTENED_TABLES` dict that `create_all_flattened_tables()` iterates. Add two new creator functions to the end of the file (before `create_all_tables`) and register them in `FLATTENED_TABLES`:
 
 ```python
-EQUITY_INTRADAY_HISTORICAL_DDL = """
-CREATE TABLE IF NOT EXISTS equity_intraday_historical (
-    symbol           VARCHAR(20)       NOT NULL,
-    interval_type    VARCHAR(10)       NOT NULL,
-    ts               DATETIME(0)       NOT NULL,
-    open_price       DECIMAL(18,6),
-    high_price       DECIMAL(18,6),
-    low_price        DECIMAL(18,6),
-    close_price      DECIMAL(18,6),
-    volume           BIGINT,
-    is_extended      BOOLEAN           DEFAULT FALSE,
-    cached_at        DATETIME(0)       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    is_valid         BOOLEAN           DEFAULT TRUE,
-    additional_fields JSON,
-    PRIMARY KEY (symbol, interval_type, ts),
-    INDEX idx_symbol_interval_ts (symbol, interval_type, ts DESC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-"""
+def create_equity_intraday_historical_table():
+    """Create equity_intraday_historical table (fmp-day-trading PRD §5.2)."""
+    query = """
+    CREATE TABLE IF NOT EXISTS equity_intraday_historical (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        symbol VARCHAR(50) NOT NULL,
+        interval_type VARCHAR(10) NOT NULL,
+        ts DATETIME(0) NOT NULL,
+        open_price DECIMAL(18,6) DEFAULT NULL,
+        high_price DECIMAL(18,6) DEFAULT NULL,
+        low_price DECIMAL(18,6) DEFAULT NULL,
+        close_price DECIMAL(18,6) DEFAULT NULL,
+        volume BIGINT DEFAULT NULL,
+        is_extended BOOLEAN DEFAULT FALSE,
+        additional_fields JSON DEFAULT NULL,
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_valid BOOLEAN DEFAULT TRUE,
+        INDEX idx_symbol (symbol),
+        INDEX idx_symbol_interval_ts (symbol, interval_type, ts DESC),
+        INDEX idx_cached_at (cached_at),
+        INDEX idx_is_valid (is_valid),
+        UNIQUE KEY unique_symbol_interval_ts (symbol, interval_type, ts)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
 
-AFTERMARKET_QUOTE_DDL = """
-CREATE TABLE IF NOT EXISTS aftermarket_quote (
-    symbol           VARCHAR(20)       PRIMARY KEY,
-    price            DECIMAL(18,6),
-    bid              DECIMAL(18,6),
-    ask              DECIMAL(18,6),
-    bid_size         INTEGER,
-    ask_size         INTEGER,
-    volume           BIGINT,
-    timestamp        DATETIME(0)       NOT NULL,
-    cached_at        DATETIME(0)       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    is_valid         BOOLEAN           DEFAULT TRUE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-"""
 
-SCHEMA_STATEMENTS = (
-    # ...existing DDL...
-    EQUITY_INTRADAY_HISTORICAL_DDL,
-    AFTERMARKET_QUOTE_DDL,
-)
+def create_aftermarket_quote_table():
+    """Create aftermarket_quote table (fmp-day-trading PRD §5.2 — 60s TTL)."""
+    query = """
+    CREATE TABLE IF NOT EXISTS aftermarket_quote (
+        symbol VARCHAR(50) NOT NULL PRIMARY KEY,
+        price DECIMAL(18,6) DEFAULT NULL,
+        bid DECIMAL(18,6) DEFAULT NULL,
+        ask DECIMAL(18,6) DEFAULT NULL,
+        bid_size INTEGER DEFAULT NULL,
+        ask_size INTEGER DEFAULT NULL,
+        volume BIGINT DEFAULT NULL,
+        timestamp DATETIME(0) DEFAULT NULL,
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_valid BOOLEAN DEFAULT TRUE,
+        INDEX idx_cached_at (cached_at),
+        INDEX idx_is_valid (is_valid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
 ```
 
-Run: `.venv_win\Scripts\python.exe -m pytest openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_cache_schema.py -q`
-Expected: PASS (schema DDL parses, both new statements present in the tuple).
+Then register both in `FLATTENED_TABLES` (alphabetical: `aftermarket_quote` goes before `analyst_estimates`; `equity_intraday_historical` between `equity_historical` and `equity_losers`):
+
+```python
+FLATTENED_TABLES = {
+    "aftermarket_quote": {"schema": create_aftermarket_quote_table},
+    "analyst_estimates": {"schema": create_analyst_estimates_table},
+    # ...existing entries...
+    "equity_historical": {"schema": create_equity_historical_table},
+    "equity_intraday_historical": {"schema": create_equity_intraday_historical_table},
+    "equity_losers": {"schema": create_equity_losers_table},
+    # ...
+}
+```
+
+Run: `.venv_win\Scripts\python.exe -m pytest openbb_platform/providers/fmp_cached/tests/test_cache_schema.py -q`
+Expected: PASS (both new creators present in the `FLATTENED_TABLES` dict; DDL parses via `execute_query`).
 
 - [ ] **Step 2: Rewrite `equity_intraday_historical.py` with gap detection + tail-invalidation**
 
-Mirror `equity_historical.py`'s `_analyze_cache_gaps` / `_detect_missing_ranges` pattern, but at 5-min granularity and with `is_extended` and `interval_type` in the key. The `_mark_tail_invalid` method is the correctness-critical addition — same-session tail bars are `is_valid=FALSE` and forced-refetched next tick.
+Mirror `equity_historical.py`'s shape adapted for intraday granularity: `interval_type` in the cache key (not just `date`); `ts` is `DATETIME(0)` bar-start (not `DATE`); and — the correctness-critical addition — `_invalidate_same_session_tail` marks today's last bar `is_valid=FALSE` so the next call refetches it. Prior-session bars stay immutable.
+
+**Real primitives** (drift-corrected from the original plan draft):
+
+- SQL: `execute_query` / `execute_many` from `openbb_fmp_cached.utils.database` (NOT `cache_pool.acquire()`)
+- DB init: `init_database()` from the same module, wrapped in `try/except` that falls back to raw fmp on any DB failure (same pattern as `equity_historical.py` lines 155-159)
+- Credential translation: an inlined `_translate_credentials(credentials)` helper that:
+  - Unwraps `SecretStr` via `.get_secret_value()`
+  - Maps `fmp_cached_api_key → fmp_api_key`
+  - Falls through to `openbb_core.app.service.user_service.UserService` when no explicit credentials passed
+  - Returns a `dict[str, str] | None` suitable for handing to the raw FMP fetcher
+
+**Fetcher body structure** (the flow the shipped implementation follows):
 
 ```python
-"""Tier-1 cached intraday historical bars fetcher.
-
-Gap-detection caching over the /stable/historical-chart/{interval} FMP endpoint.
-Mirrors equity_historical.py but for intraday granularity, with the additional
-correctness rule that the most recent bar of the current session is treated as
-tentatively-valid — served from cache once, then invalidated on the next call
-to force re-fetch. Prior-session bars are immutable.
-"""
-
-from __future__ import annotations
-
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Any
-
-import exchange_calendars as xcals
-from openbb_core.provider.abstract.fetcher import Fetcher
-from openbb_fmp.models.equity_intraday_historical import (
-    FMPEquityIntradayHistoricalData,
-    FMPEquityIntradayHistoricalFetcher,
-    FMPEquityIntradayHistoricalQueryParams,
-)
-
-from openbb_fmp_cached.utils.db import cache_pool
-from openbb_fmp_cached.utils.credential_translation import translate_credentials
-
-_INTERVAL_TO_MINUTES = {
-    "1min": 1, "5min": 5, "15min": 15, "30min": 30, "1hour": 60, "4hour": 240,
-}
-_CALENDAR = xcals.get_calendar("XNYS")
-
-
 class FMPCachedEquityIntradayHistoricalFetcher(
-    Fetcher[FMPEquityIntradayHistoricalQueryParams, list[FMPEquityIntradayHistoricalData]]
+    Fetcher[
+        FMPCachedEquityIntradayHistoricalQueryParams,
+        list[FMPCachedEquityIntradayHistoricalData],
+    ]
 ):
-    """Tier-1 gap-detection cached intraday bars."""
+    @staticmethod
+    def transform_query(params: dict[str, Any]) -> ...:
+        return FMPCachedEquityIntradayHistoricalQueryParams(**params)
 
     @staticmethod
-    def transform_query(params: dict[str, Any]) -> FMPEquityIntradayHistoricalQueryParams:
-        return FMPEquityIntradayHistoricalQueryParams(**params)
+    async def aextract_data(query, credentials, **kwargs) -> list[dict[str, Any]]:
+        fmp_credentials = _translate_credentials(credentials)
 
-    @staticmethod
-    async def aextract_data(
-        query: FMPEquityIntradayHistoricalQueryParams,
-        credentials: dict[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> list[dict[str, Any]]:
-        symbols = _split_symbols(query.symbol)
-        results: list[dict[str, Any]] = []
-        for symbol in symbols:
-            cached_rows, gap_ranges = _analyze_intraday_gaps(
-                symbol=symbol,
-                interval_type=query.interval,
-                start=query.start_date,
-                end=query.end_date,
+        # DB init with fallback to raw fmp (matches equity_historical.py:155-159)
+        try:
+            init_database()
+        except Exception as exc:
+            logger.warning(f"Cache DB init failed: {exc}; direct FMP fallback")
+            return await FMPEquityIntradayHistoricalFetcher.aextract_data(
+                query, fmp_credentials, **kwargs
             )
-            for gap_start, gap_end in gap_ranges:
-                gap_query = query.model_copy(
-                    update={"symbol": symbol, "start_date": gap_start, "end_date": gap_end}
+
+        # Multi-symbol fanout — one gap-analysis per symbol
+        symbols = [s.strip().upper() for s in query.symbol.split(",") if s.strip()]
+        all_rows = []
+        for symbol in symbols:
+            single_query = query.model_copy(update={"symbol": symbol})
+            cached_rows, has_gap = _analyze_intraday_cache(single_query)
+            if has_gap:
+                fresh = await FMPEquityIntradayHistoricalFetcher.aextract_data(
+                    single_query, fmp_credentials, **kwargs
                 )
-                fresh_rows = await FMPEquityIntradayHistoricalFetcher.aextract_data(
-                    gap_query, translate_credentials(credentials), **kwargs
-                )
-                _upsert_intraday_rows(symbol, query.interval, fresh_rows)
-                cached_rows.extend(fresh_rows)
-            _mark_tail_invalid(symbol, query.interval, cached_rows)
-            results.extend(cached_rows)
-        return results
+                if fresh:
+                    _upsert_intraday_rows(symbol, query.interval, fresh)
+                cached_rows, _ = _analyze_intraday_cache(single_query)  # re-read
+            _invalidate_same_session_tail(symbol, query.interval, cached_rows)
+            all_rows.extend(cached_rows)
+        return all_rows
 
     @staticmethod
-    def transform_data(
-        query: FMPEquityIntradayHistoricalQueryParams,
-        data: list[dict[str, Any]],
-        **kwargs: Any,
-    ) -> list[FMPEquityIntradayHistoricalData]:
-        return FMPEquityIntradayHistoricalFetcher.transform_data(query, data, **kwargs)
-
-
-def _split_symbols(symbol_field: str) -> list[str]:
-    return [s.strip().upper() for s in symbol_field.split(",") if s.strip()]
-
-
-def _analyze_intraday_gaps(
-    symbol: str, interval_type: str, start: datetime | None, end: datetime | None,
-) -> tuple[list[dict[str, Any]], list[tuple[datetime, datetime]]]:
-    """Return (cached_rows_in_range, missing_ranges_to_fetch).
-
-    A range is 'missing' iff the calendar-expected bar count > cached bar count
-    for a contiguous window. Non-trading hours (per exchange_calendars) are
-    excluded from the expectation.
-    """
-    interval_minutes = _INTERVAL_TO_MINUTES[interval_type]
-    with cache_pool.acquire() as conn, conn.cursor(dictionary=True) as cur:
-        cur.execute(
-            """SELECT ts, open_price, high_price, low_price, close_price, volume,
-                      is_extended, is_valid
-               FROM equity_intraday_historical
-               WHERE symbol=%s AND interval_type=%s
-                 AND ts BETWEEN %s AND %s
-               ORDER BY ts ASC""",
-            (symbol, interval_type, start, end),
-        )
-        rows = cur.fetchall()
-    cached_ts = {r["ts"] for r in rows if r["is_valid"]}
-    expected = _expected_bar_timestamps(start, end, interval_minutes)
-    missing = sorted(expected - cached_ts)
-    ranges = _contiguous_ranges(missing, timedelta(minutes=interval_minutes))
-    return rows, ranges
-
-
-def _expected_bar_timestamps(
-    start: datetime, end: datetime, interval_minutes: int
-) -> set[datetime]:
-    """Enumerate bar-start ts inside RTH sessions between start and end."""
-    expected: set[datetime] = set()
-    for session in _CALENDAR.sessions_in_range(start.date(), end.date()):
-        open_ts = _CALENDAR.session_open(session).to_pydatetime()
-        close_ts = _CALENDAR.session_close(session).to_pydatetime()
-        cursor = open_ts
-        while cursor < close_ts:
-            if start <= cursor <= end:
-                expected.add(cursor)
-            cursor += timedelta(minutes=interval_minutes)
-    return expected
-
-
-def _contiguous_ranges(
-    stamps: list[datetime], gap_tolerance: timedelta,
-) -> list[tuple[datetime, datetime]]:
-    if not stamps:
-        return []
-    ranges: list[tuple[datetime, datetime]] = []
-    run_start = stamps[0]
-    prev = stamps[0]
-    for ts in stamps[1:]:
-        if ts - prev > gap_tolerance:
-            ranges.append((run_start, prev))
-            run_start = ts
-        prev = ts
-    ranges.append((run_start, prev))
-    return ranges
-
-
-def _upsert_intraday_rows(symbol: str, interval_type: str, rows: list[dict[str, Any]]) -> None:
-    if not rows:
-        return
-    with cache_pool.acquire() as conn, conn.cursor() as cur:
-        cur.executemany(
-            """INSERT INTO equity_intraday_historical
-               (symbol, interval_type, ts, open_price, high_price, low_price,
-                close_price, volume, is_extended, is_valid)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
-               ON DUPLICATE KEY UPDATE
-                 open_price=VALUES(open_price), high_price=VALUES(high_price),
-                 low_price=VALUES(low_price), close_price=VALUES(close_price),
-                 volume=VALUES(volume), is_valid=TRUE,
-                 cached_at=CURRENT_TIMESTAMP""",
-            [
-                (
-                    symbol, interval_type, r["date"],
-                    Decimal(str(r["open"])), Decimal(str(r["high"])),
-                    Decimal(str(r["low"])), Decimal(str(r["close"])),
-                    int(r["volume"]), bool(r.get("is_extended", False)),
-                )
-                for r in rows
-            ],
-        )
-        conn.commit()
-
-
-def _mark_tail_invalid(symbol: str, interval_type: str, rows: list[dict[str, Any]]) -> None:
-    """Correctness-critical: the last bar of the current session may still extend.
-
-    Mark it is_valid=FALSE so the next call re-fetches it. Prior-session bars
-    are immutable and stay TRUE.
-    """
-    if not rows:
-        return
-    now_et = datetime.now(tz=_CALENDAR.tz).replace(tzinfo=None)
-    today = now_et.date()
-    tail = rows[-1]
-    tail_ts = tail["ts"] if isinstance(tail, dict) else tail.date
-    if tail_ts.date() != today:
-        return
-    if not _CALENDAR.is_session(today):
-        return
-    with cache_pool.acquire() as conn, conn.cursor() as cur:
-        cur.execute(
-            """UPDATE equity_intraday_historical
-               SET is_valid=FALSE
-               WHERE symbol=%s AND interval_type=%s AND ts=%s""",
-            (symbol, interval_type, tail_ts),
-        )
-        conn.commit()
+    def transform_data(query, data, **kwargs):
+        return [FMPCachedEquityIntradayHistoricalData.model_validate(d) for d in data]
 ```
+
+**Gap detection** — use `execute_query` with the parameterized SELECT below, then apply a coverage-check heuristic (matches how `equity_historical._detect_missing_ranges` handles non-daily intervals — any-gap-in-range triggers a refetch of the full range, because enumerating expected intraday bar timestamps is impractical due to holidays, half-days, mid-session halts):
+
+```python
+def _analyze_intraday_cache(query) -> tuple[list[dict[str, Any]], bool]:
+    """Return (cached_rows, has_gap)."""
+    if query.start_date is None or query.end_date is None:
+        return [], True   # unbounded query → cache MISS
+
+    rows = execute_query(
+        """SELECT symbol, interval_type, ts, open_price, high_price, low_price,
+                  close_price, volume, is_extended, is_valid
+           FROM equity_intraday_historical
+           WHERE symbol = %s AND interval_type = %s
+             AND ts BETWEEN %s AND %s AND is_valid = TRUE
+           ORDER BY ts ASC""",
+        (query.symbol, query.interval, query.start_date, query.end_date),
+    )
+    if not rows:
+        return [], True
+
+    cached = [
+        {
+            "symbol": r["symbol"],
+            "interval": r["interval_type"],
+            "date": r["ts"],
+            "open": float(r["open_price"]) if r["open_price"] is not None else None,
+            "high": float(r["high_price"]) if r["high_price"] is not None else None,
+            "low": float(r["low_price"]) if r["low_price"] is not None else None,
+            "close": float(r["close_price"]) if r["close_price"] is not None else None,
+            "volume": int(r["volume"]) if r["volume"] is not None else None,
+            "is_extended": bool(r["is_extended"]),
+        }
+        for r in rows
+    ]
+    # Coverage check — first/last cached bar must bracket the requested range.
+    if cached[0]["date"] > query.start_date or cached[-1]["date"] < query.end_date:
+        return cached, True
+    return cached, False
+```
+
+**Upsert** — use `execute_many` with `INSERT ... ON DUPLICATE KEY UPDATE`; the unique key `(symbol, interval_type, ts)` makes refresh idempotent:
+
+```python
+def _upsert_intraday_rows(symbol, interval, rows):
+    if not rows:
+        return
+    sql = """
+    INSERT INTO equity_intraday_historical
+        (symbol, interval_type, ts, open_price, high_price, low_price,
+         close_price, volume, is_extended, is_valid)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+    ON DUPLICATE KEY UPDATE
+        open_price = VALUES(open_price), high_price = VALUES(high_price),
+        low_price = VALUES(low_price), close_price = VALUES(close_price),
+        volume = VALUES(volume), is_extended = VALUES(is_extended),
+        is_valid = TRUE, updated_at = CURRENT_TIMESTAMP
+    """
+    params_list = []
+    for r in rows:
+        ts = r.get("date") or r.get("ts")
+        if isinstance(ts, str):
+            ts = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+        params_list.append((
+            symbol, interval, ts,
+            r.get("open"), r.get("high"), r.get("low"), r.get("close"),
+            r.get("volume"), bool(r.get("is_extended", False)),
+        ))
+    execute_many(sql, params_list)
+```
+
+**Tail invalidation** — the correctness-critical helper:
+
+```python
+def _invalidate_same_session_tail(symbol, interval, cached_rows):
+    """Mark today's last bar is_valid=FALSE so the next call refetches it.
+
+    Critical: a 5-min bar opened at 10:00 doesn't finalize until 10:05.
+    Serving it as complete at 10:03 would leak an incomplete bar. Prior-
+    session bars stay valid — they're immutable.
+    """
+    if not cached_rows:
+        return
+    tail = cached_rows[-1]
+    tail_ts = tail.get("date") or tail.get("ts")
+    if tail_ts is None or (
+        (tail_ts.date() if isinstance(tail_ts, datetime) else tail_ts) != date.today()
+    ):
+        return
+    execute_query(
+        "UPDATE equity_intraday_historical SET is_valid = FALSE "
+        "WHERE symbol = %s AND interval_type = %s AND ts = %s",
+        (symbol, interval, tail_ts),
+    )
+```
+
+Complete shipped implementation lives at `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/equity_intraday_historical.py` — refer to it for the full docstrings, logging, and edge-case handling (SecretStr, empty results, malformed timestamps).
 
 - [ ] **Step 3: Write the intraday gap-detection unit test**
 
-Create `openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_intraday_gap_detection.py`:
+The shipped test file lives at `openbb_platform/providers/fmp_cached/tests/test_intraday_gap_detection.py` (NOT the nested `.../openbb_fmp_cached/tests/unit/...` path the original draft suggested — the fmp_cached provider tests live one level up, alongside `test_cache_schema.py`, `test_database.py`, etc.).
 
-```python
-"""Unit tests for tier-1 intraday bar caching: gap detection + tail invalidation."""
+Four test classes covering the shipped helper contract:
 
-from __future__ import annotations
+- `TestIntradayCacheAnalysis` — `_analyze_intraday_cache` returns `(rows, has_gap)` with correct semantics on missing-bounds / empty-cache / full-range cases
+- `TestTailInvalidation` — `_invalidate_same_session_tail` fires an UPDATE only for today's tail bar; prior-day tails and empty inputs short-circuit
+- `TestCredentialTranslation` — `_translate_credentials` maps `fmp_cached_api_key → fmp_api_key`, unwraps `SecretStr`, and passes through pre-mapped credentials
+- `TestFetcherClassContract` — the class exposes `transform_query` / `aextract_data` / `transform_data` as static methods and coerces dict input to typed params
 
-from datetime import datetime, timedelta
-from unittest.mock import patch
+Every test that touches SQL uses `unittest.mock.patch(...execute_query)` / `patch(...execute_many)` so the suite runs without a live MySQL server.
 
-import pytest
-from freezegun import freeze_time
-
-from openbb_fmp_cached.models.equity_intraday_historical import (
-    _analyze_intraday_gaps,
-    _contiguous_ranges,
-    _expected_bar_timestamps,
-    _mark_tail_invalid,
-)
-
-
-def test_expected_bar_timestamps_excludes_non_rth():
-    start = datetime(2026, 7, 6, 9, 0)
-    end = datetime(2026, 7, 6, 10, 0)
-    expected = _expected_bar_timestamps(start, end, interval_minutes=5)
-    assert datetime(2026, 7, 6, 9, 30) in expected
-    assert datetime(2026, 7, 6, 9, 0) not in expected   # pre-market excluded
-
-
-def test_contiguous_ranges_bridges_within_tolerance():
-    stamps = [
-        datetime(2026, 7, 6, 9, 30),
-        datetime(2026, 7, 6, 9, 35),
-        datetime(2026, 7, 6, 10, 0),   # gap → new run
-        datetime(2026, 7, 6, 10, 5),
-    ]
-    ranges = _contiguous_ranges(stamps, timedelta(minutes=5))
-    assert len(ranges) == 2
-    assert ranges[0] == (datetime(2026, 7, 6, 9, 30), datetime(2026, 7, 6, 9, 35))
-
-
-@freeze_time("2026-07-06 14:00:00", tz_offset=-4)  # 10:00 ET on a trading day
-def test_mark_tail_invalid_flips_same_session_last_bar():
-    tail = {"ts": datetime(2026, 7, 6, 9, 55), "date": datetime(2026, 7, 6, 9, 55)}
-    with patch("openbb_fmp_cached.models.equity_intraday_historical.cache_pool") as pool:
-        _mark_tail_invalid("MSFT", "5min", [tail])
-    pool.acquire.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.execute.assert_called_once()
-
-
-def test_mark_tail_invalid_does_not_touch_prior_day():
-    tail = {"ts": datetime(2026, 7, 3, 15, 55), "date": datetime(2026, 7, 3, 15, 55)}
-    with patch("openbb_fmp_cached.models.equity_intraday_historical.cache_pool") as pool:
-        _mark_tail_invalid("MSFT", "5min", [tail])
-    pool.acquire.assert_not_called()
-```
+Run: `.venv_win\Scripts\python.exe -m pytest openbb_platform/providers/fmp_cached/tests/test_intraday_gap_detection.py -v`
+Expected: all class tests pass.
 
 - [ ] **Step 4: Rewrite `aftermarket_quote.py` with 60s TTL**
 
+Single-row-per-symbol cache. Cache HIT iff `cached_at > now - 60s AND is_valid = TRUE`; else MISS triggers a fresh FMP fetch for exactly the missing symbols. Uses the same real primitives as Step 2: `execute_query` / `execute_many` from `openbb_fmp_cached.utils.database`, `init_database()` with fallback, and an inlined `_translate_credentials()` helper. `_TTL_SECONDS = 60` is a locked design decision per PRD §5.2.
+
+**Body structure**:
+
 ```python
-"""Tier-1 cached aftermarket quote fetcher — 60s TTL.
-
-Single-row-per-symbol cache. HIT if cached_at > now - 60s; MISS otherwise.
-No gap detection — ephemeral one-value-per-symbol data.
-"""
-
-from __future__ import annotations
-
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Any
-
-from openbb_core.provider.abstract.fetcher import Fetcher
-from openbb_fmp.models.aftermarket_quote import (
-    FMPAftermarketQuoteData,
-    FMPAftermarketQuoteFetcher,
-    FMPAftermarketQuoteQueryParams,
-)
-
-from openbb_fmp_cached.utils.db import cache_pool
-from openbb_fmp_cached.utils.credential_translation import translate_credentials
-
-_TTL = timedelta(seconds=60)
-
-
 class FMPCachedAftermarketQuoteFetcher(
-    Fetcher[FMPAftermarketQuoteQueryParams, list[FMPAftermarketQuoteData]]
+    Fetcher[
+        FMPCachedAftermarketQuoteQueryParams,
+        list[FMPCachedAftermarketQuoteData],
+    ]
 ):
-    """Tier-1 60-second-TTL cached aftermarket quote."""
+    @staticmethod
+    def transform_query(params: dict[str, Any]) -> ...:
+        return FMPCachedAftermarketQuoteQueryParams(**params)
 
     @staticmethod
-    def transform_query(params: dict[str, Any]) -> FMPAftermarketQuoteQueryParams:
-        return FMPAftermarketQuoteQueryParams(**params)
-
-    @staticmethod
-    async def aextract_data(
-        query: FMPAftermarketQuoteQueryParams,
-        credentials: dict[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> list[dict[str, Any]]:
-        symbols = [s.strip().upper() for s in query.symbol.split(",") if s.strip()]
-        fresh_cutoff = datetime.utcnow() - _TTL
-        hit_rows, miss_symbols = _fetch_fresh_rows(symbols, fresh_cutoff)
-        if miss_symbols:
-            miss_query = query.model_copy(update={"symbol": ",".join(miss_symbols)})
-            fresh_rows = await FMPAftermarketQuoteFetcher.aextract_data(
-                miss_query, translate_credentials(credentials), **kwargs
+    async def aextract_data(query, credentials, **kwargs) -> list[dict[str, Any]]:
+        fmp_credentials = _translate_credentials(credentials)
+        try:
+            init_database()
+        except Exception as exc:
+            logger.warning(f"Cache DB init failed: {exc}; direct FMP fallback")
+            return await FMPAftermarketQuoteFetcher.aextract_data(
+                query, fmp_credentials, **kwargs
             )
-            _upsert_aftermarket_rows(fresh_rows)
-            hit_rows.extend(fresh_rows)
-        return hit_rows
+
+        symbols = [s.strip().upper() for s in query.symbol.split(",") if s.strip()]
+        if not symbols:
+            return []
+
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            seconds=_TTL_SECONDS
+        )
+        hit_rows, miss_symbols = _fetch_fresh_rows(symbols, cutoff)
+        if not miss_symbols:
+            return hit_rows
+
+        # Partial-hit optimization: fetch only the stale symbols
+        miss_query = query.model_copy(update={"symbol": ",".join(miss_symbols)})
+        fresh = await FMPAftermarketQuoteFetcher.aextract_data(
+            miss_query, fmp_credentials, **kwargs
+        )
+        if fresh:
+            _upsert_aftermarket_rows(fresh)
+        return hit_rows + fresh
 
     @staticmethod
-    def transform_data(
-        query: FMPAftermarketQuoteQueryParams,
-        data: list[dict[str, Any]],
-        **kwargs: Any,
-    ) -> list[FMPAftermarketQuoteData]:
-        return FMPAftermarketQuoteFetcher.transform_data(query, data, **kwargs)
+    def transform_data(query, data, **kwargs):
+        return [FMPCachedAftermarketQuoteData.model_validate(d) for d in data]
+```
 
+**Fresh-rows partition** — uses `execute_query` with a parameterized `WHERE symbol IN (...) AND cached_at > cutoff`; returns `(hits, miss_symbols)` where `miss_symbols` is the set difference:
 
-def _fetch_fresh_rows(
-    symbols: list[str], cutoff: datetime,
-) -> tuple[list[dict[str, Any]], list[str]]:
-    if not symbols:
-        return [], []
-    with cache_pool.acquire() as conn, conn.cursor(dictionary=True) as cur:
-        cur.execute(
-            f"""SELECT symbol, price, bid, ask, bid_size, ask_size, volume, timestamp
-                FROM aftermarket_quote
-                WHERE symbol IN ({','.join(['%s'] * len(symbols))})
-                  AND cached_at > %s AND is_valid=TRUE""",
-            (*symbols, cutoff),
-        )
-        rows = cur.fetchall()
-    hit = {r["symbol"] for r in rows}
-    return rows, [s for s in symbols if s not in hit]
+```python
+def _fetch_fresh_rows(symbols, cutoff) -> tuple[list[dict], list[str]]:
+    placeholders = ",".join(["%s"] * len(symbols))
+    sql = f"""
+    SELECT symbol, price, bid, ask, bid_size, ask_size, volume, timestamp
+    FROM aftermarket_quote
+    WHERE symbol IN ({placeholders})
+      AND cached_at > %s
+      AND is_valid = TRUE
+    """
+    rows = execute_query(sql, (*symbols, cutoff))
+    # ...normalize types, partition into hits + miss_symbols...
+    return hits, miss_symbols
+```
 
+**Upsert** — same `execute_many` + `ON DUPLICATE KEY UPDATE` pattern as intraday bars, with the symbol as PRIMARY KEY (single-row-per-symbol):
 
-def _upsert_aftermarket_rows(rows: list[dict[str, Any]]) -> None:
+```python
+def _upsert_aftermarket_rows(rows):
     if not rows:
         return
-    with cache_pool.acquire() as conn, conn.cursor() as cur:
-        cur.executemany(
-            """INSERT INTO aftermarket_quote
-               (symbol, price, bid, ask, bid_size, ask_size, volume, timestamp, is_valid)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)
-               ON DUPLICATE KEY UPDATE
-                 price=VALUES(price), bid=VALUES(bid), ask=VALUES(ask),
-                 bid_size=VALUES(bid_size), ask_size=VALUES(ask_size),
-                 volume=VALUES(volume), timestamp=VALUES(timestamp),
-                 cached_at=CURRENT_TIMESTAMP, is_valid=TRUE""",
-            [
-                (
-                    r["symbol"], Decimal(str(r["price"])),
-                    Decimal(str(r["bid"])), Decimal(str(r["ask"])),
-                    int(r["bid_size"]), int(r["ask_size"]),
-                    int(r["volume"]), r["timestamp"],
-                )
-                for r in rows
-            ],
-        )
-        conn.commit()
+    sql = """
+    INSERT INTO aftermarket_quote
+        (symbol, price, bid, ask, bid_size, ask_size, volume, timestamp, is_valid)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+    ON DUPLICATE KEY UPDATE
+        price = VALUES(price), bid = VALUES(bid), ask = VALUES(ask),
+        bid_size = VALUES(bid_size), ask_size = VALUES(ask_size),
+        volume = VALUES(volume), timestamp = VALUES(timestamp),
+        cached_at = CURRENT_TIMESTAMP, is_valid = TRUE
+    """
+    execute_many(sql, [(r["symbol"], r.get("price"), ...) for r in rows])
 ```
+
+Complete shipped implementation lives at `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/aftermarket_quote.py` — refer to it for docstrings, logging, and the SecretStr / UserService fallback path in `_translate_credentials`.
 
 - [ ] **Step 5: Write the aftermarket TTL test + run the unit suite**
 
-Create `test_aftermarket_quote_ttl.py` covering: (a) cold cache → MISS → fetch; (b) cached < 60s → HIT, no fetch; (c) cached > 60s → MISS again; (d) partial hit — 2 symbols cached, 1 stale → single fetch for the stale one.
+The shipped test file lives at `openbb_platform/providers/fmp_cached/tests/test_aftermarket_quote_ttl.py` (same location convention as `test_intraday_gap_detection.py`).
 
-Run: `.venv_win\Scripts\python.exe -m pytest openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit -q`
-Expected: all new + existing tests pass (target ~10 new tests across the two files).
+Four test classes covering:
+
+- `TestFreshRowsPartition` — `_fetch_fresh_rows` correctly splits HIT vs MISS across all-hit / partial-hit / all-miss / empty-symbols cases
+- `TestUpsertShape` — `_upsert_aftermarket_rows` calls `execute_many` with the correct SQL structure and 8-tuple row shape
+- `TestFetcherClassContract` — the class exposes `transform_query` / `aextract_data` / `transform_data`
+- `TestTTLConstant` — asserts `_TTL_SECONDS == 60` (a locked design decision per PRD §5.2 that shouldn't drift silently)
+
+Run:
+```bash
+.venv_win\Scripts\python.exe -m pytest openbb_platform/providers/fmp_cached/tests/test_aftermarket_quote_ttl.py openbb_platform/providers/fmp_cached/tests/test_intraday_gap_detection.py -v
+```
+Expected: all new + existing tests pass (~15 tests across the two files).
 
 - [ ] **Step 6: Commit P2.1**
+
+**Historical note:** P2.1 shipped as commit `0ad2e3716` on branch `fmp_trading` on 2026-07-09. The bd `OpenBBTechnical-8v9` bead flagged the plan-drift that this Phase 2 doc revision (2026-07-09) addresses. Steps 1-5 above reflect what actually shipped; the code paths + primitives (`utils/database.execute_query/execute_many`, `FLATTENED_TABLES` dict, inlined `_translate_credentials`) are the real ones, not the phantom `cache_pool.acquire()` / `utils/db.py` from the original draft.
+
+Also modified as part of P2.1: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/__init__.py` — the two new fetcher classes were promoted from the tier-2 `fetcher_mapping` list into the tier-1 `dedicated_fetchers` dict (with corresponding removal of the now-unused raw-fmp imports at module top).
 
 ```bash
 git add openbb_platform/providers/fmp_cached/openbb_fmp_cached/utils/cache_schema.py \
         openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/equity_intraday_historical.py \
         openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/aftermarket_quote.py \
-        openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_intraday_gap_detection.py \
-        openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_aftermarket_quote_ttl.py
+        openbb_platform/providers/fmp_cached/openbb_fmp_cached/__init__.py \
+        openbb_platform/providers/fmp_cached/tests/test_intraday_gap_detection.py \
+        openbb_platform/providers/fmp_cached/tests/test_aftermarket_quote_ttl.py
 git commit -m "feat(fmp_cached): tier-1 caching for intraday bars + aftermarket quote (P2.1)
 
 Upgrade EquityIntradayHistorical and AftermarketQuote from tier-2 passthrough
@@ -513,101 +451,156 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ## Task P2.2: Add `create_ttl_wrapper_class` + migrate `ExchangeMarketHours`
 
-**Consumes:** existing `create_fallback_fetcher_class` in `base_cached.py`; existing tier-2 registration of `ExchangeMarketHours`.
-**Produces:** generic TTL wrapper factory reusable by any future 24h-cached endpoint (holidays, market status); `ExchangeMarketHours` swapped over; ~1000 saved daily calls (§5.5).
+**Consumes:** existing `create_fallback_fetcher_class` in `openbb_fmp_cached/models/base_cached.py`; existing tier-2 registration of `ExchangeMarketHours` in `openbb_fmp_cached/__init__.py`'s `fetcher_mapping` list (Phase 0); the sync SQL helpers `execute_query` / `execute_many` in `utils/database.py`; the P2.1-established pattern of adding tables via a `create_<name>_table()` function registered in `FLATTENED_TABLES`.
+**Produces:** generic ~50 LoC TTL wrapper factory reusable by any future 24h-cached endpoint (holidays, market status); `ExchangeMarketHours` swapped over; ~1000 saved daily calls per PRD §5.5.
 
 **Files:**
-- Modify: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/base_cached.py`
-- Modify: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/exchange_market_hours.py`
-- Modify: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/__init__.py`
-- Create: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_ttl_wrapper.py`
+- Modify: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/base_cached.py` (add `create_ttl_wrapper_class`)
+- Modify: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/utils/cache_schema.py` (add `create_ttl_cache_table` + register in `FLATTENED_TABLES`)
+- Create: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/exchange_market_hours.py` (new cached-side wrapper; the file does NOT currently exist — Phase 0 registered ExchangeMarketHours via the raw-fmp import + `create_fallback_fetcher_class` at the fetcher_mapping-list level)
+- Modify: `openbb_platform/providers/fmp_cached/openbb_fmp_cached/__init__.py` (remove ExchangeMarketHours from tier-2 `fetcher_mapping` list; add to tier-1 `dedicated_fetchers` dict with the new cached class)
+- Create: `openbb_platform/providers/fmp_cached/tests/test_ttl_wrapper.py` (NOT the nested `.../openbb_fmp_cached/tests/unit/...` path — fmp_cached tests live one level up, alongside `test_cache_schema.py`)
 
-- [ ] **Step 1: Add `create_ttl_wrapper_class` to `base_cached.py`**
+- [ ] **Step 1: Add the `ttl_cache` table to `cache_schema.py`**
+
+The TTL wrapper needs a backing table to persist cached JSON payloads. Add a new creator function (before `create_all_tables`) and register in `FLATTENED_TABLES` (alphabetical: `ttl_cache` goes near the end, before `world_news`):
+
+```python
+def create_ttl_cache_table():
+    """Create ttl_cache — backing store for create_ttl_wrapper_class (P2.2).
+
+    One row per (cache_name, cache_key). Wrapper writes on MISS, reads on
+    HIT. Cache eviction is TTL-based inside the wrapper's SELECT clause;
+    stale rows are overwritten on next MISS via ON DUPLICATE KEY UPDATE.
+    """
+    query = """
+    CREATE TABLE IF NOT EXISTS ttl_cache (
+        cache_name VARCHAR(80) NOT NULL,
+        cache_key  CHAR(64)    NOT NULL,
+        payload    JSON        NOT NULL,
+        cached_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (cache_name, cache_key),
+        INDEX idx_cached_at (cached_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
+```
+
+Register: `"ttl_cache": {"schema": create_ttl_cache_table},` in the `FLATTENED_TABLES` dict.
+
+- [ ] **Step 2: Add `create_ttl_wrapper_class` to `base_cached.py`**
+
+Uses the real `execute_query` / `execute_many` primitives (NOT the phantom `cache_pool.acquire()` from the original draft). Reuses the credential-translation pattern that `create_fallback_fetcher_class` already implements — since a TTL-wrapped fetcher still needs the fmp_cached → fmp key mapping, we delegate to that helper rather than reinlining `_translate_credentials`.
 
 ```python
 def create_ttl_wrapper_class(
-    inner_fetcher_cls: type[Fetcher], name: str, ttl_seconds: int,
+    inner_fetcher_cls: type[Fetcher],
+    name: str,
+    ttl_seconds: int,
 ) -> type[Fetcher]:
-    """Wrap a fetcher with a global TTL cache keyed by (query_hash).
+    """Wrap a fetcher with a global TTL cache keyed by (name, query_hash).
 
-    Cache backend: a single JSON blob per (name, query_hash) in `ttl_cache` table
-    (created lazily). HIT iff cached_at > now - ttl_seconds. On MISS, delegate to
-    the inner fetcher, upsert the payload, return.
+    HIT iff cached_at > now - ttl_seconds. On MISS, delegate to the inner
+    fetcher, UPSERT the payload, return. Uses the ttl_cache MySQL table
+    (created lazily by cache_schema.create_ttl_cache_table).
 
-    Justification: `create_fallback_fetcher_class` only serves same-session
-    passthrough; anything needing multi-hour caching (market hours, holidays,
-    market-status) needs this wrapper (~30 LoC).
+    Distinct from create_fallback_fetcher_class — that only does same-session
+    credential translation and passthrough. This wrapper adds persistent
+    multi-hour caching. Reuse targets: ExchangeMarketHours (24h), holidays
+    (24h), market-status snapshots (any TTL).
     """
     import hashlib
     import json
     from datetime import datetime, timedelta
 
+    from openbb_fmp_cached.utils.database import execute_query, execute_many
+
     ttl = timedelta(seconds=ttl_seconds)
 
+    def _hash_query(query) -> str:
+        payload = (
+            query.model_dump_json(exclude_none=True)
+            if hasattr(query, "model_dump_json")
+            else json.dumps(query, sort_keys=True, default=str)
+        )
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+    def _load_ttl_cache(cache_name: str, cache_key: str, cutoff: datetime):
+        rows = execute_query(
+            "SELECT payload FROM ttl_cache "
+            "WHERE cache_name = %s AND cache_key = %s AND cached_at > %s",
+            (cache_name, cache_key, cutoff),
+        )
+        if not rows:
+            return None
+        return json.loads(rows[0]["payload"])
+
+    def _upsert_ttl_cache(cache_name: str, cache_key: str, data) -> None:
+        execute_many(
+            """INSERT INTO ttl_cache (cache_name, cache_key, payload)
+               VALUES (%s, %s, %s)
+               ON DUPLICATE KEY UPDATE
+                 payload = VALUES(payload),
+                 cached_at = CURRENT_TIMESTAMP""",
+            [(cache_name, cache_key, json.dumps(data, default=str))],
+        )
+
+    def _translate_creds(credentials):
+        """Reuse the same fmp_cached -> fmp key mapping as create_fallback_fetcher_class."""
+        if not credentials:
+            return credentials
+        if "fmp_cached_api_key" in credentials:
+            raw = credentials["fmp_cached_api_key"]
+            val = raw.get_secret_value() if hasattr(raw, "get_secret_value") else str(raw)
+            return {"fmp_api_key": val}
+        return credentials
+
     class _TTLWrapped(Fetcher):
-        __name__ = f"{name}TTLCached"
+        """Generated at runtime by create_ttl_wrapper_class."""
 
         @staticmethod
-        def transform_query(params: dict[str, Any]):
+        def transform_query(params):
             return inner_fetcher_cls.transform_query(params)
 
         @staticmethod
         async def aextract_data(query, credentials=None, **kwargs):
-            key = _hash_query(query)
-            cached = _load_ttl_cache(name, key, cutoff=datetime.utcnow() - ttl)
-            if cached is not None:
-                return cached
+            cache_key = _hash_query(query)
+            cutoff = datetime.utcnow() - ttl
+            try:
+                cached = _load_ttl_cache(name, cache_key, cutoff)
+                if cached is not None:
+                    return cached
+            except Exception:
+                # DB unavailable — fall through to raw fetch (never fail fast)
+                pass
             fresh = await inner_fetcher_cls.aextract_data(
-                query, translate_credentials(credentials), **kwargs
+                query, _translate_creds(credentials), **kwargs
             )
-            _upsert_ttl_cache(name, key, fresh)
+            try:
+                _upsert_ttl_cache(name, cache_key, fresh)
+            except Exception:
+                pass  # best-effort persistence
             return fresh
 
         @staticmethod
         def transform_data(query, data, **kwargs):
             return inner_fetcher_cls.transform_data(query, data, **kwargs)
 
-    def _hash_query(query) -> str:
-        payload = query.model_dump_json(exclude_none=True) if hasattr(query, "model_dump_json") else json.dumps(query, sort_keys=True, default=str)
-        return hashlib.sha256(payload.encode()).hexdigest()
-
-    def _load_ttl_cache(name: str, key: str, cutoff: datetime):
-        with cache_pool.acquire() as conn, conn.cursor(dictionary=True) as cur:
-            cur.execute(
-                """CREATE TABLE IF NOT EXISTS ttl_cache (
-                       cache_name VARCHAR(80) NOT NULL,
-                       cache_key  CHAR(64)    NOT NULL,
-                       payload    JSON        NOT NULL,
-                       cached_at  DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                       PRIMARY KEY (cache_name, cache_key)
-                   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"""
-            )
-            cur.execute(
-                "SELECT payload FROM ttl_cache WHERE cache_name=%s AND cache_key=%s AND cached_at > %s",
-                (name, key, cutoff),
-            )
-            row = cur.fetchone()
-        return json.loads(row["payload"]) if row else None
-
-    def _upsert_ttl_cache(name: str, key: str, data):
-        with cache_pool.acquire() as conn, conn.cursor() as cur:
-            cur.execute(
-                """INSERT INTO ttl_cache (cache_name, cache_key, payload)
-                   VALUES (%s, %s, %s)
-                   ON DUPLICATE KEY UPDATE payload=VALUES(payload), cached_at=CURRENT_TIMESTAMP""",
-                (name, key, json.dumps(data, default=str)),
-            )
-            conn.commit()
-
+    _TTLWrapped.__name__ = f"{name}TTLCached"
     return _TTLWrapped
 ```
 
-- [ ] **Step 2: Migrate `ExchangeMarketHours` to use the wrapper**
+- [ ] **Step 3: Create the cached-side `exchange_market_hours.py`**
 
-Replace the contents of `exchange_market_hours.py`:
+This file does NOT currently exist in the fmp_cached model tree — Phase 0 registered ExchangeMarketHours via the raw-fmp import in `fetcher_mapping`. Create the new file:
 
 ```python
-"""Tier-2-with-24h-TTL wrapper for the exchange-market-hours FMP endpoint (§5.5)."""
+"""Tier-1 24h-TTL cached ExchangeMarketHours (fmp-day-trading PRD §5.5).
+
+Uses the new create_ttl_wrapper_class from base_cached (P2.2). Market
+hours change ~daily (holidays, DST) — 86400s TTL saves ~1000 redundant
+FMP calls per day.
+"""
 
 from __future__ import annotations
 
@@ -616,35 +609,42 @@ from openbb_fmp.models.exchange_market_hours import FMPExchangeMarketHoursFetche
 from openbb_fmp_cached.models.base_cached import create_ttl_wrapper_class
 
 FMPCachedExchangeMarketHoursFetcher = create_ttl_wrapper_class(
-    FMPExchangeMarketHoursFetcher, name="ExchangeMarketHours", ttl_seconds=86400,
+    FMPExchangeMarketHoursFetcher,
+    name="ExchangeMarketHours",
+    ttl_seconds=86400,  # 24 hours
 )
 ```
 
-Update `openbb_fmp_cached/__init__.py` to register the new class in place of the passthrough entry.
+- [ ] **Step 4: Promote in `openbb_fmp_cached/__init__.py`**
 
-- [ ] **Step 3: Write TTL wrapper unit test**
+Two edits:
+1. Add import: `from openbb_fmp_cached.models.exchange_market_hours import FMPCachedExchangeMarketHoursFetcher`
+2. Add to `dedicated_fetchers` dict (alphabetical, near `EquityIntradayHistorical`): `"ExchangeMarketHours": FMPCachedExchangeMarketHoursFetcher,`
+3. Remove the corresponding entry from the tier-2 `fetcher_mapping` list: delete the line `("ExchangeMarketHours", FMPExchangeMarketHoursFetcher),` — and remove the now-unused `from openbb_fmp.models.exchange_market_hours import FMPExchangeMarketHoursFetcher` import if it becomes orphaned at the top level (the cached wrapper still references it transitively via `create_ttl_wrapper_class`).
 
-`test_ttl_wrapper.py`:
+- [ ] **Step 5: Write TTL wrapper unit test**
+
+Shipped test lives at `openbb_platform/providers/fmp_cached/tests/test_ttl_wrapper.py`. The tests mock `execute_query` / `execute_many` (NOT `cache_pool`) so the suite runs without a live MySQL server:
 
 ```python
-"""Unit tests for create_ttl_wrapper_class."""
+"""Unit tests for create_ttl_wrapper_class (P2.2)."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from openbb_fmp_cached.models.base_cached import create_ttl_wrapper_class
-
 
 class _FakeQuery:
+    """Minimal query stub with a stable JSON serialization."""
     def model_dump_json(self, exclude_none=True):
-        return '{"date":"2026-07-06"}'
+        return '{"date":"2026-07-08"}'
 
 
 class _FakeInner:
+    """Stub inner fetcher with an async aextract_data mock."""
     aextract_data = AsyncMock(return_value=[{"exchange": "NASDAQ", "is_open": True}])
     transform_query = staticmethod(lambda p: _FakeQuery())
     transform_data = staticmethod(lambda q, d, **k: d)
@@ -652,43 +652,87 @@ class _FakeInner:
 
 @pytest.mark.asyncio
 async def test_first_call_misses_and_upserts():
+    from openbb_fmp_cached.models.base_cached import create_ttl_wrapper_class
+
+    _FakeInner.aextract_data.reset_mock()
     cls = create_ttl_wrapper_class(_FakeInner, "ExchangeMarketHours", 86400)
-    with patch("openbb_fmp_cached.models.base_cached.cache_pool") as pool:
-        cur = pool.acquire.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
-        cur.fetchone.return_value = None
+    with patch(
+        "openbb_fmp_cached.utils.database.execute_query", return_value=[]
+    ) as mock_select, patch(
+        "openbb_fmp_cached.utils.database.execute_many"
+    ) as mock_upsert:
+        result = await cls.aextract_data(_FakeQuery())
+    assert result == [{"exchange": "NASDAQ", "is_open": True}]
+    _FakeInner.aextract_data.assert_awaited_once()
+    mock_select.assert_called_once()  # SELECT-then-MISS
+    mock_upsert.assert_called_once()  # UPSERT after fetch
+
+
+@pytest.mark.asyncio
+async def test_second_call_within_ttl_hits_cache():
+    from openbb_fmp_cached.models.base_cached import create_ttl_wrapper_class
+
+    _FakeInner.aextract_data.reset_mock()
+    cls = create_ttl_wrapper_class(_FakeInner, "ExchangeMarketHours", 86400)
+    fake_row = [{"payload": '[{"exchange":"NASDAQ","is_open":true}]'}]
+    with patch(
+        "openbb_fmp_cached.utils.database.execute_query", return_value=fake_row
+    ), patch(
+        "openbb_fmp_cached.utils.database.execute_many"
+    ) as mock_upsert:
+        result = await cls.aextract_data(_FakeQuery())
+    assert result == [{"exchange": "NASDAQ", "is_open": True}]
+    _FakeInner.aextract_data.assert_not_awaited()  # cache HIT
+    mock_upsert.assert_not_called()  # no write on HIT
+
+
+@pytest.mark.asyncio
+async def test_db_failure_falls_through_to_inner_fetch():
+    """DB unavailable -> aextract_data still returns fresh data from inner fetcher."""
+    from openbb_fmp_cached.models.base_cached import create_ttl_wrapper_class
+
+    _FakeInner.aextract_data.reset_mock()
+    cls = create_ttl_wrapper_class(_FakeInner, "ExchangeMarketHours", 86400)
+    with patch(
+        "openbb_fmp_cached.utils.database.execute_query",
+        side_effect=RuntimeError("DB down"),
+    ), patch("openbb_fmp_cached.utils.database.execute_many"):
         result = await cls.aextract_data(_FakeQuery())
     assert result == [{"exchange": "NASDAQ", "is_open": True}]
     _FakeInner.aextract_data.assert_awaited_once()
 
 
-@pytest.mark.asyncio
-async def test_second_call_within_ttl_hits_cache():
-    _FakeInner.aextract_data.reset_mock()
+def test_wrapper_class_name_reflects_source():
+    """__name__ set for debugging clarity — e.g. 'ExchangeMarketHoursTTLCached'."""
+    from openbb_fmp_cached.models.base_cached import create_ttl_wrapper_class
+
     cls = create_ttl_wrapper_class(_FakeInner, "ExchangeMarketHours", 86400)
-    with patch("openbb_fmp_cached.models.base_cached.cache_pool") as pool:
-        cur = pool.acquire.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value
-        cur.fetchone.return_value = {"payload": '[{"exchange":"NASDAQ","is_open":true}]'}
-        result = await cls.aextract_data(_FakeQuery())
-    assert result == [{"exchange": "NASDAQ", "is_open": True}]
-    _FakeInner.aextract_data.assert_not_awaited()
+    assert cls.__name__ == "ExchangeMarketHoursTTLCached"
 ```
 
-Run: `.venv_win\Scripts\python.exe -m pytest openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_ttl_wrapper.py -q`
-Expected: 2 passed.
+Run: `.venv_win\Scripts\python.exe -m pytest openbb_platform/providers/fmp_cached/tests/test_ttl_wrapper.py -v`
+Expected: 4 passed.
 
-- [ ] **Step 4: Commit P2.2**
+- [ ] **Step 6: Commit P2.2**
 
 ```bash
 git add openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/base_cached.py \
+        openbb_platform/providers/fmp_cached/openbb_fmp_cached/utils/cache_schema.py \
         openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/exchange_market_hours.py \
         openbb_platform/providers/fmp_cached/openbb_fmp_cached/__init__.py \
-        openbb_platform/providers/fmp_cached/openbb_fmp_cached/tests/unit/test_ttl_wrapper.py
-git commit -m "feat(fmp_cached): add create_ttl_wrapper_class + migrate ExchangeMarketHours (P2.2)
+        openbb_platform/providers/fmp_cached/tests/test_ttl_wrapper.py
+git commit -m "feat(fmp_cached): create_ttl_wrapper_class + migrate ExchangeMarketHours to 24h TTL (P2.2)
 
-Generic ~30 LoC TTL wrapper factory extends base_cached beyond same-session
-passthrough. ExchangeMarketHours moves to 24h TTL — saves ~1000 daily
-redundant calls per PRD §5.5. Ready for future holidays / market-status
-endpoints to reuse the wrapper.
+Generic TTL wrapper factory extends base_cached beyond same-session
+passthrough. Backed by new ttl_cache MySQL table (cache_name, cache_key,
+payload, cached_at). ExchangeMarketHours moves from tier-2 fetcher_mapping
+into tier-1 dedicated_fetchers with 86400s TTL — saves ~1000 daily
+redundant calls per PRD §5.5.
+
+Wrapper reuses execute_query / execute_many primitives from utils/database
+and inlines the same fmp_cached -> fmp credential translation shape that
+create_fallback_fetcher_class uses. Ready for future holidays / market-
+status endpoints to reuse.
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
@@ -697,13 +741,15 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ## Task P2.3: `IntradaySession` skeleton — quote polling + journal writes only
 
-**Consumes:** tier-1 fetchers from P2.1; `SessionJournal` (Phase 1); `BandwidthMeter` (Phase 1); `RiskManager` (Phase 1) — imported but not yet wired to a `PaperBroker` (that's P2.4).
+**Consumes:** tier-1 fetchers from P2.1; `openbb_core_journal.JournalWriter` (the shared journaling primitive from epic #408 — Phase 1 P1.4 shipped as J4 retrofit importing this instead of a local SessionJournal); typed journal event subclasses in `openbb_fmp_trading.models.journal_events` (`TickEvent`, `SessionStartEvent`, etc.); `BandwidthMeter` (Phase 1); `RiskManager` (Phase 1) — imported but not yet wired to a `PaperBroker` (that's P2.4).
 **Produces:** `IntradaySession` class + `run_tick` pure function; ability to run a 3-tick smoke session that produces 3 `TickEvent` journal entries with no signals, no orders, no fills.
 
 **Files:**
 - Create: `openbb_platform/extensions/fmp_trading/openbb_fmp_trading/core/session.py`
 - Create: `openbb_platform/extensions/fmp_trading/openbb_fmp_trading/core/tick_loop.py`
 - Create: `openbb_platform/extensions/fmp_trading/openbb_fmp_trading/tests/unit/test_intraday_session.py`
+
+> **Journal-event style note (post-P1.4/J4):** The Step 2 code samples below construct events as `JournalEvent(event_type="tick", ...)` — generic base with a string tag. The **preferred pattern**, established by the J4 retrofit, is to use the typed subclasses in `openbb_fmp_trading.models.journal_events`: `TickEvent(...)`, `SignalEvent(...)`, `SessionStartEvent(...)`, `SessionEndEvent(...)`, etc. Each subclass fixes its `event_type` Literal at class level, catching typos at construction time and giving downstream consumers dispatch clarity. Both patterns validate the same wire format via the shared discriminator, so the generic form is functional — just less discoverable. When implementing, prefer typed subclasses; where the sample below shows `JournalEvent(event_type="X", ...)`, mentally substitute `XEvent(...)`.
 
 - [ ] **Step 1: Write the failing session smoke test (RED)**
 
@@ -799,7 +845,7 @@ from openbb_fmp_trading.models.session_state import JournalEvent, TickData
 @dataclass
 class IntradaySession:
     plan: DailyPlan
-    journal: Any            # SessionJournal (Phase 1)
+    journal: Any            # openbb_core_journal.JournalWriter (Phase 1 P1.4 / J4 retrofit)
     risk_manager: Any       # RiskManager (Phase 1)
     broker: Any             # BrokerInterface — PaperBroker in v1
     bandwidth: Any          # BandwidthMeter (Phase 1)
