@@ -4,10 +4,15 @@
 **Spec:** `docs/superpowers/specs/2026-07-06-pine-extraction-to-pynecore-design.md` §6.E0.6
 **Plan task:** `docs/superpowers/plans/2026-07-07-pine-extraction-implementation.md` E0.6
 **Baseline:** 1384 passed + 10 skipped (unchanged after refactor)
-**Total files audited:** 79 unit test files under
-`openbb_platform/extensions/pine/openbb_pine/tests/unit/` (77 pre-existing
+**Total files audited:** 82 unit test files under
+`openbb_platform/extensions/pine/openbb_pine/tests/unit/` (81 pre-existing
 + 1 new `test_telemetry_module_globals.py` produced by the gray-zone
 refactor; the `__init__.py` is not counted as a test).
+
+**Ground truth for all counts below:** the E2 filter-repo list at
+lines 148–171 is authoritative. Every other bucket in this document
+(header total, MOVE/STAY tables, Counts section, Surprises notes) is
+derived from it: `MOVE = |E2 list| = 24`; `STAY = |disk test_*.py| − MOVE = 82 − 24 = 58`.
 
 ## Decision rule (spec §6.E0.6)
 
@@ -59,21 +64,22 @@ core primitives, or stdlib/test fixtures. They belong in
 | `test_security_context_collection.py` | `openbb_pine.compiler.{compile_pine,types}` + `.errors` |
 | `test_security_hook_monkey_patch.py` | `openbb_pine.runtime.security_hook` + `.compiler.types` + `.errors` |
 | `test_strategy_types.py` | `openbb_pine.runtime.strategy_types` only |
-| `test_telemetry_injection.py` | `openbb_pine.compiler.*` + `.errors`; substring-mentions of `openbb_pine.telemetry` inside `TestSinkInjection` are the SAME kind of injected-sink pattern — actual imports of `openbb_pine.telemetry.OpenBBTelemetrySink` remain (see "Special cases" below — this file is a hybrid gray zone whose imports of `OpenBBTelemetrySink` are the concrete implementation being verified) — **RECLASSIFIED TO STAY** |
 | `test_type_checker.py` | `openbb_pine.compiler.{ir,lexer,parser,type_checker}` + `.errors` |
 | `test_type_checker_strategy.py` | `openbb_pine.compiler.{compile_pine,builtin_signatures,types}` + `.errors` (stdlib string in module docstring only) |
 | `test_types.py` | `openbb_pine.compiler.types` + `.errors` |
 | `test_v5_migration.py` | `openbb_pine.compiler.{compile_pine,compile_pine_to_program,ir,v5_migration}` + `.errors` |
 
-**Reclassification note (test_telemetry_injection.py):** on inspection
-the file imports `openbb_pine.telemetry.OpenBBTelemetrySink` at 8+
-call sites to verify the concrete fork-side sink implements the Protocol
-correctly. That is a fork-side surface by the rule → **STAY**.
-Corrected MOVE count: **23**.
+**Note on `test_telemetry_injection.py`:** this file is NOT in the MOVE
+table above — it stays in the fork. It imports
+`openbb_pine.telemetry.OpenBBTelemetrySink` at 10+ call sites (grep:
+`from openbb_pine.telemetry import OpenBBTelemetrySink` at lines 144,
+158, 181, 226, 260, 286, 317, 335, 354, …) to verify the concrete
+fork-side sink implements the Protocol correctly. That is a fork-side
+surface by the rule → STAY. See STAY table below.
 
 ---
 
-## STAY (54 files) — openbb-fork integration tests
+## STAY (58 files) — openbb-fork integration tests
 
 Any test hitting attribution, routers, MCP, CLI, providers, stdlib
 bridges, `_coverage_manifest`, `_load_bundled_widgets`, `about`,
@@ -101,12 +107,13 @@ bridges, `_coverage_manifest`, `_load_bundled_widgets`, `about`,
 | `test_routers_models.py` | `openbb_pine.attribution` + `.routers._models` |
 | `test_routers_run.py` | `openbb_core.app.model.obbject` + `openbb_pine.errors` (drives the router execution path) |
 | `test_stdlib_math_abs.py` … `test_stdlib_math_sum.py` (7 files) | `openbb_pine._coverage_manifest` + `.stdlib.math` |
-| `test_stdlib_ta_*.py` (28 files: adx, atr, barssince, bb, cci, change, crossover, crossunder, cum, ema, highest, linreg, lowest, macd, median, mfi, mom, obv, percentile_linear_interpolation, rma, roc, rsi, sar, sma, stdev, stoch, tr, vwap, wma) | Each imports `openbb_pine.stdlib.ta` (and most import `_coverage_manifest`) — the stdlib bridge stays in the fork per §7 |
+| `test_stdlib_ta_*.py` (29 files: adx, atr, barssince, bb, cci, change, crossover, crossunder, cum, ema, highest, linreg, lowest, macd, median, mfi, mom, obv, percentile_linear_interpolation, rma, roc, rsi, sar, sma, stdev, stoch, tr, vwap, wma) | Each imports `openbb_pine.stdlib.ta` (and most import `_coverage_manifest`) — the stdlib bridge stays in the fork per §7 |
 | `test_telemetry_injection.py` | `openbb_pine.telemetry.OpenBBTelemetrySink` — validates the concrete fork-side Protocol implementer (see MOVE note above) |
 | `test_telemetry_module_globals.py` | **NEW (E0.6 refactor):** owns `openbb_pine.telemetry.{record_unsupported_*,reset_metrics,get_unsupported_*_counts}` module-global tests extracted from `test_error_model.py` |
 | `test_widgets.py` | `openbb_pine._load_bundled_widgets` + `.attribution` + `.compiler` |
 
-**Counted STAY: 54.**
+**Counted STAY: 58** (22 named files above + 7 `test_stdlib_math_*` + 29
+`test_stdlib_ta_*`).
 
 ---
 
@@ -129,14 +136,17 @@ on `openbb_core` directly.
 
 ## Counts (final)
 
+Derived directly from the E2 filter-repo list (§ below) and `ls` of the
+unit test directory. If these disagree, the E2 list wins and the counts
+here get updated — do not adjust ad-hoc.
+
 | Bucket | Count |
 |---|---:|
-| MOVE (pyne_compiler-side, per rule) | **23** |
-| STAY (openbb-fork-side integration) | **54** |
-| Special-case refactor artifacts (new + reclassifications) | **2** (new `test_telemetry_module_globals.py` STAY; `test_error_model.py` MOVE via refactor) |
-| **Total unit test files** | **77** original + **1** new = **78** (excludes `__init__.py`) |
+| MOVE (pyne_compiler-side, per E2 list) | **24** |
+| STAY (openbb-fork-side integration) | **58** |
+| **Total unit test files (excludes `__init__.py`)** | **82** = 81 pre-existing + 1 new `test_telemetry_module_globals.py` |
 
-MOVE + STAY = 23 + 54 = 77 pre-existing files + 1 new STAY file = 78 total.
+MOVE + STAY = 24 + 58 = 82. On disk: `ls .../tests/unit/*.py | wc -l` = 83, minus `__init__.py` = 82. ✅
 
 ---
 
@@ -194,6 +204,9 @@ which is spec-only pynecore-side.
    strict rule reading its imports are pynecore-side. Kept STAY per the
    spec's explicit enumeration (§6.E0.6 lists it in the STAY set) —
    the string-literal assertions couple it to fork-side provider names.
-4. **Nine `test_stdlib_math_*` files** in the tree (abs/max/min/pow/round/
-   sqrt/sum = 7), matching the spec's "7 files" note exactly.
-5. **28 `test_stdlib_ta_*` files** matches the spec's enumeration exactly.
+4. **Seven `test_stdlib_math_*` files** in the tree (abs/max/min/pow/round/
+   sqrt/sum), matching the spec's "7 files" note exactly.
+5. **29 `test_stdlib_ta_*` files** on disk (adx, atr, barssince, bb, cci,
+   change, crossover, crossunder, cum, ema, highest, linreg, lowest,
+   macd, median, mfi, mom, obv, percentile_linear_interpolation, rma,
+   roc, rsi, sar, sma, stdev, stoch, tr, vwap, wma).

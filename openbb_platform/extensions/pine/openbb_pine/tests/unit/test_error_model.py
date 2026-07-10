@@ -604,10 +604,13 @@ class TestErrorCodeEnforcement:
 class _CountingSink:
     """In-test :class:`TelemetrySink` Protocol implementation.
 
+    Deliberately **structural-typing** against the future
+    ``pyne_compiler.telemetry.TelemetrySink`` Protocol (see E0.6 test-split
+    manifest at ``docs/superpowers/plans/e06-test-split-manifest.md``):
+    once this file MOVES to ``pyne_compiler`` at E2 it must not import
+    the concrete fork-side ``openbb_pine.telemetry.OpenBBTelemetrySink``.
     Mirrors the two ``record_*`` methods the compiler pipeline calls
-    plus ``get_*`` snapshot helpers used by these assertions. Avoids
-    importing ``openbb_pine.telemetry.OpenBBTelemetrySink`` so this file
-    stays pynecore-side.
+    plus ``get_*`` snapshot helpers used by these assertions.
     """
 
     def __init__(self) -> None:
