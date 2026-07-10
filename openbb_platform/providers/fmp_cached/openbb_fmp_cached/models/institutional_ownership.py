@@ -28,7 +28,11 @@ from openbb_fmp.models.institutional_ownership import (
 )
 from pydantic import ValidationError
 
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -266,52 +270,76 @@ def _get_cached_institutional(symbol: str) -> list[dict]:
 
 
 def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
-    """Persist institutional ownership records in MySQL cache."""
+    """Persist institutional ownership records in MySQL cache (bd-n3sf/ihdn).
+
+    Routes per-symbol DELETE+INSERT through ``replace_rows()`` from bd-kh08
+    (PR #414) so each symbol's cache write is atomic — a partial-write
+    failure between the DELETE and the INSERT no longer wipes prior cached
+    quarters for the symbol.
+
+    D1: one transaction per symbol (independent) — a per-symbol failure
+    logs a warning naming that symbol and the loop continues with the
+    remaining symbols. This matches the pre-fix "best effort per-symbol"
+    surface where each symbol's execute_query DELETE either committed
+    on its own (autocommit=True pre-fix) or failed independently.
+    D6: empty records = no-op (no DELETE fires).
+    D4: per-symbol try/except swallows so a single-symbol write failure
+    MUST NOT block cache writes for the other symbols in the batch, and
+    MUST NOT propagate to the read path in ``aextract_data``.
+
+    Post-review-fix (PR #418 silent-failure-hunter P1-1): pre-fix version
+    had the try/except OUTSIDE the loop, meaning the first mid-batch
+    failure aborted every remaining symbol with only ONE warning that
+    didn't identify which symbol died. Now each symbol gets its own
+    try/except with the symbol name in the warning.
+    """
     if not records:
         return
 
-    cleanup_query = "DELETE FROM institutional_ownership WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO institutional_ownership (
-        symbol,
-        date,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    # Group records by (uppercased) symbol so each symbol is one txn (D1).
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in records:
+        sym = (item.get("symbol") or "").strip().upper()
+        if not sym:
+            continue
+        # Attach provenance in-place (preserves pre-fix mutation semantics).
+        item["data_source"] = data_source
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date", date.today().isoformat()),
+                "data_json": json.dumps(item, default=str),
+            }
+        )
 
-    try:
-        # Remove old records for the symbols being stored
-        symbols = {
-            (r.get("symbol") or "").strip().upper() for r in records if r.get("symbol")
-        }
-        for symbol in symbols:
-            execute_query(cleanup_query, (symbol,))
-
-        # Insert new records
-        params_list = []
-        for item in records:
-            # Attach provenance
-            item["data_source"] = data_source
-            params_list.append(
-                (
-                    (item.get("symbol") or "").upper(),
-                    item.get("date", date.today().isoformat()),
-                    json.dumps(item, default=str),
-                )
+    total_inserted = 0
+    succeeded: list[str] = []
+    for sym, rows in by_symbol.items():
+        try:
+            replace_rows(
+                "institutional_ownership",
+                "symbol",
+                sym,
+                rows,
+                columns=["symbol", "date", "data_json"],
+            )
+            total_inserted += len(rows)
+            succeeded.append(sym)
+        except Exception as exc:
+            # Per-symbol swallow (D1 + D4) — log the specific symbol so
+            # operators can trace which write failed and which are un-
+            # attempted-vs-attempted. Loop continues with next symbol.
+            logger.warning(
+                "Failed to cache institutional ownership for %s: %s", sym, exc
             )
 
-        if params_list:
-            execute_many(insert_query, params_list)
-            logger.info(
-                "Cached %d institutional ownership records (source=%s) for %s",
-                len(params_list),
-                data_source,
-                ", ".join(sorted({p[0] for p in params_list})),
-            )
-    except Exception as exc:
-        logger.warning("Failed to cache institutional ownership data: %s", exc)
+    if total_inserted:
+        logger.info(
+            "Cached %d institutional ownership records (source=%s) for %s",
+            total_inserted,
+            data_source,
+            ", ".join(sorted(succeeded)),
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -28,7 +28,11 @@ from openbb_fmp.models.etf_holdings import (
     FMPEtfHoldingsQueryParams,
 )
 
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,24 +86,31 @@ def _store_etf_holdings(
         return
     etf = etf_symbol.upper()
 
-    cleanup_sql = "DELETE FROM etf_holdings WHERE symbol = %s"
-    insert_sql = """
-    INSERT INTO etf_holdings
-        (symbol, data_json, is_valid, cached_at)
-    VALUES (%s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
     try:
-        execute_query(cleanup_sql, (etf,))
-        params_list = []
+        # bd-n3sf: route DELETE+INSERT through replace_rows() for atomicity.
+        # Preserves the site-level try/except (D4) — cache write failures
+        # log a warning but do NOT break the read path.
+        rows_out: list[dict[str, Any]] = []
         for r in rows:
             payload = dict(r)
             payload["data_source"] = data_source
-            params_list.append((etf, json.dumps(payload, default=str)))
-        if params_list:
-            execute_many(insert_sql, params_list)
+            rows_out.append(
+                {
+                    "symbol": etf,
+                    "data_json": json.dumps(payload, default=str),
+                }
+            )
+        if rows_out:
+            replace_rows(
+                "etf_holdings",
+                "symbol",
+                etf,
+                rows_out,
+                columns=["symbol", "data_json"],
+            )
             logger.info(
                 "Cached %d etf_holdings rows for %s (source=%s)",
-                len(params_list),
+                len(rows_out),
                 etf,
                 data_source,
             )

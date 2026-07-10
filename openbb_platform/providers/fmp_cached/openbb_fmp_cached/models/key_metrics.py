@@ -12,7 +12,11 @@ from openbb_fmp.models.key_metrics import (
 )
 
 from openbb_fmp_cached.utils.cache_schema import create_key_metrics_table
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,38 +169,38 @@ def _get_cached_key_metrics(
 
 
 def _store_key_metrics(metrics: list[dict[str, Any]]) -> None:
-    """Persist key metrics records in cache."""
-    cleanup_query = "DELETE FROM key_metrics WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO key_metrics (
-        symbol,
-        date,
-        period,
-        currency,
-        market_cap,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    """Persist key metrics records atomically per symbol (bd-n3sf)."""
+    if not metrics:
+        return
 
-    symbols = {
-        (item.get("symbol") or "").strip() for item in metrics if item.get("symbol")
-    }
-    for symbol in symbols:
-        execute_query(cleanup_query, (symbol,))
-
-    params_list = [
-        (
-            item.get("symbol"),
-            item.get("date"),
-            item.get("fiscal_period") or item.get("period"),
-            item.get("reportedCurrency"),
-            item.get("marketCap"),
-            json.dumps(item),
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in metrics:
+        sym = (item.get("symbol") or "").strip()
+        if not sym:
+            continue
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date"),
+                "period": item.get("fiscal_period") or item.get("period"),
+                "currency": item.get("reportedCurrency"),
+                "market_cap": item.get("marketCap"),
+                "data_json": json.dumps(item),
+            }
         )
-        for item in metrics
-    ]
 
-    if params_list:
-        execute_many(insert_query, params_list)
+    for sym, rows in by_symbol.items():
+        replace_rows(
+            "key_metrics",
+            "symbol",
+            sym,
+            rows,
+            columns=[
+                "symbol",
+                "date",
+                "period",
+                "currency",
+                "market_cap",
+                "data_json",
+            ],
+        )
