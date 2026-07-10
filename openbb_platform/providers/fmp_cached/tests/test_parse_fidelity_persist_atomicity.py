@@ -266,18 +266,21 @@ class TestPersistToMysqlTransaction:
         assert fake_conn.closes == 1, "conn.close() MUST be called in finally."
 
     def test_insert_failure_rolls_back_and_closes(self):
-        """Mid-loop INSERT failure MUST trigger rollback + close, NOT commit."""
+        """Mid-loop INSERT failure MUST trigger rollback + close, NOT commit.
+
+        Post-review-fix (PR #422 code-reviewer P1): pre-review the failure
+        predicate was ``len(executed) >= 5`` — a magic-number tied to
+        execution order that would silently pass even if the trigger
+        landed on a DELETE or a schema DDL. Post-fix we match on the
+        SQL fragment (``INSERT INTO Portfolio_Positions``) so a future
+        refactor that reorders the setup DDLs can't mask this test.
+        """
         import parse_fidelity_positions as tool
 
-        # Fail on the 5th SQL execution (past DDL, past DELETE, into the
-        # INSERT loop).
-        def fail_at_5th(sql, params):
-            return fail_at_5th.call_count >= 5  # noqa: PLR2004
-
-        fail_at_5th.call_count = 0
-
+        # Match on INSERT sql specifically — DELETE-triggered failure is
+        # exercised by test_delete_failure_rolls_back below.
         fake_conn = _FakeConn(
-            failure_predicate=lambda s, p: len(fake_conn._cursor.executed) >= 5
+            failure_predicate=lambda sql, _p: "INSERT INTO Portfolio_Positions" in sql
         )
         with patch.object(tool, "get_connection", return_value=fake_conn):
             with pytest.raises(RuntimeError, match="Injected failure"):
@@ -337,10 +340,11 @@ class TestPersistBasketPositionsTransaction:
         assert fake_conn.closes == 1
 
     def test_insert_failure_rolls_back_and_closes(self):
+        """Match on INSERT SQL content, not magic-number offset (P1 lesson)."""
         import parse_fidelity_positions as tool
 
         fake_conn = _FakeConn(
-            failure_predicate=lambda s, p: len(fake_conn._cursor.executed) >= 6
+            failure_predicate=lambda sql, _p: "INSERT INTO Portfolio_Positions" in sql
         )
         with patch.object(tool, "get_connection", return_value=fake_conn):
             with pytest.raises(RuntimeError, match="Injected failure"):
@@ -363,3 +367,100 @@ class TestPersistBasketPositionsTransaction:
 
         assert mock_get.call_count == 0, "Empty DF must not open a connection."
         assert result["inserted"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Site 4: persist_basket_intended_weight_csv transaction contract
+# ---------------------------------------------------------------------------
+
+
+def _sample_intended_weight_df() -> pd.DataFrame:
+    """Minimal DF matching persist_basket_intended_weight_csv's required cols (ticker, target_weight_pct)."""
+    return pd.DataFrame(
+        [
+            {
+                "ticker": "MSFT",
+                "description": "Microsoft Corp",
+                "target_weight_pct": 25.0,
+                "proposal": "Buy",
+                "pillar": "Core",
+                "asset_type": "Equity",
+                "sector": "Tech",
+                "style": "Growth",
+                "region": "US",
+                "strategy_bucket": "Compounder",
+                "role": "Core",
+            },
+            {
+                "ticker": "AAPL",
+                "description": "Apple Inc",
+                "target_weight_pct": 20.0,
+                "proposal": "Hold",
+                "pillar": "Core",
+                "asset_type": "Equity",
+                "sector": "Tech",
+                "style": "Value",
+                "region": "US",
+                "strategy_bucket": "Compounder",
+                "role": "Core",
+            },
+        ]
+    )
+
+
+class TestPersistBasketIntendedWeightCsvTransaction:
+    """persist_basket_intended_weight_csv (line 845) — 3rd caller found by PR #422 P0.
+
+    Pre-review-fix this caller had no ``conn.commit()`` and was the exact
+    silent-data-loss regression the autocommit-flip introduced: it opens
+    a fresh autocommit=False connection, runs CREATE TABLE + INSERT loop,
+    and drops the connection without committing. Returned dict said
+    "inserted=N" but DB had 0 rows.
+    """
+
+    def test_happy_path_commits_and_closes(self):
+        """Success path MUST call commit() exactly once."""
+        import parse_fidelity_positions as tool
+
+        fake_conn = _FakeConn()
+        with patch.object(tool, "get_connection", return_value=fake_conn), patch(
+            "pandas.read_csv", return_value=_sample_intended_weight_df()
+        ):
+            tool.persist_basket_intended_weight_csv(
+                csv_path="fake.csv",
+                basket_name="Fortress",
+                database="openbb_test",
+                owner="test",
+            )
+
+        assert fake_conn.commits == 1, (
+            f"P0 from PR #422 code-reviewer: this site was missed pre-fix. "
+            f"Without conn.commit() the INSERT loop silently rolls back on "
+            f"close and DB has 0 rows despite 'inserted=N' return. "
+            f"Got {fake_conn.commits} commits."
+        )
+        assert fake_conn.rollbacks == 0
+        assert fake_conn.closes == 1
+
+    def test_insert_failure_rolls_back_and_closes(self):
+        """INSERT failure MUST rollback + propagate."""
+        import parse_fidelity_positions as tool
+
+        fake_conn = _FakeConn(
+            failure_predicate=lambda sql, _p: "INSERT INTO basket_intended_weight"
+            in sql
+        )
+        with patch.object(tool, "get_connection", return_value=fake_conn), patch(
+            "pandas.read_csv", return_value=_sample_intended_weight_df()
+        ):
+            with pytest.raises(RuntimeError, match="Injected failure"):
+                tool.persist_basket_intended_weight_csv(
+                    csv_path="fake.csv",
+                    basket_name="Fortress",
+                    database="openbb_test",
+                    owner="test",
+                )
+
+        assert fake_conn.rollbacks == 1
+        assert fake_conn.commits == 0
+        assert fake_conn.closes == 1

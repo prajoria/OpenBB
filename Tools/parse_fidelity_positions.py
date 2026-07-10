@@ -877,6 +877,14 @@ def persist_basket_intended_weight_csv(
             basket_total_rows = int(cur.fetchone()["cnt"])
 
         db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        # bd-2650/gykp (PR #422 code-reviewer P0): commit the CSV import
+        # atomically. Post-autocommit-flip default, without this commit
+        # the INSERT loop above silently rolls back on connection close
+        # and the DB has 0 rows despite the returned dict claiming
+        # ``inserted=N`` — exactly the silent-data-loss regression the
+        # autocommit-flip risked. except: rollback: raise mirrors the
+        # persist_to_mysql / persist_basket_positions_to_mysql pattern.
+        conn.commit()
         return {
             "database": db_name,
             "basket_name": basket_label,
@@ -887,6 +895,9 @@ def persist_basket_intended_weight_csv(
             "target_weight_sum_pct": float(df["target_weight_pct"].sum()),
             "basket_total_rows": basket_total_rows,
         }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
