@@ -340,15 +340,25 @@ def _get_db_config() -> dict[str, Any]:
     password = os.getenv("DB_PASSWORD")
     try:
         if os.path.exists(settings_path):
-            with open(settings_path) as f:
+            with open(settings_path, encoding="utf-8") as f:
                 settings = json.load(f)
                 creds = settings.get("credentials", {})
                 host = creds.get("mysql_host", host)
                 port = int(creds.get("mysql_port", port))
                 user = creds.get("mysql_user", user)
                 password = creds.get("mysql_password", password)
-    except Exception:
-        pass
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+        # bd-gv1e: narrow the swallow to file/parse errors and log a
+        # WARNING so operators see credential-file corruption / tampering
+        # instead of a silent fallback to env vars. Any OTHER exception
+        # (TypeError, KeyError, etc.) is a bug and MUST propagate — bare
+        # ``except:`` pre-fix would silently return env-fallback config
+        # and hide the real bug.
+        logger.warning(
+            "Failed to read %s: %s. Falling back to env vars.",
+            settings_path,
+            exc,
+        )
     missing = [n for n, v in (("user", user), ("password", password)) if not v]
     if missing:
         raise ValueError(
@@ -370,12 +380,17 @@ def _get_api_key() -> str:
     settings_path = os.path.expanduser("~/.openbb_platform/user_settings.json")
     try:
         if os.path.exists(settings_path):
-            with open(settings_path) as f:
+            with open(settings_path, encoding="utf-8") as f:
                 settings = json.load(f)
                 creds = settings.get("credentials", {})
                 return creds.get("fmp_api_key") or creds.get("fmp_cached_api_key", "")
-    except Exception:
-        pass
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+        # bd-gv1e: narrow the swallow — see _get_db_config for rationale.
+        logger.warning(
+            "Failed to read %s: %s. Falling back to empty API key.",
+            settings_path,
+            exc,
+        )
     return ""
 
 
