@@ -114,9 +114,10 @@ _UNIT_TESTS_DIR = (
 
 # Ground-truth counts from the manifest header.
 _EXPECTED_MOVE = 24
-_EXPECTED_STAY = 59
-_EXPECTED_TOTAL = 83  # 83 test_*.py files (excludes __init__.py); +1 vs E0.6
-# baseline for test_fmp_provider_conformance.py (E3.2 bd-3ch)
+_EXPECTED_STAY = 60
+_EXPECTED_TOTAL = 84  # 84 test_*.py files (excludes __init__.py); +2 vs E0.6
+# baseline for test_fmp_provider_conformance.py (E3.2 bd-3ch) and
+# test_byo_provider_conformance.py (E3.3 bd-tzm)
 
 # Fork-side surfaces: any test importing these STAYS. Mirrors the
 # classification grep documented in the manifest, but restricted to

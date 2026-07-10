@@ -9,19 +9,34 @@ Schema validation collects **every** defect into a single
 ``PineDataValidationError`` -- never first-error-wins. Per D2 section 3.1
 this makes BYO mode usable from a CLI that hands the user a one-shot
 fix list (PRD section 4.10).
+
+E3.3 (bd-tzm): inherits :class:`pynecore.providers.Provider` (mode-1 per
+Pine Extraction Design §5.2). The class is scoped at construction to a
+single ``(symbol, interval)``; call-time mismatches in :meth:`stream`
+raise :class:`ValueError`, and the pynecore behavioral conformance
+suite (E1.4, bd-cko) runs against it via
+``test_byo_provider_conformance.py``. Legacy attributes / methods
+(``iter_ohlcv``, ``bars_consumed``, ``provider_used``, ``df``) are
+preserved for the existing BYO call path — the base-class contract is
+additive.
+
+Clean-room: I have not viewed TradingView or PyneComp source code.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any, Callable, Iterator
 
 import pandas as pd
 
 from openbb_pine.errors import PineDataValidationError
+from openbb_pine.runtime import pynecore_bridge  # noqa: F401 -- sys.path install
+from pynecore.providers.provider import Provider
+from pynecore.types.ohlcv import OHLCV
 
 if TYPE_CHECKING:  # pragma: no cover -- typing-only imports
-    from pynecore.types.ohlcv import OHLCV
+    pass
 
 
 REQUIRED_COLUMNS: frozenset[str] = frozenset(
@@ -47,10 +62,8 @@ def _is_intraday(interval: str | None) -> bool:
 
 
 def _make_ohlcv(timestamp: int, open_: float, high: float, low: float,
-                close: float, volume: float) -> "OHLCV":
-    """Construct the PyneCore NamedTuple lazily (so sys.path bridge runs first)."""
-    from pynecore.types.ohlcv import OHLCV  # noqa: PLC0415
-
+                close: float, volume: float) -> OHLCV:
+    """Construct the PyneCore NamedTuple."""
     return OHLCV(
         timestamp=timestamp,
         open=open_,
@@ -78,11 +91,22 @@ def _to_utc_seconds(ts: Any) -> int:
     raise TypeError(f"Cannot coerce {type(ts).__name__} to UTC seconds")
 
 
-class BYODataProvider:
+class BYODataProvider(Provider):
     """Wrap a caller DataFrame as the primary OHLCV stream.
 
     See module docstring for the validation contract. ``interval`` is used
-    only to decide whether a tz-naive index is acceptable.
+    both to decide whether a tz-naive index is acceptable AND as the
+    :class:`~pynecore.providers.provider.Provider` ``timeframe`` for
+    mode-1 call-time verification (spec §5.2).
+
+    Deliberately does NOT invoke ``super().__init__`` — the base
+    constructor requires an ``ohlv_dir`` / ``config_dir`` and eagerly
+    opens ``providers.toml``. BYO is a memory-only provider driven by a
+    caller-supplied DataFrame; there is no on-disk config to load and no
+    ``.ohlcv`` file to round-trip through. We set the base-class fields
+    the API surface reads (``symbol``, ``timeframe``, ``config``)
+    manually. Pattern mirrors :class:`pynecore.providers.csv.CSVProvider`
+    which faces the same "file IS the data" problem.
     """
 
     def __init__(
@@ -100,11 +124,20 @@ class BYODataProvider:
                 context=f"symbol={symbol}",
             )
         self.df: pd.DataFrame = df
+        # Legacy BYO surface preserved for the existing call path
+        # (executor_shell wraps and reads these attrs).
         self.symbol: str = symbol
         self.interval: str | None = interval
         self.asset_class: str = asset_class
         self.provider_used: str = "byo"
         self.bars_consumed: int = 0
+        # Provider-base surface: mode-1 uses ``timeframe`` as the
+        # construction-scoped identity check inside ``stream``. Reuse
+        # ``interval`` so a legacy caller that passed ``interval="5m"``
+        # gets the mode-1 guard for free.
+        self.timeframe: str | None = interval
+        # No providers.toml — BYO has no exchange config knobs.
+        self.config = {}
 
     # --- Validation -----------------------------------------------------------
 
@@ -159,14 +192,55 @@ class BYODataProvider:
 
         return defects
 
+    # --- Provider ABC surface (no-op / identity for a memory-only source) ----
+
+    @classmethod
+    def to_tradingview_timeframe(cls, timeframe: str) -> str:
+        return timeframe
+
+    @classmethod
+    def to_exchange_timeframe(cls, timeframe: str) -> str:
+        return timeframe
+
+    def get_list_of_symbols(self, *args, **kwargs) -> list[str]:
+        assert self.symbol is not None
+        return [self.symbol]
+
+    def update_symbol_info(self):  # pragma: no cover -- BYO has no exchange metadata
+        raise NotImplementedError(
+            "BYODataProvider does not model exchange metadata; supply the "
+            "OHLCV bars directly via the DataFrame constructor argument."
+        )
+
+    @classmethod
+    def get_opening_hours_and_sessions(cls):
+        return [], [], []
+
+    def load_config(self) -> None:  # pragma: no cover -- overridden to no-op
+        self.config = {}
+
+    def download_ohlcv(  # type: ignore[override]
+        self,
+        time_from: datetime | None = None,
+        time_to: datetime | None = None,
+        on_progress: Callable[[datetime], None] | None = None,
+        limit: int | None = None,
+    ) -> None:
+        # No-op: the DataFrame IS the data. stream()/fetch() below read
+        # directly from ``self.df`` — nothing to download.
+        return
+
     # --- PyneCore-facing surface ---------------------------------------------
 
-    def iter_ohlcv(self) -> Iterator["OHLCV"]:
+    def iter_ohlcv(self) -> Iterator[OHLCV]:
         """Yield ``OHLCV`` NamedTuples in time order.
 
         Bumps ``self.bars_consumed`` per yield. Volume is coerced from
         ``None`` / ``NaN`` to ``0.0`` defensively, though validation already
         rejects NaN in required columns.
+
+        Retained for the existing BYO call path (executor_shell) — the
+        base-class :meth:`stream` is what pyne_compiler-consumers use.
         """
         for ts, row in self.df.iterrows():
             self.bars_consumed += 1
@@ -183,6 +257,100 @@ class BYODataProvider:
                 close=float(row["close"]),
                 volume=volume,
             )
+
+    def stream(  # type: ignore[override]
+        self,
+        symbol: str,
+        timeframe: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        include_gaps: bool = False,  # accepted for API parity; BYO has no gap sentinels
+    ) -> Iterator[OHLCV]:
+        """Yield OHLCV bars from the wrapped DataFrame, filtered to ``[start, end]``.
+
+        Mode-1 (spec §5.2): instance is construction-scoped to a single
+        ``(symbol, interval)``. Call-time mismatches raise ``ValueError``.
+        Replicates the base-class guards (naive datetime → ``TypeError``,
+        reversed range → ``[]``) so the pynecore conformance suite sees
+        identical behavior across providers.
+
+        ``include_gaps`` is accepted for API parity but has no effect —
+        the DataFrame carries no gap-fill sentinel.
+        """
+        # Mode-1 symbol/timeframe mismatch → typed ValueError (spec §5.4 check #5).
+        if self.symbol is not None and symbol != self.symbol:
+            raise ValueError(
+                f"call-time symbol {symbol!r} does not match construction-time "
+                f"{self.symbol!r}; BYODataProvider is mode-1 (single-symbol per "
+                "instance, spec §5.2)."
+            )
+        if self.timeframe is not None and timeframe != self.timeframe:
+            raise ValueError(
+                f"call-time timeframe {timeframe!r} does not match construction-"
+                f"time {self.timeframe!r}; BYODataProvider is mode-1 (single-"
+                "timeframe per instance, spec §5.2)."
+            )
+
+        # Naive datetimes are ambiguous cross-machine (spec §5).
+        if start is not None and start.tzinfo is None:
+            raise TypeError(
+                "start must be a timezone-aware datetime (spec §5); "
+                "got naive datetime which is ambiguous across timezones."
+            )
+        if end is not None and end.tzinfo is None:
+            raise TypeError(
+                "end must be a timezone-aware datetime (spec §5); "
+                "got naive datetime which is ambiguous across timezones."
+            )
+
+        # Reversed range → empty (spec §5.4 check #4). Early-return inside
+        # a generator terminates it immediately.
+        if start is not None and end is not None and start > end:
+            return
+
+        start_ts = int(start.timestamp()) if start is not None else None
+        end_ts = int(end.timestamp()) if end is not None else None
+
+        # Stream from a fresh iteration each call (statelessness — spec
+        # §5.4 check #7). We deliberately do NOT bump ``bars_consumed``
+        # here — that counter tracks the legacy iter_ohlcv path only.
+        for ts, row in self.df.iterrows():
+            bar_ts = _to_utc_seconds(ts)
+            if start_ts is not None and bar_ts < start_ts:
+                continue
+            if end_ts is not None and bar_ts > end_ts:
+                # The validated DataFrame is monotonically increasing
+                # (checked in ``_validate``), so a strict break here is
+                # safe — no in-range rows can follow.
+                break
+            volume = row["volume"]
+            try:
+                volume = float(volume) if volume is not None and not pd.isna(volume) else 0.0
+            except (TypeError, ValueError):
+                volume = 0.0
+            yield _make_ohlcv(
+                timestamp=bar_ts,
+                open_=float(row["open"]),
+                high=float(row["high"]),
+                low=float(row["low"]),
+                close=float(row["close"]),
+                volume=volume,
+            )
+
+    def fetch(  # type: ignore[override]
+        self,
+        symbol: str,
+        timeframe: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        include_gaps: bool = False,
+    ) -> list[OHLCV]:
+        """Materialize :meth:`stream` as a list. Behavior identical."""
+        return list(self.stream(
+            symbol, timeframe, start=start, end=end, include_gaps=include_gaps,
+        ))
 
 
 __all__ = [

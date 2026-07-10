@@ -4,16 +4,17 @@
 **Spec:** `docs/superpowers/specs/2026-07-06-pine-extraction-to-pynecore-design.md` §6.E0.6
 **Plan task:** `docs/superpowers/plans/2026-07-07-pine-extraction-implementation.md` E0.6
 **Baseline:** 1384 passed + 10 skipped (unchanged after refactor)
-**Total files audited:** 83 unit test files under
+**Total files audited:** 84 unit test files under
 `openbb_platform/extensions/pine/openbb_pine/tests/unit/` (81 pre-existing
 + 1 new `test_telemetry_module_globals.py` produced by the gray-zone
 refactor + 1 new `test_fmp_provider_conformance.py` added by E3.2
-(bd-3ch); the `__init__.py` is not counted as a test).
+(bd-3ch) + 1 new `test_byo_provider_conformance.py` added by E3.3
+(bd-tzm); the `__init__.py` is not counted as a test).
 
 **Ground truth for all counts below:** the E2 filter-repo list at
 lines 148–171 is authoritative. Every other bucket in this document
 (header total, MOVE/STAY tables, Counts section, Surprises notes) is
-derived from it: `MOVE = |E2 list| = 24`; `STAY = |disk test_*.py| − MOVE = 82 − 24 = 58`.
+derived from it: `MOVE = |E2 list| = 24`; `STAY = |disk test_*.py| − MOVE = 84 − 24 = 60`.
 
 ## Decision rule (spec §6.E0.6)
 
@@ -91,6 +92,7 @@ bridges, `_coverage_manifest`, `_load_bundled_widgets`, `about`,
 | `test_about.py` | Tests `openbb_pine.about` (fork-side entry surface) |
 | `test_attribution_surfaces.py` | `openbb_pine.attribution` (POWERED_BY_*) |
 | `test_byo_provider.py` | `openbb_pine.runtime.byo_provider` |
+| `test_byo_provider_conformance.py` | `openbb_pine.runtime.byo_provider` + `pynecore.providers.provider.Provider` (E3.3 conformance) |
 | `test_cli_main.py` | `openbb_pine.cli.main` + `.diagnostics` + `.attribution` |
 | `test_diagnostics.py` | `openbb_pine.diagnostics` (fork-side, drives `about`+CLI) |
 | `test_executor_shell.py` | `openbb_pine.attribution` + `.runtime.executor_shell` — the shell + FMP wiring layer that stays |
@@ -114,7 +116,7 @@ bridges, `_coverage_manifest`, `_load_bundled_widgets`, `about`,
 | `test_telemetry_module_globals.py` | **NEW (E0.6 refactor):** owns `openbb_pine.telemetry.{record_unsupported_*,reset_metrics,get_unsupported_*_counts}` module-global tests extracted from `test_error_model.py` |
 | `test_widgets.py` | `openbb_pine._load_bundled_widgets` + `.attribution` + `.compiler` |
 
-**Counted STAY: 58** (22 named files above + 7 `test_stdlib_math_*` + 29
+**Counted STAY: 60** (24 named files above + 7 `test_stdlib_math_*` + 29
 `test_stdlib_ta_*`).
 
 ---
@@ -145,10 +147,10 @@ here get updated — do not adjust ad-hoc.
 | Bucket | Count |
 |---|---:|
 | MOVE (pyne_compiler-side, per E2 list) | **24** |
-| STAY (openbb-fork-side integration) | **58** |
-| **Total unit test files (excludes `__init__.py`)** | **82** = 81 pre-existing + 1 new `test_telemetry_module_globals.py` |
+| STAY (openbb-fork-side integration) | **60** |
+| **Total unit test files (excludes `__init__.py`)** | **84** = 81 pre-existing + 1 new `test_telemetry_module_globals.py` + 1 new `test_fmp_provider_conformance.py` (E3.2 bd-3ch) + 1 new `test_byo_provider_conformance.py` (E3.3 bd-tzm) |
 
-MOVE + STAY = 24 + 58 = 82. On disk: `ls .../tests/unit/*.py | wc -l` = 83, minus `__init__.py` = 82. ✅
+MOVE + STAY = 24 + 60 = 84. On disk: `ls .../tests/unit/*.py | wc -l` = 85, minus `__init__.py` = 84. ✅
 
 ---
 
