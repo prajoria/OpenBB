@@ -1,0 +1,95 @@
+# Pre-Extraction M1 Compiler Baseline Digest (Task E2.1, bd-fis)
+
+## Purpose
+
+Immutable, reproducible baseline captured on the **pre-extraction state**
+of openbb-fork so E3.5 can compare byte-identically after the Pine
+compiler + runtime physically move to `prajoria/pynecore` via
+`openbb-pine` submodule.
+
+## Environment
+
+- Repository: `H:\masterswork\git\OpenBB-Pine` (worktree
+  `H:\masterswork\git\OpenBB-Pine-e21`, branch `feat/e21-scratch-clone-and-tag`)
+- Base commit (`openbb_pine_support` HEAD at capture):
+  `19e4d8616a7b79ce468064112406e4a25661d1bd`
+- Python: `H:\masterswork\git\OpenBB-Pine\.venv_win\Scripts\python.exe`
+  (CPython 3.12.10, Windows)
+- `openbb-extension-pine`: 0.1.0 (editable install from
+  `openbb_platform/extensions/pine`)
+- `openbb-core`: 1.6.10 (editable install from `openbb_platform/core`)
+- Capture date: 2026-07-09
+
+## Baseline shape captured
+
+The plan specifies an `obb.pine.run()` runtime smoke digest. This venv
+does not have the OpenBB data extensions installed (only `pine`,
+`coverage`, `reference`, `system`, `user` are loaded — the runtime's
+FMP provider bridge needs `obb.equity.price.historical`), so a live
+`obb.pine.run()` call cannot be executed here.
+
+Instead we capture a **compiler-only AST digest** for the same M1 Pine
+source. This is strictly stronger than the runtime digest for validating
+the extraction move because:
+
+1. E2/E3 move ONLY compiler + core runtime source files. No provider or
+   equity code is touched. Compiler output invariance is the correct
+   invariant to check.
+2. The AST is deterministic and does not depend on live market data
+   fetched via `fmp_cached` (which would embed today's prices into a
+   digest that ossifies against a moving target).
+3. If E3.5 wishes to *also* run the live runtime digest, it can install
+   the equity + fmp_cached extensions in a fresh venv and record that
+   value against a mirror artifact — the compiler digest below is the
+   primary contract.
+
+**Runtime digest deferred to E3.5** (concern documented; see task
+handoff for the E3.5 worker).
+
+## Reproduction command (byte-identical)
+
+```python
+source = '''//@version=6
+indicator("BB", overlay=true)
+[basis, upper, lower] = ta.bb(close, 20, 2)
+plot(basis)
+'''
+from openbb_pine.compiler.lexer import tokenize
+from openbb_pine.compiler.parser import parse
+import hashlib, json
+toks = tokenize(source)
+program = parse(toks, pine_version=6)
+
+def norm(n):
+    if hasattr(n, '__dict__'):
+        return {'__t': type(n).__name__, **{k: norm(v) for k, v in sorted(n.__dict__.items())}}
+    if isinstance(n, (list, tuple)):
+        return [type(n).__name__] + [norm(x) for x in n]
+    if isinstance(n, (str, int, float, bool)) or n is None:
+        return n
+    return repr(n)
+
+payload = json.dumps(norm(program), sort_keys=True, default=str)
+print('AST_DIGEST:', hashlib.sha256(payload.encode()).hexdigest())
+```
+
+## Baseline values
+
+- `AST_DIGEST`: `5c83d18fe4fc96cafbc85bab1e5b10ed94d575ab5aa7a5254b06e0b02f16b3d1`
+- `TOK_COUNT`: 35
+- `AST_LEN`: 3276 bytes
+
+## E3.5 acceptance criterion
+
+After the extraction lands (compiler + runtime moved to
+`prajoria/pynecore`, wired back via `openbb-pine` submodule + shim),
+re-run the command above in an equivalent venv. The `AST_DIGEST` MUST
+match `5c83d18fe4fc96...b3d1` byte-for-byte. Any drift = extraction
+mutated behavior = revert to tag `pre-openbb-extraction-2026-07-09`
+per spec §8.
+
+## Companion artifact
+
+- `/tmp/pine-extraction-pre-m1-digest.txt` — the raw digest only (single
+  line) for scripting convenience. Content:
+  `5c83d18fe4fc96cafbc85bab1e5b10ed94d575ab5aa7a5254b06e0b02f16b3d1`
