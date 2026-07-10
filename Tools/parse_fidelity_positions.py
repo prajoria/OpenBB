@@ -101,7 +101,6 @@ import os
 import re
 import sys
 from datetime import date, datetime
-from typing import List, Optional, Tuple
 
 import pandas as pd
 from bs4 import BeautifulSoup, Tag
@@ -222,7 +221,7 @@ def parse_quantity(val: str) -> float:
         return 0.0
 
 
-def parse_date_str(val: str) -> Optional[date]:
+def parse_date_str(val: str) -> date | None:
     """Parse Fidelity date strings like 'Jun-13-2022' or '--' to date.
 
     Supports:  'Jun-13-2022', '06/13/2022', '2022-06-13'
@@ -243,7 +242,7 @@ def parse_date_str(val: str) -> Optional[date]:
 # ---------------------------------------------------------------------------
 
 
-def _extract_snapshot_timestamp(soup: BeautifulSoup) -> Optional[datetime]:
+def _extract_snapshot_timestamp(soup: BeautifulSoup) -> datetime | None:
     """Extract the 'As of ...' timestamp from the Fidelity sidebar.
 
     Looks for text like 'As of Feb-20-2026 1:39 a.m. ET' inside
@@ -318,7 +317,7 @@ def _build_account_map(soup: BeautifulSoup) -> dict:
 
 
 def _resolve_account(
-    row_index: int, account_boundaries: List[int], account_map: dict
+    row_index: int, account_boundaries: list[int], account_map: dict
 ) -> str:
     """Return the account name for a given row-index.
 
@@ -334,7 +333,7 @@ def _resolve_account(
     return account_map.get(acct_idx, "Unknown")
 
 
-def _extract_identifier(pinned_row: Tag) -> Tuple[str, str]:
+def _extract_identifier(pinned_row: Tag) -> tuple[str, str]:
     """Extract a (symbol_or_id, description) from a pinned-left position row.
 
     For expanded rows the ticker is in a bare ``<span>`` (e.g. "MSFT").
@@ -370,7 +369,7 @@ def _extract_identifier(pinned_row: Tag) -> Tuple[str, str]:
     return identifier, desc
 
 
-def _center_cell_values(center_row: Optional[Tag]) -> dict:
+def _center_cell_values(center_row: Tag | None) -> dict:
     """Read col-id → text from a center-container position row."""
     if not center_row:
         return {}
@@ -403,7 +402,7 @@ def extract_positions(html_path: str) -> pd.DataFrame:
     html_path : str
         Path to the saved HTML file.
     """
-    with open(html_path, "r", encoding="utf-8") as f:
+    with open(html_path, encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "html.parser")
 
     # --- Snapshot timestamp ---
@@ -430,7 +429,7 @@ def extract_positions(html_path: str) -> pd.DataFrame:
     ag_rows = pinned.find_all("div", class_="ag-row", recursive=False)
     ag_rows.sort(key=lambda r: int(r.get("row-index", "9999")))
 
-    records: List[dict] = []
+    records: list[dict] = []
     current_ticker: str = ""
     current_desc: str = ""
     # Track which row-indices have been consumed by expanded detail rows
@@ -795,7 +794,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 def persist_basket_intended_weight_csv(
     csv_path: str,
     basket_name: str,
-    database: Optional[str] = None,
+    database: str | None = None,
     owner: str = "",
 ) -> dict:
     """Import intended basket weights from a preprocessed CSV file."""
@@ -878,6 +877,14 @@ def persist_basket_intended_weight_csv(
             basket_total_rows = int(cur.fetchone()["cnt"])
 
         db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        # bd-2650/gykp (PR #422 code-reviewer P0): commit the CSV import
+        # atomically. Post-autocommit-flip default, without this commit
+        # the INSERT loop above silently rolls back on connection close
+        # and the DB has 0 rows despite the returned dict claiming
+        # ``inserted=N`` — exactly the silent-data-loss regression the
+        # autocommit-flip risked. except: rollback: raise mirrors the
+        # persist_to_mysql / persist_basket_positions_to_mysql pattern.
+        conn.commit()
         return {
             "database": db_name,
             "basket_name": basket_label,
@@ -888,13 +895,16 @@ def persist_basket_intended_weight_csv(
             "target_weight_sum_pct": float(df["target_weight_pct"].sum()),
             "basket_total_rows": basket_total_rows,
         }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
 
 def build_basket_drift_report(
     basket_name: str,
-    database: Optional[str] = None,
+    database: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     """Build intended-vs-actual drift report for a basket.
 
@@ -1149,7 +1159,7 @@ def _rebuild_portfolio_basket_for_snapshot(cur, snapshot_value) -> tuple[int, in
 def persist_basket_positions_to_mysql(
     basket_positions_df: pd.DataFrame,
     owner: str,
-    database: Optional[str] = None,
+    database: str | None = None,
 ) -> dict:
     """Persist basket-derived rows into Portfolio_Positions."""
     if basket_positions_df.empty:
@@ -1244,6 +1254,8 @@ def persist_basket_positions_to_mysql(
             total_basket_rows = cur.fetchone()["cnt"]
 
         db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        # bd-2650/gykp: commit the entire basket import atomically.
+        conn.commit()
         return {
             "database": db_name,
             "deleted": deleted,
@@ -1254,12 +1266,24 @@ def persist_basket_positions_to_mysql(
             "inserted_basket": inserted_basket,
             "total_basket_rows": total_basket_rows,
         }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
 
-def get_connection(database: Optional[str] = None):
-    """Get a pymysql connection, optionally overriding the database name."""
+def get_connection(database: str | None = None, *, autocommit: bool = False):
+    """Get a pymysql connection, optionally overriding the database name.
+
+    bd-2650/gykp: default is ``autocommit=False`` so callers can wrap their
+    entire persist operation in an explicit ``conn.commit()`` /
+    ``conn.rollback()``. This eliminates the pre-fix data-loss window
+    where DELETE would commit but a mid-batch INSERT failure would leave
+    the cache empty of the snapshot's history. Callers that genuinely
+    want each statement auto-committed (e.g. one-shot ad-hoc queries)
+    can opt in with ``autocommit=True``.
+    """
     import pymysql
     from openbb_fmp_cached.utils.database import DatabaseConfig, safe_identifier
 
@@ -1284,14 +1308,14 @@ def get_connection(database: Optional[str] = None):
     return pymysql.connect(
         **params,
         cursorclass=pymysql.cursors.DictCursor,
-        autocommit=True,
+        autocommit=autocommit,
     )
 
 
 def persist_to_mysql(
     df: pd.DataFrame,
     owner: str = "",
-    database: Optional[str] = None,
+    database: str | None = None,
     *,
     merge_snapshot: bool = False,
 ) -> dict:
@@ -1411,6 +1435,9 @@ def persist_to_mysql(
             total_basket = cur.fetchone()["cnt"]
 
         db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        # bd-2650/gykp: commit the entire snapshot import atomically.
+        # If any statement above raised, the except below rolls back.
+        conn.commit()
         return {
             "database": db_name,
             "deleted": deleted,
@@ -1421,6 +1448,9 @@ def persist_to_mysql(
             "inserted_basket": inserted_basket,
             "total_basket_rows": total_basket,
         }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -1434,14 +1464,14 @@ def persist_to_mysql(
 # ---------------------------------------------------------------------------
 
 
-def _clean_text(value: Optional[str]) -> str:
+def _clean_text(value: str | None) -> str:
     """Normalize whitespace for extracted HTML text."""
     if not value:
         return ""
     return " ".join(value.replace("\xa0", " ").split()).strip()
 
 
-def _extract_center_cell_text(center_row: Optional[Tag], col_id: str) -> str:
+def _extract_center_cell_text(center_row: Tag | None, col_id: str) -> str:
     """Extract cell text from a center-grid row by AG Grid col-id."""
     if center_row is None:
         return ""
@@ -1455,7 +1485,7 @@ def extract_basket_groups(
     html_path: str, owner: str
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Extract basket groups from Fidelity Basket Portfolios HTML."""
-    with open(html_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(html_path, encoding="utf-8", errors="ignore") as f:
         soup = BeautifulSoup(f, "html.parser")
 
     snapshot_ts = _extract_snapshot_timestamp(soup)
@@ -1476,7 +1506,7 @@ def extract_basket_groups(
 
     current_source_account = ""
     current_source_account_number = ""
-    current_basket: Optional[dict] = None
+    current_basket: dict | None = None
     basket_rows: list[dict] = []
     basket_positions_rows: list[dict] = []
 
