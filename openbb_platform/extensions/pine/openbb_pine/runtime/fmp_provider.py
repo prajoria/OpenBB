@@ -1,9 +1,11 @@
 """FMP-backed OHLCV provider for the Pine runtime.
 
-Single concrete class -- no Provider protocol, no registry (D2 section 2.3,
-PRD section 13.8). PyneCore's ``ScriptRunner`` consumes ``Iterable[OHLCV]``
-directly, so we yield ``pynecore.types.ohlcv.OHLCV`` NamedTuples ourselves
-rather than subclassing the vendored ``pynecore.providers.Provider`` ABC.
+Post-E3.2: inherits :class:`pynecore.providers.Provider` (mode-2 per
+Pine Extraction Design §5.2 / §6.2). The class is still constructed
+via ``FMPRequest`` so the existing ``executor_shell`` call path is
+untouched, but it now IS-A ``Provider`` and exposes the spec §5
+``stream()`` / ``fetch()`` contract so ``pyne_compiler`` runtime code
+can consume it polymorphically through the ABC.
 
 Asset-class dispatch (D2 section 2.2) routes each symbol to the matching
 ``obb.<asset>.price.historical`` surface:
@@ -14,6 +16,8 @@ Asset-class dispatch (D2 section 2.2) routes each symbol to the matching
 * ``commodity`` -> ``obb.commodity.price.historical``
 
 Tests mock the ``obb`` call surface so they pass without an FMP API key.
+
+Clean-room note: I have not viewed TradingView or PyneComp source code.
 """
 
 from __future__ import annotations
@@ -22,6 +26,13 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
+
+# Trigger the openbb_pine sys.path bridge so ``pynecore`` resolves against
+# the vendored submodule before the base-class import below.
+import openbb_pine  # noqa: F401
+
+from pynecore.core.syminfo import SymInfoInterval, SymInfoSession
+from pynecore.providers.provider import Provider
 
 from openbb_pine.runtime.provider_selection import (
     ProviderName,
@@ -197,14 +208,35 @@ def _make_ohlcv(timestamp: int, open_: float, high: float, low: float,
 # --- The provider class -------------------------------------------------------
 
 
-class FMPOHLCVProvider:
+class FMPOHLCVProvider(Provider):
     """Yield bars from FMP / fmp_cached for one ``FMPRequest``.
 
-    The class is intentionally minimal: no retry budget (R4), no
-    ``request.security`` plumbing (Phase 2 bead), no syminfo construction
-    (handled by the executor in R7). It exists to feed
-    ``ScriptRunner.run_iter``.
+    Post-E3.2: inherits :class:`pynecore.providers.Provider` (mode-2 per
+    spec §5.2 / §6.2). Construction still takes ``FMPRequest`` — the
+    request's ``symbol`` / ``interval`` become the mode-2 "default"
+    that :meth:`stream` and :meth:`fetch` accept as call-time
+    parameters (mode-2 accepts arbitrary symbol/timeframe at each call;
+    we forward them into the FMP request builder). The existing
+    ``executor_shell`` construction path is preserved verbatim so this
+    refactor is behavior-preserving for M1 while unlocking polymorphic
+    consumption through the ``Provider`` ABC in ``pyne_compiler``.
+
+    The class is intentionally minimal: no retry budget (R4 — the
+    envelope lives in ``executor_shell`` post-hoist), no
+    ``request.security`` plumbing (Phase 2 bead — dispatcher owns it),
+    no syminfo construction (out of scope for M1 — the abstract methods
+    below are minimal stubs that either delegate or ``NotImplementedError``).
     """
+
+    # --- Provider base-class configuration ------------------------------------
+
+    # Base ``Provider.__init__`` calls ``load_config()`` which reads a
+    # ``providers.toml`` from disk — irrelevant for FMP (credentials come
+    # from OpenBB's ``user_settings.json``). ``config_keys`` is retained
+    # for schema symmetry only.
+    config_keys = {
+        "# FMP credentials live in ~/.openbb_platform/user_settings.json": "",
+    }
 
     def __init__(
         self,
@@ -213,6 +245,21 @@ class FMPOHLCVProvider:
         provider: ProviderName | str,
         settings: Any | None = None,
     ) -> None:
+        # Deliberately skip ``super().__init__``: the base constructor
+        # requires an ``ohlv_dir`` / ``config_dir`` and eagerly opens a
+        # ``providers.toml``, neither of which applies here. FMP is a
+        # mode-2 REST provider that talks directly to the OpenBB call
+        # surface, no on-disk .ohlcv round-trip. Setting the base-class
+        # attributes explicitly keeps ``isinstance(x, Provider)`` +
+        # attribute reads (``x.symbol``, ``x.timeframe``) well-defined.
+        self.symbol = request.symbol
+        self.timeframe = request.interval
+        self.xchg_timeframe = _translate_interval(request.interval)
+        self.ohlcv_path = None
+        self.ohlcv_file = None
+        self.config_dir = None
+        self.config = {}
+
         self.request = request
         # ``resolve_provider`` enforces SUPPORTED_PROVIDERS -- a bad value
         # raises PineProviderError here, satisfying the
@@ -224,6 +271,55 @@ class FMPOHLCVProvider:
         )
         self._endpoint: Callable[..., Any] | None = None
         self.bars_consumed: int = 0
+
+    # --- Provider ABC method implementations ---------------------------------
+    #
+    # These satisfy the abstract-method contract enough for
+    # ``issubclass(FMPOHLCVProvider, Provider)`` + instantiation to work;
+    # the M1 execution path exercises only stream()/fetch() (below) and
+    # the pre-existing iter_ohlcv().
+
+    @classmethod
+    def to_tradingview_timeframe(cls, timeframe: str) -> str:
+        """FMP's Pine-form timeframe already matches TV — pass through."""
+        return timeframe
+
+    @classmethod
+    def to_exchange_timeframe(cls, timeframe: str) -> str:
+        """Translate Pine timeframe -> FMP interval enum (D2 section 2.4)."""
+        return _translate_interval(timeframe)
+
+    def get_list_of_symbols(self, *args, **kwargs) -> list[str]:  # noqa: D401
+        """FMP is mode-2; construction pins one symbol. Return it."""
+        assert self.symbol is not None
+        return [self.symbol]
+
+    def update_symbol_info(self):  # pragma: no cover -- SymInfo out of M1 scope
+        raise NotImplementedError(
+            "FMPOHLCVProvider does not synthesize SymInfo in M1; the "
+            "syminfo pipeline is executor-owned (see D2 §7 / bd-r7)."
+        )
+
+    def get_opening_hours_and_sessions(self) -> tuple[
+        list[SymInfoInterval], list[SymInfoSession], list[SymInfoSession]
+    ]:
+        """No exchange calendar synthesized for M1 — dispatcher-owned."""
+        return [], [], []
+
+    def load_config(self) -> None:
+        """No-op: FMP credentials come from OpenBB ``user_settings.json``."""
+        self.config = {}
+
+    def download_ohlcv(  # type: ignore[override]
+        self,
+        time_from: datetime | None = None,
+        time_to: datetime | None = None,
+        on_progress: Callable[[datetime], None] | None = None,
+        limit: int | None = None,
+    ) -> None:
+        """No-op: mode-2 provider queries REST directly in stream()/fetch();
+        no ``.ohlcv`` file round-trip needed."""
+        return
 
     # --- Public surface -------------------------------------------------------
 
@@ -284,6 +380,95 @@ class FMPOHLCVProvider:
         if asset_class == "commodity":
             return obb.commodity.price.historical
         raise ValueError(f"unknown asset class {asset_class!r}")
+
+    # --- Provider.stream / Provider.fetch overrides (spec §5) ----------------
+
+    def stream(  # type: ignore[override]
+        self,
+        symbol: str,
+        timeframe: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        include_gaps: bool = False,
+    ) -> Iterator["OHLCV"]:
+        """Yield OHLCV bars for ``(symbol, timeframe)`` via the FMP REST call.
+
+        Mode-2 (spec §5.2): ``symbol`` and ``timeframe`` are call-time
+        parameters, and a call-time value that differs from the request's
+        construction-time value rebuilds the ``FMPRequest`` for the call.
+        This lets ``pyne_compiler``'s ``request.security`` path reuse a
+        single provider instance across secondaries without allocating a
+        fresh REST client each call.
+
+        Behavioral contract (spec §5 / conformance suite E1.4):
+          * ``start`` / ``end`` inclusive; naive datetimes raise ``TypeError``.
+          * ``start > end`` yields nothing (SQL-consistent).
+          * Yielded ``OHLCV.timestamp`` values are UTC epoch seconds (int).
+          * ``include_gaps`` is accepted for API parity; FMP bars carry no
+            gap-fill sentinel, so it is a no-op here.
+        """
+        del include_gaps  # FMP has no gap sentinels; accepted for API parity.
+
+        # Guard: naive datetimes are ambiguous cross-machine (spec §5).
+        if start is not None and start.tzinfo is None:
+            raise TypeError(
+                "start must be a timezone-aware datetime (spec §5); "
+                "got naive datetime which is ambiguous across timezones."
+            )
+        if end is not None and end.tzinfo is None:
+            raise TypeError(
+                "end must be a timezone-aware datetime (spec §5); "
+                "got naive datetime which is ambiguous across timezones."
+            )
+
+        # Guard: reversed range -> empty (spec §5.4 check #4).
+        if start is not None and end is not None and start > end:
+            return
+
+        # Mode-2 rebind: build a per-call FMPRequest so call-time
+        # (symbol, timeframe) wins over the construction-time defaults.
+        # ``start`` / ``end`` also override the construction-time window
+        # so ``request.security`` can query a different range without
+        # touching the base FMPRequest.
+        call_request = FMPRequest(
+            symbol=symbol,
+            interval=timeframe,
+            start=start if start is not None else self.request.start,
+            end=end if end is not None else self.request.end,
+            asset_class=infer_asset_class(symbol),
+        )
+
+        # Snapshot + temporarily rebind so ``_fetch()`` picks up the
+        # call-time values without a wider refactor of ``iter_ohlcv``.
+        # Restoring in the ``finally`` keeps the provider instance
+        # stateless across calls (spec §5.4 check #7).
+        saved_request = self.request
+        saved_asset_class = self._asset_class
+        self.request = call_request
+        self._asset_class = call_request.asset_class or infer_asset_class(symbol)
+        try:
+            # ``iter_ohlcv`` already handles OBBject -> OHLCV NamedTuple
+            # conversion and bars_consumed accounting; delegate to it.
+            for bar in self.iter_ohlcv():
+                yield bar
+        finally:
+            self.request = saved_request
+            self._asset_class = saved_asset_class
+
+    def fetch(  # type: ignore[override]
+        self,
+        symbol: str,
+        timeframe: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        include_gaps: bool = False,
+    ) -> list["OHLCV"]:
+        """Materialize :meth:`stream` as a list. Spec §5.1 equivalence."""
+        return list(self.stream(
+            symbol, timeframe, start=start, end=end, include_gaps=include_gaps,
+        ))
 
 
 __all__ = [

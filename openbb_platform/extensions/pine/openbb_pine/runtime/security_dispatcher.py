@@ -197,7 +197,49 @@ def _fetch_via_provider(
     signature is deliberately kept to the abstract Provider shape).
     """
     del context_id  # accepted for symmetry with _fetch_via_resolver
-    return provider.fetch(ctx.symbol, ctx.timeframe, start=start, end=end)
+    result = provider.fetch(ctx.symbol, ctx.timeframe, start=start, end=end)
+    # bead 78w SITE 1: post-E3 Provider.fetch returns ``list[OHLCV]`` per
+    # spec §5, but the dispatcher (and downstream security_hook.iloc[
+    # bar_index] + SecondarySeriesCache) works in DataFrame-space. Adapt
+    # at the Provider boundary so the shape change is isolated here and
+    # the rest of the dispatcher is untouched. Existing DataFrame-returning
+    # providers (e.g. the pre-E3 stub) pass through unchanged.
+    if isinstance(result, pd.DataFrame):
+        return result
+    return _ohlcv_list_to_dataframe(result)
+
+
+def _ohlcv_list_to_dataframe(bars: Any) -> pd.DataFrame:
+    """bead 78w SITE 1: adapt ``list[OHLCV]`` -> ``pd.DataFrame`` at the
+    Provider->dispatcher boundary.
+
+    Post-E3.2, ``pynecore.providers.Provider.fetch`` returns ``list[OHLCV]``
+    per spec §5. The dispatcher and its downstream consumers
+    (``security_hook.iloc[bar_index]`` + ``SecondarySeriesCache``) work in
+    ``pd.DataFrame`` space, so we convert once here rather than pushing
+    the shape change into every consumer.
+
+    Empty input yields a schema-preserving empty DataFrame so
+    ``align_to_primary`` and cache writers can special-case ``.empty``
+    without checking for ``None``.
+    """
+    if not bars:
+        return pd.DataFrame(
+            columns=["open", "high", "low", "close", "volume"]
+        )
+    # ``OHLCV`` is a NamedTuple with ``_asdict``; be defensive for
+    # subclasses that expose ``__dict__`` instead. The timestamp column
+    # becomes the DataFrame index because downstream ``align_to_primary``
+    # reindexes on the primary's ``pd.DatetimeIndex``.
+    records = [b._asdict() if hasattr(b, "_asdict") else dict(vars(b)) for b in bars]
+    df = pd.DataFrame(records)
+    if "timestamp" in df.columns:
+        # OHLCV.timestamp is UTC epoch seconds — materialize a UTC
+        # DatetimeIndex so ``align_to_primary``'s forward-fill reindex
+        # works against a DatetimeIndex-typed primary.
+        df.index = pd.to_datetime(df["timestamp"], unit="s", utc=True)
+        df = df.drop(columns=["timestamp"])
+    return df
 
 
 # --- Main entry point --------------------------------------------------------
