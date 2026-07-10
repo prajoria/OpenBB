@@ -93,34 +93,65 @@ class TestShadowDiffShape:
             assert hasattr(diff, field), f"ShadowDiff missing field: {field}"
 
 
-class TestShadowDiffZeroDeltasToday:
-    """In bd-7ct (stubs pass-through), classic and extended signals are
-    byte-identical, so every delta must be exactly 0.0 (float equality,
-    not approx — we're not doing floating-point arithmetic on the panel
-    dispatch)."""
+class TestShadowDiffPostBdLuy:
+    """After bd-luy (trend family shipped): extended trend adds Aroon +
+    Ichimoku votes on the 100-bar fixture (Aroon only; Ichimoku needs
+    78+ bars — the fixture is exactly at that boundary, may or may not
+    populate depending on senkou-span availability). So we expect:
 
-    def test_score_delta_is_zero(self, classic_and_extended_signals):
+    - ``score_delta`` may be non-zero (new votes shift the composite)
+    - ``vote_count_extended >= vote_count_classic``
+    - ``added_vote_names`` includes 'aroon_osc'
+    - ``per_family_score_delta['trend']`` may be non-zero
+
+    Family PRs bd-40v/z43/alj will further extend these once shipped;
+    this test file's contract updates to match each shipped family."""
+
+    def test_score_delta_may_be_nonzero(self, classic_and_extended_signals):
+        """Delta is not asserted to any specific value — it depends on
+        the fabricated fixture's Aroon reading. Just verify it's finite."""
         sig_classic, sig_extended = classic_and_extended_signals
-        assert shadow_diff(sig_classic, sig_extended).score_delta == 0.0
+        delta = shadow_diff(sig_classic, sig_extended).score_delta
+        assert delta == delta  # not NaN (NaN != NaN)
 
-    def test_vote_counts_equal(self, classic_and_extended_signals):
+    def test_extended_vote_count_at_least_classic(self, classic_and_extended_signals):
+        """Extended can only ADD votes, never remove them (bd-luy is
+        additive; classic votes still emit)."""
         sig_classic, sig_extended = classic_and_extended_signals
         diff = shadow_diff(sig_classic, sig_extended)
-        assert diff.vote_count_classic == diff.vote_count_extended
+        assert diff.vote_count_extended >= diff.vote_count_classic
 
-    def test_no_added_or_removed_votes(self, classic_and_extended_signals):
+    def test_aroon_appears_in_added_votes(self, classic_and_extended_signals):
+        """bd-b6k5 shipped: aroon_osc vote must appear in extended-but-
+        not-classic on any fixture with >=25 bars."""
         sig_classic, sig_extended = classic_and_extended_signals
         diff = shadow_diff(sig_classic, sig_extended)
-        assert diff.added_vote_names == []
-        assert diff.removed_vote_names == []
+        assert "aroon_osc" in diff.added_vote_names, (
+            f"aroon_osc should appear in added_vote_names; "
+            f"got: {diff.added_vote_names}"
+        )
 
-    def test_per_family_deltas_all_zero(self, classic_and_extended_signals):
+    def test_no_removed_votes(self, classic_and_extended_signals):
+        """Extended is additive — no classic votes drop out."""
+        sig_classic, sig_extended = classic_and_extended_signals
+        diff = shadow_diff(sig_classic, sig_extended)
+        assert diff.removed_vote_names == [], (
+            f"extended must not drop classic votes; "
+            f"removed: {diff.removed_vote_names}"
+        )
+
+    def test_non_trend_families_still_zero(self, classic_and_extended_signals):
+        """Only the trend family has diverged (bd-luy shipped). Other
+        families still pass through, so their per-family deltas must
+        still be exactly 0.0."""
         sig_classic, sig_extended = classic_and_extended_signals
         diff = shadow_diff(sig_classic, sig_extended)
         for family, delta in diff.per_family_score_delta.items():
+            if family == "trend":
+                continue  # trend may have drifted
             assert delta == 0.0, (
-                f"family {family} shows non-zero delta {delta} in bd-7ct "
-                f"— pass-through stubs must produce byte-identical votes."
+                f"non-trend family {family} shows non-zero delta {delta}; "
+                f"only trend should have diverged until bd-40v/z43/alj ship."
             )
 
 
@@ -135,27 +166,34 @@ class TestShadowDiffDetectsRealDifferences:
     score drift, vote-count change, and family-slice score movement."""
 
     def test_score_delta_captures_difference(self, classic_and_extended_signals):
-        """Manually construct an "extended" signal with a different
-        score — diff must report score_delta = extended - classic."""
+        """Manually construct an "extended" signal with a further-shifted
+        score — diff must report score_delta ≈ (shifted - classic)."""
         sig_classic, sig_extended = classic_and_extended_signals
-        # Fabricate a diverged extended signal (pydantic v2 model_copy)
+        # Baseline delta (extended vs classic) after bd-luy may already be non-zero.
+        baseline_delta = shadow_diff(sig_classic, sig_extended).score_delta
+        # Fabricate a further-diverged extended signal (pydantic v2 model_copy)
         sig_ext_diverged = sig_extended.model_copy(update={"score": sig_extended.score + 0.15})
         diff = shadow_diff(sig_classic, sig_ext_diverged)
-        assert abs(diff.score_delta - 0.15) < 1e-9
+        # After the +0.15 injection, delta should be baseline + 0.15
+        assert abs(diff.score_delta - (baseline_delta + 0.15)) < 1e-9
 
     def test_added_votes_captured(self, classic_and_extended_signals):
         """If the extended signal has vote names the classic doesn't,
-        they appear in ``added_vote_names``."""
+        they appear in ``added_vote_names``. Uses a fabricated NEW vote
+        name (not aroon_osc, which already appears after bd-luy) so this
+        test still discriminates the diff primitive itself."""
         from openbb_techtrade.models import IndicatorVote
         sig_classic, sig_extended = classic_and_extended_signals
-        # Append a fabricated new vote to the extended signal
+        baseline_diff = shadow_diff(sig_classic, sig_extended)
+        # Append a fabricated NEW vote name not present in either signal
         new_votes = list(sig_extended.votes) + [
-            IndicatorVote(family="trend", name="aroon_osc", vote=0.5, weight=0.4)
+            IndicatorVote(family="trend", name="fabricated_test_vote",
+                          vote=0.5, weight=0.4)
         ]
         sig_ext_augmented = sig_extended.model_copy(update={"votes": new_votes})
         diff = shadow_diff(sig_classic, sig_ext_augmented)
-        assert "aroon_osc" in diff.added_vote_names
-        assert diff.vote_count_extended == diff.vote_count_classic + 1
+        assert "fabricated_test_vote" in diff.added_vote_names
+        assert diff.vote_count_extended == baseline_diff.vote_count_extended + 1
 
     def test_removed_votes_captured(self, classic_and_extended_signals):
         """Symmetric: if classic has vote names extended lacks,

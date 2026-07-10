@@ -105,9 +105,11 @@ class TestPanelBuildPerf:
         )
 
     def test_extended_not_materially_slower_than_classic(self, ohlcv_records):
-        """Cross-check: dispatch overhead is negligible. Extended p95
-        should be within 30% of classic p95 today (pass-through stubs
-        add only 4 function-call-through-import cycles per build)."""
+        """Cross-check: extended panel isn't pathologically slower than
+        classic. bd-luy shipped Aroon + Ichimoku (real computation, not
+        pass-through), so extended is expected to be ~1.5-2.5x classic
+        on the trend leg. We enforce ≤3x as the "something's very wrong"
+        ceiling; a genuine perf regression trips this."""
         classic_p95 = _measure_p95(ohlcv_records, PANEL_CLASSIC)
         extended_p95 = _measure_p95(ohlcv_records, PANEL_EXTENDED)
         # Guard against zero-baseline weirdness on ultra-fast runs
@@ -117,8 +119,8 @@ class TestPanelBuildPerf:
                 f"relative dispatch overhead reliably"
             )
         ratio = extended_p95 / classic_p95
-        assert ratio <= 1.3, (
+        assert ratio <= 3.0, (
             f"extended p95 {extended_p95:.1f}ms is {ratio:.2f}x classic "
-            f"{classic_p95:.1f}ms. Dispatch overhead should be <30% for "
-            f"pass-through stubs."
+            f"{classic_p95:.1f}ms. bd-luy adds Aroon+Ichimoku so ratio > 1 "
+            f"is expected, but >3x means something regressed."
         )
