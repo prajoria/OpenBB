@@ -1,0 +1,265 @@
+{
+  "count": 5,
+  "signals": [
+    {
+      "as_of": "2025-06-16",
+      "direction": "long",
+      "rank_in_segment": 1,
+      "score": 0.9488553416473293,
+      "segment": "custom",
+      "symbol": "PLTR",
+      "votes": [
+        {
+          "family": "trend",
+          "name": "macd_hist",
+          "vote": 0.9409262702048542,
+          "weight": 0.25
+        },
+        {
+          "family": "trend",
+          "name": "ema_cross",
+          "vote": 1.0,
+          "weight": 0.25
+        },
+        {
+          "family": "momentum",
+          "name": "rsi",
+          "vote": 0.7663442354247139,
+          "weight": 0.15
+        },
+        {
+          "family": "momentum",
+          "name": "stoch",
+          "vote": 1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volatility",
+          "name": "bb_pctb",
+          "vote": 1.0,
+          "weight": 0.45
+        },
+        {
+          "family": "volume",
+          "name": "obv_slope",
+          "vote": 1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volume",
+          "name": "cmf",
+          "vote": 1.0,
+          "weight": 0.15
+        }
+      ]
+    },
+    {
+      "as_of": "2025-06-16",
+      "direction": "long",
+      "rank_in_segment": 2,
+      "score": 0.5139458588240043,
+      "segment": "custom",
+      "symbol": "XOM",
+      "votes": [
+        {
+          "family": "trend",
+          "name": "macd_hist",
+          "vote": 1.0,
+          "weight": 0.25
+        },
+        {
+          "family": "trend",
+          "name": "ema_cross",
+          "vote": -1.0,
+          "weight": 0.25
+        },
+        {
+          "family": "momentum",
+          "name": "rsi",
+          "vote": 0.9587925660754129,
+          "weight": 0.15
+        },
+        {
+          "family": "momentum",
+          "name": "stoch",
+          "vote": -1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volatility",
+          "name": "bb_pctb",
+          "vote": 1.0,
+          "weight": 0.45
+        },
+        {
+          "family": "volume",
+          "name": "obv_slope",
+          "vote": 1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volume",
+          "name": "cmf",
+          "vote": 1.0,
+          "weight": 0.15
+        }
+      ]
+    },
+    {
+      "as_of": "2025-06-16",
+      "direction": "flat",
+      "rank_in_segment": 3,
+      "score": 0.3161845272100496,
+      "segment": "custom",
+      "symbol": "SPY",
+      "votes": [
+        {
+          "family": "trend",
+          "name": "macd_hist",
+          "vote": -0.8592538943856093,
+          "weight": 0.25
+        },
+        {
+          "family": "trend",
+          "name": "ema_cross",
+          "vote": 1.0,
+          "weight": 0.25
+        },
+        {
+          "family": "momentum",
+          "name": "rsi",
+          "vote": 0.5263815138543848,
+          "weight": 0.15
+        },
+        {
+          "family": "momentum",
+          "name": "stoch",
+          "vote": -1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volatility",
+          "name": "bb_pctb",
+          "vote": 0.6508248675517685,
+          "weight": 0.45
+        },
+        {
+          "family": "volume",
+          "name": "obv_slope",
+          "vote": 1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volume",
+          "name": "cmf",
+          "vote": 1.0,
+          "weight": 0.15
+        }
+      ]
+    },
+    {
+      "as_of": "2025-06-16",
+      "direction": "flat",
+      "rank_in_segment": 4,
+      "score": 0.289152620232604,
+      "segment": "custom",
+      "symbol": "NVDA",
+      "votes": [
+        {
+          "family": "trend",
+          "name": "macd_hist",
+          "vote": -1.0,
+          "weight": 0.25
+        },
+        {
+          "family": "trend",
+          "name": "ema_cross",
+          "vote": 1.0,
+          "weight": 0.25
+        },
+        {
+          "family": "momentum",
+          "name": "rsi",
+          "vote": 0.7233340873004882,
+          "weight": 0.15
+        },
+        {
+          "family": "momentum",
+          "name": "stoch",
+          "vote": -1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volatility",
+          "name": "bb_pctb",
+          "vote": 0.6886723637445942,
+          "weight": 0.45
+        },
+        {
+          "family": "volume",
+          "name": "obv_slope",
+          "vote": 1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volume",
+          "name": "cmf",
+          "vote": -1.0,
+          "weight": 0.15
+        }
+      ]
+    },
+    {
+      "as_of": "2025-06-16",
+      "direction": "short",
+      "rank_in_segment": 5,
+      "score": -0.5305108567408912,
+      "segment": "custom",
+      "symbol": "PG",
+      "votes": [
+        {
+          "family": "trend",
+          "name": "macd_hist",
+          "vote": -0.841906163008941,
+          "weight": 0.25
+        },
+        {
+          "family": "trend",
+          "name": "ema_cross",
+          "vote": -1.0,
+          "weight": 0.25
+        },
+        {
+          "family": "momentum",
+          "name": "rsi",
+          "vote": -0.19212009754521706,
+          "weight": 0.15
+        },
+        {
+          "family": "momentum",
+          "name": "stoch",
+          "vote": 1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volatility",
+          "name": "bb_pctb",
+          "vote": -0.8019190645530717,
+          "weight": 0.45
+        },
+        {
+          "family": "volume",
+          "name": "obv_slope",
+          "vote": -1.0,
+          "weight": 0.15
+        },
+        {
+          "family": "volume",
+          "name": "cmf",
+          "vote": 1.0,
+          "weight": 0.15
+        }
+      ]
+    }
+  ]
+}
