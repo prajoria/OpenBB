@@ -39,7 +39,14 @@ from openbb_core.app.model.obbject import OBBject
 
 from openbb_pine.attribution import POWERED_BY_FULL
 from openbb_pine.runtime import executor_core
-from openbb_pine.runtime import fmp_retry  # noqa: F401 -- documents the seam
+
+# DO NOT REMOVE the ``fmp_retry`` import below. The retry envelope still
+# lives inside ``FMPOHLCVProvider._fetch`` today; this shell carries the
+# import so the pending hoist (retry moves OUT of the provider INTO this
+# shell — tracked in bd-78w SITE 2 / E3) has a single grep-discoverable
+# anchor. A future dead-import sweep MUST NOT strip this until the hoist
+# lands and ``fmp_retry.call_with_retry`` is invoked from this module.
+from openbb_pine.runtime import fmp_retry  # noqa: F401 -- seam anchor, see comment above
 from openbb_pine.runtime.byo_provider import BYODataProvider
 from openbb_pine.runtime.fmp_provider import (
     FMPOHLCVProvider,

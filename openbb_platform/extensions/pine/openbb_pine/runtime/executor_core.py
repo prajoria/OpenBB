@@ -229,6 +229,14 @@ def run_compiled(
         return ms // 1000 if ms else 0
 
     try:
+        # NOTE (bd-78w, SITE 2): This currently calls provider.iter_ohlcv(),
+        # not the abstract _DataProviderStub interface's stream()/fetch() that
+        # the Pine Extraction Design §6.E0.3 (lines 244 & 461) targets. The
+        # reconciliation is deferred to Phase 2B E3 (bd-78w extended scope,
+        # per PR #420 review) — once pynecore lands Provider.stream()/fetch()
+        # in E1.1, this call switches to stream(symbol, timeframe, start=,
+        # end=) and the currently-dead start/end kwargs on run_compiled
+        # (# noqa: ARG001 -- carried for shell parity) become active.
         runner = ScriptRunner(
             script_path=script_path,
             ohlcv_iter=provider.iter_ohlcv(),
