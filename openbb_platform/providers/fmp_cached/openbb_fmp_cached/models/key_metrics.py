@@ -72,7 +72,14 @@ class FMPCachedKeyMetricsFetcher(FMPKeyMetricsFetcher):
                 fetch_query, resolved_credentials, **kwargs
             )
             if fresh_data:
-                _store_key_metrics(fresh_data)
+                # bd-e3v8: cache write failure MUST NOT discard fresh data.
+                try:
+                    _store_key_metrics(fresh_data)
+                except Exception as exc:
+                    logger.warning(
+                        "Key metrics cache write failed (data returned " "anyway): %s",
+                        exc,
+                    )
                 results.extend(fresh_data)
 
         return sorted(

@@ -70,7 +70,14 @@ class FMPCachedEquityQuoteFetcher(FMPEquityQuoteFetcher):
                 fetch_query, resolved_credentials, **kwargs
             )
             if fresh_data:
-                _store_quotes(fresh_data)
+                # bd-e3v8: cache write failure MUST NOT discard fresh data.
+                try:
+                    _store_quotes(fresh_data)
+                except Exception as exc:
+                    logger.warning(
+                        "Equity quote cache write failed (data returned " "anyway): %s",
+                        exc,
+                    )
                 results.extend(fresh_data)
 
         return sorted(results, key=lambda item: symbols.index(item.get("symbol", "")))

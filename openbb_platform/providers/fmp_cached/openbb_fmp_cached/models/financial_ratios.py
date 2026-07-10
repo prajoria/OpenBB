@@ -164,7 +164,15 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
                 **kwargs,
             )
             if fresh_data:
-                _store_financial_ratios(fresh_data)
+                # bd-e3v8: cache write failure MUST NOT discard fresh data.
+                try:
+                    _store_financial_ratios(fresh_data)
+                except Exception as exc:
+                    logger.warning(
+                        "Financial ratios cache write failed (data returned "
+                        "anyway): %s",
+                        exc,
+                    )
                 results.extend(fresh_data)
 
         return sorted(
