@@ -80,6 +80,31 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: pine-e0-grep-gate
+        name: Pine E0 grep-gate (no cross-boundary imports)
+        entry: bash
+        args:
+          - -c
+          - |
+            if grep -rE "from openbb_pine\.(attribution|telemetry|routers|mcp_tools|_coverage_manifest|cli)\.|from openbb_pine\.runtime\.(fmp_provider|byo_provider|fmp_retry|provider_selection)" \
+              openbb_platform/extensions/pine/openbb_pine/compiler/ \
+              openbb_platform/extensions/pine/openbb_pine/runtime/executor_core.py \
+              openbb_platform/extensions/pine/openbb_pine/runtime/security_dispatcher.py \
+              openbb_platform/extensions/pine/openbb_pine/runtime/secondary_cache.py \
+              openbb_platform/extensions/pine/openbb_pine/runtime/security_hook.py \
+              openbb_platform/extensions/pine/openbb_pine/runtime/strategy_types.py \
+              openbb_platform/extensions/pine/openbb_pine/runtime/restricted.py \
+              openbb_platform/extensions/pine/openbb_pine/runtime/limits.py \
+              openbb_platform/extensions/pine/openbb_pine/runtime/_pynecore_glue.py \
+              openbb_platform/extensions/pine/openbb_pine/runtime/pynecore_bridge.py \
+              openbb_platform/extensions/pine/openbb_pine/compiler_errors.py 2>/dev/null; then
+              echo "Error: Pine pynecore-side code imports fork-side surfaces (spec §6.E0). See test_e0_grep_gate.py."
+              exit 1
+            fi
+            exit 0
+        language: system
+        pass_filenames: false
+        always_run: true
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
