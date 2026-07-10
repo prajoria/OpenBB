@@ -8,6 +8,7 @@ Simple database-backed response persistence without TTL/caching complexity.
 
 import logging
 import os
+import threading
 from .database import execute_query, safe_identifier
 
 logger = logging.getLogger(__name__)
@@ -3062,7 +3063,21 @@ def create_financial_ratios_table():
         INDEX idx_exchange (exchange),
         INDEX idx_cached_at (cached_at),
         INDEX idx_is_valid (is_valid),
-        INDEX idx_composite (symbol, date, period)
+        -- bd-hyzu: defense-in-depth UNIQUE against duplicate rows from
+        -- concurrent writers (or external tools bypassing
+        -- _store_financial_ratios). The DELETE+INSERT race that
+        -- motivated this bead was closed by PR #418 (bd-n3sf) via
+        -- atomic replace_rows(); this UNIQUE prevents ANY future code
+        -- path from silently duplicating a (symbol, date, period, currency)
+        -- row.
+        --
+        -- PR #427 silent-failure-hunter P0: currency IS in the key even
+        -- though FMP currently returns one currency per (symbol, date,
+        -- period). Widens the key defensively so a dual-listed ADR or
+        -- IFRS-vs-USD reporter emitting multi-currency rows doesn't
+        -- silently collapse to one row on dedupe.
+        UNIQUE KEY uk_symbol_date_period_currency
+            (symbol, date, period, currency)
 
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
@@ -3691,6 +3706,134 @@ def create_historical_splits_table():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     return execute_query(query)
+
+
+def ensure_financial_ratios_unique_index():
+    """Migrate existing financial_ratios tables to add UNIQUE constraint (bd-hyzu).
+
+    Idempotent migration for existing installs, guarded by a module-level
+    ran-once flag (PR #427 code-reviewer P1): the migration fires at most
+    ONCE per process. Fresh installs still pay one round-trip on the
+    first ``_store_financial_ratios`` call (dedupe is a no-op; ALTER TABLE
+    fails with 1061 which is caught) — subsequent stores are zero
+    overhead.
+
+    Steps (both wrapped in narrow error handling):
+    1. NULL cleanup: DELETE rows where symbol/date/period is NULL — these
+       rows are unfilterable and bypass the UNIQUE constraint (MySQL
+       treats NULL as distinct in UNIQUE). Silent data loss risk if a
+       downstream consumer depends on NULL-key rows, but institutional
+       users shouldn't have any (FMP always populates these fields).
+    2. Dedupe duplicates keeping the newest by cached_at (id tie-break).
+    3. ALTER TABLE ADD UNIQUE. Idempotent — MySQL raises 1061 "Duplicate
+       key name" on repeat runs / fresh installs (constraint already
+       inline in CREATE TABLE). Caught at DEBUG so no log noise.
+
+    Errno taxonomy (PR #427 code-reviewer P2):
+    - 1061 "Duplicate key name": expected on fresh installs and repeats.
+      Silently caught at DEBUG.
+    - 1062 "Duplicate entry for key uk_...": UNEXPECTED — means dedupe
+      missed a duplicate (should not happen). Logged at WARNING with the
+      original error message so operators can investigate. Migration
+      flag remains False so next call retries.
+    - Other errors: logged at WARNING, flag stays False so a retry can
+      happen.
+    """
+    global _FR_MIGRATION_RAN
+    with _FR_MIGRATION_LOCK:
+        if _FR_MIGRATION_RAN:
+            return
+
+        # Step 1 (bd-hyzu / PR #427 P1): purge NULL-key rows that would
+        # bypass the UNIQUE constraint entirely. Institutional users
+        # shouldn't have any (FMP always populates symbol/date/period).
+        # currency is also in the key so include it in the NULL check.
+        null_cleanup_sql = """
+        DELETE FROM financial_ratios
+        WHERE symbol IS NULL OR date IS NULL OR period IS NULL
+           OR currency IS NULL
+        """
+        try:
+            execute_query(null_cleanup_sql)
+        except Exception as exc:
+            logger.debug("financial_ratios NULL-cleanup skipped: %s", exc)
+
+        # Step 2: dedupe (symbol, date, period, currency) keeping newest
+        # by cached_at. PR #427 silent-failure-hunter P0: including
+        # currency prevents collapsing legitimately-distinct multi-
+        # currency rows for the same (symbol, date, period).
+        dedupe_sql = """
+        DELETE fr1 FROM financial_ratios fr1
+        INNER JOIN financial_ratios fr2
+          ON fr1.symbol = fr2.symbol
+         AND fr1.date = fr2.date
+         AND fr1.period = fr2.period
+         AND fr1.currency = fr2.currency
+         AND (fr1.cached_at < fr2.cached_at
+              OR (fr1.cached_at = fr2.cached_at AND fr1.id < fr2.id))
+        """
+        try:
+            execute_query(dedupe_sql)
+        except Exception as exc:
+            # Log but don't fail — dedupe is best-effort. If it fails, the
+            # ADD UNIQUE below may also fail (that failure is handled).
+            logger.debug("financial_ratios dedupe skipped: %s", exc)
+
+        # Step 3: add UNIQUE constraint. Idempotent + errno-aware.
+        add_unique_sql = """
+        ALTER TABLE financial_ratios
+        ADD UNIQUE KEY uk_symbol_date_period_currency
+            (symbol, date, period, currency)
+        """
+        try:
+            execute_query(add_unique_sql)
+            logger.info(
+                "financial_ratios: added UNIQUE(symbol, date, period, "
+                "currency) constraint (bd-hyzu)"
+            )
+        except Exception as exc:
+            msg = str(exc)
+            # Errno 1061 = "Duplicate key name" — expected on fresh installs
+            # and repeat migrations. Silent at DEBUG.
+            if "1061" in msg or "Duplicate key name" in msg:
+                logger.debug("financial_ratios UNIQUE already present: %s", exc)
+            elif "1062" in msg or "Duplicate entry" in msg:
+                # Errno 1062 = "Duplicate entry for key" — UNEXPECTED.
+                # Dedupe missed something (NULL rows, race, or a corner
+                # case). Log LOUDLY so operators can investigate + flag
+                # stays False for next-call retry.
+                logger.warning(
+                    "financial_ratios UNIQUE constraint could not be added — "
+                    "duplicates remain after dedupe (bd-hyzu): %s",
+                    exc,
+                )
+                return  # keep flag False for retry
+            else:
+                # Other errors (permissions, disconnect, etc.) — log +
+                # keep flag False so a retry has a chance.
+                logger.warning("financial_ratios UNIQUE ADD failed: %s", exc)
+                return
+
+        # All 3 steps completed (or ADD UNIQUE hit 1061 which is expected).
+        # Flag the migration as done so we skip the network round-trips on
+        # subsequent calls in this process.
+        _FR_MIGRATION_RAN = True
+
+
+# Module-level guard for ensure_financial_ratios_unique_index. Set True
+# after first successful (or expected-fail=1061) run so subsequent
+# aextract_data calls skip the migration entirely (PR #427 code-reviewer
+# P1: pre-review the migration fired on every fetch — 2 MySQL round-trips
+# per call forever). Thread-safe via _FR_MIGRATION_LOCK.
+_FR_MIGRATION_RAN = False
+_FR_MIGRATION_LOCK = threading.Lock()
+
+
+def _reset_fr_migration_flag_for_tests():
+    """Test-only helper to reset the ran-once flag between tests."""
+    global _FR_MIGRATION_RAN
+    with _FR_MIGRATION_LOCK:
+        _FR_MIGRATION_RAN = False
 
 
 def create_income_statement_table():
