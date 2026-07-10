@@ -70,6 +70,16 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         """
         resolved_credentials = _resolve_credentials(credentials)
 
+        # bd-uolr (PR #426 silent-failure-hunter P1): compute the effective
+        # (year, quarter) ONCE up front, matching FMP's default-latest
+        # logic. Use these values for BOTH the cache read AND the cache
+        # write, so all cache-write paths (FMP + yfinance + SEC 13F)
+        # stamp identical year/quarter into the payload. Otherwise
+        # fallback-source rows would be written WITHOUT year/quarter and
+        # every future read would treat them as cache-miss, disabling
+        # caching for any symbol not served by FMP.
+        eff_year, eff_quarter = _effective_year_quarter(query.year, query.quarter)
+
         # --- Database init (best-effort) ---
         try:
             init_database()
@@ -82,7 +92,7 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
 
         # --- Step 1: Check cache ---
         for symbol in symbols:
-            cached = _get_cached_institutional(symbol, query.year, query.quarter)
+            cached = _get_cached_institutional(symbol, eff_year, eff_quarter)
             if cached:
                 results.extend(cached)
                 logger.info("Institutional ownership cache HIT for %s", symbol)
@@ -97,7 +107,9 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
             query, symbols_to_fetch, resolved_credentials, **kwargs
         )
         if fmp_results:
-            _store_institutional(fmp_results, data_source="fmp")
+            _store_institutional(
+                fmp_results, data_source="fmp", year=eff_year, quarter=eff_quarter
+            )
             results.extend(fmp_results)
             fetched_symbols = {r.get("symbol", "").upper() for r in fmp_results}
             symbols_to_fetch = [
@@ -110,7 +122,9 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         # --- Step 3: Try yfinance ---
         yf_results = await _try_yfinance(symbols_to_fetch)
         if yf_results:
-            _store_institutional(yf_results, data_source="yfinance")
+            _store_institutional(
+                yf_results, data_source="yfinance", year=eff_year, quarter=eff_quarter
+            )
             results.extend(yf_results)
             fetched_symbols = {r.get("symbol", "").upper() for r in yf_results}
             symbols_to_fetch = [
@@ -123,7 +137,9 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         # --- Step 4: Try SEC EDGAR 13F ---
         sec_results = await _try_sec_13f(symbols_to_fetch)
         if sec_results:
-            _store_institutional(sec_results, data_source="sec_13f")
+            _store_institutional(
+                sec_results, data_source="sec_13f", year=eff_year, quarter=eff_quarter
+            )
             results.extend(sec_results)
 
         return results
@@ -202,6 +218,52 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
             )
 
         return validated
+
+
+# ---------------------------------------------------------------------------
+# Effective year/quarter (mirrors FMP's default-latest logic)
+# ---------------------------------------------------------------------------
+
+
+def _effective_year_quarter(year: int | None, quarter: int | None) -> tuple[int, int]:
+    """Compute the effective (year, quarter) matching FMP's default logic.
+
+    bd-uolr (PR #426 silent-failure-hunter P1): FMP applies a
+    default-latest-quarter policy when year/quarter is None (see
+    ``openbb_fmp/models/institutional_ownership.py::get_data_urls``
+    lines 182-197). This helper mirrors that logic client-side so:
+
+    1. All 3 cache-write paths (FMP, yfinance, SEC 13F) stamp identical
+       year/quarter into the payload. Without this, yfinance/SEC-cached
+       rows would be written without year/quarter and every future read
+       would treat them as cache-miss, effectively disabling caching for
+       any symbol not served by FMP.
+    2. Cache read uses the SAME effective values, so a call with
+       (year=None, quarter=None) hits cache on subsequent identical
+       calls (was: guaranteed miss per D2 pre-fix).
+
+    Kept in sync with FMP's implementation — if that logic changes,
+    update this helper simultaneously.
+    """
+    from pandas import Timestamp, offsets
+
+    y = year if year else None
+    q = quarter if quarter else None
+
+    if y is None and q is None:
+        current = (Timestamp("now") + offsets.QuarterEnd()) - offsets.QuarterEnd()
+        q = int(current.quarter)
+        y = int(current.year)
+    elif y is None and q is not None:
+        y = int(Timestamp("now").year)
+    elif y is not None and q is None:
+        current = Timestamp("now")
+        q = (
+            4
+            if y < current.year
+            else (current.quarter - 1 if current.quarter > 1 else 1)
+        )
+    return int(y), int(q)
 
 
 # ---------------------------------------------------------------------------
@@ -285,19 +347,42 @@ def _get_cached_institutional(
     # bd-porh (future architectural PIT refactor) may promote these to
     # schema columns; this in-memory filter is the minimum-risk correctness
     # fix that unblocks historical time-series analytics today.
+    # PR #426 code-reviewer P1: coerce payload year/quarter to int before
+    # comparison — FMP's JSON has historically drifted between int and
+    # string for numeric fields, and an equality mismatch would silently
+    # turn every cache-hit into a cache-miss (permanent refetch storm).
     loaded = []
     for row in rows:
         payload = row.get("data_json")
         if not payload:
             continue
         decoded = json.loads(payload) if isinstance(payload, str) else payload
-        if decoded.get("year") == year and decoded.get("quarter") == quarter:
+        try:
+            row_year = (
+                int(decoded.get("year")) if decoded.get("year") is not None else None
+            )
+            row_quarter = (
+                int(decoded.get("quarter"))
+                if decoded.get("quarter") is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            # Legacy/malformed row: skip (safe degrade — treat as cache-miss
+            # for this row, refetch will overwrite with well-formed data).
+            continue
+        if row_year == year and row_quarter == quarter:
             loaded.append(decoded)
     return loaded
 
 
-def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
-    """Persist institutional ownership records in MySQL cache (bd-n3sf/ihdn).
+def _store_institutional(
+    records: list[dict],
+    data_source: str = "fmp",
+    *,
+    year: int | None = None,
+    quarter: int | None = None,
+) -> None:
+    """Persist institutional ownership records in MySQL cache (bd-n3sf/ihdn/uolr).
 
     Routes per-symbol DELETE+INSERT through ``replace_rows()`` from bd-kh08
     (PR #414) so each symbol's cache write is atomic — a partial-write
@@ -319,6 +404,15 @@ def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
     failure aborted every remaining symbol with only ONE warning that
     didn't identify which symbol died. Now each symbol gets its own
     try/except with the symbol name in the warning.
+
+    Post-review-fix (PR #426 silent-failure-hunter P1): year and quarter
+    are now keyword-only args that MUST be stamped into every record's
+    payload before JSON-encoding. Without this, yfinance/SEC-cached rows
+    would be written without year/quarter and every future cache read
+    would treat them as cache-miss — disabling caching for any symbol
+    not served by FMP. When year/quarter is None (only for legacy
+    callers), the payload's own year/quarter is preserved (FMP populates
+    them; other sources don't).
     """
     if not records:
         return
@@ -331,6 +425,15 @@ def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
             continue
         # Attach provenance in-place (preserves pre-fix mutation semantics).
         item["data_source"] = data_source
+        # bd-uolr (PR #426): stamp the effective (year, quarter) into
+        # EVERY payload — critical for yfinance/SEC rows which otherwise
+        # lack these fields entirely. Overwrite any existing values so
+        # the source of truth is the aextract_data caller (which computed
+        # the effective values via _effective_year_quarter).
+        if year is not None:
+            item["year"] = year
+        if quarter is not None:
+            item["quarter"] = quarter
         by_symbol.setdefault(sym, []).append(
             {
                 "symbol": sym,
