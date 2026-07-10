@@ -77,7 +77,7 @@ class FMPCachedKeyMetricsFetcher(FMPKeyMetricsFetcher):
                     _store_key_metrics(fresh_data)
                 except Exception as exc:
                     logger.warning(
-                        "Key metrics cache write failed (data returned " "anyway): %s",
+                        "Key metrics cache write failed (data returned anyway): %s",
                         exc,
                     )
                 results.extend(fresh_data)

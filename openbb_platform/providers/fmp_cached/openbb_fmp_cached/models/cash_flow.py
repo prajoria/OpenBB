@@ -81,7 +81,7 @@ class FMPCachedCashFlowStatementFetcher(FMPCashFlowStatementFetcher):
                     _store_cash_flow_statements(fresh_data)
                 except Exception as exc:
                     logger.warning(
-                        "Cash flow cache write failed (data returned " "anyway): %s",
+                        "Cash flow cache write failed (data returned anyway): %s",
                         exc,
                     )
                 results.extend(fresh_data)

@@ -75,7 +75,7 @@ class FMPCachedEquityQuoteFetcher(FMPEquityQuoteFetcher):
                     _store_quotes(fresh_data)
                 except Exception as exc:
                     logger.warning(
-                        "Equity quote cache write failed (data returned " "anyway): %s",
+                        "Equity quote cache write failed (data returned anyway): %s",
                         exc,
                     )
                 results.extend(fresh_data)
