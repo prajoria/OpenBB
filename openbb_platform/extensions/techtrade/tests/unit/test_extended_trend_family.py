@@ -217,6 +217,200 @@ class TestAroonDeterminism:
         assert result_a == result_b
 
 
+# =========================================================================== #
+# Step 2 — Ichimoku Cloud [bd-7gwh]
+# =========================================================================== #
+
+
+def _ohlcv_flat_then_up(n_flat: int, n_up: int, base: float = 100.0) -> pd.DataFrame:
+    """n_flat bars at `base`, then n_up bars rising by 0.5/bar.
+
+    Used for Ichimoku confirmation-buffer tests: seeds the cloud level
+    with a long flat period so the senkou spans stabilize at `base`,
+    then breaks upward.
+    """
+    import pandas_ta_classic  # noqa: F401
+
+    n = n_flat + n_up
+    close = np.concatenate([
+        np.full(n_flat, base),
+        base + np.arange(1, n_up + 1) * 0.5,
+    ])
+    dates = pd.date_range("2024-01-01", periods=n, freq="B")
+    df = pd.DataFrame(
+        {
+            "open": close - 0.1, "high": close + 0.2, "low": close - 0.2,
+            "close": close, "volume": np.full(n, 1_000_000.0),
+        },
+        index=dates,
+    )
+    df.columns = [c.lower() for c in df.columns]
+    return df
+
+
+def _ohlcv_whipsaw(n_flat: int, spike_up_bars: int = 1) -> pd.DataFrame:
+    """Long flat period, then a `spike_up_bars`-bar spike above cloud
+    that STAYS above cloud for exactly `spike_up_bars` bars (no reversion).
+
+    Discriminating fixture for the 3-bar-confirmation buffer:
+    - Under N=1: last bar is above cloud → confirmed_position=+1.
+    - Under N=3 and spike_up_bars < 3: last 3 bars are not all above
+      cloud (earlier bars sat at cloud level) → confirmed_position != +1.
+
+    This is what R7.11 (CLAUDE.md testing rule) requires: mutating the
+    confirmation window must actually change the test outcome, not just
+    coincidentally still pass because the fixture reverts to neutral."""
+    import pandas_ta_classic  # noqa: F401
+
+    close = np.concatenate([
+        np.full(n_flat, 100.0),
+        np.full(spike_up_bars, 120.0),
+    ])
+    n = len(close)
+    dates = pd.date_range("2024-01-01", periods=n, freq="B")
+    df = pd.DataFrame(
+        {
+            "open": close - 0.1, "high": close + 0.2, "low": close - 0.2,
+            "close": close, "volume": np.full(n, 1_000_000.0),
+        },
+        index=dates,
+    )
+    df.columns = [c.lower() for c in df.columns]
+    return df
+
+
+class TestIchimokuPanel:
+    """Ichimoku panel keys: raw single-bar `ichimoku_price_vs_cloud` (audit)
+    AND 3-bar-confirmed `ichimoku_confirmed_position` (vote input)."""
+
+    def test_ichimoku_key_populated_when_history_sufficient(self):
+        df = _ohlcv_uptrend(200)
+        result = indicators_ext._compute_trend_ext(df, DEFAULT_CONFIG)
+        assert "ichimoku_price_vs_cloud" in result, (
+            f"200-bar history should populate ichimoku_price_vs_cloud; "
+            f"got keys: {sorted(result)}"
+        )
+        assert "ichimoku_confirmed_position" in result
+
+    def test_ichimoku_key_absent_when_history_too_short(self):
+        """Ichimoku needs 52 + 26 = 78 bars minimum (senkou span B lookback
+        of 52 plus 26-bar forward displacement). Under 78 bars, both keys
+        must be absent (graceful degrade per §10 M4)."""
+        df = _ohlcv_uptrend(40)
+        result = indicators_ext._compute_trend_ext(df, DEFAULT_CONFIG)
+        assert "ichimoku_price_vs_cloud" not in result
+        assert "ichimoku_confirmed_position" not in result
+
+    def test_ichimoku_price_vs_cloud_positive_on_uptrend(self):
+        """Strong uptrend puts price above both senkou spans → +1."""
+        df = _ohlcv_uptrend(200)
+        result = indicators_ext._compute_trend_ext(df, DEFAULT_CONFIG)
+        assert result["ichimoku_price_vs_cloud"] == 1.0
+
+    def test_ichimoku_price_vs_cloud_negative_on_downtrend(self):
+        df = _ohlcv_downtrend(200)
+        result = indicators_ext._compute_trend_ext(df, DEFAULT_CONFIG)
+        assert result["ichimoku_price_vs_cloud"] == -1.0
+
+    def test_ichimoku_confirmed_position_matches_raw_on_stable_trend(self):
+        """After 3+ consecutive same-sign bars, the confirmed position
+        equals the raw position."""
+        df = _ohlcv_uptrend(200)
+        result = indicators_ext._compute_trend_ext(df, DEFAULT_CONFIG)
+        assert result["ichimoku_confirmed_position"] == result["ichimoku_price_vs_cloud"]
+
+
+class TestIchimokuVote:
+    """The trend-family vote-mapper emits an `ichimoku_cloud` vote in [-1, +1]
+    reading from `ichimoku_confirmed_position`."""
+
+    def _panel_from(self, df: pd.DataFrame):
+        return indicators.build_indicator_panel(
+            symbol="TEST",
+            as_of=df.index[-1].date(),
+            ohlcv_rows=df.reset_index(names="timestamp").to_dict(orient="records"),
+            panel_config=_extended(),
+        )
+
+    def test_ichimoku_vote_absent_when_key_absent(self):
+        panel = self._panel_from(_ohlcv_uptrend(40))
+        votes = confluence_ext.trend_votes_ext(panel)
+        assert [v for v in votes if v.name == "ichimoku_cloud"] == []
+
+    def test_ichimoku_vote_positive_on_sustained_uptrend(self):
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        votes = confluence_ext.trend_votes_ext(panel)
+        vote = next(v for v in votes if v.name == "ichimoku_cloud")
+        assert vote.vote == 1.0
+
+    def test_ichimoku_vote_negative_on_sustained_downtrend(self):
+        panel = self._panel_from(_ohlcv_downtrend(200))
+        votes = confluence_ext.trend_votes_ext(panel)
+        vote = next(v for v in votes if v.name == "ichimoku_cloud")
+        assert vote.vote == -1.0
+
+    def test_ichimoku_vote_bounded_in_signed_unit(self):
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        votes = confluence_ext.trend_votes_ext(panel)
+        vote = next(v for v in votes if v.name == "ichimoku_cloud")
+        assert -1.0 <= vote.vote <= 1.0
+
+    def test_ichimoku_vote_family_is_trend(self):
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        votes = confluence_ext.trend_votes_ext(panel)
+        vote = next(v for v in votes if v.name == "ichimoku_cloud")
+        assert vote.family == "trend"
+
+
+class TestIchimokuConfirmationBuffer:
+    """3-bar confirmation buffer (§R.4 M3): a 1-bar or 2-bar spike above/
+    below the cloud must NOT flip the vote. Only 3 consecutive same-side
+    bars produce a flip.
+
+    R7.11 load-bearing: mutating _ICHIMOKU_CONFIRMATION_BARS from 3 to 1
+    must make `test_confirmed_position_ignores_single_bar_whipsaw` fail
+    (because then a 1-bar spike WOULD flip the confirmed position)."""
+
+    def test_confirmation_constant_is_three(self):
+        """The constant is load-bearing for the confirmation window
+        semantics; enforcing its value here catches accidental drift."""
+        assert indicators_ext._ICHIMOKU_CONFIRMATION_BARS == 3
+
+    def test_confirmed_position_ignores_single_bar_whipsaw(self):
+        """80 bars flat at 100, then 1 bar at 120 (above cloud). The
+        last-bar RAW position is +1 (price above cloud). But the 3-bar
+        confirmed position must NOT be +1 — only the final bar is above
+        cloud; the two prior bars were AT cloud level (raw position = 0).
+
+        R7.11 mutation-verified: under _ICHIMOKU_CONFIRMATION_BARS=1
+        the confirmed position WOULD be +1 (identical to raw); under
+        =3 it must be != +1 (0 by the neutral-default rule)."""
+        df = _ohlcv_whipsaw(n_flat=80, spike_up_bars=1)
+        result = indicators_ext._compute_trend_ext(df, DEFAULT_CONFIG)
+        # Raw position on final bar should be +1 (price=120 > cloud=100)
+        assert result.get("ichimoku_price_vs_cloud") == 1.0, (
+            f"fixture pre-check: raw position should be +1; "
+            f"got {result.get('ichimoku_price_vs_cloud')}"
+        )
+        # Confirmed position must NOT be +1 — one bar isn't enough
+        assert result.get("ichimoku_confirmed_position") != 1.0, (
+            f"1-bar whipsaw should not confirm a +1 flip under 3-bar buffer; "
+            f"got confirmed_position={result.get('ichimoku_confirmed_position')} "
+            f"(this test is R7.11 load-bearing — mutating "
+            f"_ICHIMOKU_CONFIRMATION_BARS from 3 to 1 must make this fail)"
+        )
+
+
+class TestIchimokuDeterminism:
+    """Same OHLCV → same Ichimoku output. Locks the purity contract."""
+
+    def test_ichimoku_run_twice_same_result(self):
+        df = _ohlcv_uptrend(200)
+        a = indicators_ext._compute_trend_ext(df, DEFAULT_CONFIG)
+        b = indicators_ext._compute_trend_ext(df, DEFAULT_CONFIG)
+        assert a == b
+
+
 # --------------------------------------------------------------------------- #
 # helper: build the extended panel config
 # --------------------------------------------------------------------------- #
