@@ -35,6 +35,9 @@ from openbb_fmp_cached.models.equity_intraday_historical import (
 from openbb_fmp_cached.models.aftermarket_quote import (
     FMPCachedAftermarketQuoteFetcher,
 )
+from openbb_fmp_cached.models.exchange_market_hours import (
+    FMPCachedExchangeMarketHoursFetcher,
+)
 from openbb_fmp_cached.models.equity_peers import FMPCachedEquityPeersFetcher
 from openbb_fmp_cached.models.equity_profile import FMPCachedEquityProfileFetcher
 from openbb_fmp_cached.models.equity_quote import FMPCachedEquityQuoteFetcher
@@ -56,7 +59,6 @@ from openbb_fmp.models.etf_holdings import FMPEtfHoldingsFetcher
 from openbb_fmp.models.etf_info import FMPEtfInfoFetcher
 from openbb_fmp.models.etf_search import FMPEtfSearchFetcher
 from openbb_fmp.models.etf_sectors import FMPEtfSectorsFetcher
-from openbb_fmp.models.exchange_market_hours import FMPExchangeMarketHoursFetcher
 from openbb_fmp.models.executive_compensation import FMPExecutiveCompensationFetcher
 from openbb_fmp_cached.models.financial_ratios import FMPCachedFinancialRatiosFetcher
 from openbb_fmp.models.forward_ebitda_estimates import FMPForwardEbitdaEstimatesFetcher
@@ -106,6 +108,7 @@ def create_all_cached_fetchers():
         "EquityQuote": FMPCachedEquityQuoteFetcher,
         "EtfHistorical": FMPCachedEquityHistoricalFetcher,
         "EtfHoldings": FMPCachedEtfHoldingsFetcher,
+        "ExchangeMarketHours": FMPCachedExchangeMarketHoursFetcher,
         "FinancialRatios": FMPCachedFinancialRatiosFetcher,
         "IndexConstituents": FMPCachedIndexConstituentsFetcher,
         "IncomeStatement": FMPCachedIncomeStatementFetcher,
@@ -174,14 +177,15 @@ def create_all_cached_fetchers():
         ("YieldCurve", FMPYieldCurveFetcher),
         # Phase-0 intraday fetchers (fmp-day-trading PRD 2026-07-06 §5.1).
         # NOTE (P2.1): AftermarketQuote + EquityIntradayHistorical promoted
-        # to tier-1 dedicated_fetchers above. The four entries kept here
-        # remain tier-2 passthrough forever per PRD §5.1 (batch-short IS the
-        # cheap poll primitive so caching would defeat the point; indicators
-        # are rarely used; hours + trades gain no caching benefit today).
-        # Phase 2 (P2.2) may wrap ExchangeMarketHours with a 24h TTL helper.
+        # to tier-1 dedicated_fetchers above.
+        # NOTE (P2.2): ExchangeMarketHours also promoted to tier-1 with
+        # a 24h TTL via create_ttl_wrapper_class (see models/
+        # exchange_market_hours.py). The two entries kept here remain tier-2
+        # passthrough forever per PRD §5.1 (batch-short IS the cheap poll
+        # primitive so caching would defeat the point; indicators are rarely
+        # used).
         ("AftermarketTrade", FMPAftermarketTradeFetcher),
         ("EquityQuoteBatchShort", FMPEquityQuoteBatchShortFetcher),
-        ("ExchangeMarketHours", FMPExchangeMarketHoursFetcher),
         ("TechnicalIndicatorIntraday", FMPTechnicalIndicatorIntradayFetcher),
         ("GovernmentTrades", FMPGovernmentTradesFetcher),
     ]

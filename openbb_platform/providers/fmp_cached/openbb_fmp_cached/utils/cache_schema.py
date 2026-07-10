@@ -5460,6 +5460,9 @@ FLATTENED_TABLES = {
     "treasury_rates": {
         "schema": create_treasury_rates_table
     },
+    "ttl_cache": {
+        "schema": create_ttl_cache_table
+    },
     "complementary_market_yields": {
         "schema": create_complementary_market_yields_table
     },
@@ -5569,6 +5572,34 @@ def create_aftermarket_quote_table():
         INDEX idx_cached_at (cached_at),
         INDEX idx_is_valid (is_valid)
 
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
+
+
+def create_ttl_cache_table():
+    """Create ttl_cache — backing store for create_ttl_wrapper_class (P2.2).
+
+    One row per (cache_name, cache_key). The wrapper writes on MISS (via
+    INSERT ... ON DUPLICATE KEY UPDATE) and reads on HIT. Cache eviction
+    is TTL-based inside the wrapper's SELECT clause (cached_at > cutoff);
+    stale rows are overwritten on the next MISS rather than deleted, which
+    keeps the write path a single statement.
+
+    Distinct from the per-fetcher caches (equity_historical, aftermarket_quote,
+    etc.) — those own their own tables with domain-specific columns. This
+    is the generic JSON-blob store for any fetcher wrapped by
+    create_ttl_wrapper_class (currently just ExchangeMarketHours; future
+    candidates: holidays, market_status snapshots).
+    """
+    query = """
+    CREATE TABLE IF NOT EXISTS ttl_cache (
+        cache_name VARCHAR(80) NOT NULL,
+        cache_key  CHAR(64)    NOT NULL,
+        payload    JSON        NOT NULL,
+        cached_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (cache_name, cache_key),
+        INDEX idx_cached_at (cached_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     return execute_query(query)
