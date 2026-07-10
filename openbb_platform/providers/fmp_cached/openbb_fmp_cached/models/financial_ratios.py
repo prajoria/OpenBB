@@ -32,7 +32,10 @@ from openbb_fmp.models.financial_ratios import (
     FMPFinancialRatiosQueryParams,
 )
 
-from openbb_fmp_cached.utils.cache_schema import create_financial_ratios_table
+from openbb_fmp_cached.utils.cache_schema import (
+    create_financial_ratios_table,
+    ensure_financial_ratios_unique_index,
+)
 from openbb_fmp_cached.utils.database import (
     execute_query,
     init_database,
@@ -105,6 +108,10 @@ class FMPCachedFinancialRatiosFetcher(FMPFinancialRatiosFetcher):
         try:
             init_database()
             create_financial_ratios_table()
+            # bd-hyzu: migrate existing installs to UNIQUE(symbol,date,period).
+            # Idempotent — no-op on fresh installs (constraint already inline)
+            # or repeat runs (ALTER TABLE ADD UNIQUE already fails on duplicate).
+            ensure_financial_ratios_unique_index()
         except Exception as exc:
             logger.warning(
                 "Financial ratios cache init failed, using direct FMP call: %s", exc

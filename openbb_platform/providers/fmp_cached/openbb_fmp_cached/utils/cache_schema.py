@@ -3062,7 +3062,13 @@ def create_financial_ratios_table():
         INDEX idx_exchange (exchange),
         INDEX idx_cached_at (cached_at),
         INDEX idx_is_valid (is_valid),
-        INDEX idx_composite (symbol, date, period)
+        -- bd-hyzu: defense-in-depth UNIQUE against duplicate rows from
+        -- concurrent writers (or external tools bypassing
+        -- _store_financial_ratios). The DELETE+INSERT race that
+        -- motivated this bead was closed by PR #418 (bd-n3sf) via
+        -- atomic replace_rows(); this UNIQUE prevents ANY future code
+        -- path from silently duplicating a (symbol, date, period) row.
+        UNIQUE KEY uk_symbol_date_period (symbol, date, period)
 
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
@@ -3691,6 +3697,57 @@ def create_historical_splits_table():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     return execute_query(query)
+
+
+def ensure_financial_ratios_unique_index():
+    """Migrate existing financial_ratios tables to add UNIQUE constraint (bd-hyzu).
+
+    Idempotent migration for existing installs:
+    1. Delete duplicate (symbol, date, period) rows keeping the newest by
+       cached_at (defense against rows accumulated pre-UNIQUE — the atomic
+       replace_rows from bd-n3sf prevents FUTURE duplicates but doesn't
+       clean historical ones).
+    2. Attempt to add the UNIQUE constraint. If it already exists (fresh
+       install or prior run) the ALTER TABLE fails with a duplicate-key
+       error that's caught and logged at DEBUG.
+
+    Safe to call on every ``_store_financial_ratios`` invocation — the
+    dedupe query is a no-op when there are no duplicates, and the ALTER
+    TABLE is caught. Cost: 2 quick MySQL queries per store. If perf
+    becomes an issue, add a module-level ``_migration_ran`` flag.
+    """
+    # Step 1: delete duplicates keeping newest by cached_at (id tie-break).
+    dedupe_sql = """
+    DELETE fr1 FROM financial_ratios fr1
+    INNER JOIN financial_ratios fr2
+      ON fr1.symbol = fr2.symbol
+     AND fr1.date = fr2.date
+     AND fr1.period = fr2.period
+     AND (fr1.cached_at < fr2.cached_at
+          OR (fr1.cached_at = fr2.cached_at AND fr1.id < fr2.id))
+    """
+    try:
+        execute_query(dedupe_sql)
+    except Exception as exc:
+        # Log but don't fail — dedupe is best-effort. If it fails, the
+        # ADD UNIQUE below will also fail (which is caught + logged).
+        logger.debug("financial_ratios dedupe skipped: %s", exc)
+
+    # Step 2: add UNIQUE constraint. Idempotent — if it already exists,
+    # MySQL raises "Duplicate key name" which we catch.
+    add_unique_sql = """
+    ALTER TABLE financial_ratios
+    ADD UNIQUE KEY uk_symbol_date_period (symbol, date, period)
+    """
+    try:
+        execute_query(add_unique_sql)
+        logger.info(
+            "financial_ratios: added UNIQUE(symbol, date, period) constraint (bd-hyzu)"
+        )
+    except Exception as exc:
+        # Expected on fresh installs (constraint was created inline by
+        # create_financial_ratios_table) or on repeat runs.
+        logger.debug("financial_ratios UNIQUE already present or ADD failed: %s", exc)
 
 
 def create_income_statement_table():
