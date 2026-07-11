@@ -151,3 +151,7 @@ pr[0-9]*-review.txt
 /Tools/record_basket_fixture.py
 # transient scratch dir
 /tmp/
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

@@ -149,6 +149,16 @@ class TestHelpers:
         OpenBBTechnical-0h2.37 (flag test coverage): iteration 1 hard-coded 6
         flags and missed the 7th when A5 shipped ``use_peg_tightening``).
         """
+        # provider-purity-exempt: intentionally tests the wrong-provider raise branch
+        with pytest.raises(ValueError, match="fmp_cached"):
+            AnalysisConfig(symbol="TSLA", provider="fmp")  # provider-purity-exempt
+        # Verify the error message points at CLAUDE.md so the operator
+        # knows why their override was rejected.
+        with pytest.raises(ValueError, match="CLAUDE.md|Provider rule"):
+            AnalysisConfig(symbol="TSLA", provider="yfinance")
+
+    def test_analysis_config_default_provider_still_works(self):
+        """Regression lock: the default (fmp_cached) constructor path is unchanged."""
         cfg = AnalysisConfig(symbol="TSLA")
         assert isinstance(cfg.feature_flags, AnalysisFeatureFlags)
         # Every flag defaults to False → old behavior preserved on default config.
@@ -167,9 +177,14 @@ class TestHelpers:
         # Untouched flags stay at default (False)
         assert cfg.feature_flags.use_sector_wacc is False
 
-    def test_analysis_config_wrong_provider_warns(self):
-        with pytest.warns(UserWarning, match="not the supported value"):
-            AnalysisConfig(symbol="TSLA", provider="fmp")
+    def test_analysis_config_wrong_provider_raises(self):
+        # bd-omi: wrong provider raises ValueError with a CLAUDE.md pointer,
+        # not a UserWarning (which the default filter silently swallows).
+        # provider-purity-exempt: intentionally tests the wrong-provider raise branch
+        with pytest.raises(ValueError, match="fmp_cached"):
+            AnalysisConfig(symbol="TSLA", provider="fmp")  # provider-purity-exempt
+        with pytest.raises(ValueError, match="CLAUDE.md|Provider rule"):
+            AnalysisConfig(symbol="TSLA", provider="yfinance")  # provider-purity-exempt
 
     # --- _last_trading_day ---------------------------------------------------
 

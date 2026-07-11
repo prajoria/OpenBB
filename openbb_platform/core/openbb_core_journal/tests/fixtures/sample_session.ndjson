@@ -1,0 +1,10 @@
+{"schema_version": 1, "ts": "2026-07-08T13:30:00+00:00", "session_id": "sample-2026-07-08", "event_type": "session_start", "payload": {"exchange": "NASDAQ"}}
+{"schema_version": 1, "ts": "2026-07-08T13:30:05+00:00", "session_id": "sample-2026-07-08", "event_type": "tick", "payload": {"symbol": "AAPL", "price": "180.50"}}
+{"schema_version": 1, "ts": "2026-07-08T13:30:10+00:00", "session_id": "sample-2026-07-08", "event_type": "signal", "payload": {"symbol": "AAPL", "score": 0.72, "direction": "long"}}
+{"schema_version": 1, "ts": "2026-07-08T13:30:15+00:00", "session_id": "sample-2026-07-08", "event_type": "order", "payload": {"symbol": "AAPL", "intent": "entry", "qty": "100", "limit_price": "180.55"}}
+{"schema_version": 1, "ts": "2026-07-08T13:30:20+00:00", "session_id": "sample-2026-07-08", "event_type": "fill", "payload": {"symbol": "AAPL", "price": "180.55", "qty": "100", "slippage": "0.05", "commission": "0.00"}}
+{"schema_version": 1, "ts": "2026-07-08T13:30:25+00:00", "session_id": "sample-2026-07-08", "event_type": "tick", "payload": {"symbol": "MSFT", "price": "410.20"}}
+{"schema_version": 1, "ts": "2026-07-08T13:30:30+00:00", "session_id": "sample-2026-07-08", "event_type": "veto", "payload": {"symbol": "MSFT", "gate": "day_dd_pct_breach", "reason": "day drawdown -2.1% exceeds day_dd_pct=-2.0%"}}
+{"schema_version": 1, "ts": "2026-07-08T15:55:00+00:00", "session_id": "sample-2026-07-08", "event_type": "risk_state_change", "payload": {"gate": "flat_by_close", "activated": true}}
+{"schema_version": 1, "ts": "2026-07-08T15:56:00+00:00", "session_id": "sample-2026-07-08", "event_type": "fill", "payload": {"symbol": "AAPL", "price": "181.20", "qty": "-100", "slippage": "0.05", "commission": "0.00"}}
+{"schema_version": 1, "ts": "2026-07-08T16:00:00+00:00", "session_id": "sample-2026-07-08", "event_type": "session_end", "payload": {"flat_at_close": true, "realized_pnl": "65.00"}}
