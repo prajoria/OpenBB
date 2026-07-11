@@ -5,9 +5,15 @@ Covers:
     a warning; P5.2 wires it)
   * format='md' writes only MD
   * format='json' writes only JSON
-  * idempotent overwrite emits WARN (review S5)
+  * idempotent overwrite requires explicit overwrite=True flag
+    (review S5 + security-review round 1)
   * full-path Decimal precision (review #3): 12-digit Decimal survives
     the FULL report(format='json') pipeline
+  * output_dir jail (security-review round 1 finding #1)
+  * symlink write refusal (security-review round 1 finding #3)
+
+All tests set FMP_TRADING_REPORTS_ROOT to tmp_path via monkeypatch so
+they can write inside the jail without polluting the real Analysis/exports/.
 """
 
 from __future__ import annotations
@@ -19,6 +25,13 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _jail_to_tmp(tmp_path, monkeypatch):
+    """Set the reports jail to tmp_path for every test in this file."""
+    monkeypatch.setenv("FMP_TRADING_REPORTS_ROOT", str(tmp_path))
+    return tmp_path
 
 
 class TestReportManifest:
@@ -106,24 +119,125 @@ class TestReportManifest:
 
 
 class TestIdempotentOverwrite:
-    """Review S5: design §6.2 documents idempotent-overwrite behavior."""
+    """Review S5 + security-review round 1: idempotent overwrite requires
+    the explicit ``overwrite=True`` flag (default is refuse-with-error)."""
 
-    def test_second_call_overwrites_and_warns(self, tmp_path, monkeypatch, caplog):
+    def test_second_call_without_overwrite_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "openbb_fmp_trading.reporting.journal_reader.read_session_events",
+            lambda session_id, root=None: iter([]),
+        )
+        # Set the jail to tmp_path so output_dir under it validates
+        monkeypatch.setenv("FMP_TRADING_REPORTS_ROOT", str(tmp_path))
+        from openbb_fmp_trading.reporting.report import OutputExists, report
+
+        output = tmp_path / "day1"
+        report(session_id="s20260713", format="md", output_dir=output)
+        # Second call without overwrite -> OutputExists
+        with pytest.raises(OutputExists):
+            report(session_id="s20260713", format="md", output_dir=output)
+
+    def test_second_call_with_overwrite_true_warns(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        monkeypatch.setattr(
+            "openbb_fmp_trading.reporting.journal_reader.read_session_events",
+            lambda session_id, root=None: iter([]),
+        )
+        monkeypatch.setenv("FMP_TRADING_REPORTS_ROOT", str(tmp_path))
+        from openbb_fmp_trading.reporting.report import report
+
+        output = tmp_path / "day1"
+        caplog.set_level(logging.WARNING)
+        report(
+            session_id="s20260713", format="md", output_dir=output, overwrite=False
+        )
+        first_mtime = (output / "end_of_day.md").stat().st_mtime
+        time.sleep(0.01)
+        report(
+            session_id="s20260713", format="md", output_dir=output, overwrite=True
+        )
+        second_mtime = (output / "end_of_day.md").stat().st_mtime
+        assert second_mtime > first_mtime
+        assert any("overwrit" in r.message.lower() for r in caplog.records)
+
+
+class TestOutputDirJail:
+    """Security-review round 1 finding #1: output_dir is jailed."""
+
+    def test_output_dir_outside_jail_raises(self, tmp_path, monkeypatch):
+        """A path outside FMP_TRADING_REPORTS_ROOT is rejected."""
+        import sys
+
+        # Cross-platform "outside jail" path
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        jail = tmp_path / "jail"
+        jail.mkdir()
+        monkeypatch.setenv("FMP_TRADING_REPORTS_ROOT", str(jail))
+
+        monkeypatch.setattr(
+            "openbb_fmp_trading.reporting.journal_reader.read_session_events",
+            lambda session_id, root=None: iter([]),
+        )
+        from openbb_fmp_trading.reporting.report import (
+            OutputPathEscapesJail,
+            report,
+        )
+
+        with pytest.raises(OutputPathEscapesJail):
+            report(session_id="s20260713", format="md", output_dir=outside)
+
+    def test_output_dir_inside_jail_accepted(self, tmp_path, monkeypatch):
+        """Sanity: an in-jail path is accepted."""
+        monkeypatch.setenv("FMP_TRADING_REPORTS_ROOT", str(tmp_path))
         monkeypatch.setattr(
             "openbb_fmp_trading.reporting.journal_reader.read_session_events",
             lambda session_id, root=None: iter([]),
         )
         from openbb_fmp_trading.reporting.report import report
 
-        caplog.set_level(logging.WARNING)
-        report(session_id="s20260713", format="md", output_dir=tmp_path)
-        first_mtime = (tmp_path / "end_of_day.md").stat().st_mtime
-        time.sleep(0.01)  # ensure mtime tick
-        report(session_id="s20260713", format="md", output_dir=tmp_path)
-        second_mtime = (tmp_path / "end_of_day.md").stat().st_mtime
-        assert second_mtime > first_mtime  # file was rewritten
-        # WARN emitted at least once about the overwrite
-        assert any("overwrit" in r.message.lower() for r in caplog.records)
+        in_jail = tmp_path / "day1"
+        manifest = report(
+            session_id="s20260713", format="md", output_dir=in_jail
+        )
+        assert manifest.md_path is not None
+        assert manifest.md_path.exists()
+
+    def test_symlink_writes_refused(self, tmp_path, monkeypatch):
+        """Security-review finding #3: refuse to write through symlinks."""
+        import os
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("Symlink creation on Windows requires admin/dev mode")
+
+        monkeypatch.setenv("FMP_TRADING_REPORTS_ROOT", str(tmp_path))
+        monkeypatch.setattr(
+            "openbb_fmp_trading.reporting.journal_reader.read_session_events",
+            lambda session_id, root=None: iter([]),
+        )
+        from openbb_fmp_trading.reporting.report import (
+            OutputPathEscapesJail,
+            report,
+        )
+
+        # Plant a symlink at the target file path
+        output_dir = tmp_path / "day1"
+        output_dir.mkdir()
+        target_outside = tmp_path / "attacker_target"
+        target_outside.write_text("original content", encoding="utf-8")
+        (output_dir / "end_of_day.md").symlink_to(target_outside)
+
+        with pytest.raises(OutputPathEscapesJail, match="symlink"):
+            report(
+                session_id="s20260713",
+                format="md",
+                output_dir=output_dir,
+                overwrite=True,
+            )
+        # Target unchanged — the write was refused
+        assert target_outside.read_text() == "original content"
 
 
 class TestFullPathDecimalPrecision:
