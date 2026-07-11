@@ -53,6 +53,7 @@
   - **§13.3 (merge strategy) LOCKED**: Single `--allow-unrelated-histories` merge — cherry-picking across unrelated histories loses the merge base, error-prone at ~11k LOC, gains nothing. Reviewability comes from (a) this design doc, (b) preserved `git log --follow`/blame, (c) the green 1,353-test gate — NOT small PR diff. Added a "how to review an extraction PR" note. Moved from "open" to "resolved".
   - **§13.4 (h14 normalization) — bead filed**: Filed as `OpenBBTechnical-qj7`, linked as `tracks` `OpenBBTechnical-rbf`. Survives freeze/unfreeze churn.
   - **NEW §13.5 (deprecation shim)**: Documented decision: given "no behavior change for downstream users" (§3), ship a one-release re-export shim in `openbb_pine/compiler/` and `openbb_pine/runtime/` that re-exports the moved names from `pyne_compiler.*` (with a `DeprecationWarning`). Removes the shim in the next minor release. This gives external notebooks/`Analysis/`/doc examples one release to migrate.
+- **Rev 4 — SHIPPED marker (2026-07-10, E4.2, bd-or5).** Pine Extraction epic (bd-rbf) COMPLETE. All five E-phase sub-epics landed on `openbb_pine_support`; the compiler+core-runtime tree lives under `third_party/pynecore/src/pyne_compiler/` at pynecore HEAD `c70ef4a5d…` (submodule pinned via bd-kpg). M1 compiler-only AST digest MATCHES the pre-extraction baseline: `5c83d18fe4fc96cafbc85bab1e5b10ed94d575ab5aa7a5254b06e0b02f16b3d1` (captured in `docs/superpowers/scratch/pre-e2-m1-baseline.txt`). Rollback anchor tag on pynecore: `pre-openbb-extraction-2026-07-09` @ `bfca0a163` (pushed to `origin/prajoria/pynecore`). All `## 12. Success criteria` items 1–9 satisfied; the deprecation shims under `openbb_pine/{compiler,runtime}/*` remain live per §13.5 with removal target = next minor release. The 9 P1 sub-beads previously frozen for extraction (aeh, god, 5k0, liz, 4d0, 250, cht, ph0, 0uh) are unfrozen and ready for normal work cadence (E4.1, bd-8j9). Follow-up bead `OpenBBTechnical-qj7` (§13.4 h14 normalization) unblocked and rescoped to `pyne_compiler.*`. Debt bead `OpenBBTechnical-7a8` (CCXT/CapitalCom conformance audit) unblocked. See §16 "Post-extraction module map".
 
 ---
 
@@ -1046,3 +1047,50 @@ docs examples, external users of the fork) imports those paths, they break with 
 shim. Decide: hard cut (documented in release notes) vs. a thin re-export shim in
 `openbb_pine/` for one release. Given "no behavior change for downstream users" is a
 stated non-goal-violation risk (§3), a one-release shim is the safer default.
+
+---
+
+## 16. Post-extraction module map (added Rev 4, 2026-07-10, E4.2/bd-or5)
+
+**Status: SHIPPED.** The extraction epic (bd-rbf) is complete on
+`openbb_pine_support`. This section is the durable reference for **where
+each concern now lives** — read it if you're onboarding after the split
+or writing a new import.
+
+### 16.1 Package split
+
+| Package (post-extraction) | Home | Concern |
+|---|---|---|
+| `pyne_compiler.compiler.*` | `third_party/pynecore/src/pyne_compiler/compiler/` | Lexer (C1), parser (C2), IR (C4), type checker (C3), codegen (C5), compile cache (C6), v5→v6 migration (C7), builtin signatures, grammar |
+| `pyne_compiler.runtime.*` | `third_party/pynecore/src/pyne_compiler/runtime/` | executor_core, security_dispatcher, secondary_cache, security_hook, strategy_types, restricted, limits, _pynecore_glue, pynecore_bridge |
+| `pyne_compiler.errors.*` | `third_party/pynecore/src/pyne_compiler/errors/` | Compiler+runtime error hierarchy (base, codes, diagnostics) |
+| `pyne_compiler.telemetry` | `third_party/pynecore/src/pyne_compiler/telemetry.py` | Compiler+runtime telemetry hook (provider-agnostic) |
+| `pynecore.providers.*` | `third_party/pynecore/src/pynecore/providers/` | Provider base class (extended in E1.1 with `stream()`/`fetch()`); reference impls `csv.py`, `sqlite.py`, `ccxt.py`, `capitalcom.py`; behavioral conformance suite |
+| `openbb_pine.*` (provider-side only) | `openbb_platform/extensions/pine/openbb_pine/` | FMP provider, BYO provider, provider selection, REST routers, MCP tools, CLI, attribution, `_coverage_manifest.py`, provider-boundary errors (`PineDataValidationError`), one-release deprecation shims for `compiler/*` + `runtime/*` |
+
+### 16.2 Deprecation shims (§13.5)
+
+`openbb_pine.compiler.*` and `openbb_pine.runtime.{executor,security_dispatcher,secondary_cache,security_hook,strategy_types,restricted,limits,_pynecore_glue}` remain as re-export shims that emit `DeprecationWarning` on import. **Removal target: next `pynesys-pynecore` minor release.** Downstream users (notebooks, `Analysis/`, doc examples) have one release cycle to migrate imports to `pyne_compiler.*`.
+
+### 16.3 Verification artifacts
+
+* **M1 compiler-only AST digest (unchanged across the extraction):**
+  `5c83d18fe4fc96cafbc85bab1e5b10ed94d575ab5aa7a5254b06e0b02f16b3d1`
+  Captured in `docs/superpowers/scratch/pre-e2-m1-baseline.txt` and re-verified post-E3.4.
+* **pynecore rollback anchor tag:** `pre-openbb-extraction-2026-07-09` at
+  `bfca0a163` on `prajoria/pynecore` (pushed to origin).
+* **Submodule pin:** `third_party/pynecore` → `c70ef4a5d…` (post-E2.3 merge; bumped via bd-kpg).
+* **Full pine test suite:** `1389 passed / 10 skipped` on `openbb_pine_support` — preserved from pre-extraction baseline.
+
+### 16.4 Resolved TODOs (formerly "planned")
+
+The following items in §6, §12, and §13 are now closed:
+
+- [x] Phase E0 (in-place refactor of errors + dispatcher + executor + telemetry + bridge + tests) — landed Waves 3–5
+- [x] Phase E1 (extended `Provider` base + CSV + SQLite + conformance suite) — landed Waves 3–5 (pynecore PRs #1–#5)
+- [x] Phase E2 (git filter-repo extraction to `src/pyne_compiler/`) — landed at pynecore `c70ef4a5d…` via bd-fis/bd-9c8/bd-p8m/bd-2mn
+- [x] Phase E3 (submodule bump, import rewrite, PEP 562 shims, M1 verify) — bd-3ch, bd-tzm, bd-8sq, bd-ijq
+- [x] Phase E4 (unfreeze P1 sub-beads + coverage manifest + PRD post-extraction module map) — bd-8j9 (E4.1), bd-or5 (E4.2, this doc)
+- [x] §12 items 1–9 (all success criteria satisfied)
+- [x] §13.4 `Signature.kwargs` normalization — bead `OpenBBTechnical-qj7` filed and unblocked
+- [x] §13.5 deprecation shim decision — shims live under `openbb_pine/{compiler,runtime}/` per E3.4

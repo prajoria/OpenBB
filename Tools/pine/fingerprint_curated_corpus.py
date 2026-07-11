@@ -41,7 +41,8 @@ CURATED_DIRS = [
 OUT_PATH = REPO_ROOT / "tests" / "wild_corpus" / "curated_index.json"
 
 # Namespaces the lexer sees + our stdlib covers.  Matches
-# `openbb_pine.compiler.builtin_signatures.PINE_NAMESPACES` — kept as a
+# `pyne_compiler.compiler.builtin_signatures.PINE_NAMESPACES` (post-extraction;
+# was `openbb_pine.compiler.builtin_signatures.PINE_NAMESPACES` pre-E2) — kept as a
 # regex here for zero-import fingerprinting so this tool runs even before
 # the extension is pip-installed.
 _BUILTIN_NAMESPACES = (
