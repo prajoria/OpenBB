@@ -251,65 +251,52 @@ class PostCloseAgentTurn:
     def _compute_metrics_from_journal(self, session_id: str) -> SessionMetrics:
         """Replay today's journal into aggregate metrics.
 
-        P3.2 shipping: returns zeros for realized_pnl / win_rate when
-        no journal is accessible (unit tests default). The full impl
-        calls ``openbb_core_journal.replay(session_id)`` and iterates.
-        For the shipping cut we implement the iteration but tolerate a
-        missing replay path (fallback = empty metrics).
+        Delegates to the shared helper in
+        :mod:`openbb_fmp_trading.reporting.journal_reader` (P5.0 refactor).
+        Kept as a thin method so P3.2 callers don't change; the actual
+        math lives in one place now.
+
+        Exception discipline (review S2 — narrow catch):
+
+        * ``FileNotFoundError`` -> empty metrics (session never journaled).
+        * ``ImportError`` on the reporting package -> empty metrics
+          (defensive; shouldn't happen).
+        * ``SchemaVersionError`` from ``JournalReader`` -> empty metrics
+          with WARN log (future writer produced this — we can't parse
+          safely, but empty is better than crash for the post-close path).
+        * **EVERYTHING ELSE propagates.** A ``TypeError`` /
+          ``AttributeError`` deep in the metrics helper is a bug —
+          surfacing it beats masking it as "empty session" for the next
+          6 months.
         """
         try:
-            from openbb_core_journal import replay
+            from openbb_fmp_trading.reporting.journal_reader import (
+                compute_metrics_from_events,
+                read_session_events,
+            )
         except ImportError:
-            logger.info("PostCloseAgentTurn: openbb_core_journal not importable; empty metrics")
-            return SessionMetrics(realized_pnl=Decimal("0"))
-
-        try:
-            events = list(replay(session_id))
-        except Exception as exc:  # noqa: BLE001 — journal read is best-effort
-            logger.warning(
-                "PostCloseAgentTurn: journal replay failed (%s); empty metrics", exc
+            logger.info(
+                "PostCloseAgentTurn: reporting.journal_reader not importable; empty metrics"
             )
             return SessionMetrics(realized_pnl=Decimal("0"))
 
-        veto_counts: dict[str, int] = {}
-        fill_count = 0
-        order_count = 0
-        realized_pnl = Decimal("0")
-
-        for e in events:
-            et = getattr(e, "event_type", None)
-            payload = getattr(e, "payload", {}) or {}
-            if et == "order":
-                order_count += 1
-            elif et == "fill":
-                fill_count += 1
-                # Signed P&L per fill isn't computed here — the tick
-                # loop's session_end payload has the true realized_pnl.
-                # For shipping we sum whatever the fill payload provides.
-                fp = payload.get("realized_pnl")
-                if fp is not None:
-                    try:
-                        realized_pnl += Decimal(str(fp))
-                    except (TypeError, ValueError):
-                        pass
-            elif et == "veto":
-                gate = payload.get("gate") or payload.get("reason_code") or "unknown"
-                veto_counts[gate] = veto_counts.get(gate, 0) + 1
-            elif et == "session_end":
-                # Prefer the session_end payload's realized_pnl if present
-                rp = payload.get("realized_pnl")
-                if rp is not None:
-                    try:
-                        realized_pnl = Decimal(str(rp))
-                    except (TypeError, ValueError):
-                        pass
-
-        return SessionMetrics(
-            realized_pnl=realized_pnl,
-            veto_counts_by_gate=veto_counts,
-            fill_count=fill_count,
-            order_count=order_count,
-        )
+        try:
+            events = list(read_session_events(session_id))
+        except FileNotFoundError:
+            return SessionMetrics(realized_pnl=Decimal("0"))
+        except Exception as exc:
+            # Narrow: only SchemaVersionError from openbb_core_journal is
+            # legitimately catchable here (future writer version). Match
+            # by class name to avoid an import cycle across extras.
+            if type(exc).__name__ == "SchemaVersionError":
+                logger.warning(
+                    "PostCloseAgentTurn: journal has future schema (%s); empty metrics",
+                    exc,
+                )
+                return SessionMetrics(realized_pnl=Decimal("0"))
+            # NO broad `except Exception` — programming bugs propagate.
+            raise
+        return compute_metrics_from_events(events)
 
     # ------------------------------------------------------------------
     # State persistence — always fires, even on fallback
@@ -356,6 +343,13 @@ class PostCloseAgentTurn:
                     "agent_backend": report.agent_backend,
                     "is_deterministic_fallback": report.is_deterministic_fallback,
                     "briefing_md_length": len(report.briefing_md),
+                    # Review finding #2 fold-in (P5.0 Step 4): journal the
+                    # actual briefing content so report(include_agent_narrative=
+                    # True) can extract it verbatim tomorrow / next week /
+                    # during a post-mortem. Without this the extractor is a
+                    # permanent no-op and the include_agent_narrative flag
+                    # is a dead knob.
+                    "briefing_md_content": report.briefing_md,
                     "recommendation_count": len(report.tomorrow_recommendations),
                     "model_id": (
                         getattr(tool_call, "model_id", None) if tool_call else None

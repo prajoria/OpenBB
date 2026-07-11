@@ -20,7 +20,7 @@ from decimal import Decimal
 from typing import Literal
 
 from openbb_core.provider.abstract.data import Data
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 
 class TomorrowRecommendation(Data):
@@ -47,9 +47,47 @@ class TomorrowRecommendation(Data):
 
 
 class SessionMetrics(Data):
-    """Aggregate metrics for one session. Derived from journal replay."""
+    """Aggregate metrics for one session. Derived from journal replay.
+
+    Cost drag + P&L provenance surfaced in headline (P5.0, review findings
+    #4 + #6): the operator reads ``pnl_source`` to know whether P&L is
+    authoritative (session_end payload) or reconstructed (summed from
+    fills); reads ``total_commissions`` + ``total_slippage`` to see
+    whether today's cost drag was material.
+    """
+
+    # Pin Decimal-as-string serialization for the whole model — review
+    # finding #3. Without this, pydantic may coerce Decimal->float at
+    # ``model_dump(mode='json')`` time, silently losing precision BEFORE
+    # ``json_builder``'s ``default=str`` fallback runs. Explicit is safer
+    # than trusting default behavior across pydantic versions.
+    model_config = ConfigDict(json_encoders={Decimal: str})
 
     realized_pnl: Decimal = Field(description="Total realized P&L in dollars.")
+    pnl_source: Literal[
+        "authoritative_session_end",
+        "summed_from_fills",
+        "empty",
+    ] = Field(
+        default="empty",
+        description=(
+            "Where realized_pnl came from. "
+            "'authoritative_session_end' means the IntradaySession's own "
+            "tally was persisted (highest-fidelity). "
+            "'summed_from_fills' means we reconstructed from FillEvent "
+            "payloads (e.g. after a crash mid-session) — may disagree "
+            "with the true tally. "
+            "'empty' means no fills and no session_end."
+        ),
+    )
+    total_commissions: Decimal = Field(
+        default=Decimal("0"),
+        description="Total commission paid across all fills today (P2 Decimal).",
+    )
+    total_slippage: Decimal = Field(
+        default=Decimal("0"),
+        description="Total slippage across all fills today (P2 Decimal).",
+    )
     win_rate_today: float | None = Field(
         default=None,
         description=(
