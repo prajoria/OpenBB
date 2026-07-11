@@ -1,0 +1,44 @@
+# Preset: intraday_momentum
+# Risk tuning: moderate (PRD defaults)
+#
+# Balanced starter config for most operators. Uses the PRD default
+# RiskConfig values throughout. If you're new to the tool, start here.
+
+date: null  # null = today
+exchange: NASDAQ
+starting_equity: "100000"
+default_preset: intraday_momentum
+bandwidth_tier: premium
+bandwidth_monthly_bytes: 53687091200  # 50 GiB (FMP Premium)
+
+default_risk:
+  # G1 — flat by close cutoff (no new opens after this ET time)
+  flat_by_close_time_et: "15:50"
+
+  # G2 — max concurrent open positions
+  max_open_positions: 5
+
+  # G3 — max daily drawdown (halts new opens when breached)
+  day_dd_pct: -2.0
+
+  # G4 — cooldown after a stopout on the same symbol
+  cooldown_after_stopout_min: 30
+
+  # G5 — per-sector concentration cap
+  max_positions_per_sector: 2
+
+  # G6 — single-position notional cap as % of equity
+  max_position_size_pct_equity: 10.0
+
+  # G7 — total notional cap as % of equity
+  max_notional_pct_equity: 30.0
+
+agent_backend: claude
+agent_max_watchlist_size: 20
+
+# Optional: pre-seed the tradable universe hint
+# agent_universe_hint: ["MSFT", "AAPL", "NVDA", "AMZN", "GOOGL"]
+
+# Last-resort fallback if state_store has no last_watchlist AND the
+# LLM turn fails
+default_watchlist: ["SPY", "QQQ"]

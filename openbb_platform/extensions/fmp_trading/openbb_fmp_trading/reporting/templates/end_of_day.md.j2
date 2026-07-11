@@ -1,11 +1,20 @@
 # Session Briefing — {{ session_date }}
 
 **Session ID:** `{{ session_id }}`
-**Realized P&L:** {{ metrics.realized_pnl }}
+**Realized P&L:** {{ metrics.realized_pnl }} _(source: {{ metrics.pnl_source }})_
 **Fill count:** {{ metrics.fill_count }} across {{ metrics.order_count }} orders
 {%- if metrics.win_rate_today is not none %}
 **Win rate today:** {{ "%.1f"|format(metrics.win_rate_today * 100) }}%
 {%- endif %}
+
+## Cost drag
+
+**Total commissions:** {{ metrics.total_commissions }}
+**Total slippage:** {{ metrics.total_slippage }}
+
+For a day-trader these numbers often ARE the edge/no-edge line — if
+`total_slippage` is a material fraction of `realized_pnl`, the entry
+sizing or exit discipline may need tightening.
 
 ## Risk gates that fired today
 
@@ -16,6 +25,20 @@
 {% else %}
 - No RiskManager vetoes today.
 {% endif %}
+
+## P&L provenance
+
+{%- if metrics.pnl_source == "authoritative_session_end" %}
+`session_end` event was journaled — the number above is the IntradaySession's
+own authoritative tally. Highest fidelity.
+{%- elif metrics.pnl_source == "summed_from_fills" %}
+**Reconstructed from FillEvent payloads** — the session did NOT emit a
+`session_end` event (possibly a crash / kill / power loss mid-session).
+The number above is a best-effort reconstruction and MAY DISAGREE with
+the true tally. Investigate the journal tail before trusting the number.
+{%- else %}
+No fills and no `session_end` event — this was an idle or no-op session.
+{%- endif %}
 
 ## Notes for tomorrow
 
