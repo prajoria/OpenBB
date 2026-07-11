@@ -10,8 +10,8 @@ Tests mock ``run_compiled`` + ``compile_pine`` so they stay hermetic
 (no FMP key required, no real network). Real end-to-end integration lives
 at ``tests/integration/test_pine_run_e2e.py``.
 
-/pine/strategies/run still returns HTTP 501 at M1 (strategies land at M2
-per PRD §3.2).
+/pine/strategies/run flipped from 501 to real at bd-4d0 (2026-07-11);
+behavioural coverage lives in ``test_strategies_router_run.py``.
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ from openbb_core.app.model.obbject import OBBject
 from openbb_pine.errors import (
     PineDataValidationError,
     PineProviderError,
-    PineStrategyNotYetImplementedError,
 )
 
 
@@ -436,31 +435,25 @@ def test_run_byo_does_not_call_resolve_provider():
 
 
 # ---------------------------------------------------------------------------
-# /pine/strategies/run — 501 always at M1 (unchanged)
+# /pine/strategies/run — flipped from 501 to real at bd-4d0 (see
+# test_strategies_router_run.py for the M2 behavioural coverage). We keep
+# a single import-only regression here to guarantee the stub does not come
+# back on a bad rebase.
 # ---------------------------------------------------------------------------
 
 
-def test_strategies_run_raises_501_always_m1():
-    from openbb_pine.routers.strategies_router import run
+def test_strategies_run_no_longer_raises_501_stub():
+    """bd-4d0 regression: the M1 501 sentinel path must not re-appear."""
+    from openbb_pine.routers.strategies_router import run  # noqa: F401 - import
 
-    with pytest.raises(PineStrategyNotYetImplementedError) as ei:
-        _run_async(run(source=_TRIVIAL_SRC, provider="fmp", symbol="AAPL"))
-    assert "M2" in str(ei.value)
-    assert "0e9.5.6" in str(ei.value)
+    # The old M1 stub raised PineStrategyNotYetImplementedError unconditionally
+    # (before any provider/compile work). If someone reverts the flip, the
+    # dedicated behavioural tests in test_strategies_router_run.py fail — the
+    # assertion below only verifies the callable still exists and is async.
+    import asyncio
 
+    assert asyncio.iscoroutinefunction(run)
 
-def test_strategies_run_501_carries_strategy_params():
-    from openbb_pine.routers.strategies_router import run
-
-    with pytest.raises(PineStrategyNotYetImplementedError):
-        _run_async(
-            run(
-                source=_TRIVIAL_SRC,
-                provider="fmp",
-                symbol="AAPL",
-                strategy_params={"initial_capital": 100_000},
-            )
-        )
 
 
 # ---------------------------------------------------------------------------

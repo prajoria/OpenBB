@@ -377,6 +377,7 @@ def _run_strategy(
         "bars_consumed": int(getattr(provider, "bars_consumed", 0)),
         "stats": serialize_strategy_statistics(stats_obj),
         "equity_curve": equity_curve,
+        "script_type": "strategy",
     }
 
     return OBBject(results=results_df, extra=extra)
@@ -507,6 +508,7 @@ def run_compiled(
         "exec_ms": int(exec_ms),
         "provider_used": getattr(provider, "provider_used", "unknown"),
         "bars_consumed": int(getattr(provider, "bars_consumed", 0)),
+        "script_type": "indicator",
     }
 
     return OBBject(results=results_df, extra=extra)
