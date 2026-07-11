@@ -12,6 +12,25 @@ PRD references:
 * §8.1 — phase-gate targets (M1 ≥40%, M2 ≥70%, M3 ≥90%)
 * §12 — 12-month success metric (L4 wild-corpus coverage ≥90%)
 
+Post-extraction module map (E4.2, 2026-07-10; bd-or5). The Pine compiler +
+core runtime were extracted to ``prajoria/pynecore`` (vendored here at
+``third_party/pynecore/``) as the ``pyne_compiler`` sibling package:
+
+* ``pyne_compiler.compiler.*`` — lexer / parser / IR / type checker / codegen
+  / compile cache / v5→v6 migration (formerly ``openbb_pine.compiler.*``)
+* ``pyne_compiler.runtime.*`` — executor_core, security_dispatcher,
+  secondary_cache, security_hook, strategy_types, restricted, limits,
+  _pynecore_glue, pynecore_bridge (formerly ``openbb_pine.runtime.*``)
+* ``pyne_compiler.errors.*`` — compiler+runtime error hierarchy (formerly
+  ``openbb_pine.compiler_errors``)
+* ``openbb_pine.*`` — provider-side glue only: FMP + BYO providers, REST
+  routers, MCP tools, telemetry, attribution, CLI, this manifest
+
+Legacy ``openbb_pine.compiler.*`` / ``openbb_pine.runtime.*`` import paths
+remain as ``DeprecationWarning`` shims through the next minor release
+(§13.5). Coverage entries below are portable across the rename because they
+key on Pine identifier names (``ta.sma``), not Python module locations.
+
 Lifecycle. At Phase 0 (this commit) every set is empty, so the baseline
 metric is intentionally 0%. As stdlib beads land in Phase 1+, each PR
 that implements a builtin (or a grammar feature, or adds a supported Pine
