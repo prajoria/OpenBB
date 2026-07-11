@@ -114,8 +114,8 @@ _UNIT_TESTS_DIR = (
 
 # Ground-truth counts from the manifest header.
 _EXPECTED_MOVE = 24
-_EXPECTED_STAY = 63
-_EXPECTED_TOTAL = 87  # 87 test_*.py files (excludes E0.7 infra); +1 vs
+_EXPECTED_STAY = 64
+_EXPECTED_TOTAL = 88  # 88 test_*.py files (excludes E0.7 infra); +1 vs
 # post-E3.5 baseline for test_executor_strategy_branch.py (bd-liz —
 # executor_shell strategy branch; STAYS with the shell)
 
