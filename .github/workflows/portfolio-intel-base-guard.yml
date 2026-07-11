@@ -1,0 +1,49 @@
+name: Portfolio-Intel Base-Branch Guard
+
+# Bead: OpenBBTechnical-qy83.1.2
+# Enforces Execution Plan §2A: portfolio-intel work (`feat/pi-*` branches)
+# MUST target the `portfolio` integration branch, never `develop` or `main`.
+# The single `portfolio → develop` merge happens only at the M4 gate.
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  block-pi-branches-to-develop:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Get branch names
+        id: branch-names
+        uses: tj-actions/branch-names@5250492686b253f06fa55861556d1027b067aeb5 # v9
+
+      - name: Show branches under test
+        run: |
+          echo "head-branch=${{ steps.branch-names.outputs.head_ref_branch }}"
+          echo "base-branch=${{ steps.branch-names.outputs.base_ref_branch }}"
+
+      - name: Fail if a feat/pi-* branch targets develop or main
+        env:
+          HEAD_REF: ${{ steps.branch-names.outputs.head_ref_branch }}
+          BASE_REF: ${{ steps.branch-names.outputs.base_ref_branch }}
+        run: |
+          if [[ "$HEAD_REF" == feat/pi-* ]]; then
+            echo "::error title=Wrong base branch::" \
+                 "The head branch '$HEAD_REF' looks like portfolio-intel work" \
+                 "(feat/pi-* prefix), but this PR targets '$BASE_REF'." \
+                 "Per Execution Plan §2A, portfolio-intel PRs must target" \
+                 "the 'portfolio' integration branch — the single" \
+                 "portfolio→develop merge happens only at the M4 gate."
+            exit 1
+          fi
+          echo "Head branch '$HEAD_REF' is not a portfolio-intel branch — check passes."
