@@ -1,9 +1,15 @@
-"""Extended-panel confluence vote emitters (bd-7ct.2, bd-m8n).
+"""Extended-panel confluence vote emitters (bd-7ct.2, bd-m8n, bd-luy).
 
 **Pass-through in bd-7ct.** Every function here delegates directly to
 its classic twin in ``engine/confluence.py``, returning the same
 ``list[IndicatorVote]`` byte-identically. This proves the dispatcher
 plumbing (bd-xim) works without introducing vote-mapping risk.
+
+**bd-luy update (Aroon + Ichimoku shipped):**
+``trend_votes_ext`` is no longer a pass-through — it emits the classic
+votes PLUS an ``aroon_osc`` vote AND an ``ichimoku_cloud`` vote (when
+the panel has each key). The other 3 family vote-mappers remain
+pass-throughs pending bd-40v/z43/alj.
 
 **Family PRs replace these stubs one family at a time** — see the
 :mod:`openbb_techtrade.engine.indicators_ext` module docstring for
@@ -18,6 +24,7 @@ must be cleared by every new vote before the family PR lands. See
 Full context:
 - Design spec: docs/superpowers/specs/2026-07-08-confluence-panel-expansion-design.md
 - Foundation plan: docs/superpowers/plans/2026-07-08-bd-7ct-confluence-foundation.md
+- bd-luy plan: docs/superpowers/plans/2026-07-09-bd-luy-trend-family-expansion.md
 """
 
 from __future__ import annotations
@@ -25,6 +32,7 @@ from __future__ import annotations
 from typing import Literal
 
 from openbb_techtrade.engine.confluence import (
+    DEFAULT_WEIGHTS,
     _volume_votes,
     momentum_votes,
     trend_votes,
@@ -36,17 +44,57 @@ from openbb_techtrade.models import IndicatorPanel, IndicatorVote
 def trend_votes_ext(
     panel: IndicatorPanel, *, adx_gate: float = 20.0
 ) -> list[IndicatorVote]:
-    """Pass-through stub for the extended trend vote emitter (bd-7ct.2, bd-luy).
+    """Extended trend votes: classic votes PLUS aroon_osc PLUS ichimoku_cloud.
 
-    Delegates to :func:`openbb_techtrade.engine.confluence.trend_votes`
-    unchanged. Family PR **bd-luy** will replace this with vote mappers
-    for Aroon oscillator, Ichimoku cloud position, and PSAR direction.
-    ADX is being reclassified from a directional vote to a gate/confidence
-    scaler per §10 C3 (it is a non-directional strength measure by
-    Wilder's design; multiplying by ``sign(ema_cross)`` made it a scaled
-    duplicate of the trend vote).
+    bd-luy Step 1 (bd-b6k5) added Aroon. Step 2 (bd-7gwh, this commit)
+    added Ichimoku Cloud with 3-bar confirmation.
+
+    **Aroon vote formula** (per design spec §D5):
+
+    ``sign(aroon_up - aroon_down) * min(1, |aroon_up - aroon_down|/100)``
+
+    Since ``aroon_osc = aroon_up - aroon_down`` (both in [0, 100]), this
+    simplifies to ``clip(aroon_osc / 100, -1, +1)``. Bounded in [-1, +1],
+    direction-preserving, deterministic. Weight: family default.
+
+    **Ichimoku Cloud vote:** reads ``ichimoku_confirmed_position`` (NOT
+    the raw ``ichimoku_price_vs_cloud``) — the confirmed key already
+    embeds the 3-bar-confirmation buffer, so the vote formula is a
+    trivial identity: the vote value equals the confirmed position.
+    In {-1, 0, +1}; bounded, direction-preserving.
+
+    **Absent panel key ⇒ no vote emitted** (graceful degrade on short
+    histories; the caller's vote list is simply shorter, no None slot).
     """
-    return trend_votes(panel, adx_gate=adx_gate)
+    votes = list(trend_votes(panel, adx_gate=adx_gate))
+
+    aroon_osc = panel.trend.get("aroon_osc")
+    if aroon_osc is not None:
+        # aroon_osc ∈ [-100, +100]; vote ∈ [-1, +1]
+        vote_value = max(-1.0, min(1.0, aroon_osc / 100.0))
+        votes.append(
+            IndicatorVote(
+                family="trend",
+                name="aroon_osc",
+                vote=vote_value,
+                weight=DEFAULT_WEIGHTS.trend,
+            )
+        )
+
+    ichimoku_confirmed = panel.trend.get("ichimoku_confirmed_position")
+    if ichimoku_confirmed is not None:
+        # Confirmed position already in {-1, 0, +1}; clip defensively.
+        vote_value = max(-1.0, min(1.0, float(ichimoku_confirmed)))
+        votes.append(
+            IndicatorVote(
+                family="trend",
+                name="ichimoku_cloud",
+                vote=vote_value,
+                weight=DEFAULT_WEIGHTS.trend,
+            )
+        )
+
+    return votes
 
 
 def momentum_votes_ext(panel: IndicatorPanel) -> list[IndicatorVote]:

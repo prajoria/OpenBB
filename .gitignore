@@ -141,3 +141,13 @@ C*nb_code.txt
 # FinanceToolkit local checkout (formerly a submodule pinned to prajoria/FinanceToolkit)
 # Untracked as of #19; the extension now depends on the published inancetoolkit PyPI package.
 /FinanceToolkit/
+
+# -- Local scratch / tool output (never commit) ------------------------------
+# openbb-backtest cache directory -- rebuilt on demand, machine-specific
+/.openbb_backtest/
+# ad-hoc PR review scratchpads (pr101-review.txt etc.)
+pr[0-9]*-review.txt
+# fixture-recording helpers -- local dev aid, not part of the repo
+/Tools/record_basket_fixture.py
+# transient scratch dir
+/tmp/

@@ -140,9 +140,11 @@ class TestSignalInvarianceFlagOff:
 
 
 class TestExtendedMatchesClassicToday:
-    """In bd-7ct (pass-through stubs), extended MUST be byte-identical to
-    classic. When family PRs land, this test will be updated to
-    ``set(classic.keys).issubset(set(extended.keys))``."""
+    """After bd-luy (trend family shipped), the extended trend panel adds
+    Aroon + Ichimoku keys on top of classic. The invariant relaxes from
+    strict equality to SUBSET: classic keys ⊆ extended keys, and every
+    shared key carries the same value. Momentum / volatility / volume
+    remain byte-identical (still pass-through pending bd-40v/z43/alj)."""
 
     @pytest.mark.parametrize("symbol", ["NVDA", "PG", "XOM", "PLTR", "SPY"])
     def test_extended_signal_equals_classic_today(self, symbol):
@@ -159,16 +161,37 @@ class TestExtendedMatchesClassicToday:
             ohlcv_rows=basket[symbol].reset_index().to_dict(orient="records"),
             panel_config=PANEL_EXTENDED,
         )
-        assert panel_classic == panel_extended
+        # Trend family: SUBSET (bd-luy shipped Aroon + Ichimoku).
+        assert set(panel_classic.trend.keys()).issubset(
+            set(panel_extended.trend.keys())
+        )
+        for k, v in panel_classic.trend.items():
+            assert panel_extended.trend[k] == v, (
+                f"{symbol}: shared trend key '{k}' drifted"
+            )
+        # Other families still byte-identical (still pass-through).
+        assert panel_classic.momentum == panel_extended.momentum
+        assert panel_classic.volatility == panel_extended.volatility
+        assert panel_classic.volume == panel_extended.volume
 
+        # Signal-layer note: since extended adds directional votes,
+        # scores WILL diverge. Verify build_signal STILL RUNS on both
+        # (no shape errors) rather than asserting equal scores.
         sig_classic = confluence.build_signal(
             panel_classic, segment="TEST", panel_config=PANEL_CLASSIC,
         )
         sig_extended = confluence.build_signal(
             panel_extended, segment="TEST", panel_config=PANEL_EXTENDED,
         )
-        assert sig_classic.score == sig_extended.score
-        assert sig_classic.votes == sig_extended.votes
+        assert sig_classic.score is not None
+        assert sig_extended.score is not None
+        # Classic votes must be a subsequence of extended votes.
+        classic_names = [v.name for v in sig_classic.votes]
+        extended_names = [v.name for v in sig_extended.votes]
+        assert set(classic_names).issubset(set(extended_names)), (
+            f"{symbol}: extended votes must include all classic votes; "
+            f"missing={set(classic_names) - set(extended_names)}"
+        )
 
 
 class TestConstructedPanelConfigWorks:

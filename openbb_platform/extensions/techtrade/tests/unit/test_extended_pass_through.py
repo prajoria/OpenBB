@@ -125,61 +125,96 @@ class TestIndicatorsExtSignatureCompat:
 
 
 class TestIndicatorsExtPassThroughEquality:
-    """The core contract: TODAY, extended returns exactly what classic returns.
+    """The core contract: for still-pass-through families, TODAY extended
+    returns exactly what classic returns. For the trend family (bd-luy
+    shipped Aroon + Ichimoku), the contract relaxes to SUPERSET semantics:
+    every classic key is present in extended, and extended may add new keys.
 
-    R7.11 load-bearing: family PRs will replace each stub with an implementation
-    that ADDS keys. These equality tests will then be updated to assert
-    ``set(classic_keys).issubset(set(extended_keys))`` instead. Until then,
-    'identical' is the byte-level guarantee that no accidental drift snuck in
-    while wiring the dispatcher.
+    R7.11 load-bearing: mutating _compute_trend_ext to drop a classic key
+    must flip test_trend_ext_is_superset_of_classic red.
     """
 
-    def test_trend_ext_matches_classic(self, ohlcv_df):
+    def test_trend_ext_is_superset_of_classic(self, ohlcv_df):
+        """bd-luy shipped: extended trend adds Aroon + Ichimoku keys on
+        top of classic. Contract is now SUBSET (classic keys ⊆ extended
+        keys), not byte equality."""
         from openbb_techtrade.engine.indicators_ext import _compute_trend_ext
-        assert _compute_trend_ext(ohlcv_df, DEFAULT_CONFIG) == \
-               indicators._compute_trend(ohlcv_df, DEFAULT_CONFIG)
+        extended = _compute_trend_ext(ohlcv_df, DEFAULT_CONFIG)
+        classic = indicators._compute_trend(ohlcv_df, DEFAULT_CONFIG)
+        assert set(classic.keys()).issubset(set(extended.keys())), (
+            f"classic key(s) missing from extended: "
+            f"{set(classic) - set(extended)}"
+        )
+        # Every shared key must still carry the same value (extended
+        # only ADDS; it does not perturb classic values).
+        for key, classic_value in classic.items():
+            assert extended[key] == classic_value, (
+                f"extended['{key}']={extended[key]!r} differs from "
+                f"classic['{key}']={classic_value!r}"
+            )
+
+    def test_trend_ext_adds_new_keys(self, ohlcv_df):
+        """The fixture uses 100 bars — enough for Aroon (25) but NOT
+        Ichimoku (needs 78+26=78). So we expect Aroon keys but not
+        Ichimoku ones on this fixture. If the fixture ever grows past
+        78 bars, expect Ichimoku keys too."""
+        from openbb_techtrade.engine.indicators_ext import _compute_trend_ext
+        extended = _compute_trend_ext(ohlcv_df, DEFAULT_CONFIG)
+        classic = indicators._compute_trend(ohlcv_df, DEFAULT_CONFIG)
+        new_keys = set(extended) - set(classic)
+        # Aroon keys always present on 100-bar fixture.
+        assert {"aroon_up", "aroon_down", "aroon_osc"}.issubset(new_keys), (
+            f"extended must add at least the 3 Aroon keys; new_keys={new_keys}"
+        )
 
     def test_momentum_ext_matches_classic(self, ohlcv_df):
+        """bd-40v not shipped yet — momentum still a pass-through."""
         from openbb_techtrade.engine.indicators_ext import _compute_momentum_ext
         assert _compute_momentum_ext(ohlcv_df, DEFAULT_CONFIG) == \
                indicators._compute_momentum(ohlcv_df, DEFAULT_CONFIG)
 
     def test_volatility_ext_matches_classic(self, ohlcv_df):
+        """bd-z43 not shipped yet — volatility still a pass-through."""
         from openbb_techtrade.engine.indicators_ext import _compute_volatility_ext
         assert _compute_volatility_ext(ohlcv_df, DEFAULT_CONFIG) == \
                indicators._compute_volatility(ohlcv_df, DEFAULT_CONFIG)
 
     def test_volume_ext_matches_classic(self, ohlcv_df):
+        """bd-alj not shipped yet — volume still a pass-through."""
         from openbb_techtrade.engine.indicators_ext import _compute_volume_ext
         assert _compute_volume_ext(ohlcv_df, DEFAULT_CONFIG) == \
                indicators._compute_volume(ohlcv_df, DEFAULT_CONFIG)
 
 
 class TestIndicatorsExtDocstringDiscipline:
-    """Every stub docstring must say 'pass-through' and name the family PR
-    that will replace it. Prevents a future refactor from silently deleting
-    the classic-mirroring contract without a reader understanding what changed."""
+    """Every stub docstring must name the family PR that will replace it.
+    For still-pass-through families it must also contain 'pass-through';
+    for the trend family (bd-luy shipped), we drop that requirement since
+    the function is no longer a pass-through."""
 
     @pytest.mark.parametrize(
-        "func_name,family_pr",
+        "func_name,family_pr,expect_pass_through",
         [
-            ("_compute_trend_ext", "bd-luy"),
-            ("_compute_momentum_ext", "bd-40v"),
-            ("_compute_volatility_ext", "bd-z43"),
-            ("_compute_volume_ext", "bd-alj"),
+            ("_compute_trend_ext", "bd-luy", False),   # shipped
+            ("_compute_momentum_ext", "bd-40v", True),  # still stub
+            ("_compute_volatility_ext", "bd-z43", True),  # still stub
+            ("_compute_volume_ext", "bd-alj", True),   # still stub
         ],
     )
-    def test_docstring_names_pass_through_and_family_pr(self, func_name, family_pr):
+    def test_docstring_names_pass_through_and_family_pr(
+        self, func_name, family_pr, expect_pass_through
+    ):
         from openbb_techtrade.engine import indicators_ext
         func = getattr(indicators_ext, func_name)
         doc = (func.__doc__ or "").lower()
-        assert "pass-through" in doc, (
-            f"{func_name} docstring must explicitly say 'pass-through' — "
-            f"downstream readers rely on this word to understand the contract."
-        )
+        if expect_pass_through:
+            assert "pass-through" in doc, (
+                f"{func_name} docstring must explicitly say 'pass-through' — "
+                f"downstream readers rely on this word to understand the contract."
+            )
         assert family_pr in (func.__doc__ or ""), (
             f"{func_name} docstring must name {family_pr} as the family PR "
-            f"that will replace this stub."
+            f"that will replace this stub (or that already replaced it)."
         )
 
 
@@ -203,12 +238,24 @@ class TestConfluenceExtImportable:
 
 
 class TestConfluenceExtPassThroughEquality:
-    """Same contract as indicators_ext: TODAY, extended vote emitters return
-    exactly what classic emitters return on the same panel."""
+    """For still-pass-through families, TODAY extended vote emitters return
+    exactly what classic emitters return. For the trend family (bd-luy
+    shipped), the contract relaxes to: extended is a superlist of classic
+    (every classic vote is present + order preserved, plus new votes may
+    be appended)."""
 
-    def test_trend_votes_ext_matches_classic(self, sample_panel):
+    def test_trend_votes_ext_is_superlist_of_classic(self, sample_panel):
+        """bd-luy shipped: extended trend votes = classic votes + Aroon
+        + Ichimoku (when panel keys are present)."""
         from openbb_techtrade.engine.confluence_ext import trend_votes_ext
-        assert trend_votes_ext(sample_panel) == confluence.trend_votes(sample_panel)
+        ext_votes = trend_votes_ext(sample_panel)
+        classic_votes = confluence.trend_votes(sample_panel)
+        # Classic votes must appear at the start in the same order.
+        assert ext_votes[: len(classic_votes)] == classic_votes, (
+            f"extended trend votes must start with the classic votes in order; "
+            f"got ext={ [v.name for v in ext_votes] }, "
+            f"classic={ [v.name for v in classic_votes] }"
+        )
 
     def test_momentum_votes_ext_matches_classic(self, sample_panel):
         from openbb_techtrade.engine.confluence_ext import momentum_votes_ext
@@ -228,19 +275,22 @@ class TestConfluenceExtPassThroughEquality:
 
 class TestConfluenceExtDocstringDiscipline:
     @pytest.mark.parametrize(
-        "func_name,family_pr",
+        "func_name,family_pr,expect_pass_through",
         [
-            ("trend_votes_ext", "bd-luy"),
-            ("momentum_votes_ext", "bd-40v"),
-            ("volatility_votes_ext", "bd-z43"),
-            ("_volume_votes_ext", "bd-alj"),
+            ("trend_votes_ext", "bd-luy", False),   # shipped
+            ("momentum_votes_ext", "bd-40v", True),
+            ("volatility_votes_ext", "bd-z43", True),
+            ("_volume_votes_ext", "bd-alj", True),
         ],
     )
-    def test_docstring_names_pass_through_and_family_pr(self, func_name, family_pr):
+    def test_docstring_names_pass_through_and_family_pr(
+        self, func_name, family_pr, expect_pass_through
+    ):
         from openbb_techtrade.engine import confluence_ext
         func = getattr(confluence_ext, func_name)
         doc = (func.__doc__ or "").lower()
-        assert "pass-through" in doc
+        if expect_pass_through:
+            assert "pass-through" in doc
         assert family_pr in (func.__doc__ or "")
 
 
@@ -327,11 +377,10 @@ class TestBuildIndicatorPanelExtendedDispatch:
             f"extended dispatch must call all 4 _ext functions; called={called}"
         )
 
-    def test_extended_produces_identical_panel_today(self, ohlcv_df):
-        """Golden invariance: today (stubs pass-through), extended and
-        classic panels are byte-identical. When family PRs land they
-        will diverge; this test will be updated to
-        ``set(classic).issubset(set(extended))`` at that time."""
+    def test_extended_is_superset_of_classic_today(self, ohlcv_df):
+        """bd-luy shipped: extended trend adds Aroon (and Ichimoku on
+        >=78 bars). Contract is now SUBSET: every classic panel-key at
+        every level is present in extended, plus extended adds new keys."""
         from openbb_techtrade.engine.panel_config import PANEL_CLASSIC, PANEL_EXTENDED
 
         as_of = date(2024, 5, 20)
@@ -344,10 +393,14 @@ class TestBuildIndicatorPanelExtendedDispatch:
             symbol="TEST", as_of=as_of, ohlcv_rows=records,
             panel_config=PANEL_EXTENDED,
         )
-        assert classic == extended, (
-            "With pass-through stubs in bd-7ct, classic and extended "
-            "panels must be byte-identical. Family PRs will change this."
-        )
+        # Trend keys are extended; others still equal.
+        assert set(classic.trend.keys()).issubset(set(extended.trend.keys()))
+        assert classic.momentum == extended.momentum
+        assert classic.volatility == extended.volatility
+        assert classic.volume == extended.volume
+        # Shared trend keys carry identical values.
+        for k, v in classic.trend.items():
+            assert extended.trend[k] == v, f"trend['{k}'] drifted"
 
 
 # =========================================================================== #
