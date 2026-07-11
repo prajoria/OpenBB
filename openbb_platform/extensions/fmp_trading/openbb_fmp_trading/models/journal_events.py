@@ -88,10 +88,70 @@ class SessionEndEvent(JournalEvent):
     event_type: Literal["session_end"] = "session_end"
 
 
+class DailyPlanCommittedEvent(JournalEvent):
+    """P3.1: pre-open turn produced a plan (either LLM or fallback).
+
+    Payload keys:
+      agent_backend             ("claude" | "openai" | "none")
+      is_deterministic_fallback (bool)
+      watchlist_size            (int)
+      preset                    (str)
+      model_id                  (str | None, A6)
+      prompt_version            (str, A6)
+    """
+
+    event_type: Literal["daily_plan_committed"] = "daily_plan_committed"
+
+
+class EndOfDayReportEvent(JournalEvent):
+    """P3.2: post-close turn produced a report (either LLM or fallback).
+
+    Payload keys:
+      agent_backend, is_deterministic_fallback, briefing_md_length,
+      recommendation_count, model_id, prompt_version.
+    """
+
+    event_type: Literal["end_of_day_report"] = "end_of_day_report"
+
+
+class AgentFallbackEvent(JournalEvent):
+    """T3 (P1): loud journal entry every time a fallback fires.
+
+    Made visible per T3 because a stale watchlist that goes unnoticed at
+    09:30 ET has caused real losses in this asset class.
+
+    Payload keys:
+      turn             ("pre_open" | "post_close")
+      reason           (short human-readable label)
+      source_error    (exception class name)
+      fallback_source (which fallback tier: state_store | default_config)
+    """
+
+    event_type: Literal["agent_fallback"] = "agent_fallback"
+
+
+class PromptInjectionRejectedEvent(JournalEvent):
+    """A1 (P0): a deterministic post-LLM validator rejected something the
+    LLM emitted (out-of-universe symbol, oversized watchlist, risk-loosening).
+
+    Payload keys:
+      defense_layer  ("tradable_universe" | "risk_clamp" |
+                       "watchlist_size_cap")
+      field          (name of the rejected field)
+      offending_value (the value that was clipped or rejected)
+    """
+
+    event_type: Literal["prompt_injection_rejected"] = "prompt_injection_rejected"
+
+
 __all__ = [
+    "AgentFallbackEvent",
     "AlertFiredEvent",
+    "DailyPlanCommittedEvent",
+    "EndOfDayReportEvent",
     "FillEvent",
     "OrderEvent",
+    "PromptInjectionRejectedEvent",
     "RiskStateChangeEvent",
     "SessionEndEvent",
     "SessionStartEvent",

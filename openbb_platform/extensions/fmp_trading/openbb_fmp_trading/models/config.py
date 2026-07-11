@@ -46,7 +46,10 @@ class DailyConfig(Data):
 
     date: date | None = Field(default=None, description="Session date (None = today).")
     exchange: Literal["NASDAQ", "NYSE", "AMEX"] = Field(default="NASDAQ")
-    starting_equity: Decimal = Field(description="Session starting equity for sizing.")
+    starting_equity: Decimal = Field(
+        default=Decimal("100000"),
+        description="Session starting equity for sizing. Default $100k for paper.",
+    )
     default_preset: str = Field(default="intraday_momentum")
     bandwidth_tier: Literal["premium", "ultimate"] = Field(default="premium")
     bandwidth_monthly_bytes: int = Field(
@@ -54,10 +57,19 @@ class DailyConfig(Data):
         description="Monthly bandwidth budget (P6). Default: 50 GiB (FMP Premium).",
     )
     default_risk: RiskConfig = Field(
-        description="Fallback risk gates when the DailyPlan doesn't override."
+        default_factory=RiskConfig,
+        description="Fallback risk gates when the DailyPlan doesn't override.",
     )
     agent_backend: Literal["claude", "openai", "none"] = Field(default="claude")
     agent_max_watchlist_size: int = Field(default=20)
     agent_universe_hint: list[str] | None = Field(
         default=None, description="Symbols the agent should consider (advisory only)."
+    )
+    default_watchlist: list[str] = Field(
+        default_factory=lambda: ["SPY", "QQQ"],
+        description=(
+            "Last-resort fallback watchlist when neither the agent nor "
+            "state_store.load_last_watchlist can provide one (P3.1 fallback "
+            "path). Kept small and index-heavy by design."
+        ),
     )

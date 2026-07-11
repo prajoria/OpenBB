@@ -18,11 +18,19 @@ pandas = "*"
 numpy = "*"
 exchange-calendars = "*"
 pydantic = "^2.0"
+# --- [agent] extra deps (Phase 3 / D1 / D2) ---
+# Pinned to >=0.40,<1.0 to guard against major SDK breakage mid-Phase-3
+# (the ClaudeAgentBackend forced-tool-choice semantics depend on the
+# messages.create tool_choice contract stable since 0.40).
+anthropic = { version = ">=0.40,<1.0", optional = true }
+mcp = { version = ">=1.0", optional = true }
+jinja2 = { version = ">=3.1", optional = true }
 
 [tool.poetry.extras]
-# agent      -> optional LLM backends for pre/post-close turns (P3)
+# agent      -> optional LLM backends for pre/post-close turns + stdio MCP server (P3)
 # xlsxwriter -> richer Excel engine, shared with techtrade[xlsxwriter] (P5)
 # validation -> backtest bridge (P6)
+agent = ["anthropic", "mcp", "jinja2"]
 
 [tool.poetry.scripts]
 openbb-daytrade = "openbb_fmp_trading.cli.main:main"
