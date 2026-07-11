@@ -656,11 +656,17 @@ class TestTelemetryIntegration:
             )
         assert sink.get_unsupported_builtin_counts().get("ta.ichimoku", 0) >= 1
 
-    def test_codegen_pf010_records_feature(self) -> None:
-        """visit_Program's PF010 strategy-deferral raise MUST call
-        ``sink.record_unsupported_feature('PF010')`` on the injected sink
+    def test_codegen_pf011_records_feature(self) -> None:
+        """visit_Program's PF011 library-deferral raise MUST call
+        ``sink.record_unsupported_feature('PF011')`` on the injected sink
         before raising (E0.4: routed through the injected TelemetrySink
-        instead of the pre-E0.4 module-global recorder)."""
+        instead of the pre-E0.4 module-global recorder).
+
+        Was ``test_codegen_pf010_records_feature`` until bd-aeh landed
+        strategy codegen; now strategy() no longer raises PF010, so this
+        test exercises the same telemetry contract via PF011 (library
+        remains M3-deferred). Retired-and-inverted per bd-kbtx.
+        """
         from pyne_compiler.compiler import ir
         from pyne_compiler.compiler.codegen import _CodegenVisitor
         from openbb_pine.errors import PineUnsupportedFeatureError
@@ -669,7 +675,7 @@ class TestTelemetryIntegration:
         span = _make_dummy_span()
         directive = ir.ScriptDirective(
             loc=span,
-            kind="strategy",
+            kind="library",
             title="x",
             shorttitle=None,
             overlay=None,
@@ -686,7 +692,7 @@ class TestTelemetryIntegration:
             _CodegenVisitor(
                 builtins_used=frozenset(), pine_version=6, telemetry=sink
             ).visit_Program(prog)
-        assert sink.get_unsupported_feature_counts().get("PF010", 0) >= 1
+        assert sink.get_unsupported_feature_counts().get("PF011", 0) >= 1
 
 
 def _make_dummy_span():
