@@ -1,0 +1,13 @@
+//@version=6
+strategy("MACD Histogram Signal", overlay=false, initial_capital=1000000)
+fast_len = input.int(12, "Fast Length")
+slow_len = input.int(26, "Slow Length")
+signal_len = input.int(9, "Signal Length")
+[macd_line, signal_line, hist] = ta.macd(close, fast_len, slow_len, signal_len)
+if ta.crossover(hist, 0)
+    strategy.entry("Long", strategy.long)
+if ta.crossunder(hist, 0)
+    strategy.close("Long")
+plot(hist, "Histogram", color=hist > 0 ? color.green : color.red)
+plot(macd_line, "MACD", color=color.blue)
+plot(signal_line, "Signal", color=color.orange)
