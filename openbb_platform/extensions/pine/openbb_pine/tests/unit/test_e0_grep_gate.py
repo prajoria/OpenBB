@@ -114,10 +114,9 @@ _UNIT_TESTS_DIR = (
 
 # Ground-truth counts from the manifest header.
 _EXPECTED_MOVE = 24
-_EXPECTED_STAY = 60
-_EXPECTED_TOTAL = 84  # 84 test_*.py files (excludes __init__.py); +2 vs E0.6
-# baseline for test_fmp_provider_conformance.py (E3.2 bd-3ch) and
-# test_byo_provider_conformance.py (E3.3 bd-tzm)
+_EXPECTED_STAY = 61
+_EXPECTED_TOTAL = 85  # 85 test_*.py files (excludes __init__.py); +1 vs
+# post-E3.3 baseline for test_deprecation_shims.py (E3.5 bd-ijq)
 
 # Fork-side surfaces: any test importing these STAYS. Mirrors the
 # classification grep documented in the manifest, but restricted to
@@ -155,6 +154,12 @@ _MANIFEST_STAY_BY_FIAT = frozenset({
     "test_diagnostics.py",
     "test_telemetry_injection.py",
     "test_telemetry_module_globals.py",
+    # E3.5: this file explicitly imports the fork-side deprecation shims
+    # (openbb_pine.compiler.*, openbb_pine.compiler_errors, etc.) to
+    # verify they emit DeprecationWarning + preserve identity. Import
+    # classifier calls it MOVE (shim targets are pyne_compiler.*); by
+    # intent it STAYS with the shims until v0.next+1.
+    "test_deprecation_shims.py",
 })
 
 
