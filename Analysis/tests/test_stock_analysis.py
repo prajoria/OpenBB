@@ -4468,6 +4468,204 @@ class TestPhase4PegRatio:
             f"got {p4.entry_recommendation!r} (verdict={p4.valuation_verdict})"
         )
 
+    # --- bd-3xq.3: verdict × bull matrix — the 4 previously-under-tested branches ---
+    #
+    # QC-C (bead OpenBBTechnical-3xq.3) found that the A5 refactor keys
+    # entry_rec on (valuation_verdict × bullish_count), producing 6 output
+    # branches. Iter-3 tests covered only 2 (both used default bull=7):
+    #   ✅ Overvalued → 'Avoid'  (via test_entry_rec_follows_peg_tightened_verdict_overvalued)
+    #   ✅ Undervalued × bull>=6 → 'Strong Entry'  (via ..._undervalued above)
+    #   ✅ Fair Value × bull>=6 → 'Opportunistic Entry'  (via bd-3xq.5 fix above)
+    # These three tests close the coverage of the remaining branches:
+    #   ✅ Undervalued × bull in [3,5] → 'Partial Entry'
+    #   ✅ Undervalued × bull<3 → 'Wait — cheap but technically broken'
+    #   ✅ Fair Value × bull<6 → 'Watchlist'
+    # Each is R7.11-mutation-verified — mutating the corresponding branch
+    # string in stock_analysis.py::phase4_valuation makes the test fail.
+
+    def test_entry_rec_undervalued_mid_bull_produces_partial_entry(self):
+        """Undervalued verdict + bullish_count in [3, 5] must produce
+        'Partial Entry' — the value case is strong but technicals aren't
+        confirming. Uses the same Undervalued-producing fixture as the
+        strong-entry test but overrides bullish_count to 4."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=15.0,
+            revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],
+            fcf=20e9,
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [75.0, 75.5, 76.0]
+        # Override to mid-bull band [3, 5]. Empirically 4 lands cleanly.
+        p3.bullish_count = 4
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.valuation_verdict == "Undervalued", (
+            f"fixture invariant broken: expected Undervalued, got "
+            f"{p4.valuation_verdict}"
+        )
+        assert 3 <= p3.bullish_count <= 5, (
+            f"bull override drift: {p3.bullish_count} not in [3, 5]"
+        )
+        assert "Partial Entry" in p4.entry_recommendation, (
+            f"Undervalued × bull={p3.bullish_count} must produce "
+            f"'Partial Entry'; got {p4.entry_recommendation!r}"
+        )
+
+    def test_entry_rec_undervalued_low_bull_produces_wait(self):
+        """Undervalued verdict + bullish_count < 3 must produce 'Wait —
+        cheap but technically broken'. The 'cheap' half is honored; the
+        'wait for technicals' warning becomes primary."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=15.0,
+            revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],
+            fcf=20e9,
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [75.0, 75.5, 76.0]
+        p3.bullish_count = 1
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.valuation_verdict == "Undervalued"
+        assert p3.bullish_count < 3
+        assert "Wait" in p4.entry_recommendation, (
+            f"Undervalued × bull={p3.bullish_count} must produce 'Wait — "
+            f"cheap but technically broken'; got {p4.entry_recommendation!r}"
+        )
+
+    def test_entry_rec_fair_value_low_bull_falls_back_to_raw_mos(self):
+        """bd-3xq.6 successor: Fair Value verdict + bullish_count < 6 under
+        flag-ON with moderate PEG must fall back to the raw-mos cascade
+        (matching flag-OFF behavior). For the bd-3xq.5 fixture (mos ≈
+        -0.017, PEG ≈ 1.94), the raw-mos cascade routes mos < 0 → 'Avoid'
+        regardless of bull.
+
+        Pre-3xq.6 this test asserted 'Watchlist' (the flag-ON verdict-keyed
+        Fair Value × bull<6 branch); post-3xq.6, the verdict-keyed branch
+        only fires when PEG *actually* tightened, so this fixture routes
+        through raw-mos → mos<0 → 'Avoid'.
+
+        The 'Fair Value × bull<6 → Watchlist' semantic still exists in
+        the code path (defensive-fallback line in the peg_tightened_
+        verdict branch) but is unreachable in practice with the current
+        logic — a Fair Value verdict with peg_tightened_verdict=True is
+        impossible (PEG only tightens FairValue → Undervalued/Overvalued,
+        never keeps it Fair Value). Kept as safety net for future refactor."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9 * (1.18 ** i) for i in range(5)],
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [104.0, 104.0, 104.0]
+        p3.bullish_count = 3  # anywhere in [0, 5]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.valuation_verdict == "Fair Value", (
+            f"fixture invariant broken: expected Fair Value, got "
+            f"{p4.valuation_verdict}"
+        )
+        assert p3.bullish_count < 6
+        # Post-3xq.6: raw-mos cascade fires because PEG did not tighten.
+        # mos = -0.017 < 0 → 'Avoid'.
+        assert "Avoid" in p4.entry_recommendation, (
+            f"bd-3xq.6 fix: flag-ON Fair Value + moderate PEG + bull<6 "
+            f"falls back to raw-mos cascade; mos<0 → 'Avoid'. "
+            f"Got: {p4.entry_recommendation!r}"
+        )
+
+    # --- bd-3xq.7: flag-OFF raw-mos cascade — 5 previously-uncovered branches ---
+    #
+    # QC-G (bead OpenBBTechnical-3xq.7) found that when use_peg_tightening
+    # is False, phase4_valuation falls into the pre-A5 raw-mos cascade
+    # (stock_analysis.py:2540-2552) with 6 outcomes. Only the 'Avoid'
+    # branch (mos < 0) has an explicit parity test
+    # (test_default_off_preserves_avoid_for_slightly_negative_mos).
+    # These 5 tests add the missing parity coverage — one per remaining
+    # branch. Each is R7.11-mutation-verified: mutating the corresponding
+    # entry_rec string in stock_analysis.py makes the specific test fail.
+    #
+    # Fixture strategy: use a shared low-growth (5%) revenue series so
+    # PEG stays high (production DCF valuation drives mos, not PEG,
+    # under flag-OFF anyway — PEG is only consulted when flag is ON).
+    # Vary price to hit the two MOS bands (>=0.15 and [0, 0.15)) and
+    # bullish_count to hit the 3 bull tiers ([>=6], [3-5], [<3]).
+
+    def _cfg_flag_off_high_mos(self, price: float, bull: int):
+        """Shared helper: build a fixture where flag is OFF and mos >= 0.15.
+        Uses a low-growth revenue series + a low price so DCF fair value
+        substantially exceeds price. Deliberately does NOT touch use_peg_
+        tightening — the raw-mos cascade is what matters, PEG is not
+        consulted."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=25.0,
+            revenue_series=[100e9 * (1.05 ** i) for i in range(5)],
+            use_peg_tightening=False,  # the whole point of this section
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [price, price, price]
+        p3.bullish_count = bull
+        return cfg, p1, p2, p3
+
+    def test_flag_off_high_mos_high_bull_produces_strong_entry(self):
+        """Flag OFF + mos >= 0.15 + bull >= 6 → 'Strong Entry'."""
+        cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=30.0, bull=7)
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.margin_of_safety >= 0.15, (
+            f"fixture invariant broken: mos={p4.margin_of_safety} < 0.15"
+        )
+        assert p3.bullish_count >= 6
+        assert "Strong Entry" in p4.entry_recommendation, (
+            f"flag-OFF high-mos + high-bull must be 'Strong Entry'; "
+            f"got {p4.entry_recommendation!r}"
+        )
+
+    def test_flag_off_high_mos_mid_bull_produces_partial_entry(self):
+        """Flag OFF + mos >= 0.15 + bull in [3, 5] → 'Partial Entry'."""
+        cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=30.0, bull=4)
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.margin_of_safety >= 0.15
+        assert 3 <= p3.bullish_count < 6
+        assert "Partial Entry" in p4.entry_recommendation, (
+            f"flag-OFF high-mos + mid-bull must be 'Partial Entry'; "
+            f"got {p4.entry_recommendation!r}"
+        )
+
+    def test_flag_off_high_mos_low_bull_produces_wait(self):
+        """Flag OFF + mos >= 0.15 + bull < 3 → 'Wait — cheap but
+        technically broken'. The value-only signal."""
+        cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=30.0, bull=1)
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.margin_of_safety >= 0.15
+        assert p3.bullish_count < 3
+        assert "Wait" in p4.entry_recommendation, (
+            f"flag-OFF high-mos + low-bull must be 'Wait — cheap but "
+            f"technically broken'; got {p4.entry_recommendation!r}"
+        )
+
+    def test_flag_off_mid_mos_high_bull_produces_opportunistic_entry(self):
+        """Flag OFF + 0 <= mos < 0.15 + bull >= 6 → 'Opportunistic Entry'."""
+        cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=52.0, bull=7)
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert 0.0 <= p4.margin_of_safety < 0.15, (
+            f"fixture invariant broken: mos={p4.margin_of_safety} not in [0, 0.15)"
+        )
+        assert p3.bullish_count >= 6
+        assert "Opportunistic Entry" in p4.entry_recommendation, (
+            f"flag-OFF mid-mos + high-bull must be 'Opportunistic Entry'; "
+            f"got {p4.entry_recommendation!r}"
+        )
+
+    def test_flag_off_mid_mos_low_bull_produces_watchlist(self):
+        """Flag OFF + 0 <= mos < 0.15 + bull < 6 → 'Watchlist'. The else-
+        branch — no directional edge from either dimension."""
+        cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=52.0, bull=3)
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert 0.0 <= p4.margin_of_safety < 0.15
+        assert p3.bullish_count < 6
+        assert "Watchlist" in p4.entry_recommendation, (
+            f"flag-OFF mid-mos + low-bull must be 'Watchlist'; "
+            f"got {p4.entry_recommendation!r}"
+        )
+
     # --- default-off entry_rec parity (bead OpenBBTechnical-3xq.1) -------
     #
     # QC-A found that the iter-3 unconditional verdict-keyed refactor
@@ -4514,39 +4712,73 @@ class TestPhase4PegRatio:
             f"verdict={p4.valuation_verdict}, bull={p3.bullish_count})"
         )
 
-    def test_flag_on_slightly_negative_mos_flips_to_verdict_keyed(self):
-        """Complement to the parity test: with flag ON, the same slightly-
-        negative-MOS case now routes through the verdict-keyed branch.
-        valuation_verdict is 'Fair Value' (untightened by PEG since PEG is
-        moderate in this fixture), so bull ≥ 6 → 'Opportunistic Entry'.
-        Proves the flag actually toggles the branch."""
+    def test_flag_on_moderate_peg_falls_back_to_raw_mos_cascade(self):
+        """bd-3xq.6 (QC-F) fix: when flag is ON but PEG lands in [1.0, 2.0]
+        (PEG did NOT actually tighten the verdict), entry_rec must fall
+        back to the raw-mos cascade — same as flag OFF. This eliminates
+        the pre-3xq.6 asymmetry where the same stock got different
+        entry_rec values under flag-ON vs flag-OFF just because the flag
+        toggled the entry-rec ladder unconditionally.
+
+        Fixture (bd-3xq.5 heritage): revenue growth 18% → PEG ≈ 1.94 in
+        [1.0, 2.0] (PEG does NOT tighten Fair Value → Undervalued or
+        → Overvalued). Price $104 → mos ≈ -0.017 (slightly negative).
+        Bull=7 (high).
+
+        **Behavior BEFORE bd-3xq.6:** flag-ON verdict-keyed cascade
+        routed Fair Value + bull>=6 → 'Opportunistic Entry'.
+        **Behavior AFTER bd-3xq.6:** since PEG did not tighten, fall
+        back to raw-mos cascade → mos < 0 → 'Avoid'. Same as flag-OFF.
+
+        R7.11: mutating `peg_tightened_verdict = False` initialization
+        to `True` in stock_analysis.py::phase4_valuation would break
+        this test (would re-enter the verdict-keyed ladder and produce
+        'Opportunistic Entry')."""
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
-            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            revenue_series=[100e9 * (1.18 ** i) for i in range(5)],
             use_peg_tightening=True,  # flag ON
         )
         p3.price_df = p3.price_df.copy()
-        p3.price_df["close"] = [71.0, 71.0, 71.0]
+        p3.price_df["close"] = [104.0, 104.0, 104.0]
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
 
-        # Preconditions: mos in target band, verdict still Fair Value
-        # (PEG doesn't tighten because peg > 2 needs verdict==Fair Value AND
-        # peg > 2.0 — this fixture's PEG is expensive enough that it flips).
-        assert -0.05 <= p4.margin_of_safety < 0.0
+        # Preconditions
+        assert -0.05 <= p4.margin_of_safety < 0.0, (
+            f"fixture invariant broken: mos={p4.margin_of_safety} not in [-0.05, 0)"
+        )
+        assert 1.0 <= p4.peg_ratio <= 2.0, (
+            f"fixture invariant broken: peg={p4.peg_ratio} not in [1.0, 2.0]"
+        )
+        assert p4.valuation_verdict == "Fair Value", (
+            f"fixture invariant broken: PEG in [1,2] should NOT tighten "
+            f"verdict; got {p4.valuation_verdict}"
+        )
+        assert p3.bullish_count >= 6
 
-        # If PEG flipped the verdict to Overvalued, entry_rec is 'Avoid'.
-        # If verdict stayed Fair Value (PEG in normal range), bull ≥ 6
-        # yields 'Opportunistic Entry'.  Either way, the flag-on path is
-        # NOT the pre-A5 'Avoid' verdict — this proves the branches differ.
-        if p4.valuation_verdict == "Fair Value":
-            assert "Opportunistic Entry" in p4.entry_recommendation, (
-                f"flag-on Fair Value + bull>=6 must be Opportunistic Entry; "
-                f"got {p4.entry_recommendation!r}"
-            )
-        else:
-            # PEG tightened to Overvalued → verdict-keyed branch routes to Avoid
-            assert p4.valuation_verdict == "Overvalued"
-            assert "Avoid" in p4.entry_recommendation
+        # Load-bearing bd-3xq.6 assertion: flag-ON path with PEG that
+        # didn't tighten must produce the SAME entry_rec as flag-OFF path
+        # (which routes mos < 0 → 'Avoid' via the raw-mos cascade).
+        assert "Avoid" in p4.entry_recommendation, (
+            f"bd-3xq.6 fix: flag-ON + PEG in [1.0, 2.0] + mos < 0 must "
+            f"fall back to raw-mos cascade → 'Avoid' (matching flag-OFF), "
+            f"NOT 'Opportunistic Entry' (the pre-3xq.6 verdict-keyed "
+            f"asymmetry). Got: {p4.entry_recommendation!r}"
+        )
+
+        # Symmetry check: run the same fixture with flag OFF and confirm
+        # entry_rec is identical.
+        cfg_off, _, _, _ = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9 * (1.18 ** i) for i in range(5)],
+            use_peg_tightening=False,
+        )
+        p4_off = phase4_valuation(cfg_off, p2, p3, p1=p1)
+        assert p4.entry_recommendation == p4_off.entry_recommendation, (
+            f"bd-3xq.6 symmetry: flag-ON with moderate PEG must produce "
+            f"the same entry_rec as flag-OFF; got ON={p4.entry_recommendation!r} "
+            f"vs OFF={p4_off.entry_recommendation!r}"
+        )
 
     # --- gate_notes bit-for-bit parity when flag off ---------------------
 
@@ -4638,6 +4870,72 @@ class TestPhase4PegRatio:
         assert "PEG unavailable" in p4.gate_notes, (
             f"flag-on + NaN PEG on Fair Value verdict must surface a "
             f"diagnostic; got: {p4.gate_notes!r}"
+        )
+
+    # --- bd-3xq.8: symmetric no-op — PEG unavailable must NOT appear on
+    #     non-Fair-Value verdicts (QC-H) ---
+    #
+    # The peg_note diagnostic is guarded by BOTH `use_peg_tightening`
+    # AND `valuation_verdict == "Fair Value"`. The existing test above
+    # covers only the presence case for Fair Value. Deleting the
+    # verdict guard would silently annotate ALL NaN-PEG results —
+    # noise-y gate_notes strings on Undervalued/Overvalued stocks
+    # where PEG never gets consulted for the verdict decision.
+    # These two symmetric tests lock the no-op: R7.11 mutation-verified
+    # (removing `and valuation_verdict == "Fair Value"` from the guard
+    # in phase4_valuation makes both tests fail).
+
+    def test_flag_on_nan_peg_no_annotation_on_undervalued(self):
+        """Flag ON + NaN PEG + Undervalued verdict → 'PEG unavailable'
+        must NOT appear in gate_notes. Undervalued reaches its verdict
+        via MOS alone; PEG isn't consulted, so the diagnostic would be
+        misleading noise if it fired here."""
+        # Declining revenue → PEG NaN. Low price → high MOS → Undervalued.
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=25.0,
+            revenue_series=[200e9, 180e9, 160e9, 140e9, 120e9],
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [20.0, 20.0, 20.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+
+        # Preconditions: PEG NaN AND verdict Undervalued.
+        assert math.isnan(p4.peg_ratio), (
+            f"fixture invariant broken: expected NaN PEG, got {p4.peg_ratio}"
+        )
+        assert p4.valuation_verdict == "Undervalued", (
+            f"fixture invariant broken: expected Undervalued, got "
+            f"{p4.valuation_verdict} (mos={p4.margin_of_safety:.3f})"
+        )
+        # Load-bearing: NO peg annotation on non-Fair-Value verdicts.
+        assert "PEG unavailable" not in p4.gate_notes, (
+            f"'PEG unavailable' must NOT appear on Undervalued verdict "
+            f"(the guard `verdict == \"Fair Value\"` should prevent it); "
+            f"got gate_notes={p4.gate_notes!r}"
+        )
+
+    def test_flag_on_nan_peg_no_annotation_on_overvalued(self):
+        """Flag ON + NaN PEG + Overvalued verdict → 'PEG unavailable'
+        must NOT appear in gate_notes. Symmetric to the Undervalued case."""
+        # Declining revenue → PEG NaN. High price → negative MOS → Overvalued.
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=25.0,
+            revenue_series=[200e9, 180e9, 160e9, 140e9, 120e9],
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [200.0, 200.0, 200.0]
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+
+        assert math.isnan(p4.peg_ratio)
+        assert p4.valuation_verdict == "Overvalued", (
+            f"fixture invariant broken: expected Overvalued, got "
+            f"{p4.valuation_verdict} (mos={p4.margin_of_safety:.3f})"
+        )
+        assert "PEG unavailable" not in p4.gate_notes, (
+            f"'PEG unavailable' must NOT appear on Overvalued verdict; "
+            f"got gate_notes={p4.gate_notes!r}"
         )
 
 # ---------------------------------------------------------------------------

@@ -2483,6 +2483,16 @@ def phase4_valuation(
     # PE), we surface a diagnostic in peg_note so the user knows their opt-in
     # was silently skipped for THIS symbol.  Bead OpenBBTechnical-0h2.39.
     peg_note = ""
+    # bd-3xq.6 (QC-F) fix: track whether PEG *actually* tightened the verdict.
+    # The flag-ON verdict-keyed entry_rec branch is now gated on this bool
+    # instead of use_peg_tightening alone, so opting into PEG tightening no
+    # longer silently swaps the entry_rec ladder from raw-mos to verdict-
+    # keyed on stocks where PEG lands in [1.0, 2.0]. The pre-fix asymmetry
+    # was: flag OFF gave 'Avoid' on mos in [-0.05, 0), flag ON gave
+    # 'Opportunistic Entry' on the same stock — the flag name ('PEG
+    # tightening') implied PEG-related changes only, but the effect was
+    # unconditionally re-keying the entry ladder.
+    peg_tightened_verdict = False
     if cfg.feature_flags.use_peg_tightening and valuation_verdict == "Fair Value":
         if np.isnan(peg_ratio):
             peg_note = " (PEG unavailable — tightening skipped)"
@@ -2494,32 +2504,47 @@ def phase4_valuation(
         elif peg_ratio < 1.0:
             valuation_verdict = "Undervalued"
             peg_note = f" (PEG {peg_ratio:.2f} < 1.0 → cheap growth)"
+            peg_tightened_verdict = True
         elif peg_ratio > 2.0:
             valuation_verdict = "Overvalued"
             peg_note = f" (PEG {peg_ratio:.2f} > 2.0 → expensive growth)"
+            peg_tightened_verdict = True
 
     # Combined valuation-technical entry recommendation.
     #
-    # Two branches, gated on use_peg_tightening for strict default-off parity:
+    # Three cases, chosen for strict default-off parity AND to prevent the
+    # bd-3xq.6 (QC-F) asymmetry:
     #
     # * Flag OFF (default): use the pre-A5 raw-mos cascade unchanged.  This
     #   is bit-for-bit what pre-A5 produced.  MOS-based decisions like
     #   'mos < 0 → Avoid' carry through even when they slightly disagree
     #   with the DCF-only valuation_verdict.
     #
-    # * Flag ON: key on the (possibly PEG-tightened) valuation_verdict.
-    #   A PEG Fair Value → Overvalued flip must flow into entry_rec too —
-    #   otherwise Phase4Result would simultaneously say verdict=Overvalued
-    #   AND entry_rec=Opportunistic Entry, a silent incoherence
-    #   (bead OpenBBTechnical-0h2.36 (entry_rec coherence)).
+    # * Flag ON AND PEG actually tightened (peg_tightened_verdict=True):
+    #   key on the (post-tightening) valuation_verdict.  Needed for
+    #   coherence — bead OpenBBTechnical-0h2.36 (entry_rec coherence).
+    #   The PEG Fair Value → Overvalued flip must flow into entry_rec too,
+    #   otherwise Phase4Result would say verdict=Overvalued AND
+    #   entry_rec=Opportunistic Entry, a silent incoherence.
+    #
+    # * Flag ON but PEG did NOT tighten (verdict still Fair Value OR PEG
+    #   NaN): fall back to the raw-mos cascade. This is the bd-3xq.6 fix.
+    #   Previously (iter-4) this branch also ran the verdict-keyed ladder,
+    #   which silently changed entry_rec vs flag-OFF for the same stock
+    #   when PEG landed in the moderate [1.0, 2.0] band. The flag-name
+    #   contract is now: "PEG tightening" only affects entry_rec when PEG
+    #   actually tightens something.
     #
     # Iter-3 initially made the verdict-keyed branch unconditional, which
     # silently changed default-off behavior for mos in [-0.05, 0) (they
     # used to hit 'Avoid' via mos<0, now hit 'Opportunistic Entry' /
     # 'Watchlist').  QC-A (bead OpenBBTechnical-3xq.1) caught it as a
-    # regression in the fix itself; iter-4 restores parity by gating.
+    # regression in the fix itself; iter-4 restored parity by gating on
+    # use_peg_tightening. QC-F (bead OpenBBTechnical-3xq.6) then found
+    # iter-4's gating still applied unconditionally within flag-ON —
+    # this final gate on peg_tightened_verdict is the semantic fix.
     bull = p3.bullish_count
-    if cfg.feature_flags.use_peg_tightening:
+    if peg_tightened_verdict:
         # Verdict-keyed branch: needed for coherence when PEG tightens verdict
         if valuation_verdict == "Overvalued":
             entry_rec = "Avoid — overvalued regardless of technicals"
@@ -2531,12 +2556,16 @@ def phase4_valuation(
                 entry_rec = "Partial Entry — fundamental case strong; wait for technical improvement"
             else:
                 entry_rec = "Wait — cheap but technically broken"
-        else:  # "Fair Value"
-            if bull >= 6:
-                entry_rec = "Opportunistic Entry — fair value but strong technicals"
-            else:
-                entry_rec = "Watchlist — no asymmetric opportunity"
+        else:  # "Fair Value" — should not happen when peg_tightened_verdict=True
+            # Defensive fallback: assign a neutral entry_rec. In practice
+            # this branch is unreachable — peg_tightened_verdict is only
+            # set True after valuation_verdict was flipped to Undervalued
+            # or Overvalued (never Fair Value). Kept as a safety net for
+            # a future refactor that accidentally sets the flag without
+            # flipping the verdict.
+            entry_rec = "Watchlist — no asymmetric opportunity"
     else:
+        # Flag OFF, OR flag ON but PEG did not tighten:
         # Pre-A5 raw-mos cascade — preserved bit-for-bit for default-off parity.
         if mos >= 0.15 and bull >= 6:
             entry_rec = "Strong Entry — value and timing aligned"
