@@ -4,12 +4,14 @@
 **Spec:** `docs/superpowers/specs/2026-07-06-pine-extraction-to-pynecore-design.md` §6.E0.6
 **Plan task:** `docs/superpowers/plans/2026-07-07-pine-extraction-implementation.md` E0.6
 **Baseline:** 1384 passed + 10 skipped (unchanged after refactor)
-**Total files audited:** 84 unit test files under
+**Total files audited:** 85 unit test files under
 `openbb_platform/extensions/pine/openbb_pine/tests/unit/` (81 pre-existing
 + 1 new `test_telemetry_module_globals.py` produced by the gray-zone
 refactor + 1 new `test_fmp_provider_conformance.py` added by E3.2
 (bd-3ch) + 1 new `test_byo_provider_conformance.py` added by E3.3
-(bd-tzm); the `__init__.py` is not counted as a test).
+(bd-tzm) + 1 new `test_deprecation_shims.py` added by E3.5 (bd-ijq)
+which STAYS by fiat since it exercises the fork-side §13.5 shims; the
+`__init__.py` is not counted as a test).
 
 **Ground truth for all counts below:** the E2 filter-repo list at
 lines 148–171 is authoritative. Every other bucket in this document

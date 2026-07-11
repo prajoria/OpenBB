@@ -1,6 +1,32 @@
-"""Deprecated: this module moved to pyne_compiler.compiler.v5_migration.
+"""Deprecated shim: openbb_pine.compiler.v5_migration
 
-Compatibility re-export while downstream callers migrate. Formal
-DeprecationWarning wrapper is installed in E3.5 (bd-ijq).
+Real implementation moved to :mod:`pyne_compiler.compiler.v5_migration` during the Pine extraction
+(E3, bd-rbf). Attribute access through this shim emits a
+:class:`DeprecationWarning`; the returned object is identical to the one
+in the real module. Removable in v0.next+1.
 """
-from pyne_compiler.compiler.v5_migration import *  # noqa: F401,F403
+from __future__ import annotations
+
+import warnings as _warnings
+
+import pyne_compiler.compiler.v5_migration as _new
+
+_DEPRECATION_MSG = (
+    "openbb_pine.compiler.v5_migration is deprecated; import from pyne_compiler.compiler.v5_migration "
+    "instead. This shim will be removed in the next feature release."
+)
+
+
+def __getattr__(name: str):
+    try:
+        value = getattr(_new, name)
+    except AttributeError as exc:
+        raise AttributeError(
+            f"module 'openbb_pine.compiler.v5_migration' has no attribute {name!r}"
+        ) from exc
+    _warnings.warn(_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
+    return value
+
+
+def __dir__():
+    return sorted(set(dir(_new)) | {"__getattr__", "__dir__"})
