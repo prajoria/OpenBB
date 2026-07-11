@@ -84,6 +84,13 @@ def _resolve_output_dir(output_dir: Path | None, session_date: date) -> Path:
     else:
         candidate = Path(output_dir).expanduser()
 
+    # Pre-normalize (security-review round 3 finding #2): normpath
+    # collapses any `..` segments BEFORE resolve() so a lexical traversal
+    # like `jail/../elsewhere` is caught here rather than depending on
+    # the symlink target of resolve().
+    import os as _os
+    candidate = Path(_os.path.normpath(str(candidate)))
+
     # First: standard resolve() + relative_to(jail). Catches obvious
     # traversal (../../../etc) but silently follows symlinks — if the
     # symlink target is inside the jail this check passes even though
@@ -120,17 +127,24 @@ def _reject_symlinks_in_chain(candidate: Path, jail: Path) -> None:
     ``jail`` lexically, do nothing — the caller's ``resolve() +
     relative_to()`` already rejected it above.
 
+    Exception discipline (security-review round 3 finding #4): the
+    "component doesn't exist" case is narrowly caught as
+    ``FileNotFoundError``. Any other ``OSError`` (EACCES, ELOOP, etc.)
+    is a real problem — surface as :class:`OutputPathEscapesJail`
+    rather than silently passing.
+
     Windows note: on Windows without SeCreateSymbolicLink privilege the
     symlink surface is small — this is defense-in-depth. On Linux/macOS
     where symlinks are trivially plantable it matters more.
     """
-    # Make both absolute for lexical comparison. Do NOT call resolve()
-    # on candidate — that would defeat the check.
     try:
         jail_abs = jail.resolve()
         candidate_abs = candidate.absolute()
-    except OSError:
-        return  # Can't lstat components; downstream write will fail loud
+    except OSError as exc:
+        # Can't even determine paths — hard refusal (round 3 #4).
+        raise OutputPathEscapesJail(
+            f"cannot verify jail chain for {candidate}: {exc}"
+        ) from exc
 
     # If candidate isn't under jail lexically, skip — resolve()'s
     # relative_to check will have rejected it.
@@ -151,10 +165,19 @@ def _reject_symlinks_in_chain(candidate: Path, jail: Path) -> None:
                     f"(bd-9nd.8: symlink in path component defeats the "
                     f"jail root's relative_to check)"
                 )
-        except OSError:
-            # Component doesn't exist yet — that's fine, the write will
-            # create it (as long as jail-relative check above passed).
-            pass
+        except FileNotFoundError:
+            # Narrow (security-review round 3 finding #4): component
+            # simply doesn't exist yet — that's expected on first-write
+            # to a fresh session_date directory. mkdir(parents=True) in
+            # report() creates it under jail_abs.
+            continue
+        except OSError as exc:
+            # EACCES / EPERM / ELOOP: unreadable component is a HARD
+            # refusal, not a silent pass. If we can't lstat it, we
+            # can't verify it's not a symlink — play safe.
+            raise OutputPathEscapesJail(
+                f"cannot verify {current} is not a symlink: {exc}"
+            ) from exc
 
 
 def _open_for_write(path: Path, overwrite: bool) -> Any:
@@ -207,7 +230,10 @@ def _open_for_write(path: Path, overwrite: bool) -> Any:
             )
 
     try:
-        fd = os.open(str(path), flags, 0o644)
+        # 0o600 = owner rw only (security-review round 3 finding #3).
+        # Reports contain P&L; world-readable would leak the operator's
+        # trading history to any local user on shared systems.
+        fd = os.open(str(path), flags, 0o600)
     except FileExistsError as exc:
         # O_EXCL raised — the file exists and overwrite=False
         raise OutputExists(
