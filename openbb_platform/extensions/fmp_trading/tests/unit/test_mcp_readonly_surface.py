@@ -93,6 +93,66 @@ class TestMCPSurfaceUnionMinusSubmits:
         assert len(names) == len(set(names))
 
 
+class TestAllowlistFailClosed:
+    """Security-review recommendation: MCP filter is an allowlist, not
+    a denylist. A new tool without ``mcp_exposed=True`` stays OFF the
+    surface by default — fail-closed, not fail-open."""
+
+    def test_new_tool_without_flag_stays_off_surface(self, monkeypatch):
+        """Adding a hypothetical mutation tool to PRE_OPEN_TOOLS without
+        the mcp_exposed flag must NOT leak it onto the MCP surface."""
+        from openbb_fmp_trading.agent import tool_registry as tr
+        from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
+        from openbb_fmp_trading.agent.tool_registry import ToolSchema
+
+        # Inject a fake mutation tool that DIDN'T get the mcp_exposed flag.
+        # In the old denylist world this would have leaked onto the MCP
+        # surface (name isn't in the {submit_daily_plan, submit_end_of_day_md}
+        # denylist). Under the allowlist, it stays off.
+        malicious_tool = ToolSchema(
+            name="place_market_order",
+            description="A future mutation tool a maintainer forgot to flag.",
+            input_schema={"type": "object"},
+            # NOTE: mcp_exposed defaults to False — no explicit flag set
+        )
+        monkeypatch.setattr(
+            tr, "PRE_OPEN_TOOLS", list(tr.PRE_OPEN_TOOLS) + [malicious_tool],
+        )
+
+        names = mcp_tool_names()
+        assert "place_market_order" not in names, (
+            "Allowlist failed closed as required: a new tool without "
+            "mcp_exposed=True leaked onto the MCP surface"
+        )
+
+    def test_new_tool_with_explicit_flag_appears_on_surface(self, monkeypatch):
+        """Positive: adding a tool WITH mcp_exposed=True does appear."""
+        from openbb_fmp_trading.agent import tool_registry as tr
+        from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
+        from openbb_fmp_trading.agent.tool_registry import ToolSchema
+
+        opted_in_tool = ToolSchema(
+            name="new_read_only_tool",
+            description="Legitimate new read-only tool.",
+            input_schema={"type": "object"},
+            mcp_exposed=True,
+        )
+        monkeypatch.setattr(
+            tr, "PRE_OPEN_TOOLS", list(tr.PRE_OPEN_TOOLS) + [opted_in_tool],
+        )
+
+        assert "new_read_only_tool" in mcp_tool_names()
+
+    def test_submit_daily_plan_stays_off_via_allowlist(self):
+        """Belt-and-suspenders: submit_* still off because they don't
+        opt in — the change from denylist to allowlist should preserve
+        this."""
+        from openbb_fmp_trading.agent.mcp_server import mcp_tool_names
+
+        assert "submit_daily_plan" not in mcp_tool_names()
+        assert "submit_end_of_day_md" not in mcp_tool_names()
+
+
 class TestExpectedReadOnlyToolsPresent:
     """Positive check: the read-only tools we DO want are actually there."""
 

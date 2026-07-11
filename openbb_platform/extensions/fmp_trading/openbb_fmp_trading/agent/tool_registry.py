@@ -51,12 +51,20 @@ class ToolSchema:
                       tool call is captured by the backend, not
                       dispatched). For read-only tools this delegates
                       to ``obb.fmp_trading.<method>``.
+        mcp_exposed:  Allowlist flag for the external MCP surface. **Every
+                      new tool must explicitly opt in.** Default is False
+                      (fail-closed) per security-review recommendation
+                      to prefer allowlist over denylist for the MCP
+                      chokepoint. ``submit_*`` tools stay False; every
+                      read-only tool the pre/post-close turns share sets
+                      True.
     """
 
     name: str
     description: str
     input_schema: dict[str, Any] = field(default_factory=dict)
     dispatch: Callable[..., Any] | None = None
+    mcp_exposed: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +145,11 @@ def _build_read_only_tools() -> list[ToolSchema]:
     load-bearing). The curated hand-list here is a superset of what the
     Phase 3 turns need; drift detection will flag mismatches against the
     router in P3.3's ``assert_no_drift`` implementation.
+
+    Every tool built here sets ``mcp_exposed=True`` — they are the
+    hand-vetted read-only surface for external MCP clients. Adding a
+    new tool WITHOUT the flag means it stays off the MCP surface by
+    default (allowlist / fail-closed per security-review recommendation).
     """
     # Read-only universe helpers the pre-open agent uses to build a plan.
     # Every one is a read of live or cached FMP data — no writes anywhere.
@@ -155,6 +168,7 @@ def _build_read_only_tools() -> list[ToolSchema]:
                 },
                 "required": ["symbols"],
             },
+            mcp_exposed=True,
         ),
         ToolSchema(
             name="market_movers",
@@ -170,6 +184,7 @@ def _build_read_only_tools() -> list[ToolSchema]:
                 },
                 "required": ["direction"],
             },
+            mcp_exposed=True,
         ),
         ToolSchema(
             name="company_news",
@@ -186,17 +201,22 @@ def _build_read_only_tools() -> list[ToolSchema]:
                 },
                 "required": ["symbol"],
             },
+            mcp_exposed=True,
         ),
         ToolSchema(
             name="session_status",
             description="Current market session state (open, half-day, etc.).",
             input_schema={"type": "object", "properties": {}},
+            mcp_exposed=True,
         ),
     ]
 
 
 def _build_post_close_only_tools() -> list[ToolSchema]:
-    """Additional tools the post-close agent gets on top of read_only."""
+    """Additional tools the post-close agent gets on top of read_only.
+
+    Both are also MCP-exposed (external clients often want to inspect
+    a session after the fact — same read-only guarantee applies)."""
     return [
         ToolSchema(
             name="journal_summary",
@@ -209,6 +229,7 @@ def _build_post_close_only_tools() -> list[ToolSchema]:
                 "properties": {"session_id": {"type": "string"}},
                 "required": ["session_id"],
             },
+            mcp_exposed=True,
         ),
         ToolSchema(
             name="fills_for_session",
@@ -218,6 +239,7 @@ def _build_post_close_only_tools() -> list[ToolSchema]:
                 "properties": {"session_id": {"type": "string"}},
                 "required": ["session_id"],
             },
+            mcp_exposed=True,
         ),
     ]
 

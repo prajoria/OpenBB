@@ -35,8 +35,16 @@ logger = logging.getLogger(__name__)
 def mcp_tool_names() -> list[str]:
     """Names of every tool exposed on the MCP surface.
 
-    Excludes the two internal ``submit_*`` sinks (PRD §7.3 safety
-    constraint). Result order is stable so per-PR tests can pin it.
+    **Allowlist model** (security-review recommendation): a tool appears
+    here only if it explicitly opted in via ``ToolSchema.mcp_exposed=True``.
+    Adding a new tool to ``PRE_OPEN_TOOLS`` or ``POST_CLOSE_TOOLS``
+    without setting the flag keeps it OFF the MCP surface — the safe
+    default. The prior denylist (``if name in {"submit_*"}: continue``)
+    was fail-open: a future maintainer who added a new mutation tool
+    without updating the denylist would have leaked it to external MCP
+    clients silently.
+
+    Result order is stable so per-PR tests can pin it.
     """
     from openbb_fmp_trading.agent import tool_registry as tr
 
@@ -44,7 +52,7 @@ def mcp_tool_names() -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
     for t in combined:
-        if t.name in ("submit_daily_plan", "submit_end_of_day_md"):
+        if not getattr(t, "mcp_exposed", False):
             continue
         if t.name in seen:
             continue
@@ -56,7 +64,7 @@ def mcp_tool_names() -> list[str]:
 def mcp_tools() -> list:
     """Return the actual ToolSchema objects for the MCP surface.
 
-    Same filter as :func:`mcp_tool_names`. Called by
+    Same allowlist filter as :func:`mcp_tool_names`. Called by
     :func:`run_stdio_server` to build the MCP server's tool registry.
     """
     from openbb_fmp_trading.agent import tool_registry as tr
@@ -65,7 +73,7 @@ def mcp_tools() -> list:
     seen: set[str] = set()
     out: list = []
     for t in combined:
-        if t.name in ("submit_daily_plan", "submit_end_of_day_md"):
+        if not getattr(t, "mcp_exposed", False):
             continue
         if t.name in seen:
             continue
