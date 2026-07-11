@@ -39,6 +39,7 @@ Recorded from the brainstorming gate (2026-07-10):
 | **D3** | **Tool schemas:** auto-generated from `obb.fmp_trading.*` Router signatures at import time | Single source of truth. "Core-unchanged-when-removed" test (#85 AC) becomes trivial: assert the extra adds no new Router entries. Uses OpenBB's existing type-hint → JSON-schema pipeline. |
 | **D4** | **Fallback shape:** full schema parity — deterministic fallback returns a `DailyPlan` / `EndOfDayReport` identical in shape to the LLM output | Downstream code (tick loop, journal, report generator) treats agent-produced and fallback-produced objects interchangeably; only `agent_backend='none'` + `is_deterministic_fallback=True` flags reveal provenance. |
 | **D5** | **Bead split:** 3 sub-tasks — P3.1 pre-open turn, P3.2 post-close turn, P3.3 MCP server | Delivers operator-visible value first (pre-open ships a working DailyPlan). Each sub-task ships with its own tests + fallback + CLI subcommand. |
+| **D6** | **Persistent state backend:** MySQL (reuse the `fmp_cached` connection) — new `fmp_trading_state` table + `state_store.py` helper. No JSON-on-disk. | Consolidates persistence on one backend. Backups + multi-machine access come for free from the existing MySQL infra. Avoids "half-in-DB, half-on-disk" split that the plan doc originally implied. |
 
 ---
 
@@ -102,6 +103,7 @@ agent/
     ├── unit/
     │   ├── test_backend_protocol.py
     │   ├── test_tool_registry.py
+    │   ├── test_state_store.py             # persistence round-trip (see §6.5)
     │   ├── test_pre_open_fallback.py       # AC-agent-1
     │   ├── test_post_close_fallback.py     # AC-agent-2
     │   └── test_mcp_readonly_surface.py    # AC-risk-8 (no broker tools)
@@ -109,6 +111,13 @@ agent/
     │   └── test_full_day_with_agent.py     # AC-1 extended: agent → tick loop → agent
     └── architecture/
         └── test_core_unchanged_when_removed.py  # #85 AC
+```
+
+**State-persistence module** (lives in `core/` next to `bandwidth.py`, not under `agent/`, because it's a general-purpose primitive the tick loop and both agent turns share):
+
+```
+core/
+├── state_store.py            # MySQL-backed persistent state (see §6.5)
 ```
 
 Existing files touched (minimal — most Phase 3 code is additive):
@@ -197,7 +206,7 @@ class PreOpenAgentTurn:
         return plan
 ```
 
-**Fallback (D4)** — yesterday's watchlist (from `~/.openbb_platform/fmp_trading/state/last_watchlist.json`) + `trend_follow` preset + empty alerts + default `RiskConfig`. Same `DailyPlan` shape; `agent_backend="none"` and `is_deterministic_fallback=True`. If no prior watchlist exists (first-ever run), fall back further to the `DailyConfig.default_watchlist` field.
+**Fallback (D4)** — yesterday's watchlist (from the `fmp_trading_state` MySQL table via `state_store.load_last_watchlist()` — see §6.5) + `trend_follow` preset + empty alerts + default `RiskConfig`. Same `DailyPlan` shape; `agent_backend="none"` and `is_deterministic_fallback=True`. If no prior watchlist exists (first-ever run OR the DB row is absent), fall back further to the `DailyConfig.default_watchlist` field.
 
 **CLI:** `openbb-daytrade pre-open [--config path] [--dry-run]` — dry-run stops after the tool call but doesn't journal.
 
@@ -295,6 +304,73 @@ System prompts live in `agent/prompts/*.txt` (plain text, no Jinja). Edited with
 
 Prompt versioning: filename includes a version suffix (`pre_open_v1.txt`). Tests pin the version, so a prompt change requires an explicit test update.
 
+### 6.5 Persistent state layer (`core/state_store.py`) — D6
+
+**Backend:** MySQL, via the same connection helpers `fmp_cached` uses (`openbb_fmp_cached.utils.database.execute_query` / `execute_many`). No new dependency; credentials come from the existing `~/.openbb_platform/user_settings.json` `mysql_*` block.
+
+**Schema — new table `fmp_trading_state`:**
+
+```sql
+CREATE TABLE IF NOT EXISTS fmp_trading_state (
+  state_key   VARCHAR(80)  NOT NULL,          -- 'last_watchlist', 'last_plan', etc.
+  scope       VARCHAR(80)  NOT NULL DEFAULT 'default',   -- multi-profile support
+  payload     JSON         NOT NULL,
+  updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                             ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (state_key, scope),
+  INDEX idx_updated_at (updated_at)
+);
+```
+
+Registered in `openbb_fmp_cached.utils.cache_schema.FLATTENED_TABLES` alongside `ttl_cache` (P2.2). The registration is a one-liner — `create_fmp_trading_state_table()` follows the same function-per-table pattern.
+
+**Why one JSON-payload column vs. per-key typed columns:**
+- State keys are heterogeneous (`list[str]` for watchlist, full `DailyPlan` dict for last plan, dict for cursor positions).
+- Adding a new state key never requires a migration — write it, read it.
+- JSON lookups are still primary-key-indexed via `state_key`, so single-row reads are O(1).
+
+**API surface (`state_store.py`):**
+
+```python
+def load_state(key: str, scope: str = "default") -> Any | None:
+    """Return the deserialized payload or None if the key is absent.
+    On DB failure, returns None (never fail-fast — same resilience
+    pattern as create_ttl_wrapper_class from P2.2)."""
+
+def save_state(key: str, payload: Any, scope: str = "default") -> None:
+    """UPSERT the payload as JSON. On DB failure, logs and best-effort
+    suppresses — the calling turn continues with its in-memory value."""
+
+def load_last_watchlist(scope: str = "default") -> list[str] | None:
+    """Convenience wrapper: load_state('last_watchlist')."""
+
+def save_last_watchlist(symbols: list[str], scope: str = "default") -> None:
+    """Convenience wrapper: save_state('last_watchlist', symbols)."""
+```
+
+**State keys shipped in Phase 3** (not exhaustive — new keys land as needs arise):
+
+| Key | Type of payload | Written by | Read by |
+|---|---|---|---|
+| `last_watchlist` | `list[str]` | PostCloseAgentTurn (records the day's plan.watchlist) | PreOpenAgentTurn deterministic fallback |
+| `last_plan` | full `DailyPlan.model_dump()` | PreOpenAgentTurn on successful commit | PostCloseAgentTurn context builder; operator inspection via CLI |
+| `last_session_summary` | `{date, realized_pnl, veto_counts}` | SessionEndEvent handler | PreOpenAgentTurn prompt context |
+| `bandwidth_month` | `{month, used_bytes, mode}` | BandwidthMeter (migrated from disk in Phase 1 P1.5 — deferred to a follow-up bead, not Phase 3 blocking) | BandwidthMeter itself |
+
+**Resilience contract:** every `load_state` / `save_state` call is wrapped in try/except; DB unavailability degrades gracefully to "no prior state" (fallback returns `None`, save is best-effort). This matches the P2.2 `create_ttl_wrapper_class` pattern exactly — SELECT failures fall through, UPSERT failures are logged and suppressed.
+
+**Scope column** — supports multi-profile setups later (e.g., `scope='paper'` vs. `scope='live'`) without a schema change. Phase 3 hardcodes `scope='default'` in every call site; the arg exists for future work.
+
+**Migration from any disk-based state** — Phase 3 is the first place these state keys are written; there is no legacy disk file to migrate. The one Phase 1 disk file (BandwidthMeter's monthly counter) stays on disk in Phase 3 and gets migrated in a follow-up bead (`bd remember` note filed for tracking).
+
+**Test surface (`tests/unit/test_state_store.py`):**
+1. Round-trip: `save_state("foo", {"bar": 1})` → `load_state("foo")` returns `{"bar": 1}`.
+2. Absent-key: `load_state("never-set")` returns `None`.
+3. UPSERT: two saves with the same key overwrite; `updated_at` advances.
+4. DB failure (mocked): `save_state` doesn't raise; `load_state` returns `None`.
+5. Scope isolation: `save_state("k", 1, scope="a")` doesn't touch `scope="b"`.
+6. `load_last_watchlist` returns `list[str]` shape and survives JSON round-trip.
+
 ---
 
 ## 7. Acceptance criteria
@@ -308,8 +384,9 @@ Every AC below has a corresponding test file listed in §4.
 | AC-agent-3 | Tool registry auto-generates schemas from `obb.fmp_trading.*` router; drift is detected at import | `test_tool_registry.py` |
 | AC-agent-4 | MCP server exposes only read-only tools; `submit_*` and `broker.*` are not registered | `test_mcp_readonly_surface.py` |
 | AC-agent-5 | Removing the `[agent]` extra leaves the deterministic core fully functional (#85 AC) | `test_core_unchanged_when_removed.py` |
+| AC-agent-6 | Persistent state round-trips through MySQL: `save_state` → `load_state` returns identical payload; DB failure degrades to `None` without raising | `test_state_store.py` |
 | AC-risk-8 | Agent turns cannot access `PaperBroker`; tool-set inspection asserts none returns broker refs | (part of AC-agent-4) |
-| AC-1-ext | Full day E2E: pre-open agent → tick loop → post-close agent, all through journal | `test_full_day_with_agent.py` |
+| AC-1-ext | Full day E2E: pre-open agent → tick loop → post-close agent writes `last_watchlist` → next-day pre-open fallback reads it | `test_full_day_with_agent.py` |
 
 ---
 
@@ -329,11 +406,12 @@ Every AC below has a corresponding test file listed in §4.
 
 Each of these ships as an independent bd bead + GH issue (D5 split):
 
+- **P3.0** `core/state_store.py` + `fmp_trading_state` MySQL table + 6 unit tests (~1 day) — foundation for D6. Ships first because P3.1's fallback path depends on `load_last_watchlist`.
 - **P3.1** PreOpenAgentTurn + backend Protocol + ClaudeAgentBackend + tool_registry (bulk of the work: ~5 days) — closes GH #85's tool-registry piece and lays MCP groundwork
-- **P3.2** PostCloseAgentTurn + narrator template + EndOfDayReport model (~3 days) — closes GH #84
+- **P3.2** PostCloseAgentTurn + narrator template + EndOfDayReport model + writes `last_watchlist` + `last_plan` + `last_session_summary` via state_store (~3 days) — closes GH #84
 - **P3.3** MCP server + `openbb-daytrade mcp-serve` CLI + core-unchanged test (~2 days) — closes GH #85 fully + GH #231 (design meta-issue)
 
-**Sequence:** P3.1 → P3.2 → P3.3. P3.1 delivers the backend + registry that P3.2 and P3.3 both consume; parallelizing risks duplicated interfaces.
+**Sequence:** P3.0 → P3.1 → P3.2 → P3.3. P3.0 (state store) delivers the persistence primitive P3.1's fallback and P3.2's write path both consume; the small ~1-day cost prevents having to stub `last_watchlist` reads in every fallback test.
 
 ---
 
@@ -347,6 +425,8 @@ Each of these ships as an independent bd bead + GH issue (D5 split):
 | MCP client compat (stdio version mismatch) | Test matrix covers `mcp>=1.0`; document minimum Claude Desktop version in the CLI help |
 | LLM cost creep from long agent turns | `budget: BandwidthMeter | None` param + explicit `max_tokens` per turn; billing dashboard deferred to Phase 6 |
 | Circular imports (agent/ imports openbb.obb) | Agent modules do `from openbb import obb` inside function bodies, not at module load |
+| MySQL unavailable during pre-open turn | `state_store.load_last_watchlist()` returns `None` on DB error; fallback further degrades to `DailyConfig.default_watchlist`. Never fail-fast — market open doesn't wait for the DB. |
+| Concurrent writes to `fmp_trading_state` from two profiles | `scope` column keys the write; PK is `(state_key, scope)`. Same-scope races are rare (one operator per scope) but ON DUPLICATE KEY UPDATE is atomic. |
 
 ---
 
