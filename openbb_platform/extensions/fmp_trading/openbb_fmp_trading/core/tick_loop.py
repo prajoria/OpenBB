@@ -69,6 +69,14 @@ def run_tick(
         payload={
             "watchlist_size": len(session.plan.watchlist),
             "quotes_fetched": len(quotes),
+            # bd-9nd.12: carry the actual quote content so replay's
+            # StubbedDataProvider can feed real recorded quotes back to
+            # techtrade.signals, enabling full signal-cascade determinism
+            # (not just control-flow). Structured as list[dict] to match
+            # what fetch_batch_quote returns. Storage cost: ~50-100 B per
+            # symbol; at 30-symbol watchlist + 5-min ticks that's ~10 KB
+            # per tick × ~7800 ticks/day = ~78 MB/day — acceptable.
+            "quotes": list(quotes),
         },
     )
     events.append(tick_event)
