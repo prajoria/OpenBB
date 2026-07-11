@@ -22,13 +22,13 @@ import pytest
 from openbb_core.app.model.obbject import OBBject
 
 from openbb_pine.attribution import POWERED_BY_SHORT
-from openbb_pine.diagnostics import CheckResult
+from pyne_compiler.errors.diagnostics import CheckResult
 
 
 @pytest.fixture
 def healthy_http(monkeypatch):
     """Stub the FMP reachability probe to return HTTP 200 JSON."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     class _R:
         status_code = 200
@@ -153,7 +153,7 @@ def test_health_fmp_cached_installed_reflects_find_spec(healthy_http):
 
 def test_health_fmp_key_present_true_when_env_set(monkeypatch, tmp_path):
     """When ``OPENBB_API_FMP_API_KEY`` is set, the field is True."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     class _R:
         status_code = 200
@@ -172,7 +172,7 @@ def test_health_fmp_key_present_true_when_env_set(monkeypatch, tmp_path):
 
 
 def test_health_fmp_key_present_false_when_no_source_has_it(monkeypatch, tmp_path):
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     class _R:
         status_code = 200

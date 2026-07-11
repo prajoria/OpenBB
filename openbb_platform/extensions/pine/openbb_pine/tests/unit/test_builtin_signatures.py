@@ -28,8 +28,8 @@ import pytest
 
 class TestSignatureDataclass:
     def test_construct_minimal_signature(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import Signature
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import Signature
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         src = PineType(qualifier="series", inner=Scalar(kind="float"))
         length = PineType(qualifier="simple", inner=Scalar(kind="int"))
@@ -43,8 +43,8 @@ class TestSignatureDataclass:
 
     def test_signature_is_frozen_and_hashable(self) -> None:
         import dataclasses
-        from openbb_pine.compiler.builtin_signatures import Signature
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import Signature
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = Signature(args=(), returns=PineType(qualifier="series", inner=Scalar(kind="float")))
         with pytest.raises(dataclasses.FrozenInstanceError):
@@ -53,8 +53,8 @@ class TestSignatureDataclass:
         assert {sig} == {sig}
 
     def test_signature_equality(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import Signature
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import Signature
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         a = Signature(args=(), returns=PineType(qualifier="series", inner=Scalar(kind="float")))
         b = Signature(args=(), returns=PineType(qualifier="series", inner=Scalar(kind="float")))
@@ -62,8 +62,8 @@ class TestSignatureDataclass:
         assert hash(a) == hash(b)
 
     def test_default_version_is_6(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import Signature
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import Signature
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = Signature(args=(), returns=PineType(qualifier="series", inner=Scalar(kind="float")))
         assert sig.version == 6
@@ -100,33 +100,33 @@ PHASE1_NA: list[str] = ["na", "nz"]
 
 class TestPhase1BuiltinsLookup:
     def test_all_29_ta_phase1_builtins_resolve(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.builtin_signatures import lookup
 
         missing = [name for name in PHASE1_TA if lookup(name) is None]
         assert missing == [], f"Phase-1 ta.* lookup miss: {missing}"
         assert len(PHASE1_TA) == 29
 
     def test_all_7_math_phase1_builtins_resolve(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.builtin_signatures import lookup
 
         missing = [name for name in PHASE1_MATH if lookup(name) is None]
         assert missing == [], f"Phase-1 math.* lookup miss: {missing}"
         assert len(PHASE1_MATH) == 7
 
     def test_input_constructors_resolve(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.builtin_signatures import lookup
 
         for name in PHASE1_INPUT:
             assert lookup(name) is not None, f"input.* lookup miss: {name}"
 
     def test_plot_family_resolves(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.builtin_signatures import lookup
 
         for name in PHASE1_PLOT:
             assert lookup(name) is not None, f"plot family lookup miss: {name}"
 
     def test_builtin_sources_resolve(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.builtin_signatures import lookup
 
         # close / open / etc. are values not functions; in the registry they
         # have a zero-arg "constructor" or a marker signature so C3 can resolve
@@ -135,7 +135,7 @@ class TestPhase1BuiltinsLookup:
             assert lookup(name) is not None, f"source lookup miss: {name}"
 
     def test_na_nz_resolve(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.builtin_signatures import lookup
 
         for name in PHASE1_NA:
             assert lookup(name) is not None, f"na/nz lookup miss: {name}"
@@ -143,7 +143,7 @@ class TestPhase1BuiltinsLookup:
 
 class TestUnknownLookup:
     def test_unknown_name_returns_none(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.builtin_signatures import lookup
 
         assert lookup("ta.totally_not_a_builtin") is None
         assert lookup("not_a_namespace.thing") is None
@@ -157,7 +157,7 @@ class TestUnknownLookup:
 
 class TestIsBuiltinNamespace:
     def test_recognises_expected_namespaces(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import is_builtin_namespace
+        from pyne_compiler.compiler.builtin_signatures import is_builtin_namespace
 
         for prefix in [
             "ta", "math", "input", "array", "matrix", "map", "strategy",
@@ -170,14 +170,14 @@ class TestIsBuiltinNamespace:
             assert is_builtin_namespace(prefix), f"{prefix} should be a Pine namespace"
 
     def test_unknown_prefix_is_not_namespace(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import is_builtin_namespace
+        from pyne_compiler.compiler.builtin_signatures import is_builtin_namespace
 
         assert not is_builtin_namespace("zoltan")
         assert not is_builtin_namespace("myvar")
         assert not is_builtin_namespace("")
 
     def test_case_sensitive(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import is_builtin_namespace
+        from pyne_compiler.compiler.builtin_signatures import is_builtin_namespace
 
         # Pine namespaces are lowercase; "TA" must NOT match.
         assert not is_builtin_namespace("TA")
@@ -194,7 +194,7 @@ class TestStubMarker:
         """Builtins whose precise contract isn't fixed yet must still resolve to
         a Signature so the C3 type checker doesn't crash; their `notes` slot
         carries 'STUB' so future S-beads can find them by grep."""
-        from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES, Signature
+        from pyne_compiler.compiler.builtin_signatures import BUILTIN_SIGNATURES, Signature
 
         # Every entry must be a Signature.
         for name, sig in BUILTIN_SIGNATURES.items():
@@ -207,8 +207,8 @@ class TestSignatureReturnsConsistency:
     """Spot-check a few signatures' shape so the C3 type checker can rely on them."""
 
     def test_ta_sma_signature_shape(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = lookup("ta.sma")
         assert sig is not None
@@ -220,8 +220,8 @@ class TestSignatureReturnsConsistency:
         assert sig.returns == PineType(qualifier="series", inner=Scalar(kind="float"))
 
     def test_math_abs_signature_shape(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = lookup("math.abs")
         assert sig is not None
@@ -231,8 +231,8 @@ class TestSignatureReturnsConsistency:
         assert isinstance(sig.returns.inner, Scalar)
 
     def test_input_int_signature_shape(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = lookup("input.int")
         assert sig is not None
@@ -240,8 +240,8 @@ class TestSignatureReturnsConsistency:
         assert sig.returns == PineType(qualifier="input", inner=Scalar(kind="int"))
 
     def test_close_source_is_series_float(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = lookup("close")
         assert sig is not None

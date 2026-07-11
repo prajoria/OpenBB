@@ -439,7 +439,7 @@ class TestDiagnostic:
 
 class TestErrorCodesRegistry:
     def test_lookup_returns_spec_for_known_code(self) -> None:
-        from openbb_pine.error_codes import lookup
+        from pyne_compiler.errors.codes import lookup
 
         spec = lookup("PT001")
         assert spec is not None
@@ -449,14 +449,14 @@ class TestErrorCodesRegistry:
         assert spec.since_version  # non-empty
 
     def test_lookup_returns_none_for_unknown_code(self) -> None:
-        from openbb_pine.error_codes import lookup
+        from pyne_compiler.errors.codes import lookup
 
         assert lookup("ZZZ999") is None
 
     def test_all_type_checker_codes_registered(self) -> None:
         """PT001-PT008 per D1 §4.4 reserved range. PT007 may not fire yet
         (v6 type-arg checking is scheduled) but the code MUST be reserved."""
-        from openbb_pine.error_codes import lookup
+        from pyne_compiler.errors.codes import lookup
 
         for i in range(1, 9):
             code = f"PT{i:03d}"
@@ -465,21 +465,21 @@ class TestErrorCodesRegistry:
     def test_all_codegen_codes_registered(self) -> None:
         """CG001-CG006 — the three allowlist rules per D1 §3.2 + the three
         defensive raises the C5 codegen adds (CG004-CG006)."""
-        from openbb_pine.error_codes import lookup
+        from pyne_compiler.errors.codes import lookup
 
         for i in range(1, 7):
             code = f"CG{i:03d}"
             assert lookup(code) is not None, f"{code} not registered"
 
     def test_pf_feature_codes_registered(self) -> None:
-        from openbb_pine.error_codes import lookup
+        from pyne_compiler.errors.codes import lookup
 
         for code in ("PF001", "PF002", "PF003", "PF010", "PF011"):
             assert lookup(code) is not None, f"{code} not registered"
 
     def test_assert_code_registered_raises_ic001_on_miss(self) -> None:
         from openbb_pine.errors import PineInternalCompilerError
-        from openbb_pine.error_codes import assert_code_registered
+        from pyne_compiler.errors.codes import assert_code_registered
 
         with pytest.raises(PineInternalCompilerError) as excinfo:
             assert_code_registered("ZZZ999")
@@ -487,14 +487,14 @@ class TestErrorCodesRegistry:
         assert "ZZZ999" in str(excinfo.value)
 
     def test_assert_code_registered_passes_for_known(self) -> None:
-        from openbb_pine.error_codes import assert_code_registered
+        from pyne_compiler.errors.codes import assert_code_registered
 
         # Should not raise.
         assert_code_registered("PT001")
         assert_code_registered("CG001")
 
     def test_error_code_spec_is_frozen(self) -> None:
-        from openbb_pine.error_codes import ErrorCodeSpec
+        from pyne_compiler.errors.codes import ErrorCodeSpec
 
         spec = ErrorCodeSpec(
             code="XX999",
@@ -571,7 +571,7 @@ class TestErrorCodeEnforcement:
     """
 
     def test_every_raised_code_is_registered(self) -> None:
-        from openbb_pine.error_codes import ERROR_CODES
+        from pyne_compiler.errors.codes import ERROR_CODES
 
         missing: list[tuple[Path, str, int]] = []
         for path in _iter_pine_py_files():
@@ -644,7 +644,7 @@ class TestTelemetryIntegration:
         before raising, so PRD §3.4 L0.5 wild-corpus coverage attribution
         stays accurate (E0.4: routed through the injected TelemetrySink
         instead of the pre-E0.4 module-global recorder)."""
-        from openbb_pine.compiler.type_checker import _TypeChecker
+        from pyne_compiler.compiler.type_checker import _TypeChecker
         from openbb_pine.errors import PineUnsupportedBuiltinError
 
         sink = _CountingSink()
@@ -661,8 +661,8 @@ class TestTelemetryIntegration:
         ``sink.record_unsupported_feature('PF010')`` on the injected sink
         before raising (E0.4: routed through the injected TelemetrySink
         instead of the pre-E0.4 module-global recorder)."""
-        from openbb_pine.compiler import ir
-        from openbb_pine.compiler.codegen import _CodegenVisitor
+        from pyne_compiler.compiler import ir
+        from pyne_compiler.compiler.codegen import _CodegenVisitor
         from openbb_pine.errors import PineUnsupportedFeatureError
 
         sink = _CountingSink()
@@ -690,7 +690,7 @@ class TestTelemetryIntegration:
 
 
 def _make_dummy_span():
-    from openbb_pine.compiler import ir
+    from pyne_compiler.compiler import ir
 
     return ir.Span(
         file="<inline>",
@@ -704,6 +704,6 @@ def _make_dummy_span():
 
 
 def _make_dummy_ir_node():
-    from openbb_pine.compiler import ir
+    from pyne_compiler.compiler import ir
 
     return ir.Name(id="dummy", loc=_make_dummy_span())

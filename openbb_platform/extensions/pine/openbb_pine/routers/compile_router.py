@@ -31,8 +31,8 @@ from openbb_core.app.router import Router
 from pydantic import Field
 from typing_extensions import Annotated
 
-from openbb_pine import __version__ as _pine_version
-from openbb_pine.compiler_errors import PineSyntaxError  # noqa: F401  - re-exported error class
+from pyne_compiler import __version__ as _pine_version
+from pyne_compiler.errors.base import PineSyntaxError  # noqa: F401  - re-exported error class
 from openbb_pine.routers._models import PineCompileRequest, PineCompileResponse
 
 router = Router(
@@ -157,8 +157,8 @@ def compile(  # noqa: A001 - public name is the API contract
     """
     # Heavy imports lazy: parser pulls lark (heavy) — keep import-time of
     # the router module itself light per PRD §16.5.
-    from openbb_pine.compiler.lexer import tokenize  # noqa: PLC0415
-    from openbb_pine.compiler.parser import parse  # noqa: PLC0415
+    from pyne_compiler.compiler.lexer import tokenize  # noqa: PLC0415
+    from pyne_compiler.compiler.parser import parse  # noqa: PLC0415
 
     pragma_version = _detect_version_pragma(source)
     parser_version = pragma_version if pragma_version in (5, 6) else target_version

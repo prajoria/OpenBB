@@ -22,7 +22,7 @@ class TestQualifierLattice:
     """Qualifier promotion follows ``const → input → simple → series``."""
 
     def test_can_promote_along_lattice(self) -> None:
-        from openbb_pine.compiler.types import can_promote
+        from pyne_compiler.compiler.types import can_promote
 
         for src, dst in [
             ("const", "input"),
@@ -35,13 +35,13 @@ class TestQualifierLattice:
             assert can_promote(src, dst), f"{src} should promote to {dst}"
 
     def test_can_promote_is_reflexive(self) -> None:
-        from openbb_pine.compiler.types import can_promote
+        from pyne_compiler.compiler.types import can_promote
 
         for q in ("const", "input", "simple", "series"):
             assert can_promote(q, q)
 
     def test_cannot_demote(self) -> None:
-        from openbb_pine.compiler.types import can_promote
+        from pyne_compiler.compiler.types import can_promote
 
         for src, dst in [
             ("series", "simple"),
@@ -58,21 +58,21 @@ class TestScalarAndPineType:
     """``PineType`` is the ``(qualifier, inner)`` pair from D1 §4.1."""
 
     def test_construct_series_float(self) -> None:
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         t = PineType(qualifier="series", inner=Scalar(kind="float"))
         assert t.qualifier == "series"
         assert t.inner.kind == "float"
 
     def test_pinetype_frozen(self) -> None:
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         t = PineType(qualifier="const", inner=Scalar(kind="int"))
         with pytest.raises(dataclasses.FrozenInstanceError):
             t.qualifier = "series"  # type: ignore[misc]
 
     def test_pinetype_equality_and_hash(self) -> None:
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         a = PineType(qualifier="simple", inner=Scalar(kind="int"))
         b = PineType(qualifier="simple", inner=Scalar(kind="int"))
@@ -88,7 +88,7 @@ class TestUnifyQualifiers:
     """``unify`` returns the max-qualifier supertype (D1 §4.2)."""
 
     def test_unify_promotes_to_max_qualifier(self) -> None:
-        from openbb_pine.compiler.types import PineType, Scalar, unify
+        from pyne_compiler.compiler.types import PineType, Scalar, unify
 
         a = PineType(qualifier="const", inner=Scalar(kind="float"))
         b = PineType(qualifier="series", inner=Scalar(kind="float"))
@@ -98,7 +98,7 @@ class TestUnifyQualifiers:
 
     def test_unify_rejects_incompatible_inners(self) -> None:
         from openbb_pine.errors import PineTypeError
-        from openbb_pine.compiler.types import PineType, Scalar, unify
+        from pyne_compiler.compiler.types import PineType, Scalar, unify
 
         a = PineType(qualifier="const", inner=Scalar(kind="float"))
         b = PineType(qualifier="const", inner=Scalar(kind="string"))
@@ -110,7 +110,7 @@ class TestInnerTypes:
     """Every InnerType variant from D1 §4.1 constructs cleanly."""
 
     def test_array_and_map_and_matrix(self) -> None:
-        from openbb_pine.compiler.types import (
+        from pyne_compiler.compiler.types import (
             ArrayT,
             MapT,
             MatrixT,
@@ -128,13 +128,13 @@ class TestInnerTypes:
         assert m.value is elem
 
     def test_reference_kinds(self) -> None:
-        from openbb_pine.compiler.types import Reference
+        from pyne_compiler.compiler.types import Reference
 
         for kind in ("line", "label", "box", "table", "polyline", "linefill"):
             assert Reference(kind=kind).kind == kind  # type: ignore[arg-type]
 
     def test_udt_and_function_and_tuple_and_na_and_unknown(self) -> None:
-        from openbb_pine.compiler.types import (
+        from pyne_compiler.compiler.types import (
             FunctionT,
             NaT,
             PineType,
@@ -174,7 +174,7 @@ class TestCompiledModule:
     """``CompiledModule`` carries the full downstream contract."""
 
     def _make(self, **overrides):
-        from openbb_pine.compiler.types import CompiledModule
+        from pyne_compiler.compiler.types import CompiledModule
 
         defaults = dict(
             source="from pynecore.lib import close\n",
@@ -205,7 +205,7 @@ class TestCompiledModule:
 
     def test_round_trips_through_asdict(self) -> None:
         """``CompiledModule`` must be a real dataclass round-trippable for D3 wire layer."""
-        from openbb_pine.compiler.types import CompiledModule
+        from pyne_compiler.compiler.types import CompiledModule
 
         m = self._make()
         d = dataclasses.asdict(m)
@@ -228,7 +228,7 @@ class TestCompiledModule:
             assert m.cache_status == status
 
     def test_security_contexts_dict(self) -> None:
-        from openbb_pine.compiler.types import SecurityContext
+        from pyne_compiler.compiler.types import SecurityContext
 
         ctx = SecurityContext(symbol="AAPL", timeframe="1D", expr="close")
         m = self._make(security_contexts={"ctx_0": ctx})

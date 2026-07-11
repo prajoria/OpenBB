@@ -28,7 +28,7 @@ from openbb_core.app.model.obbject import OBBject
 
 from openbb_pine import _coverage_manifest
 from openbb_pine.attribution import POWERED_BY_FULL
-from openbb_pine.diagnostics import (
+from pyne_compiler.errors.diagnostics import (
     USER_SETTINGS_PATH,  # noqa: F401 - re-exported for monkeypatch convenience
     CheckResult,
     run_all_checks,

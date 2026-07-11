@@ -26,7 +26,7 @@ class TestBridgeExists:
 
 class TestBridgeSignatureRegistryMatch:
     def test_registry_entry_marked_implemented(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES
+        from pyne_compiler.compiler.builtin_signatures import BUILTIN_SIGNATURES
 
         sig = BUILTIN_SIGNATURES["ta.cum"]
         assert sig.notes == "IMPLEMENTED"
@@ -35,8 +35,8 @@ class TestBridgeSignatureRegistryMatch:
         """cum is the one Wave 5B-4 builtin without ``length`` — the sig
         must reflect that so kwarg-form callers can't accidentally pass a
         length that the bridge would silently ignore."""
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = lookup("ta.cum")
         assert sig is not None

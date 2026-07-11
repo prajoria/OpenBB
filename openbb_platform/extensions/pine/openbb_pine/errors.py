@@ -20,7 +20,7 @@ MOVE-list symbol below via ``noqa: F401``. The shim is deliberately narrow:
 * MOVE-list symbols are intentionally **excluded from** ``__all__`` so
   ``from openbb_pine.errors import *`` only pulls in STAY symbols. This
   nudges wildcard-import callers to the new home
-  (``from openbb_pine.compiler_errors import PineSyntaxError``) without
+  (``from pyne_compiler.errors.base import PineSyntaxError``) without
   breaking explicit imports through the shim (PR #351 review).
 * It is scheduled for removal in the release after Pine extraction ships
   (see Pine Extraction Design §13.5 in
@@ -39,7 +39,7 @@ from openbb_core.app.model.abstract.error import OpenBBError
 # One-release compatibility shim: MOVE-list classes now live in compiler_errors.py.
 # Downstream imports like `from openbb_pine.errors import PineSyntaxError` keep working.
 # Remove this re-export block in the release after Pine extraction ships.
-from openbb_pine.compiler_errors import (  # noqa: F401
+from pyne_compiler.errors.base import (  # noqa: F401
     Diagnostic,
     PineCacheError,
     PineCodegenError,
@@ -262,7 +262,7 @@ __all__ = [
     # MOVE-list symbols (PineSyntaxError, PineTypeError, Diagnostic, …) are
     # deliberately excluded so that `from openbb_pine.errors import *` only
     # pulls in STAY symbols. This nudges wildcard-import callers toward the
-    # new canonical home (`from openbb_pine.compiler_errors import …`) while
+    # new canonical home (`from pyne_compiler.errors.base import …`) while
     # explicit `from openbb_pine.errors import PineSyntaxError` still works
     # via the module-level re-exports above for the one-release shim window.
     # See PR #351 review + Pine Extraction Design §13.5 (bead OpenBBTechnical-3cf).

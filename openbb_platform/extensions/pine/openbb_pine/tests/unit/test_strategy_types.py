@@ -23,7 +23,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from openbb_pine.runtime.strategy_types import (
+from pyne_compiler.runtime.strategy_types import (
     OpenPositionSummary,
     TradeSummary,
     position_to_summary,
@@ -681,18 +681,18 @@ class TestDirectionFromSignGuards:
     """Regression for PR #321 review [NIT] — ``_direction_from_sign(0.0)`` must raise."""
 
     def test_zero_sign_raises(self) -> None:
-        from openbb_pine.runtime.strategy_types import _direction_from_sign
+        from pyne_compiler.runtime.strategy_types import _direction_from_sign
 
         with pytest.raises(ValueError, match="expected \\+1.0 or -1.0"):
             _direction_from_sign(0.0)
 
     def test_positive_sign_returns_long(self) -> None:
-        from openbb_pine.runtime.strategy_types import _direction_from_sign
+        from pyne_compiler.runtime.strategy_types import _direction_from_sign
 
         assert _direction_from_sign(1.0) == "long"
 
     def test_negative_sign_returns_short(self) -> None:
-        from openbb_pine.runtime.strategy_types import _direction_from_sign
+        from pyne_compiler.runtime.strategy_types import _direction_from_sign
 
         assert _direction_from_sign(-1.0) == "short"
 
@@ -701,14 +701,14 @@ class TestMsEpochGuards:
     """Regression for PR #321 review [NIT] — ``_ms_epoch_to_ts(-1)`` must raise."""
 
     def test_negative_epoch_raises(self) -> None:
-        from openbb_pine.runtime.strategy_types import _ms_epoch_to_ts
+        from pyne_compiler.runtime.strategy_types import _ms_epoch_to_ts
 
         with pytest.raises(ValueError, match="-1 sentinel"):
             _ms_epoch_to_ts(-1)
 
     def test_zero_epoch_returns_1970(self) -> None:
         # Zero is a valid epoch (1970-01-01), only negative should raise.
-        from openbb_pine.runtime.strategy_types import _ms_epoch_to_ts
+        from pyne_compiler.runtime.strategy_types import _ms_epoch_to_ts
 
         ts = _ms_epoch_to_ts(0)
         assert ts == pd.Timestamp("1970-01-01T00:00:00Z")

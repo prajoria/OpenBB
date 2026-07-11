@@ -19,7 +19,7 @@ import pytest
 
 
 def make_span():
-    from openbb_pine.compiler.ir import Span
+    from pyne_compiler.compiler.ir import Span
 
     return Span(
         file="<inline>",
@@ -33,7 +33,7 @@ def make_span():
 
 
 def scalar_int():
-    from openbb_pine.compiler.types import PineType, Scalar
+    from pyne_compiler.compiler.types import PineType, Scalar
 
     return PineType(qualifier="simple", inner=Scalar(kind="int"))
 
@@ -45,7 +45,7 @@ def scalar_int():
 
 class TestSpan:
     def test_span_carries_position_data(self) -> None:
-        from openbb_pine.compiler.ir import Span
+        from pyne_compiler.compiler.ir import Span
 
         s = Span(
             file="my.pine",
@@ -69,13 +69,13 @@ class TestSpan:
 
 class TestNodeBase:
     def test_node_has_loc(self) -> None:
-        from openbb_pine.compiler.ir import IntLit
+        from pyne_compiler.compiler.ir import IntLit
 
         n = IntLit(loc=make_span(), value=3)
         assert n.loc.start_line == 1
 
     def test_slots_no_dict(self) -> None:
-        from openbb_pine.compiler.ir import IntLit
+        from pyne_compiler.compiler.ir import IntLit
 
         n = IntLit(loc=make_span(), value=3)
         assert not hasattr(n, "__dict__")
@@ -88,7 +88,7 @@ class TestNodeBase:
 
 class TestExpressions:
     def test_literals(self) -> None:
-        from openbb_pine.compiler.ir import (
+        from pyne_compiler.compiler.ir import (
             BoolLit,
             ColorLit,
             FloatLit,
@@ -106,7 +106,7 @@ class TestExpressions:
         assert ColorLit(loc=loc, raw="#ff0000").raw == "#ff0000"
 
     def test_name_and_attribute_and_subscript(self) -> None:
-        from openbb_pine.compiler.ir import Attribute, Name, Subscript
+        from pyne_compiler.compiler.ir import Attribute, Name, Subscript
 
         loc = make_span()
         n = Name(loc=loc, id="close")
@@ -117,7 +117,7 @@ class TestExpressions:
         assert sub.kind == "history"
 
     def test_binary_unary_ternary(self) -> None:
-        from openbb_pine.compiler.ir import (
+        from pyne_compiler.compiler.ir import (
             BinaryExpr,
             Name,
             TernaryExpr,
@@ -135,7 +135,7 @@ class TestExpressions:
         assert te.cond is lhs
 
     def test_call_with_keyword_args(self) -> None:
-        from openbb_pine.compiler.ir import CallExpr, KeywordArg, Name
+        from pyne_compiler.compiler.ir import CallExpr, KeywordArg, Name
 
         loc = make_span()
         positional = KeywordArg(loc=loc, name=None, value=Name(loc=loc, id="close"))
@@ -151,7 +151,7 @@ class TestExpressions:
         assert call.type_args == ()
 
     def test_call_with_type_args(self) -> None:
-        from openbb_pine.compiler.ir import CallExpr, Name
+        from pyne_compiler.compiler.ir import CallExpr, Name
 
         loc = make_span()
         call = CallExpr(
@@ -163,7 +163,7 @@ class TestExpressions:
         assert call.type_args[0].inner.kind == "int"
 
     def test_tuple_expr(self) -> None:
-        from openbb_pine.compiler.ir import Name, TupleExpr
+        from pyne_compiler.compiler.ir import Name, TupleExpr
 
         loc = make_span()
         t = TupleExpr(loc=loc, elements=(Name(loc=loc, id="x"), Name(loc=loc, id="y")))
@@ -177,7 +177,7 @@ class TestExpressions:
 
 class TestStatements:
     def test_vardecl_and_assign(self) -> None:
-        from openbb_pine.compiler.ir import Assign, Name, VarDecl
+        from pyne_compiler.compiler.ir import Assign, Name, VarDecl
 
         loc = make_span()
         decl = VarDecl(loc=loc, qualifier="var", name="x", type=None, value=IntLitOne(loc))
@@ -186,7 +186,7 @@ class TestStatements:
         assert assign.op == ":="
 
     def test_if_stmt(self) -> None:
-        from openbb_pine.compiler.ir import IfStmt, Name
+        from pyne_compiler.compiler.ir import IfStmt, Name
 
         loc = make_span()
         s = IfStmt(
@@ -200,7 +200,7 @@ class TestStatements:
         assert s.elif_branches[0][0].id == "c2"
 
     def test_for_and_forin_and_while(self) -> None:
-        from openbb_pine.compiler.ir import (
+        from pyne_compiler.compiler.ir import (
             ForInStmt,
             ForStmt,
             Name,
@@ -223,7 +223,7 @@ class TestStatements:
         assert w.cond.id == "c"
 
     def test_switch_and_return_and_exprstmt(self) -> None:
-        from openbb_pine.compiler.ir import (
+        from pyne_compiler.compiler.ir import (
             ExprStmt,
             Name,
             ReturnStmt,
@@ -250,7 +250,7 @@ class TestStatements:
 
 class TestDeclarationsAndProgram:
     def test_parameter_keywordarg(self) -> None:
-        from openbb_pine.compiler.ir import KeywordArg, Name, Parameter
+        from pyne_compiler.compiler.ir import KeywordArg, Name, Parameter
 
         loc = make_span()
         p = Parameter(loc=loc, name="length", type=scalar_int(), default=IntLitOne(loc))
@@ -260,7 +260,7 @@ class TestDeclarationsAndProgram:
         assert k.value.id == "true"
 
     def test_function_decl(self) -> None:
-        from openbb_pine.compiler.ir import FunctionDecl, Parameter
+        from pyne_compiler.compiler.ir import FunctionDecl, Parameter
 
         loc = make_span()
         p = Parameter(loc=loc, name="x", type=scalar_int(), default=None)
@@ -279,7 +279,7 @@ class TestDeclarationsAndProgram:
         assert fn.parameters[0].name == "x"
 
     def test_type_decl_and_enum_decl(self) -> None:
-        from openbb_pine.compiler.ir import EnumDecl, Parameter, TypeDecl
+        from pyne_compiler.compiler.ir import EnumDecl, Parameter, TypeDecl
 
         loc = make_span()
         td = TypeDecl(
@@ -293,7 +293,7 @@ class TestDeclarationsAndProgram:
         assert ed.members[0] == ("A", None)
 
     def test_script_directive(self) -> None:
-        from openbb_pine.compiler.ir import KeywordArg, Name, ScriptDirective
+        from pyne_compiler.compiler.ir import KeywordArg, Name, ScriptDirective
 
         loc = make_span()
         sd = ScriptDirective(
@@ -311,7 +311,7 @@ class TestDeclarationsAndProgram:
         assert sd.arguments[0].name == "title"
 
     def test_program_root(self) -> None:
-        from openbb_pine.compiler.ir import Program, ScriptDirective
+        from pyne_compiler.compiler.ir import Program, ScriptDirective
 
         loc = make_span()
         sd = ScriptDirective(
@@ -340,7 +340,7 @@ class TestDeclarationsAndProgram:
 
 class TestEqualityAndHash:
     def test_equal_nodes_compare_equal_and_hash_same(self) -> None:
-        from openbb_pine.compiler.ir import IntLit
+        from pyne_compiler.compiler.ir import IntLit
 
         loc = make_span()
         a = IntLit(loc=loc, value=5)
@@ -349,13 +349,13 @@ class TestEqualityAndHash:
         assert hash(a) == hash(b)
 
     def test_distinct_values_unequal(self) -> None:
-        from openbb_pine.compiler.ir import IntLit
+        from pyne_compiler.compiler.ir import IntLit
 
         loc = make_span()
         assert IntLit(loc=loc, value=1) != IntLit(loc=loc, value=2)
 
     def test_frozen(self) -> None:
-        from openbb_pine.compiler.ir import IntLit
+        from pyne_compiler.compiler.ir import IntLit
 
         n = IntLit(loc=make_span(), value=1)
         with pytest.raises(dataclasses.FrozenInstanceError):
@@ -368,6 +368,6 @@ class TestEqualityAndHash:
 
 
 def IntLitOne(loc):
-    from openbb_pine.compiler.ir import IntLit
+    from pyne_compiler.compiler.ir import IntLit
 
     return IntLit(loc=loc, value=1)

@@ -41,8 +41,8 @@ from __future__ import annotations
 
 import pytest
 
-from openbb_pine.compiler import compile_pine
-from openbb_pine.compiler.types import CompiledModule, SecurityContext
+from pyne_compiler.compiler import compile_pine
+from pyne_compiler.compiler.types import CompiledModule, SecurityContext
 from openbb_pine.errors import PineTypeError
 
 

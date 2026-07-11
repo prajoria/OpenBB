@@ -20,12 +20,12 @@ from __future__ import annotations
 class TestTelemetryCounters:
     def setup_method(self) -> None:
         """Isolate every test case from residual counter state."""
-        from openbb_pine.telemetry import reset_metrics
+        from pyne_compiler.telemetry import reset_metrics
 
         reset_metrics()
 
     def test_record_unsupported_builtin_increments(self) -> None:
-        from openbb_pine.telemetry import (
+        from pyne_compiler.telemetry import (
             get_unsupported_builtin_counts,
             record_unsupported_builtin,
         )
@@ -38,7 +38,7 @@ class TestTelemetryCounters:
         assert counts["ta.tsi"] == 1
 
     def test_record_unsupported_feature_increments(self) -> None:
-        from openbb_pine.telemetry import (
+        from pyne_compiler.telemetry import (
             get_unsupported_feature_counts,
             record_unsupported_feature,
         )
@@ -48,7 +48,7 @@ class TestTelemetryCounters:
         assert counts["PF010"] == 1
 
     def test_reset_metrics_clears_both(self) -> None:
-        from openbb_pine.telemetry import (
+        from pyne_compiler.telemetry import (
             get_unsupported_builtin_counts,
             get_unsupported_feature_counts,
             record_unsupported_builtin,
@@ -64,7 +64,7 @@ class TestTelemetryCounters:
 
     def test_get_returns_copy_not_live_reference(self) -> None:
         """Mutating the returned dict must NOT bleed into the counter state."""
-        from openbb_pine.telemetry import (
+        from pyne_compiler.telemetry import (
             get_unsupported_builtin_counts,
             record_unsupported_builtin,
         )

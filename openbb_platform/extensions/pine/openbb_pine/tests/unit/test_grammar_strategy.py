@@ -40,9 +40,9 @@ from __future__ import annotations
 
 import pytest
 
-from openbb_pine.compiler import compile_pine_to_program, ir
-from openbb_pine.compiler.lexer import tokenize
-from openbb_pine.compiler.parser import parse
+from pyne_compiler.compiler import compile_pine_to_program, ir
+from pyne_compiler.compiler.lexer import tokenize
+from pyne_compiler.compiler.parser import parse
 
 
 # ---------------------------------------------------------------------------

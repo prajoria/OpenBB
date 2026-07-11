@@ -24,7 +24,7 @@ import dataclasses
 
 import pytest
 
-from openbb_pine.compiler.types import CompiledModule
+from pyne_compiler.compiler.types import CompiledModule
 
 
 def _make(**overrides) -> CompiledModule:

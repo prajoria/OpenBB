@@ -54,7 +54,7 @@ def _stub_results(monkeypatch, results):
 
 def test_doctor_exit_0_when_all_ok(monkeypatch):
     from openbb_pine.cli.main import cli
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     _stub_results(
         monkeypatch,
@@ -72,7 +72,7 @@ def test_doctor_exit_0_when_all_ok(monkeypatch):
 
 def test_doctor_exit_1_when_any_fail(monkeypatch):
     from openbb_pine.cli.main import cli
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     _stub_results(
         monkeypatch,
@@ -110,7 +110,7 @@ def test_doctor_exit_2_on_preflight_exception(monkeypatch):
 
 def test_doctor_warn_lines_use_warn_tag(monkeypatch):
     from openbb_pine.cli.main import cli
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     _stub_results(
         monkeypatch,
@@ -131,7 +131,7 @@ def test_doctor_allow_byo_only_flag_threads_through(monkeypatch):
     """The ``--allow-byo-only`` flag must reach ``run_all_checks(allow_byo_only=True)``."""
     import openbb_pine.cli.main as cli_mod
     from openbb_pine.cli.main import cli
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     captured = {}
 
@@ -153,7 +153,7 @@ def test_doctor_allow_byo_only_flag_threads_through(monkeypatch):
 def test_doctor_fix_hint_rendered_with_arrow(monkeypatch):
     """A check with a ``fix_hint`` produces an arrow-prefixed indent line."""
     from openbb_pine.cli.main import cli
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     _stub_results(
         monkeypatch,

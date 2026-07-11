@@ -27,9 +27,9 @@ from __future__ import annotations
 
 import pytest
 
-from openbb_pine.compiler import ir
-from openbb_pine.compiler.lexer import tokenize
-from openbb_pine.compiler.parser import parse
+from pyne_compiler.compiler import ir
+from pyne_compiler.compiler.lexer import tokenize
+from pyne_compiler.compiler.parser import parse
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ from openbb_pine.compiler.parser import parse
 
 def _check(src: str, version: int = 6):
     """Lex + parse + type-check the source; return TypeCheckResult."""
-    from openbb_pine.compiler.type_checker import check
+    from pyne_compiler.compiler.type_checker import check
 
     prog = parse(tokenize(src), pine_version=version)
     return check(prog, pine_version=version)
@@ -471,7 +471,7 @@ class TestExtraCoverage:
 
     def test_check_signature_accepts_pine_version(self) -> None:
         """check() takes pine_version as kw-only per the bead spec."""
-        from openbb_pine.compiler.type_checker import check
+        from pyne_compiler.compiler.type_checker import check
 
         prog = parse(tokenize(_wrap("x = 5\n")), pine_version=6)
         result = check(prog, pine_version=6)

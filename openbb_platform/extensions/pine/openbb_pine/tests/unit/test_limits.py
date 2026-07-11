@@ -17,7 +17,7 @@ import time
 import pytest
 
 from openbb_pine.errors import PineExecTimeoutError
-from openbb_pine.runtime.limits import (
+from pyne_compiler.runtime.limits import (
     DEFAULT_RLIMIT_AS,
     DEFAULT_TIMEOUT_S,
     MAX_BARS_PER_REQUEST,
