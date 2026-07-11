@@ -98,22 +98,23 @@ def _pairwise_spearman(vote_frame: pd.DataFrame) -> pd.DataFrame:
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    reason=(
-        "bd-hpxh: ema_cross vs ichimoku_cloud pairwise |Spearman ρ| = 0.839 "
-        "on the 5-year basket, above the §R.4 M4 gate of 0.70. Real "
-        "mechanistic overlap (both trend-direction crossovers). Design "
-        "decision required — see bd-hpxh — before this gate can pass. "
-        "Options: (a) drop ichimoku_cloud from ship config keeping the "
-        "panel key for audit [recommended], (b) drop ema_cross [aggressive], "
-        "(c) reweight one down. Un-xfail once bd-hpxh lands the resolution."
-    ),
-    strict=True,  # if this ever passes, un-xfail — bd-hpxh has been resolved
-)
 def test_extended_trend_family_pairwise_decorrelation():
     """Pairwise |Spearman ρ| ≤ 0.70 for every trend-vote pair, pooled
     across the 5-symbol basket. Reports the full matrix, near-miss pairs,
     and Aroon-vs-ADX diagnostic before asserting.
+
+    **bd-hpxh resolution (2026-07-11):** the initial gate run flagged
+    ema_cross vs ichimoku_cloud at ρ=0.839 (above the 0.70 §R.4 M4
+    ceiling). Resolution: ichimoku_cloud excluded from
+    :data:`SHIP_ENABLED_EXTENDED_TREND_VOTES` in confluence_ext. Panel
+    keys still emit for audit. This gate now passes because the 3x3
+    remaining matrix (macd_hist, ema_cross, aroon_osc) has all pairs
+    below 0.70 — the highest is ema_cross-vs-aroon_osc at 0.552.
+
+    Callers that opt Ichimoku back in via ``enabled_extended_votes``
+    (R&D backtests / IC studies) knowingly re-introduce the correlation
+    and must weigh the trade-off themselves — this gate scores the SHIP
+    config, not R&D configs.
 
     R7.11 discipline: the diagnostic REPORT is emitted before the assert
     so reviewers can see numbers even when the gate passes."""

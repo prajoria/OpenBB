@@ -41,13 +41,46 @@ from openbb_techtrade.engine.confluence import (
 from openbb_techtrade.models import IndicatorPanel, IndicatorVote
 
 
-def trend_votes_ext(
-    panel: IndicatorPanel, *, adx_gate: float = 20.0
-) -> list[IndicatorVote]:
-    """Extended trend votes: classic votes PLUS aroon_osc PLUS ichimoku_cloud.
+#: Ship-config allowlist of extended trend votes emitted from ``trend_votes_ext``
+#: when no explicit override is passed.
+#:
+#: **bd-hpxh decision (2026-07-11):** ``ichimoku_cloud`` is EXCLUDED from the
+#: ship config. The bd-8332 decorrelation gate found |Spearman ρ| = 0.839
+#: between ``ema_cross`` (classic trend vote) and ``ichimoku_cloud`` on the
+#: 5-year basket — above the §R.4 M4 ceiling of 0.70. Two trend-direction
+#: crossover votes agreeing 84% of the time would double-count evidence in
+#: the composite score.
+#:
+#: **Panel keys still emit** — ``_compute_trend_ext`` populates
+#: ``ichimoku_price_vs_cloud`` (raw) and ``ichimoku_confirmed_position``
+#: (3-bar-confirmed) regardless of this allowlist. R&D notebooks and audit
+#: code can read those keys directly; the allowlist only gates whether an
+#: IndicatorVote is emitted into the composite-score input list.
+#:
+#: **Overriding**: callers pass ``enabled_extended_votes=`` to
+#: :func:`trend_votes_ext` to opt Ichimoku (or any subset) back in for
+#: R&D / IC studies / backtests. See docstring for use cases.
+#:
+#: **Re-adding to ship** requires resolving the ρ=0.839 violation first —
+#: options: drop ``ema_cross`` from classic panel, reweight one of the
+#: overlapping pair, widen the gate with documented rationale. Any of these
+#: is a design-doc change under §R.4 M4.
+SHIP_ENABLED_EXTENDED_TREND_VOTES: frozenset[str] = frozenset({"aroon_osc"})
 
-    bd-luy Step 1 (bd-b6k5) added Aroon. Step 2 (bd-7gwh, this commit)
-    added Ichimoku Cloud with 3-bar confirmation.
+
+def trend_votes_ext(
+    panel: IndicatorPanel,
+    *,
+    adx_gate: float = 20.0,
+    enabled_extended_votes: frozenset[str] | None = None,
+) -> list[IndicatorVote]:
+    """Extended trend votes: classic votes PLUS the enabled extended-vote subset.
+
+    bd-luy Step 1 (bd-b6k5) added Aroon. Step 2 (bd-7gwh) added Ichimoku Cloud
+    with 3-bar confirmation. bd-hpxh (2026-07-11) narrowed the SHIP-CONFIG
+    subset to ``{"aroon_osc"}`` after the bd-8332 decorrelation gate found
+    ``ichimoku_cloud`` at ρ=0.839 with ``ema_cross`` (see
+    :data:`SHIP_ENABLED_EXTENDED_TREND_VOTES` for the full rationale).
 
     **Aroon vote formula** (per design spec §D5):
 
@@ -57,42 +90,75 @@ def trend_votes_ext(
     simplifies to ``clip(aroon_osc / 100, -1, +1)``. Bounded in [-1, +1],
     direction-preserving, deterministic. Weight: family default.
 
-    **Ichimoku Cloud vote:** reads ``ichimoku_confirmed_position`` (NOT
-    the raw ``ichimoku_price_vs_cloud``) — the confirmed key already
+    **Ichimoku Cloud vote** (only emitted when opted in via
+    ``enabled_extended_votes``): reads ``ichimoku_confirmed_position``
+    (NOT the raw ``ichimoku_price_vs_cloud``) — the confirmed key already
     embeds the 3-bar-confirmation buffer, so the vote formula is a
     trivial identity: the vote value equals the confirmed position.
     In {-1, 0, +1}; bounded, direction-preserving.
 
     **Absent panel key ⇒ no vote emitted** (graceful degrade on short
     histories; the caller's vote list is simply shorter, no None slot).
+
+    Parameters
+    ----------
+    panel : IndicatorPanel
+        The panel to derive votes from. ``panel.trend`` is expected to carry
+        classic trend keys plus (optionally) extended-family keys.
+    adx_gate : float, optional
+        Forwarded to :func:`~openbb_techtrade.engine.confluence.trend_votes`
+        for the classic votes. Defaults to 20.0.
+    enabled_extended_votes : frozenset[str] | None, optional
+        Override the ship-config allowlist of extended votes. Pass ``None``
+        (default) to use :data:`SHIP_ENABLED_EXTENDED_TREND_VOTES`. Pass an
+        explicit frozenset for R&D scenarios:
+
+        - ``frozenset({"aroon_osc", "ichimoku_cloud"})`` — opt Ichimoku back
+          in alongside Aroon (e.g. incremental-IC backtests)
+        - ``frozenset({"ichimoku_cloud"})`` — isolate Ichimoku only
+          (single-signal contribution studies)
+        - ``frozenset()`` — extended path with ONLY classic votes (pure-
+          classic baseline under PANEL_EXTENDED config, e.g. shadow-mode
+          A/B comparisons)
+
+        Panel-key emission is UNAFFECTED by this argument; only vote-list
+        composition changes.
     """
+    enabled = (
+        enabled_extended_votes
+        if enabled_extended_votes is not None
+        else SHIP_ENABLED_EXTENDED_TREND_VOTES
+    )
+
     votes = list(trend_votes(panel, adx_gate=adx_gate))
 
-    aroon_osc = panel.trend.get("aroon_osc")
-    if aroon_osc is not None:
-        # aroon_osc ∈ [-100, +100]; vote ∈ [-1, +1]
-        vote_value = max(-1.0, min(1.0, aroon_osc / 100.0))
-        votes.append(
-            IndicatorVote(
-                family="trend",
-                name="aroon_osc",
-                vote=vote_value,
-                weight=DEFAULT_WEIGHTS.trend,
+    if "aroon_osc" in enabled:
+        aroon_osc = panel.trend.get("aroon_osc")
+        if aroon_osc is not None:
+            # aroon_osc ∈ [-100, +100]; vote ∈ [-1, +1]
+            vote_value = max(-1.0, min(1.0, aroon_osc / 100.0))
+            votes.append(
+                IndicatorVote(
+                    family="trend",
+                    name="aroon_osc",
+                    vote=vote_value,
+                    weight=DEFAULT_WEIGHTS.trend,
+                )
             )
-        )
 
-    ichimoku_confirmed = panel.trend.get("ichimoku_confirmed_position")
-    if ichimoku_confirmed is not None:
-        # Confirmed position already in {-1, 0, +1}; clip defensively.
-        vote_value = max(-1.0, min(1.0, float(ichimoku_confirmed)))
-        votes.append(
-            IndicatorVote(
-                family="trend",
-                name="ichimoku_cloud",
-                vote=vote_value,
-                weight=DEFAULT_WEIGHTS.trend,
+    if "ichimoku_cloud" in enabled:
+        ichimoku_confirmed = panel.trend.get("ichimoku_confirmed_position")
+        if ichimoku_confirmed is not None:
+            # Confirmed position already in {-1, 0, +1}; clip defensively.
+            vote_value = max(-1.0, min(1.0, float(ichimoku_confirmed)))
+            votes.append(
+                IndicatorVote(
+                    family="trend",
+                    name="ichimoku_cloud",
+                    vote=vote_value,
+                    weight=DEFAULT_WEIGHTS.trend,
+                )
             )
-        )
 
     return votes
 
