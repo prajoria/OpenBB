@@ -1,12 +1,29 @@
-"""Single source of truth for PyneCore NOTICE section 4(d) attribution strings.
+"""Deprecated shim: openbb_pine.attribution -> pyne_compiler.attribution.
 
-Importing from here is the only approved way to mention the string. The four
-section 2.6 surfaces (health, widget footer, about, CLI banner) all import from
-this module so PyneCore Apache-2.0 attribution cannot silently drift.
+Real implementation lives at :mod:`pyne_compiler.attribution` after the Pine
+extraction (bd-rbf epic; bd-9bh made pyne_compiler self-contained;
+bd-579 reduced this file from a fat copy to a ``sys.modules`` alias
+shim). Post-alias, ``openbb_pine.attribution is pyne_compiler.attribution`` — attribute reads,
+writes, and :func:`monkeypatch.setattr` all target the real module.
+Scheduled for removal in v0.next+1 per Pine Extraction Design §13.5.
 """
+from __future__ import annotations
 
-POWERED_BY_SHORT = "PyneSys (https://pynesys.io)"
-"""For dict fields where the key already conveys 'powered_by'."""
+import sys as _sys
+import warnings as _warnings
 
-POWERED_BY_FULL = "Powered by PyneSys (https://pynesys.io)"
-"""For prose contexts: widget footer, OBBject extra, CLI banner."""
+import pyne_compiler.attribution as _new
+
+_warnings.warn(
+    "openbb_pine.attribution is deprecated; import from pyne_compiler.attribution instead. "
+    "This shim will be removed in the next feature release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+# Aliasing must happen at import time so subsequent
+# ``import openbb_pine.attribution`` returns the real module. Because Python
+# is currently executing this file, ``sys.modules["openbb_pine.attribution"]``
+# is the half-initialized shim; we overwrite it in-place. This is the
+# same pattern used by common backport shims (e.g. six, urllib3).
+_sys.modules[__name__] = _new

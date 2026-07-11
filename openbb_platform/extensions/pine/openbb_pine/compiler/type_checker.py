@@ -1,32 +1,29 @@
-"""Deprecated shim: openbb_pine.compiler.type_checker
+"""Deprecated shim: openbb_pine.compiler.type_checker -> pyne_compiler.compiler.type_checker.
 
-Real implementation moved to :mod:`pyne_compiler.compiler.type_checker` during the Pine extraction
-(E3, bd-rbf). Attribute access through this shim emits a
-:class:`DeprecationWarning`; the returned object is identical to the one
-in the real module. Removable in v0.next+1.
+Real implementation lives at :mod:`pyne_compiler.compiler.type_checker` after the Pine
+extraction (bd-rbf epic; bd-9bh made pyne_compiler self-contained;
+bd-579 reduced this file from a fat copy to a ``sys.modules`` alias
+shim). Post-alias, ``openbb_pine.compiler.type_checker is pyne_compiler.compiler.type_checker`` — attribute reads,
+writes, and :func:`monkeypatch.setattr` all target the real module.
+Scheduled for removal in v0.next+1 per Pine Extraction Design §13.5.
 """
 from __future__ import annotations
 
+import sys as _sys
 import warnings as _warnings
 
 import pyne_compiler.compiler.type_checker as _new
 
-_DEPRECATION_MSG = (
-    "openbb_pine.compiler.type_checker is deprecated; import from pyne_compiler.compiler.type_checker "
-    "instead. This shim will be removed in the next feature release."
+_warnings.warn(
+    "openbb_pine.compiler.type_checker is deprecated; import from pyne_compiler.compiler.type_checker instead. "
+    "This shim will be removed in the next feature release.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
-
-def __getattr__(name: str):
-    try:
-        value = getattr(_new, name)
-    except AttributeError as exc:
-        raise AttributeError(
-            f"module 'openbb_pine.compiler.type_checker' has no attribute {name!r}"
-        ) from exc
-    _warnings.warn(_DEPRECATION_MSG, DeprecationWarning, stacklevel=2)
-    return value
-
-
-def __dir__():
-    return sorted(set(dir(_new)) | {"__getattr__", "__dir__"})
+# Aliasing must happen at import time so subsequent
+# ``import openbb_pine.compiler.type_checker`` returns the real module. Because Python
+# is currently executing this file, ``sys.modules["openbb_pine.compiler.type_checker"]``
+# is the half-initialized shim; we overwrite it in-place. This is the
+# same pattern used by common backport shims (e.g. six, urllib3).
+_sys.modules[__name__] = _new
