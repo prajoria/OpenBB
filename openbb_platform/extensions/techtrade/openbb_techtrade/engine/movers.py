@@ -629,6 +629,19 @@ def _resolve_filter_universe(
     failure also degrades to ``None`` so a thin or unreachable universe never aborts
     ranking. ``resolve_universe`` is imported lazily to keep module import light.
 
+    **bd-udq (scope-escape contract):** injecting a custom ``candidate_fetcher``
+    unconditionally opts out of universe filtering — no universe resolution runs,
+    no post-filter is applied in :func:`build_mover_list`. This is intentional:
+    unit / integration tests inject fakes to stay hermetic and would break if the
+    live universe lookup ran. But it means the returned ``MoverList(segment='X',
+    movers=[...])`` may contain symbols that are NOT in ``X``'s universe when a
+    caller injects a fetcher for reasons OTHER than testing (caching, provider-
+    switch, debugging). To force universe scoping under an injected fetcher,
+    the caller must currently resolve the universe externally and post-filter
+    themselves (or set ``resolve_universe_filter=False`` at call time to make
+    the opt-out explicit). A one-time INFO log fires on first such occurrence
+    per process so ops can trace the pattern without WARNING-level noise.
+
     Parameters
     ----------
     config : SegmentConfig
@@ -649,6 +662,13 @@ def _resolve_filter_universe(
     list[str] | None
         The resolved universe, or ``None`` to apply no filter.
     """
+    # bd-udq scope-escape trace: if caller wanted filtering AND injected a
+    # fetcher (the ambiguous case), emit a one-time INFO. Silent when
+    # caller either (a) sets resolve_universe_filter=False explicitly, or
+    # (b) uses the pure-live path with no injected fetcher.
+    if resolve_universe_filter and candidate_fetcher is not None:
+        _log_fetcher_scope_escape_once(config.segment)
+
     if not (resolve_universe_filter and candidate_fetcher is None):
         return None
 
@@ -664,3 +684,37 @@ def _resolve_filter_universe(
         )
     except Exception:  # noqa: BLE001 - degrade to no filter on resolution failure
         return None
+
+
+# bd-udq: one-time-per-process trace of the fetcher-injection scope-escape
+# pattern. Global cache is fine here — the message is idempotent and the
+# next test process gets a fresh log.
+_scope_escape_logged_segments: set[str] = set()
+
+
+def _log_fetcher_scope_escape_once(segment: str) -> None:
+    """bd-udq: emit an INFO trace once per (segment, process) when a
+    candidate_fetcher is injected AND resolve_universe_filter is True.
+
+    Under this combination the returned MoverList's members may include
+    symbols NOT in the segment's universe (silent scope escape from the
+    caller's perspective). Test files inject fetchers for hermeticity and
+    should ideally pair with ``resolve_universe_filter=False``; live
+    callers using a custom fetcher (cache / provider-switch / debug) that
+    still want universe scoping must post-filter themselves.
+
+    INFO level (not WARNING) so tests stay quiet at default log config;
+    ops can enable INFO on this module to trace the pattern in a live
+    scan that mysteriously produces off-segment movers.
+    """
+    if segment in _scope_escape_logged_segments:
+        return
+    _scope_escape_logged_segments.add(segment)
+    logger.info(
+        "movers[%s]: candidate_fetcher injected AND "
+        "resolve_universe_filter=True — universe scoping is BYPASSED for "
+        "this segment (bd-udq). MoverList members may not be in segment "
+        "universe. Set resolve_universe_filter=False to make the opt-out "
+        "explicit, or post-filter externally to enforce scoping.",
+        segment,
+    )
