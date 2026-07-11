@@ -62,23 +62,21 @@ the same name in ``compiler.builtin_signatures``."""
 def _compile_strategy_body(body: str) -> None:
     """Compile a Pine v6 strategy with ``body`` in its body position.
 
-    Bead h14 owns type-check; codegen is bead ``aeh``. Compilation MUST reach
-    codegen and raise ``PineUnsupportedFeatureError`` PF010 — that proves the
-    type checker walked the body cleanly. Any other exception (PineTypeError,
-    PineSyntaxError) indicates a real failure that must fail the test.
+    Bead h14 owned type-check; codegen was gated behind PF010 until bead
+    aeh (post-Wave-20 bump 9cf7108 → openbb-fork). Post-aeh, strategy()
+    compiles cleanly and returns a CompiledModule with
+    ``script_type='strategy'``. This helper now verifies the compile
+    succeeds and script_type flips correctly — the original PF010-raise
+    assertion is retired as of bd-kbtx.
+
+    Any exception (PineTypeError, PineSyntaxError, PineCodegenError,
+    etc.) still fails the test — the body should be well-typed.
     """
     src = _STRATEGY_HEAD + body
-    with pytest.raises(PineUnsupportedFeatureError) as excinfo:
-        compile_pine(src, use_cache=False)
-    # PF010 = strategy() codegen deferred to bead aeh; that's the expected
-    # failure mode for now. When bead aeh lands, this assertion breaks and
-    # tests transition to unconditional-pass. Assert against the structured
-    # ``feature`` attribute rather than the stringified error, so a future
-    # refactor of the message body doesn't silently break this check.
-    feature = excinfo.value.feature or ""
-    assert feature.startswith("PF010"), (
-        f"expected PF010 codegen deferral (structured .feature); "
-        f"got feature={feature!r} err={excinfo.value!r}"
+    result = compile_pine(src, use_cache=False)
+    assert result.script_type == "strategy", (
+        f"post-aeh: strategy(...) directive must set script_type='strategy'; "
+        f"got script_type={result.script_type!r}"
     )
 
 
