@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "openbb-portfolio-intel"
+version = "0.0.1"
+description = "Portfolio Intelligence extension for OpenBB — X-Ray, Events, Smart-Money, Risk, What-If, Paper Trading, Alerts"
+authors = ["OpenBB Portfolio & Quant working group"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+packages = [{ include = "openbb_portfolio_intel" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+openbb-core = "^1.5.8"
+# All portfolio math shares numpy/pandas with Analysis/stock_analysis.py so
+# metric parity is guaranteed by shared imports, not copy-paste (PRD §14.1).
+numpy = "*"
+pandas = "*"
+# scipy powers percentile-based VaR/CVaR and covariance shrinkage used in
+# contribution-to-risk (PRD §14.2).
+scipy = "*"
+
+# Heavy or optional deps declared but installed on demand as their
+# consuming component lands (P1+):
+#   riskfolio-lib / PyPortfolioOpt — optimizer surface (v2 only per PRD §NG6)
+#   quantstats                    — tear-sheet rendering for Paper Performance widget (P2)
+#   pyfolio-reloaded              — optional for backtest hand-off diagnostics (P3)
+
+[tool.poetry.extras]
+# reporting = ["quantstats", "pyfolio-reloaded"]  # enabled in P2 tickets
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins."openbb_core_extension"]
+portfolio_intel = "openbb_portfolio_intel.portfolio_intel_router:router"
