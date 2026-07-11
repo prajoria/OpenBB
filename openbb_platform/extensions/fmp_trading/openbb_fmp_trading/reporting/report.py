@@ -84,17 +84,23 @@ def _resolve_output_dir(output_dir: Path | None, session_date: date) -> Path:
     else:
         candidate = Path(output_dir).expanduser()
 
-    # Pre-normalize (security-review round 3 finding #2): normpath
-    # collapses any `..` segments BEFORE resolve() so a lexical traversal
-    # like `jail/../elsewhere` is caught here rather than depending on
-    # the symlink target of resolve().
-    import os as _os
-    candidate = Path(_os.path.normpath(str(candidate)))
+    # NOTE (security-review round 4 revert of round 3 finding #2):
+    # We deliberately do NOT pre-normalize the candidate with
+    # os.path.normpath here. normpath collapses `link/..` LEXICALLY
+    # WITHOUT following the link, which would MASK a planted symlink:
+    # consider `jail/link/../elsewhere` where `link -> /etc`. With
+    # pre-normpath, the path becomes `jail/elsewhere` (which passes the
+    # jail check); without it, resolve() FOLLOWS `link` -> `/etc`,
+    # then `..` -> `/`, then `/elsewhere` — which FAILS the
+    # relative_to(jail) check as it should.
+    #
+    # resolve() correctly handles the interaction of `..` and symlinks
+    # per POSIX semantics ("evaluated left-to-right after link
+    # dereference"). The pre-normpath was well-intentioned but wrong.
 
-    # First: standard resolve() + relative_to(jail). Catches obvious
-    # traversal (../../../etc) but silently follows symlinks — if the
-    # symlink target is inside the jail this check passes even though
-    # the link itself is attacker-controlled.
+    # Standard resolve() + relative_to(jail). resolve() interprets `..`
+    # AFTER symlink dereference, so `jail/link/../x` with `link -> /etc`
+    # correctly resolves to `/x` and fails the relative_to check.
     resolved = candidate.resolve()
     try:
         resolved.relative_to(jail)
@@ -105,14 +111,14 @@ def _resolve_output_dir(output_dir: Path | None, session_date: date) -> Path:
             f"FMP_TRADING_REPORTS_ROOT to widen the jail if needed."
         ) from exc
 
-    # bd-9nd.8 hardening: also verify NO component along the path
-    # (jail -> ... -> candidate) is a symlink. An attacker who can
-    # write to the jail root but nowhere else could plant a symlink
-    # AT one of the intermediate directory names pointing outside;
-    # resolve() would follow it, produce a target inside the jail,
-    # and pass the relative_to check above — but future writes into
-    # that dir would land OUTSIDE the jail via the symlink dereference.
-    # The lstat walk detects this at output_dir-resolution time.
+    # bd-9nd.8 hardening: also verify NO component along the ORIGINAL
+    # user-supplied path (jail -> ... -> candidate) is a symlink.
+    # We pass the ORIGINAL candidate (pre-normalization) so any
+    # symlink hidden behind `..` in the input is still visible to the
+    # lstat walk — walking a normalized form would miss it. This is
+    # defense-in-depth: even if resolve()+relative_to didn't reject
+    # (unusual but possible edge cases), a symlink in the write path
+    # is still caught.
     _reject_symlinks_in_chain(candidate, jail)
 
     return resolved
