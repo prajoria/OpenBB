@@ -29,6 +29,7 @@ import math
 import sys
 import os
 import datetime
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -2185,6 +2186,211 @@ class TestPhase3SignalsCount:
         assert "bb_width" in computed.columns
         vals = computed["bb_width"].dropna()
         assert (vals >= 0).all()
+
+
+# ---------------------------------------------------------------------------
+# bd-85w: use_extended_confluence_panel flag threads through phase3_technicals
+# ---------------------------------------------------------------------------
+#
+# Env var ANALYSIS_USE_EXTENDED_CONFLUENCE_PANEL is picked up by
+# AnalysisFeatureFlags.from_env(), which sets
+# cfg.feature_flags.use_extended_confluence_panel = True. bd-85w asks: is that
+# flag actually threaded into build_indicator_panel(panel_config=PANEL_EXTENDED)
+# on the Analysis side?
+#
+# Option A of bd-85w design: phase3_technicals conditionally calls
+# techtrade.build_indicator_panel with PANEL_EXTENDED when the flag is on,
+# attaches the result to Phase3Result.extended_panel. Inline pipeline unchanged.
+#
+# These tests use monkeypatch to (a) fake obb.equity.price.historical so no
+# live call happens, (b) spy on build_indicator_panel to record whether it
+# was called and with what panel_config.
+
+
+class TestBdW85EnvVarPickup:
+    """Verify AnalysisFeatureFlags.from_env() actually reads the env var."""
+
+    def test_env_var_true_flips_flag_on(self, monkeypatch):
+        """ANALYSIS_USE_EXTENDED_CONFLUENCE_PANEL=1 → flag True."""
+        monkeypatch.setenv("ANALYSIS_USE_EXTENDED_CONFLUENCE_PANEL", "1")
+        flags = AnalysisFeatureFlags.from_env()
+        assert flags.use_extended_confluence_panel is True
+
+    def test_env_var_false_keeps_flag_off(self, monkeypatch):
+        """ANALYSIS_USE_EXTENDED_CONFLUENCE_PANEL=0 → flag False."""
+        monkeypatch.setenv("ANALYSIS_USE_EXTENDED_CONFLUENCE_PANEL", "0")
+        flags = AnalysisFeatureFlags.from_env()
+        assert flags.use_extended_confluence_panel is False
+
+    def test_env_var_absent_defaults_off(self, monkeypatch):
+        """No env var → flag defaults False (default_factory contract)."""
+        monkeypatch.delenv(
+            "ANALYSIS_USE_EXTENDED_CONFLUENCE_PANEL", raising=False,
+        )
+        flags = AnalysisFeatureFlags.from_env()
+        assert flags.use_extended_confluence_panel is False
+
+
+class TestBdW85Phase3TechnicalsThreadsPanelConfig:
+    """The load-bearing bd-85w assertion: phase3_technicals passes
+    panel_config=PANEL_EXTENDED to build_indicator_panel when the flag
+    is on, and DOES NOT call build_indicator_panel when the flag is off.
+
+    R7.11 mutation-verified: removing the ``if cfg.feature_flags.use_
+    extended_confluence_panel:`` guard in phase3_technicals makes the
+    flag-off test fail (build_indicator_panel would be called unconditionally)."""
+
+    def _run_phase3(self, monkeypatch, flag_on: bool):
+        """Run phase3_technicals with build_indicator_panel spied.
+
+        Returns a dict recording whether it was called + which panel_config it got.
+        """
+        import stock_analysis as sa
+
+        called = {"count": 0, "panel_config": None}
+
+        # Fake obb.equity.price.historical + calendar.earnings — hermetic.
+        fake_df = _make_ohlcv(300)
+        fake_df.index.name = "date"
+
+        def _fake_historical(**kw):
+            return SimpleNamespace(
+                to_df=lambda: fake_df,
+                results=fake_df.reset_index().to_dict(orient="records"),
+            )
+
+        def _fake_earnings(**kw):
+            return SimpleNamespace(to_df=lambda: pd.DataFrame(), results=[])
+
+        fake_obb = SimpleNamespace(
+            equity=SimpleNamespace(
+                price=SimpleNamespace(historical=_fake_historical),
+                calendar=SimpleNamespace(earnings=_fake_earnings),
+            )
+        )
+        monkeypatch.setitem(
+            __import__("sys").modules, "openbb", SimpleNamespace(obb=fake_obb),
+        )
+
+        # Spy on build_indicator_panel. It's imported LAZILY inside
+        # phase3_technicals so we patch at the source module.
+        import openbb_techtrade.engine.indicators as tt_indicators
+
+        real_build = tt_indicators.build_indicator_panel
+
+        def _spy_build(*args, **kw):
+            called["count"] += 1
+            called["panel_config"] = kw.get("panel_config")
+            # Delegate to a stub that returns a minimal IndicatorPanel
+            from openbb_techtrade.models import IndicatorPanel
+            return IndicatorPanel(
+                symbol=kw.get("symbol", "TEST"),
+                as_of=kw.get("as_of"),
+                trend={}, momentum={}, volatility={}, volume={},
+            )
+
+        monkeypatch.setattr(
+            tt_indicators, "build_indicator_panel", _spy_build,
+        )
+
+        # Build config with flag set as requested.
+        cfg = AnalysisConfig(
+            symbol="TEST",
+            feature_flags=AnalysisFeatureFlags(
+                use_extended_confluence_panel=flag_on,
+            ),
+        )
+
+        p3 = sa.phase3_technicals(cfg)
+        return called, p3
+
+    def test_flag_on_calls_build_indicator_panel_with_extended(self, monkeypatch):
+        """bd-85w load-bearing: flag ON → build_indicator_panel called
+        exactly once with panel_config=PANEL_EXTENDED."""
+        from openbb_techtrade.engine.panel_config import PANEL_EXTENDED
+
+        called, p3 = self._run_phase3(monkeypatch, flag_on=True)
+        assert called["count"] == 1, (
+            f"bd-85w: flag ON must invoke build_indicator_panel exactly once; "
+            f"got count={called['count']}"
+        )
+        assert called["panel_config"] is PANEL_EXTENDED, (
+            f"bd-85w: flag ON must pass panel_config=PANEL_EXTENDED; "
+            f"got {called['panel_config']!r}"
+        )
+        # And the result actually lands on Phase3Result.
+        assert p3.extended_panel is not None, (
+            "bd-85w: Phase3Result.extended_panel must be populated when flag ON"
+        )
+
+    def test_flag_off_does_not_call_build_indicator_panel(self, monkeypatch):
+        """bd-85w load-bearing: flag OFF → build_indicator_panel NOT called
+        (perf preservation + default backward-compat)."""
+        called, p3 = self._run_phase3(monkeypatch, flag_on=False)
+        assert called["count"] == 0, (
+            f"bd-85w: flag OFF must NOT invoke build_indicator_panel; "
+            f"got count={called['count']}"
+        )
+        assert p3.extended_panel is None, (
+            "bd-85w: Phase3Result.extended_panel must be None when flag OFF"
+        )
+
+    def test_flag_on_extended_panel_survives_build_failure_with_warning(
+        self, monkeypatch, caplog,
+    ):
+        """R7.3 loud-empty: if build_indicator_panel raises with flag ON,
+        Analysis pipeline must not crash — extended_panel is None + a
+        WARNING is logged so the user knows their opt-in silently
+        produced None instead of pretending nothing happened."""
+        import logging
+        import stock_analysis as sa
+
+        fake_df = _make_ohlcv(300)
+        fake_df.index.name = "date"
+        fake_obb = SimpleNamespace(
+            equity=SimpleNamespace(
+                price=SimpleNamespace(
+                    historical=lambda **kw: SimpleNamespace(
+                        to_df=lambda: fake_df,
+                        results=fake_df.reset_index().to_dict(orient="records"),
+                    ),
+                ),
+                calendar=SimpleNamespace(
+                    earnings=lambda **kw: SimpleNamespace(
+                        to_df=lambda: pd.DataFrame(), results=[],
+                    ),
+                ),
+            )
+        )
+        monkeypatch.setitem(
+            __import__("sys").modules, "openbb", SimpleNamespace(obb=fake_obb),
+        )
+
+        import openbb_techtrade.engine.indicators as tt_indicators
+        monkeypatch.setattr(
+            tt_indicators, "build_indicator_panel",
+            lambda **kw: (_ for _ in ()).throw(RuntimeError("simulated build failure")),
+        )
+
+        cfg = AnalysisConfig(
+            symbol="TEST",
+            feature_flags=AnalysisFeatureFlags(use_extended_confluence_panel=True),
+        )
+        with caplog.at_level(logging.WARNING, logger="stock_analysis"):
+            p3 = sa.phase3_technicals(cfg)
+
+        assert p3.extended_panel is None, (
+            "extended_panel must be None on build failure (Analysis pipeline "
+            "continues with inline classic technicals)"
+        )
+        warnings = [r for r in caplog.records
+                    if r.levelno >= logging.WARNING
+                    and "use_extended_confluence_panel" in r.getMessage()]
+        assert warnings, (
+            "R7.3: build failure with flag ON must emit a WARNING so the "
+            "user knows their opt-in silently produced None; got: "
+            f"{[r.getMessage() for r in caplog.records]}"
+        )
 
 
 class TestPhase4HistoricalMultiples:

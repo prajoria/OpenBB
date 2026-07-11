@@ -549,6 +549,16 @@ class Phase3Result:
     weekly_trend_bullish: bool      # Weekly chart regime check
     gate_passed: bool
     gate_notes: str
+    #: bd-85w (2026-07-11): the techtrade extended panel snapshot at the last
+    #: bar, populated when ``AnalysisFeatureFlags.use_extended_confluence_panel``
+    #: is True. ``None`` when the flag is False (default) — preserves pre-bd-85w
+    #: shape for every existing consumer. When populated it carries the
+    #: ``IndicatorPanel`` returned by ``techtrade.build_indicator_panel(..., panel_config=PANEL_EXTENDED)``:
+    #: last-bar-finite scalar values per family (trend / momentum / volatility /
+    #: volume). Notebooks and R&D code can read it directly; downstream Analysis
+    #: signal computation is UNCHANGED and still driven by the inline
+    #: ``_compute_technicals`` pipeline. Option A of the bd-85w design.
+    extended_panel: Any = None
 
 
 @dataclass
@@ -2266,6 +2276,52 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
         + (" — WEEKLY TREND BEARISH" if not weekly_trend_bullish else "")
     )
 
+    # bd-85w (2026-07-11): opt-in techtrade extended-panel snapshot. Option A
+    # per bd-85w design — this is an ADDITIVE augmentation, not a replacement.
+    # The inline _compute_technicals pipeline above still drives every existing
+    # signal + gate. The extended panel is exposed as Phase3Result.extended_panel
+    # for notebooks / R&D code to inspect. Deferred to flag-on to preserve
+    # pre-bd-85w wall-clock on the default path (build_indicator_panel adds
+    # ~50-150ms on a typical 5y history; not free even though the seams are lazy).
+    extended_panel: Any = None
+    if cfg.feature_flags.use_extended_confluence_panel:
+        try:
+            from openbb_techtrade.engine.indicators import build_indicator_panel  # noqa: PLC0415
+            from openbb_techtrade.engine.panel_config import PANEL_EXTENDED  # noqa: PLC0415
+            # Build the OHLCV records shape build_indicator_panel expects:
+            # list of dicts with a 'timestamp' key + lowercase OHLCV columns.
+            # price_raw is the pre-augmentation DataFrame; use that (not
+            # price_df which has all the indicator columns bolted on) to keep
+            # the seam shape narrow.
+            ohlcv_rows = price_raw.reset_index().to_dict(orient="records")
+            # Normalize the index-column name to 'timestamp' as the panel
+            # builder expects. reset_index() typically uses 'date' or 'index'
+            # depending on how the DataFrame was constructed.
+            for r in ohlcv_rows:
+                for candidate in ("date", "index"):
+                    if candidate in r and "timestamp" not in r:
+                        r["timestamp"] = r.pop(candidate)
+                        break
+            as_of_dt = price_raw.index[-1].date() if len(price_raw) else None
+            if as_of_dt is not None:
+                extended_panel = build_indicator_panel(
+                    symbol=sym,
+                    as_of=as_of_dt,
+                    ohlcv_rows=ohlcv_rows,
+                    panel_config=PANEL_EXTENDED,
+                )
+        except Exception as exc:  # noqa: BLE001
+            # R7.3 loud-empty: the flag was ON but the extended panel didn't
+            # build. Log at WARNING so the user knows their opt-in silently
+            # produced None instead of pretending nothing happened. Analysis
+            # continues with the inline pipeline unchanged — no regression.
+            logger.warning(
+                "phase3_technicals: use_extended_confluence_panel=True for %s "
+                "but build_indicator_panel raised %s: %s — extended_panel=None; "
+                "classic technicals pipeline unaffected",
+                sym, type(exc).__name__, exc,
+            )
+
     return Phase3Result(
         price_df=price_df,
         signals=signals,
@@ -2278,6 +2334,7 @@ def phase3_technicals(cfg: AnalysisConfig) -> Phase3Result:
         weekly_trend_bullish=weekly_trend_bullish,
         gate_passed=gate_passed,
         gate_notes=gate_notes,
+        extended_panel=extended_panel,
     )
 
 

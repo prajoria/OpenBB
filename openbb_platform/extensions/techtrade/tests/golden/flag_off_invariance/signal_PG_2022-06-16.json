@@ -1,0 +1,52 @@
+{
+  "as_of": "2022-06-16",
+  "direction": "short",
+  "rank_in_segment": 0,
+  "score": -0.6000000000000001,
+  "segment": "TEST_SECTOR",
+  "symbol": "PG",
+  "votes": [
+    {
+      "family": "trend",
+      "name": "macd_hist",
+      "vote": -1.0,
+      "weight": 0.4
+    },
+    {
+      "family": "trend",
+      "name": "ema_cross",
+      "vote": -1.0,
+      "weight": 0.4
+    },
+    {
+      "family": "momentum",
+      "name": "rsi",
+      "vote": -1.0,
+      "weight": 0.25
+    },
+    {
+      "family": "momentum",
+      "name": "stoch",
+      "vote": 1.0,
+      "weight": 0.25
+    },
+    {
+      "family": "volatility",
+      "name": "bb_pctb",
+      "vote": -1.0,
+      "weight": 0.2
+    },
+    {
+      "family": "volume",
+      "name": "obv_slope",
+      "vote": -1.0,
+      "weight": 0.15
+    },
+    {
+      "family": "volume",
+      "name": "cmf",
+      "vote": 1.0,
+      "weight": 0.15
+    }
+  ]
+}
