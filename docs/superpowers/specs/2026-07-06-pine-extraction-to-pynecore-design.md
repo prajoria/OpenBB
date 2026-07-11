@@ -6,6 +6,18 @@
 **Branch:** `design/pine-extraction-to-pynecore`
 **Related:** openbb-pine Phase 2 epic `OpenBBTechnical-0e9.6` (paused for this extraction); tracking bead `OpenBBTechnical-rbf`; h14-normalization follow-up bead `OpenBBTechnical-qj7`
 
+> **Post-extraction note (2026-07-10, E4.1 / bd-8j9):** The E3 epic has landed
+> (`openbb_pine_support` at `0dff38fa3`). All forward-looking compiler/runtime
+> module paths in this spec are `pyne_compiler.*` (e.g. `pyne_compiler.compiler.*`,
+> `pyne_compiler.errors.*`, `pyne_compiler.telemetry`,
+> `pyne_compiler.runtime.executor_core`, `pyne_compiler.runtime.pynecore_bridge`).
+> Remaining `openbb_pine.compiler.*` / `openbb_pine.runtime.executor` / `openbb_pine.telemetry`
+> references below are **narrative or historical** — they describe the
+> pre-extraction state, the E0→E3 migration steps (before→after imports), or the
+> §13.5 PEP 562 deprecation shims (which by definition cite the old paths).
+> Those legacy import paths remain accessible via the deprecation shims until
+> v0.next+1 per §13.5.
+
 ## Revision history
 
 - **Rev 1** (2026-07-06 morning): Initial design after 7-question brainstorm. Committed at `0025d8149`, opened as PR #328.
