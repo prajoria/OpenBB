@@ -24,3 +24,21 @@
 {"id":"int-05c5eb58","kind":"field_change","created_at":"2026-06-25T01:52:17.0355048Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-cse","extra":{"field":"status","new_value":"deferred","old_value":"open"}}
 {"id":"int-2e4ed5d9","kind":"field_change","created_at":"2026-06-25T04:32:42.8866284Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-vny","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
 {"id":"int-bfe46f3a","kind":"field_change","created_at":"2026-06-25T05:18:05.850305Z","actor":"Prashant Rajoria","issue_id":"OpenBBTechnical-0rh","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+{"id":"int-6caf2d12","kind":"field_change","created_at":"2026-07-11T17:04:41.749975Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.4","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-3c3403e4","kind":"field_change","created_at":"2026-07-11T18:30:31.0116309Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.4","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"scaffolded in commit bc5302f5a on feat/pi-router/scaffold; 6/6 unit tests green (test_router_scaffold.py); ruff+black clean; awaiting push+PR auth"}}
+{"id":"int-aeb3d933","kind":"field_change","created_at":"2026-07-11T23:07:15.3004473Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.5","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-a10270f6","kind":"field_change","created_at":"2026-07-11T23:10:56.8249669Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.5","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"shipped in commit 3cfef103d on feat/pi-app/paper-migration; 11/11 structural tests green; ruff+black clean; awaiting PR to portfolio"}}
+{"id":"int-de2ed6da","kind":"field_change","created_at":"2026-07-11T23:11:21.9627597Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.7","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+>>>>>>> Stashed changes
+{"id":"int-1e8f6ee9","kind":"field_change","created_at":"2026-07-11T23:13:16.9882949Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.7","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"shipped on feat/pi-widgets/playwright-harness; 6/6 contract tests + 1 placeholder Playwright spec; awaiting PR to portfolio"}}
+>>>>>>> Stashed changes
+{"id":"int-416231be","kind":"field_change","created_at":"2026-07-11T23:16:59.5765316Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.2","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
+{"id":"int-d390cd04","kind":"field_change","created_at":"2026-07-11T23:18:31.0096431Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.2","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"shipped on feat/pi-ops/pr-template-ci-guard in commit 1e1850ff5; 6/6 contract tests + YAML validity check green; awaiting PR to portfolio"}}
+>>>>>>> Stashed changes
+{"id":"int-f9b7f389","kind":"field_change","created_at":"2026-07-11T23:19:04.2404443Z","actor":"prajoria","issue_id":"OpenBBTechnical-qy83.1.8","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
