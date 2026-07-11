@@ -101,7 +101,6 @@ import os
 import re
 import sys
 from datetime import date, datetime
-from typing import List, Optional, Tuple
 
 import pandas as pd
 from bs4 import BeautifulSoup, Tag
@@ -134,6 +133,7 @@ for _p in _SRC_DIRS:
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(os.path.join(PROJECT_ROOT, ".env"), override=True)
 except ImportError:
     pass
@@ -144,9 +144,7 @@ except ImportError:
 # runs on any checkout and in CI. Override via FIDELITY_HTML_PATH /
 # FORTRESS_CSV_PATH or the --html / --fortress-csv CLI args.
 # ---------------------------------------------------------------------------
-DEFAULT_HTML_PATH = os.environ.get(
-    "FIDELITY_HTML_PATH", "Portfolio Positions.html"
-)
+DEFAULT_HTML_PATH = os.environ.get("FIDELITY_HTML_PATH", "Portfolio Positions.html")
 DEFAULT_FORTRESS_CSV_PATH = os.environ.get(
     "FORTRESS_CSV_PATH",
     os.path.join(PROJECT_ROOT, "Analysis", "FortressFinal.csv"),
@@ -172,7 +170,9 @@ def mask_account_number(val: str) -> str:
         return "****"
     return "****" + digits[-4:]
 
+
 # ---------------------------------------------------------------------------
+
 
 def parse_currency(val: str) -> float:
     """Parse a Fidelity currency string to float.
@@ -221,7 +221,7 @@ def parse_quantity(val: str) -> float:
         return 0.0
 
 
-def parse_date_str(val: str) -> Optional[date]:
+def parse_date_str(val: str) -> date | None:
     """Parse Fidelity date strings like 'Jun-13-2022' or '--' to date.
 
     Supports:  'Jun-13-2022', '06/13/2022', '2022-06-13'
@@ -241,7 +241,8 @@ def parse_date_str(val: str) -> Optional[date]:
 # Core HTML parser
 # ---------------------------------------------------------------------------
 
-def _extract_snapshot_timestamp(soup: BeautifulSoup) -> Optional[datetime]:
+
+def _extract_snapshot_timestamp(soup: BeautifulSoup) -> datetime | None:
     """Extract the 'As of ...' timestamp from the Fidelity sidebar.
 
     Looks for text like 'As of Feb-20-2026 1:39 a.m. ET' inside
@@ -270,8 +271,8 @@ def _extract_snapshot_timestamp(soup: BeautifulSoup) -> Optional[datetime]:
     if not m:
         return None
 
-    date_part = m.group(1)             # "Feb-20-2026"
-    time_part = m.group(2)             # "1:39"
+    date_part = m.group(1)  # "Feb-20-2026"
+    time_part = m.group(2)  # "1:39"
     ampm = m.group(3).replace(".", "")  # "am" / "pm"
     combined = f"{date_part} {time_part} {ampm}"
     for fmt in ("%b-%d-%Y %I:%M %p", "%b-%d-%Y %I:%M%p"):
@@ -315,8 +316,9 @@ def _build_account_map(soup: BeautifulSoup) -> dict:
     return acct_map
 
 
-def _resolve_account(row_index: int, account_boundaries: List[int],
-                     account_map: dict) -> str:
+def _resolve_account(
+    row_index: int, account_boundaries: list[int], account_map: dict
+) -> str:
     """Return the account name for a given row-index.
 
     Uses the sorted account boundary list to find the account whose
@@ -331,7 +333,7 @@ def _resolve_account(row_index: int, account_boundaries: List[int],
     return account_map.get(acct_idx, "Unknown")
 
 
-def _extract_identifier(pinned_row: Tag) -> Tuple[str, str]:
+def _extract_identifier(pinned_row: Tag) -> tuple[str, str]:
     """Extract a (symbol_or_id, description) from a pinned-left position row.
 
     For expanded rows the ticker is in a bare ``<span>`` (e.g. "MSFT").
@@ -367,7 +369,7 @@ def _extract_identifier(pinned_row: Tag) -> Tuple[str, str]:
     return identifier, desc
 
 
-def _center_cell_values(center_row: Optional[Tag]) -> dict:
+def _center_cell_values(center_row: Tag | None) -> dict:
     """Read col-id → text from a center-container position row."""
     if not center_row:
         return {}
@@ -400,7 +402,7 @@ def extract_positions(html_path: str) -> pd.DataFrame:
     html_path : str
         Path to the saved HTML file.
     """
-    with open(html_path, "r", encoding="utf-8") as f:
+    with open(html_path, encoding="utf-8") as f:
         soup = BeautifulSoup(f.read(), "html.parser")
 
     # --- Snapshot timestamp ---
@@ -427,7 +429,7 @@ def extract_positions(html_path: str) -> pd.DataFrame:
     ag_rows = pinned.find_all("div", class_="ag-row", recursive=False)
     ag_rows.sort(key=lambda r: int(r.get("row-index", "9999")))
 
-    records: List[dict] = []
+    records: list[dict] = []
     current_ticker: str = ""
     current_desc: str = ""
     # Track which row-indices have been consumed by expanded detail rows
@@ -446,9 +448,7 @@ def extract_positions(html_path: str) -> pd.DataFrame:
             continue
 
         # Resolve account for this position
-        current_account = _resolve_account(
-            row_idx, account_boundaries, account_map
-        )
+        current_account = _resolve_account(row_idx, account_boundaries, account_map)
 
         expanded = row.get("aria-expanded", "")
         has_drawer = row.find(class_="posweb-drawer-container") is not None
@@ -488,9 +488,19 @@ def extract_positions(html_path: str) -> pd.DataFrame:
                     "quantity": parse_quantity(cells[5]),
                     "avg_cost_basis": parse_currency(cells[6]),
                     "cost_basis_total": parse_currency(cells[7]),
-                    "transfer_avail_date": parse_date_str(cells[8]) if is_employer_plan and len(cells) > 8 else None,
-                    "share_source": cells[9] if is_employer_plan and len(cells) > 9 else "",
-                    "grant_date": parse_date_str(cells[10]) if is_employer_plan and len(cells) > 10 else None,
+                    "transfer_avail_date": (
+                        parse_date_str(cells[8])
+                        if is_employer_plan and len(cells) > 8
+                        else None
+                    ),
+                    "share_source": (
+                        cells[9] if is_employer_plan and len(cells) > 9 else ""
+                    ),
+                    "grant_date": (
+                        parse_date_str(cells[10])
+                        if is_employer_plan and len(cells) > 10
+                        else None
+                    ),
                 }
                 records.append(rec)
             continue
@@ -509,7 +519,7 @@ def extract_positions(html_path: str) -> pd.DataFrame:
                 "snapshot_date": snapshot_dt,
                 "symbol": identifier,
                 "description": desc,
-                "acquired": None,       # not available in collapsed view
+                "acquired": None,  # not available in collapsed view
                 "term": "",
                 "total_gain_loss": parse_currency(cv.get("totGL", "")),
                 "pct_gain_loss": parse_percent(cv.get("totGLPct", "")),
@@ -538,6 +548,7 @@ def extract_positions(html_path: str) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Display helpers
 # ---------------------------------------------------------------------------
+
 
 def print_summary(df: pd.DataFrame) -> None:
     """Print a human-readable summary of the parsed positions."""
@@ -572,17 +583,23 @@ def print_summary(df: pd.DataFrame) -> None:
     print(f"\n{sep}")
     print("  BY STOCK")
     print(sep)
-    print(f"  {'Symbol':<8} {'Lots':>5} {'Qty':>12} {'Cost Basis':>14} "
-          f"{'Cur Value':>14} {'Gain/Loss':>14} {'Return':>8}")
+    print(
+        f"  {'Symbol':<8} {'Lots':>5} {'Qty':>12} {'Cost Basis':>14} "
+        f"{'Cur Value':>14} {'Gain/Loss':>14} {'Return':>8}"
+    )
     print(f"  {'-'*8} {'-'*5} {'-'*12} {'-'*14} {'-'*14} {'-'*14} {'-'*8}")
 
-    grp = df.groupby("symbol").agg(
-        lots=("symbol", "count"),
-        quantity=("quantity", "sum"),
-        cost_basis=("cost_basis_total", "sum"),
-        current_value=("current_value", "sum"),
-        gain_loss=("total_gain_loss", "sum"),
-    ).sort_values("gain_loss", ascending=False)
+    grp = (
+        df.groupby("symbol")
+        .agg(
+            lots=("symbol", "count"),
+            quantity=("quantity", "sum"),
+            cost_basis=("cost_basis_total", "sum"),
+            current_value=("current_value", "sum"),
+            gain_loss=("total_gain_loss", "sum"),
+        )
+        .sort_values("gain_loss", ascending=False)
+    )
 
     for sym, row in grp.iterrows():
         ret = (row.gain_loss / row.cost_basis * 100) if row.cost_basis else 0
@@ -604,9 +621,11 @@ def print_summary(df: pd.DataFrame) -> None:
         tv = subset["current_value"].sum()
         tg = subset["total_gain_loss"].sum()
         ret = (tg / tc * 100) if tc else 0
-        print(f"  {term}-term:  {len(subset):>4} lots | "
-              f"Cost ${tc:>12,.2f} | Value ${tv:>12,.2f} | "
-              f"G/L ${tg:>12,.2f} ({ret:+.1f}%)")
+        print(
+            f"  {term}-term:  {len(subset):>4} lots | "
+            f"Cost ${tc:>12,.2f} | Value ${tv:>12,.2f} | "
+            f"G/L ${tg:>12,.2f} ({ret:+.1f}%)"
+        )
 
     # Employer plan lots
     plan_lots = df[df["share_source"].str.strip().ne("") & df["share_source"].notna()]
@@ -623,16 +642,22 @@ def print_summary(df: pd.DataFrame) -> None:
         print(f"\n{sep}")
         print("  BY ACCOUNT")
         print(sep)
-        print(f"  {'Account':<40} {'Lots':>5} {'Cost Basis':>14} "
-              f"{'Cur Value':>14} {'Gain/Loss':>14}")
+        print(
+            f"  {'Account':<40} {'Lots':>5} {'Cost Basis':>14} "
+            f"{'Cur Value':>14} {'Gain/Loss':>14}"
+        )
         print(f"  {'-'*40} {'-'*5} {'-'*14} {'-'*14} {'-'*14}")
 
-        agrp = df.groupby("account_name").agg(
-            lots=("symbol", "count"),
-            cost_basis=("cost_basis_total", "sum"),
-            current_value=("current_value", "sum"),
-            gain_loss=("total_gain_loss", "sum"),
-        ).sort_values("current_value", ascending=False)
+        agrp = (
+            df.groupby("account_name")
+            .agg(
+                lots=("symbol", "count"),
+                cost_basis=("cost_basis_total", "sum"),
+                current_value=("current_value", "sum"),
+                gain_loss=("total_gain_loss", "sum"),
+            )
+            .sort_values("current_value", ascending=False)
+        )
 
         for acct, row in agrp.iterrows():
             print(
@@ -769,7 +794,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 def persist_basket_intended_weight_csv(
     csv_path: str,
     basket_name: str,
-    database: Optional[str] = None,
+    database: str | None = None,
     owner: str = "",
 ) -> dict:
     """Import intended basket weights from a preprocessed CSV file."""
@@ -793,7 +818,9 @@ def persist_basket_intended_weight_csv(
         df["description"] = df["name"].astype(str).fillna("").str.strip()
     else:
         df["description"] = ""
-    df["target_weight_pct"] = pd.to_numeric(df["target_weight_pct"], errors="coerce").fillna(0.0)
+    df["target_weight_pct"] = pd.to_numeric(
+        df["target_weight_pct"], errors="coerce"
+    ).fillna(0.0)
 
     string_cols = [
         "proposal",
@@ -850,6 +877,14 @@ def persist_basket_intended_weight_csv(
             basket_total_rows = int(cur.fetchone()["cnt"])
 
         db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        # bd-2650/gykp (PR #422 code-reviewer P0): commit the CSV import
+        # atomically. Post-autocommit-flip default, without this commit
+        # the INSERT loop above silently rolls back on connection close
+        # and the DB has 0 rows despite the returned dict claiming
+        # ``inserted=N`` — exactly the silent-data-loss regression the
+        # autocommit-flip risked. except: rollback: raise mirrors the
+        # persist_to_mysql / persist_basket_positions_to_mysql pattern.
+        conn.commit()
         return {
             "database": db_name,
             "basket_name": basket_label,
@@ -860,13 +895,16 @@ def persist_basket_intended_weight_csv(
             "target_weight_sum_pct": float(df["target_weight_pct"].sum()),
             "basket_total_rows": basket_total_rows,
         }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
 
 def build_basket_drift_report(
     basket_name: str,
-    database: Optional[str] = None,
+    database: str | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     """Build intended-vs-actual drift report for a basket.
 
@@ -987,7 +1025,9 @@ def build_basket_drift_report(
         )
         df["drift_pct"] = (df["actual_weight_pct"] - df["intended_weight_pct"]).round(4)
         df["abs_drift_pct"] = df["drift_pct"].abs().round(4)
-        df["missing_in_actual"] = (df["actual_total_current_value"].astype(float) <= 0).astype(int)
+        df["missing_in_actual"] = (
+            df["actual_total_current_value"].astype(float) <= 0
+        ).astype(int)
 
         summary = {
             "basket_name": basket_label,
@@ -1021,15 +1061,12 @@ def _build_portfolio_basket_rows(df: pd.DataFrame) -> list[dict]:
     if df.empty:
         return []
 
-    grouped = (
-        df.groupby("symbol", as_index=False)
-        .agg(
-            description=("description", "first"),
-            total_quantity=("quantity", "sum"),
-            total_cost_basis=("cost_basis_total", "sum"),
-            total_current_value=("current_value", "sum"),
-            total_gain_loss=("total_gain_loss", "sum"),
-        )
+    grouped = df.groupby("symbol", as_index=False).agg(
+        description=("description", "first"),
+        total_quantity=("quantity", "sum"),
+        total_cost_basis=("cost_basis_total", "sum"),
+        total_current_value=("current_value", "sum"),
+        total_gain_loss=("total_gain_loss", "sum"),
     )
 
     total_portfolio_value = float(grouped["total_current_value"].sum())
@@ -1041,7 +1078,9 @@ def _build_portfolio_basket_rows(df: pd.DataFrame) -> list[dict]:
         grouped["portfolio_weight_pct"] = 0.0
 
     cost = grouped["total_cost_basis"].replace(0, float("nan"))
-    grouped["pct_return"] = ((grouped["total_gain_loss"] / cost) * 100).round(2).fillna(0)
+    grouped["pct_return"] = (
+        ((grouped["total_gain_loss"] / cost) * 100).round(2).fillna(0)
+    )
 
     for col in (
         "total_quantity",
@@ -1120,7 +1159,7 @@ def _rebuild_portfolio_basket_for_snapshot(cur, snapshot_value) -> tuple[int, in
 def persist_basket_positions_to_mysql(
     basket_positions_df: pd.DataFrame,
     owner: str,
-    database: Optional[str] = None,
+    database: str | None = None,
 ) -> dict:
     """Persist basket-derived rows into Portfolio_Positions."""
     if basket_positions_df.empty:
@@ -1145,7 +1184,11 @@ def persist_basket_positions_to_mysql(
 
             basket_accounts = [
                 str(a)
-                for a in basket_positions_df["account_name"].dropna().astype(str).unique().tolist()
+                for a in basket_positions_df["account_name"]
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
             ]
 
             for account_name in basket_accounts:
@@ -1156,7 +1199,9 @@ def persist_basket_positions_to_mysql(
             inserted_basket = 0
 
             snapshot_values = [
-                s for s in basket_positions_df["snapshot_date"].dropna().unique().tolist() if s is not None
+                s
+                for s in basket_positions_df["snapshot_date"].dropna().unique().tolist()
+                if s is not None
             ]
 
             if basket_accounts and snapshot_values:
@@ -1197,7 +1242,9 @@ def persist_basket_positions_to_mysql(
                 inserted += cur.rowcount
 
             for snapshot_val in snapshot_values:
-                d_count, i_count = _rebuild_portfolio_basket_for_snapshot(cur, snapshot_val)
+                d_count, i_count = _rebuild_portfolio_basket_for_snapshot(
+                    cur, snapshot_val
+                )
                 deleted_basket += d_count
                 inserted_basket += i_count
 
@@ -1207,6 +1254,8 @@ def persist_basket_positions_to_mysql(
             total_basket_rows = cur.fetchone()["cnt"]
 
         db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        # bd-2650/gykp: commit the entire basket import atomically.
+        conn.commit()
         return {
             "database": db_name,
             "deleted": deleted,
@@ -1217,14 +1266,26 @@ def persist_basket_positions_to_mysql(
             "inserted_basket": inserted_basket,
             "total_basket_rows": total_basket_rows,
         }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
 
-def get_connection(database: Optional[str] = None):
-    """Get a pymysql connection, optionally overriding the database name."""
+def get_connection(database: str | None = None, *, autocommit: bool = False):
+    """Get a pymysql connection, optionally overriding the database name.
+
+    bd-2650/gykp: default is ``autocommit=False`` so callers can wrap their
+    entire persist operation in an explicit ``conn.commit()`` /
+    ``conn.rollback()``. This eliminates the pre-fix data-loss window
+    where DELETE would commit but a mid-batch INSERT failure would leave
+    the cache empty of the snapshot's history. Callers that genuinely
+    want each statement auto-committed (e.g. one-shot ad-hoc queries)
+    can opt in with ``autocommit=True``.
+    """
     import pymysql
-    from openbb_fmp_cached.utils.database import DatabaseConfig
+    from openbb_fmp_cached.utils.database import DatabaseConfig, safe_identifier
 
     config = DatabaseConfig()
     params = config.connection_params
@@ -1232,25 +1293,29 @@ def get_connection(database: Optional[str] = None):
         params["database"] = database
 
     db_name = params.pop("database")
+    # bd-9loj/v9ri: validate --database BEFORE any DB work. Rejection
+    # happens loudly (ValueError) before pymysql.connect fires, so a
+    # malicious CLI value cannot reach the DDL string.
+    safe_db_name = safe_identifier(db_name)
     conn = pymysql.connect(**params)
     try:
         with conn.cursor() as cur:
-            cur.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
+            cur.execute(f"CREATE DATABASE IF NOT EXISTS `{safe_db_name}`")
     finally:
         conn.close()
 
-    params["database"] = db_name
+    params["database"] = safe_db_name
     return pymysql.connect(
         **params,
         cursorclass=pymysql.cursors.DictCursor,
-        autocommit=True,
+        autocommit=autocommit,
     )
 
 
 def persist_to_mysql(
     df: pd.DataFrame,
     owner: str = "",
-    database: Optional[str] = None,
+    database: str | None = None,
     *,
     merge_snapshot: bool = False,
 ) -> dict:
@@ -1289,7 +1354,12 @@ def persist_to_mysql(
                 imported_accounts = []
                 if "account_name" in df.columns:
                     imported_accounts = [
-                        str(a) for a in df["account_name"].dropna().astype(str).unique().tolist()
+                        str(a)
+                        for a in df["account_name"]
+                        .dropna()
+                        .astype(str)
+                        .unique()
+                        .tolist()
                     ]
 
                 if merge_snapshot and imported_accounts:
@@ -1314,34 +1384,47 @@ def persist_to_mysql(
             # Insert all rows
             inserted = 0
             for _, row in df.iterrows():
-                snapshot = row["snapshot_date"] if pd.notna(row["snapshot_date"]) else None
+                snapshot = (
+                    row["snapshot_date"] if pd.notna(row["snapshot_date"]) else None
+                )
                 acquired = row["acquired"].date() if pd.notna(row["acquired"]) else None
-                transfer = row["transfer_avail_date"].date() if pd.notna(row["transfer_avail_date"]) else None
-                grant = row["grant_date"].date() if pd.notna(row["grant_date"]) else None
+                transfer = (
+                    row["transfer_avail_date"].date()
+                    if pd.notna(row["transfer_avail_date"])
+                    else None
+                )
+                grant = (
+                    row["grant_date"].date() if pd.notna(row["grant_date"]) else None
+                )
 
-                cur.execute(INSERT_SQL, (
-                    snapshot,
-                    row["account_name"],
-                    row.get("basket_name", "") or "",
-                    row["symbol"],
-                    row["description"],
-                    acquired,
-                    row["term"],
-                    float(row["total_gain_loss"]),
-                    float(row["pct_gain_loss"]),
-                    float(row["current_value"]),
-                    float(row["quantity"]),
-                    float(row["avg_cost_basis"]),
-                    float(row["cost_basis_total"]),
-                    transfer,
-                    row["share_source"] or "",
-                    grant,
-                ))
+                cur.execute(
+                    INSERT_SQL,
+                    (
+                        snapshot,
+                        row["account_name"],
+                        row.get("basket_name", "") or "",
+                        row["symbol"],
+                        row["description"],
+                        acquired,
+                        row["term"],
+                        float(row["total_gain_loss"]),
+                        float(row["pct_gain_loss"]),
+                        float(row["current_value"]),
+                        float(row["quantity"]),
+                        float(row["avg_cost_basis"]),
+                        float(row["cost_basis_total"]),
+                        transfer,
+                        row["share_source"] or "",
+                        grant,
+                    ),
+                )
                 inserted += cur.rowcount
 
             if snap_val is not None:
                 # Rebuild basket for the full snapshot across all accounts currently in DB.
-                deleted_basket, inserted_basket = _rebuild_portfolio_basket_for_snapshot(cur, snap_val)
+                deleted_basket, inserted_basket = (
+                    _rebuild_portfolio_basket_for_snapshot(cur, snap_val)
+                )
             else:
                 deleted_basket = 0
                 inserted_basket = 0
@@ -1352,6 +1435,9 @@ def persist_to_mysql(
             total_basket = cur.fetchone()["cnt"]
 
         db_name = conn.db.decode() if isinstance(conn.db, bytes) else conn.db
+        # bd-2650/gykp: commit the entire snapshot import atomically.
+        # If any statement above raised, the except below rolls back.
+        conn.commit()
         return {
             "database": db_name,
             "deleted": deleted,
@@ -1362,6 +1448,9 @@ def persist_to_mysql(
             "inserted_basket": inserted_basket,
             "total_basket_rows": total_basket,
         }
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -1374,14 +1463,15 @@ def persist_to_mysql(
 # Basket portfolio parser (summary export)
 # ---------------------------------------------------------------------------
 
-def _clean_text(value: Optional[str]) -> str:
+
+def _clean_text(value: str | None) -> str:
     """Normalize whitespace for extracted HTML text."""
     if not value:
         return ""
     return " ".join(value.replace("\xa0", " ").split()).strip()
 
 
-def _extract_center_cell_text(center_row: Optional[Tag], col_id: str) -> str:
+def _extract_center_cell_text(center_row: Tag | None, col_id: str) -> str:
     """Extract cell text from a center-grid row by AG Grid col-id."""
     if center_row is None:
         return ""
@@ -1391,9 +1481,11 @@ def _extract_center_cell_text(center_row: Optional[Tag], col_id: str) -> str:
     return _clean_text(node.get_text(" ", strip=True))
 
 
-def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def extract_basket_groups(
+    html_path: str, owner: str
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Extract basket groups from Fidelity Basket Portfolios HTML."""
-    with open(html_path, "r", encoding="utf-8", errors="ignore") as f:
+    with open(html_path, encoding="utf-8", errors="ignore") as f:
         soup = BeautifulSoup(f, "html.parser")
 
     snapshot_ts = _extract_snapshot_timestamp(soup)
@@ -1414,7 +1506,7 @@ def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.
 
     current_source_account = ""
     current_source_account_number = ""
-    current_basket: Optional[dict] = None
+    current_basket: dict | None = None
     basket_rows: list[dict] = []
     basket_positions_rows: list[dict] = []
 
@@ -1424,7 +1516,9 @@ def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.
         if "posweb-row-account" in classes:
             primary = row.select_one(".posweb-cell-account_primary")
             secondary = row.select_one(".posweb-cell-account_secondary")
-            current_source_account = _clean_text(primary.get_text(" ", strip=True) if primary else "")
+            current_source_account = _clean_text(
+                primary.get_text(" ", strip=True) if primary else ""
+            )
             # Mask at extraction time — never propagate the real account number.
             current_source_account_number = mask_account_number(
                 _clean_text(secondary.get_text(" ", strip=True) if secondary else "")
@@ -1438,14 +1532,22 @@ def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.
                 current_basket["positions_parsed"] = len(current_basket["symbols"])
                 basket_rows.append(current_basket)
 
-            basket_name_node = row.select_one(".posweb-cell-group-info_primary_name span")
+            basket_name_node = row.select_one(
+                ".posweb-cell-group-info_primary_name span"
+            )
             if basket_name_node is None:
-                basket_name_node = row.select_one(".posweb-cell-group-info_primary_name")
-            basket_name = _clean_text(basket_name_node.get_text(" ", strip=True) if basket_name_node else "")
+                basket_name_node = row.select_one(
+                    ".posweb-cell-group-info_primary_name"
+                )
+            basket_name = _clean_text(
+                basket_name_node.get_text(" ", strip=True) if basket_name_node else ""
+            )
 
             positions_text_node = row.select_one(".posweb-cell-group-text_curval")
             positions_text = _clean_text(
-                positions_text_node.get_text(" ", strip=True) if positions_text_node else ""
+                positions_text_node.get_text(" ", strip=True)
+                if positions_text_node
+                else ""
             )
             match = re.search(r"(\d+)\s+positions", positions_text, flags=re.IGNORECASE)
             declared_positions = int(match.group(1)) if match else None
@@ -1454,7 +1556,9 @@ def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.
                 "owner": owner,
                 "source_account": current_source_account,
                 "source_account_number": current_source_account_number,
-                "account_name": f"{owner}:{basket_name}" if basket_name else f"{owner}:UNKNOWN",
+                "account_name": (
+                    f"{owner}:{basket_name}" if basket_name else f"{owner}:UNKNOWN"
+                ),
                 "basket_name": basket_name,
                 "positions_declared": declared_positions,
                 "positions_declared_text": positions_text,
@@ -1469,10 +1573,14 @@ def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.
             row_index = str(row.get("row-index", ""))
             center_row = center_rows_by_index.get(row_index)
 
-            symbol_node = row.select_one(".posweb-cell-symbol-name_container .posweb-cell-symbol-name")
+            symbol_node = row.select_one(
+                ".posweb-cell-symbol-name_container .posweb-cell-symbol-name"
+            )
             if symbol_node is None:
                 symbol_node = row.select_one(".posweb-cell-symbol-name_container span")
-            symbol_text = _clean_text(symbol_node.get_text(" ", strip=True) if symbol_node else "")
+            symbol_text = _clean_text(
+                symbol_node.get_text(" ", strip=True) if symbol_node else ""
+            )
             if not symbol_text:
                 continue
 
@@ -1491,16 +1599,28 @@ def extract_basket_groups(html_path: str, owner: str) -> tuple[pd.DataFrame, pd.
                 quantity_text = _extract_center_cell_text(center_row, "qty")
                 current_value_text = _extract_center_cell_text(center_row, "curVal")
                 avg_cost_text = _extract_center_cell_text(center_row, "cstBasShr")
-                cost_basis_total_text = _extract_center_cell_text(center_row, "cstBasTot")
+                cost_basis_total_text = _extract_center_cell_text(
+                    center_row, "cstBasTot"
+                )
                 total_gl_text = _extract_center_cell_text(center_row, "totGL")
                 total_gl_pct_text = _extract_center_cell_text(center_row, "totGLPct")
 
                 quantity = parse_quantity(quantity_text) if quantity_text else 0.0
-                current_value = parse_currency(current_value_text) if current_value_text else 0.0
+                current_value = (
+                    parse_currency(current_value_text) if current_value_text else 0.0
+                )
                 avg_cost_basis = parse_currency(avg_cost_text) if avg_cost_text else 0.0
-                cost_basis_total = parse_currency(cost_basis_total_text) if cost_basis_total_text else 0.0
-                total_gain_loss = parse_currency(total_gl_text) if total_gl_text else 0.0
-                pct_gain_loss = parse_percent(total_gl_pct_text) if total_gl_pct_text else 0.0
+                cost_basis_total = (
+                    parse_currency(cost_basis_total_text)
+                    if cost_basis_total_text
+                    else 0.0
+                )
+                total_gain_loss = (
+                    parse_currency(total_gl_text) if total_gl_text else 0.0
+                )
+                pct_gain_loss = (
+                    parse_percent(total_gl_pct_text) if total_gl_pct_text else 0.0
+                )
 
                 current_basket["symbols"].append(
                     {
@@ -1575,12 +1695,14 @@ def export_basket_groups_to_excel(
         summary_df.to_excel(writer, sheet_name="basket_summary", index=False)
         positions_df.to_excel(writer, sheet_name="basket_positions", index=False)
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Parse Fidelity Portfolio Positions HTML and load into MySQL"
     )
     parser.add_argument(
-        "--file", "-f",
+        "--file",
+        "-f",
         default=DEFAULT_HTML_PATH,
         help=f"Path to saved HTML file (default: {DEFAULT_HTML_PATH})",
     )
@@ -1593,7 +1715,7 @@ def main():
         "--owner",
         default=None,
         help="Owner name for this snapshot (e.g. 'Pranav'). "
-             "Prompted interactively if omitted and not --dry-run.",
+        "Prompted interactively if omitted and not --dry-run.",
     )
     parser.add_argument(
         "--dry-run",
@@ -1737,7 +1859,12 @@ def main():
         print(f"Baskets found: {len(summary_df)}")
         print(f"Output XLSX: {output_path}")
         if not summary_df.empty:
-            cols = ["account_name", "basket_name", "positions_declared", "positions_parsed"]
+            cols = [
+                "account_name",
+                "basket_name",
+                "positions_declared",
+                "positions_parsed",
+            ]
             print(summary_df[cols].to_string(index=False))
 
         if args.import_baskets:

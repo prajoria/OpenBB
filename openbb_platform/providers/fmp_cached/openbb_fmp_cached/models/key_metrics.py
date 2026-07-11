@@ -10,8 +10,13 @@ from openbb_fmp.models.key_metrics import (
     FMPKeyMetricsFetcher,
     FMPKeyMetricsQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_key_metrics_table
-from openbb_fmp_cached.utils.database import execute_query, execute_many, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +44,16 @@ class FMPCachedKeyMetricsFetcher(FMPKeyMetricsFetcher):
             init_database()
             create_key_metrics_table()
         except Exception as exc:
-            logger.warning("Key metrics cache init failed, using direct FMP call: %s", exc)
-            return await FMPKeyMetricsFetcher.aextract_data(query, resolved_credentials, **kwargs)
+            logger.warning(
+                "Key metrics cache init failed, using direct FMP call: %s", exc
+            )
+            return await FMPKeyMetricsFetcher.aextract_data(
+                query, resolved_credentials, **kwargs
+            )
 
-        symbols = [symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()]
+        symbols = [
+            symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()
+        ]
         results: list[dict] = []
         symbols_to_fetch: list[str] = []
 
@@ -54,21 +65,31 @@ class FMPCachedKeyMetricsFetcher(FMPKeyMetricsFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPKeyMetricsQueryParams(
-                symbol=",".join(symbols_to_fetch),
-                ttm=query.ttm,
-                period=query.period,
-                limit=query.limit,
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
             )
-            fresh_data = await FMPKeyMetricsFetcher.aextract_data(fetch_query, resolved_credentials, **kwargs)
+            fresh_data = await FMPKeyMetricsFetcher.aextract_data(
+                fetch_query, resolved_credentials, **kwargs
+            )
             if fresh_data:
-                _store_key_metrics(fresh_data)
+                # bd-e3v8: cache write failure MUST NOT discard fresh data.
+                try:
+                    _store_key_metrics(fresh_data)
+                except Exception as exc:
+                    logger.warning(
+                        "Key metrics cache write failed (data returned anyway): %s",
+                        exc,
+                    )
                 results.extend(fresh_data)
 
         return sorted(
             results,
             key=lambda item: (
-                symbols.index(item.get("symbol", "")) if item.get("symbol") in symbols else len(symbols),
+                (
+                    symbols.index(item.get("symbol", ""))
+                    if item.get("symbol") in symbols
+                    else len(symbols)
+                ),
                 item.get("date", ""),
             ),
             reverse=True,
@@ -110,7 +131,9 @@ def _resolve_credentials(credentials: dict[str, str] | None) -> dict[str, str] |
     return credentials
 
 
-def _get_cached_key_metrics(symbol: str, query_params: FMPKeyMetricsQueryParams) -> list[dict[str, Any]]:
+def _get_cached_key_metrics(
+    symbol: str, query_params: FMPKeyMetricsQueryParams
+) -> list[dict[str, Any]]:
     """Read recent key metrics data from cache."""
     freshness_cutoff = datetime.now() - timedelta(days=KEY_METRICS_TTL_DAYS)
     query = """
@@ -134,9 +157,17 @@ def _get_cached_key_metrics(symbol: str, query_params: FMPKeyMetricsQueryParams)
         loaded.append(json.loads(payload) if isinstance(payload, str) else payload)
 
     if query_params.ttm == "only":
-        loaded = [item for item in loaded if str(item.get("fiscal_period", "")).upper() == "TTM"]
+        loaded = [
+            item
+            for item in loaded
+            if str(item.get("fiscal_period", "")).upper() == "TTM"
+        ]
     elif query_params.ttm == "exclude":
-        loaded = [item for item in loaded if str(item.get("fiscal_period", "")).upper() != "TTM"]
+        loaded = [
+            item
+            for item in loaded
+            if str(item.get("fiscal_period", "")).upper() != "TTM"
+        ]
 
     if query_params.limit and query_params.ttm != "only":
         loaded = loaded[: query_params.limit]
@@ -145,36 +176,38 @@ def _get_cached_key_metrics(symbol: str, query_params: FMPKeyMetricsQueryParams)
 
 
 def _store_key_metrics(metrics: list[dict[str, Any]]) -> None:
-    """Persist key metrics records in cache."""
-    cleanup_query = "DELETE FROM key_metrics WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO key_metrics (
-        symbol,
-        date,
-        period,
-        currency,
-        market_cap,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    """Persist key metrics records atomically per symbol (bd-n3sf)."""
+    if not metrics:
+        return
 
-    symbols = {(item.get("symbol") or "").strip() for item in metrics if item.get("symbol")}
-    for symbol in symbols:
-        execute_query(cleanup_query, (symbol,))
-
-    params_list = [
-        (
-            item.get("symbol"),
-            item.get("date"),
-            item.get("fiscal_period") or item.get("period"),
-            item.get("reportedCurrency"),
-            item.get("marketCap"),
-            json.dumps(item),
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in metrics:
+        sym = (item.get("symbol") or "").strip()
+        if not sym:
+            continue
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date"),
+                "period": item.get("fiscal_period") or item.get("period"),
+                "currency": item.get("reportedCurrency"),
+                "market_cap": item.get("marketCap"),
+                "data_json": json.dumps(item),
+            }
         )
-        for item in metrics
-    ]
 
-    if params_list:
-        execute_many(insert_query, params_list)
+    for sym, rows in by_symbol.items():
+        replace_rows(
+            "key_metrics",
+            "symbol",
+            sym,
+            rows,
+            columns=[
+                "symbol",
+                "date",
+                "period",
+                "currency",
+                "market_cap",
+                "data_json",
+            ],
+        )

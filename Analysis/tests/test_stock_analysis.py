@@ -101,19 +101,22 @@ def _make_ohlcv(n: int = 300) -> pd.DataFrame:
     price = 100.0 + np.cumsum(rng.normal(0, 1, n))
     price = np.maximum(price, 10.0)  # no negatives
 
-    highs  = price * (1 + rng.uniform(0.001, 0.015, n))
-    lows   = price * (1 - rng.uniform(0.001, 0.015, n))
-    opens  = price * (1 + rng.normal(0, 0.005, n))
+    highs = price * (1 + rng.uniform(0.001, 0.015, n))
+    lows = price * (1 - rng.uniform(0.001, 0.015, n))
+    opens = price * (1 + rng.normal(0, 0.005, n))
     volume = rng.integers(1_000_000, 10_000_000, n).astype(float)
 
     idx = pd.date_range("2023-01-01", periods=n, freq="B")
-    return pd.DataFrame({
-        "open":   opens,
-        "high":   highs,
-        "low":    lows,
-        "close":  price,
-        "volume": volume,
-    }, index=idx)
+    return pd.DataFrame(
+        {
+            "open": opens,
+            "high": highs,
+            "low": lows,
+            "close": price,
+            "volume": volume,
+        },
+        index=idx,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -136,9 +139,29 @@ class TestHelpers:
         # end_date must be strictly before today (never includes current session)
         assert cfg.end_date < datetime.date.today().isoformat()
 
-    def test_analysis_config_wrong_provider_warns(self):
-        with pytest.warns(UserWarning, match="not the supported value"):
-            AnalysisConfig(symbol="TSLA", provider="fmp")  # provider-purity-exempt: intentionally tests the wrong-provider warning branch
+    def test_analysis_config_wrong_provider_raises(self):
+        """Non-``fmp_cached`` provider must raise, not just warn (bd-omi).
+
+        CLAUDE.md's Analysis Module 'Provider rule' documents
+        ``PRIMARY_PROVIDER = 'fmp_cached'`` as *enforced*. Warnings get
+        silently swallowed in notebooks, batch jobs, and CI test runs,
+        so a soft ``UserWarning`` cannot actually prevent a caller from
+        burning uncached FMP quota or getting a different-schema
+        response. This test locks in that the constructor now raises
+        ``ValueError`` on any non-``fmp_cached`` provider.
+        """
+        # provider-purity-exempt: intentionally tests the wrong-provider raise branch
+        with pytest.raises(ValueError, match="fmp_cached"):
+            AnalysisConfig(symbol="TSLA", provider="fmp")  # provider-purity-exempt
+        # Verify the error message points at CLAUDE.md so the operator
+        # knows why their override was rejected.
+        with pytest.raises(ValueError, match="CLAUDE.md|Provider rule"):
+            AnalysisConfig(symbol="TSLA", provider="yfinance")
+
+    def test_analysis_config_default_provider_still_works(self):
+        """Regression lock: the default (fmp_cached) constructor path is unchanged."""
+        cfg = AnalysisConfig(symbol="TSLA")
+        assert cfg.provider == "fmp_cached"
 
     # --- _last_trading_day ---------------------------------------------------
 
@@ -201,12 +224,14 @@ class TestHelpers:
         class FakeResult:
             def to_df(self):
                 return None
+
         assert isinstance(_to_df(FakeResult()), pd.DataFrame)
 
     def test_to_df_raises_safe(self):
         class BadResult:
             def to_df(self):
                 raise ValueError("network error")
+
         result = _to_df(BadResult())
         assert isinstance(result, pd.DataFrame)
         assert result.empty
@@ -228,8 +253,8 @@ class TestHelpers:
 
     def test_sector_etf_known(self):
         assert _sector_etf("Technology") == "XLK"
-        assert _sector_etf("Energy")     == "XLE"
-        assert _sector_etf("Unknown")    == "SPY"
+        assert _sector_etf("Energy") == "XLE"
+        assert _sector_etf("Unknown") == "SPY"
 
 
 # ---------------------------------------------------------------------------
@@ -242,23 +267,33 @@ class TestDCF:
 
     def test_dcf_single_basic(self):
         """DCF of a stable company with 5% growth, 9% WACC should be reasonable."""
-        fv = _dcf_single(fcf0=1_000_000, g_short=0.05, g_term=0.025, wacc=0.09, shares=1_000_000)
+        fv = _dcf_single(
+            fcf0=1_000_000, g_short=0.05, g_term=0.025, wacc=0.09, shares=1_000_000
+        )
         # Fair value per share should be positive
         assert fv > 0
 
     def test_dcf_single_wacc_le_gterm_clamped(self):
         """When WACC <= g_term the function should clamp g_term to WACC-0.01."""
-        fv = _dcf_single(fcf0=1_000_000, g_short=0.05, g_term=0.10, wacc=0.09, shares=1_000_000)
+        fv = _dcf_single(
+            fcf0=1_000_000, g_short=0.05, g_term=0.10, wacc=0.09, shares=1_000_000
+        )
         assert not math.isnan(fv)
         assert fv > 0
 
     def test_dcf_single_zero_shares(self):
-        fv = _dcf_single(fcf0=1_000_000, g_short=0.05, g_term=0.025, wacc=0.09, shares=0)
+        fv = _dcf_single(
+            fcf0=1_000_000, g_short=0.05, g_term=0.025, wacc=0.09, shares=0
+        )
         assert math.isnan(fv)
 
     def test_dcf_sensitivity_shape(self):
         sens = _dcf_sensitivity(
-            fcf0=1_000_000, g_short=0.05, wacc_base=0.09, g_term_base=0.025, shares=1_000_000
+            fcf0=1_000_000,
+            g_short=0.05,
+            wacc_base=0.09,
+            g_term_base=0.025,
+            shares=1_000_000,
         )
         assert sens.shape == (3, 3)
         assert not sens.isnull().values.all()
@@ -266,7 +301,11 @@ class TestDCF:
     def test_dcf_sensitivity_monotonic_wacc(self):
         """Higher WACC should produce lower fair value."""
         sens = _dcf_sensitivity(
-            fcf0=1_000_000, g_short=0.05, wacc_base=0.09, g_term_base=0.025, shares=1_000_000
+            fcf0=1_000_000,
+            g_short=0.05,
+            wacc_base=0.09,
+            g_term_base=0.025,
+            shares=1_000_000,
         )
         # Rows are sorted by WACC (ascending), so first row > last row for each col
         for col in sens.columns:
@@ -329,7 +368,7 @@ class TestComputeTechnicals:
         assert isinstance(computed, pd.DataFrame)
 
     def test_sma_columns_present(self, computed):
-        assert "sma_50"  in computed.columns
+        assert "sma_50" in computed.columns
         assert "sma_200" in computed.columns
 
     def test_rsi_range(self, computed):
@@ -345,9 +384,9 @@ class TestComputeTechnicals:
         assert (atr > 0).all()
 
     def test_macd_columns(self, computed):
-        assert "macd"        in computed.columns
+        assert "macd" in computed.columns
         assert "macd_signal" in computed.columns
-        assert "macd_hist"   in computed.columns
+        assert "macd_hist" in computed.columns
 
     def test_stochastic_range(self, computed):
         stoch = computed["stoch_k"].dropna()
@@ -377,7 +416,7 @@ class TestComputeTechnicals:
             assert col in computed.columns
 
     def test_52wk_high_present(self, computed):
-        assert "high_52w"      in computed.columns
+        assert "high_52w" in computed.columns
         assert "dist_52w_high" in computed.columns
 
 
@@ -408,48 +447,48 @@ class TestComputeAdxRsiAtr:
 class TestScoreFundamentals:
     def test_high_quality_scores_above_4(self):
         kpis = {
-            "revenue_cagr_5y":     0.15,
-            "eps_cagr_5y":         0.18,
-            "fcf_cagr_5y":         0.14,
-            "gross_margin":        0.65,
-            "operating_margin":    0.35,
-            "net_margin":          0.28,
-            "roic":                0.22,
-            "debt_equity":         0.5,
-            "current_ratio":       2.5,
-            "interest_coverage":   15.0,
-            "net_debt_ebitda":     0.8,
-            "cfo_net_income":      1.05,
-            "fcf_margin":          0.22,
-            "capex_revenue":       0.04,
-            "dilution_5y":         -0.08,
-            "operating_leverage":  1.2,
-            "sga_trend":           -0.005,
-            "fcf_payout_ratio":    0.30,
+            "revenue_cagr_5y": 0.15,
+            "eps_cagr_5y": 0.18,
+            "fcf_cagr_5y": 0.14,
+            "gross_margin": 0.65,
+            "operating_margin": 0.35,
+            "net_margin": 0.28,
+            "roic": 0.22,
+            "debt_equity": 0.5,
+            "current_ratio": 2.5,
+            "interest_coverage": 15.0,
+            "net_debt_ebitda": 0.8,
+            "cfo_net_income": 1.05,
+            "fcf_margin": 0.22,
+            "capex_revenue": 0.04,
+            "dilution_5y": -0.08,
+            "operating_leverage": 1.2,
+            "sga_trend": -0.005,
+            "fcf_payout_ratio": 0.30,
         }
         score = _score_fundamentals(kpis, accruals_ratio=0.02, gross_profitability=0.45)
         assert score >= 4.0
 
     def test_distressed_scores_below_2(self):
         kpis = {
-            "revenue_cagr_5y":     -0.10,
-            "eps_cagr_5y":         -0.20,
-            "fcf_cagr_5y":         -0.15,
-            "gross_margin":        0.05,
-            "operating_margin":   -0.10,
-            "net_margin":         -0.15,
-            "roic":               -0.05,
-            "debt_equity":         4.0,
-            "current_ratio":       0.5,
-            "interest_coverage":   0.8,
-            "net_debt_ebitda":     8.0,
-            "cfo_net_income":      0.2,
-            "fcf_margin":         -0.05,
-            "capex_revenue":       0.25,
-            "dilution_5y":         0.30,
-            "operating_leverage":  4.0,
-            "sga_trend":           0.05,
-            "fcf_payout_ratio":    1.5,
+            "revenue_cagr_5y": -0.10,
+            "eps_cagr_5y": -0.20,
+            "fcf_cagr_5y": -0.15,
+            "gross_margin": 0.05,
+            "operating_margin": -0.10,
+            "net_margin": -0.15,
+            "roic": -0.05,
+            "debt_equity": 4.0,
+            "current_ratio": 0.5,
+            "interest_coverage": 0.8,
+            "net_debt_ebitda": 8.0,
+            "cfo_net_income": 0.2,
+            "fcf_margin": -0.05,
+            "capex_revenue": 0.25,
+            "dilution_5y": 0.30,
+            "operating_leverage": 4.0,
+            "sga_trend": 0.05,
+            "fcf_payout_ratio": 1.5,
         }
         score = _score_fundamentals(kpis, accruals_ratio=0.25, gross_profitability=0.05)
         assert score < 2.5
@@ -457,24 +496,24 @@ class TestScoreFundamentals:
     def test_hard_floor_caps_at_3_8(self):
         """A single very low category should cap the score at 3.8."""
         kpis = {
-            "revenue_cagr_5y":  0.15,
-            "eps_cagr_5y":      0.18,
-            "fcf_cagr_5y":      0.14,
-            "gross_margin":     0.65,
+            "revenue_cagr_5y": 0.15,
+            "eps_cagr_5y": 0.18,
+            "fcf_cagr_5y": 0.14,
+            "gross_margin": 0.65,
             "operating_margin": 0.35,
-            "net_margin":       0.28,
-            "roic":             0.22,
-            "debt_equity":      0.5,
-            "current_ratio":    2.5,
+            "net_margin": 0.28,
+            "roic": 0.22,
+            "debt_equity": 0.5,
+            "current_ratio": 2.5,
             "interest_coverage": 15.0,
-            "net_debt_ebitda":  0.8,
-            "cfo_net_income":   1.05,
-            "fcf_margin":       0.22,
-            "capex_revenue":    0.04,
+            "net_debt_ebitda": 0.8,
+            "cfo_net_income": 1.05,
+            "fcf_margin": 0.22,
+            "capex_revenue": 0.04,
             # Severely distressed operating leverage → structural score ≤ 1.5
             "operating_leverage": 10.0,
-            "dilution_5y":     -0.08,
-            "sga_trend":       -0.005,
+            "dilution_5y": -0.08,
+            "sga_trend": -0.005,
             "fcf_payout_ratio": 0.30,
         }
         score = _score_fundamentals(kpis, accruals_ratio=0.02, gross_profitability=0.45)
@@ -522,17 +561,25 @@ def _make_mock_p2(score: float = 4.0, accruals: float = 0.05) -> Phase2Result:
     )
 
 
-def _make_mock_p3(bullish_count: int = 7, earnings_safe: bool = True, weekly_bull: bool = True) -> Phase3Result:
+def _make_mock_p3(
+    bullish_count: int = 7, earnings_safe: bool = True, weekly_bull: bool = True
+) -> Phase3Result:
     # Minimal price DataFrame with ATR
     price_df = pd.DataFrame(
         {"close": [145.0, 146.0, 147.0], "atr": [2.5, 2.5, 2.5]},
         index=pd.date_range("2026-01-01", periods=3, freq="B"),
     )
     signals = {
-        "sma_golden_cross": True, "adx_trending": True, "rsi_pullback": True,
-        "macd_bullish": True, "obv_rising": True, "volume_ratio_normal": True,
-        "above_vwap": True, "above_cloud": bullish_count >= 8,
-        "momentum_positive": bullish_count >= 9, "cmf_positive": True,
+        "sma_golden_cross": True,
+        "adx_trending": True,
+        "rsi_pullback": True,
+        "macd_bullish": True,
+        "obv_rising": True,
+        "volume_ratio_normal": True,
+        "above_vwap": True,
+        "above_cloud": bullish_count >= 8,
+        "momentum_positive": bullish_count >= 9,
+        "cmf_positive": True,
         "weekly_trend_bullish": weekly_bull,
     }
     # Adjust count to match requested
@@ -699,8 +746,8 @@ class TestPhase7Decision:
             _make_mock_p5(),
             _make_mock_p6(),
         )
-        assert p7.atr_stop < 147.0          # stop is below current price
-        assert p7.target_2r > 147.0         # 2R target is above current price
+        assert p7.atr_stop < 147.0  # stop is below current price
+        assert p7.target_2r > 147.0  # 2R target is above current price
         assert p7.risk_per_share > 0
         assert "tranche_1" in p7.staged_entry
         # time_stop_date must be in the future (63 calendar days from the last
@@ -717,8 +764,14 @@ class TestPhase7Decision:
             _make_mock_p5(),
             _make_mock_p6(),
         )
-        required = ["investment_thesis", "bullish_drivers", "invalidation_events",
-                    "fair_value_range", "peer_relative", "trade_plan"]
+        required = [
+            "investment_thesis",
+            "bullish_drivers",
+            "invalidation_events",
+            "fair_value_range",
+            "peer_relative",
+            "trade_plan",
+        ]
         for key in required:
             assert key in p7.handoff, f"Missing handoff key: {key}"
 
@@ -733,8 +786,14 @@ class TestPhase7Decision:
             _make_mock_p5(),
             _make_mock_p6(),
         )
-        weights = {"business_quality": 0.08, "fundamentals": 0.25, "technicals": 0.15,
-                   "valuation": 0.20, "risk_fit": 0.12, "peer_relative": 0.20}
+        weights = {
+            "business_quality": 0.08,
+            "fundamentals": 0.25,
+            "technicals": 0.15,
+            "valuation": 0.20,
+            "risk_fit": 0.12,
+            "peer_relative": 0.20,
+        }
         expected_sum = sum(p7.score_breakdown[k] * w for k, w in weights.items())
         # May differ slightly from composite if overrides applied; just check sign
         assert abs(p7.composite_score - expected_sum) <= 0.5
@@ -1129,8 +1188,14 @@ class TestFullPipelineMSFT:
 
     def test_p7_handoff_complete(self, results):
         handoff = results["p7"].handoff
-        for key in ["investment_thesis", "bullish_drivers", "invalidation_events",
-                    "fair_value_range", "peer_relative", "trade_plan"]:
+        for key in [
+            "investment_thesis",
+            "bullish_drivers",
+            "invalidation_events",
+            "fair_value_range",
+            "peer_relative",
+            "trade_plan",
+        ]:
             assert key in handoff
 
 
@@ -1145,4 +1210,9 @@ class TestFullPipelineAAPL:
             assert key in results
 
     def test_p7_action_label_valid(self, results):
-        assert results["p7"].action_label in ("Strong Buy", "Buy", "Hold/Watch", "Avoid")
+        assert results["p7"].action_label in (
+            "Strong Buy",
+            "Buy",
+            "Hold/Watch",
+            "Avoid",
+        )

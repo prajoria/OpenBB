@@ -47,15 +47,26 @@ def _mk_result(engine_name: str, equity=(100000.0, 101000.0), *, with_positions=
     )
 
     metrics = PerformanceMetrics(
-        cagr=0.1, sharpe=1.0, sortino=1.0, calmar=1.0, max_drawdown=-0.05,
-        volatility=0.1, var_95=-0.02, cvar_95=-0.03, win_rate=0.6,
-        profit_factor=1.5, turnover=2.0,
+        cagr=0.1,
+        sharpe=1.0,
+        sortino=1.0,
+        calmar=1.0,
+        max_drawdown=-0.05,
+        volatility=0.1,
+        var_95=-0.02,
+        cvar_95=-0.03,
+        win_rate=0.6,
+        profit_factor=1.5,
+        turnover=2.0,
     )
     positions = (
         [
             PositionSnapshot(
-                date=datetime(2021, 1, 4), symbol="AAA",
-                quantity=Decimal("10"), market_value=Decimal("1000"), weight=1.0,
+                date=datetime(2021, 1, 4),
+                symbol="AAA",
+                quantity=Decimal("10"),
+                market_value=Decimal("1000"),
+                weight=1.0,
             )
         ]
         if with_positions
@@ -63,8 +74,10 @@ def _mk_result(engine_name: str, equity=(100000.0, 101000.0), *, with_positions=
     )
     equity_curve = [
         EquityPoint(
-            date=datetime(2021, 1, 4 + i), equity=Decimal(str(v)),
-            cash=Decimal("0"), exposure=1.0,
+            date=datetime(2021, 1, 4 + i),
+            equity=Decimal(str(v)),
+            cash=Decimal("0"),
+            exposure=1.0,
         )
         for i, v in enumerate(equity)
     ]
@@ -176,7 +189,9 @@ def test_run_auto_picks_event_for_path_dependent_strategy(monkeypatch):
     from openbb_backtest.routers import run_router as rr
 
     requested = _patch_run_collaborators(monkeypatch)
-    asyncio.run(rr.run(_config(), engine="auto", strategy_params={"path_dependent": True}))
+    asyncio.run(
+        rr.run(_config(), engine="auto", strategy_params={"path_dependent": True})
+    )
     assert requested == ["event"]
 
 
@@ -187,6 +202,100 @@ def test_run_unknown_engine_raises_engine_selection_error(monkeypatch):
     _patch_run_collaborators(monkeypatch)
     with pytest.raises(EngineSelectionError):
         asyncio.run(rr.run(_config(), engine="turbo"))
+
+
+# ---- config.engine precedence (bd-q7u5) ---------------------------------
+#
+# BacktestConfig declares an ``engine: EngineName`` field (models.py:108) but
+# pre-fix ``run()`` silently ignored it — it always used the ``engine=``
+# parameter's value (default ``"auto"``). The precedence rule is:
+#
+#   * If ``engine=`` is anything other than the ``"auto"`` sentinel, the
+#     explicit call-site override wins over ``config.engine``.
+#   * If ``engine="auto"`` (the default), fall back to ``config.engine`` so
+#     the config field is finally honored.
+#
+# These four tests lock in each corner of the truth table.
+
+
+def test_run_honors_config_engine_when_param_is_auto(monkeypatch):
+    """config.engine='event' + engine='auto' (default) → event engine (bd-q7u5)."""
+    from openbb_backtest.routers import run_router as rr
+
+    requested = _patch_run_collaborators(monkeypatch)
+    # Explicitly do NOT pass engine=, so the router sees the default "auto"
+    # and MUST fall back to the config's engine field.
+    asyncio.run(rr.run(_config(engine="event")))
+    assert requested == ["event"], (
+        "config.engine='event' was silently dropped — the router failed to "
+        "fall back to config when engine=default 'auto' (bd-q7u5)."
+    )
+
+
+def test_run_explicit_param_overrides_config_engine(monkeypatch):
+    """engine='vector' (explicit) beats config.engine='event' (bd-q7u5).
+
+    Locks in the precedence rule: explicit call-site overrides win over stored
+    config defaults. This matches the ergonomics of every other override in the
+    router surface.
+    """
+    from openbb_backtest.routers import run_router as rr
+
+    requested = _patch_run_collaborators(monkeypatch)
+    asyncio.run(rr.run(_config(engine="event"), engine="vector"))
+    assert requested == ["vectorized"]
+
+
+def test_run_honors_config_engine_vectorized_when_param_is_auto(monkeypatch):
+    """Symmetric to the event-fallback test: config.engine='vectorized' must
+    also be honored when engine= is default 'auto' (bd-q7u5).
+
+    Pre-fix a caller using ``BacktestConfig(engine='vectorized')`` + bare
+    ``obb.backtest.run(config=config)`` on a path-dependent strategy would
+    have been silently routed to the event engine by the ``auto`` policy
+    (because ``config.engine`` was dead). Post-fix the config's explicit
+    ``'vectorized'`` beats the path-dependence heuristic — the caller's
+    explicit choice wins.
+
+    This test closes the P2 asymmetry review finding on PR #339: the other
+    four bd-q7u5 tests all exercise ``config.engine='event'`` fallback but
+    never ``'vectorized'``.
+    """
+    from openbb_backtest.routers import run_router as rr
+
+    requested = _patch_run_collaborators(monkeypatch)
+    asyncio.run(
+        rr.run(
+            _config(engine="vectorized"),
+            strategy_params={"path_dependent": True},
+        )
+    )
+    # config.engine='vectorized' takes precedence over the path-dependent
+    # auto-routing that would otherwise pick 'event'.
+    assert requested == ["vectorized"], (
+        "config.engine='vectorized' was silently dropped — the router failed to "
+        "fall back to config when engine=default 'auto' (bd-q7u5)."
+    )
+
+
+def test_run_both_auto_still_resolves_via_path_dependence(monkeypatch):
+    """Regression: engine='auto' + config.engine='auto' preserves auto-routing.
+
+    When neither side pins an engine, the ``resolve_engine("auto", ...)``
+    policy still runs — path-dependent strategies go to ``event``, everything
+    else to ``vectorized``.
+    """
+    from openbb_backtest.routers import run_router as rr
+
+    requested = _patch_run_collaborators(monkeypatch)
+    asyncio.run(
+        rr.run(
+            _config(engine="auto"),
+            engine="auto",
+            strategy_params={"path_dependent": True},
+        )
+    )
+    assert requested == ["event"]
 
 
 def test_engine_for_lazily_imports_and_returns_registered_engine():
@@ -213,8 +322,13 @@ def _ohlcv_frame() -> pd.DataFrame:
         for sess in _SESSIONS:
             rows.append(
                 {
-                    "symbol": sym, "session": sess, "open": price, "high": price,
-                    "low": price, "close": price, "volume": 1_000_000.0,
+                    "symbol": sym,
+                    "session": sess,
+                    "open": price,
+                    "high": price,
+                    "low": price,
+                    "close": price,
+                    "volume": 1_000_000.0,
                 }
             )
             price *= step
@@ -274,7 +388,9 @@ def test_sweep_returns_obbject_sweep_result(monkeypatch, _registered_tilt):
     from openbb_backtest.routers import run_router as rr
     from openbb_core.app.model.obbject import OBBject
 
-    monkeypatch.setattr(rr, "_build_feed", lambda config, provider: _MatrixFeed(_ohlcv_frame()))
+    monkeypatch.setattr(
+        rr, "_build_feed", lambda config, provider: _MatrixFeed(_ohlcv_frame())
+    )
     out = asyncio.run(
         rr.sweep(
             _config(strategy=_registered_tilt),
@@ -291,7 +407,9 @@ def test_sweep_returns_obbject_sweep_result(monkeypatch, _registered_tilt):
 def test_sweep_selects_best_combo(monkeypatch, _registered_tilt):
     from openbb_backtest.routers import run_router as rr
 
-    monkeypatch.setattr(rr, "_build_feed", lambda config, provider: _MatrixFeed(_ohlcv_frame()))
+    monkeypatch.setattr(
+        rr, "_build_feed", lambda config, provider: _MatrixFeed(_ohlcv_frame())
+    )
     out = asyncio.run(
         rr.sweep(
             _config(strategy=_registered_tilt),
@@ -357,9 +475,7 @@ def test_run_sweep_reconcile_routes_registered():
     from openbb_backtest.routers import run_router as rr
 
     paths = {
-        route.path
-        for route in rr.router.api_router.routes
-        if hasattr(route, "path")
+        route.path for route in rr.router.api_router.routes if hasattr(route, "path")
     }
     assert {"/run", "/sweep", "/reconcile"} <= paths
 
@@ -371,9 +487,17 @@ def test_sweep_result_data_model_roundtrips():
     from openbb_backtest.models import PerformanceMetrics, SweepPoint, SweepResult
 
     m = PerformanceMetrics(
-        cagr=0.1, sharpe=1.0, sortino=1.0, calmar=1.0, max_drawdown=-0.05,
-        volatility=0.1, var_95=-0.02, cvar_95=-0.03, win_rate=0.6,
-        profit_factor=1.5, turnover=2.0,
+        cagr=0.1,
+        sharpe=1.0,
+        sortino=1.0,
+        calmar=1.0,
+        max_drawdown=-0.05,
+        volatility=0.1,
+        var_95=-0.02,
+        cvar_95=-0.03,
+        win_rate=0.6,
+        profit_factor=1.5,
+        turnover=2.0,
     )
     sr = SweepResult(
         results=[SweepPoint(params={"tilt": 1.0}, metrics=m)],
@@ -391,8 +515,11 @@ def test_reconciliation_report_data_model_fields():
     from openbb_backtest.models import ReconciliationReport
 
     report = ReconciliationReport(
-        passed=True, max_divergence=1e-9, tolerance=1e-6,
-        reference_engine="event", candidate_engine="vectorized",
+        passed=True,
+        max_divergence=1e-9,
+        tolerance=1e-6,
+        reference_engine="event",
+        candidate_engine="vectorized",
     )
     assert report.passed is True
     assert report.reference_engine == "event"

@@ -25,6 +25,7 @@ from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipF
 def event_loop():
     """Override session-scoped event loop fixture to avoid pytest-asyncio introspection bug."""
     import asyncio
+
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
@@ -251,18 +252,28 @@ class TestTryFMP:
         """FMP returns 402 -- _try_fmp catches and returns empty."""
         # The FMP API call will naturally fail in test environment (no real API key)
         # This verifies the function handles exceptions gracefully
-        from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
         query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
-        result = await _try_fmp(query, ["MSFT"], {"fmp_api_key": "invalid_key_for_test"})
+        result = await _try_fmp(
+            query, ["MSFT"], {"fmp_api_key": "invalid_key_for_test"}
+        )
         # With an invalid key, FMP will fail and _try_fmp returns []
         assert isinstance(result, list)
 
     @pytest.mark.asyncio
     async def test_fmp_empty_data(self):
         """When FMP returns no data, result should be empty."""
-        from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
         query = FMPInstitutionalOwnershipQueryParams(symbol="ZZZZNONEXISTENT")
-        result = await _try_fmp(query, ["ZZZZNONEXISTENT"], {"fmp_api_key": "invalid_key_for_test"})
+        result = await _try_fmp(
+            query, ["ZZZZNONEXISTENT"], {"fmp_api_key": "invalid_key_for_test"}
+        )
         assert isinstance(result, list)
 
 
@@ -325,8 +336,12 @@ class TestTrySec13f:
             assert result[0]["data_source"] == "sec_13f"
             # Aggregated from the per-manager holding rows.
             assert result[0]["investors_holding"] == 3
-            assert result[0]["number_of_13f_shares"] == sum(h["shares"] for h in holders)
-            assert result[0]["total_invested"] == float(sum(h["value_usd"] for h in holders))
+            assert result[0]["number_of_13f_shares"] == sum(
+                h["shares"] for h in holders
+            )
+            assert result[0]["total_invested"] == float(
+                sum(h["value_usd"] for h in holders)
+            )
             # Period 2023-Q2 maps to its quarter-end date.
             assert result[0]["date"] == "2023-06-30"
 
@@ -406,8 +421,28 @@ class TestSec13fEndToEnd:
             )
             tfi.upsert_holdings(
                 [
-                    (cusip, "0000001", "Fund One", period, 1000, 5_000_000, None, tfi.SOURCE_BULK, now),
-                    (cusip, "0000002", "Fund Two", period, 2000, 9_000_000, None, tfi.SOURCE_BULK, now),
+                    (
+                        cusip,
+                        "0000001",
+                        "Fund One",
+                        period,
+                        1000,
+                        5_000_000,
+                        None,
+                        tfi.SOURCE_BULK,
+                        now,
+                    ),
+                    (
+                        cusip,
+                        "0000002",
+                        "Fund Two",
+                        period,
+                        2000,
+                        9_000_000,
+                        None,
+                        tfi.SOURCE_BULK,
+                        now,
+                    ),
                 ]
             )
 
@@ -453,7 +488,10 @@ class TestFallbackChain:
         ) as mock_sec, patch(
             "openbb_fmp_cached.models.institutional_ownership.init_database",
         ):
-            from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+            from openbb_fmp.models.institutional_ownership import (
+                FMPInstitutionalOwnershipQueryParams,
+            )
+
             query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
             result = await FMPCachedInstitutionalOwnershipFetcher.aextract_data(
                 query, {"fmp_api_key": "test"}
@@ -485,7 +523,10 @@ class TestFallbackChain:
         ) as mock_sec, patch(
             "openbb_fmp_cached.models.institutional_ownership.init_database",
         ):
-            from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+            from openbb_fmp.models.institutional_ownership import (
+                FMPInstitutionalOwnershipQueryParams,
+            )
+
             query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
             result = await FMPCachedInstitutionalOwnershipFetcher.aextract_data(
                 query, {"fmp_api_key": "test"}
@@ -499,21 +540,44 @@ class TestFallbackChain:
     async def test_fmp_fails_yfinance_succeeds(self):
         """FMP failure triggers yfinance, which succeeds -- SEC not called."""
         yf_record = {
-            "symbol": "MSFT", "date": "2026-03-23",
-            "ownership_percent": 0.72, "investors_holding": 4500,
+            "symbol": "MSFT",
+            "date": "2026-03-23",
+            "ownership_percent": 0.72,
+            "investors_holding": 4500,
             "data_source": "yfinance",
-            **{k: 0 for k in [
-                "last_investors_holding", "investors_holding_change",
-                "total_invested", "last_total_invested", "total_invested_change",
-                "last_ownership_percent", "ownership_percent_change",
-                "new_positions", "last_new_positions", "new_positions_change",
-                "increased_positions", "last_increased_positions", "increased_positions_change",
-                "closed_positions", "last_closed_positions", "closed_positions_change",
-                "reduced_positions", "last_reduced_positions", "reduced_positions_change",
-                "total_calls", "last_total_calls", "total_calls_change",
-                "total_puts", "last_total_puts", "total_puts_change",
-                "put_call_ratio", "last_put_call_ratio", "put_call_ratio_change",
-            ]},
+            **{
+                k: 0
+                for k in [
+                    "last_investors_holding",
+                    "investors_holding_change",
+                    "total_invested",
+                    "last_total_invested",
+                    "total_invested_change",
+                    "last_ownership_percent",
+                    "ownership_percent_change",
+                    "new_positions",
+                    "last_new_positions",
+                    "new_positions_change",
+                    "increased_positions",
+                    "last_increased_positions",
+                    "increased_positions_change",
+                    "closed_positions",
+                    "last_closed_positions",
+                    "closed_positions_change",
+                    "reduced_positions",
+                    "last_reduced_positions",
+                    "reduced_positions_change",
+                    "total_calls",
+                    "last_total_calls",
+                    "total_calls_change",
+                    "total_puts",
+                    "last_total_puts",
+                    "total_puts_change",
+                    "put_call_ratio",
+                    "last_put_call_ratio",
+                    "put_call_ratio_change",
+                ]
+            },
         }
         with patch(
             "openbb_fmp_cached.models.institutional_ownership._get_cached_institutional",
@@ -534,7 +598,10 @@ class TestFallbackChain:
         ) as mock_sec, patch(
             "openbb_fmp_cached.models.institutional_ownership.init_database",
         ):
-            from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+            from openbb_fmp.models.institutional_ownership import (
+                FMPInstitutionalOwnershipQueryParams,
+            )
+
             query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
             result = await FMPCachedInstitutionalOwnershipFetcher.aextract_data(
                 query, {"fmp_api_key": "test"}
@@ -549,21 +616,45 @@ class TestFallbackChain:
     async def test_fmp_and_yfinance_fail_sec_succeeds(self):
         """Both FMP and yfinance fail -- SEC picks up."""
         sec_record = {
-            "symbol": "MSFT", "date": "2026-03-23",
-            "investors_holding": 3, "number_of_13f_shares": 6_000_000,
-            "total_invested": 1_800_000_000.0, "data_source": "sec_13f",
-            **{k: 0 for k in [
-                "last_investors_holding", "investors_holding_change",
-                "last_total_invested", "total_invested_change",
-                "ownership_percent", "last_ownership_percent", "ownership_percent_change",
-                "new_positions", "last_new_positions", "new_positions_change",
-                "increased_positions", "last_increased_positions", "increased_positions_change",
-                "closed_positions", "last_closed_positions", "closed_positions_change",
-                "reduced_positions", "last_reduced_positions", "reduced_positions_change",
-                "total_calls", "last_total_calls", "total_calls_change",
-                "total_puts", "last_total_puts", "total_puts_change",
-                "put_call_ratio", "last_put_call_ratio", "put_call_ratio_change",
-            ]},
+            "symbol": "MSFT",
+            "date": "2026-03-23",
+            "investors_holding": 3,
+            "number_of_13f_shares": 6_000_000,
+            "total_invested": 1_800_000_000.0,
+            "data_source": "sec_13f",
+            **{
+                k: 0
+                for k in [
+                    "last_investors_holding",
+                    "investors_holding_change",
+                    "last_total_invested",
+                    "total_invested_change",
+                    "ownership_percent",
+                    "last_ownership_percent",
+                    "ownership_percent_change",
+                    "new_positions",
+                    "last_new_positions",
+                    "new_positions_change",
+                    "increased_positions",
+                    "last_increased_positions",
+                    "increased_positions_change",
+                    "closed_positions",
+                    "last_closed_positions",
+                    "closed_positions_change",
+                    "reduced_positions",
+                    "last_reduced_positions",
+                    "reduced_positions_change",
+                    "total_calls",
+                    "last_total_calls",
+                    "total_calls_change",
+                    "total_puts",
+                    "last_total_puts",
+                    "total_puts_change",
+                    "put_call_ratio",
+                    "last_put_call_ratio",
+                    "put_call_ratio_change",
+                ]
+            },
         }
         with patch(
             "openbb_fmp_cached.models.institutional_ownership._get_cached_institutional",
@@ -585,7 +676,10 @@ class TestFallbackChain:
         ) as mock_store, patch(
             "openbb_fmp_cached.models.institutional_ownership.init_database",
         ):
-            from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+            from openbb_fmp.models.institutional_ownership import (
+                FMPInstitutionalOwnershipQueryParams,
+            )
+
             query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
             result = await FMPCachedInstitutionalOwnershipFetcher.aextract_data(
                 query, {"fmp_api_key": "test"}
@@ -615,7 +709,10 @@ class TestFallbackChain:
         ), patch(
             "openbb_fmp_cached.models.institutional_ownership.init_database",
         ):
-            from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+            from openbb_fmp.models.institutional_ownership import (
+                FMPInstitutionalOwnershipQueryParams,
+            )
+
             query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
             result = await FMPCachedInstitutionalOwnershipFetcher.aextract_data(
                 query, {"fmp_api_key": "test"}
@@ -643,7 +740,10 @@ class TestFallbackChain:
         ), patch(
             "openbb_fmp_cached.models.institutional_ownership.init_database",
         ):
-            from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+            from openbb_fmp.models.institutional_ownership import (
+                FMPInstitutionalOwnershipQueryParams,
+            )
+
             query = FMPInstitutionalOwnershipQueryParams(symbol="AAPL,MSFT")
             result = await FMPCachedInstitutionalOwnershipFetcher.aextract_data(
                 query, {"fmp_api_key": "test"}
@@ -664,6 +764,7 @@ class TestDataNormalisation:
     def test_yfinance_record_has_required_fields(self):
         """yfinance record should have all mandatory FMP fields."""
         from datetime import date
+
         record = {
             "symbol": "MSFT",
             "cik": None,
@@ -701,7 +802,10 @@ class TestDataNormalisation:
             "data_source": "yfinance",
         }
         # Should validate without error
-        from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipData
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipData,
+        )
+
         obj = FMPInstitutionalOwnershipData.model_validate(record)
         assert obj.symbol == "MSFT"
 
@@ -744,23 +848,206 @@ class TestDataNormalisation:
             "put_call_ratio_change": 0.0,
             "data_source": "sec_13f",
         }
-        from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipData
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipData,
+        )
+
         obj = FMPInstitutionalOwnershipData.model_validate(record)
         assert obj.symbol == "NVDA"
         assert obj.investors_holding == 150
 
-    def test_transform_data_tolerates_partial_records(self):
-        """transform_data should skip records that don't match FMP schema."""
-        from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+    def test_transform_data_tolerates_partial_records(self, caplog):
+        """transform_data should skip records that don't match FMP schema — but LOUDLY (bd-0bp1).
+
+        Pre-fix (bd-0bp1) the skip was logged at ``debug`` level with no
+        exception context, which is invisible under the default logging
+        config. Post-fix the drop is logged at ``WARNING`` with the
+        symbol AND the specific validation error so operators debugging
+        "why is institutional ownership empty for X?" have log evidence.
+        """
+        import logging
+
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
         valid_record = _fmp_record("MSFT")
         invalid_record = {"symbol": "TSLA", "some_field": 42}  # Missing required fields
         query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT,TSLA")
-        result = FMPCachedInstitutionalOwnershipFetcher.transform_data(
-            query, [valid_record, invalid_record]
-        )
-        # Only valid record should pass through
+        with caplog.at_level(
+            logging.WARNING,
+            logger="openbb_fmp_cached.models.institutional_ownership",
+        ):
+            result = FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                query, [valid_record, invalid_record]
+            )
+
+        # Only valid record should pass through — the tolerate-partial
+        # invariant is preserved.
         assert len(result) == 1
         assert result[0].symbol == "MSFT"
+
+        # bd-0bp1: the drop MUST be visible at WARNING level (not debug).
+        # Pre-fix this list would be empty because logger.debug is
+        # filtered out under the caplog.at_level(WARNING) threshold.
+        warning_records = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warning_records, (
+            "no WARNING-level records captured — schema-invalid record was "
+            "silently dropped at debug level (bd-0bp1)"
+        )
+        # And the log message must name the specific symbol so the
+        # operator knows which record dropped.
+        assert any("TSLA" in r.getMessage() for r in warning_records), (
+            f"warning log did not mention the dropped symbol 'TSLA' — "
+            f"operator can't correlate the drop to a specific record. "
+            f"Captured: {[r.getMessage() for r in warning_records]}"
+        )
+
+    def test_transform_data_warning_includes_validation_error_message(self, caplog):
+        """The warning log MUST include the underlying ValidationError text (bd-0bp1)."""
+        import logging
+
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        invalid_record = {"symbol": "TSLA", "some_field": 42}
+        query = FMPInstitutionalOwnershipQueryParams(symbol="TSLA")
+        with caplog.at_level(
+            logging.WARNING,
+            logger="openbb_fmp_cached.models.institutional_ownership",
+        ):
+            # Also give it a valid record so the "all dropped" raise
+            # doesn't fire — we're only testing the per-record warning
+            # message shape here.
+            FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                query, [_fmp_record("MSFT"), invalid_record]
+            )
+
+        warning_records = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warning_records, "no WARNING captured for the invalid record"
+        # The exact ValidationError text is Pydantic's; we assert at least
+        # ONE of the missing-field indicators appears (Pydantic v2's
+        # ValidationError names 'validation error' / 'field required' /
+        # 'missing' — any of these proves the exception context reached
+        # the log).
+        msg = " ".join(r.getMessage() for r in warning_records)
+        assert any(
+            token in msg.lower()
+            for token in ("validation", "missing", "required", "field")
+        ), (
+            f"warning log lacks any Pydantic-validation context — operator "
+            f"has to guess what schema mismatch caused the drop. "
+            f"Captured: {msg!r}"
+        )
+
+    def test_transform_data_raises_if_all_records_fail_validation(self, caplog):
+        """If EVERY record fails validation, that's a bug not a tolerable state (bd-0bp1).
+
+        The fallback design (FMP → yfinance → SEC 13F) assumes at least
+        one source succeeds. A complete drop means either (a) schema
+        drift in FMP, or (b) all fallback sources are broken. Either way
+        returning an empty list silently is worse than raising — the
+        empty result is indistinguishable from "this ticker has no
+        institutional owners", which is a fundamentally different
+        answer.
+        """
+        import logging
+
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        # ALL records are malformed → transform_data should raise.
+        invalid_records = [
+            {"symbol": "TSLA", "some_field": 42},
+            {"symbol": "MSFT", "other_field": "junk"},
+        ]
+        query = FMPInstitutionalOwnershipQueryParams(symbol="TSLA,MSFT")
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="openbb_fmp_cached.models.institutional_ownership",
+        ):
+            with pytest.raises(ValueError, match="institutional"):
+                FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                    query, invalid_records
+                )
+
+    def test_transform_data_empty_input_does_not_raise(self, caplog):
+        """Empty input list is a valid degenerate case, NOT the 'all dropped' bug.
+
+        PR #345 silent-failure-hunter (P2): the original version of this
+        test only checked the return value. If a future refactor emits
+        a log line on empty input (e.g. ``logger.info("nothing to
+        validate")``), that would silently slip through and the
+        "empty ≠ all-dropped" contract would rot. The added log-silence
+        assertion locks in that empty-input takes the fast-path with
+        NO logging at all.
+        """
+        import logging
+
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
+        with caplog.at_level(
+            logging.DEBUG,
+            logger="openbb_fmp_cached.models.institutional_ownership",
+        ):
+            # An empty input list is DIFFERENT from "all records failed
+            # validation" — no records means no signal about schema drift.
+            # Return empty; do not raise; do NOT emit any log records.
+            result = FMPCachedInstitutionalOwnershipFetcher.transform_data(query, [])
+
+        assert result == []
+        # No records tried → no logging. This is what distinguishes
+        # empty-input from the all-dropped path (which emits N WARNINGs
+        # + 1 raise).
+        assert caplog.records == [], (
+            f"empty-input path should be silent — no drops, no attempts, "
+            f"no logs. Captured: {[r.getMessage() for r in caplog.records]!r}"
+        )
+
+    def test_transform_data_narrow_except_lets_non_validation_errors_propagate(self):
+        """Non-ValidationError exceptions must NOT be mislabeled as schema mismatch (PR #345 review, P2).
+
+        Pre-PR-#345-review the ``except Exception`` was too broad — a
+        ``TypeError`` or ``AttributeError`` from a bug in Pydantic itself
+        or in the record dict would be silently swallowed and logged as
+        'schema mismatch', hiding the real bug. The narrowed
+        ``except ValidationError`` now lets non-validation errors
+        propagate so they surface as real bugs.
+        """
+        from unittest.mock import patch
+
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipQueryParams,
+        )
+        from openbb_fmp_cached.models.institutional_ownership import (
+            FMPInstitutionalOwnershipData,
+        )
+
+        query = FMPInstitutionalOwnershipQueryParams(symbol="TSLA")
+        boom = RuntimeError(
+            "simulated non-validation error (e.g. bug in Pydantic internals)"
+        )
+
+        # Patch model_validate to raise a RuntimeError (not a
+        # ValidationError). Pre-fix (with ``except Exception``) this
+        # would be silently caught, incremented in ``drops``, and
+        # eventually mislabeled as 'All ... records failed FMP schema
+        # validation'. Post-fix the RuntimeError propagates as-is.
+        with patch.object(
+            FMPInstitutionalOwnershipData,
+            "model_validate",
+            side_effect=boom,
+        ):
+            with pytest.raises(RuntimeError, match="simulated non-validation"):
+                FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                    query, [{"symbol": "TSLA"}]
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -788,7 +1075,10 @@ class TestEdgeCases:
         ), patch(
             "openbb_fmp_cached.models.institutional_ownership._store_institutional",
         ):
-            from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+            from openbb_fmp.models.institutional_ownership import (
+                FMPInstitutionalOwnershipQueryParams,
+            )
+
             query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
             result = await FMPCachedInstitutionalOwnershipFetcher.aextract_data(
                 query, {"fmp_api_key": "test"}
@@ -801,7 +1091,10 @@ class TestEdgeCases:
         with patch(
             "openbb_fmp_cached.models.institutional_ownership.init_database",
         ):
-            from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipQueryParams
+            from openbb_fmp.models.institutional_ownership import (
+                FMPInstitutionalOwnershipQueryParams,
+            )
+
             query = FMPInstitutionalOwnershipQueryParams(symbol="")
             result = await FMPCachedInstitutionalOwnershipFetcher.aextract_data(
                 query, {"fmp_api_key": "test"}

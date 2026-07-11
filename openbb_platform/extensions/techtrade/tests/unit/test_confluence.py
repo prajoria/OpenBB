@@ -36,7 +36,13 @@ def _gold_panel() -> IndicatorPanel:
     return IndicatorPanel(
         symbol="GOLD",
         as_of=_AS_OF,
-        trend={"macd_hist": 0.85, "adx": 28.0, "ema_fast": 121.5, "ema_slow": 117.0, "ema_cross": 4.5},
+        trend={
+            "macd_hist": 0.85,
+            "adx": 28.0,
+            "ema_fast": 121.5,
+            "ema_slow": 117.0,
+            "ema_cross": 4.5,
+        },
         momentum={"rsi": 64.0, "stoch_k": 80.0, "stoch_d": 72.0},
         volatility={"bb_pctb": 0.92, "atr": 3.1, "kc_upper": 124.0, "kc_lower": 116.0},
         volume={"obv_slope": 12.0, "cmf": 0.18},
@@ -49,7 +55,13 @@ def _flat_panel() -> IndicatorPanel:
     return IndicatorPanel(
         symbol="FLAT",
         as_of=_AS_OF,
-        trend={"macd_hist": 0.10, "adx": 10.0, "ema_fast": 99.9, "ema_slow": 100.1, "ema_cross": -0.2},
+        trend={
+            "macd_hist": 0.10,
+            "adx": 10.0,
+            "ema_fast": 99.9,
+            "ema_slow": 100.1,
+            "ema_cross": -0.2,
+        },
         momentum={"rsi": 50.0, "stoch_k": 50.0, "stoch_d": 50.0},
         volatility={"bb_pctb": 0.50, "atr": 1.0, "kc_upper": 102.0, "kc_lower": 98.0},
         volume={"obv_slope": 0.0, "cmf": 0.0},
@@ -109,18 +121,23 @@ def test_volatility_bbpctb_regime_aware_and_atr_silent():
     """Assert %B votes continuation in a trend regime, flips in a range regime, and ATR never votes."""
     trend_vote = {v.name: v for v in volatility_votes(_gold_panel(), regime="trend")}
     range_vote = {v.name: v for v in volatility_votes(_gold_panel(), regime="range")}
-    assert trend_vote["bb_pctb"].vote == pytest.approx(0.84)   # 2*(0.92-0.5)
+    assert trend_vote["bb_pctb"].vote == pytest.approx(0.84)  # 2*(0.92-0.5)
     assert range_vote["bb_pctb"].vote == pytest.approx(-0.84)  # mean-revert flip
     assert "atr" not in trend_vote  # ATR sets stops (§13), never votes
-    assert all(v.family == "volatility" and v.weight == pytest.approx(0.20) for v in trend_vote.values())
+    assert all(
+        v.family == "volatility" and v.weight == pytest.approx(0.20)
+        for v in trend_vote.values()
+    )
 
 
 def test_volume_confirmation_amplifies_and_damps():
     """Assert volume confirmation is 1 + 0.15*v: 1.15 when OBV/CMF agree, 1.0 when neutral."""
     assert volume_confirmation(_gold_panel()) == pytest.approx(1.15)  # v = +1
-    assert volume_confirmation(_flat_panel()) == pytest.approx(1.0)   # v = 0
-    bearish = IndicatorPanel(symbol="B", as_of=_AS_OF, volume={"obv_slope": -5.0, "cmf": -0.2})
-    assert volume_confirmation(bearish) == pytest.approx(0.85)        # v = -1
+    assert volume_confirmation(_flat_panel()) == pytest.approx(1.0)  # v = 0
+    bearish = IndicatorPanel(
+        symbol="B", as_of=_AS_OF, volume={"obv_slope": -5.0, "cmf": -0.2}
+    )
+    assert volume_confirmation(bearish) == pytest.approx(0.85)  # v = -1
 
 
 def test_voters_omit_missing_keys():
@@ -148,8 +165,11 @@ def test_votes_fully_reconcile_the_score():
         return sum(vals) / len(vals) if vals else 0.0
 
     w = {v.family: v.weight for v in votes}  # one weight per family
-    raw = w["trend"] * _mean_family("trend") + w["momentum"] * _mean_family("momentum") + \
-        w["volatility"] * _mean_family("volatility")
+    raw = (
+        w["trend"] * _mean_family("trend")
+        + w["momentum"] * _mean_family("momentum")
+        + w["volatility"] * _mean_family("volatility")
+    )
     vc = 1.0 + w["volume"] * _mean_family("volume")
     rebuilt = max(-1.0, min(1.0, raw * vc))
     assert rebuilt == pytest.approx(score)
@@ -157,7 +177,12 @@ def test_votes_fully_reconcile_the_score():
 
 def test_votes_reconcile_under_non_default_weights():
     """Assert the votes still reconstruct the score under custom weights (volume amplitude is fixed)."""
-    weights = ConfluenceWeights(trend=0.5, momentum=0.3, volatility=0.1, volume=0.25)
+    # Volume must equal DEFAULT_WEIGHTS.volume (0.15) per bd-qu2h — the field is
+    # engine-fixed and __post_init__ raises on override. Custom trend/momentum/
+    # volatility are still honored (the whole point of ConfluenceWeights).
+    weights = ConfluenceWeights(
+        trend=0.5, momentum=0.3, volatility=0.1, volume=DEFAULT_WEIGHTS.volume
+    )
     score, votes = composite_score(_gold_panel(), weights=weights)
 
     def _mean_family(family: str) -> float:
@@ -165,13 +190,85 @@ def test_votes_reconcile_under_non_default_weights():
         return sum(vals) / len(vals) if vals else 0.0
 
     w = {v.family: v.weight for v in votes}
-    # Volume votes carry the FIXED amplitude actually applied (0.15), not weights.volume (0.25),
-    # so reconstructing vc from the stamped weight matches the real multiplier.
+    # Volume votes carry the FIXED amplitude actually applied (0.15).
     assert w["volume"] == pytest.approx(0.15)
-    raw = w["trend"] * _mean_family("trend") + w["momentum"] * _mean_family("momentum") + \
-        w["volatility"] * _mean_family("volatility")
+    raw = (
+        w["trend"] * _mean_family("trend")
+        + w["momentum"] * _mean_family("momentum")
+        + w["volatility"] * _mean_family("volatility")
+    )
     vc = 1.0 + w["volume"] * _mean_family("volume")
     assert max(-1.0, min(1.0, raw * vc)) == pytest.approx(score)
+
+
+# ---- volume-field enforcement (bd-qu2h + bd-c2fr) -----------------------
+#
+# ConfluenceWeights.volume is declared as a public field but volume_confirmation()
+# hardcodes DEFAULT_WEIGHTS.volume and never reads self.volume. Pre-fix a caller
+# writing ConfluenceWeights(volume=0.35) silently got 0.15 with no error. The
+# guard now raises at construction time so the mis-configuration surfaces
+# immediately instead of quietly discarding the value.
+
+
+def test_confluence_weights_raises_on_non_default_volume():
+    """Non-DEFAULT_WEIGHTS.volume must raise ValueError (bd-qu2h)."""
+    with pytest.raises(ValueError, match="volume"):
+        ConfluenceWeights(volume=0.35)
+    # Both above and below the locked amplitude should raise.
+    with pytest.raises(ValueError, match="volume"):
+        ConfluenceWeights(volume=0.0)
+    with pytest.raises(ValueError, match="0.15|DEFAULT_WEIGHTS"):
+        ConfluenceWeights(trend=0.40, momentum=0.25, volatility=0.20, volume=0.25)
+
+
+def test_confluence_weights_default_construction_still_works():
+    """Regression lock: default ConfluenceWeights() and explicit volume=0.15 both work."""
+    # Default construction — the DEFAULT_WEIGHTS bootstrap path.
+    w1 = ConfluenceWeights()
+    assert w1.volume == 0.15
+    # Explicit but matching the locked amplitude — allowed.
+    w2 = ConfluenceWeights(trend=0.5, momentum=0.3, volatility=0.05, volume=0.15)
+    assert w2.volume == 0.15
+
+
+def test_confluence_weights_accepts_ieee754_computed_amplitude():
+    """The guard must tolerate arithmetically-computed 0.15 (PR #340 review).
+
+    IEEE 754 makes ``3 * 0.05 == 0.15000000000000002`` (not exactly 0.15). A
+    caller who derives the amplitude from a step count, JSON round-trip, or
+    partial ``resolve_preset({'volume': ...})`` computation would hit a
+    spurious ValueError under a raw ``!=`` check. The fix uses
+    :func:`math.isclose` with ``abs_tol=1e-9``; this test locks that in so
+    the tolerance can't silently regress back to a strict equality check.
+    """
+    # ``3 * 0.05`` is the canonical IEEE-754 gotcha used in the PR #340
+    # review; ``sum([0.05] * 3)`` is a second representation that also
+    # yields 0.15000000000000002.
+    assert 3 * 0.05 != 0.15  # sanity: baseline gotcha is real
+    w1 = ConfluenceWeights(volume=3 * 0.05)  # must NOT raise
+    # Field preserves the exact float the caller passed (we don't
+    # silently snap to 0.15 — only accept-or-reject).
+    assert w1.volume == 3 * 0.05
+
+    w2 = ConfluenceWeights(volume=sum([0.05] * 3))
+    assert w2.volume == sum([0.05] * 3)
+
+    # Off by 0.01 (a genuine override) must still raise — the tolerance is
+    # narrow enough to catch real mis-configurations.
+    with pytest.raises(ValueError, match="volume"):
+        ConfluenceWeights(volume=0.14)
+
+
+def test_confluence_weights_error_message_cites_locked_field():
+    """The raise message must point the operator at the locked-field reason (bd-c2fr)."""
+    with pytest.raises(ValueError) as exc_info:
+        ConfluenceWeights(volume=0.30)
+    msg = str(exc_info.value)
+    # Message should mention the field name, the current locked value, and
+    # give the caller a pointer to where the override will actually be
+    # honored (#75 preset work) so they know why their override was rejected.
+    assert "volume" in msg
+    assert "0.15" in msg
 
 
 def test_volume_confirms_long_known_short_side_inversion():
@@ -183,43 +280,66 @@ def test_volume_confirms_long_known_short_side_inversion():
     base_trend = {"macd_hist": 0.85, "adx": 28.0, "ema_cross": 4.5}
     base_mom = {"rsi": 64.0, "stoch_k": 80.0, "stoch_d": 72.0}
     bullish_vol = {"obv_slope": 12.0, "cmf": 0.18}
-    long_with_vol = IndicatorPanel(symbol="L", as_of=_AS_OF, trend=base_trend, momentum=base_mom, volume=bullish_vol)
-    long_no_vol = IndicatorPanel(symbol="LN", as_of=_AS_OF, trend=base_trend, momentum=base_mom)
+    long_with_vol = IndicatorPanel(
+        symbol="L",
+        as_of=_AS_OF,
+        trend=base_trend,
+        momentum=base_mom,
+        volume=bullish_vol,
+    )
+    long_no_vol = IndicatorPanel(
+        symbol="LN", as_of=_AS_OF, trend=base_trend, momentum=base_mom
+    )
     # Bullish volume amplifies a long (vc=1.15): |score| grows.
     assert abs(composite_score(long_with_vol)[0]) > abs(composite_score(long_no_vol)[0])
 
     short_trend = {"macd_hist": -0.85, "adx": 28.0, "ema_cross": -4.5}
     short_mom = {"rsi": 36.0, "stoch_k": 72.0, "stoch_d": 80.0}
-    short_with_vol = IndicatorPanel(symbol="S", as_of=_AS_OF, trend=short_trend, momentum=short_mom, volume=bullish_vol)
-    short_no_vol = IndicatorPanel(symbol="SN", as_of=_AS_OF, trend=short_trend, momentum=short_mom)
+    short_with_vol = IndicatorPanel(
+        symbol="S",
+        as_of=_AS_OF,
+        trend=short_trend,
+        momentum=short_mom,
+        volume=bullish_vol,
+    )
+    short_no_vol = IndicatorPanel(
+        symbol="SN", as_of=_AS_OF, trend=short_trend, momentum=short_mom
+    )
     # Same bullish volume on a SHORT also grows |score| (vc=1.15) -- the known inversion, not a confirm/damp.
-    assert abs(composite_score(short_with_vol)[0]) > abs(composite_score(short_no_vol)[0])
+    assert abs(composite_score(short_with_vol)[0]) > abs(
+        composite_score(short_no_vol)[0]
+    )
 
 
 def test_score_ceiling_under_default_weights_is_below_one():
     """Assert an all-aligned panel tops out at 0.85*1.15 = 0.9775 under the Q4 weights (clip never fires)."""
     strong = IndicatorPanel(
-        symbol="S", as_of=_AS_OF,
+        symbol="S",
+        as_of=_AS_OF,
         trend={"macd_hist": 9.0, "adx": 60.0, "ema_cross": 5.0},
         momentum={"rsi": 95.0, "stoch_k": 99.0, "stoch_d": 10.0},
         volatility={"bb_pctb": 3.0},
         volume={"obv_slope": 9.0, "cmf": 0.9},
     )
     score, _ = composite_score(strong)
-    assert score == pytest.approx(0.9775)  # raw 0.85 * vc 1.15; the 0.85 ceiling is intentional
+    assert score == pytest.approx(
+        0.9775
+    )  # raw 0.85 * vc 1.15; the 0.85 ceiling is intentional
 
 
 def test_score_is_clipped_into_unit_interval():
     """Assert over-unity weights actually engage the [-1, +1] clip (not a vacuous bound)."""
     strong = IndicatorPanel(
-        symbol="S", as_of=_AS_OF,
+        symbol="S",
+        as_of=_AS_OF,
         trend={"macd_hist": 9.0, "adx": 60.0, "ema_cross": 5.0},
         momentum={"rsi": 95.0, "stoch_k": 99.0, "stoch_d": 10.0},
         volatility={"bb_pctb": 3.0},
         volume={"obv_slope": 9.0, "cmf": 0.9},
     )
     bearish = IndicatorPanel(
-        symbol="X", as_of=_AS_OF,
+        symbol="X",
+        as_of=_AS_OF,
         trend={"macd_hist": -9.0, "adx": 60.0, "ema_cross": -5.0},
         momentum={"rsi": 5.0, "stoch_k": 10.0, "stoch_d": 99.0},
         volatility={"bb_pctb": -3.0},
@@ -263,7 +383,12 @@ def test_build_signal_assembles_full_mover_signal():
     assert signal.direction == "long"
     assert signal.rank_in_segment == 1
     assert len(signal.votes) == 7
-    assert {v.family for v in signal.votes} == {"trend", "momentum", "volatility", "volume"}
+    assert {v.family for v in signal.votes} == {
+        "trend",
+        "momentum",
+        "volatility",
+        "volume",
+    }
 
 
 def test_build_signal_flat_when_score_below_threshold():
@@ -287,8 +412,13 @@ def test_consumes_real_indicator_panel_end_to_end():
     open_ = close + rng.normal(0, 0.4, 220)
     vol = rng.integers(1_000, 8_000, 220).astype(float)
     rows = [
-        {"open": float(open_[i]), "high": float(high[i]), "low": float(low[i]),
-         "close": float(close[i]), "volume": float(vol[i])}
+        {
+            "open": float(open_[i]),
+            "high": float(high[i]),
+            "low": float(low[i]),
+            "close": float(close[i]),
+            "volume": float(vol[i]),
+        }
         for i in range(220)
     ]
     panel = build_indicator_panel("REAL", _AS_OF, rows)
