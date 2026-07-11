@@ -1,0 +1,11 @@
+{"schema_version":1,"event_type":"session_start","ts":"2026-07-13T13:30:00+00:00","session_id":"s20260713","payload":{"watchlist":["MSFT","AAPL"],"preset":"intraday_momentum","agent_backend":"none","date":"2026-07-13"}}
+{"schema_version":1,"event_type":"tick","ts":"2026-07-13T13:30:00+00:00","session_id":"s20260713","payload":{"watchlist_size":2,"quotes_fetched":2}}
+{"schema_version":1,"event_type":"tick","ts":"2026-07-13T13:30:05+00:00","session_id":"s20260713","payload":{"watchlist_size":2,"quotes_fetched":2}}
+{"schema_version":1,"event_type":"tick","ts":"2026-07-13T13:30:10+00:00","session_id":"s20260713","payload":{"watchlist_size":2,"quotes_fetched":2}}
+{"schema_version":1,"event_type":"signal","ts":"2026-07-13T13:30:10+00:00","session_id":"s20260713","payload":{"symbol":"MSFT","score":0.85,"direction":"long"}}
+{"schema_version":1,"event_type":"order","ts":"2026-07-13T13:30:10+00:00","session_id":"s20260713","payload":{"order_ref":"o1","symbol":"MSFT","qty":"10","intent":"OPEN_LONG"}}
+{"schema_version":1,"event_type":"fill","ts":"2026-07-13T13:30:10+00:00","session_id":"s20260713","payload":{"order_ref":"o1","fill_price":"430.05","fill_qty":"10","commission":"1.00","slippage":"0.05","symbol":"MSFT","realized_pnl":"0"}}
+{"schema_version":1,"event_type":"tick","ts":"2026-07-13T13:30:15+00:00","session_id":"s20260713","payload":{"watchlist_size":2,"quotes_fetched":2}}
+{"schema_version":1,"event_type":"veto","ts":"2026-07-13T13:30:15+00:00","session_id":"s20260713","payload":{"symbol":"AAPL","reason_code":"max_position_size","gate":"G6"}}
+{"schema_version":1,"event_type":"tick","ts":"2026-07-13T13:30:20+00:00","session_id":"s20260713","payload":{"watchlist_size":2,"quotes_fetched":2}}
+{"schema_version":1,"event_type":"session_end","ts":"2026-07-13T20:15:00+00:00","session_id":"s20260713","payload":{"flat_at_close":true,"realized_pnl":"150.00","total_ticks":5}}
