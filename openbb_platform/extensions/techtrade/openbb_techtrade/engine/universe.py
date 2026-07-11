@@ -19,10 +19,13 @@ checked for a plausible membership count (PRD §10 "membership-count sanity").
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable
 
 from openbb_techtrade.engine.screener import GICS_SECTOR_ETFS, list_segments
 from openbb_techtrade.models import SegmentConfig
+
+_logger = logging.getLogger(__name__)
 
 # GICS sector name -> FMP equity-screener ``sector`` literal (PRD §10, §20 Q3).
 # Used by the live screener default to translate a canonical GICS segment into the
@@ -87,7 +90,21 @@ def _default_holdings_fetcher(etf_symbol: str) -> list[str]:
 
     result = obb.etf.holdings(symbol=etf_symbol, provider="fmp_cached")
     rows = result.results or []
-    return [row.symbol for row in rows if getattr(row, "symbol", None)]
+    symbols = [row.symbol for row in rows if getattr(row, "symbol", None)]
+    # R7.3 loud-empty: an ETF holdings response with zero usable symbols would
+    # masquerade as a valid empty universe downstream and cascade into every
+    # subsequent stage returning 0 movers. Distinguish "endpoint returned []"
+    # (rows empty) from "endpoint returned symbols with no ticker" (rows kept
+    # but all filtered) so an operator can tell which upstream hop is broken.
+    if not symbols:
+        _logger.warning(
+            "obb.etf.holdings(symbol=%r, provider=fmp_cached) yielded no "
+            "usable symbols (rows_returned=%d) — downstream universe will "
+            "be empty",
+            etf_symbol,
+            len(rows),
+        )
+    return symbols
 
 
 def _default_screener_fetcher(segment: str) -> list[str]:
