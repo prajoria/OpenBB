@@ -5463,6 +5463,9 @@ FLATTENED_TABLES = {
     "ttl_cache": {
         "schema": create_ttl_cache_table
     },
+    "fmp_trading_state": {
+        "schema": create_fmp_trading_state_table
+    },
     "complementary_market_yields": {
         "schema": create_complementary_market_yields_table
     },
@@ -5600,6 +5603,44 @@ def create_ttl_cache_table():
         cached_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (cache_name, cache_key),
         INDEX idx_cached_at (cached_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
+
+
+def create_fmp_trading_state_table():
+    """Create fmp_trading_state — backing store for state_store.py (P3.0 / D6).
+
+    Persistent key-value state used by the two agent turns (P3.1 pre-open,
+    P3.2 post-close) and their deterministic fallbacks. One row per
+    (state_key, scope). Payload is a JSON blob so heterogeneous state
+    keys (``list[str]`` for watchlist, full ``DailyPlan`` dict for last
+    plan, dict for session summary) share one table without per-key
+    migrations.
+
+    Scope column supports multi-profile setups later (paper vs. live)
+    without a schema change — Phase 3 hardcodes ``scope='default'``.
+
+    Resilience contract lives in state_store.py itself: DB failure ->
+    load returns None, save is best-effort. Serialization bugs
+    (TypeError/ValueError/JSONDecodeError) PROPAGATE — a narrow except
+    tuple prevents 'we have a bug' from masquerading as 'DB down'
+    (design-review A7).
+
+    Distinct from the endpoint-specific caches (equity_historical,
+    aftermarket_quote, etc.) and from the generic ``ttl_cache`` (P2.2):
+    those are read-through caches for FMP payloads; this is durable
+    session-adjacent state that outlives any single fetch.
+    """
+    query = """
+    CREATE TABLE IF NOT EXISTS fmp_trading_state (
+        state_key  VARCHAR(80) NOT NULL,
+        scope      VARCHAR(80) NOT NULL DEFAULT 'default',
+        payload    JSON        NOT NULL,
+        updated_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                 ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (state_key, scope),
+        INDEX idx_updated_at (updated_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     return execute_query(query)
