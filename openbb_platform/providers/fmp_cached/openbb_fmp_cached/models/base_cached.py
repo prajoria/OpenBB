@@ -174,7 +174,38 @@ def create_ttl_wrapper_class(
             return {"fmp_api_key": val}
         return credentials
 
-    class _TTLWrapped(Fetcher):
+    # Bug fix (bd-g1i1 from OpenBBTechnical repo): the wrapper class must
+    # specialize the Generic type params from Fetcher[Q, R], otherwise
+    # RegistryMap._get_model walks the generic and finds ~Q still
+    # unresolved -> ValueError('~Q must be a subclass of QueryParams').
+    #
+    # Extract the concrete Query / Data types from inner_fetcher_cls's
+    # own __orig_bases__ — that's where subclasses like
+    # FMPExchangeMarketHoursFetcher declare their Fetcher[Q, R]
+    # specialization. Fall back to base Fetcher (no specialization) if
+    # the inner class is itself unparameterized (test doubles).
+    import typing as _typing
+
+    _query_type = None
+    _data_type = None
+    for _base in getattr(inner_fetcher_cls, "__orig_bases__", ()):
+        # Look for the Fetcher[Q, R] base and read its args
+        if _typing.get_origin(_base) is Fetcher:
+            _args = _typing.get_args(_base)
+            if len(_args) >= 2:
+                _query_type, _data_type = _args[0], _args[1]
+                break
+
+    if _query_type is not None and _data_type is not None:
+        _WrapperBase = Fetcher[_query_type, _data_type]
+    else:
+        # Inner fetcher isn't a parameterized Fetcher subclass (test
+        # double or ad-hoc class). Fall back to bare Fetcher — the
+        # RegistryMap error is only surfaced for classes actually
+        # registered as providers, which test doubles aren't.
+        _WrapperBase = Fetcher
+
+    class _TTLWrapped(_WrapperBase):
         """Generated at runtime by create_ttl_wrapper_class."""
 
         @staticmethod
