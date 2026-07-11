@@ -206,6 +206,88 @@ Certain symbols are skipped in `fetch_position_history.py`:
 `Cash`, `NSAV`, `MVVYF`, `EADSF`, `NXDR`, `NHX202764`, `NHX203309`
 (cash positions, OTC/delisted stocks, CUSIDs without FMP data).
 
+### Seams, Mocks, and Silent-Zero Failures
+
+**Case study:** bd `OpenBBTechnical-z7f` — `obb.techtrade.movers` returned
+0 movers for every sector segment for months while 363 unit tests
+stayed green. The bug was in the *contract between two mocked
+subsystems*, not in either subsystem alone. See the bead for the full
+postmortem; the rules below prevent the same class of mistake.
+
+#### R7.1 — Never let two mocks agree with themselves
+If a public function `f(a, b)` internally combines results from two
+injected seams `fetch_a()` and `fetch_b()`, at least ONE test must
+exercise `f` with **realistic-shape** fixtures for **both** seams —
+i.e. fixtures captured from a real production response, not
+hand-crafted dicts.
+
+Hand-crafted mocks describe the developer's *mental model* of the data,
+not the data itself. When both mocks come from the same head, the test
+is a closed loop that cannot disagree with the assumption being tested.
+
+**Do:** record one live JSON response per seam under
+`tests/fixtures/<module>/` and load it with `json.load()` in the test.
+**Don't:** write `[{"symbol": "AAPL", "pct_change": 0.05}]` and pretend
+that's what the API returns.
+
+#### R7.2 — Every public entry point needs a "not empty" smoke test
+For every command exposed on the `obb.*` surface or in a public engine
+API, write one test named `test_<entry>_returns_non_empty_for_<realistic_input>`.
+
+The test may be marked `@pytest.mark.integration` and skipped in fast
+CI, but it MUST exist and run in the integration suite. `len(result) > 0`
+is a lower bar than any semantic assertion, and catches the entire
+"silent zero" failure class.
+
+#### R7.3 — Empty results must be loud, not silent
+Wherever code returns an empty list / zero count that a caller could
+reasonably expect to be non-empty, log a `WARNING` explaining WHY it
+was empty (upstream returned 0, filter removed everything, cache miss,
+etc.). Prefer a warning with concrete numbers over a bare empty return.
+
+```python
+# Bad — silent zero
+return [c for c in candidates if c.symbol in allowed]
+
+# Good — loud zero
+filtered = [c for c in candidates if c.symbol in allowed]
+if candidates and not filtered:
+    LOG.warning(
+        "filter removed all candidates: %d candidates, %d in allowed set, 0 intersection",
+        len(candidates), len(allowed),
+    )
+return filtered
+```
+
+If a user reports "returns nothing", grep for the warning in logs
+should immediately localize the culprit.
+
+#### R7.4 — Prefer narrow-then-fan-out over fan-out-then-filter
+When you need "top N from set S", fetch S directly and rank — do NOT
+fetch a market-wide firehose F and then filter `F ∩ S`. The firehose
+approach is mathematically brittle: any time `F` and `S` are drawn
+from different populations (small caps vs. mega caps, US vs. global,
+delayed vs. real-time), the intersection is silently empty.
+
+If you must use a firehose, assert `len(F ∩ S) > 0` in the code path
+and warn if not.
+
+#### R7.5 — Test the assumption, not just the behavior
+For every injected seam, add one test that asserts the seam's *shape
+contract* against a recorded live response. This is separate from
+behavior tests. Named `test_<seam>_response_shape_matches_expected`.
+
+Example: `test_fmp_discovery_gainers_returns_symbols_matching_universe_grain`
+would have failed on day 1 because FMP `gainers` returns penny-stock
+symbols while sector-ETF universes return mega-caps.
+
+#### R7.6 — One real end-to-end call before shipping any injectable seam
+When designing a new `callable=None` seam parameter, make ONE real call
+to the live implementation *before* writing the mocked tests. Save the
+response as a fixture (R7.1). If you can't call the real thing during
+design, you don't yet know what shape it returns — and your tests will
+encode your guess, not the reality.
+
 ---
 
 ## 8. Logging
@@ -337,6 +419,10 @@ Before committing any code changes, verify:
 - [ ] Idempotency verified (script runnable twice)
 - [ ] Performance targets met (response times)
 - [ ] Privacy transformation tested
+- [ ] Public entry points have a `not-empty` smoke test (R7.2)
+- [ ] Injected seams tested against realistic-shape fixtures, not hand-crafted mocks (R7.1)
+- [ ] Empty-result paths emit a `WARNING` explaining the cause (R7.3)
+- [ ] "Filter over firehose" architectures either avoided or assert non-empty intersection (R7.4)
 
 ### **📋 Documentation**
 - [ ] Context files updated if architecture changed
@@ -350,4 +436,4 @@ Before committing any code changes, verify:
 
 ---
 
-*Last updated: 2026-03-06*
+*Last updated: 2026-07-03*
