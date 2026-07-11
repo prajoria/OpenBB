@@ -253,8 +253,16 @@ class TestDelimiterInjectionInPriorSummary:
     """
 
     def test_summary_containing_closing_tag_is_json_escaped(self, monkeypatch):
-        """The delimiter-closing string must not appear un-escaped in the
-        rendered user prompt."""
+        """Security-review #2 (P0) + follow-up: the delimiter-closing
+        string must not appear un-escaped in the rendered user prompt.
+
+        The impl uses base64 encoding — this test also decodes the
+        payload and asserts nothing between the fences contains an
+        unescaped closing tag."""
+        import base64
+        import json
+        import re
+
         from openbb_fmp_trading.agent.backend import AlwaysUnavailableBackend
         from openbb_fmp_trading.agent.pre_open import PreOpenAgentTurn
 
@@ -282,21 +290,38 @@ class TestDelimiterInjectionInPriorSummary:
             bandwidth=MagicMock(),
             journal=MagicMock(),
         )
-        # Build the prompt directly to inspect it
         prompt = turn._build_user_prompt(
             datetime(2026, 7, 13, 13, 30, tzinfo=timezone.utc)
         )
 
-        # The outer delimiter must appear EXACTLY ONCE (opening) and once
-        # closing — a raw '</untrusted_tool_output>' inside the summary
-        # would produce three occurrences. JSON escaping prevents that.
+        # The outer delimiter must appear EXACTLY ONCE (closing) — the
+        # opening tag has no `</`, so this count catches any leaked
+        # payload-level closing tag.
         assert prompt.count("</untrusted_tool_output>") == 1
-        # The IMPORTANT SYSTEM UPDATE text is present but INSIDE the JSON
-        # envelope, so the model sees it as data, not an instruction
-        # after the delimiter.
-        assert "IMPORTANT SYSTEM UPDATE" in prompt
-        # Confirm we actually used JSON encoding (marker in the prompt)
-        assert "encoding=\"json\"" in prompt
+
+        # Confirm the base64_json encoding label
+        assert 'encoding="base64_json"' in prompt
+
+        # Extract the payload between fences and decode it. Base64
+        # alphabet is [A-Za-z0-9+/=] — cannot contain '<' or '>' — so
+        # decoding + verifying round-trip is strong proof no delimiter
+        # bytes survived in the raw prompt fragment.
+        match = re.search(
+            r'encoding="base64_json">\n(.+?)\n</untrusted_tool_output>',
+            prompt, re.DOTALL,
+        )
+        assert match is not None, "base64 block not found in prompt"
+        b64_payload = match.group(1)
+        # Every char must be from the base64 alphabet — no `<`, `>`, `/`
+        # inside the fenced payload could have survived encoding.
+        assert all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n" for c in b64_payload), (
+            "Non-base64 characters leaked into the fenced payload"
+        )
+        # Round-trip: decode the block, parse JSON, confirm the poisoned
+        # field survived as data (encoded but recoverable)
+        decoded_json = base64.b64decode(b64_payload).decode("utf-8")
+        parsed = json.loads(decoded_json)
+        assert "IMPORTANT SYSTEM UPDATE" in parsed["malicious_field"]
 
     def test_long_summary_is_truncated(self, monkeypatch):
         """A hostile summary cannot inflate context to blow the token budget."""
@@ -322,9 +347,20 @@ class TestDelimiterInjectionInPriorSummary:
         prompt = turn._build_user_prompt(
             datetime(2026, 7, 13, 13, 30, tzinfo=timezone.utc)
         )
-        # 4096-char cap + envelope should stay well under 5000
-        assert len(prompt) < 5000
-        assert "[truncated]" in prompt
+        # Raw JSON capped at 4096 chars; base64 inflates by ~4/3 so the
+        # encoded payload stays under ~5600 chars. Total prompt with
+        # envelope + framing stays comfortably under 7000.
+        assert len(prompt) < 7000
+        # Truncation marker survives the base64 round-trip via decoded content
+        import base64 as _b64
+        import re as _re
+        match = _re.search(
+            r'encoding="base64_json">\n(.+?)\n</untrusted_tool_output>',
+            prompt, _re.DOTALL,
+        )
+        assert match is not None
+        decoded = _b64.b64decode(match.group(1)).decode("utf-8")
+        assert "[truncated]" in decoded
 
 
 class TestFlatByCloseTimeInjectionBypass:

@@ -1,7 +1,9 @@
-"""openbb-daytrade — CLI entry point (Phase 1: doctor only).
+"""openbb-daytrade — CLI entry point.
 
-Phase 2 adds `run`, `plan`, `snapshot`; Phase 4 adds `alert`; Phase 5 adds
-`replay`, `report`. Each subcommand shares the same argparse structure.
+Phase 1 shipped `doctor`. Phase 3 P3.3 adds `mcp-serve` (stdio MCP
+server; `[agent]` extra required). Phase 2 adds `run`, `plan`,
+`snapshot`; Phase 4 adds `alert`; Phase 5 adds `replay`, `report`.
+Each subcommand shares the same argparse structure.
 """
 
 from __future__ import annotations
@@ -38,18 +40,62 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
     return 1 if report.errors else 0
 
 
+def _cmd_mcp_serve(_args: argparse.Namespace) -> int:
+    """openbb-daytrade mcp-serve — start the stdio MCP server (P3.3 / #85).
+
+    Requires the ``[agent]`` extra. Emits a friendly install-hint on
+    missing extra rather than an ImportError stack trace. This is the
+    entry point external MCP clients (Claude Desktop, VS Code MCP)
+    connect to.
+    """
+    # Extra check happens BEFORE importing agent.* to keep the "missing
+    # extra" error message clean.
+    try:
+        from openbb_fmp_trading.agent import is_agent_available
+    except ImportError:
+        print(
+            "ERROR: openbb-fmp-trading[agent] extra not installed.\n"
+            "       pip install 'openbb-fmp-trading[agent]'",
+            file=sys.stderr,
+        )
+        return 1
+
+    if not is_agent_available():
+        print(
+            "ERROR: [agent] extra dependencies missing (anthropic + mcp + jinja2).\n"
+            "       pip install 'openbb-fmp-trading[agent]'",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Lazy import — agent.mcp_server pulls in the mcp SDK
+    from openbb_fmp_trading.agent.mcp_server import run_stdio_server
+
+    print("openbb-daytrade mcp-serve — starting stdio MCP server", file=sys.stderr)
+    return run_stdio_server()
+
+
 def main(argv: list[str] | None = None) -> int:
     """Top-level CLI dispatch."""
     parser = argparse.ArgumentParser(prog="openbb-daytrade")
     sub = parser.add_subparsers(dest="cmd", required=True)
+
     doctor_p = sub.add_parser(
         "doctor",
         help="Health-check the environment (FMP creds, cache, extras, bandwidth)",
     )
     doctor_p.set_defaults(func=_cmd_doctor)
+
+    mcp_p = sub.add_parser(
+        "mcp-serve",
+        help="Start the stdio MCP server (requires [agent] extra; PRD §7.3)",
+    )
+    mcp_p.set_defaults(func=_cmd_mcp_serve)
+
     args = parser.parse_args(argv)
     return args.func(args)
 
 
 if __name__ == "__main__":
     sys.exit(main())
+
