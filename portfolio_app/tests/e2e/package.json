@@ -1,0 +1,17 @@
+{
+  "name": "openbb-portfolio-intel-e2e",
+  "version": "0.0.1",
+  "description": "Playwright E2E harness for portfolio_app widgets (Portfolio Intelligence Engine). Bead OpenBBTechnical-qy83.1.7.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "typescript": "^5.4.0"
+  }
+}
