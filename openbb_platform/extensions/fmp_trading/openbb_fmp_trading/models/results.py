@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from pathlib import Path
+from typing import Literal
 
 from openbb_core.provider.abstract.data import Data
 from pydantic import Field
@@ -65,7 +66,52 @@ class ReportManifest(Data):
     """obb.fmp_trading.report() output — paths to rendered artifacts (P5)."""
 
     session_id: str
+    session_date: date | None = Field(
+        default=None,
+        description="Trading date the report covers (extracted from session_start).",
+    )
     md_path: Path | None = None
     xlsx_path: Path | None = None
     json_path: Path | None = None
     included_agent_narrative: bool = False
+    session_events_count: int = Field(
+        default=0,
+        description="Total journaled events consumed to produce this report.",
+    )
+    agent_backend: Literal["claude", "openai", "none"] | None = Field(
+        default=None,
+        description="Provenance if an EndOfDayReportEvent was in the journal.",
+    )
+    warnings: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Non-fatal warnings — e.g. 'xlsx skipped: openbb-techtrade "
+            "not installed'. format='all' still returns a manifest even "
+            "when xlsx failed; the operator sees the warning here."
+        ),
+    )
+
+
+class ReplayResult(Data):
+    """obb.fmp_trading.replay() output — reconstructed session (P5.3).
+
+    Same shape a live IntradaySession would have produced on the
+    original run — minus BandwidthState (per PRD §8.7, bandwidth is
+    session-scoped ephemeral). ``diverged_at_tick`` is populated iff the
+    replayed run's emitted events disagreed with the recorded events at
+    that tick position.
+    """
+
+    session_id: str
+    session_date: date
+    daily_plan: DailyPlan | None = None
+    events_replayed: int = 0
+    diverged_at_tick: int | None = Field(
+        default=None,
+        description=(
+            "0-based tick index of the first divergence, or None if the "
+            "replayed run matched the recorded events end-to-end. When "
+            "raise_on_divergence=True (default) the function raises "
+            "ReplayDivergenceError instead of returning this field set."
+        ),
+    )

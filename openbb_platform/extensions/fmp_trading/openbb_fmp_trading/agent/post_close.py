@@ -48,9 +48,11 @@ logger = logging.getLogger(__name__)
 POST_CLOSE_PROMPT_VERSION: str = "post_close_v1"
 
 #: Location of the Jinja narrator template — the GH #84 deliverable
-#: when the ``[agent]`` extra is absent.
-_TEMPLATES_DIR = Path(__file__).parent / "templates"
-_NARRATOR_TEMPLATE = "post_close_briefing.md.j2"
+#: when the ``[agent]`` extra is absent. Moved to reporting/templates/
+#: in P5.1 so both this post-close narrator path AND report() render
+#: from the SAME source-of-truth template file (design spec §6.3).
+_TEMPLATES_DIR = Path(__file__).parent.parent / "reporting" / "templates"
+_NARRATOR_TEMPLATE = "end_of_day.md.j2"
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
