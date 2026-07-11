@@ -26,6 +26,7 @@ What replay does NOT prove:
 from __future__ import annotations
 
 import logging
+import threading
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -37,6 +38,15 @@ from openbb_fmp_trading.models.results import ReplayResult
 from openbb_fmp_trading.reporting.errors import ReplayDivergenceError
 
 logger = logging.getLogger(__name__)
+
+# Module-level lock guarding _stub_fetch_seams. Two concurrent replay()
+# calls — or replay running alongside a live IntradaySession in the same
+# process — would otherwise corrupt each other's monkeypatched fetch
+# seams (code-reviewer P1 #3). The lock serializes access; the ideal
+# fix is to refactor tick_loop to accept an injected provider (filed
+# as follow-up bead P5-followup-3), but this bounds the blast radius
+# until then.
+_STUB_LOCK = threading.RLock()
 
 
 def replay(
@@ -156,6 +166,15 @@ def _stub_fetch_seams():
     ``_is_signal_bar_close`` as module-level functions specifically to
     be patchable (see P2.4). Replay uses that seam design.
 
+    Concurrency (code-reviewer P1 #3): the stub install/restore is
+    guarded by a process-level RLock so two concurrent replay() calls
+    — or replay running alongside a live IntradaySession in the same
+    process — can't corrupt each other's monkeypatched seams. The RLock
+    lets a single thread re-enter (which shouldn't happen but is safer
+    than a plain Lock for a context manager). Follow-up P5-followup-3
+    tracks refactoring tick_loop to accept an injected provider so
+    this monkey-patching goes away entirely.
+
     Current implementation returns empty quotes/bars — enough to prove
     control-flow determinism (same tick sequence -> same emit ordering).
     Full signal-cascade replay would require the TickEvent payload to
@@ -163,38 +182,39 @@ def _stub_fetch_seams():
     """
     from openbb_fmp_trading.core import tick_loop as tl
 
-    original_quote = tl._fetch_batch_quote
-    original_bars = tl._fetch_recent_bars
-    original_status = tl._fetch_session_status
-    original_bar_close = tl._is_signal_bar_close
+    with _STUB_LOCK:
+        original_quote = tl._fetch_batch_quote
+        original_bars = tl._fetch_recent_bars
+        original_status = tl._fetch_session_status
+        original_bar_close = tl._is_signal_bar_close
 
-    def stub_quote(symbols, provider):
-        return []  # See module docstring — quotes not in current TickEvent shape
+        def stub_quote(symbols, provider):
+            return []  # See module docstring — quotes not in current TickEvent shape
 
-    def stub_bars(symbols):
-        return {s: [] for s in symbols}
+        def stub_bars(symbols):
+            return {s: [] for s in symbols}
 
-    def stub_status(exchange):
-        return MagicMock(is_market_open=True, exchange=exchange)
+        def stub_status(exchange):
+            return MagicMock(is_market_open=True, exchange=exchange)
 
-    def stub_bar_close(ts, preset):
-        # Only True on the recorded tick_ts values — never invents a bar close.
-        # Since we drive run_tick exactly once per recorded TickEvent, this
-        # can safely always return False (the recorded ticks already
-        # represent every tick the loop had).
-        return False
+        def stub_bar_close(ts, preset):
+            # Only True on the recorded tick_ts values — never invents a bar close.
+            # Since we drive run_tick exactly once per recorded TickEvent, this
+            # can safely always return False (the recorded ticks already
+            # represent every tick the loop had).
+            return False
 
-    tl._fetch_batch_quote = stub_quote
-    tl._fetch_recent_bars = stub_bars
-    tl._fetch_session_status = stub_status
-    tl._is_signal_bar_close = stub_bar_close
-    try:
-        yield
-    finally:
-        tl._fetch_batch_quote = original_quote
-        tl._fetch_recent_bars = original_bars
-        tl._fetch_session_status = original_status
-        tl._is_signal_bar_close = original_bar_close
+        tl._fetch_batch_quote = stub_quote
+        tl._fetch_recent_bars = stub_bars
+        tl._fetch_session_status = stub_status
+        tl._is_signal_bar_close = stub_bar_close
+        try:
+            yield
+        finally:
+            tl._fetch_batch_quote = original_quote
+            tl._fetch_recent_bars = original_bars
+            tl._fetch_session_status = original_status
+            tl._is_signal_bar_close = original_bar_close
 
 
 # ---------------------------------------------------------------------------

@@ -187,7 +187,10 @@ def report(
 
     if format in ("xlsx", "all"):
         try:
-            from openbb_fmp_trading.reporting.xlsx_builder import build_workbook
+            from openbb_fmp_trading.reporting.xlsx_builder import (
+                XLSXUnavailable,
+                build_workbook,
+            )
         except ImportError as exc:
             warnings.append(f"xlsx skipped: {exc}")
             logger.warning(
@@ -205,7 +208,12 @@ def report(
                 xlsx_path.unlink()
             try:
                 build_workbook(session_id, events, metrics, xlsx_path)
-            except Exception as exc:  # noqa: BLE001 — xlsx is optional
+            except (XLSXUnavailable, ImportError, OSError) as exc:
+                # Narrow catch (silent-failure review): only genuinely
+                # optional or environmental failures degrade to a WARN.
+                # AttributeError / KeyError / TypeError from event-shape
+                # drift PROPAGATE — those are real bugs, not "xlsx is
+                # optional" cases.
                 warnings.append(f"xlsx failed: {exc}")
                 logger.warning("report: xlsx build failed (%s); skipping", exc)
                 xlsx_path = None

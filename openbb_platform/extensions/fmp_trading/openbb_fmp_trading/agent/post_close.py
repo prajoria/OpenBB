@@ -258,29 +258,27 @@ class PostCloseAgentTurn:
         Kept as a thin method so P3.2 callers don't change; the actual
         math lives in one place now.
 
-        Exception discipline (review S2 — narrow catch):
+        Exception discipline (review S2 + silent-failure review — narrow catch):
 
         * ``FileNotFoundError`` -> empty metrics (session never journaled).
-        * ``ImportError`` on the reporting package -> empty metrics
-          (defensive; shouldn't happen).
         * ``SchemaVersionError`` from ``JournalReader`` -> empty metrics
           with WARN log (future writer produced this — we can't parse
           safely, but empty is better than crash for the post-close path).
         * **EVERYTHING ELSE propagates.** A ``TypeError`` /
           ``AttributeError`` deep in the metrics helper is a bug —
           surfacing it beats masking it as "empty session" for the next
-          6 months.
+          6 months. That includes ``ImportError`` on the first-party
+          ``journal_reader`` sibling — it's not an optional extra, so a
+          real import failure indicates a packaging bug we WANT to
+          surface (silent-failure review finding).
         """
-        try:
-            from openbb_fmp_trading.reporting.journal_reader import (
-                compute_metrics_from_events,
-                read_session_events,
-            )
-        except ImportError:
-            logger.info(
-                "PostCloseAgentTurn: reporting.journal_reader not importable; empty metrics"
-            )
-            return SessionMetrics(realized_pnl=Decimal("0"))
+        # Note: NO try/except around this import. journal_reader is a
+        # first-party sibling module in the same package; a failing
+        # import indicates a packaging/refactor bug that must surface.
+        from openbb_fmp_trading.reporting.journal_reader import (
+            compute_metrics_from_events,
+            read_session_events,
+        )
 
         try:
             events = list(read_session_events(session_id))
