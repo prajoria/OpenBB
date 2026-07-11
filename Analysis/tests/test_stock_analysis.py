@@ -150,8 +150,9 @@ class TestHelpers:
         response. This test locks in that the constructor now raises
         ``ValueError`` on any non-``fmp_cached`` provider.
         """
+        # provider-purity-exempt: intentionally tests the wrong-provider raise branch
         with pytest.raises(ValueError, match="fmp_cached"):
-            AnalysisConfig(symbol="TSLA", provider="fmp")
+            AnalysisConfig(symbol="TSLA", provider="fmp")  # provider-purity-exempt
         # Verify the error message points at CLAUDE.md so the operator
         # knows why their override was rejected.
         with pytest.raises(ValueError, match="CLAUDE.md|Provider rule"):

@@ -7,6 +7,7 @@ license = "AGPL-3.0-only"
 readme = "README.md"
 packages = [
     { include = "openbb_core" },
+    { include = "openbb_core_journal" },
     { include = "openbb" }
 ]
 

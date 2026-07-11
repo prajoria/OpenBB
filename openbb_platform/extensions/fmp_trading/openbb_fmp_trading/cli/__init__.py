@@ -1,0 +1,1 @@
+"""openbb-daytrade CLI."""

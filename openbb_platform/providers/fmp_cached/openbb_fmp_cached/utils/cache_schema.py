@@ -5426,6 +5426,7 @@ def create_yield_curve_table():
 
 # Complete table configuration for all 67 entities
 FLATTENED_TABLES = {
+    "aftermarket_quote": {"schema": create_aftermarket_quote_table},
     "analyst_estimates": {"schema": create_analyst_estimates_table},
     "available_indices": {"schema": create_available_indices_table},
     "balance_sheet": {"schema": create_balance_sheet_table},
@@ -5449,6 +5450,7 @@ FLATTENED_TABLES = {
     "economic_calendar": {"schema": create_economic_calendar_table},
     "equity_gainers": {"schema": create_equity_gainers_table},
     "equity_historical": {"schema": create_equity_historical_table},
+    "equity_intraday_historical": {"schema": create_equity_intraday_historical_table},
     "equity_losers": {"schema": create_equity_losers_table},
     "equity_most_active": {"schema": create_equity_most_active_table},
     "equity_ownership": {"schema": create_equity_ownership_table},
@@ -5465,6 +5467,10 @@ FLATTENED_TABLES = {
     "etf_sectors": {"schema": create_etf_sectors_table},
     "executive_compensation": {"schema": create_executive_compensation_table},
     "financial_ratios": {"schema": create_financial_ratios_table},
+    # fmp_trading_state — Phase 3 P3.0 (D6): persistent state for the two
+    # agent turns and their deterministic fallbacks. See
+    # openbb_fmp_trading.core.state_store.
+    "fmp_trading_state": {"schema": create_fmp_trading_state_table},
     "forward_ebitda_estimates": {"schema": create_forward_ebitda_estimates_table},
     "forward_eps_estimates": {"schema": create_forward_eps_estimates_table},
     "government_trades": {"schema": create_government_trades_table},
@@ -5491,6 +5497,9 @@ FLATTENED_TABLES = {
     "risk_premium": {"schema": create_risk_premium_table},
     "share_statistics": {"schema": create_share_statistics_table},
     "treasury_rates": {"schema": create_treasury_rates_table},
+    # ttl_cache — Phase 2 P2.2: generic JSON-blob TTL cache backing
+    # create_ttl_wrapper_class (ExchangeMarketHours + future 24h-TTL fetchers).
+    "ttl_cache": {"schema": create_ttl_cache_table},
     "complementary_market_yields": {"schema": create_complementary_market_yields_table},
     "world_news": {"schema": create_world_news_table},
     "yield_curve": {"schema": create_yield_curve_table},
@@ -5573,6 +5582,152 @@ def create_all_flattened_tables():
 # failure now surfaces immediately instead of degrading downstream cache
 # reads.
 create_all_tables = create_all_flattened_tables
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 P2.1 — intraday tier-1 tables
+# ---------------------------------------------------------------------------
+# These two tables back the tier-1 gap-detection / TTL caches promoted from
+# tier-2 passthrough per fmp-day-trading PRD §5.2. See
+# openbb_fmp_cached/models/equity_intraday_historical.py and
+# openbb_fmp_cached/models/aftermarket_quote.py for the fetchers that read
+# and write them.
+#
+# equity_intraday_historical: one row per (symbol, interval_type, ts).
+#   Same-session tail bars are marked is_valid=FALSE so the next call
+#   refetches them (critical correctness rule: a 5-min bar opened at 10:00
+#   doesn't finalize until 10:05, so a mid-session read at 10:03 has an
+#   incomplete last bar).
+#
+# aftermarket_quote: one row per symbol with a 60s TTL. HIT if
+#   cached_at > now - 60s; MISS otherwise. No gap detection.
+
+
+def create_equity_intraday_historical_table():
+    """Create equity_intraday_historical table (fmp-day-trading PRD §5.2)."""
+    query = """
+    CREATE TABLE IF NOT EXISTS equity_intraday_historical (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+        symbol VARCHAR(50) NOT NULL,
+        interval_type VARCHAR(10) NOT NULL,
+        ts DATETIME(0) NOT NULL,
+
+        open_price DECIMAL(18,6) DEFAULT NULL,
+        high_price DECIMAL(18,6) DEFAULT NULL,
+        low_price DECIMAL(18,6) DEFAULT NULL,
+        close_price DECIMAL(18,6) DEFAULT NULL,
+        volume BIGINT DEFAULT NULL,
+
+        is_extended BOOLEAN DEFAULT FALSE,
+        additional_fields JSON DEFAULT NULL,
+
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_valid BOOLEAN DEFAULT TRUE,
+
+        INDEX idx_symbol (symbol),
+        INDEX idx_symbol_interval_ts (symbol, interval_type, ts DESC),
+        INDEX idx_cached_at (cached_at),
+        INDEX idx_is_valid (is_valid),
+
+        UNIQUE KEY unique_symbol_interval_ts (symbol, interval_type, ts)
+
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
+
+
+def create_aftermarket_quote_table():
+    """Create aftermarket_quote table (fmp-day-trading PRD §5.2 — 60s TTL)."""
+    query = """
+    CREATE TABLE IF NOT EXISTS aftermarket_quote (
+        symbol VARCHAR(50) NOT NULL PRIMARY KEY,
+
+        price DECIMAL(18,6) DEFAULT NULL,
+        bid DECIMAL(18,6) DEFAULT NULL,
+        ask DECIMAL(18,6) DEFAULT NULL,
+        bid_size INTEGER DEFAULT NULL,
+        ask_size INTEGER DEFAULT NULL,
+        volume BIGINT DEFAULT NULL,
+        timestamp DATETIME(0) DEFAULT NULL,
+
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_valid BOOLEAN DEFAULT TRUE,
+
+        INDEX idx_cached_at (cached_at),
+        INDEX idx_is_valid (is_valid)
+
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
+
+
+def create_ttl_cache_table():
+    """Create ttl_cache — backing store for create_ttl_wrapper_class (P2.2).
+
+    One row per (cache_name, cache_key). The wrapper writes on MISS (via
+    INSERT ... ON DUPLICATE KEY UPDATE) and reads on HIT. Cache eviction
+    is TTL-based inside the wrapper's SELECT clause (cached_at > cutoff);
+    stale rows are overwritten on the next MISS rather than deleted, which
+    keeps the write path a single statement.
+
+    Distinct from the per-fetcher caches (equity_historical, aftermarket_quote,
+    etc.) — those own their own tables with domain-specific columns. This
+    is the generic JSON-blob store for any fetcher wrapped by
+    create_ttl_wrapper_class (currently just ExchangeMarketHours; future
+    candidates: holidays, market_status snapshots).
+    """
+    query = """
+    CREATE TABLE IF NOT EXISTS ttl_cache (
+        cache_name VARCHAR(80) NOT NULL,
+        cache_key  CHAR(64)    NOT NULL,
+        payload    JSON        NOT NULL,
+        cached_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (cache_name, cache_key),
+        INDEX idx_cached_at (cached_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
+
+
+def create_fmp_trading_state_table():
+    """Create fmp_trading_state — backing store for state_store.py (P3.0 / D6).
+
+    Persistent key-value state used by the two agent turns (P3.1 pre-open,
+    P3.2 post-close) and their deterministic fallbacks. One row per
+    (state_key, scope). Payload is a JSON blob so heterogeneous state
+    keys (``list[str]`` for watchlist, full ``DailyPlan`` dict for last
+    plan, dict for session summary) share one table without per-key
+    migrations.
+
+    Scope column supports multi-profile setups later (paper vs. live)
+    without a schema change — Phase 3 hardcodes ``scope='default'``.
+
+    Resilience contract lives in state_store.py itself: DB failure ->
+    load returns None, save is best-effort. Serialization bugs
+    (TypeError/ValueError/JSONDecodeError) PROPAGATE — a narrow except
+    tuple prevents 'we have a bug' from masquerading as 'DB down'
+    (design-review A7).
+
+    Distinct from the endpoint-specific caches (equity_historical,
+    aftermarket_quote, etc.) and from the generic ``ttl_cache`` (P2.2):
+    those are read-through caches for FMP payloads; this is durable
+    session-adjacent state that outlives any single fetch.
+    """
+    query = """
+    CREATE TABLE IF NOT EXISTS fmp_trading_state (
+        state_key  VARCHAR(80) NOT NULL,
+        scope      VARCHAR(80) NOT NULL DEFAULT 'default',
+        payload    JSON        NOT NULL,
+        updated_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                 ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (state_key, scope),
+        INDEX idx_updated_at (updated_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    """
+    return execute_query(query)
 
 
 def cleanup_expired_cache():
