@@ -1,5 +1,7 @@
 # FMP Day-Trading Automation — Phase 5 (Reporting + Polish) Implementation Plan
 
+> **⚠️ SUPERSEDED (2026-07-10):** Use `docs/superpowers/plans/2026-07-10-fmp-trading-phase5.md` instead. This 795-line draft was written alongside the PRD before Phase 3 shipped, and references primitives (`session_router.py`, `IntradaySession.reconstruct_from_events`, `AC-8` naming, `models/session_state::JournalEvent` as the replay type) that either don't exist or have different shapes in the actually-shipped Phase 3 code. Kept in-repo as historical context; do NOT execute against this file.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship the reporting + user-facing polish surface of `openbb-fmp-trading` — the `obb.fmp_trading.report()` command (MD + XLSX + JSON), the `obb.fmp_trading.replay()` command (deterministic journal → SessionResult), and the first user-consumable docs (README + CLI reference + config examples). Closes PRD §10 Phase 5.
