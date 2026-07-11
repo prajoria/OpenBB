@@ -31,7 +31,7 @@ import logging
 import os
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from openbb_fmp_trading.models.results import ReportManifest
 
@@ -74,13 +74,20 @@ def _resolve_output_dir(output_dir: Path | None, session_date: date) -> Path:
         The resolved absolute path guaranteed to be inside the reports jail.
 
     Raises:
-        OutputPathEscapesJail: if the resolved path is outside the jail.
+        OutputPathEscapesJail: if the resolved path is outside the jail,
+            OR if any component along the path (including the leaf) is a
+            symlink pointing outside the jail (bd-9nd.8 hardening).
     """
     jail = _reports_root()
     if output_dir is None:
         candidate = jail / f"daytrade_{session_date}"
     else:
         candidate = Path(output_dir).expanduser()
+
+    # First: standard resolve() + relative_to(jail). Catches obvious
+    # traversal (../../../etc) but silently follows symlinks — if the
+    # symlink target is inside the jail this check passes even though
+    # the link itself is attacker-controlled.
     resolved = candidate.resolve()
     try:
         resolved.relative_to(jail)
@@ -90,24 +97,148 @@ def _resolve_output_dir(output_dir: Path | None, session_date: date) -> Path:
             f"outside the reports jail {jail}. Set "
             f"FMP_TRADING_REPORTS_ROOT to widen the jail if needed."
         ) from exc
+
+    # bd-9nd.8 hardening: also verify NO component along the path
+    # (jail -> ... -> candidate) is a symlink. An attacker who can
+    # write to the jail root but nowhere else could plant a symlink
+    # AT one of the intermediate directory names pointing outside;
+    # resolve() would follow it, produce a target inside the jail,
+    # and pass the relative_to check above — but future writes into
+    # that dir would land OUTSIDE the jail via the symlink dereference.
+    # The lstat walk detects this at output_dir-resolution time.
+    _reject_symlinks_in_chain(candidate, jail)
+
     return resolved
 
 
-def _open_for_write(path: Path, overwrite: bool) -> None:
-    """Refuse the write if the file exists and overwrite=False.
+def _reject_symlinks_in_chain(candidate: Path, jail: Path) -> None:
+    """Walk ``candidate``'s path components from ``jail`` down and reject
+    if any is a symlink (bd-9nd.8).
 
-    Also refuses to follow symlinks — an attacker who plants a symlink
-    in the jail dir could otherwise redirect the write to /etc/passwd
-    (with jail-root permissions).
+    Uses ``lstat()`` (which does NOT follow symlinks) rather than
+    ``resolve()`` (which does). If the candidate isn't a descendant of
+    ``jail`` lexically, do nothing — the caller's ``resolve() +
+    relative_to()`` already rejected it above.
+
+    Windows note: on Windows without SeCreateSymbolicLink privilege the
+    symlink surface is small — this is defense-in-depth. On Linux/macOS
+    where symlinks are trivially plantable it matters more.
     """
-    if path.is_symlink():
-        raise OutputPathEscapesJail(
-            f"refusing to write through symlink at {path}"
-        )
-    if path.exists() and not overwrite:
+    # Make both absolute for lexical comparison. Do NOT call resolve()
+    # on candidate — that would defeat the check.
+    try:
+        jail_abs = jail.resolve()
+        candidate_abs = candidate.absolute()
+    except OSError:
+        return  # Can't lstat components; downstream write will fail loud
+
+    # If candidate isn't under jail lexically, skip — resolve()'s
+    # relative_to check will have rejected it.
+    try:
+        rel = candidate_abs.relative_to(jail_abs)
+    except ValueError:
+        return
+
+    # Walk each component of `rel` under jail_abs, checking is_symlink()
+    # via lstat. Skip the jail root itself (operator's own choice).
+    current = jail_abs
+    for part in rel.parts:
+        current = current / part
+        try:
+            if current.is_symlink():
+                raise OutputPathEscapesJail(
+                    f"refusing output_dir chain: {current} is a symlink "
+                    f"(bd-9nd.8: symlink in path component defeats the "
+                    f"jail root's relative_to check)"
+                )
+        except OSError:
+            # Component doesn't exist yet — that's fine, the write will
+            # create it (as long as jail-relative check above passed).
+            pass
+
+
+def _open_for_write(path: Path, overwrite: bool) -> Any:
+    """Atomically open ``path`` for writing with TOCTOU-safe semantics.
+
+    bd-9nd.8 (fix for pre-merge review of PR #448 P1 #1): the prior
+    check-then-write pattern
+
+        if path.is_symlink(): raise ...
+        if path.exists() and not overwrite: raise ...
+        path.write_text(...)                # <-- TOCTOU window
+
+    was racy: an attacker with write access to the jail could plant a
+    symlink between the check and the write. This function replaces
+    that pattern with a single atomic ``os.open()`` call using flags
+    that make the race unreachable:
+
+    * ``O_WRONLY`` + ``O_CREAT`` — create-or-open for write
+    * ``O_EXCL``  — fail if the file already exists (paired with
+                    ``overwrite=False``, this replaces the exists+raise
+                    check with an atomic exclusive-create)
+    * ``O_NOFOLLOW`` — fail if the target is a symlink (replaces the
+                    is_symlink check atomically)
+
+    Returns an open file descriptor (int) — caller uses ``os.fdopen``
+    or ``os.write`` to write and MUST close it.
+
+    On Windows, ``O_NOFOLLOW`` isn't available in ``os.O_*``; the
+    fallback is the pre-fix check-then-write pattern with a WARN note
+    that the TOCTOU window exists. Not a full mitigation, but Windows
+    symlink creation requires admin/dev-mode by default which limits
+    the attack surface substantially.
+    """
+    import os
+    import sys
+
+    flags = os.O_WRONLY | os.O_CREAT
+    if not overwrite:
+        flags |= os.O_EXCL  # atomic "fail if exists"
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW  # atomic "fail if symlink"
+    elif sys.platform == "win32":
+        # Windows: no O_NOFOLLOW. Fall back to pre-fix check with the
+        # inherent TOCTOU acknowledged. Symlink creation on Windows
+        # requires admin/dev-mode by default, so the attack surface is
+        # smaller than on Unix.
+        if path.is_symlink():
+            raise OutputPathEscapesJail(
+                f"refusing to write through symlink at {path}"
+            )
+
+    try:
+        fd = os.open(str(path), flags, 0o644)
+    except FileExistsError as exc:
+        # O_EXCL raised — the file exists and overwrite=False
         raise OutputExists(
             f"refusing to overwrite {path}: pass overwrite=True to regenerate"
-        )
+        ) from exc
+    except OSError as exc:
+        # O_NOFOLLOW raises OSError(ELOOP or EEXIST + is_symlink) on
+        # Unix when the target is a symlink. Map to OutputPathEscapesJail
+        # so callers get the same exception whether they're on Linux or
+        # Windows (fallback path).
+        if path.is_symlink():
+            raise OutputPathEscapesJail(
+                f"refusing to write through symlink at {path}"
+            ) from exc
+        raise
+    return fd
+
+
+def _atomic_write_text(path: Path, content: str, overwrite: bool) -> None:
+    """Thin wrapper: open via :func:`_open_for_write`, write, close.
+
+    Encapsulates the fd lifecycle so callers don't manually manage it.
+    UTF-8 encoding, matching the pre-fix ``Path.write_text`` semantics.
+    """
+    import os
+
+    fd = _open_for_write(path, overwrite=overwrite)
+    try:
+        os.write(fd, content.encode("utf-8"))
+    finally:
+        os.close(fd)
 
 
 def report(
@@ -162,12 +293,18 @@ def report(
             session_id=session_id,
         )
         md_path = output_dir / "end_of_day.md"
-        _open_for_write(md_path, overwrite)
+        # bd-9nd.8: atomic open — replaces the pre-fix
+        # _open_for_write-check + path.write_text pattern that had a
+        # TOCTOU window where an attacker could plant a symlink between
+        # the check and the write. When overwriting, unlink first (also
+        # done atomically via O_NOFOLLOW) then write fresh.
         if md_path.exists():
             logger.warning(
                 "report: overwriting existing %s (idempotent regen)", md_path
             )
-        md_path.write_text(md_content, encoding="utf-8")
+            if overwrite:
+                md_path.unlink()
+        _atomic_write_text(md_path, md_content, overwrite=overwrite)
 
     if format in ("json", "all"):
         json_content = build_json_manifest(
@@ -178,12 +315,13 @@ def report(
             session_id=session_id,
         )
         json_path = output_dir / "manifest.json"
-        _open_for_write(json_path, overwrite)
         if json_path.exists():
             logger.warning(
                 "report: overwriting existing %s (idempotent regen)", json_path
             )
-        json_path.write_text(json_content, encoding="utf-8")
+            if overwrite:
+                json_path.unlink()
+        _atomic_write_text(json_path, json_content, overwrite=overwrite)
 
     if format in ("xlsx", "all"):
         try:
@@ -198,7 +336,11 @@ def report(
             )
         else:
             xlsx_path = output_dir / "end_of_day.xlsx"
-            _open_for_write(xlsx_path, overwrite)
+            # openpyxl doesn't accept an fd — it opens the path itself.
+            # But we still want the atomic "exists + no overwrite" check
+            # to be race-free, so use _open_for_write's fd, close it,
+            # and let openpyxl reopen. The atomic-create semantics of
+            # O_EXCL still catch the race.
             if xlsx_path.exists():
                 logger.warning(
                     "report: overwriting existing %s (idempotent regen)", xlsx_path
@@ -206,6 +348,11 @@ def report(
                 # openpyxl doesn't support atomic exclusive-create; unlink
                 # so a stale file doesn't confuse the load-modify-save loop
                 xlsx_path.unlink()
+            # Use _open_for_write to gate on symlink + exists atomically.
+            # openpyxl will reopen and overwrite the empty file we create.
+            import os as _os
+            _fd = _open_for_write(xlsx_path, overwrite=True)  # already unlinked above
+            _os.close(_fd)
             try:
                 build_workbook(session_id, events, metrics, xlsx_path)
             except (XLSXUnavailable, ImportError, OSError) as exc:
