@@ -1,0 +1,16 @@
+//@version=6
+strategy("Breakout ATR Trail", overlay=true, initial_capital=1000000)
+channel_len = input.int(20, "Channel Length")
+atr_len = input.int(14, "ATR Length")
+atr_mult = input.float(2.0, "ATR Multiplier")
+upper = ta.highest(high, channel_len)[1]
+lower = ta.lowest(low, channel_len)[1]
+atr = ta.atr(atr_len)
+stop_level = close - atr * atr_mult
+if ta.crossover(close, upper)
+    strategy.entry("Long", strategy.long)
+if close < stop_level
+    strategy.close("Long")
+plot(upper, "Upper", color=color.green)
+plot(lower, "Lower", color=color.red)
+plot(stop_level, "Stop", color=color.orange)
