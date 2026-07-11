@@ -189,6 +189,9 @@ class TestExtraContract:
         expected_keys = {
             "alerts", "orders", "attribution", "compile_cache_hit",
             "exec_ms", "provider_used", "bars_consumed",
+            # bd-4d0 -- script_type stamp so /pine/strategies/run can
+            # reject non-strategy sources post-compile with PT099.
+            "script_type",
         }
         assert set(obj.extra.keys()) == expected_keys
 

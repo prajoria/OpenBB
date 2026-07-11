@@ -1,90 +1,164 @@
-"""Strategies sub-router: ``POST /pine/strategies/run`` (D3 §4.3).
+"""Strategies sub-router: ``POST /pine/strategies/run`` (D3 §4.3 / D5 §8.1).
 
-M1 = HTTP 501 always. The route is registered so the OpenAPI surface
-locks at M1 — clients can discover the endpoint and authoring tools
-generate the correct request shape from the typed
-:class:`PineStrategiesRunRequest` model — but every call raises
-:class:`PineStrategyNotYetImplementedError` until the M2 strategy fill
-engine + KPI emitter lands (PRD §3.2, D3 §4.3). See bead ``0e9.5.6`` for
-the M2 tracking.
+**bd-4d0 flip** (Wave 22 — 2026-07-11). The M1 501 stub is replaced by a
+real dispatch through the shared ``_compile_and_run()`` helper defined in
+:mod:`openbb_pine.routers.run_router` (bead 0e9.11). The endpoint now
+compiles and executes a Pine strategy end-to-end and returns a bare
+``OBBject`` per PRD §16.6 (M1-shipping finding — typed models deferred).
 
-The endpoint accepts the full M2 request shape today so a client written
-against the published schema works unchanged once the body flips. Inputs
-are intentionally *not* validated at M1 — the M2 lander will plumb them
-into the same model that the OpenAPI schema already documents.
+Pipeline:
+
+    1. ``resolve_provider(provider)`` — non-FMP names raise ``PineProviderError``.
+    2. ``_compile_and_run(...)`` — shared with ``/pine/run``; owns compile
+       + execute + telemetry.
+    3. Post-compile script-type gate — if the compiled unit is not a
+       ``strategy(...)`` declaration, raise ``PineTypeError`` with rule
+       ``PT099`` so callers get a structured "wrong endpoint" signal
+       instead of an indicator-shaped OBBject.
+    4. ``_apply_strategy_params(result, strategy_params)`` — merges caller
+       overrides (e.g. ``initial_capital``) onto ``result.extra['stats']``.
+
+Returns a bare OBBject with ``.extra`` carrying ``stats``, ``equity_curve``,
+``orders``, ``alerts``, ``script_type='strategy'``, and the standard
+attribution/telemetry envelope (D5 §8.1).
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Any
 
 from openbb_core.app.model.example import PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
-from pydantic import Field
 
-from pyne_compiler.errors.base import PineStrategyNotYetImplementedError
+from openbb_pine.errors import PineTypeError
 from openbb_pine.routers._models import PineByoData
+from openbb_pine.routers.run_router import _compile_and_run
+from openbb_pine.runtime.provider_selection import resolve_provider
+from pyne_compiler.errors.codes import ERROR_CODES, ErrorCodeSpec
+
+# bd-4d0 — register PT099 (fork-side "wrong endpoint" gate). PT001-008 are
+# reserved by D1 §4.4 for compile-time type-checker rules; PT099 is the
+# routing-layer variant this endpoint raises when the caller sends a
+# non-strategy source to /pine/strategies/run. Registration must happen at
+# import time so ``test_error_model.TestErrorCodeEnforcement`` (which scans
+# rule= kwargs across the codebase) resolves the literal against the
+# central registry without needing a pynecore-submodule edit.
+if "PT099" not in ERROR_CODES:
+    ERROR_CODES["PT099"] = ErrorCodeSpec(
+        code="PT099",
+        class_name="PineTypeError",
+        short_description="Wrong endpoint: source is not a strategy",
+        detailed_description=(
+            "``/pine/strategies/run`` was called with a source whose top-level "
+            "declaration is not ``strategy(...)`` (e.g. an ``indicator(...)`` "
+            "or ``library(...)`` script). Use ``/pine/run`` for indicators. "
+            "See D5 §8.1."
+        ),
+        since_version="0.next",
+        tracking_label="pine-strategy-router",
+    )
 
 router = Router(
     prefix="/strategies",
-    description="Run Pine strategies (501 at M1; live at M2 per PRD §3.2).",
+    description="Run Pine strategies over OHLCV (bd-4d0 — real at M2).",
 )
 
 
-_STRATEGY_TRACKING_URL = (
-    "https://github.com/prajoria/OpenBB/issues?"
-    "q=is%3Aissue+label%3Aproject%3Apine+bead%3A0e9.5.6"
-)
+def _apply_strategy_params(
+    result: OBBject,
+    strategy_params: dict[str, Any],
+) -> None:
+    """Merge caller-supplied strategy overrides onto the ``result`` envelope.
+
+    At M2-shipping the only lever the router surfaces is a shallow merge
+    onto ``result.extra['stats']`` so callers can annotate the returned
+    envelope with values (e.g. ``initial_capital``) that upstream Pine
+    ``strategy(...)`` inputs did not carry. Deeper param semantics (e.g.
+    re-running with a different ``commission_value``) land in a follow-up
+    bead — the shape here is the minimum needed to unblock bd-250 /
+    bd-cht per D5 §8.1.
+    """
+    if not strategy_params:
+        return
+    extra = getattr(result, "extra", None)
+    if not isinstance(extra, dict):
+        return
+    stats = extra.setdefault("stats", {})
+    if isinstance(stats, dict):
+        stats.update(strategy_params)
 
 
 @router.command(
     methods=["POST"],
     examples=[
         PythonEx(
-            description="Run a Pine strategy (501 at M1; live at M2).",
+            description="Run a Pine strategy over FMP-supplied OHLCV.",
             code=[
                 'src = open("breakout.pine").read()',
-                'obb.pine.strategies.run(source=src, provider="fmp", symbol="AAPL", '
-                'interval="1d", start="2024-01-01", end="2024-12-31")',
+                'obb.pine.strategies.run(source=src, provider="fmp_cached", '
+                'symbol="AAPL", interval="1d", start="2024-01-01", '
+                'end="2024-12-31")',
             ],
         ),
     ],
 )
 async def run(
     source: str,
-    provider: str | None = None,
-    symbol: str | None = None,
-    interval: str | None = None,
+    provider: str = "fmp_cached",
+    symbol: str = "AAPL",
+    interval: str = "1d",
     start: str | None = None,
     end: str | None = None,
     params: dict[str, Any] | None = None,
-    data: PineByoData | None = None,
+    data: PineByoData | None = None,  # noqa: ARG001 -- reserved for BYO follow-up
     strategy_params: dict[str, Any] | None = None,
-    timeout_s: int | None = None,
+    timeout_s: int = 30,
 ) -> OBBject:
-    """Run a Pine strategy — M1 returns 501 always (D3 §4.3).
+    """Compile and execute a Pine strategy over an FMP-provided OHLCV series.
 
-    Returns
-    -------
-    OBBject
-        Bare ``OBBject`` per D3 §5 — the keys are user-defined at M2.
-        At M1 always raises :class:`PineStrategyNotYetImplementedError`.
+    Provider validation fires FIRST so non-FMP names surface
+    :class:`PineProviderError` per PRD §13.8. On success the returned
+    ``OBBject.extra`` carries ``script_type='strategy'``, ``stats``
+    (KPIs), ``equity_curve``, ``orders``, ``alerts``, ``attribution``,
+    and ``pine_telemetry`` (D5 §8.1).
 
     Raises
     ------
-    PineStrategyNotYetImplementedError
-        501 — strategies land at M2 (see bead 0e9.5.6).
+    PineProviderError
+        Non-FMP provider name.
+    PineTypeError
+        Rule ``PT099`` — source is not a ``strategy(...)`` declaration.
+        Use ``/pine/run`` for indicators.
+    PineSyntaxError / PineTypeError / PineUnsupportedBuiltinError
+        Compile-time errors.
+    PineFMPUnreachableError / PineFMPRequiredError
+        Runtime data-side errors.
+    PineExecTimeoutError / PineSecurityError
+        Runtime enforcement failures.
     """
-    # Discard the inputs explicitly so static analyzers do not warn about
-    # unused parameters — the parameters exist so the OpenAPI surface is
-    # correct, not to be exercised.
-    del source, provider, symbol, interval, start, end, params, data
-    del strategy_params, timeout_s
-    raise PineStrategyNotYetImplementedError(
-        f"Strategies land at M2 per PRD §3.2; see bead 0e9.5.6. "
-        f"Tracking: {_STRATEGY_TRACKING_URL}"
+    resolve_provider(provider)
+    result = _compile_and_run(
+        source=source,
+        provider_or_data=provider,
+        symbol=symbol,
+        interval=interval,
+        start=start,
+        end=end,
+        params=params,
+        timeout_s=timeout_s,
     )
+    extra = getattr(result, "extra", None) or {}
+    if extra.get("script_type") != "strategy":
+        raise PineTypeError(
+            rule="PT099",
+            message=(
+                "Source does not use strategy(...); "
+                "use /pine/run for indicators."
+            ),
+        )
+    _apply_strategy_params(result, strategy_params or {})
+    return result
 
 
 __all__ = ["router"]
