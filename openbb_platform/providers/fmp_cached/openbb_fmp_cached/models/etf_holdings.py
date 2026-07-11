@@ -28,7 +28,11 @@ from openbb_fmp.models.etf_holdings import (
     FMPEtfHoldingsQueryParams,
 )
 
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +66,9 @@ def _get_cached_etf_holdings(etf_symbol: str) -> list[dict]:
             try:
                 loaded.append(json.loads(payload))
             except json.JSONDecodeError as exc:
-                logger.warning("etf_holdings cache: bad JSON for %s: %s", etf_symbol, exc)
+                logger.warning(
+                    "etf_holdings cache: bad JSON for %s: %s", etf_symbol, exc
+                )
                 continue
         else:
             loaded.append(payload)
@@ -80,24 +86,33 @@ def _store_etf_holdings(
         return
     etf = etf_symbol.upper()
 
-    cleanup_sql = "DELETE FROM etf_holdings WHERE symbol = %s"
-    insert_sql = """
-    INSERT INTO etf_holdings
-        (symbol, data_json, is_valid, cached_at)
-    VALUES (%s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
     try:
-        execute_query(cleanup_sql, (etf,))
-        params_list = []
+        # bd-n3sf: route DELETE+INSERT through replace_rows() for atomicity.
+        # Preserves the site-level try/except (D4) — cache write failures
+        # log a warning but do NOT break the read path.
+        rows_out: list[dict[str, Any]] = []
         for r in rows:
             payload = dict(r)
             payload["data_source"] = data_source
-            params_list.append((etf, json.dumps(payload, default=str)))
-        if params_list:
-            execute_many(insert_sql, params_list)
+            rows_out.append(
+                {
+                    "symbol": etf,
+                    "data_json": json.dumps(payload, default=str),
+                }
+            )
+        if rows_out:
+            replace_rows(
+                "etf_holdings",
+                "symbol",
+                etf,
+                rows_out,
+                columns=["symbol", "data_json"],
+            )
             logger.info(
                 "Cached %d etf_holdings rows for %s (source=%s)",
-                len(params_list), etf, data_source,
+                len(rows_out),
+                etf,
+                data_source,
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning("etf_holdings cache write for %s failed: %s", etf_symbol, exc)
@@ -116,9 +131,11 @@ async def _try_fmp(
     a benign 402-then-rescue doesn't produce user-facing noise.
     """
     try:
-        fetch_query = FMPEtfHoldingsQueryParams(symbol=symbol)
+        fetch_query = query.model_copy(update={"symbol": symbol})
         raw = await FMPEtfHoldingsFetcher.aextract_data(
-            fetch_query, credentials, **kwargs,
+            fetch_query,
+            credentials,
+            **kwargs,
         )
         return list(raw or [])
     except Exception as exc:  # noqa: BLE001
@@ -138,6 +155,7 @@ async def _try_issuer(symbol: str) -> list[dict]:
         from openbb_fmp_cached.models.etf_holdings_issuer import (  # noqa: PLC0415
             fetch_issuer_holdings,
         )
+
         return await asyncio.to_thread(fetch_issuer_holdings, symbol)
     except Exception as exc:  # noqa: BLE001
         # bd-3ka: DEBUG (not WARNING) — Tier-3 may rescue, and the

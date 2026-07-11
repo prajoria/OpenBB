@@ -30,8 +30,6 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from openpyxl import load_workbook
-
 from openbb_techtrade.models import (
     EntryExitRule,
     ExportConfig,
@@ -50,6 +48,7 @@ from openbb_techtrade.reporting.excel_export import (
     export,
 )
 from openbb_techtrade.testing import assert_matches_golden
+from openpyxl import load_workbook
 
 FIXTURES = Path(__file__).parent / "fixtures"
 pytestmark = pytest.mark.golden
@@ -76,63 +75,161 @@ def _make_plan(
 ) -> TradePlan:
     """Build a paper-filled TradePlan deterministically (no clock / random sources)."""
     votes = [
-        IndicatorVote(family="trend", name="macd_hist", vote=1.0 if direction == "long" else -1.0, weight=0.40),
-        IndicatorVote(family="trend", name="ema_cross", vote=1.0 if direction == "long" else -1.0, weight=0.40),
-        IndicatorVote(family="momentum", name="rsi", vote=0.8 if direction == "long" else -0.8, weight=0.25),
-        IndicatorVote(family="volatility", name="bb_pctb", vote=0.6 if direction == "long" else -0.6, weight=0.20),
-        IndicatorVote(family="volume", name="obv_slope", vote=1.0 if direction == "long" else -1.0, weight=0.15),
+        IndicatorVote(
+            family="trend",
+            name="macd_hist",
+            vote=1.0 if direction == "long" else -1.0,
+            weight=0.40,
+        ),
+        IndicatorVote(
+            family="trend",
+            name="ema_cross",
+            vote=1.0 if direction == "long" else -1.0,
+            weight=0.40,
+        ),
+        IndicatorVote(
+            family="momentum",
+            name="rsi",
+            vote=0.8 if direction == "long" else -0.8,
+            weight=0.25,
+        ),
+        IndicatorVote(
+            family="volatility",
+            name="bb_pctb",
+            vote=0.6 if direction == "long" else -0.6,
+            weight=0.20,
+        ),
+        IndicatorVote(
+            family="volume",
+            name="obv_slope",
+            vote=1.0 if direction == "long" else -1.0,
+            weight=0.15,
+        ),
     ]
     sig = MoverSignal(
-        symbol=symbol, segment=segment, as_of=_AS_OF,
-        score=score, direction=direction, votes=votes, rank_in_segment=1,
+        symbol=symbol,
+        segment=segment,
+        as_of=_AS_OF,
+        score=score,
+        direction=direction,
+        votes=votes,
+        rank_in_segment=1,
     )
     if direction == "flat":
         rec = Recommendation(
-            symbol=symbol, segment=segment, as_of=_AS_OF,
-            action="HOLD/FLAT", conviction="Low", score=score,
-            entry_price=entry, stop_price=entry, target_price=entry,
-            stop_distance_pct=0.0, target_distance_pct=0.0, risk_reward=0.0, atr=_ATR,
-            position_size=Decimal(0), risk_per_share=Decimal(0),
-            risk_pct_of_notional=0.0, time_stop_bars=None,
+            symbol=symbol,
+            segment=segment,
+            as_of=_AS_OF,
+            action="HOLD/FLAT",
+            conviction="Low",
+            score=score,
+            entry_price=entry,
+            stop_price=entry,
+            target_price=entry,
+            stop_distance_pct=0.0,
+            target_distance_pct=0.0,
+            risk_reward=0.0,
+            atr=_ATR,
+            position_size=Decimal(0),
+            risk_per_share=Decimal(0),
+            risk_pct_of_notional=0.0,
+            time_stop_bars=None,
             reasoning=f"Hold {symbol}: below the entry threshold.",
-            top_factors=[], caveats="None.",
+            top_factors=[],
+            caveats="None.",
         )
         return TradePlan(
-            symbol=symbol, segment=segment, as_of=_AS_OF,
-            signal=sig, rule=EntryExitRule(), position_size=Decimal(0),
-            orders=[], simulated_fills=[], recommendation=rec,
+            symbol=symbol,
+            segment=segment,
+            as_of=_AS_OF,
+            signal=sig,
+            rule=EntryExitRule(),
+            position_size=Decimal(0),
+            orders=[],
+            simulated_fills=[],
+            recommendation=rec,
         )
 
-    entry_side, exit_side = (("buy", "sell") if direction == "long" else ("sell_short", "buy_to_cover"))
+    entry_side, exit_side = (
+        ("buy", "sell") if direction == "long" else ("sell_short", "buy_to_cover")
+    )
     risk_per_share = abs(entry - stop)
     rec = Recommendation(
-        symbol=symbol, segment=segment, as_of=_AS_OF,
-        action=action, conviction=conviction, score=score,
-        entry_price=entry, stop_price=stop, target_price=target,
-        stop_distance_pct=float(risk_per_share / entry), target_distance_pct=float(abs(target - entry) / entry),
-        risk_reward=float(abs(target - entry) / risk_per_share), atr=_ATR,
-        position_size=qty, risk_per_share=risk_per_share,
+        symbol=symbol,
+        segment=segment,
+        as_of=_AS_OF,
+        action=action,
+        conviction=conviction,
+        score=score,
+        entry_price=entry,
+        stop_price=stop,
+        target_price=target,
+        stop_distance_pct=float(risk_per_share / entry),
+        target_distance_pct=float(abs(target - entry) / entry),
+        risk_reward=float(abs(target - entry) / risk_per_share),
+        atr=_ATR,
+        position_size=qty,
+        risk_per_share=risk_per_share,
         risk_pct_of_notional=float(qty * risk_per_share / Decimal("100000")),
         time_stop_bars=20,
         reasoning=f"{action} {symbol}: trend confirming.",
-        top_factors=["macd_hist+ (trend)", "ema_cross+ (trend)"] if direction == "long" else ["macd_hist- (trend)"],
+        top_factors=(
+            ["macd_hist+ (trend)", "ema_cross+ (trend)"]
+            if direction == "long"
+            else ["macd_hist- (trend)"]
+        ),
         caveats="None.",
     )
     orders = [
-        Order(symbol=symbol, side=entry_side, quantity=qty, order_type="market", tif="day", intent="entry"),
-        Order(symbol=symbol, side=exit_side, quantity=qty, order_type="stop", stop_price=stop, tif="gtc", intent="exit_stop"),
-        Order(symbol=symbol, side=exit_side, quantity=qty, order_type="limit", limit_price=target, tif="gtc", intent="exit_target"),
+        Order(
+            symbol=symbol,
+            side=entry_side,
+            quantity=qty,
+            order_type="market",
+            tif="day",
+            intent="entry",
+        ),
+        Order(
+            symbol=symbol,
+            side=exit_side,
+            quantity=qty,
+            order_type="stop",
+            stop_price=stop,
+            tif="gtc",
+            intent="exit_stop",
+        ),
+        Order(
+            symbol=symbol,
+            side=exit_side,
+            quantity=qty,
+            order_type="limit",
+            limit_price=target,
+            tif="gtc",
+            intent="exit_target",
+        ),
     ]
     fills = [
         Fill(
-            order_ref=f"{symbol}:entry", timestamp=_FILL_TS, symbol=symbol, side=entry_side,
-            quantity=qty, price=entry, commission=Decimal("0"), slippage=Decimal("0.06"),
+            order_ref=f"{symbol}:entry",
+            timestamp=_FILL_TS,
+            symbol=symbol,
+            side=entry_side,
+            quantity=qty,
+            price=entry,
+            commission=Decimal("0"),
+            slippage=Decimal("0.06"),
         )
     ]
     return TradePlan(
-        symbol=symbol, segment=segment, as_of=_AS_OF,
-        signal=sig, rule=EntryExitRule(), position_size=qty,
-        orders=orders, simulated_fills=fills, recommendation=rec,
+        symbol=symbol,
+        segment=segment,
+        as_of=_AS_OF,
+        signal=sig,
+        rule=EntryExitRule(),
+        position_size=qty,
+        orders=orders,
+        simulated_fills=fills,
+        recommendation=rec,
     )
 
 
@@ -140,21 +237,39 @@ def _golden_plans() -> list[TradePlan]:
     """Three plans across two segments: BUY high, SELL_SHORT high, HOLD/FLAT."""
     return [
         _make_plan(
-            "NVDA", "Information Technology",
-            direction="long", score=0.78, action="BUY", conviction="High",
-            entry=Decimal("121.40"), stop=Decimal("117.60"), target=Decimal("129.00"),
+            "NVDA",
+            "Information Technology",
+            direction="long",
+            score=0.78,
+            action="BUY",
+            conviction="High",
+            entry=Decimal("121.40"),
+            stop=Decimal("117.60"),
+            target=Decimal("129.00"),
             qty=Decimal("263"),
         ),
         _make_plan(
-            "GLD", "Materials",
-            direction="short", score=-0.78, action="SELL_SHORT", conviction="High",
-            entry=Decimal("121.40"), stop=Decimal("125.20"), target=Decimal("113.80"),
+            "GLD",
+            "Materials",
+            direction="short",
+            score=-0.78,
+            action="SELL_SHORT",
+            conviction="High",
+            entry=Decimal("121.40"),
+            stop=Decimal("125.20"),
+            target=Decimal("113.80"),
             qty=Decimal("263"),
         ),
         _make_plan(
-            "JPM", "Financials",
-            direction="flat", score=0.05, action="HOLD/FLAT", conviction="Low",
-            entry=Decimal("121.40"), stop=Decimal("121.40"), target=Decimal("121.40"),
+            "JPM",
+            "Financials",
+            direction="flat",
+            score=0.05,
+            action="HOLD/FLAT",
+            conviction="Low",
+            entry=Decimal("121.40"),
+            stop=Decimal("121.40"),
+            target=Decimal("121.40"),
             qty=Decimal(0),
         ),
     ]
@@ -183,7 +298,9 @@ def _snapshot_number_formats(ws, header_row: int) -> dict[str, str]:
         header = ws.cell(row=header_row, column=col_index).value
         if header is None:
             continue
-        formats[str(header)] = ws.cell(row=header_row + 1, column=col_index).number_format
+        formats[str(header)] = ws.cell(
+            row=header_row + 1, column=col_index
+        ).number_format
     return formats
 
 
@@ -192,14 +309,23 @@ def _snapshot_cf(ws) -> list[dict]:
     out: list[dict] = []
     for cell_range, rules in ws.conditional_formatting._cf_rules.items():
         for rule in rules:
-            out.append({
-                "range": str(cell_range.sqref) if hasattr(cell_range, "sqref") else str(cell_range),
-                "type": rule.type,
-                "operator": getattr(rule, "operator", None),
-                "formula": list(getattr(rule, "formula", []) or []),
-            })
+            out.append(
+                {
+                    "range": (
+                        str(cell_range.sqref)
+                        if hasattr(cell_range, "sqref")
+                        else str(cell_range)
+                    ),
+                    "type": rule.type,
+                    "operator": getattr(rule, "operator", None),
+                    "formula": list(getattr(rule, "formula", []) or []),
+                }
+            )
     # Sort for stable ordering -- the snapshot must not depend on dict iteration order.
-    return sorted(out, key=lambda r: (r["range"], r["type"], r["operator"] or "", str(r["formula"])))
+    return sorted(
+        out,
+        key=lambda r: (r["range"], r["type"], r["operator"] or "", str(r["formula"])),
+    )
 
 
 def _snapshot_workbook(path: str) -> dict:
@@ -218,16 +344,22 @@ def _snapshot_workbook(path: str) -> dict:
     return snapshot
 
 
-def test_export_workbook_matches_golden_snapshot(tmp_path: Path):
+def test_export_workbook_matches_golden_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Q-A option (i): write the workbook, read it back, lock the structural snapshot."""
+    monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
     out = tmp_path / "techtrade_golden.xlsx"
     path = export(_golden_plans(), config=ExportConfig(path=str(out)))
     snapshot = _snapshot_workbook(path)
     assert_matches_golden("excel_export_recs", snapshot, fixture_dir=FIXTURES)
 
 
-def test_export_workbook_sheet_set_matches_design(tmp_path: Path):
+def test_export_workbook_sheet_set_matches_design(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     """L2: independent of golden, the produced workbook always has the canonical 6 sheets."""
+    monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
     out = tmp_path / "wb.xlsx"
     path = export(_golden_plans(), config=ExportConfig(path=str(out)))
     wb = load_workbook(path)
@@ -237,8 +369,10 @@ def test_export_workbook_sheet_set_matches_design(tmp_path: Path):
 def test_format_spec_only_targets_canonical_sheets():
     """Static check: every FORMAT_SPEC rule targets a canonical sheet + a SHEET_SPEC column."""
     for rule in FORMAT_SPEC:
-        assert rule.sheet in CANONICAL_SHEETS, f"FORMAT_SPEC rule targets unknown sheet {rule.sheet!r}"
+        assert (
+            rule.sheet in CANONICAL_SHEETS
+        ), f"FORMAT_SPEC rule targets unknown sheet {rule.sheet!r}"
         columns = [col.header for col in SHEET_SPEC.get(rule.sheet, [])]
-        assert rule.column in columns, (
-            f"FORMAT_SPEC rule targets unknown column {rule.column!r} on {rule.sheet!r}"
-        )
+        assert (
+            rule.column in columns
+        ), f"FORMAT_SPEC rule targets unknown column {rule.column!r} on {rule.sheet!r}"

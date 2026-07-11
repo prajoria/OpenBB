@@ -18,7 +18,7 @@ Database Schema:
 
 import json
 import logging
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from openbb_fmp.models.institutional_ownership import (
@@ -26,7 +26,13 @@ from openbb_fmp.models.institutional_ownership import (
     FMPInstitutionalOwnershipFetcher,
     FMPInstitutionalOwnershipQueryParams,
 )
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from pydantic import ValidationError
+
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +70,16 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         """
         resolved_credentials = _resolve_credentials(credentials)
 
+        # bd-uolr (PR #426 silent-failure-hunter P1): compute the effective
+        # (year, quarter) ONCE up front, matching FMP's default-latest
+        # logic. Use these values for BOTH the cache read AND the cache
+        # write, so all cache-write paths (FMP + yfinance + SEC 13F)
+        # stamp identical year/quarter into the payload. Otherwise
+        # fallback-source rows would be written WITHOUT year/quarter and
+        # every future read would treat them as cache-miss, disabling
+        # caching for any symbol not served by FMP.
+        eff_year, eff_quarter = _effective_year_quarter(query.year, query.quarter)
+
         # --- Database init (best-effort) ---
         try:
             init_database()
@@ -76,7 +92,7 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
 
         # --- Step 1: Check cache ---
         for symbol in symbols:
-            cached = _get_cached_institutional(symbol)
+            cached = _get_cached_institutional(symbol, eff_year, eff_quarter)
             if cached:
                 results.extend(cached)
                 logger.info("Institutional ownership cache HIT for %s", symbol)
@@ -87,12 +103,18 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
             return results
 
         # --- Step 2: Try FMP API ---
-        fmp_results = await _try_fmp(query, symbols_to_fetch, resolved_credentials, **kwargs)
+        fmp_results = await _try_fmp(
+            query, symbols_to_fetch, resolved_credentials, **kwargs
+        )
         if fmp_results:
-            _store_institutional(fmp_results, data_source="fmp")
+            _store_institutional(
+                fmp_results, data_source="fmp", year=eff_year, quarter=eff_quarter
+            )
             results.extend(fmp_results)
             fetched_symbols = {r.get("symbol", "").upper() for r in fmp_results}
-            symbols_to_fetch = [s for s in symbols_to_fetch if s.upper() not in fetched_symbols]
+            symbols_to_fetch = [
+                s for s in symbols_to_fetch if s.upper() not in fetched_symbols
+            ]
 
         if not symbols_to_fetch:
             return results
@@ -100,10 +122,14 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         # --- Step 3: Try yfinance ---
         yf_results = await _try_yfinance(symbols_to_fetch)
         if yf_results:
-            _store_institutional(yf_results, data_source="yfinance")
+            _store_institutional(
+                yf_results, data_source="yfinance", year=eff_year, quarter=eff_quarter
+            )
             results.extend(yf_results)
             fetched_symbols = {r.get("symbol", "").upper() for r in yf_results}
-            symbols_to_fetch = [s for s in symbols_to_fetch if s.upper() not in fetched_symbols]
+            symbols_to_fetch = [
+                s for s in symbols_to_fetch if s.upper() not in fetched_symbols
+            ]
 
         if not symbols_to_fetch:
             return results
@@ -111,7 +137,9 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         # --- Step 4: Try SEC EDGAR 13F ---
         sec_results = await _try_sec_13f(symbols_to_fetch)
         if sec_results:
-            _store_institutional(sec_results, data_source="sec_13f")
+            _store_institutional(
+                sec_results, data_source="sec_13f", year=eff_year, quarter=eff_quarter
+            )
             results.extend(sec_results)
 
         return results
@@ -122,19 +150,120 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         data: list[dict],
         **kwargs: Any,
     ) -> list[FMPInstitutionalOwnershipData]:
-        """Transform raw data to FMP model, tolerating missing fields from fallback sources."""
-        validated = []
+        """Transform raw data to FMP model, tolerating missing fields from fallback sources.
+
+        The fallback chain (FMP → yfinance → SEC 13F) may return records
+        with slightly different shapes. This method validates each record
+        against ``FMPInstitutionalOwnershipData`` and skips ones that fail,
+        so a single malformed record doesn't nuke the entire response.
+
+        Failure logging (bd-0bp1)
+        -------------------------
+        Pre-fix each drop was logged at ``debug`` level with no exception
+        context — invisible under the default logging config, so a
+        caller debugging "why is institutional ownership empty for X?"
+        had no log evidence. Post-fix each drop is logged at ``WARNING``
+        with the symbol and the specific ``ValidationError``.
+
+        All-dropped guard (bd-0bp1)
+        ---------------------------
+        If ``data`` is non-empty but EVERY record fails validation, the
+        method raises ``ValueError`` rather than silently returning an
+        empty list. The fallback design assumes at least one source
+        succeeds; a complete drop indicates either schema drift in FMP
+        or all fallback sources broken — both cases where "empty result"
+        is indistinguishable from "no institutional owners for this
+        ticker", which is a fundamentally different answer.
+
+        An input list that is already empty (no records tried) is a
+        valid degenerate case and returns ``[]`` without raising.
+        """
+        validated: list[FMPInstitutionalOwnershipData] = []
+        drops = 0
         for record in data:
             try:
                 validated.append(FMPInstitutionalOwnershipData.model_validate(record))
-            except Exception:
-                # Fallback sources may not have all FMP fields -- skip invalid records
-                # but log for debugging
-                logger.debug(
-                    "Skipping record that does not match FMP schema: %s",
+            except ValidationError as exc:
+                # bd-0bp1: log at WARNING (not debug) with the specific
+                # exception so operators debugging "why is this empty?"
+                # have log evidence. Pre-fix used logger.debug + no exc.
+                # PR #345 silent-failure-hunter (P2): narrow from
+                # ``except Exception`` to ``except ValidationError`` so a
+                # TypeError/AttributeError bug in Pydantic or in the
+                # record dict itself isn't silently mislabeled as
+                # 'schema mismatch' — real bugs propagate; only genuine
+                # schema drift gets the tolerate-and-warn path.
+                drops += 1
+                logger.warning(
+                    "Dropping institutional-ownership record for %s due to "
+                    "schema mismatch: %s",
                     record.get("symbol", "unknown"),
+                    exc,
                 )
+
+        # bd-0bp1: if we had input records but every single one was
+        # dropped, that's a bug not a tolerable state — the fallback
+        # design assumes at least one source produces a valid record.
+        # Raise so the caller sees the schema-drift signal instead of
+        # an ambiguous empty result.
+        if drops and not validated:
+            raise ValueError(
+                f"All {drops} institutional-ownership record(s) failed FMP "
+                f"schema validation for query symbol={query.symbol!r}; see "
+                f"WARNING logs for per-record details. This indicates either "
+                f"schema drift in FMPInstitutionalOwnershipData or a broken "
+                f"fallback source (yfinance / SEC 13F); do NOT return an "
+                f"empty list — that is indistinguishable from 'no owners' "
+                f"(bd-0bp1)."
+            )
+
         return validated
+
+
+# ---------------------------------------------------------------------------
+# Effective year/quarter (mirrors FMP's default-latest logic)
+# ---------------------------------------------------------------------------
+
+
+def _effective_year_quarter(year: int | None, quarter: int | None) -> tuple[int, int]:
+    """Compute the effective (year, quarter) matching FMP's default logic.
+
+    bd-uolr (PR #426 silent-failure-hunter P1): FMP applies a
+    default-latest-quarter policy when year/quarter is None (see
+    ``openbb_fmp/models/institutional_ownership.py::get_data_urls``
+    lines 182-197). This helper mirrors that logic client-side so:
+
+    1. All 3 cache-write paths (FMP, yfinance, SEC 13F) stamp identical
+       year/quarter into the payload. Without this, yfinance/SEC-cached
+       rows would be written without year/quarter and every future read
+       would treat them as cache-miss, effectively disabling caching for
+       any symbol not served by FMP.
+    2. Cache read uses the SAME effective values, so a call with
+       (year=None, quarter=None) hits cache on subsequent identical
+       calls (was: guaranteed miss per D2 pre-fix).
+
+    Kept in sync with FMP's implementation — if that logic changes,
+    update this helper simultaneously.
+    """
+    from pandas import Timestamp, offsets
+
+    y = year if year else None
+    q = quarter if quarter else None
+
+    if y is None and q is None:
+        current = (Timestamp("now") + offsets.QuarterEnd()) - offsets.QuarterEnd()
+        q = int(current.quarter)
+        y = int(current.year)
+    elif y is None and q is not None:
+        y = int(Timestamp("now").year)
+    elif y is not None and q is None:
+        current = Timestamp("now")
+        q = (
+            4
+            if y < current.year
+            else (current.quarter - 1 if current.quarter > 1 else 1)
+        )
+    return int(y), int(q)
 
 
 # ---------------------------------------------------------------------------
@@ -173,8 +302,29 @@ def _resolve_credentials(credentials: dict[str, str] | None) -> dict[str, str] |
 # ---------------------------------------------------------------------------
 
 
-def _get_cached_institutional(symbol: str) -> list[dict]:
-    """Read fresh institutional ownership data from MySQL cache."""
+def _get_cached_institutional(
+    symbol: str,
+    year: int | None,
+    quarter: int | None,
+) -> list[dict]:
+    """Read fresh institutional ownership data from MySQL cache (bd-uolr).
+
+    Filters by exact (symbol, year, quarter) match on the JSON payload.
+    When year OR quarter is None, treats as cache-miss and returns [] so
+    the caller falls through to FMP fetch (which applies its own
+    default-latest-quarter logic — duplicating that client-side would
+    risk drift).
+
+    Pre-fix filtered only by symbol, silently returning whatever period
+    was most-recently cached for that symbol regardless of the caller's
+    year/quarter — poisoning historical time-series analytics.
+    """
+    # D2: without both year AND quarter, we can't build a deterministic
+    # cache key that matches what FMP would compute. Skip cache; fall
+    # through to fetch.
+    if year is None or quarter is None:
+        return []
+
     freshness_cutoff = datetime.now() - timedelta(days=INSTITUTIONAL_OWNERSHIP_TTL_DAYS)
     query = """
     SELECT data_json
@@ -193,58 +343,133 @@ def _get_cached_institutional(symbol: str) -> list[dict]:
     if not rows:
         return []
 
+    # D3: in-memory filter on the JSON payload's year/quarter fields.
+    # bd-porh (future architectural PIT refactor) may promote these to
+    # schema columns; this in-memory filter is the minimum-risk correctness
+    # fix that unblocks historical time-series analytics today.
+    # PR #426 code-reviewer P1: coerce payload year/quarter to int before
+    # comparison — FMP's JSON has historically drifted between int and
+    # string for numeric fields, and an equality mismatch would silently
+    # turn every cache-hit into a cache-miss (permanent refetch storm).
     loaded = []
     for row in rows:
         payload = row.get("data_json")
         if not payload:
             continue
-        loaded.append(json.loads(payload) if isinstance(payload, str) else payload)
+        decoded = json.loads(payload) if isinstance(payload, str) else payload
+        try:
+            row_year = (
+                int(decoded.get("year")) if decoded.get("year") is not None else None
+            )
+            row_quarter = (
+                int(decoded.get("quarter"))
+                if decoded.get("quarter") is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            # Legacy/malformed row: skip (safe degrade — treat as cache-miss
+            # for this row, refetch will overwrite with well-formed data).
+            continue
+        if row_year == year and row_quarter == quarter:
+            loaded.append(decoded)
     return loaded
 
 
-def _store_institutional(records: list[dict], data_source: str = "fmp") -> None:
-    """Persist institutional ownership records in MySQL cache."""
+def _store_institutional(
+    records: list[dict],
+    data_source: str = "fmp",
+    *,
+    year: int | None = None,
+    quarter: int | None = None,
+) -> None:
+    """Persist institutional ownership records in MySQL cache (bd-n3sf/ihdn/uolr).
+
+    Routes per-symbol DELETE+INSERT through ``replace_rows()`` from bd-kh08
+    (PR #414) so each symbol's cache write is atomic — a partial-write
+    failure between the DELETE and the INSERT no longer wipes prior cached
+    quarters for the symbol.
+
+    D1: one transaction per symbol (independent) — a per-symbol failure
+    logs a warning naming that symbol and the loop continues with the
+    remaining symbols. This matches the pre-fix "best effort per-symbol"
+    surface where each symbol's execute_query DELETE either committed
+    on its own (autocommit=True pre-fix) or failed independently.
+    D6: empty records = no-op (no DELETE fires).
+    D4: per-symbol try/except swallows so a single-symbol write failure
+    MUST NOT block cache writes for the other symbols in the batch, and
+    MUST NOT propagate to the read path in ``aextract_data``.
+
+    Post-review-fix (PR #418 silent-failure-hunter P1-1): pre-fix version
+    had the try/except OUTSIDE the loop, meaning the first mid-batch
+    failure aborted every remaining symbol with only ONE warning that
+    didn't identify which symbol died. Now each symbol gets its own
+    try/except with the symbol name in the warning.
+
+    Post-review-fix (PR #426 silent-failure-hunter P1): year and quarter
+    are now keyword-only args that MUST be stamped into every record's
+    payload before JSON-encoding. Without this, yfinance/SEC-cached rows
+    would be written without year/quarter and every future cache read
+    would treat them as cache-miss — disabling caching for any symbol
+    not served by FMP. When year/quarter is None (only for legacy
+    callers), the payload's own year/quarter is preserved (FMP populates
+    them; other sources don't).
+    """
     if not records:
         return
 
-    cleanup_query = "DELETE FROM institutional_ownership WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO institutional_ownership (
-        symbol,
-        date,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    # Group records by (uppercased) symbol so each symbol is one txn (D1).
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in records:
+        sym = (item.get("symbol") or "").strip().upper()
+        if not sym:
+            continue
+        # Attach provenance in-place (preserves pre-fix mutation semantics).
+        item["data_source"] = data_source
+        # bd-uolr (PR #426): stamp the effective (year, quarter) into
+        # EVERY payload — critical for yfinance/SEC rows which otherwise
+        # lack these fields entirely. Overwrite any existing values so
+        # the source of truth is the aextract_data caller (which computed
+        # the effective values via _effective_year_quarter).
+        if year is not None:
+            item["year"] = year
+        if quarter is not None:
+            item["quarter"] = quarter
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date", date.today().isoformat()),
+                "data_json": json.dumps(item, default=str),
+            }
+        )
 
-    try:
-        # Remove old records for the symbols being stored
-        symbols = {(r.get("symbol") or "").strip().upper() for r in records if r.get("symbol")}
-        for symbol in symbols:
-            execute_query(cleanup_query, (symbol,))
-
-        # Insert new records
-        params_list = []
-        for item in records:
-            # Attach provenance
-            item["data_source"] = data_source
-            params_list.append((
-                (item.get("symbol") or "").upper(),
-                item.get("date", date.today().isoformat()),
-                json.dumps(item, default=str),
-            ))
-
-        if params_list:
-            execute_many(insert_query, params_list)
-            logger.info(
-                "Cached %d institutional ownership records (source=%s) for %s",
-                len(params_list),
-                data_source,
-                ", ".join(sorted({p[0] for p in params_list})),
+    total_inserted = 0
+    succeeded: list[str] = []
+    for sym, rows in by_symbol.items():
+        try:
+            replace_rows(
+                "institutional_ownership",
+                "symbol",
+                sym,
+                rows,
+                columns=["symbol", "date", "data_json"],
             )
-    except Exception as exc:
-        logger.warning("Failed to cache institutional ownership data: %s", exc)
+            total_inserted += len(rows)
+            succeeded.append(sym)
+        except Exception as exc:
+            # Per-symbol swallow (D1 + D4) — log the specific symbol so
+            # operators can trace which write failed and which are un-
+            # attempted-vs-attempted. Loop continues with next symbol.
+            logger.warning(
+                "Failed to cache institutional ownership for %s: %s", sym, exc
+            )
+
+    if total_inserted:
+        logger.info(
+            "Cached %d institutional ownership records (source=%s) for %s",
+            total_inserted,
+            data_source,
+            ", ".join(sorted(succeeded)),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -260,11 +485,7 @@ async def _try_fmp(
 ) -> list[dict]:
     """Try fetching from the FMP institutional ownership endpoint."""
     try:
-        fetch_query = FMPInstitutionalOwnershipQueryParams(
-            symbol=",".join(symbols),
-            year=query.year,
-            quarter=query.quarter,
-        )
+        fetch_query = query.model_copy(update={"symbol": ",".join(symbols)})
         raw = await FMPInstitutionalOwnershipFetcher.aextract_data(
             fetch_query, credentials, **kwargs
         )
@@ -289,6 +510,7 @@ async def _try_yfinance(symbols: list[str]) -> list[dict]:
     """
     try:
         import asyncio
+
         from yfinance import Ticker
 
         results = []
@@ -363,7 +585,9 @@ async def _try_yfinance(symbols: list[str]) -> list[dict]:
         results = [r for r in fetched if r is not None]
 
         if results:
-            logger.info("yfinance institutional ownership: fetched %d records", len(results))
+            logger.info(
+                "yfinance institutional ownership: fetched %d records", len(results)
+            )
         return results
 
     except ImportError:
@@ -424,7 +648,9 @@ async def _try_sec_13f(symbols: list[str]) -> list[dict]:
 
                 holders = holders_for_cusip(cusips)
                 if not holders:
-                    logger.debug("SEC 13F: no holders for %s (cusips=%s)", symbol, cusips)
+                    logger.debug(
+                        "SEC 13F: no holders for %s (cusips=%s)", symbol, cusips
+                    )
                     continue
 
                 # All rows share the resolved (latest) period.
@@ -434,50 +660,54 @@ async def _try_sec_13f(symbols: list[str]) -> list[dict]:
                 total_value = sum(int(h.get("value_usd") or 0) for h in holders)
 
                 as_of = _period_to_date(period)
-                results.append({
-                    "symbol": symbol.upper(),
-                    "cik": None,
-                    "date": as_of.isoformat(),
-                    "investors_holding": institutions_count,
-                    "last_investors_holding": 0,
-                    "investors_holding_change": 0,
-                    "number_of_13f_shares": total_shares,
-                    "last_number_of_13f_shares": None,
-                    "number_of_13f_shares_change": None,
-                    "total_invested": float(total_value),
-                    "last_total_invested": 0.0,
-                    "total_invested_change": 0.0,
-                    "ownership_percent": 0.0,
-                    "last_ownership_percent": 0.0,
-                    "ownership_percent_change": 0.0,
-                    "new_positions": 0,
-                    "last_new_positions": 0,
-                    "new_positions_change": 0,
-                    "increased_positions": 0,
-                    "last_increased_positions": 0,
-                    "increased_positions_change": 0,
-                    "closed_positions": 0,
-                    "last_closed_positions": 0,
-                    "closed_positions_change": 0,
-                    "reduced_positions": 0,
-                    "last_reduced_positions": 0,
-                    "reduced_positions_change": 0,
-                    "total_calls": 0,
-                    "last_total_calls": 0,
-                    "total_calls_change": 0,
-                    "total_puts": 0,
-                    "last_total_puts": 0,
-                    "total_puts_change": 0,
-                    "put_call_ratio": 0.0,
-                    "last_put_call_ratio": 0.0,
-                    "put_call_ratio_change": 0.0,
-                    "data_source": "sec_13f",
-                })
+                results.append(
+                    {
+                        "symbol": symbol.upper(),
+                        "cik": None,
+                        "date": as_of.isoformat(),
+                        "investors_holding": institutions_count,
+                        "last_investors_holding": 0,
+                        "investors_holding_change": 0,
+                        "number_of_13f_shares": total_shares,
+                        "last_number_of_13f_shares": None,
+                        "number_of_13f_shares_change": None,
+                        "total_invested": float(total_value),
+                        "last_total_invested": 0.0,
+                        "total_invested_change": 0.0,
+                        "ownership_percent": 0.0,
+                        "last_ownership_percent": 0.0,
+                        "ownership_percent_change": 0.0,
+                        "new_positions": 0,
+                        "last_new_positions": 0,
+                        "new_positions_change": 0,
+                        "increased_positions": 0,
+                        "last_increased_positions": 0,
+                        "increased_positions_change": 0,
+                        "closed_positions": 0,
+                        "last_closed_positions": 0,
+                        "closed_positions_change": 0,
+                        "reduced_positions": 0,
+                        "last_reduced_positions": 0,
+                        "reduced_positions_change": 0,
+                        "total_calls": 0,
+                        "last_total_calls": 0,
+                        "total_calls_change": 0,
+                        "total_puts": 0,
+                        "last_total_puts": 0,
+                        "total_puts_change": 0,
+                        "put_call_ratio": 0.0,
+                        "last_put_call_ratio": 0.0,
+                        "put_call_ratio_change": 0.0,
+                        "data_source": "sec_13f",
+                    }
+                )
             except Exception as exc:
                 logger.debug("SEC 13F failed for %s: %s", symbol, exc)
 
         if results:
-            logger.info("SEC 13F institutional ownership: fetched %d records", len(results))
+            logger.info(
+                "SEC 13F institutional ownership: fetched %d records", len(results)
+            )
         return results
 
     except ImportError:

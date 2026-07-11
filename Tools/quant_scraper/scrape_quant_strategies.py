@@ -35,6 +35,31 @@ _RESERVED_OWNERS = {"sponsors", "topics", "collections", "marketplace", "setting
 # Second segments that mean "not a plain repo root".
 _RESERVED_SECOND = {"blob", "tree", "raw", "releases", "wiki", "issues", "pull"}
 
+# Bound on how long any single git subprocess (clone or pull) may run.
+# Generous for shallow clones of typical awesome-quant repos (usually
+# under a minute) but small enough to catch a truly-stuck subprocess
+# waiting on network, credential prompts, or local hooks (bd-1uie).
+GIT_TIMEOUT_SECONDS = 600  # 10 minutes
+
+
+def _reject_dash_prefixed_path(source: str, value: str | None) -> None:
+    """Reject paths beginning with ``-`` up front (bd-1uie / bd-55mp).
+
+    Git and other Unix tools treat argv elements starting with ``-`` as
+    option flags. Even with ``--`` separators in the git argv, a target
+    path from operator config like ``-evil`` is a signal of intentional
+    tampering (or a typo) that should surface as a loud error rather
+    than be silently coerced.
+    """
+    if value is None:
+        return
+    text = str(value).strip()
+    if text.startswith("-"):
+        raise ValueError(
+            f"quant-scraper target path from {source} must not start with a "
+            f"dash (would be interpreted as a git flag): {value!r}"
+        )
+
 
 def load_config(config_path: Path) -> dict:
     """Load the TOML config, returning an empty dict if it is missing."""
@@ -122,10 +147,35 @@ def run_git(action: str, slug: str, local: Path, shallow: bool) -> tuple[str, st
         cmd = ["git", "clone"]
         if shallow:
             cmd += ["--depth", "1"]
-        cmd += [url, str(local)]
+        # Insert ``--`` before positional args (url + destination) so a
+        # path starting with ``-`` cannot be interpreted as a git flag
+        # (bd-1uie / bd-55mp). ``resolve_target`` also rejects dash-
+        # prefixed paths at CLI-parse time — this is defense in depth.
+        cmd += ["--", url, str(local)]
     else:  # pull
-        cmd = ["git", "-C", str(local), "pull", "--ff-only"]
-    proc = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+        # ``-C`` accepts its own path operand cleanly, but adding ``--``
+        # after the subcommand locks in that any future refactor
+        # introducing positional args stays safe.
+        cmd = ["git", "-C", str(local), "pull", "--ff-only", "--"]
+    # ``timeout=`` bounds the wait so a hung git (network stall, local
+    # hook, prompt for creds) doesn't freeze the executor. 600s = 10 min
+    # is generous for shallow clones of typical awesome-quant repos but
+    # small enough to catch a truly-stuck subprocess. bd-1uie flags this.
+    # ``subprocess.TimeoutExpired`` is caught + mapped to the same
+    # ``('failed', <detail>)`` contract as returncode-based failures so
+    # a single stalled repo doesn't abort the batch mid-flight (would
+    # otherwise skip the ``.scrape_state.json`` write and lose completed
+    # per-repo statuses — flagged by Round-1 review).
+    try:
+        proc = subprocess.run(  # noqa: S603
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return "failed", f"timed out after {GIT_TIMEOUT_SECONDS}s"
     if proc.returncode != 0:
         return "failed", (proc.stderr or proc.stdout).strip()[:500]
     return ("cloned" if action == "clone" else "updated"), "ok"
@@ -143,13 +193,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def resolve_target(args: argparse.Namespace, cfg: dict, repo_root: Path) -> Path | None:
+    """Resolve the clone target dir from CLI / env / config, in that order.
+
+    All three sources are validated to reject paths starting with ``-``
+    which would be interpreted as git flags on the ``git clone``
+    positional argument (bd-1uie / bd-55mp).
+    """
     if args.target:
+        _reject_dash_prefixed_path("--target CLI arg", str(args.target))
         return args.target
     env_path = load_env_path(repo_root)
     if env_path:
+        _reject_dash_prefixed_path("QUANT_REPO_PATH env / .env", env_path)
         return Path(env_path)
     fallback = (cfg.get("clone") or {}).get("target_dir") or ""
-    return Path(fallback) if fallback else None
+    if fallback:
+        _reject_dash_prefixed_path("config.toml clone.target_dir", fallback)
+        return Path(fallback)
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -160,7 +221,14 @@ def main(argv: list[str] | None = None) -> int:
     filter_cfg = cfg.get("filter") or {}
     source_cfg = cfg.get("source") or {}
 
-    target = resolve_target(args, cfg, repo_root)
+    try:
+        target = resolve_target(args, cfg, repo_root)
+    except ValueError as exc:
+        # Dash-prefixed target path from any of the 3 sources — surface
+        # cleanly instead of dumping a traceback. Matches the existing
+        # config-error return-2 contract below (bd-1uie / bd-55mp).
+        print(f"ERROR: {exc}")
+        return 2
     if not target:
         print("ERROR: no clone target (set QUANT_REPO_PATH in .env or --target).")
         return 2
@@ -171,7 +239,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     shallow = bool(clone_cfg.get("shallow", True))
-    update_existing = bool(clone_cfg.get("update_existing", True)) and not args.no_update
+    update_existing = (
+        bool(clone_cfg.get("update_existing", True)) and not args.no_update
+    )
     jobs = args.jobs or int(clone_cfg.get("parallelism", 8))
 
     print(f"Fetching README: {readme_url}")

@@ -57,6 +57,7 @@ for _p in _SRC_DIRS:
 # Load .env so DB credentials are available
 try:
     from dotenv import load_dotenv
+
     load_dotenv(os.path.join(PROJECT_ROOT, ".env"), override=True)
 except ImportError:
     pass
@@ -64,6 +65,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ESPPPurchase:
@@ -122,17 +124,19 @@ class ESPPPurchase:
         disqualifying disposition or reported on Form 3922.
     """
 
-    offering_period_start: Optional[date] = None      # Start of ESPP enrollment window
-    offering_period_end: Optional[date] = None        # End of ESPP enrollment window
-    purchase_date: Optional[date] = None              # Date shares were bought
-    fmv_offering_start: float = 0.0                   # Stock closing price on offering start
-    fmv_purchase_date: float = 0.0                    # Stock closing price on purchase date
-    purchase_price: float = 0.0                       # Discounted per-share price paid
-    purchase_quantity: float = 0.0                    # Number of shares acquired
-    purchase_value: float = 0.0                       # Total cost = price × quantity
-    qualified_disposition_date: Optional[date] = None # Earliest date for LTCG treatment
-    purchase_deposit_to: str = ""                     # Destination brokerage account
-    symbol: str = "MSFT"                              # Ticker symbol (default MSFT)
+    offering_period_start: Optional[date] = None  # Start of ESPP enrollment window
+    offering_period_end: Optional[date] = None  # End of ESPP enrollment window
+    purchase_date: Optional[date] = None  # Date shares were bought
+    fmv_offering_start: float = 0.0  # Stock closing price on offering start
+    fmv_purchase_date: float = 0.0  # Stock closing price on purchase date
+    purchase_price: float = 0.0  # Discounted per-share price paid
+    purchase_quantity: float = 0.0  # Number of shares acquired
+    purchase_value: float = 0.0  # Total cost = price × quantity
+    qualified_disposition_date: Optional[date] = (
+        None  # Earliest date for LTCG treatment
+    )
+    purchase_deposit_to: str = ""  # Destination brokerage account
+    symbol: str = "MSFT"  # Ticker symbol (default MSFT)
 
     @property
     def discount_pct(self) -> float:
@@ -143,8 +147,11 @@ class ESPPPurchase:
         """
         if self.fmv_offering_start == 0:
             return 0.0
-        return ((self.fmv_offering_start - self.purchase_price)
-                / self.fmv_offering_start * 100)
+        return (
+            (self.fmv_offering_start - self.purchase_price)
+            / self.fmv_offering_start
+            * 100
+        )
 
     @property
     def bargain_element(self) -> float:
@@ -161,6 +168,7 @@ class ESPPPurchase:
 # ---------------------------------------------------------------------------
 # Parsing helpers
 # ---------------------------------------------------------------------------
+
 
 def parse_currency(val: str) -> float:
     """Parse currency string like '$492.05 USD' or '$2,571.85 USD' to float."""
@@ -222,8 +230,9 @@ def normalize_key(k: str) -> str:
 
 def parse_row(row: dict) -> ESPPPurchase:
     """Parse a single row dict into an ESPPPurchase."""
-    norm = {normalize_key(k): v.strip() if isinstance(v, str) else v
-            for k, v in row.items()}
+    norm = {
+        normalize_key(k): v.strip() if isinstance(v, str) else v for k, v in row.items()
+    }
 
     def get(keys, default=""):
         for k in keys:
@@ -231,37 +240,21 @@ def parse_row(row: dict) -> ESPPPurchase:
                 return norm[k]
         return default
 
-    offering_start, offering_end = parse_offering_period(
-        get(["offering_period"])
-    )
+    offering_start, offering_end = parse_offering_period(get(["offering_period"]))
 
     return ESPPPurchase(
         offering_period_start=offering_start,
         offering_period_end=offering_end,
-        purchase_date=parse_date_str(
-            get(["purchase_date"])
-        ),
+        purchase_date=parse_date_str(get(["purchase_date"])),
         fmv_offering_start=parse_currency(
             get(["fmv_at_offering_start_date", "fmv_at_offering_start"])
         ),
-        fmv_purchase_date=parse_currency(
-            get(["fmv_at_purchase_date"])
-        ),
-        purchase_price=parse_currency(
-            get(["purchase_price"])
-        ),
-        purchase_quantity=parse_quantity(
-            get(["purchase_quantity"])
-        ),
-        purchase_value=parse_currency(
-            get(["purchase_value"])
-        ),
-        qualified_disposition_date=parse_date_str(
-            get(["qualified_disposition_date"])
-        ),
-        purchase_deposit_to=get(
-            ["purchase_deposit_to"], ""
-        ),
+        fmv_purchase_date=parse_currency(get(["fmv_at_purchase_date"])),
+        purchase_price=parse_currency(get(["purchase_price"])),
+        purchase_quantity=parse_quantity(get(["purchase_quantity"])),
+        purchase_value=parse_currency(get(["purchase_value"])),
+        qualified_disposition_date=parse_date_str(get(["qualified_disposition_date"])),
+        purchase_deposit_to=get(["purchase_deposit_to"], ""),
     )
 
 
@@ -348,7 +341,7 @@ ON DUPLICATE KEY UPDATE
 def get_connection(database: Optional[str] = None):
     """Get a pymysql connection, optionally overriding the database name."""
     import pymysql
-    from openbb_fmp_cached.utils.database import DatabaseConfig
+    from openbb_fmp_cached.utils.database import DatabaseConfig, safe_identifier
 
     config = DatabaseConfig()
     params = config.connection_params
@@ -357,14 +350,18 @@ def get_connection(database: Optional[str] = None):
 
     # Ensure the database exists
     db_name = params.pop("database")
+    # bd-9loj/y5fn: validate --database BEFORE any DB work. Rejection
+    # happens loudly (ValueError) before pymysql.connect fires, so a
+    # malicious CLI value cannot reach the DDL string.
+    safe_db_name = safe_identifier(db_name)
     conn = pymysql.connect(**params)
     try:
         with conn.cursor() as cur:
-            cur.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
+            cur.execute(f"CREATE DATABASE IF NOT EXISTS `{safe_db_name}`")
     finally:
         conn.close()
 
-    params["database"] = db_name
+    params["database"] = safe_db_name
     return pymysql.connect(
         **params,
         cursorclass=pymysql.cursors.DictCursor,
@@ -384,21 +381,24 @@ def populate_table(records: list, database: Optional[str] = None) -> dict:
 
             rows_affected = 0
             for rec in records:
-                cur.execute(INSERT_SQL, (
-                    rec.offering_period_start,
-                    rec.offering_period_end,
-                    rec.purchase_date,
-                    rec.fmv_offering_start,
-                    rec.fmv_purchase_date,
-                    rec.purchase_price,
-                    rec.purchase_quantity,
-                    rec.purchase_value,
-                    rec.qualified_disposition_date,
-                    rec.purchase_deposit_to,
-                    rec.symbol,
-                    round(rec.discount_pct, 2),
-                    round(rec.bargain_element, 4),
-                ))
+                cur.execute(
+                    INSERT_SQL,
+                    (
+                        rec.offering_period_start,
+                        rec.offering_period_end,
+                        rec.purchase_date,
+                        rec.fmv_offering_start,
+                        rec.fmv_purchase_date,
+                        rec.purchase_price,
+                        rec.purchase_quantity,
+                        rec.purchase_value,
+                        rec.qualified_disposition_date,
+                        rec.purchase_deposit_to,
+                        rec.symbol,
+                        round(rec.discount_pct, 2),
+                        round(rec.bargain_element, 4),
+                    ),
+                )
                 rows_affected += cur.rowcount
 
             # Read back for summary
@@ -418,6 +418,7 @@ def populate_table(records: list, database: Optional[str] = None) -> dict:
 # Display helpers
 # ---------------------------------------------------------------------------
 
+
 def print_records(records: list) -> None:
     """Print parsed ESPP records to console."""
     sep = "=" * 90
@@ -425,17 +426,25 @@ def print_records(records: list) -> None:
     print("  ESPP PLAN PURCHASES")
     print(sep)
 
-    print(f"  {'Offering Period':<27} {'Purchase':>10} {'FMV Start':>10} "
-          f"{'FMV Purch':>10} {'Price':>10} {'Qty':>8} {'Value':>12} {'Qual Disp':>12}")
+    print(
+        f"  {'Offering Period':<27} {'Purchase':>10} {'FMV Start':>10} "
+        f"{'FMV Purch':>10} {'Price':>10} {'Qty':>8} {'Value':>12} {'Qual Disp':>12}"
+    )
     print(f"  {'-'*27} {'-'*10} {'-'*10} {'-'*10} {'-'*10} {'-'*8} {'-'*12} {'-'*12}")
 
     for r in sorted(records, key=lambda x: x.purchase_date or date.min):
         period = ""
         if r.offering_period_start and r.offering_period_end:
-            period = (f"{r.offering_period_start.strftime('%m/%d/%Y')}"
-                      f" - {r.offering_period_end.strftime('%m/%d/%Y')}")
+            period = (
+                f"{r.offering_period_start.strftime('%m/%d/%Y')}"
+                f" - {r.offering_period_end.strftime('%m/%d/%Y')}"
+            )
         pd = r.purchase_date.strftime("%m/%d/%Y") if r.purchase_date else "N/A"
-        qd = r.qualified_disposition_date.strftime("%m/%d/%Y") if r.qualified_disposition_date else "N/A"
+        qd = (
+            r.qualified_disposition_date.strftime("%m/%d/%Y")
+            if r.qualified_disposition_date
+            else "N/A"
+        )
         print(
             f"  {period:<27} {pd:>10} ${r.fmv_offering_start:>8,.2f} "
             f"${r.fmv_purchase_date:>8,.2f} ${r.purchase_price:>8,.2f} "
@@ -471,16 +480,19 @@ SAMPLE_DATA = (
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="ESPP Plan Data Loader — parse & populate ESPP_Plan table"
     )
     parser.add_argument(
-        "--file", "-f",
+        "--file",
+        "-f",
         help="Path to TSV/CSV file with ESPP data",
     )
     parser.add_argument(
-        "--clipboard", "-c",
+        "--clipboard",
+        "-c",
         action="store_true",
         help="Read data from clipboard",
     )
@@ -503,6 +515,7 @@ def main():
     elif args.clipboard:
         try:
             import pyperclip
+
             text = pyperclip.paste()
         except ImportError:
             print("Install pyperclip for clipboard support: pip install pyperclip")

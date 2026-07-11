@@ -10,8 +10,13 @@ from openbb_fmp.models.cash_flow import (
     FMPCashFlowStatementFetcher,
     FMPCashFlowStatementQueryParams,
 )
+
 from openbb_fmp_cached.utils.cache_schema import create_cash_flow_table
-from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
+from openbb_fmp_cached.utils.database import (
+    execute_query,
+    init_database,
+    replace_rows,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +44,18 @@ class FMPCachedCashFlowStatementFetcher(FMPCashFlowStatementFetcher):
             init_database()
             create_cash_flow_table()
         except Exception as exc:
-            logger.warning("Cash flow cache init failed, using direct FMP call: %s", exc)
+            logger.warning(
+                "Cash flow cache init failed, using direct FMP call: %s", exc
+            )
             return await FMPCashFlowStatementFetcher.aextract_data(
                 query,
                 resolved_credentials,
                 **kwargs,
             )
 
-        symbols = [symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()]
+        symbols = [
+            symbol.strip() for symbol in query.symbol.split(",") if symbol.strip()
+        ]
         results: list[dict] = []
         symbols_to_fetch: list[str] = []
 
@@ -58,10 +67,8 @@ class FMPCachedCashFlowStatementFetcher(FMPCashFlowStatementFetcher):
                 symbols_to_fetch.append(symbol)
 
         if symbols_to_fetch:
-            fetch_query = FMPCashFlowStatementQueryParams(
-                symbol=",".join(symbols_to_fetch),
-                period=query.period,
-                limit=query.limit,
+            fetch_query = query.model_copy(
+                update={"symbol": ",".join(symbols_to_fetch)}
             )
             fresh_data = await FMPCashFlowStatementFetcher.aextract_data(
                 fetch_query,
@@ -69,15 +76,24 @@ class FMPCachedCashFlowStatementFetcher(FMPCashFlowStatementFetcher):
                 **kwargs,
             )
             if fresh_data:
-                _store_cash_flow_statements(fresh_data)
+                # bd-e3v8: cache write failure MUST NOT discard fresh data.
+                try:
+                    _store_cash_flow_statements(fresh_data)
+                except Exception as exc:
+                    logger.warning(
+                        "Cash flow cache write failed (data returned anyway): %s",
+                        exc,
+                    )
                 results.extend(fresh_data)
 
         return sorted(
             results,
             key=lambda item: (
-                symbols.index(item.get("symbol", ""))
-                if item.get("symbol") in symbols
-                else len(symbols),
+                (
+                    symbols.index(item.get("symbol", ""))
+                    if item.get("symbol") in symbols
+                    else len(symbols)
+                ),
                 item.get("date", ""),
             ),
             reverse=True,
@@ -150,53 +166,63 @@ def _get_cached_cash_flow(
     return loaded[:max_records]
 
 
-def _filter_by_period(records: list[dict[str, Any]], period: str) -> list[dict[str, Any]]:
+def _filter_by_period(
+    records: list[dict[str, Any]], period: str
+) -> list[dict[str, Any]]:
     """Filter cash flow records by requested period."""
     if not period:
         return records
 
     normalized = period.upper()
     if normalized == "TTM":
-        return [item for item in records if str(item.get("period", "")).upper() == "TTM"]
+        return [
+            item for item in records if str(item.get("period", "")).upper() == "TTM"
+        ]
 
-    return [item for item in records if str(item.get("period", "")).lower() == period.lower()]
+    return [
+        item
+        for item in records
+        if str(item.get("period", "")).lower() == period.lower()
+    ]
 
 
 def _store_cash_flow_statements(statements: list[dict[str, Any]]) -> None:
-    """Persist cash flow statement records in cache."""
-    cleanup_query = "DELETE FROM cash_flow WHERE symbol = %s"
-    insert_query = """
-    INSERT INTO cash_flow (
-        symbol,
-        date,
-        period,
-        currency,
-        operating_cash_flow,
-        capital_expenditure,
-        free_cash_flow,
-        data_json,
-        is_valid,
-        cached_at
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE, CURRENT_TIMESTAMP)
-    """
+    """Persist cash flow statement records atomically per symbol (bd-n3sf)."""
+    if not statements:
+        return
 
-    symbols = {(item.get("symbol") or "").strip() for item in statements if item.get("symbol")}
-    for symbol in symbols:
-        execute_query(cleanup_query, (symbol,))
-
-    params_list = [
-        (
-            item.get("symbol"),
-            item.get("date"),
-            item.get("period"),
-            item.get("reportedCurrency"),
-            item.get("operatingCashFlow"),
-            item.get("capitalExpenditure"),
-            item.get("freeCashFlow"),
-            json.dumps(item),
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for item in statements:
+        sym = (item.get("symbol") or "").strip()
+        if not sym:
+            continue
+        by_symbol.setdefault(sym, []).append(
+            {
+                "symbol": sym,
+                "date": item.get("date"),
+                "period": item.get("period"),
+                "currency": item.get("reportedCurrency"),
+                "operating_cash_flow": item.get("operatingCashFlow"),
+                "capital_expenditure": item.get("capitalExpenditure"),
+                "free_cash_flow": item.get("freeCashFlow"),
+                "data_json": json.dumps(item),
+            }
         )
-        for item in statements
-    ]
 
-    if params_list:
-        execute_many(insert_query, params_list)
+    for sym, rows in by_symbol.items():
+        replace_rows(
+            "cash_flow",
+            "symbol",
+            sym,
+            rows,
+            columns=[
+                "symbol",
+                "date",
+                "period",
+                "currency",
+                "operating_cash_flow",
+                "capital_expenditure",
+                "free_cash_flow",
+                "data_json",
+            ],
+        )
