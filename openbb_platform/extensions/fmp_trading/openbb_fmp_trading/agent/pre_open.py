@@ -170,6 +170,16 @@ class PreOpenAgentTurn:
         except AgentUnavailable as exc:
             source_error = exc
             logger.info("PreOpenAgentTurn: agent unavailable (%s); using fallback", exc)
+        except Exception as exc:  # noqa: BLE001 — security-review #3
+            # Any backend failure (network, SDK bug, transient) must fall
+            # through to the deterministic fallback rather than crash the
+            # turn. Market open doesn't wait for a stack trace.
+            source_error = exc
+            logger.error(
+                "PreOpenAgentTurn: unexpected backend failure (%s: %s); "
+                "using fallback",
+                type(exc).__name__, exc,
+            )
 
         # --- Validate + apply P0/P1 defenses ---
         plan: DailyPlan | None = None
@@ -313,33 +323,41 @@ class PreOpenAgentTurn:
     def _clamp_risk_overrides(self, plan: DailyPlan) -> DailyPlan:
         """T1 (P0): monotonic tightening only.
 
-        Fields where LARGER = looser (position size, notional cap, DD,
-        cooldown, positions-per-sector, max_open_positions) are compared
-        against ``DailyConfig.default_risk`` and CLIPPED if looser.
+        Fields where LARGER = looser (position size, notional cap,
+        positions-per-sector, max_open_positions) are compared against
+        ``DailyConfig.default_risk`` and flagged if looser.
 
-        Special case: ``day_dd_pct`` is NEGATIVE (e.g. -2.0); "looser"
-        means MORE NEGATIVE, so we clamp to ``max(llm, default)``.
+        Special cases:
 
-        ``flat_by_close_time_et`` is a string HH:MM; "looser" means
-        LATER, so we clamp to ``min(llm_time, default_time)`` after
-        parsing.
+        * ``day_dd_pct`` is NEGATIVE (e.g. -2.0); "looser" means MORE
+          NEGATIVE (allows a bigger loss), so we compare with ``<``.
+        * ``cooldown_after_stopout_min`` — SMALLER = LOOSER. A shorter
+          cooldown means you can re-enter a stopped-out symbol sooner,
+          which is the "loose" direction. Security-review finding #1
+          fixed the direction inversion that treated larger as looser.
+        * ``flat_by_close_time_et`` is ``HH:MM`` — LATER = looser. We
+          parse both sides as ``datetime.time`` objects rather than
+          lexicographic strings (security-review finding #4 — an
+          unpadded ``9:30`` compares lexicographically greater than
+          ``15:50`` even though 9:30 is earlier).
 
-        On a genuine loosening attempt we raise
+        On any genuine loosening attempt we raise
         :class:`RiskOverrideLoosening` — the turn wrapper's retry-once
         path fires (or falls back).
         """
+        from datetime import time as _dtime
+
         default = self.config.default_risk
         llm = plan.session_risk
         clamped_updates: dict = {}
         loosening_detected = False
 
-        # Fields where smaller-is-tighter (larger = looser)
+        # Fields where SMALLER-is-tighter (larger = looser)
         for field in (
             "max_open_positions",
             "max_position_size_pct_equity",
             "max_notional_pct_equity",
             "max_positions_per_sector",
-            "cooldown_after_stopout_min",
         ):
             llm_val = getattr(llm, field)
             default_val = getattr(default, field)
@@ -348,14 +366,33 @@ class PreOpenAgentTurn:
                 clamped_updates[field] = default_val
                 self._journal_clamp(field, llm_val, default_val, plan)
 
-        # day_dd_pct is negative; "looser" = more negative
+        # cooldown_after_stopout_min: SMALLER = LOOSER (shorter wait
+        # between re-entries = less restriction). Security-review #1 fix.
+        if llm.cooldown_after_stopout_min < default.cooldown_after_stopout_min:
+            loosening_detected = True
+            clamped_updates["cooldown_after_stopout_min"] = default.cooldown_after_stopout_min
+            self._journal_clamp(
+                "cooldown_after_stopout_min",
+                llm.cooldown_after_stopout_min,
+                default.cooldown_after_stopout_min,
+                plan,
+            )
+
+        # day_dd_pct is negative; MORE NEGATIVE = looser (bigger allowed loss)
         if llm.day_dd_pct < default.day_dd_pct:
             loosening_detected = True
             clamped_updates["day_dd_pct"] = default.day_dd_pct
             self._journal_clamp("day_dd_pct", llm.day_dd_pct, default.day_dd_pct, plan)
 
-        # flat_by_close_time_et: later = looser; compare "HH:MM" strings
-        if llm.flat_by_close_time_et > default.flat_by_close_time_et:
+        # flat_by_close_time_et: parse as time objects, not strings.
+        # Security-review #4 fix — lexicographic '9:30' > '15:50' would
+        # bypass the check with an unpadded hour.
+        try:
+            llm_close = _dtime.fromisoformat(llm.flat_by_close_time_et)
+            default_close = _dtime.fromisoformat(default.flat_by_close_time_et)
+        except ValueError as exc:
+            # Non-conforming HH:MM string is itself a loosening attempt
+            # (bypass via malformed input). Reject.
             loosening_detected = True
             clamped_updates["flat_by_close_time_et"] = default.flat_by_close_time_et
             self._journal_clamp(
@@ -364,14 +401,20 @@ class PreOpenAgentTurn:
                 default.flat_by_close_time_et,
                 plan,
             )
+        else:
+            if llm_close > default_close:  # later time = looser
+                loosening_detected = True
+                clamped_updates["flat_by_close_time_et"] = default.flat_by_close_time_et
+                self._journal_clamp(
+                    "flat_by_close_time_et",
+                    llm.flat_by_close_time_et,
+                    default.flat_by_close_time_et,
+                    plan,
+                )
 
         if not loosening_detected:
             return plan
 
-        # T1: the plan tried to loosen. Raise so the turn wrapper's
-        # retry-once + fallback path fires. The clamp events are already
-        # journaled above so the audit trail is complete even if the
-        # fallback runs.
         raise RiskOverrideLoosening(
             f"LLM tried to loosen risk on fields: {list(clamped_updates)}"
         )
@@ -516,16 +559,39 @@ class PreOpenAgentTurn:
         Reads ``state_store.load_last_session_summary`` for context;
         keeps the prompt lean so the LLM has token budget for the actual
         tool calls.
+
+        Security-review #2 (delimiter injection): the summary is passed
+        through :func:`_sanitize_untrusted_text` so that no attacker who
+        controls a prior-day journal payload can close the
+        ``<untrusted_tool_output>`` fence and inject synthetic instructions.
+        We also base64-encode via ``json.dumps`` to guarantee no character
+        in the summary can terminate the delimiter.
         """
+        import json as _json
+
         from openbb_fmp_trading.core import state_store
 
         summary = state_store.load_last_session_summary(self.scope)
         if summary is None:
-            context_block = "No prior-session context available (first run or state store empty)."
-        else:
             context_block = (
-                "Prior session summary (untrusted, third-party-influenced):\n"
-                f"<untrusted_tool_output tool=\"state_store\">\n{summary}\n"
+                "No prior-session context available (first run or state store empty)."
+            )
+        else:
+            # JSON-encode the untrusted payload so no substring can close
+            # the delimiter (security-review #2). Even a summary containing
+            # literal '</untrusted_tool_output>' becomes an escaped string
+            # inside the JSON envelope.
+            safe_json = _json.dumps(summary, default=str)
+            # Belt-and-suspenders: cap the payload so a hostile
+            # PostCloseAgentTurn cannot inflate context to exhaust tokens.
+            if len(safe_json) > 4096:
+                safe_json = safe_json[:4096] + "...[truncated]"
+            context_block = (
+                "Prior session summary (untrusted, third-party-influenced; "
+                "JSON-encoded to prevent delimiter injection per design-"
+                "spec 6.6):\n"
+                f"<untrusted_tool_output tool=\"state_store\" encoding=\"json\">\n"
+                f"{safe_json}\n"
                 "</untrusted_tool_output>"
             )
         return (

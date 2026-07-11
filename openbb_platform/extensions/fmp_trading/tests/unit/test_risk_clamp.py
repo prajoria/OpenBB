@@ -62,28 +62,18 @@ class TestClampSizeFields:
         ("max_notional_pct_equity", 90.0),        # default 30.0
         ("max_open_positions", 100),              # default 5
         ("max_positions_per_sector", 20),         # default 2
-        ("cooldown_after_stopout_min", 0),        # default 30 (0 is looser)
+        ("cooldown_after_stopout_min", 0),        # default 30 (0 = no wait = looser)
     ])
     def test_loosened_field_triggers_fallback(self, field, loosened_value, monkeypatch):
         """Any loosening of these fields must trigger the fallback path.
 
-        Note: cooldown_after_stopout_min=0 is LOOSER than 30 (no cooldown).
-        Test parametrized value uses 0 to represent that direction of
-        loosening — the impl checks ``llm > default`` so we bypass for
-        cooldown and test its loosening direction directly below.
+        Security-review #1 fix: ``cooldown_after_stopout_min`` is
+        smaller-is-looser (a 0-minute cooldown means no wait between
+        re-entries after a stopout, which is less restrictive than a
+        30-minute default). The impl now handles this in the same
+        negative-direction branch as ``day_dd_pct``.
         """
         from openbb_fmp_trading.agent.pre_open import PreOpenAgentTurn
-
-        # For cooldown: 0 < 30 means tighter (no cooldown = looser? no,
-        # cooldown=0 means no waiting = LOOSER). Impl treats larger as
-        # looser for cooldown because a bigger cooldown is more restrictive.
-        # Adjust the test to actually exercise the loosening direction:
-        if field == "cooldown_after_stopout_min":
-            # cooldown loosening = SMALLER (default 30, looser=0). Impl
-            # uses `llm > default`, so it flags LARGER cooldown as loose.
-            # That's a design inversion — for this parametrize row we
-            # loosen with a larger value to match the impl's direction.
-            loosened_value = 999
 
         monkeypatch.setattr(
             "openbb_fmp_trading.core.state_store.load_last_watchlist",

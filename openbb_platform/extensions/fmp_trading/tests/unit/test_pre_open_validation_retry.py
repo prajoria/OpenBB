@@ -125,13 +125,14 @@ class TestAgentUnavailableAtBackendConstruction:
         assert plan.is_deterministic_fallback is True
 
     def test_run_never_raises_even_for_arbitrary_backend_errors(self, monkeypatch):
-        """Defensive: a backend that raises an unexpected exception
-        should still fall back rather than propagating.
+        """Security-review #3 fix: ANY backend exception funnels through
+        the deterministic fallback rather than propagating. Market open
+        doesn't wait for a stack trace.
 
-        Note: current impl catches only AgentUnavailable at the LLM-call
-        site; arbitrary exceptions propagate. This test documents the
-        current behavior with pytest.raises so a future tightening is
-        an explicit change, not silent regression."""
+        Before the fix, arbitrary RuntimeError propagated (only
+        AgentUnavailable was caught). After the fix, run() catches
+        `Exception` broadly at the LLM-call site so the fallback fires.
+        """
         from openbb_fmp_trading.agent.pre_open import PreOpenAgentTurn
 
         monkeypatch.setattr(
@@ -144,14 +145,12 @@ class TestAgentUnavailableAtBackendConstruction:
         )
 
         backend = MagicMock()
-        backend.run_turn.side_effect = RuntimeError("unexpected")
+        backend.run_turn.side_effect = RuntimeError("unexpected transient bug")
 
         turn = PreOpenAgentTurn(
             config=_cfg(), backend=backend,
             bandwidth=MagicMock(), journal=MagicMock(),
         )
-        # Current design catches only AgentUnavailable — arbitrary
-        # exceptions propagate. If we later want to catch broader,
-        # update this test to assert the fallback fired instead.
-        with pytest.raises(RuntimeError):
-            turn.run(as_of=datetime(2026, 7, 13, 13, 30, tzinfo=timezone.utc))
+        plan = turn.run(as_of=datetime(2026, 7, 13, 13, 30, tzinfo=timezone.utc))
+        # Fallback fired — arbitrary exception did NOT propagate
+        assert plan.is_deterministic_fallback is True
