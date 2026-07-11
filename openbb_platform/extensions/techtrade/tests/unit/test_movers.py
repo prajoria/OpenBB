@@ -727,3 +727,108 @@ class TestBdLw3FetchUniverseAggregateWarning:
             f"Got messages: {[r.getMessage() for r in caplog.records]}"
         )
 
+
+# ---------------------------------------------------------------------------
+# bd-udq: candidate_fetcher-injection scope-escape trace
+# ---------------------------------------------------------------------------
+#
+# When a caller injects a candidate_fetcher AND asks for universe filtering
+# (resolve_universe_filter defaults True), the universe filter is silently
+# BYPASSED — no universe resolution runs, no post-filter is applied. This
+# is intentional for hermetic tests but produces silent scope escape when
+# a live caller uses a custom fetcher (caching, provider-switch, debug)
+# and still expects universe scoping.
+#
+# The bd-udq fix: emit a one-time-per-process INFO trace on the ambiguous
+# combination so ops can find the pattern in a live-scan log without
+# WARNING-level noise. Tests that set resolve_universe_filter=False (or
+# use no fetcher) stay silent.
+#
+# R7.11 mutation-verified: removing the _log_fetcher_scope_escape_once
+# call in _resolve_filter_universe fails
+# test_scope_escape_emits_info_once.
+
+
+class TestBdUdqScopeEscapeTrace:
+    """bd-udq: verify the fetcher-injection scope-escape emits INFO once."""
+
+    def setup_method(self):
+        """Reset the once-per-process cache so each test gets a fresh log."""
+        from openbb_techtrade.engine.movers import _scope_escape_logged_segments
+        _scope_escape_logged_segments.clear()
+
+    def test_scope_escape_emits_info_once(self, caplog):
+        """Injecting a fetcher + default resolve_universe_filter=True →
+        one INFO trace fires (per segment, per process). Calling twice
+        with the same segment still only produces one log (idempotent
+        per (segment, process))."""
+        import logging
+        from openbb_techtrade.engine.movers import list_movers
+
+        def fake_fetcher(*, as_of, calendar, needs_ohlcv=None, universe=None):
+            return []  # empty candidates OK, we only need to trigger the resolve path
+
+        with caplog.at_level(logging.INFO, logger="openbb_techtrade.engine.movers"):
+            # First call — should emit
+            list_movers(segment="Information Technology", candidate_fetcher=fake_fetcher)
+            # Second call same segment — should NOT emit again
+            list_movers(segment="Information Technology", candidate_fetcher=fake_fetcher)
+
+        traces = [r for r in caplog.records
+                  if r.levelno == logging.INFO
+                  and "bd-udq" in r.getMessage()]
+        assert len(traces) == 1, (
+            f"bd-udq: exactly one INFO trace per (segment, process); "
+            f"got {len(traces)}: {[r.getMessage() for r in traces]}"
+        )
+
+    def test_no_trace_when_resolve_universe_filter_explicit_false(self, caplog):
+        """When caller explicitly sets resolve_universe_filter=False (the
+        documented opt-out), NO trace fires — the caller has already
+        acknowledged the fetcher-vs-filter contract."""
+        import logging
+        from openbb_techtrade.engine.movers import list_movers
+
+        def fake_fetcher(*, as_of, calendar, needs_ohlcv=None, universe=None):
+            return []
+
+        with caplog.at_level(logging.INFO, logger="openbb_techtrade.engine.movers"):
+            list_movers(
+                segment="Information Technology",
+                candidate_fetcher=fake_fetcher,
+                resolve_universe_filter=False,  # explicit opt-out
+            )
+
+        traces = [r for r in caplog.records
+                  if r.levelno == logging.INFO
+                  and "bd-udq" in r.getMessage()]
+        assert not traces, (
+            f"bd-udq: explicit resolve_universe_filter=False must not "
+            f"trace; got {[r.getMessage() for r in traces]}"
+        )
+
+    def test_no_trace_on_pure_live_path_no_fetcher(self, caplog):
+        """When no fetcher is injected (pure live path), NO trace fires —
+        the whole scope-escape concern doesn't apply. Uses injected
+        holdings_fetcher so the test stays hermetic (no live network)."""
+        import logging
+        from openbb_techtrade.engine.movers import list_movers
+
+        with caplog.at_level(logging.INFO, logger="openbb_techtrade.engine.movers"):
+            list_movers(
+                segment="Information Technology",
+                # No candidate_fetcher — pure live path.
+                # holdings_fetcher injected so resolve_universe doesn't hit net.
+                holdings_fetcher=lambda etf: ["FAKE"],
+                # constituents_map still None; segment goes through the
+                # (mocked) live path just for the tracing branch.
+            )
+
+        traces = [r for r in caplog.records
+                  if r.levelno == logging.INFO
+                  and "bd-udq" in r.getMessage()]
+        assert not traces, (
+            f"bd-udq: pure live path (no candidate_fetcher) must not "
+            f"trace; got {[r.getMessage() for r in traces]}"
+        )
+
