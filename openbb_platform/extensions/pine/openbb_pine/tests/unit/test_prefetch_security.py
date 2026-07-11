@@ -109,6 +109,29 @@ class _RecordingStub(_DataProviderStub):
     def stream(self, symbol, timeframe, *, start=None, end=None, include_gaps=False):  # noqa: D401
         raise NotImplementedError("_RecordingStub does not implement stream() for E0")
 
+    # --- Provider ABC stubs (post-E3.4 Provider base is abstract) ------
+    # These methods are required to instantiate a Provider subclass, but
+    # the dispatcher never invokes them (it only calls fetch / stream).
+    @classmethod
+    def to_tradingview_timeframe(cls, timeframe: str) -> str:  # noqa: D401
+        raise NotImplementedError
+
+    @classmethod
+    def to_exchange_timeframe(cls, timeframe: str) -> str:  # noqa: D401
+        raise NotImplementedError
+
+    def get_list_of_symbols(self, *args, **kwargs):  # noqa: D401
+        raise NotImplementedError
+
+    def get_opening_hours_and_sessions(self):  # noqa: D401
+        raise NotImplementedError
+
+    def update_symbol_info(self):  # noqa: D401
+        raise NotImplementedError
+
+    def download_ohlcv(self, time_from=None, time_to=None, on_progress=None, limit=None):  # noqa: D401
+        raise NotImplementedError
+
     def fetch(self, symbol, timeframe, *, start=None, end=None, include_gaps=False):
         self.calls.append(
             {"symbol": symbol, "timeframe": timeframe, "start": start, "end": end}
