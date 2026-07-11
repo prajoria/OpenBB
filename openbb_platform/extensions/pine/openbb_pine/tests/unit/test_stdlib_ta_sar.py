@@ -37,14 +37,14 @@ class TestBridgeExists:
 
 class TestBridgeSignatureRegistryMatch:
     def test_registry_entry_marked_implemented(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES
+        from pyne_compiler.compiler.builtin_signatures import BUILTIN_SIGNATURES
 
         sig = BUILTIN_SIGNATURES["ta.sar"]
         assert sig.notes == "IMPLEMENTED"
 
     def test_signature_shape_start_inc_max(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = lookup("ta.sar")
         assert sig is not None

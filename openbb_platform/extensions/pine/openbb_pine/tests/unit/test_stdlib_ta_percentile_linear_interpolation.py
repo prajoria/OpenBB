@@ -34,7 +34,7 @@ class TestBridgeExists:
 
 class TestBridgeSignatureRegistryMatch:
     def test_registry_entry_marked_implemented(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES
+        from pyne_compiler.compiler.builtin_signatures import BUILTIN_SIGNATURES
 
         sig = BUILTIN_SIGNATURES["ta.percentile_linear_interpolation"]
         assert sig.notes == "IMPLEMENTED"
@@ -42,8 +42,8 @@ class TestBridgeSignatureRegistryMatch:
     def test_signature_shape_source_length_percentage(self) -> None:
         """PyneCore's third arg is named ``percentage`` (not ``percentile``);
         registry mirrors that so keyword-form calls resolve."""
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = lookup("ta.percentile_linear_interpolation")
         assert sig is not None

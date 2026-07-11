@@ -25,7 +25,7 @@ import pytest
 
 
 def test_check_result_is_frozen_dataclass_with_fields():
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     r = CheckResult(name="x", status="ok", message="y")
     assert r.name == "x"
@@ -38,7 +38,7 @@ def test_check_result_is_frozen_dataclass_with_fields():
 
 def test_check_result_status_is_one_of_three_literal_strings():
     """Status MUST be ``"ok" | "warn" | "fail"`` (lowercase) for CLI tag dispatch."""
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     for s in ("ok", "warn", "fail"):
         r = CheckResult(name="n", status=s, message="m")
@@ -75,7 +75,7 @@ def test_check_python_version_fail_on_310(monkeypatch):
 
 def test_check_openbb_core_installed_ok():
     """openbb_core is a hard dep of the pine extension — must be present."""
-    from openbb_pine.diagnostics import check_openbb_core_installed
+    from pyne_compiler.errors.diagnostics import check_openbb_core_installed
 
     r = check_openbb_core_installed()
     assert r.name == "openbb-core installed"
@@ -84,7 +84,7 @@ def test_check_openbb_core_installed_ok():
 
 def test_check_openbb_core_installed_fail_when_missing(monkeypatch):
     """If ``find_spec("openbb_core")`` returns None the check FAILs."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.setattr(
         d.importlib.util, "find_spec", lambda name: None if name == "openbb_core" else object()
@@ -94,7 +94,7 @@ def test_check_openbb_core_installed_fail_when_missing(monkeypatch):
 
 
 def test_check_openbb_fmp_installed_ok():
-    from openbb_pine.diagnostics import check_openbb_fmp_installed
+    from pyne_compiler.errors.diagnostics import check_openbb_fmp_installed
 
     r = check_openbb_fmp_installed()
     assert r.name == "openbb-fmp installed (required)"
@@ -103,7 +103,7 @@ def test_check_openbb_fmp_installed_ok():
 
 def test_check_openbb_fmp_cached_installed_warns_when_missing(monkeypatch):
     """Per D3 §10.2 row 4: fmp-cached missing is WARN, not FAIL."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.setattr(
         d.importlib.util,
@@ -118,7 +118,7 @@ def test_check_openbb_fmp_cached_installed_warns_when_missing(monkeypatch):
 
 def test_check_openbb_fmp_cached_installed_ok_when_present():
     """Real environment in this venv has fmp_cached installed."""
-    from openbb_pine.diagnostics import check_openbb_fmp_cached_installed
+    from pyne_compiler.errors.diagnostics import check_openbb_fmp_cached_installed
 
     r = check_openbb_fmp_cached_installed()
     # Either ok or warn, but the check itself must run without error.
@@ -127,7 +127,7 @@ def test_check_openbb_fmp_cached_installed_ok_when_present():
 
 def test_check_fmp_api_key_present_ok_from_env(monkeypatch, tmp_path):
     """Env var ``OPENBB_API_FMP_API_KEY`` is the first source consulted."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.setenv("OPENBB_API_FMP_API_KEY", "test-key-xxx")
     monkeypatch.setattr(d, "USER_SETTINGS_PATH", tmp_path / "no_such.json")
@@ -137,7 +137,7 @@ def test_check_fmp_api_key_present_ok_from_env(monkeypatch, tmp_path):
 
 def test_check_fmp_api_key_present_ok_from_user_settings(monkeypatch, tmp_path):
     """If env is unset but ``user_settings.json`` has ``fmp_api_key``, OK."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.delenv("OPENBB_API_FMP_API_KEY", raising=False)
     fp = tmp_path / "user_settings.json"
@@ -148,7 +148,7 @@ def test_check_fmp_api_key_present_ok_from_user_settings(monkeypatch, tmp_path):
 
 
 def test_check_fmp_api_key_present_fail_when_absent(monkeypatch, tmp_path):
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.delenv("OPENBB_API_FMP_API_KEY", raising=False)
     monkeypatch.setattr(d, "USER_SETTINGS_PATH", tmp_path / "no_such.json")
@@ -159,7 +159,7 @@ def test_check_fmp_api_key_present_fail_when_absent(monkeypatch, tmp_path):
 
 def test_check_fmp_api_key_present_warn_under_byo_only(monkeypatch, tmp_path):
     """D3 §10 BYO-only clause: missing FMP key degrades to WARN."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.delenv("OPENBB_API_FMP_API_KEY", raising=False)
     monkeypatch.setattr(d, "USER_SETTINGS_PATH", tmp_path / "no_such.json")
@@ -169,7 +169,7 @@ def test_check_fmp_api_key_present_warn_under_byo_only(monkeypatch, tmp_path):
 
 def test_check_fmp_reachable_ok(monkeypatch):
     """Mocks the HTTP call — no real network reached."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     calls = []
 
@@ -191,7 +191,7 @@ def test_check_fmp_reachable_ok(monkeypatch):
 
 
 def test_check_fmp_reachable_fail_on_500(monkeypatch):
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     class _R:
         status_code = 500
@@ -206,7 +206,7 @@ def test_check_fmp_reachable_fail_on_500(monkeypatch):
 
 def test_check_fmp_reachable_fail_on_exception(monkeypatch):
     """Any transport-level error → FAIL (no traceback escape)."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     def boom(url: str, timeout: float | None = None) -> Any:  # noqa: ANN401
         raise OSError("connection refused")
@@ -219,7 +219,7 @@ def test_check_fmp_reachable_fail_on_exception(monkeypatch):
 
 def test_check_fmp_reachable_warn_under_byo_only(monkeypatch):
     """BYO-only: unreachable FMP degrades hard FAIL → WARN."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     def boom(url: str, timeout: float | None = None) -> Any:  # noqa: ANN401
         raise OSError("nope")
@@ -232,7 +232,7 @@ def test_check_fmp_reachable_warn_under_byo_only(monkeypatch):
 def test_check_pynecore_importable_ok():
     """The vendored PyneCore (third_party submodule) is on sys.path after import."""
     import openbb_pine  # noqa: F401  — triggers sys.path injection
-    from openbb_pine.diagnostics import check_pynecore_importable
+    from pyne_compiler.errors.diagnostics import check_pynecore_importable
 
     r = check_pynecore_importable()
     assert r.name == "PyneCore importable"
@@ -240,7 +240,7 @@ def test_check_pynecore_importable_ok():
 
 
 def test_check_pynecore_importable_fail_when_missing(monkeypatch):
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.setattr(
         d.importlib.util,
@@ -253,7 +253,7 @@ def test_check_pynecore_importable_fail_when_missing(monkeypatch):
 
 
 def test_check_compile_cache_writable_ok(monkeypatch, tmp_path):
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.setattr(d, "COMPILE_CACHE_DIR", tmp_path / "pine_cache")
     r = d.check_compile_cache_writable()
@@ -263,7 +263,7 @@ def test_check_compile_cache_writable_ok(monkeypatch, tmp_path):
 
 def test_check_compile_cache_writable_fail_on_unwritable(monkeypatch):
     """If mkdir / mkstemp throws, the check FAILs with the OS error in message."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     class _BadPath:
         def mkdir(self, parents: bool = False, exist_ok: bool = False) -> None:
@@ -280,7 +280,7 @@ def test_check_compile_cache_writable_fail_on_unwritable(monkeypatch):
 
 def test_check_attribution_surfaces_ok():
     """All four §2.6 attribution surfaces — at L0.2 attribution.py exists."""
-    from openbb_pine.diagnostics import check_attribution_surfaces
+    from pyne_compiler.errors.diagnostics import check_attribution_surfaces
 
     r = check_attribution_surfaces()
     assert r.name.startswith("PyneSys attribution surfaces")
@@ -297,7 +297,7 @@ def test_check_attribution_surfaces_ok():
 
 def test_run_all_checks_returns_nine_named_checks(monkeypatch):
     """Per D3 §10.2 — nine checks, in the documented order."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     # Defang the network check so this test stays offline.
     class _R:
@@ -328,7 +328,7 @@ def test_run_all_checks_allow_byo_only_degrades_fmp_failures(
     monkeypatch, tmp_path
 ):
     """BYO-only flag: missing key and unreachable FMP both go WARN, not FAIL."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     monkeypatch.delenv("OPENBB_API_FMP_API_KEY", raising=False)
     monkeypatch.setattr(d, "USER_SETTINGS_PATH", tmp_path / "no_such.json")
@@ -353,7 +353,7 @@ def test_run_all_checks_does_not_make_network_call_in_byo_only_with_no_key(
     monkeypatch, tmp_path
 ):
     """Sanity: even with the flag, the HTTP call is still mocked here — no real network."""
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
 
     called = {"n": 0}
 

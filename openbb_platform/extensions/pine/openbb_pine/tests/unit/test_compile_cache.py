@@ -37,14 +37,14 @@ from unittest.mock import patch
 
 import pytest
 
-from openbb_pine.compiler.compile_cache import (
+from pyne_compiler.compiler.compile_cache import (
     DEFAULT_CACHE_DIR,
     cache_purge,
     cache_read,
     cache_write,
     make_cache_key,
 )
-from openbb_pine.compiler.types import CompiledModule
+from pyne_compiler.compiler.types import CompiledModule
 from openbb_pine.errors import PineCacheError
 
 
@@ -288,7 +288,7 @@ class TestAtomicWrite:
         """When os.replace raises, no tmp-* files should linger in the shard."""
         cm = _make_compiled(sha="f" * 64)
 
-        with patch("openbb_pine.compiler.compile_cache.os.replace") as mocked:
+        with patch("pyne_compiler.compiler.compile_cache.os.replace") as mocked:
             mocked.side_effect = OSError("simulated crash")
             with pytest.raises(OSError, match="simulated crash"):
                 cache_write(cm, cache_dir=tmp_path)
@@ -304,7 +304,7 @@ class TestAtomicWrite:
         """After a failed write, cache_read must still return None."""
         cm = _make_compiled(sha="1" * 64)
 
-        with patch("openbb_pine.compiler.compile_cache.os.replace") as mocked:
+        with patch("pyne_compiler.compiler.compile_cache.os.replace") as mocked:
             mocked.side_effect = OSError("simulated crash")
             with pytest.raises(OSError):
                 cache_write(cm, cache_dir=tmp_path)
@@ -326,7 +326,7 @@ class TestAtomicWrite:
             seen_dst_dirs.append(Path(dst).parent)
             return original_replace(src, dst)
 
-        with patch("openbb_pine.compiler.compile_cache.os.replace", side_effect=_capture):
+        with patch("pyne_compiler.compiler.compile_cache.os.replace", side_effect=_capture):
             cache_write(cm, cache_dir=tmp_path)
 
         # Each source dir equals the corresponding dst dir → atomic rename.
@@ -456,7 +456,7 @@ class TestCompilePineIntegration:
     compile → cache_write → return path."""
 
     def test_first_compile_is_miss(self, tmp_path: Path) -> None:
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         cm = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path)
         assert cm.cache_status == "miss"
@@ -464,7 +464,7 @@ class TestCompilePineIntegration:
         assert len(cm.sha) == 64
 
     def test_second_compile_same_source_is_hit(self, tmp_path: Path) -> None:
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         cm1 = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path)
         cm2 = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path)
@@ -476,7 +476,7 @@ class TestCompilePineIntegration:
         assert cm2.builtins_used == cm1.builtins_used
 
     def test_second_compile_different_source_is_miss(self, tmp_path: Path) -> None:
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         cm1 = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path)
         cm2 = compile_pine(TRIVIAL_V6_SOURCE_B, cache_dir=tmp_path)
@@ -485,7 +485,7 @@ class TestCompilePineIntegration:
         assert cm1.sha != cm2.sha
 
     def test_use_cache_false_bypasses(self, tmp_path: Path) -> None:
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         cm1 = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path, use_cache=False)
         cm2 = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path, use_cache=False)
@@ -496,14 +496,14 @@ class TestCompilePineIntegration:
 
     def test_use_cache_false_ignores_existing_cache(self, tmp_path: Path) -> None:
         """use_cache=False must not read from the cache even if it's warm."""
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         _ = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path)  # populate
         cm = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path, use_cache=False)
         assert cm.cache_status == "bypass"
 
     def test_params_carve_separate_slots(self, tmp_path: Path) -> None:
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         cm1 = compile_pine(
             TRIVIAL_V6_SOURCE, cache_dir=tmp_path, params={"length": 10}
@@ -518,8 +518,8 @@ class TestCompilePineIntegration:
     def test_default_cache_dir_is_used_when_none(self, tmp_path: Path, monkeypatch) -> None:
         """When cache_dir=None, compile_pine falls back to DEFAULT_CACHE_DIR.
         Monkeypatch it to a tmp path so we don't touch ~/.openbb."""
-        from openbb_pine.compiler import compile_pine
-        import openbb_pine.compiler as compiler_pkg
+        from pyne_compiler.compiler import compile_pine
+        import pyne_compiler.compiler as compiler_pkg
 
         monkeypatch.setattr(compiler_pkg, "DEFAULT_CACHE_DIR", tmp_path)
         cm = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=None)
@@ -528,7 +528,7 @@ class TestCompilePineIntegration:
     def test_hit_module_is_immediately_re_hittable(self, tmp_path: Path) -> None:
         """A miss populates the cache; the immediately-following read yields
         a hit — no lag / race even in the same process."""
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         cm1 = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path)
         cm2 = compile_pine(TRIVIAL_V6_SOURCE, cache_dir=tmp_path)

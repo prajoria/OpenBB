@@ -199,7 +199,7 @@ def test_run_injects_fresh_telemetry_sink_into_compile_pine():
     counts between concurrent requests.
     """
     from openbb_pine.routers.run_router import run
-    from openbb_pine.telemetry import _DEFAULT_SINK, OpenBBTelemetrySink
+    from pyne_compiler.telemetry import _DEFAULT_SINK, OpenBBTelemetrySink
 
     with patch("openbb_pine.routers.run_router.run_compiled") as mock_run, \
          patch("openbb_pine.routers.run_router.compile_pine") as mock_compile:

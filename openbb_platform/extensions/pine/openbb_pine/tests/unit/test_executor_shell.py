@@ -30,7 +30,7 @@ import pandas as pd
 import pytest
 
 from openbb_pine.attribution import POWERED_BY_FULL
-from openbb_pine.compiler.types import CompiledModule
+from pyne_compiler.compiler.types import CompiledModule
 from openbb_pine.errors import (
     PineDataValidationError,
     PineExecTimeoutError,

@@ -36,9 +36,9 @@ from __future__ import annotations
 
 import pytest
 
-from openbb_pine.compiler import compile_pine
-from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES, lookup
-from openbb_pine.compiler.types import PineType, Scalar
+from pyne_compiler.compiler import compile_pine
+from pyne_compiler.compiler.builtin_signatures import BUILTIN_SIGNATURES, lookup
+from pyne_compiler.compiler.types import PineType, Scalar
 from openbb_pine.errors import (
     PineTypeError,
     PineUnsupportedFeatureError,
@@ -348,9 +348,9 @@ class TestBuiltinsUsedPopulation:
     def _typecheck_body(self, body: str):
         """Lex + parse + type-check a strategy-scoped script; return the
         TypeCheckResult. Skips codegen entirely."""
-        from openbb_pine.compiler.lexer import tokenize
-        from openbb_pine.compiler.parser import parse
-        from openbb_pine.compiler.type_checker import check
+        from pyne_compiler.compiler.lexer import tokenize
+        from pyne_compiler.compiler.parser import parse
+        from pyne_compiler.compiler.type_checker import check
 
         src = _STRATEGY_HEAD + body
         program = parse(tokenize(src), pine_version=6)

@@ -31,11 +31,11 @@ from typing import Callable
 import pandas as pd
 import pytest
 
-from openbb_pine.compiler.types import SecurityContext
-from openbb_pine.compiler_errors import PineDataResolverError
-from openbb_pine.runtime._data_provider_stub import _DataProviderStub
-from openbb_pine.runtime.secondary_cache import SecondarySeriesCache
-from openbb_pine.runtime.security_dispatcher import (
+from pyne_compiler.compiler.types import SecurityContext
+from pyne_compiler.errors.base import PineDataResolverError
+from pynecore.providers.provider import Provider as _DataProviderStub
+from pyne_compiler.runtime.secondary_cache import SecondarySeriesCache
+from pyne_compiler.runtime.security_dispatcher import (
     align_to_primary,
     prefetch_security_contexts,
 )
@@ -109,6 +109,29 @@ class _RecordingStub(_DataProviderStub):
     def stream(self, symbol, timeframe, *, start=None, end=None, include_gaps=False):  # noqa: D401
         raise NotImplementedError("_RecordingStub does not implement stream() for E0")
 
+    # --- Provider ABC stubs (post-E3.4 Provider base is abstract) ------
+    # These methods are required to instantiate a Provider subclass, but
+    # the dispatcher never invokes them (it only calls fetch / stream).
+    @classmethod
+    def to_tradingview_timeframe(cls, timeframe: str) -> str:  # noqa: D401
+        raise NotImplementedError
+
+    @classmethod
+    def to_exchange_timeframe(cls, timeframe: str) -> str:  # noqa: D401
+        raise NotImplementedError
+
+    def get_list_of_symbols(self, *args, **kwargs):  # noqa: D401
+        raise NotImplementedError
+
+    def get_opening_hours_and_sessions(self):  # noqa: D401
+        raise NotImplementedError
+
+    def update_symbol_info(self):  # noqa: D401
+        raise NotImplementedError
+
+    def download_ohlcv(self, time_from=None, time_to=None, on_progress=None, limit=None):  # noqa: D401
+        raise NotImplementedError
+
     def fetch(self, symbol, timeframe, *, start=None, end=None, include_gaps=False):
         self.calls.append(
             {"symbol": symbol, "timeframe": timeframe, "start": start, "end": end}
@@ -118,6 +141,29 @@ class _RecordingStub(_DataProviderStub):
         if self.fetch_impl is not None:
             return self.fetch_impl(symbol, timeframe, start, end)
         return self.fetch_result
+
+    # E3.4: pynecore.providers.Provider ABC no-op impls (was previously the
+    # openbb_pine._data_provider_stub non-abstract base; that stub is deleted
+    # in this bead). Tests only exercise fetch()/stream(), so these are stubs.
+    @classmethod
+    def to_tradingview_timeframe(cls, timeframe):
+        return timeframe
+
+    @classmethod
+    def to_exchange_timeframe(cls, timeframe):
+        return timeframe
+
+    def get_list_of_symbols(self, *args, **kwargs):
+        return []
+
+    def update_symbol_info(self):
+        raise NotImplementedError
+
+    def get_opening_hours_and_sessions(self):
+        raise NotImplementedError
+
+    def download_ohlcv(self, time_from, time_to, on_progress=None):
+        raise NotImplementedError
 
 
 # --- align_to_primary --------------------------------------------------------

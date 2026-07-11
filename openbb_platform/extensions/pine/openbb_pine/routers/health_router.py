@@ -22,7 +22,7 @@ from openbb_core.app.router import Router
 from openbb_pine import _coverage_manifest  # noqa: F401  - test-seam import
 from openbb_pine.about import _detect_pynecore_version
 from openbb_pine.attribution import POWERED_BY_SHORT
-from openbb_pine.diagnostics import CheckResult, run_all_checks
+from pyne_compiler.errors.diagnostics import CheckResult, run_all_checks
 from openbb_pine.routers._models import PineHealth
 
 # Re-export so the 4-of-4 attribution test (`tests/unit/test_attribution_surfaces.py`)

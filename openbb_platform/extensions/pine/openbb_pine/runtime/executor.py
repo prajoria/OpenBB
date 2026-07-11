@@ -43,7 +43,7 @@ import warnings as _warnings
 # ``from openbb_pine.runtime.executor import run_compiled`` idiom keeps
 # working; the ``noqa: F401`` mutes the "imported but unused" lint since
 # the re-export IS the whole point of this shim.
-from openbb_pine.runtime.executor_core import _collect_results  # noqa: F401
+from pyne_compiler.runtime.executor_core import _collect_results  # noqa: F401
 from openbb_pine.runtime.executor_shell import (  # noqa: F401
     ProviderOrData,
     _resolve_data_source,

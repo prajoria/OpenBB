@@ -16,7 +16,7 @@ import pytest
 
 
 def test_bridge_module_exports_expected_functions() -> None:
-    from openbb_pine.runtime import pynecore_bridge
+    from pyne_compiler.runtime import pynecore_bridge
     assert callable(pynecore_bridge.install_pynecore_path)
     assert callable(pynecore_bridge.is_pynecore_installed)
 
@@ -30,7 +30,7 @@ def test_bridge_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch this test collapses into ``0 <= 1`` and a future refactor
     that breaks dedup would silently pass CI.
     """
-    from openbb_pine.runtime import pynecore_bridge
+    from pyne_compiler.runtime import pynecore_bridge
 
     monkeypatch.setattr(pynecore_bridge, "is_pynecore_installed", lambda: False)
     before = list(sys.path)
@@ -73,7 +73,7 @@ def test_bridge_is_noop_when_pynecore_already_installed() -> None:
     ``is_pynecore_installed()`` does not hold — an honest coverage report
     is worth more than a green tick.
     """
-    from openbb_pine.runtime import pynecore_bridge
+    from pyne_compiler.runtime import pynecore_bridge
 
     if not pynecore_bridge.is_pynecore_installed():
         pytest.skip("pynecore is not installed in this environment")
@@ -96,7 +96,7 @@ def test_submodule_src_dir_walk_is_bounded(
     the bound the old implementation would climb past six parents and
     silently attach an unrelated pynecore tree.
     """
-    from openbb_pine.runtime import pynecore_bridge
+    from pyne_compiler.runtime import pynecore_bridge
 
     # Build a directory ladder deep enough that the plausible-pynecore tree
     # sits at depth > _PARENT_WALK_MAX_DEPTH from ``fake_file``.
@@ -131,7 +131,7 @@ def test_submodule_src_dir_rejects_empty_stub(
     unrelated project's ``third_party/pynecore/src`` directory that
     happens to sit in an ancestor path.
     """
-    from openbb_pine.runtime import pynecore_bridge
+    from pyne_compiler.runtime import pynecore_bridge
 
     # File at depth 1 below tmp_path; stub at depth 0 (within the bound).
     root = tmp_path / "d0"

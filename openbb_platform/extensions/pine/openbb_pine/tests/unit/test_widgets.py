@@ -31,7 +31,7 @@ import pytest
 
 from openbb_pine import _load_bundled_widgets, _WIDGETS_JSON
 from openbb_pine.attribution import POWERED_BY_FULL
-from openbb_pine.compiler import compile_pine
+from pyne_compiler.compiler import compile_pine
 
 
 # ---------------------------------------------------------------------------

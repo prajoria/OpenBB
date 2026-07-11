@@ -24,7 +24,7 @@ import sys
 import click
 
 from openbb_pine.attribution import POWERED_BY_FULL
-from openbb_pine.diagnostics import CheckResult, run_all_checks
+from pyne_compiler.errors.diagnostics import CheckResult, run_all_checks
 
 # CLI-side mapping from lowercase status to the literal stdout tag.
 # Defined as a module constant so the tests can introspect / extend if

@@ -104,7 +104,7 @@ def test_about_providers_supported_is_locked_to_fmp_pair():
 
 
 def test_about_fmp_key_present_true_from_env(monkeypatch, tmp_path):
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
     from openbb_pine.about import about
 
     monkeypatch.setenv("OPENBB_API_FMP_API_KEY", "envkey")
@@ -114,7 +114,7 @@ def test_about_fmp_key_present_true_from_env(monkeypatch, tmp_path):
 
 
 def test_about_fmp_key_present_false_when_neither_source_has_it(monkeypatch, tmp_path):
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
     from openbb_pine.about import about
 
     monkeypatch.delenv("OPENBB_API_FMP_API_KEY", raising=False)
@@ -147,7 +147,7 @@ def test_about_compile_cache_dir_is_home_pine_cache():
 def test_about_doctor_ok_true_when_all_checks_pass(monkeypatch):
     """When every shared check returns OK/WARN, ``doctor_ok`` is True."""
     import openbb_pine.about as about_mod
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     monkeypatch.setattr(
         about_mod,
@@ -164,7 +164,7 @@ def test_about_doctor_ok_true_when_all_checks_pass(monkeypatch):
 
 def test_about_doctor_issues_lists_failing_check_names(monkeypatch):
     import openbb_pine.about as about_mod
-    from openbb_pine.diagnostics import CheckResult
+    from pyne_compiler.errors.diagnostics import CheckResult
 
     monkeypatch.setattr(
         about_mod,
@@ -186,7 +186,7 @@ def test_about_about_call_does_not_raise_in_real_environment(monkeypatch):
 
     HTTP probe is stubbed so this test stays offline and CI-safe.
     """
-    import openbb_pine.diagnostics as d
+    import pyne_compiler.errors.diagnostics as d
     from openbb_pine.about import about
 
     class _R:

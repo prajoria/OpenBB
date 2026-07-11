@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import pytest
 
-from openbb_pine.compiler import ir
-from openbb_pine.compiler.lexer import Token, tokenize
-from openbb_pine.compiler.parser import parse, _lark_for_version
+from pyne_compiler.compiler import ir
+from pyne_compiler.compiler.lexer import Token, tokenize
+from pyne_compiler.compiler.parser import parse, _lark_for_version
 from openbb_pine.errors import PineSyntaxError
 
 
@@ -404,7 +404,7 @@ class TestTokenStream:
             parse([], pine_version=6)
 
     def test_unsupported_pine_version_raises(self) -> None:
-        from openbb_pine.compiler.parser import _lark_for_version
+        from pyne_compiler.compiler.parser import _lark_for_version
         with pytest.raises(PineSyntaxError):
             _lark_for_version(99)
 

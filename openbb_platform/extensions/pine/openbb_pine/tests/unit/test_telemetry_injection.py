@@ -11,7 +11,7 @@ instantiate.
 These tests enforce three contracts:
 
 1. **No runtime coupling.** The compiler modules (codegen, type_checker,
-   v5_migration, __init__) contain zero ``from openbb_pine.telemetry
+   v5_migration, __init__) contain zero ``from pyne_compiler.telemetry
    import`` lines outside a ``TYPE_CHECKING`` guard. This is the
    grep-gated check E0.7 will run against the shipped tree.
 2. **Sink shape.** ``OpenBBTelemetrySink`` implements the two
@@ -92,8 +92,8 @@ def test_compiler_modules_do_not_import_openbb_pine_telemetry_at_runtime() -> No
             elif isinstance(node, ast.ImportFrom) and node.module == "openbb_pine":
                 # ``from openbb_pine import telemetry`` binds the telemetry
                 # submodule as a runtime name — same coupling as
-                # ``import openbb_pine.telemetry``. The plain
-                # ``from openbb_pine.telemetry import X`` form is caught
+                # ``import pyne_compiler.telemetry``. The plain
+                # ``from pyne_compiler.telemetry import X`` form is caught
                 # by the branch above; this one catches the module-bind
                 # variant that would otherwise slip past.
                 for alias in node.names:
@@ -141,7 +141,7 @@ def _is_type_checking_guard(node: object) -> bool:
 def test_telemetry_sink_protocol_exists() -> None:
     """The compiler programs against ``TelemetrySink``; the openbb-fork
     ships ``OpenBBTelemetrySink`` as the concrete implementation."""
-    from openbb_pine.telemetry import OpenBBTelemetrySink, TelemetrySink
+    from pyne_compiler.telemetry import OpenBBTelemetrySink, TelemetrySink
 
     sink = OpenBBTelemetrySink()
     # Protocol shape — both methods callable with a str.
@@ -155,7 +155,7 @@ def test_openbb_telemetry_sink_records_counts() -> None:
     """The concrete impl the routers instantiate keeps per-name counts
     on its own instance (not on module state) so multiple router calls
     do not cross-contaminate."""
-    from openbb_pine.telemetry import OpenBBTelemetrySink
+    from pyne_compiler.telemetry import OpenBBTelemetrySink
 
     sink = OpenBBTelemetrySink()
     sink.record_unsupported_feature("PF010")
@@ -177,8 +177,8 @@ def test_openbb_telemetry_sink_records_counts() -> None:
 def test_compile_pine_accepts_telemetry_kwarg() -> None:
     """The facade signature accepts ``telemetry=sink`` without raising
     ``TypeError``. Actual recording is exercised below."""
-    from openbb_pine.compiler import compile_pine
-    from openbb_pine.telemetry import OpenBBTelemetrySink
+    from pyne_compiler.compiler import compile_pine
+    from pyne_compiler.telemetry import OpenBBTelemetrySink
 
     sink = OpenBBTelemetrySink()
     compile_pine(
@@ -192,7 +192,7 @@ def test_compile_pine_defaults_telemetry_to_none() -> None:
     """With ``telemetry=None`` (default), the pipeline runs end-to-end
     without touching any sink. Verifies the ``if telemetry is not None``
     guards actually short-circuit."""
-    from openbb_pine.compiler import compile_pine
+    from pyne_compiler.compiler import compile_pine
 
     result = compile_pine(
         '//@version=6\nindicator("t")\nplot(close)\n', use_cache=False
@@ -203,7 +203,7 @@ def test_compile_pine_defaults_telemetry_to_none() -> None:
 
 def _dummy_span():
     """Zero-position :class:`ir.Span` for hand-constructed IR fixtures."""
-    from openbb_pine.compiler import ir
+    from pyne_compiler.compiler import ir
 
     return ir.Span(
         file="<inline>",
@@ -221,9 +221,9 @@ def test_injected_sink_receives_codegen_pf010_signal() -> None:
     ``sink.record_unsupported_feature('PF010')`` on the injected sink —
     not on the module-global default. This is the end-to-end proof the
     plumbing works."""
-    from openbb_pine.compiler import ir
-    from openbb_pine.compiler.codegen import _CodegenVisitor
-    from openbb_pine.telemetry import OpenBBTelemetrySink
+    from pyne_compiler.compiler import ir
+    from pyne_compiler.compiler.codegen import _CodegenVisitor
+    from pyne_compiler.telemetry import OpenBBTelemetrySink
 
     sink = OpenBBTelemetrySink()
     span = _dummy_span()
@@ -254,10 +254,10 @@ def test_injected_sink_receives_codegen_pf010_signal() -> None:
 def test_injected_sink_receives_type_checker_signal() -> None:
     """_TypeChecker's ``_raise_unsupported_builtin`` MUST call
     ``sink.record_unsupported_builtin(name)`` on the injected sink."""
-    from openbb_pine.compiler import ir
-    from openbb_pine.compiler.type_checker import _TypeChecker
+    from pyne_compiler.compiler import ir
+    from pyne_compiler.compiler.type_checker import _TypeChecker
     from openbb_pine.errors import PineUnsupportedBuiltinError
-    from openbb_pine.telemetry import OpenBBTelemetrySink
+    from pyne_compiler.telemetry import OpenBBTelemetrySink
 
     sink = OpenBBTelemetrySink()
     tc = _TypeChecker(pine_version=6, telemetry=sink)
@@ -282,8 +282,8 @@ def test_injected_sink_receives_v5_migration_signal() -> None:
     coincidental: this pins the assertion to ``{"PF003": 1}`` even if
     the migration regex is later tightened or relaxed.
     """
-    from openbb_pine.compiler.v5_migration import migrate_v5_to_v6
-    from openbb_pine.telemetry import OpenBBTelemetrySink
+    from pyne_compiler.compiler.v5_migration import migrate_v5_to_v6
+    from pyne_compiler.telemetry import OpenBBTelemetrySink
 
     sink = OpenBBTelemetrySink()
 
@@ -313,8 +313,8 @@ def test_injected_sink_receives_v5_migration_signal_nested_iff() -> None:
     nested-iff and the nested-non-iff paren paths are covered — regex
     changes that break either will surface here.
     """
-    from openbb_pine.compiler.v5_migration import migrate_v5_to_v6
-    from openbb_pine.telemetry import OpenBBTelemetrySink
+    from pyne_compiler.compiler.v5_migration import migrate_v5_to_v6
+    from pyne_compiler.telemetry import OpenBBTelemetrySink
 
     sink = OpenBBTelemetrySink()
 
@@ -331,8 +331,8 @@ def test_injected_sink_receives_v5_migration_signal_nested_iff() -> None:
 def test_injected_sink_receives_detect_pine_version_signal() -> None:
     """detect_pine_version's PF001/PF002 raises MUST call
     ``sink.record_unsupported_feature(...)`` on the injected sink."""
-    from openbb_pine.compiler.v5_migration import detect_pine_version
-    from openbb_pine.telemetry import OpenBBTelemetrySink
+    from pyne_compiler.compiler.v5_migration import detect_pine_version
+    from pyne_compiler.telemetry import OpenBBTelemetrySink
 
     sink = OpenBBTelemetrySink()
     with pytest.raises(PineUnsupportedFeatureError):
@@ -351,7 +351,7 @@ def test_module_level_recorders_stay_functional_for_back_compat() -> None:
     helpers are preserved as a thin delegation to a module-global
     ``OpenBBTelemetrySink`` so pre-E0.4 tests that hit those free
     functions directly keep working."""
-    from openbb_pine.telemetry import (
+    from pyne_compiler.telemetry import (
         get_unsupported_builtin_counts,
         record_unsupported_builtin,
         reset_metrics,

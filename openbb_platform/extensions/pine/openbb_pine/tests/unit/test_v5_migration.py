@@ -26,8 +26,8 @@ import re
 
 import pytest
 
-from openbb_pine.compiler import compile_pine, compile_pine_to_program, ir
-from openbb_pine.compiler.v5_migration import (
+from pyne_compiler.compiler import compile_pine, compile_pine_to_program, ir
+from pyne_compiler.compiler.v5_migration import (
     V5Rewrite,
     V5_REWRITES,
     detect_pine_version,

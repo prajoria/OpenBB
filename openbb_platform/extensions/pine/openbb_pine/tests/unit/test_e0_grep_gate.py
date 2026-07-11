@@ -149,6 +149,12 @@ _MANIFEST_EXEMPT = frozenset({"test_e0_grep_gate.py"})
 _MANIFEST_STAY_BY_FIAT = frozenset({
     "test_prefetch_security.py",         # asserts banned FMP-provider strings
     "test_router_command_bare_obbject.py",  # AST-walks fork routers
+    # E3.4: after import rewrite these still-STAY tests exercise the openbb_pine
+    # deprecation shims (diagnostics/telemetry live in openbb_pine as re-exports
+    # from pyne_compiler.*, so the import-based classifier now sees them as MOVE).
+    "test_diagnostics.py",
+    "test_telemetry_injection.py",
+    "test_telemetry_module_globals.py",
 })
 
 

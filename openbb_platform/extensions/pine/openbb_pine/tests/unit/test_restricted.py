@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import pytest
 
-from openbb_pine.runtime.restricted import (
+from pyne_compiler.runtime.restricted import (
     _ALLOWED_BUILTINS,
     build_restricted_namespace,
 )

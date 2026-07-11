@@ -20,8 +20,8 @@ from typing import Any, Iterator
 import pandas as pd
 import pytest
 
-from openbb_pine.compiler.types import CompiledModule
-from openbb_pine.runtime.executor_core import (
+from pyne_compiler.compiler.types import CompiledModule
+from pyne_compiler.runtime.executor_core import (
     _collect_results,
     run_compiled,
 )
@@ -139,7 +139,7 @@ def main():
 
 def test_executor_core_forbidden_import_raises_pine_security_error() -> None:
     """T3 second-line-of-defense scan still fires inside the core."""
-    from openbb_pine.compiler_errors import PineSecurityError  # noqa: PLC0415
+    from pyne_compiler.errors.base import PineSecurityError  # noqa: PLC0415
 
     source = '''"""
 @pyne
@@ -188,7 +188,7 @@ def test_executor_core_does_not_import_fmp_or_attribution() -> None:
     only cosmetic. Update the list intentionally if the shell/core seam
     ever moves — but never widen it to sneak an FMP concern into the core.
     """
-    from openbb_pine.runtime import executor_core  # noqa: PLC0415
+    from pyne_compiler.runtime import executor_core  # noqa: PLC0415
 
     src = inspect.getsource(executor_core)
     banned = (
@@ -214,7 +214,7 @@ def test_executor_core_does_not_import_fmp_or_attribution() -> None:
 
 def test_executor_core_does_not_construct_obbject() -> None:
     """The OBBject wrapper is the shell's job — core returns raw pieces."""
-    from openbb_pine.runtime import executor_core  # noqa: PLC0415
+    from pyne_compiler.runtime import executor_core  # noqa: PLC0415
 
     src = inspect.getsource(executor_core)
     assert "OBBject(" not in src, (

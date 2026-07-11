@@ -29,13 +29,13 @@ class TestBridgeExists:
 
 class TestBridgeSignatureRegistryMatch:
     def test_registry_entry_marked_implemented(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES
+        from pyne_compiler.compiler.builtin_signatures import BUILTIN_SIGNATURES
 
         sig = BUILTIN_SIGNATURES["ta.macd"]
         assert sig.notes == "IMPLEMENTED"
 
     def test_signature_shape_src_fastlen_slowlen_siglen(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.builtin_signatures import lookup
 
         sig = lookup("ta.macd")
         assert sig is not None
@@ -49,8 +49,8 @@ class TestBridgeSignatureRegistryMatch:
         """C3's tuple-destructuring reads TupleT.elements to route each
         of ``[line, signal, hist]`` to the corresponding LHS binding —
         this test fixes the tuple arity + element shape."""
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar, TupleT
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar, TupleT
 
         sig = lookup("ta.macd")
         assert sig is not None

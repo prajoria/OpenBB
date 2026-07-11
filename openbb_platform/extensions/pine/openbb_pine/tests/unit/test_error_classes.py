@@ -420,7 +420,7 @@ class TestPineCacheErrorStructuredInit:
 def test_compiler_types_unify_still_raises_pinetypeerror_with_msg() -> None:
     """``compiler.types.unify`` raises ``PineTypeError(f"cannot unify ...")``
     with a positional string. Updating the init must not break it."""
-    from openbb_pine.compiler.types import PineType, Scalar, unify
+    from pyne_compiler.compiler.types import PineType, Scalar, unify
     from openbb_pine.errors import PineTypeError
 
     a = PineType(qualifier="const", inner=Scalar(kind="float"))

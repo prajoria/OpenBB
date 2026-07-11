@@ -31,13 +31,13 @@ import ast
 
 import pytest
 
-from openbb_pine.compiler import compile_pine, emit, ir
-from openbb_pine.compiler.codegen import (
+from pyne_compiler.compiler import compile_pine, emit, ir
+from pyne_compiler.compiler.codegen import (
     GLOBAL_NAME_ALLOWLIST,
     MODULE_ALLOWLIST,
     NODE_TYPE_ALLOWLIST,
 )
-from openbb_pine.compiler.types import CompiledModule
+from pyne_compiler.compiler.types import CompiledModule
 from openbb_pine.errors import PineCodegenError, PineUnsupportedFeatureError
 
 
@@ -641,7 +641,7 @@ class TestEmitDirect:
     """
 
     def test_emit_minimal_program(self) -> None:
-        from openbb_pine.compiler import compile_pine_to_program
+        from pyne_compiler.compiler import compile_pine_to_program
 
         prog = compile_pine_to_program(
             '//@version=6\nindicator("X")\nplot(close)\n'
@@ -660,7 +660,7 @@ class TestEmitDirect:
         """Direct emit() (not through compile_pine facade) → no C6 cache
         involvement. The returned module signals this via sha="" and
         cache_status="bypass"."""
-        from openbb_pine.compiler import compile_pine_to_program
+        from pyne_compiler.compiler import compile_pine_to_program
 
         prog = compile_pine_to_program(
             '//@version=6\nindicator("X")\nplot(close)\n'
@@ -677,8 +677,8 @@ class TestEmitDirect:
 
     def test_emit_threads_security_contexts(self) -> None:
         """When C3 sets security_contexts (Phase 2), emit threads it through."""
-        from openbb_pine.compiler import compile_pine_to_program
-        from openbb_pine.compiler.types import SecurityContext
+        from pyne_compiler.compiler import compile_pine_to_program
+        from pyne_compiler.compiler.types import SecurityContext
 
         prog = compile_pine_to_program(
             '//@version=6\nindicator("X")\nplot(close)\n'

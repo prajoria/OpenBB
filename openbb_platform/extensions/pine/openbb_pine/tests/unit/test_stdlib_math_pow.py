@@ -6,8 +6,8 @@ Wave 5B-5 part 1. Two-arg ``base ** exponent`` — trivial delegation.
 from __future__ import annotations
 
 from openbb_pine import _coverage_manifest
-from openbb_pine.compiler import compile_pine
-from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES
+from pyne_compiler.compiler import compile_pine
+from pyne_compiler.compiler.builtin_signatures import BUILTIN_SIGNATURES
 from openbb_pine.stdlib import math as stdlib_math
 
 

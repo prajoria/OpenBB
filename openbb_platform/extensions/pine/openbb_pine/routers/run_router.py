@@ -39,11 +39,11 @@ from openbb_core.app.model.example import PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
-from openbb_pine.compiler import compile_pine
+from pyne_compiler.compiler import compile_pine
 from openbb_pine.errors import PineDataValidationError
 from openbb_pine.runtime.executor_shell import run_compiled
 from openbb_pine.runtime.provider_selection import resolve_provider
-from openbb_pine.telemetry import OpenBBTelemetrySink
+from pyne_compiler.telemetry import OpenBBTelemetrySink
 
 router = Router(prefix="", description="Compile and run Pine scripts over OHLCV.")
 

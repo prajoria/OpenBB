@@ -32,7 +32,7 @@ import ast
 
 import pytest
 
-from openbb_pine.compiler.codegen import (
+from pyne_compiler.compiler.codegen import (
     GLOBAL_NAME_ALLOWLIST,
     MODULE_ALLOWLIST,
     NODE_TYPE_ALLOWLIST,
@@ -355,7 +355,7 @@ class TestEmitterOutputAlwaysPasses:
     to lock in the contract."""
 
     def test_sma_pipeline_passes(self) -> None:
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         compiled = compile_pine(
             '//@version=6\n'
@@ -368,7 +368,7 @@ class TestEmitterOutputAlwaysPasses:
         _enforce_allowlist(mod)
 
     def test_bollinger_pipeline_passes(self) -> None:
-        from openbb_pine.compiler import compile_pine
+        from pyne_compiler.compiler import compile_pine
 
         compiled = compile_pine(
             '//@version=6\n'

@@ -23,7 +23,7 @@ from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 from pydantic import Field
 
-from openbb_pine.compiler_errors import PineStrategyNotYetImplementedError
+from pyne_compiler.errors.base import PineStrategyNotYetImplementedError
 from openbb_pine.routers._models import PineByoData
 
 router = Router(

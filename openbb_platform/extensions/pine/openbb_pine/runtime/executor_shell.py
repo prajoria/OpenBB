@@ -38,7 +38,7 @@ import pandas as pd
 from openbb_core.app.model.obbject import OBBject
 
 from openbb_pine.attribution import POWERED_BY_FULL
-from openbb_pine.runtime import executor_core
+from pyne_compiler.runtime import executor_core
 
 # DO NOT REMOVE the ``fmp_retry`` import below. The retry envelope still
 # lives inside ``FMPOHLCVProvider._fetch`` today; this shell carries the
@@ -55,7 +55,7 @@ from openbb_pine.runtime.fmp_provider import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover -- typing-only
-    from openbb_pine.compiler.types import CompiledModule
+    from pyne_compiler.compiler.types import CompiledModule
 
 
 # --- Provider-type alias (mirrors ``Literal`` from FMPRequest) ----------------

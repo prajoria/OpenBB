@@ -44,7 +44,7 @@ class TestBridgeSignatureRegistryMatch:
     """
 
     def test_registry_entry_marked_implemented(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import BUILTIN_SIGNATURES
+        from pyne_compiler.compiler.builtin_signatures import BUILTIN_SIGNATURES
 
         sig = BUILTIN_SIGNATURES["ta.sma"]
         assert sig.notes == "IMPLEMENTED", (
@@ -52,8 +52,8 @@ class TestBridgeSignatureRegistryMatch:
         )
 
     def test_signature_shape_src_and_length(self) -> None:
-        from openbb_pine.compiler.builtin_signatures import lookup
-        from openbb_pine.compiler.types import PineType, Scalar
+        from pyne_compiler.compiler.builtin_signatures import lookup
+        from pyne_compiler.compiler.types import PineType, Scalar
 
         sig = lookup("ta.sma")
         assert sig is not None

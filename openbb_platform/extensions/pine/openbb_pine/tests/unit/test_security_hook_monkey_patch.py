@@ -44,12 +44,12 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from openbb_pine.compiler.types import SecurityContext
+from pyne_compiler.compiler.types import SecurityContext
 from openbb_pine.errors import (
     PineSecurityContextNotFoundError,
     PineUnsupportedBuiltinError,
 )
-from openbb_pine.runtime.security_hook import (
+from pyne_compiler.runtime.security_hook import (
     expression_column_name,
     install_secondaries_hook,
 )
