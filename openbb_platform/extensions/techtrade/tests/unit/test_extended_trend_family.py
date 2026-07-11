@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from openbb_techtrade.engine import indicators, indicators_ext, confluence_ext
+from openbb_techtrade.engine import indicators, indicators_ext, confluence, confluence_ext
 from openbb_techtrade.engine.indicators import DEFAULT_CONFIG
 
 
@@ -322,7 +322,17 @@ class TestIchimokuPanel:
 
 class TestIchimokuVote:
     """The trend-family vote-mapper emits an `ichimoku_cloud` vote in [-1, +1]
-    reading from `ichimoku_confirmed_position`."""
+    reading from `ichimoku_confirmed_position`.
+
+    **bd-hpxh (2026-07-11) note:** the ship config excludes ichimoku_cloud
+    from the default vote list due to ρ=0.839 with ema_cross. These tests
+    verify the vote MECHANICS work correctly by opting Ichimoku in
+    explicitly via ``enabled_extended_votes``. The mechanics are still
+    load-bearing for R&D / backtest callers that opt in — they must get
+    the same value contract they'd have gotten pre-bd-hpxh."""
+
+    #: bd-hpxh: opt-in for tests that need to verify Ichimoku vote mechanics
+    _WITH_ICHIMOKU = frozenset({"aroon_osc", "ichimoku_cloud"})
 
     def _panel_from(self, df: pd.DataFrame):
         return indicators.build_indicator_panel(
@@ -334,30 +344,41 @@ class TestIchimokuVote:
 
     def test_ichimoku_vote_absent_when_key_absent(self):
         panel = self._panel_from(_ohlcv_uptrend(40))
-        votes = confluence_ext.trend_votes_ext(panel)
+        # Even with Ichimoku opted in, absent panel key → no vote emitted.
+        votes = confluence_ext.trend_votes_ext(
+            panel, enabled_extended_votes=self._WITH_ICHIMOKU,
+        )
         assert [v for v in votes if v.name == "ichimoku_cloud"] == []
 
     def test_ichimoku_vote_positive_on_sustained_uptrend(self):
         panel = self._panel_from(_ohlcv_uptrend(200))
-        votes = confluence_ext.trend_votes_ext(panel)
+        votes = confluence_ext.trend_votes_ext(
+            panel, enabled_extended_votes=self._WITH_ICHIMOKU,
+        )
         vote = next(v for v in votes if v.name == "ichimoku_cloud")
         assert vote.vote == 1.0
 
     def test_ichimoku_vote_negative_on_sustained_downtrend(self):
         panel = self._panel_from(_ohlcv_downtrend(200))
-        votes = confluence_ext.trend_votes_ext(panel)
+        votes = confluence_ext.trend_votes_ext(
+            panel, enabled_extended_votes=self._WITH_ICHIMOKU,
+        )
         vote = next(v for v in votes if v.name == "ichimoku_cloud")
         assert vote.vote == -1.0
 
     def test_ichimoku_vote_bounded_in_signed_unit(self):
         panel = self._panel_from(_ohlcv_uptrend(200))
-        votes = confluence_ext.trend_votes_ext(panel)
+        votes = confluence_ext.trend_votes_ext(
+            panel, enabled_extended_votes=self._WITH_ICHIMOKU,
+        )
         vote = next(v for v in votes if v.name == "ichimoku_cloud")
         assert -1.0 <= vote.vote <= 1.0
 
     def test_ichimoku_vote_family_is_trend(self):
         panel = self._panel_from(_ohlcv_uptrend(200))
-        votes = confluence_ext.trend_votes_ext(panel)
+        votes = confluence_ext.trend_votes_ext(
+            panel, enabled_extended_votes=self._WITH_ICHIMOKU,
+        )
         vote = next(v for v in votes if v.name == "ichimoku_cloud")
         assert vote.family == "trend"
 
@@ -419,3 +440,176 @@ class TestIchimokuDeterminism:
 def _extended():
     from openbb_techtrade.engine.panel_config import PANEL_EXTENDED
     return PANEL_EXTENDED
+
+
+# =========================================================================== #
+# bd-hpxh — configurable ship-enabled extended trend votes
+# =========================================================================== #
+#
+# Decision: Ichimoku vote drops from the SHIP config (correlation 0.839 vs
+# ema_cross exceeded §R.4 M4 ceiling of 0.70). Panel keys still emit so R&D /
+# audit code can read the raw Ichimoku signal. A caller can opt Ichimoku back
+# into the vote list explicitly for backtests / IC studies.
+
+
+class TestBdHpxhShipConfigDropsIchimokuVote:
+    """The ship config emits `aroon_osc` but NOT `ichimoku_cloud`.
+    Panel keys for Ichimoku are still populated for audit."""
+
+    def _panel_from(self, df: pd.DataFrame):
+        return indicators.build_indicator_panel(
+            symbol="TEST",
+            as_of=df.index[-1].date(),
+            ohlcv_rows=df.reset_index(names="timestamp").to_dict(orient="records"),
+            panel_config=_extended(),
+        )
+
+    def test_default_ship_config_omits_ichimoku_vote(self):
+        """Default call to trend_votes_ext (no override) must NOT emit an
+        ichimoku_cloud vote — even when the panel key is populated
+        (which it is on the 200-bar fixture).
+
+        R7.11 load-bearing: mutating SHIP_ENABLED_EXTENDED_TREND_VOTES
+        to include 'ichimoku_cloud' would make this test fail."""
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        # Precondition: panel key IS populated (otherwise the test can't
+        # distinguish "skipped by ship config" from "no key to work with").
+        assert panel.trend.get("ichimoku_confirmed_position") is not None, (
+            "fixture invariant broken: 200-bar uptrend should populate "
+            "ichimoku_confirmed_position"
+        )
+        votes = confluence_ext.trend_votes_ext(panel)
+        ichimoku_votes = [v for v in votes if v.name == "ichimoku_cloud"]
+        assert ichimoku_votes == [], (
+            f"bd-hpxh: ship config must NOT emit ichimoku_cloud vote "
+            f"(ρ=0.839 vs ema_cross exceeds §R.4 M4 gate of 0.70). "
+            f"Got: {[v.name for v in votes]}"
+        )
+
+    def test_default_ship_config_still_emits_aroon(self):
+        """Aroon is in the ship config — trend_votes_ext must still emit it."""
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        votes = confluence_ext.trend_votes_ext(panel)
+        aroon_votes = [v for v in votes if v.name == "aroon_osc"]
+        assert len(aroon_votes) == 1, (
+            f"aroon_osc must still emit in ship config; got: "
+            f"{[v.name for v in votes]}"
+        )
+
+    def test_ichimoku_panel_keys_still_populated_for_audit(self):
+        """The vote is skipped but the panel keys are UNCHANGED — R&D
+        code, notebooks, and manual audits can still read
+        ichimoku_price_vs_cloud and ichimoku_confirmed_position."""
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        assert "ichimoku_price_vs_cloud" in panel.trend, (
+            "bd-hpxh: panel key ichimoku_price_vs_cloud must still be "
+            "populated even when the vote is skipped from ship config"
+        )
+        assert "ichimoku_confirmed_position" in panel.trend
+        # And the values are real signals, not zeros
+        assert panel.trend["ichimoku_price_vs_cloud"] == 1.0
+        assert panel.trend["ichimoku_confirmed_position"] == 1.0
+
+
+class TestBdHpxhOverrideCapability:
+    """Callers can override the ship config via `enabled_extended_votes`.
+    Two use cases: (1) R&D backtest that WANTS ichimoku_cloud in the vote
+    list to measure incremental IC, (2) study that WANTS only ichimoku
+    (drop aroon_osc for a single-signal isolation test)."""
+
+    def _panel_from(self, df: pd.DataFrame):
+        return indicators.build_indicator_panel(
+            symbol="TEST",
+            as_of=df.index[-1].date(),
+            ohlcv_rows=df.reset_index(names="timestamp").to_dict(orient="records"),
+            panel_config=_extended(),
+        )
+
+    def test_override_can_opt_in_ichimoku(self):
+        """Backtest override adds ichimoku_cloud back to the vote list
+        alongside aroon_osc. Both extended votes emit; classic votes
+        still emit unchanged."""
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        votes = confluence_ext.trend_votes_ext(
+            panel,
+            enabled_extended_votes=frozenset({"aroon_osc", "ichimoku_cloud"}),
+        )
+        vote_names = [v.name for v in votes]
+        assert "aroon_osc" in vote_names
+        assert "ichimoku_cloud" in vote_names, (
+            f"opt-in override must include ichimoku_cloud; got {vote_names}"
+        )
+
+    def test_override_can_isolate_ichimoku_only(self):
+        """Study override includes only ichimoku_cloud (no aroon_osc).
+        The extended votes list contains ichimoku_cloud, not aroon_osc.
+        Classic votes are unaffected — override only touches the
+        extended (bd-luy-added) vote set."""
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        votes = confluence_ext.trend_votes_ext(
+            panel,
+            enabled_extended_votes=frozenset({"ichimoku_cloud"}),
+        )
+        vote_names = [v.name for v in votes]
+        assert "ichimoku_cloud" in vote_names
+        assert "aroon_osc" not in vote_names, (
+            f"isolation override must exclude aroon_osc; got {vote_names}"
+        )
+
+    def test_override_with_empty_set_yields_only_classic_votes(self):
+        """Extreme override: empty extended set → only classic votes emit.
+        Useful for a pure-classic baseline run under PANEL_EXTENDED config."""
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        votes = confluence_ext.trend_votes_ext(
+            panel,
+            enabled_extended_votes=frozenset(),  # nothing extended
+        )
+        classic_votes = list(confluence.trend_votes(panel))
+        assert [v.name for v in votes] == [v.name for v in classic_votes], (
+            f"empty override must equal classic votes; got extended="
+            f"{[v.name for v in votes]}, classic={[v.name for v in classic_votes]}"
+        )
+
+    def test_override_none_uses_ship_config(self):
+        """Passing enabled_extended_votes=None (or omitting it) uses the
+        default SHIP_ENABLED_EXTENDED_TREND_VOTES — same as no kwarg."""
+        panel = self._panel_from(_ohlcv_uptrend(200))
+        default_votes = confluence_ext.trend_votes_ext(panel)
+        none_votes = confluence_ext.trend_votes_ext(
+            panel, enabled_extended_votes=None,
+        )
+        assert [v.name for v in default_votes] == [v.name for v in none_votes], (
+            "enabled_extended_votes=None must equal default (ship config)"
+        )
+
+
+class TestBdHpxhShipConfigConstant:
+    """The ship config is a load-bearing module-level constant. Its value
+    documents the bd-hpxh decision in code (Ichimoku out, Aroon in) so a
+    future reader can trace the semantic through git-blame back to this bead."""
+
+    def test_ship_config_is_frozenset(self):
+        """Immutable to prevent runtime mutation defeating the ship gate."""
+        assert isinstance(
+            confluence_ext.SHIP_ENABLED_EXTENDED_TREND_VOTES, frozenset
+        ), "ship config must be a frozenset for immutability"
+
+    def test_ship_config_includes_aroon_osc(self):
+        """Aroon shipped in bd-b6k5, passed decorrelation gate."""
+        assert "aroon_osc" in confluence_ext.SHIP_ENABLED_EXTENDED_TREND_VOTES
+
+    def test_ship_config_excludes_ichimoku_cloud(self):
+        """bd-hpxh: Ichimoku is EXCLUDED from ship config pending decorrelation
+        resolution. Adding it back requires either resolving the ρ=0.839
+        overlap with ema_cross (drop ema_cross, reweight, etc.) OR an
+        explicit design-doc waiver.
+
+        R7.11 load-bearing: this test would flip if someone adds
+        'ichimoku_cloud' to SHIP_ENABLED_EXTENDED_TREND_VOTES without
+        addressing bd-hpxh. The failure message points them at this bead."""
+        assert "ichimoku_cloud" not in confluence_ext.SHIP_ENABLED_EXTENDED_TREND_VOTES, (
+            "bd-hpxh (2026-07-11): ichimoku_cloud excluded from ship config "
+            "due to |Spearman ρ| = 0.839 with ema_cross on 5y basket (above "
+            "§R.4 M4 gate of 0.70). Panel keys still emit for audit. Adding "
+            "back requires resolving the decorrelation violation first."
+        )
