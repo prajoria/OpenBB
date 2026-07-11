@@ -13,7 +13,9 @@ refactor + 1 new `test_fmp_provider_conformance.py` added by E3.2
 which STAYS by fiat since it exercises the fork-side §13.5 shims + 1
 new `test_strategies_router_run.py` added by bd-4d0 (Wave 22) covering
 the `/pine/strategies/run` 501→real flip, STAY via the
-`openbb_pine.routers.strategies_router` import; the
+`openbb_pine.routers.strategies_router` import + 1 new
+`test_strategies_router_run_byo.py` added by bd-250 (Wave 23) covering
+the `/pine/strategies/run_byo` BYO facade, STAY via the same import; the
 `__init__.py` is not counted as a test).
 
 **Ground truth for all counts below:** the E2 filter-repo list at

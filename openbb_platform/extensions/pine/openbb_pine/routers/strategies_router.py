@@ -33,7 +33,10 @@ from openbb_core.app.router import Router
 
 from openbb_pine.errors import PineTypeError
 from openbb_pine.routers._models import PineByoData
-from openbb_pine.routers.run_router import _compile_and_run
+from openbb_pine.routers.run_router import (
+    _byo_records_to_dataframe,
+    _compile_and_run,
+)
 from openbb_pine.runtime.provider_selection import resolve_provider
 from pyne_compiler.errors.codes import ERROR_CODES, ErrorCodeSpec
 
@@ -155,6 +158,100 @@ async def run(
             message=(
                 "Source does not use strategy(...); "
                 "use /pine/run for indicators."
+            ),
+        )
+    _apply_strategy_params(result, strategy_params or {})
+    return result
+
+
+@router.command(
+    methods=["POST"],
+    examples=[
+        PythonEx(
+            description="Run a Pine strategy over caller-supplied OHLCV records.",
+            code=[
+                'records = [',
+                '    {"date": "2024-01-02T00:00:00Z", "open": 184.1, "high": 186.4,',
+                '     "low": 183.9, "close": 185.6, "volume": 52341900},',
+                '    # ... more bars ...',
+                ']',
+                'obb.pine.strategies.run_byo(source=open("breakout.pine").read(), '
+                'records=records, symbol="AAPL")',
+            ],
+        ),
+    ],
+)
+async def run_byo(
+    source: str,
+    records: list[dict[str, Any]],
+    symbol: str = "BYO",
+    tz: str = "UTC",
+    params: dict[str, Any] | None = None,
+    strategy_params: dict[str, Any] | None = None,
+    timeout_s: int = 30,
+) -> OBBject:
+    """Compile and execute a Pine strategy over caller-supplied OHLCV records.
+
+    BYO-mode sibling of :func:`run`. Mirrors the facade-split pattern from
+    bd-0e9.11 (indicators_router.run_byo): caller supplies a ``records``
+    list which is materialised into a tz-aware ``DatetimeIndex`` DataFrame
+    via the shared :func:`_byo_records_to_dataframe` helper, then dispatched
+    through the same :func:`_compile_and_run` pipeline as the provider path.
+
+    Same post-compile ``PT099`` script-type gate as :func:`run`: if the
+    compiled source is not a ``strategy(...)`` declaration, raise
+    :class:`PineTypeError` so callers of ``/pine/strategies/run_byo`` who
+    accidentally submit an indicator get a structured "wrong endpoint"
+    signal instead of an indicator-shaped OBBject.
+
+    Parameters
+    ----------
+    source : str
+        Pine v5 or v6 source text. Must be a ``strategy(...)`` script.
+    records : list[dict]
+        BYO OHLCV bars. Non-empty; required ``date`` column (ISO string).
+    symbol : str
+        Symbol label surfaced to the script's ``syminfo`` context.
+        Default ``"BYO"``.
+    tz : str
+        IANA timezone for the bar timestamps. Default ``"UTC"``.
+    params : dict, optional
+        Pine input overrides.
+    strategy_params : dict, optional
+        Caller overrides merged onto ``result.extra['stats']``.
+    timeout_s : int
+        Per-script wall-clock cap (seconds). Default 30.
+
+    Returns
+    -------
+    OBBject
+        Same shape as :func:`run`. ``.extra["provider_used"]`` will be
+        ``"byo"``.
+
+    Raises
+    ------
+    PineDataValidationError
+        Records empty, missing 'date', or schema-invalid.
+    PineTypeError
+        Rule ``PT099`` — source is not a ``strategy(...)`` declaration.
+        Use ``/pine/run_byo`` for indicators.
+    (Same compile-time + runtime errors as :func:`run`.)
+    """
+    df = _byo_records_to_dataframe(records, tz=tz)
+    result = _compile_and_run(
+        source=source,
+        provider_or_data=df,
+        symbol=symbol,
+        params=params,
+        timeout_s=timeout_s,
+    )
+    extra = getattr(result, "extra", None) or {}
+    if extra.get("script_type") != "strategy":
+        raise PineTypeError(
+            rule="PT099",
+            message=(
+                "Source does not use strategy(...); "
+                "use /pine/run_byo for indicators."
             ),
         )
     _apply_strategy_params(result, strategy_params or {})
