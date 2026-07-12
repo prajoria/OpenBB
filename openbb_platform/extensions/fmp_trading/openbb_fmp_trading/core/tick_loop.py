@@ -69,6 +69,14 @@ def run_tick(
         payload={
             "watchlist_size": len(session.plan.watchlist),
             "quotes_fetched": len(quotes),
+            # bd-9nd.12: carry the actual quote content so replay's
+            # StubbedDataProvider can feed real recorded quotes back to
+            # techtrade.signals, enabling full signal-cascade determinism
+            # (not just control-flow). Structured as list[dict] to match
+            # what fetch_batch_quote returns. Storage cost: ~50-100 B per
+            # symbol; at 30-symbol watchlist + 5-min ticks that's ~10 KB
+            # per tick × ~7800 ticks/day = ~78 MB/day — acceptable.
+            "quotes": list(quotes),
         },
     )
     events.append(tick_event)
@@ -119,11 +127,30 @@ def run_tick(
 
 
 def _fetch_batch_quote(symbols: list[str], provider: str) -> list[dict[str, Any]]:
-    """Fetch batched quotes for the watchlist via fmp_trading.quote_batch."""
+    """Fetch batched quotes for the watchlist via fmp_trading.quote_batch.
+
+    bd-9nd.12 round 2 (silent-failure hunter P0): use ``mode="json"`` so
+    Decimal fields become strings and datetime fields become ISO strings
+    HERE, at the emit boundary. Without ``mode="json"``, quotes carry
+    Python-native Decimal/datetime, which ``event.model_dump_json()``
+    coerces to strings at journal-write time — but ``json.loads`` at
+    replay-read time gives strings back with no coercion (the payload
+    field is typed ``dict[str, Any]``). Result: live-run quotes have
+    ``Decimal("430.15")`` while replayed quotes have ``"430.15"``.
+    Any techtrade consumer doing arithmetic on ``q["price"]`` would
+    silently TypeError or, worse, do string-concat.
+
+    Fix: normalize at the FETCH boundary so live and replayed quotes
+    are structurally identical. Downstream consumers who need arithmetic
+    now MUST parse to Decimal themselves — but they do so uniformly,
+    not conditionally on whether the run is live or replayed.
+    """
     from openbb import obb
 
     result = obb.fmp_trading.quote_batch(symbols=symbols, short=True, provider=provider)
-    return [r.model_dump() for r in result.results]
+    # mode="json" → Decimal/datetime → str/ISO. Idempotent through the
+    # journal write/read cycle: live quotes == replayed quotes exactly.
+    return [r.model_dump(mode="json") for r in result.results]
 
 
 def _fetch_recent_bars(symbols: list[str]) -> dict[str, list[Any]]:
