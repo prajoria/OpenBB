@@ -243,13 +243,16 @@ def test_missing_index_writes_skipped_pr_comment(tmp_path: Path):
 # --- Manifest loader sees fresh values ----------------------------------
 
 
-def test_manifest_loader_returns_empty_when_module_missing(monkeypatch):
-    """If openbb_pine._coverage_manifest is not importable, all sets empty."""
+def test_manifest_loader_returns_empty_when_module_missing(monkeypatch, tmp_path):
+    """If neither the file-path load nor the import succeeds, all sets empty."""
 
     def _raise(_name):  # pragma: no cover - exact path varies
         raise ImportError("forced for test")
 
     monkeypatch.setattr(importlib, "import_module", _raise)
+    # bd-6atb: loader now prefers the on-disk manifest path; hide it so the
+    # fallback importlib path (which we mock to fail) is exercised.
+    monkeypatch.setattr(mwc, "MANIFEST_FILE_PATH", tmp_path / "does_not_exist.py")
     manifest = mwc._load_implemented_baseline()
     assert manifest["builtins"] == frozenset()
     assert manifest["features"] == []
@@ -265,7 +268,11 @@ def test_manifest_loader_picks_up_real_module_if_present():
     """
     pytest.importorskip("openbb_pine._coverage_manifest")
     manifest = mwc._load_implemented_baseline()
-    assert manifest["manifest_status"] == "loaded"
+    # bd-6atb: loader may load from the on-disk manifest path (CI-friendly,
+    # doesn't require openbb_pine to be pip-installed) or via importlib.
+    assert manifest["manifest_status"] == "loaded" or manifest[
+        "manifest_status"
+    ].startswith("loaded_from_file:")
     assert isinstance(manifest["builtins"], frozenset)
     assert isinstance(manifest["pine_versions"], list)
     assert isinstance(manifest["features"], list)
