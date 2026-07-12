@@ -2288,7 +2288,21 @@ class TestBdW85Phase3TechnicalsThreadsPanelConfig:
         )
 
         # Spy on build_indicator_panel. It's imported LAZILY inside
-        # phase3_technicals so we patch at the source module.
+        # phase3_technicals (`from openbb_techtrade.engine.indicators import
+        # build_indicator_panel` runs at call time), so patching the
+        # attribute on the source module IS what the lazy import re-reads
+        # each call — this is safe.
+        #
+        # R7.10 (bd-k0cc, PR #470 C3): module-identity requires that the
+        # test imports the source module by the SAME dotted path as
+        # production. Production uses `openbb_techtrade.engine.indicators`;
+        # so must we. Any alternate path (e.g., a sys.path.insert that
+        # exposes `techtrade.engine.indicators` or `indicators` as
+        # top-level) would create a DIFFERENT module object, and the
+        # monkeypatch below would silently target an orphan copy that
+        # phase3_technicals never sees — test passes for the wrong reason.
+        # Import path locked here (`openbb_techtrade.engine.indicators`)
+        # must match line ~2319 in Analysis/stock_analysis.py.
         import openbb_techtrade.engine.indicators as tt_indicators
 
         real_build = tt_indicators.build_indicator_panel
@@ -4752,6 +4766,71 @@ class TestPhase4PegRatio:
             f"Undervalued × bull={p3.bullish_count} must produce 'Wait — "
             f"cheap but technically broken'; got {p4.entry_recommendation!r}"
         )
+
+    # --- bd-o8ns (PR #470 C4): Overvalued × bull matrix ------------------
+    #
+    # Existing bd-3xq.3 tests cover the Undervalued × bull tiers (>=6,
+    # [3,5], <3). Overvalued was only tested at default bull=7, leaving
+    # two branches implicitly-uncovered:
+    #   * Overvalued × bull<6 — does the bull count affect the
+    #     Overvalued mapping? (Should NOT — Overvalued is unconditional Avoid.)
+    #   * Overvalued × bull in [3,5] — same, mid tier.
+    #
+    # These are R7.11 mutation-verified: if a future refactor added a
+    # bull-gate inside the Overvalued branch (mirroring the Undervalued
+    # ladder), these tests would flip red before the diff is reviewed.
+    #
+    # Reuses the PEG-driven-Overvalued fixture from
+    # test_entry_rec_follows_peg_tightened_verdict_overvalued (pe=35, low
+    # growth, high price → PEG > 2.0 → verdict flips Fair Value → Overvalued).
+
+    def test_entry_rec_pegtightened_overvalued_low_bull_still_produces_avoid(self):
+        """bd-o8ns C4 (b): flag-ON + PEG-tightened → Overvalued + bull<3
+        must still produce 'Avoid'. Overvalued is unconditional — bull
+        count does NOT gate it (unlike Undervalued which cascades)."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [68.0, 68.5, 68.0]
+        p3.bullish_count = 1  # low tier
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.valuation_verdict == "Overvalued", (
+            f"fixture invariant: expected PEG-driven Overvalued, "
+            f"got {p4.valuation_verdict}"
+        )
+        assert p3.bullish_count < 3
+        assert "Avoid" in p4.entry_recommendation, (
+            f"bd-o8ns: PEG-tightened Overvalued × bull={p3.bullish_count} "
+            f"must produce 'Avoid'; a future bull-gate on the Overvalued "
+            f"branch would silently downgrade this to 'Wait' or similar. "
+            f"Got: {p4.entry_recommendation!r}"
+        )
+
+    def test_entry_rec_pegtightened_overvalued_mid_bull_still_produces_avoid(self):
+        """bd-o8ns C4 (b): flag-ON + PEG-tightened → Overvalued + bull in
+        [3,5] must still produce 'Avoid'. Mirrors the low-bull test —
+        covers the mid tier where a naive refactor mimicking Undervalued
+        might route Overvalued × mid-bull → 'Partial Avoid' or similar."""
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=35.0,
+            revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
+            use_peg_tightening=True,
+        )
+        p3.price_df = p3.price_df.copy()
+        p3.price_df["close"] = [68.0, 68.5, 68.0]
+        p3.bullish_count = 4  # mid tier
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert p4.valuation_verdict == "Overvalued"
+        assert 3 <= p3.bullish_count <= 5
+        assert "Avoid" in p4.entry_recommendation, (
+            f"bd-o8ns: PEG-tightened Overvalued × bull={p3.bullish_count} "
+            f"must produce 'Avoid' regardless of bull. Got: "
+            f"{p4.entry_recommendation!r}"
+        )
+
 
     def test_entry_rec_fair_value_low_bull_falls_back_to_raw_mos(self):
         """bd-3xq.6 successor: Fair Value verdict + bullish_count < 6 under

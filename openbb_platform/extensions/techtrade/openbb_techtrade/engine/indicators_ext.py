@@ -126,6 +126,23 @@ def _compute_trend_ext(df: object, config: IndicatorConfig) -> dict[str, float]:
       whipsaw does NOT flip the confirmed position (§R.4 M3 fix,
       symmetric with the hysteresis treatment PSAR would have had).
 
+    **Contract (bd-0f9d I6, PR #470):** The two Ichimoku keys are NOT
+    interchangeable. Downstream code MUST distinguish:
+
+    * *Raw* (``ichimoku_price_vs_cloud``): captures instantaneous
+      price-vs-cloud state at the latest bar. Whipsaws readily.
+      Auditing / research only. **Do not** use for vote emission,
+      backtests, or gate composition — you will chase noise.
+    * *Confirmed* (``ichimoku_confirmed_position``): 3-bar hysteresis.
+      This is the load-bearing key that the confluence engine reads.
+      New consumers should default to this one.
+
+    The mnemonic: *raw is for the human eye, confirmed is for the
+    machine*. Any new vote or gate that composes Ichimoku signal
+    with other keys MUST read the confirmed key — otherwise it will
+    silently drift into whipsaw territory and defeat the §R.4 M3
+    hysteresis treatment.
+
     Ichimoku degrades gracefully when < 78 bars are available (senkou B
     needs 52 bars of history plus 26-bar forward displacement); both
     keys are omitted, not zeroed, so downstream vote-mappers simply
@@ -217,6 +234,31 @@ def _ichimoku_confirmed_position(
     any zero (inside-cloud), we return 0 as a safe non-flipping default
     — the vote stays neutral rather than jumping to a fresh direction
     that hasn't been confirmed.
+
+    **Design: stateless / no-memory (bd-0f9d I7, PR #470).** This
+    function is intentionally stateless — each call reads the last
+    ``window`` bars of the input series directly, with no cached
+    history-of-positions between calls. That's an *architectural
+    choice*, not an oversight or a workaround:
+
+    * **Determinism across processes.** Two workers computing the
+      same as_of on the same OHLCV frame always return the same
+      value. No warm-up. No first-call vs Nth-call divergence.
+    * **Backtestability.** A walk-forward backtest can call this at
+      arbitrary points in time without re-priming state, because the
+      answer is a pure function of ``(close_series, ichimoku_current,
+      window)``.
+    * **Rebuildability.** After a cache miss or a crash, one call
+      with a long-enough frame reconstructs the exact same signal
+      that a stateful implementation would have accumulated across
+      many calls.
+
+    The cost is repeated work on the trailing ``window`` bars per
+    call. That cost is negligible (window=3 by default; per-symbol
+    computation is O(window) work amortized over an already-loaded
+    frame). A stateful implementation that carried a rolling history
+    across calls would be marginally faster but would trade away all
+    three properties above — not worth it for this workload.
     """
     if len(close_series) < window or len(ichimoku_current) < window:
         return None

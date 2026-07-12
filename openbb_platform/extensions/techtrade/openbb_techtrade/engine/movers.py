@@ -682,14 +682,62 @@ def _resolve_filter_universe(
             holdings_fetcher=holdings_fetcher,
             screener_fetcher=screener_fetcher,
         )
-    except Exception:  # noqa: BLE001 - degrade to no filter on resolution failure
+    except Exception as exc:  # noqa: BLE001
+        # bd-wus1 (PR #470 I3): R7.3 loud-empty on resolver failure.
+        # Pre-fix, this bare except silently returned None, which
+        # build_mover_list interprets as "apply no filter" — the
+        # opposite of the caller's intent. WIDENING the mover universe
+        # on a resolver bug is exactly the scope-escape bd-udq was
+        # filed to prevent. Emit WARNING so ops can diagnose why
+        # movers list is unexpectedly broad; still degrade to None so
+        # a resolver bug doesn't abort ranking entirely (the graceful-
+        # degrade contract is preserved, we just make it audible).
+        logger.warning(
+            "resolve_universe(%s) failed: %s: %s — falling back to "
+            "no filter (mover universe WIDENED — likely bug in "
+            "resolve_universe or one of its fetchers)",
+            config.segment, type(exc).__name__, exc,
+        )
         return None
 
 
 # bd-udq: one-time-per-process trace of the fetcher-injection scope-escape
 # pattern. Global cache is fine here — the message is idempotent and the
-# next test process gets a fresh log.
+# next test PROCESS gets a fresh log.
+#
+# bd-mj6s (PR #470 I4): pytest runs the whole test suite in ONE process
+# by default, so the "next process = fresh log" assumption held on
+# session boundaries but LEAKS across test invocations within a run.
+# Only the first test that trips the scope-escape emits INFO; subsequent
+# tests are silent, defeating regression coverage. Callers writing tests
+# for this behavior should call _reset_scope_escape_cache() in their
+# setup_method or a pytest fixture with autouse=True to guarantee a
+# fresh state per test.
 _scope_escape_logged_segments: set[str] = set()
+
+
+def _reset_scope_escape_cache() -> None:
+    """Clear the one-time-per-process scope-escape log cache.
+
+    Test-facing helper: bd-mj6s (PR #470 I4). The module-level
+    :data:`_scope_escape_logged_segments` set persists across tests
+    within a single pytest process, so any test that exercises the
+    scope-escape INFO log MUST clear the set beforehand — otherwise
+    only the first-such-test in a run observes the log.
+
+    **Test-side usage pattern**::
+
+        from openbb_techtrade.engine.movers import _reset_scope_escape_cache
+
+        class TestScopeEscapeLog:
+            def setup_method(self):
+                _reset_scope_escape_cache()
+
+    Production code should not call this — the "once per (segment,
+    process)" contract is deliberate to keep the log signal-to-noise
+    ratio high on long-lived scan processes.
+    """
+    _scope_escape_logged_segments.clear()
 
 
 def _log_fetcher_scope_escape_once(segment: str) -> None:

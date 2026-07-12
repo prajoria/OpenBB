@@ -753,9 +753,15 @@ class TestBdUdqScopeEscapeTrace:
     """bd-udq: verify the fetcher-injection scope-escape emits INFO once."""
 
     def setup_method(self):
-        """Reset the once-per-process cache so each test gets a fresh log."""
-        from openbb_techtrade.engine.movers import _scope_escape_logged_segments
-        _scope_escape_logged_segments.clear()
+        """Reset the once-per-process cache so each test gets a fresh log.
+
+        bd-mj6s (PR #470 I4): use the exported ``_reset_scope_escape_cache()``
+        helper instead of poking the module-level set directly. Makes the
+        test-side dependency on the implementation detail explicit and
+        matches the docstring's recommended usage pattern.
+        """
+        from openbb_techtrade.engine.movers import _reset_scope_escape_cache
+        _reset_scope_escape_cache()
 
     def test_scope_escape_emits_info_once(self, caplog):
         """Injecting a fetcher + default resolve_universe_filter=True →
@@ -830,5 +836,115 @@ class TestBdUdqScopeEscapeTrace:
         assert not traces, (
             f"bd-udq: pure live path (no candidate_fetcher) must not "
             f"trace; got {[r.getMessage() for r in traces]}"
+        )
+
+
+class TestBdI15bFetchUniverseLoudEmpty:
+    """bd-i15b (PR #470 C1): caplog-pin the three R7.3 loud-empty
+    WARNINGs in ``_fetch_universe_candidates``:
+
+    1. per-symbol fetch exception (line ~397): ``OHLCV fetch failed for %s``
+    2. per-symbol empty bars (line ~404): ``no OHLCV bars for %s``
+    3. aggregate zero-yield (line ~417): ``0/%d candidates fetched``
+
+    Without these caplog assertions, a silent-refactor that swaps the
+    ``logger.warning`` for ``logger.debug`` (or removes the aggregate
+    boundary log entirely) would ship — the code's return value doesn't
+    change, only its observability. R7.9: the WARNING string IS the
+    load-bearing signal.
+
+    Mutation-verify: remove any of the three ``logger.warning(...)``
+    calls in ``_fetch_universe_candidates`` and the corresponding test
+    below flips red.
+    """
+
+    def test_per_symbol_fetch_exception_warns_with_symbol_and_error(
+        self, caplog,
+    ):
+        import logging
+        from datetime import date
+        from openbb_techtrade.engine import movers as movers_mod
+
+        def broken_fetcher(symbol, *, start_date, end_date):
+            raise RuntimeError(f"provider down for {symbol}")
+
+        with caplog.at_level(
+            logging.WARNING, logger="openbb_techtrade.engine.movers",
+        ):
+            result = movers_mod._fetch_universe_candidates(
+                ["AAPL", "MSFT"], date(2024, 5, 20),
+                history_fetcher=broken_fetcher,
+            )
+
+        assert result == []
+        per_symbol = [
+            r for r in caplog.records
+            if "OHLCV fetch failed" in r.getMessage()
+        ]
+        assert len(per_symbol) == 2, (
+            f"bd-i15b: expected 2 per-symbol WARNINGs (one per broken "
+            f"symbol); got {len(per_symbol)}: "
+            f"{[r.getMessage() for r in per_symbol]}"
+        )
+        # And each names its symbol + error so ops can distinguish
+        # broken-symbol from broken-fetcher.
+        messages = " ".join(r.getMessage() for r in per_symbol)
+        assert "AAPL" in messages
+        assert "MSFT" in messages
+        assert "provider down" in messages
+
+    def test_per_symbol_empty_bars_warns(self, caplog):
+        import logging
+        from datetime import date
+        from openbb_techtrade.engine import movers as movers_mod
+
+        def empty_fetcher(symbol, *, start_date, end_date):
+            return []  # empty response — R7.3 loud-empty triggers
+
+        with caplog.at_level(
+            logging.WARNING, logger="openbb_techtrade.engine.movers",
+        ):
+            result = movers_mod._fetch_universe_candidates(
+                ["AAPL"], date(2024, 5, 20),
+                history_fetcher=empty_fetcher,
+            )
+
+        assert result == []
+        empty_warnings = [
+            r for r in caplog.records
+            if "no OHLCV bars" in r.getMessage() and "AAPL" in r.getMessage()
+        ]
+        assert len(empty_warnings) == 1, (
+            f"bd-i15b: empty-bars WARNING must fire per symbol; "
+            f"got {[r.getMessage() for r in caplog.records]}"
+        )
+
+    def test_aggregate_zero_yield_warns_at_boundary(self, caplog):
+        """Universe non-empty + result empty → aggregate WARNING at the
+        boundary (distinct from per-symbol messages). R7.3 aggregate
+        loud-empty."""
+        import logging
+        from datetime import date
+        from openbb_techtrade.engine import movers as movers_mod
+
+        def broken_fetcher(symbol, *, start_date, end_date):
+            raise RuntimeError("all down")
+
+        with caplog.at_level(
+            logging.WARNING, logger="openbb_techtrade.engine.movers",
+        ):
+            result = movers_mod._fetch_universe_candidates(
+                ["A", "B", "C"], date(2024, 5, 20),
+                history_fetcher=broken_fetcher,
+            )
+
+        assert result == []
+        aggregate = [
+            r for r in caplog.records
+            if "0/3 candidates fetched" in r.getMessage()
+        ]
+        assert len(aggregate) == 1, (
+            f"bd-i15b: aggregate zero-yield WARNING must fire once at "
+            f"the boundary; got {[r.getMessage() for r in caplog.records]}"
         )
 

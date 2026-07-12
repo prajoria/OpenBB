@@ -35,7 +35,7 @@ exported for direct import.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from openbb_core.app.model.example import APIEx
@@ -57,6 +57,15 @@ router = Router(
 _DEFAULT_FETCH_DAYS: int = 400
 _DEFAULT_SPY_SYMBOL: str = "SPY"
 _DEFAULT_VIX_SYMBOL: str = "^VIX"
+
+# bd-6g5i (PR #470 I2): default provider to fmp_cached, matching the
+# repo-wide Provider rule in CLAUDE.md's Analysis Module section. Every
+# downstream consumer (Analysis P7 composite weights, techtrade panel-eval)
+# assumes fmp_cached-shape responses; letting provider=None fall through
+# to the platform default would silently pull a different provider on
+# clones where the first-configured provider isn't fmp_cached, violating
+# the invariant. Callers can still override explicitly for R&D use cases.
+_DEFAULT_PROVIDER: str = "fmp_cached"
 
 
 @router.command(
@@ -108,7 +117,7 @@ def detect(
     lookback_days: int = _DEFAULT_FETCH_DAYS,
     spy_symbol: str = _DEFAULT_SPY_SYMBOL,
     vix_symbol: str = _DEFAULT_VIX_SYMBOL,
-    provider: Optional[str] = None,
+    provider: Optional[str] = _DEFAULT_PROVIDER,
 ) -> OBBject:
     """Detect the current MarketRegime from SPY + VIX daily bars.
 
@@ -129,8 +138,11 @@ def detect(
         yfinance / fmp_cached; users on other providers may need a
         different ticker convention.
     provider : str, optional
-        OpenBB data provider. When omitted, uses the platform default
-        (usually the first-configured provider from user_settings.json).
+        OpenBB data provider. Defaults to ``"fmp_cached"`` (matches
+        CLAUDE.md's Provider rule — see :data:`_DEFAULT_PROVIDER`).
+        Callers can override explicitly for R&D use cases, but
+        downstream Analysis + techtrade consumers assume fmp_cached
+        response shapes.
 
     Returns
     -------
@@ -153,7 +165,34 @@ def detect(
 
     # Compute the fetch window: as_of is the endpoint, lookback_days
     # back is the start.
-    end_dt = datetime.fromisoformat(as_of) if as_of else datetime.utcnow()
+    #
+    # bd-ktzd (PR #470 I1): guard both call sites.
+    #   1. datetime.utcnow() is deprecated on Py3.12+ (naive UTC); use
+    #      datetime.now(tz=timezone.utc) — timezone-aware, forward-compat.
+    #   2. datetime.fromisoformat(as_of) on untrusted REST query params
+    #      raises ValueError on malformed input (e.g. ?as_of=today), which
+    #      surfaces as a raw HTTP 500 instead of this file's structured
+    #      _unknown_result diagnostic. Wrap in try/except and return the
+    #      standard UNKNOWN result so the operator gets an actionable
+    #      error message.
+    if as_of is not None:
+        try:
+            end_dt = datetime.fromisoformat(as_of)
+        except (ValueError, TypeError) as exc:
+            logger.warning(
+                "regime.detect: invalid as_of=%r (must be ISO-8601): %s — "
+                "returning UNKNOWN with diagnostic",
+                as_of, exc,
+            )
+            return _unknown_result(
+                reason="invalid_as_of",
+                as_of=as_of,
+                error=f"as_of must be ISO-8601 (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS): {exc}",
+                spy_symbol=spy_symbol,
+                vix_symbol=vix_symbol,
+            )
+    else:
+        end_dt = datetime.now(tz=timezone.utc)
     start_dt = end_dt - timedelta(days=lookback_days)
     start_iso = start_dt.date().isoformat()
     end_iso = end_dt.date().isoformat()
@@ -198,7 +237,12 @@ def detect(
         )
 
     # Run the classifier.
-    regime = detect_market_regime(spy_df, vix_df, as_of=as_of)
+    # bd-6g5i (PR #470 I5): pass end_iso (validated date-ISO) instead of
+    # raw as_of string. Even though as_of was validated above via
+    # fromisoformat, closing the latent trap where a caller directly
+    # constructs a call with malformed as_of that somehow bypasses the
+    # guard (defense-in-depth). end_iso is guaranteed .isoformat() output.
+    regime = detect_market_regime(spy_df, vix_df, as_of=end_iso)
 
     return OBBject(
         results={

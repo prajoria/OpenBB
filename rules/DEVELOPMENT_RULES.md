@@ -288,6 +288,112 @@ response as a fixture (R7.1). If you can't call the real thing during
 design, you don't yet know what shape it returns — and your tests will
 encode your guess, not the reality.
 
+#### R7.7 — Fixtures MUST produce different outputs under buggy vs. fixed code
+
+The strongest test of a regression test is: temporarily revert the
+production fix, run the test, and verify it FAILS. If the test still
+passes with the fix reverted, the fixture doesn't discriminate — the
+test is *ceremonial* even if the assertion is precise.
+
+Discovered the hard way across multiple review iterations of PR #331
+(bd-0h2.9): 3 of the first-draft regression tests passed under BOTH
+pre-fix and post-fix code because the fixtures had TARGET returns
+that dominated the perturbation the fix was meant to catch.
+
+**Discipline:** every load-bearing test gets a reverse-verification
+run at author-time. Mutate the production code the test claims to
+guard, observe the test fail, restore. If mutation doesn't fail the
+test, the fixture is wrong — reshape it (or convert to AST /
+`caplog` assertion, see R7.8 / R7.9).
+
+#### R7.8 — AST inspection beats `inspect.getsource` for wiring guards
+
+For "test that a specific kwarg is threaded through a constructor"
+or "test that this function is called with this argument," textual
+assertions on `inspect.getsource(fn)` are **defeatable by
+comment-poisoning**. Concrete failure caught in PR #331 iter-3:
+mutating `foo=foo,` → `foo=0.0,  # BUG: foo=foo disabled` passed a
+textual `"foo=foo" in src` check because the string still appeared
+inside the comment.
+
+```python
+# WRONG — defeatable by comments
+assert "momentum_accel_63d=momentum_accel_63d" in inspect.getsource(fn)
+
+# RIGHT — walks the parsed AST, comments are stripped by the parser
+tree = ast.parse(inspect.getsource(fn))
+for node in ast.walk(tree):
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id == "Phase6Result":
+            for kw in node.keywords:
+                if kw.arg == "momentum_accel_63d":
+                    assert isinstance(kw.value, ast.Name), "hardcoded literal!"
+                    assert kw.value.id == "momentum_accel_63d"
+```
+
+The AST is the code; the source text is the presentation. Any
+assertion at the presentation layer can be defeated by
+presentation-layer changes (comments, whitespace, formatting) that
+don't affect behavior.
+
+#### R7.9 — `caplog` assertions beat value assertions for R7.3 loud-empty branches
+
+When the load-bearing behavior is "the code emits a WARNING and
+returns 0.0," asserting on the value alone is **defeatable by
+coincidence** — the mutation may happen to produce 0.0 through a
+different code path. Assert on the WARNING substring instead: the
+warning fires only from the specific branch the mutation removes.
+
+```python
+# WRONG — coincidence-defeatable
+assert accel == 0.0
+
+# RIGHT — the warning is the load-bearing signal
+with caplog.at_level(logging.WARNING, logger="my_module"):
+    accel = my_function(degenerate_input)
+assert accel == 0.0
+warnings = [r for r in caplog.records if "peer set too thin" in r.getMessage()]
+assert len(warnings) == 1
+```
+
+Verified via mutation testing in PR #331 iter-3: mutating
+`if len(x) < 3:` → `< 2:` correctly caused the caplog test to fail
+(0 warnings) while a naive `assert accel == 0.0` still passed.
+
+#### R7.10 — Test file module identity MUST match production module identity
+
+`caplog.at_level(logger="my_module")` targets a specific logger by
+name. If the test file imports the production module by one path and
+other code imports it by another, they resolve to DIFFERENT logger
+objects — and `caplog` captures nothing. Silent test skip.
+
+**Windows sys.path.insert gotcha (PR #331 iter-4):** the same file
+can be simultaneously importable as `stock_analysis` (via
+`sys.path.insert(0, ".../Analysis")`) AND `Analysis.stock_analysis`
+(via repo root). Both create distinct module identities with
+distinct loggers. Rule: within a test file, always import the
+production module by exactly one path, and use that same path in
+every `caplog.at_level(logger=...)` call. The same rule applies to
+`monkeypatch.setattr(module_x, ...)` when production reads the
+attribute via a lazily-imported `from module_x import y` — a
+different path resolves to a different module object; the patch
+silently targets an orphan copy and the test passes for the wrong
+reason.
+
+#### R7.11 — Ceremonial tests ship in EVERY iteration's first draft
+
+Empirically observed across 4 review iterations of PR #331: the
+first-draft regression tests were ceremonial in iter-1 (fixture
+dominance), iter-2 (fixture dominance), iter-3 (test duplicated the
+fixed arithmetic in the test body), and iter-4 (test used imported
+constant + wrong code path). The pattern is universal: if you don't
+reverse-verify, you ship ceremony.
+
+**Discipline:** the exit criterion for shipping a regression test is
+not "the test passes on the fix" — it's "the test *fails* on the
+reverted-fix and *passes* on the fix." Every load-bearing test
+needs both assertions, empirically observed.
+
 ---
 
 ## 8. Logging

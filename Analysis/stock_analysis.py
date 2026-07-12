@@ -260,12 +260,39 @@ def _regime_weights(regime) -> dict[str, float]:
             f"lookup (e.g. MarketRegime('CRISIS') or MarketRegime.CRISIS) "
             f"to coerce external inputs — do not pass raw strings."
         )
+    # bd-oexr (PR #470 I10): exhaustive match on every MarketRegime
+    # member. Pre-fix, this was an if/elif/else that silently routed
+    # RANGING / TRENDING_BEAR / UNKNOWN AND FUTURE MEMBERS to the
+    # default weights. A new MarketRegime enum member would ship a
+    # silent-default composite-weight regression that neither mypy
+    # nor the runtime would flag until behavioral tests noticed the
+    # wrong weights. Explicit member-by-member routing + assert_never
+    # in the else converts silent defaults into a mypy error at
+    # extension time — the reviewer of a MarketRegime addition is
+    # now required to say what weights it maps to.
     if regime == MarketRegime.TRENDING_BULL:
         return dict(_BULL_COMPOSITE_WEIGHTS)
     if regime == MarketRegime.CRISIS:
         return dict(_CRISIS_COMPOSITE_WEIGHTS)
-    # RANGING, TRENDING_BEAR, UNKNOWN → default weights
-    return dict(_DEFAULT_COMPOSITE_WEIGHTS)
+    if regime in (
+        MarketRegime.RANGING,
+        MarketRegime.TRENDING_BEAR,
+        MarketRegime.UNKNOWN,
+    ):
+        # Documented default-weight members: RANGING (chop), TRENDING_BEAR
+        # (defensive posture per bd-0h2.14 M3 rationale), UNKNOWN (regime
+        # detector had insufficient signal — fall back to neutral prior).
+        return dict(_DEFAULT_COMPOSITE_WEIGHTS)
+    # If a new MarketRegime member ships without a corresponding branch
+    # above, this line raises a NameError at import time (bd-oexr
+    # regression guard). Consumers on Py3.11+ get typing.assert_never for
+    # mypy-time exhaustiveness; the runtime AssertionError is the
+    # belt-and-suspenders fallback for pre-3.11 or unchecked callers.
+    try:
+        from typing import assert_never  # Py3.11+
+    except ImportError:  # pragma: no cover - Py3.10 fallback
+        from typing_extensions import assert_never  # type: ignore[import-not-found]
+    assert_never(regime)
 
 
 # ---------------------------------------------------------------------------
@@ -2623,6 +2650,22 @@ def phase4_valuation(
             # or Overvalued (never Fair Value). Kept as a safety net for
             # a future refactor that accidentally sets the flag without
             # flipping the verdict.
+            #
+            # bd-0f9d I9 (PR #470): if we ever land here, it's a real
+            # invariant violation — someone set peg_tightened_verdict=True
+            # without flipping valuation_verdict away from Fair Value.
+            # R7.3 loud-empty: log at WARNING so ops can catch a silent
+            # refactor regression rather than debug why Watchlist showed
+            # up on a stock the flag was supposed to tighten.
+            logger.warning(
+                "phase4_valuation: %s hit the peg_tightened_verdict=True "
+                "AND valuation_verdict='Fair Value' branch — this is an "
+                "invariant violation (PEG only tightens Fair Value → "
+                "Undervalued/Overvalued, never keeps it Fair Value). "
+                "Defaulting entry_rec to 'Watchlist'. Please file a bug "
+                "with the fixture (peg_ratio=%s, mos=%s).",
+                cfg.symbol, peg_ratio, margin_of_safety,
+            )
             entry_rec = "Watchlist — no asymmetric opportunity"
     else:
         # Flag OFF, OR flag ON but PEG did not tighten:
@@ -3187,6 +3230,48 @@ def _score_relative(
 # ---------------------------------------------------------------------------
 
 
+def _apply_composite_cap(
+    composite: float, composite_cap: float, cap_value: float
+) -> tuple[float, float]:
+    """Apply a cap to both ``composite`` and ``composite_cap`` atomically.
+
+    bd-zmyt (PR #470 I8): the pair-update invariant "every composite
+    cap must update BOTH ``composite`` AND ``composite_cap``" was
+    previously documented in a comment above the hard-override block
+    in :func:`phase7_decision` but not enforced anywhere. Missing a
+    ``composite_cap = min(composite_cap, X)`` alongside a
+    ``composite = min(composite, X)`` was a silent bd-29n regression
+    that would surface only when the weekly-trend recompute
+    unconditionally overwrote ``composite`` and the cap didn't bite
+    the recomputed value.
+
+    This helper turns the pair-update comment-invariant into a
+    function-invariant: any caller writing a single call gets both
+    updates in lockstep and cannot forget one.
+
+    Parameters
+    ----------
+    composite : float
+        Current composite score.
+    composite_cap : float
+        Current tightest cap (``float("inf")`` = no cap applied yet).
+    cap_value : float
+        The cap to apply. Must be positive.
+
+    Returns
+    -------
+    tuple[float, float]
+        The new ``(composite, composite_cap)`` pair with the cap
+        applied to both.
+
+    R7.11 mutation-verified: mutating this helper to drop either the
+    ``composite`` or ``composite_cap`` update will fail
+    :func:`~openbb_techtrade.tests.unit.test_stock_analysis`'s bd-29n
+    weekly-trend-preserves-cap regression tests.
+    """
+    return (min(composite, cap_value), min(composite_cap, cap_value))
+
+
 def phase7_decision(
     cfg: AnalysisConfig,
     p1: Phase1Result,
@@ -3281,31 +3366,30 @@ def phase7_decision(
     # bearish weekly trend would carry a "forced Avoid" hard_override
     # label but a recomputed composite well above the 2.0 cap.
     #
-    # INVARIANT (bd-29n / R7.11 reviewer NIT): every composite cap
-    # below MUST update BOTH `composite` and `composite_cap` — the
-    # weekly-trend recompute at the bottom of this block relies on
-    # `composite_cap` to reapply the tightest cap post-recompute.
-    # Adding a new cap without updating `composite_cap` silently
-    # reintroduces bd-29n for that override. If you're adding a cap,
-    # write the pair (`composite = min(...)` + `composite_cap = min(...)`).
+    # bd-zmyt (PR #470 I8): the pair-update invariant ("every cap must
+    # update BOTH `composite` and `composite_cap`") was previously
+    # documented in a comment but not enforced anywhere. Missing a
+    # `composite_cap = min(composite_cap, X)` alongside a
+    # `composite = min(composite, X)` was a silent bd-29n regression.
+    # The :func:`_apply_composite_cap` helper below turns the pair-
+    # update invariant into a function-invariant: callers write a
+    # single `composite, composite_cap = _apply_composite_cap(...)`
+    # and the helper guarantees both are updated together.
     composite_cap: float = float("inf")   # inf = no cap applied yet
 
     altman = p4.altman
     if not np.isnan(altman) and altman < 1.81:
-        composite = min(composite, 2.0)
-        composite_cap = min(composite_cap, 2.0)
+        composite, composite_cap = _apply_composite_cap(composite, composite_cap, 2.0)
         hard_override = "Altman Z-Score < 1.81 — distress risk; forced Avoid"
 
     if not np.isnan(p2.accruals_ratio) and p2.accruals_ratio > 0.20:
-        composite = min(composite, 2.8)
-        composite_cap = min(composite_cap, 2.8)
+        composite, composite_cap = _apply_composite_cap(composite, composite_cap, 2.8)
         hard_override = (hard_override or "") + " | Accruals Ratio > 20% — capped at Hold/Watch"
 
     # Balance sheet safety cap
     bs_safety_score = scores.get("fundamentals", 2.5)  # proxy via fundamentals
     if p2.score >= 3.5 and (not np.isnan(p2.accruals_ratio) and p2.accruals_ratio > 0.10):
-        composite = min(composite, 3.8)
-        composite_cap = min(composite_cap, 3.8)
+        composite, composite_cap = _apply_composite_cap(composite, composite_cap, 3.8)
         hard_override = (hard_override or "") + " | Leverage quality cap applied (accruals > 10% with high P2 score)"
 
     # Earnings override

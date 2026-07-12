@@ -478,24 +478,38 @@ class TestTechnicalPanelExtendedFallbackForwarding:
         )
 
 
-class TestTechnicalPanelTechLegExtendedIsSilentNoOp:
-    """iter-1 pr-test H1: locks the documented limitation that on the
-    tech leg (when obb.technical is available), ``panel_config=PANEL_
-    EXTENDED`` is silently ignored and the classic panel is returned.
+class TestTechnicalPanelTechLegExtendedWarns:
+    """bd-ie52 (PR #470 C2): the ORIGINAL version of this test injected
+    ``SimpleNamespace(technical=None)`` and claimed to lock the tech-leg
+    behavior, but ``technical=None`` causes an AttributeError on the
+    first ``obb.technical.macd(...)`` call inside the try-block, which
+    is caught and degrades to the classic fallback — so the test in fact
+    exercised the fallback branch, not the tech-leg branch. Its R7.11
+    claim (family PRs adding ``_compute_technical_*_ext`` would flip
+    this red) was false: the code they'll modify was never reached.
 
-    Uses an injected ``obb_loader`` to FORCE the tech branch even
-    though openbb_technical is not installed in the test env. This
-    guarantees the test targets the exact code path family PRs will
-    replace when they wire in ``_compute_technical_*_ext`` mirrors.
+    The R7.7-discriminating question is: "does this WARNING fire from
+    the tech-leg code path, i.e., BEFORE the try-block that requires
+    a real ``obb.technical`` namespace?" The answer is yes — line
+    357-364 in ``indicators_technical.py`` emits the WARNING
+    unconditionally when ``panel_config.panel == 'extended'``, no matter
+    whether the subsequent try-block succeeds (family-PR wired) or
+    fails (this-env wired). So the load-bearing behavior we can
+    honestly test on this branch is:
 
-    R7.11 load-bearing: if a future family PR partially wires the
-    tech-leg mirrors (e.g., adds `_compute_technical_trend_ext` but
-    leaves the others), this test would flip red because the tech
-    branch's extended-vs-classic byte-identity would break — before
-    the reviewer even reads the diff.
+    * The WARNING fires on the extended call.
+    * The WARNING does NOT fire on the classic call.
+
+    Mutation-verify: remove the ``if panel_config is not None and
+    getattr(panel_config, "panel", None) == "extended"`` block and this
+    test flips red (0 warnings observed).
+
+    Family PRs (bd-luy landed; bd-40v/z43 pending) that wire
+    ``_compute_technical_*_ext`` and remove this WARNING will
+    intentionally break this test — that's the signal.
     """
 
-    def test_tech_leg_extended_matches_classic_and_warns(
+    def test_tech_leg_extended_warns_but_classic_does_not(
         self, ohlcv_df, caplog,
     ):
         import logging
@@ -508,33 +522,26 @@ class TestTechnicalPanelTechLegExtendedIsSilentNoOp:
         as_of = date(2024, 5, 20)
         records = _ohlcv_records(ohlcv_df)
 
-        # Fake obb loader that exposes just enough for the tech-leg
-        # helpers to try (and fail gracefully into the fallback path,
-        # which is where the actual dispatch happens). The important
-        # thing is we HIT the tech branch — the "silent downgrade
-        # WARNING" is what we're testing for.
+        # Injected loader forces the tech branch (bypassing the
+        # _obb_technical_available() env check). The subsequent try-block
+        # will fail on the first obb.technical.* call and degrade to
+        # classic — but by then the extended-WARNING has already fired
+        # unconditionally at lines 357-364. That's the signal we assert
+        # on (R7.9: caplog message > value assertion, since the value
+        # ends up being the classic panel via degradation anyway).
         def fake_obb_loader():
             return SimpleNamespace(technical=None)
 
+        # Extended call — must fire the WARNING
         with caplog.at_level(
-            logging.WARNING, logger="openbb_techtrade.engine.indicators_technical",
+            logging.WARNING,
+            logger="openbb_techtrade.engine.indicators_technical",
         ):
-            panel_extended = indicators_technical.technical_panel(
+            indicators_technical.technical_panel(
                 symbol="TEST", as_of=as_of, ohlcv_rows=records,
                 obb_loader=fake_obb_loader,
                 panel_config=PANEL_EXTENDED,
             )
-            panel_classic = indicators_technical.technical_panel(
-                symbol="TEST", as_of=as_of, ohlcv_rows=records,
-                obb_loader=fake_obb_loader,
-                panel_config=PANEL_CLASSIC,
-            )
-
-        # Result parity: tech leg's silent-classic downgrade means both
-        # panels are the classic bytes
-        assert panel_extended == panel_classic
-
-        # And a WARNING must have fired for the extended call (only)
         extended_warnings = [
             r for r in caplog.records
             if "PANEL_EXTENDED requested" in r.getMessage()
@@ -545,6 +552,28 @@ class TestTechnicalPanelTechLegExtendedIsSilentNoOp:
             f"WARNING so ops can debug why extended does nothing on "
             f"openbb_technical-installed environments. Got: "
             f"{[r.getMessage() for r in caplog.records]}"
+        )
+
+        # Classic call — must NOT fire that same WARNING (R7.7: without
+        # this half of the assertion, a mutation that unconditionally
+        # emits the WARNING regardless of panel_config would pass).
+        caplog.clear()
+        with caplog.at_level(
+            logging.WARNING,
+            logger="openbb_techtrade.engine.indicators_technical",
+        ):
+            indicators_technical.technical_panel(
+                symbol="TEST", as_of=as_of, ohlcv_rows=records,
+                obb_loader=fake_obb_loader,
+                panel_config=PANEL_CLASSIC,
+            )
+        classic_extended_warnings = [
+            r for r in caplog.records
+            if "PANEL_EXTENDED requested" in r.getMessage()
+        ]
+        assert len(classic_extended_warnings) == 0, (
+            f"PANEL_CLASSIC must not fire the extended-downgrade WARNING. "
+            f"Got: {[r.getMessage() for r in caplog.records]}"
         )
 
 
