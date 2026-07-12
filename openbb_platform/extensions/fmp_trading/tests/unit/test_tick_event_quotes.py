@@ -214,3 +214,95 @@ class TestFullReplayRoundTripWithQuotes:
             ["MSFT", "AAPL"], "fmp_cached"
         )
         assert replayed_quotes == live_quotes
+
+
+class TestDecimalJsonRoundTrip:
+    """Round-2 review fix (silent-failure hunter P0): quotes must round-
+    trip through JournalWriter -> file -> JournalReader without silent
+    type coercion. Previously `r.model_dump()` produced Python-native
+    Decimal; write-time model_dump_json coerced to str; read-time
+    json.loads left it as str with no coercion — live vs replayed
+    quote types silently diverged."""
+
+    def test_fetch_batch_quote_returns_json_safe_types(self, monkeypatch):
+        """`mode='json'` at emit time means all quote field values are
+        JSON scalars (str, int, float, bool, None). No Decimal, no
+        datetime, no Enum. This is what makes the write/read cycle
+        idempotent."""
+        from decimal import Decimal
+        from datetime import datetime, timezone
+        from unittest.mock import MagicMock
+
+        from openbb_fmp_trading.core import tick_loop
+
+        # Build a fake obb result whose model_dump(mode="json") we control.
+        # We simulate a Pydantic BaseModel by giving MagicMock a spec
+        # method that returns a dict with a Decimal in it (WITHOUT
+        # mode="json"), and str version WITH mode="json".
+        fake_row = MagicMock()
+
+        def fake_model_dump(mode=None):
+            if mode == "json":
+                return {
+                    "symbol": "MSFT",
+                    "price": "430.15",  # str (json-safe)
+                    "ts": "2026-07-11T14:30:00+00:00",  # ISO str
+                }
+            return {
+                "symbol": "MSFT",
+                "price": Decimal("430.15"),  # native Decimal
+                "ts": datetime(2026, 7, 11, 14, 30, tzinfo=timezone.utc),
+            }
+
+        fake_row.model_dump.side_effect = fake_model_dump
+
+        fake_result = MagicMock()
+        fake_result.results = [fake_row]
+
+        fake_obb = MagicMock()
+        fake_obb.fmp_trading.quote_batch.return_value = fake_result
+
+        # Patch the lazy `from openbb import obb` inside _fetch_batch_quote
+        import openbb
+        monkeypatch.setattr(openbb, "obb", fake_obb, raising=False)
+
+        quotes = tick_loop._fetch_batch_quote(["MSFT"], "fmp_cached")
+
+        # Verify: mode="json" was used → all values are JSON scalars
+        assert len(quotes) == 1
+        q = quotes[0]
+        assert q["price"] == "430.15", f"price should be str, got {type(q['price'])}"
+        assert isinstance(q["price"], str), (
+            f"price must be str for journal round-trip idempotency, got "
+            f"{type(q['price']).__name__}: {q['price']!r}"
+        )
+        assert isinstance(q["ts"], str), (
+            f"ts must be ISO str for journal round-trip idempotency, got "
+            f"{type(q['ts']).__name__}"
+        )
+
+    def test_model_dump_called_with_mode_json_not_default(self, monkeypatch):
+        """Direct proof that _fetch_batch_quote uses mode='json' — a
+        regression that reverts to `r.model_dump()` (no mode arg) would
+        silently reintroduce the Decimal drift."""
+        from unittest.mock import MagicMock
+
+        from openbb_fmp_trading.core import tick_loop
+
+        fake_row = MagicMock()
+        fake_row.model_dump.return_value = {"symbol": "MSFT"}
+
+        fake_result = MagicMock()
+        fake_result.results = [fake_row]
+
+        fake_obb = MagicMock()
+        fake_obb.fmp_trading.quote_batch.return_value = fake_result
+
+        import openbb
+        monkeypatch.setattr(openbb, "obb", fake_obb, raising=False)
+
+        tick_loop._fetch_batch_quote(["MSFT"], "fmp_cached")
+
+        # model_dump was called with mode="json" (not bare model_dump())
+        fake_row.model_dump.assert_called_once_with(mode="json")
+
