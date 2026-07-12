@@ -141,7 +141,9 @@ def _default_screener_fetcher(segment: str) -> list[str]:
     return [row.symbol for row in rows if getattr(row, "symbol", None)]
 
 
-def validate_membership(segment: str, universe: list[str], min_members: int = 5) -> None:
+def validate_membership(
+    segment: str, universe: list[str], min_members: int = 5
+) -> None:
     """Assert a resolved universe is non-empty and has a plausible member count.
 
     Implements the PRD §10 "membership-count sanity" check.
@@ -234,7 +236,9 @@ def resolve_universe(
         fetcher = screener_fetcher or _default_screener_fetcher
         raw = fetcher(config.segment)
     else:  # Defensive: SegmentConfig's Literal should prevent reaching here.
-        raise ValueError(f"Unknown universe_source {source!r} for segment {config.segment!r}.")
+        raise ValueError(
+            f"Unknown universe_source {source!r} for segment {config.segment!r}."
+        )
 
     universe = _clean_symbols(raw)
     # A caller-supplied constituent_list reflects deliberate intent, so the
@@ -281,7 +285,9 @@ def resolve_all_segments(
     """
     resolved: dict[str, list[str]] = {}
     for config in list_segments(universe_source=universe_source):
-        constituents = constituents_map.get(config.segment) if constituents_map else None
+        constituents = (
+            constituents_map.get(config.segment) if constituents_map else None
+        )
         resolved[config.segment] = resolve_universe(
             config,
             constituents=constituents,

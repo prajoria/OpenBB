@@ -40,7 +40,6 @@ from openbb_techtrade.engine.confluence import (
 )
 from openbb_techtrade.models import IndicatorPanel, IndicatorVote
 
-
 #: Ship-config allowlist of extended trend votes emitted from ``trend_votes_ext``
 #: when no explicit override is passed.
 #:

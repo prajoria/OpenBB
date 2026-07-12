@@ -211,6 +211,7 @@ def compute_information_coefficient(
             # Approximate as normal for moderate n; adequate for the
             # "is it statistically significant?" tick.
             from math import erfc, sqrt
+
             p_value = float(erfc(abs(t_stat) / sqrt(2)))
         return ICResult(
             coefficient=rho,
@@ -395,7 +396,8 @@ def write_shadow_log(diffs: list[ShadowDiff], *, out_dir) -> None:
     except (OSError, NotADirectoryError) as e:
         _logger.warning(
             "shadow log write skipped: cannot create out_dir=%s: %s",
-            out_dir, e,
+            out_dir,
+            e,
         )
         return
 
@@ -429,5 +431,7 @@ def write_shadow_log(diffs: list[ShadowDiff], *, out_dir) -> None:
     except Exception as e:  # noqa: BLE001 - never crash the pipeline on telemetry
         _logger.warning(
             "shadow log write to %s failed: %s (%s)",
-            path, e, type(e).__name__,
+            path,
+            e,
+            type(e).__name__,
         )

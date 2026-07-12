@@ -79,8 +79,7 @@ def about() -> OBBject:
         results={
             "name": "openbb-regime",
             "purpose": (
-                "Shared MarketRegime detector for Analysis + techtrade "
-                "consumers."
+                "Shared MarketRegime detector for Analysis + techtrade " "consumers."
             ),
             "endpoints": {
                 "detect": (
@@ -92,8 +91,7 @@ def about() -> OBBject:
             "regimes": [r.value for r in MarketRegime],
             "python": "from openbb import obb; obb.regime.detect()",
             "direct_import": (
-                "from openbb_regime import detect_market_regime, "
-                "MarketRegime"
+                "from openbb_regime import detect_market_regime, " "MarketRegime"
             ),
         }
     )
@@ -182,7 +180,8 @@ def detect(
             logger.warning(
                 "regime.detect: invalid as_of=%r (must be ISO-8601): %s — "
                 "returning UNKNOWN with diagnostic",
-                as_of, exc,
+                as_of,
+                exc,
             )
             return _unknown_result(
                 reason="invalid_as_of",
@@ -205,35 +204,41 @@ def detect(
     # VIX is typically only available via the `index` router because
     # ^VIX is a CBOE index, not an equity.
     try:
-        spy_result = obb.equity.price.historical(
-            symbol=spy_symbol, **fetch_kwargs
-        )
+        spy_result = obb.equity.price.historical(symbol=spy_symbol, **fetch_kwargs)
         spy_df = spy_result.to_df()
     except Exception as e:
         logger.warning(
             "regime.detect: SPY fetch failed (symbol=%s, provider=%s): %s "
             "— returning UNKNOWN",
-            spy_symbol, provider, e,
+            spy_symbol,
+            provider,
+            e,
         )
         return _unknown_result(
-            reason="SPY fetch failed", as_of=as_of, error=str(e),
-            spy_symbol=spy_symbol, vix_symbol=vix_symbol,
+            reason="SPY fetch failed",
+            as_of=as_of,
+            error=str(e),
+            spy_symbol=spy_symbol,
+            vix_symbol=vix_symbol,
         )
 
     try:
-        vix_result = obb.index.price.historical(
-            symbol=vix_symbol, **fetch_kwargs
-        )
+        vix_result = obb.index.price.historical(symbol=vix_symbol, **fetch_kwargs)
         vix_df = vix_result.to_df()
     except Exception as e:
         logger.warning(
             "regime.detect: VIX fetch failed (symbol=%s, provider=%s): %s "
             "— returning UNKNOWN",
-            vix_symbol, provider, e,
+            vix_symbol,
+            provider,
+            e,
         )
         return _unknown_result(
-            reason="VIX fetch failed", as_of=as_of, error=str(e),
-            spy_symbol=spy_symbol, vix_symbol=vix_symbol,
+            reason="VIX fetch failed",
+            as_of=as_of,
+            error=str(e),
+            spy_symbol=spy_symbol,
+            vix_symbol=vix_symbol,
         )
 
     # Run the classifier.

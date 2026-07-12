@@ -158,8 +158,8 @@ class Order(Data):
         default=None, description="Stop price for stop orders."
     )
     tif: Literal["day", "gtc"] = Field(default="day", description="Time in force.")
-    intent: Literal["entry", "exit_stop", "exit_target", "exit_time", "exit_signal"] = Field(
-        description="Why the order exists in the plan."
+    intent: Literal["entry", "exit_stop", "exit_target", "exit_time", "exit_signal"] = (
+        Field(description="Why the order exists in the plan.")
     )
 
 

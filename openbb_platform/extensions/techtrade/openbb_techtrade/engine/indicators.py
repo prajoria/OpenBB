@@ -304,7 +304,12 @@ def _compute_trend(df: object, config: IndicatorConfig) -> dict[str, float]:
     """
     out: dict[str, float] = {}
 
-    macd = df.ta.macd(fast=config.macd_fast, slow=config.macd_slow, signal=config.macd_signal, talib=False)
+    macd = df.ta.macd(
+        fast=config.macd_fast,
+        slow=config.macd_slow,
+        signal=config.macd_signal,
+        talib=False,
+    )
     macd_hist = _df_last_finite(macd, "MACDh")
     if macd_hist is not None:
         out["macd_hist"] = macd_hist
@@ -352,7 +357,9 @@ def _compute_momentum(df: object, config: IndicatorConfig) -> dict[str, float]:
     if rsi is not None:
         out["rsi"] = rsi
 
-    stoch = df.ta.stoch(k=config.stoch_k, d=config.stoch_d, smooth_k=config.stoch_smooth_k, talib=False)
+    stoch = df.ta.stoch(
+        k=config.stoch_k, d=config.stoch_d, smooth_k=config.stoch_smooth_k, talib=False
+    )
     stoch_k = _df_last_finite(stoch, "STOCHk")
     if stoch_k is not None:
         out["stoch_k"] = stoch_k
@@ -429,7 +436,9 @@ def _compute_volume(df: object, config: IndicatorConfig) -> dict[str, float]:
     out: dict[str, float] = {}
 
     obv = df.ta.obv(talib=False)
-    obv_slope = _last_finite(df.ta.slope(close=obv, length=config.obv_slope_length, talib=False))
+    obv_slope = _last_finite(
+        df.ta.slope(close=obv, length=config.obv_slope_length, talib=False)
+    )
     if obv_slope is not None:
         out["obv_slope"] = obv_slope
 
@@ -464,7 +473,9 @@ def _compute_candles(df: object) -> dict[str, int]:
 
     try:
         cdl = df.ta.cdl_pattern(name="all")
-    except Exception:  # noqa: BLE001 - too few bars / detector unavailable -> no candles
+    except (
+        Exception
+    ):  # noqa: BLE001 - too few bars / detector unavailable -> no candles
         return {}
 
     if not isinstance(cdl, pd.DataFrame) or cdl.empty:
@@ -541,7 +552,10 @@ def build_indicator_panel(
     if config is None:
         # Lazy import: avoids a hot-path import cycle if any future tuning module
         # needs to import indicators (none does today; cheap insurance).
-        from openbb_techtrade.tuning.tuned_defaults import lookup_tuned_for_symbol  # noqa: PLC0415
+        from openbb_techtrade.tuning.tuned_defaults import (
+            lookup_tuned_for_symbol,
+        )  # noqa: PLC0415
+
         config = lookup_tuned_for_symbol(symbol) or DEFAULT_CONFIG
 
     # bd-7ct.4 (bd-nx3): panel_config dispatch. Resolved ONCE per build
@@ -550,9 +564,11 @@ def build_indicator_panel(
     # not forced to load engine.panel_config at module-import time.
     if panel_config is None:
         from openbb_techtrade.engine.panel_config import PANEL_CLASSIC  # noqa: PLC0415
+
         panel_config = PANEL_CLASSIC
     if panel_config.panel == "extended":
         from openbb_techtrade.engine import indicators_ext  # noqa: PLC0415
+
         _trend_fn = indicators_ext._compute_trend_ext
         _momentum_fn = indicators_ext._compute_momentum_ext
         _volatility_fn = indicators_ext._compute_volatility_ext

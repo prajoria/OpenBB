@@ -232,7 +232,8 @@ class FMPCachedEtfHoldingsFetcher(FMPEtfHoldingsFetcher):
         # FMP followed by an issuer-tier success produces zero WARNINGs.
         logger.warning(
             "etf_holdings %s: all tiers exhausted (FMP, issuer, N-PORT) "
-            "— returning empty holdings list", symbol,
+            "— returning empty holdings list",
+            symbol,
         )
         return []
 
@@ -274,6 +275,8 @@ class FMPCachedEtfHoldingsFetcher(FMPEtfHoldingsFetcher):
             logger.warning(
                 "etf_holdings transform: %d/%d rows failed schema validation "
                 "— possible upstream schema drift. Sample error: %s",
-                failed_count, len(data), sample_error or "(no error captured)",
+                failed_count,
+                len(data),
+                sample_error or "(no error captured)",
             )
         return validated

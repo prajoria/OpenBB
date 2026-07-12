@@ -69,13 +69,13 @@ logger = logging.getLogger(__name__)
 # Refactor implications: changing these changes the regime boundaries and
 # should be paired with an update to the golden-fixture tests.
 # ---------------------------------------------------------------------------
-_SPY_TREND_LOOKBACK: int = 200        # 200-day SMA — standard long-term trend
+_SPY_TREND_LOOKBACK: int = 200  # 200-day SMA — standard long-term trend
 _SPY_ABOVE_THRESHOLD_PCT: float = 0.03  # 3% above 200d = clearly "above"
 _SPY_BELOW_THRESHOLD_PCT: float = -0.03  # 3% below 200d = clearly "below"
-_VIX_LOW_THRESHOLD: float = 20.0      # < 20 = complacent bull
-_VIX_HIGH_THRESHOLD: float = 30.0     # >= 30 = crisis / panic
-_HYSTERESIS_DAYS: int = 3             # regime switch requires 3-day persistence
-_MIN_HISTORY_DAYS: int = 200          # need at least 200 days for the SMA
+_VIX_LOW_THRESHOLD: float = 20.0  # < 20 = complacent bull
+_VIX_HIGH_THRESHOLD: float = 30.0  # >= 30 = crisis / panic
+_HYSTERESIS_DAYS: int = 3  # regime switch requires 3-day persistence
+_MIN_HISTORY_DAYS: int = 200  # need at least 200 days for the SMA
 
 
 class MarketRegime(str, Enum):
@@ -208,7 +208,9 @@ def detect_market_regime(
         logger.warning(
             "detect_market_regime: spy_df has %d rows, need >= %d for the "
             "%dd SMA — returning UNKNOWN",
-            len(spy_df), _MIN_HISTORY_DAYS, _SPY_TREND_LOOKBACK,
+            len(spy_df),
+            _MIN_HISTORY_DAYS,
+            _SPY_TREND_LOOKBACK,
         )
         return MarketRegime.UNKNOWN
 
@@ -223,7 +225,9 @@ def detect_market_regime(
             logger.warning(
                 "detect_market_regime: after as_of=%s filter, spy_df has "
                 "%d rows (< %d needed) — returning UNKNOWN",
-                cutoff.isoformat(), len(spy), _MIN_HISTORY_DAYS,
+                cutoff.isoformat(),
+                len(spy),
+                _MIN_HISTORY_DAYS,
             )
             return MarketRegime.UNKNOWN
 
@@ -254,8 +258,16 @@ def detect_market_regime(
     daily_regimes: list[MarketRegime] = []
     for date in recent_dates:
         close = float(spy.loc[date, "close"])
-        sma = float(spy_sma.loc[date]) if not np.isnan(spy_sma.loc[date]) else float("nan")
-        vix_val = float(aligned_vix.loc[date]) if not np.isnan(aligned_vix.loc[date]) else float("nan")
+        sma = (
+            float(spy_sma.loc[date])
+            if not np.isnan(spy_sma.loc[date])
+            else float("nan")
+        )
+        vix_val = (
+            float(aligned_vix.loc[date])
+            if not np.isnan(aligned_vix.loc[date])
+            else float("nan")
+        )
         daily_regimes.append(_classify_raw(close, sma, vix_val))
 
     # iter-1 silent-hunt F5: guard against mixed-UNKNOWN in the trailing

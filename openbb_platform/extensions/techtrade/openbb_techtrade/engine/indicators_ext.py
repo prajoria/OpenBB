@@ -48,7 +48,6 @@ from openbb_techtrade.engine.indicators import (
     _df_last_finite,
 )
 
-
 #: Aroon lookback length (Chande 1995 default; every professional Aroon
 #: practitioner uses 25 — it corresponds to roughly a trading month).
 _AROON_LENGTH: int = 25
@@ -203,9 +202,15 @@ def _compute_trend_ext(df: object, config: IndicatorConfig) -> dict[str, float]:
             last_isb = _df_last_finite(current, "ISB_")
             last_close = float(close_series.iloc[-1]) if len(close_series) > 0 else None
 
-            raw = _ichimoku_position_at_row(last_close, last_isa, last_isb) if (
-                last_close is not None and last_isa is not None and last_isb is not None
-            ) else None
+            raw = (
+                _ichimoku_position_at_row(last_close, last_isa, last_isb)
+                if (
+                    last_close is not None
+                    and last_isa is not None
+                    and last_isb is not None
+                )
+                else None
+            )
 
             if raw is not None:
                 out["ichimoku_price_vs_cloud"] = raw
@@ -277,9 +282,11 @@ def _ichimoku_confirmed_position(
 
     positions: list[float] = []
     for c, a, b in zip(tail_close, tail_isa, tail_isb):
-        pos = _ichimoku_position_at_row(float(c), float(a), float(b)) if (
-            _is_finite(c) and _is_finite(a) and _is_finite(b)
-        ) else None
+        pos = (
+            _ichimoku_position_at_row(float(c), float(a), float(b))
+            if (_is_finite(c) and _is_finite(a) and _is_finite(b))
+            else None
+        )
         if pos is None:
             return None
         positions.append(pos)

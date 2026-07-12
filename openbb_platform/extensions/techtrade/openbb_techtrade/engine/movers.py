@@ -31,7 +31,9 @@ logger = logging.getLogger(__name__)
 
 # The metrics ``rank_movers`` knows how to order candidates by (mirrors
 # ``SegmentConfig.rank_metric``). ``gap`` / ``rel_volume`` require OHLCV history.
-_VALID_METRICS: frozenset[str] = frozenset({"pct_change", "volume", "gap", "rel_volume"})
+_VALID_METRICS: frozenset[str] = frozenset(
+    {"pct_change", "volume", "gap", "rel_volume"}
+)
 # Metrics that need recent OHLCV bars merged into each candidate before ranking.
 _OHLCV_METRICS: frozenset[str] = frozenset({"gap", "rel_volume"})
 
@@ -293,11 +295,15 @@ def _default_candidate_fetcher(
     # universe. Skip the discovery-firehose union entirely.
     if universe is not None:
         return _fetch_universe_candidates(
-            universe, as_of,
+            universe,
+            as_of,
             ohlcv_lookback=ohlcv_lookback,
             history_fetcher=lambda symbol, **kw: obb.equity.price.historical(
-                symbol=symbol, provider="fmp_cached", **kw,
-            ).results or [],
+                symbol=symbol,
+                provider="fmp_cached",
+                **kw,
+            ).results
+            or [],
         )
 
     candidates: dict[str, dict] = {}
@@ -396,7 +402,8 @@ def _fetch_universe_candidates(
             # distinguish a broken symbol from a broken fetcher.
             logger.warning(
                 "movers: OHLCV fetch failed for %s: %s — dropping from candidate pool",
-                symbol, exc,
+                symbol,
+                exc,
             )
             continue
         bars = list(bars or [])[-ohlcv_lookback:]
@@ -585,7 +592,9 @@ def list_movers(
             f"{segment!r} is not a known GICS sector; expected one of {list(GICS_SECTOR_ETFS)}."
         )
 
-    configs = list_segments(universe_source=universe_source, rank_metric=metric, top_n=top_n)
+    configs = list_segments(
+        universe_source=universe_source, rank_metric=metric, top_n=top_n
+    )
     if segment is not None:
         configs = [config for config in configs if config.segment == segment]
 
@@ -696,7 +705,9 @@ def _resolve_filter_universe(
             "resolve_universe(%s) failed: %s: %s — falling back to "
             "no filter (mover universe WIDENED — likely bug in "
             "resolve_universe or one of its fetchers)",
-            config.segment, type(exc).__name__, exc,
+            config.segment,
+            type(exc).__name__,
+            exc,
         )
         return None
 

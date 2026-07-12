@@ -29,7 +29,6 @@ from typing import Literal
 
 from openbb_techtrade.models import IndicatorPanel, IndicatorVote, MoverSignal
 
-
 # Module-level constant carrying the volume amplitude that ``volume_confirmation``
 # actually applies. Kept as a bare float (not a ``ConfluenceWeights`` attribute)
 # so ``ConfluenceWeights.__post_init__`` can reject non-matching overrides at
@@ -391,7 +390,9 @@ def volume_confirmation(panel: IndicatorPanel) -> float:
 
 
 def composite_score(
-    panel: IndicatorPanel, *, weights: ConfluenceWeights = DEFAULT_WEIGHTS,
+    panel: IndicatorPanel,
+    *,
+    weights: ConfluenceWeights = DEFAULT_WEIGHTS,
     panel_config=None,
 ) -> tuple[float, list[IndicatorVote]]:
     """Fuse a panel into a composite ``score ∈ [-1, +1]`` plus its full vote attribution.
@@ -428,9 +429,11 @@ def composite_score(
     # into the extended panel don't pull the _ext modules at import time.
     if panel_config is None:
         from openbb_techtrade.engine.panel_config import PANEL_CLASSIC  # noqa: PLC0415
+
         panel_config = PANEL_CLASSIC
     if panel_config.panel == "extended":
         from openbb_techtrade.engine import confluence_ext  # noqa: PLC0415
+
         raw_votes = (
             confluence_ext.trend_votes_ext(panel)
             + confluence_ext.momentum_votes_ext(panel)
