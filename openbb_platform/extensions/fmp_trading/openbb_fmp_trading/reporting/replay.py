@@ -1,10 +1,20 @@
 """Journal-driven IntradaySession replay (P5.3).
 
 Real replay — drives the shipped Phase 2 IntradaySession through recorded
-ticks via a StubbedDataProvider that patches the module-level fetch
-seams in ``core.tick_loop``. Emitted events are compared to recorded
-events per tick; divergence sets ``diverged_at_tick`` and raises
-:class:`ReplayDivergenceError` (review finding #0 fold-in).
+ticks via a :class:`StubbedDataProvider` injected into ``run_tick``.
+Emitted events are compared to recorded events per tick; divergence sets
+``diverged_at_tick`` and raises :class:`ReplayDivergenceError` (review
+finding #0 fold-in).
+
+Refactor history:
+
+* P5.3 shipping: used ``_stub_fetch_seams`` context manager to monkey-
+  patch four module globals on ``core.tick_loop`` under a threading
+  ``RLock`` for concurrency safety.
+* **bd-9nd.9 (this file):** replaced the monkey-patch with an injected
+  :class:`StubbedDataProvider` via ``run_tick``'s new ``provider=``
+  parameter. Thread-safe by construction (no shared mutable state), no
+  lock needed, no re-entrancy hazard.
 
 What replay proves:
   * tick loop is a pure function of ``(session_state, tick_ts, market_data)``
@@ -15,19 +25,15 @@ What replay does NOT prove:
   * live FMP data unchanged (stub feeds recorded data — reproducibility,
     not live-behavior)
   * BandwidthMeter (per PRD §8.7 — bandwidth is session-scoped ephemeral)
-  * Full signal-cascade determinism across quote payloads — current
-    Phase 2 TickEvent shape stores ``quotes_fetched: int`` (a count),
-    not the quote content. StubbedDataProvider returns empty quotes;
-    only the control-flow determinism of run_tick is exercised. Widening
-    TickEvent.payload to carry quote content is filed as follow-up bead
-    ``P5-followup-1``.
+  * Full signal-cascade determinism across quote payloads — bd-9nd.12
+    widens ``TickEvent.payload`` to carry quote content; until then
+    ``StubbedDataProvider`` returns empty quotes and only control-flow
+    determinism is exercised.
 """
 
 from __future__ import annotations
 
 import logging
-import threading
-from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -38,15 +44,6 @@ from openbb_fmp_trading.models.results import ReplayResult
 from openbb_fmp_trading.reporting.errors import ReplayDivergenceError
 
 logger = logging.getLogger(__name__)
-
-# Module-level lock guarding _stub_fetch_seams. Two concurrent replay()
-# calls — or replay running alongside a live IntradaySession in the same
-# process — would otherwise corrupt each other's monkeypatched fetch
-# seams (code-reviewer P1 #3). The lock serializes access; the ideal
-# fix is to refactor tick_loop to accept an injected provider (filed
-# as follow-up bead P5-followup-3), but this bounds the blast radius
-# until then.
-_STUB_LOCK = threading.RLock()
 
 
 def replay(
@@ -111,35 +108,41 @@ def replay(
     )
 
     diverged_at_tick: int | None = None
-    with _stub_fetch_seams():
-        for tick_idx, tick_event in enumerate(sliced_ticks):
-            # Snapshot the emit log before this tick
-            before_len = len(replayed_emit_log)
-            try:
-                tick_loop.run_tick(session, tick_event.ts)
-            except Exception as exc:  # noqa: BLE001
-                # A tick_loop crash mid-replay IS a divergence signal —
-                # the recorded run completed this tick; the replayed
-                # run raised.
-                raise ReplayDivergenceError(
-                    tick_index=tick_idx,
-                    event_type="tick_loop_crash",
-                    field="exception",
-                    expected="clean_completion",
-                    actual=f"{type(exc).__name__}: {exc}",
-                ) from exc
+    # bd-9nd.9 refactor: inject a StubbedDataProvider instead of
+    # monkey-patching tick_loop module globals. Thread-safe by
+    # construction — no shared mutable state, no lock, no reentrancy
+    # hazard. Two concurrent replay() calls each get their own
+    # StubbedDataProvider bound to their own recorded events.
+    from openbb_fmp_trading.core.data_provider import StubbedDataProvider
+    provider = StubbedDataProvider(events=events)
+    for tick_idx, tick_event in enumerate(sliced_ticks):
+        # Snapshot the emit log before this tick
+        before_len = len(replayed_emit_log)
+        try:
+            tick_loop.run_tick(session, tick_event.ts, provider=provider)
+        except Exception as exc:  # noqa: BLE001
+            # A tick_loop crash mid-replay IS a divergence signal —
+            # the recorded run completed this tick; the replayed
+            # run raised.
+            raise ReplayDivergenceError(
+                tick_index=tick_idx,
+                event_type="tick_loop_crash",
+                field="exception",
+                expected="clean_completion",
+                actual=f"{type(exc).__name__}: {exc}",
+            ) from exc
 
-            # What did the replayed run emit for this tick_ts?
-            emitted = replayed_emit_log[before_len:]
-            # What did the ORIGINAL run record at this tick_ts?
-            recorded = recorded_by_tick_ts.get(tick_event.ts, [])
-            # Compare event shapes (types + deterministic payload fields)
-            div = _find_divergence(emitted, recorded, tick_idx)
-            if div is not None:
-                diverged_at_tick = tick_idx
-                if raise_on_divergence:
-                    raise div
-                break  # continue-mode still stops on first divergence
+        # What did the replayed run emit for this tick_ts?
+        emitted = replayed_emit_log[before_len:]
+        # What did the ORIGINAL run record at this tick_ts?
+        recorded = recorded_by_tick_ts.get(tick_event.ts, [])
+        # Compare event shapes (types + deterministic payload fields)
+        div = _find_divergence(emitted, recorded, tick_idx)
+        if div is not None:
+            diverged_at_tick = tick_idx
+            if raise_on_divergence:
+                raise div
+            break  # continue-mode still stops on first divergence
 
     return ReplayResult(
         session_id=session_id,
@@ -148,73 +151,6 @@ def replay(
         events_replayed=len(sliced_ticks),
         diverged_at_tick=diverged_at_tick,
     )
-
-
-# ---------------------------------------------------------------------------
-# StubbedDataProvider — patches Phase 2's module-level fetch seams
-# ---------------------------------------------------------------------------
-
-
-@contextmanager
-def _stub_fetch_seams():
-    """Install stubs on ``core.tick_loop``'s module-level fetch seams so
-    the replayed run receives deterministic (empty) market data instead
-    of hitting FMP.
-
-    The Phase 2 tick loop already exposes ``_fetch_batch_quote``,
-    ``_fetch_recent_bars``, ``_fetch_session_status``,
-    ``_is_signal_bar_close`` as module-level functions specifically to
-    be patchable (see P2.4). Replay uses that seam design.
-
-    Concurrency (code-reviewer P1 #3): the stub install/restore is
-    guarded by a process-level RLock so two concurrent replay() calls
-    — or replay running alongside a live IntradaySession in the same
-    process — can't corrupt each other's monkeypatched seams. The RLock
-    lets a single thread re-enter (which shouldn't happen but is safer
-    than a plain Lock for a context manager). Follow-up P5-followup-3
-    tracks refactoring tick_loop to accept an injected provider so
-    this monkey-patching goes away entirely.
-
-    Current implementation returns empty quotes/bars — enough to prove
-    control-flow determinism (same tick sequence -> same emit ordering).
-    Full signal-cascade replay would require the TickEvent payload to
-    carry actual quotes; that's filed as follow-up bead P5-followup-1.
-    """
-    from openbb_fmp_trading.core import tick_loop as tl
-
-    with _STUB_LOCK:
-        original_quote = tl._fetch_batch_quote
-        original_bars = tl._fetch_recent_bars
-        original_status = tl._fetch_session_status
-        original_bar_close = tl._is_signal_bar_close
-
-        def stub_quote(symbols, provider):
-            return []  # See module docstring — quotes not in current TickEvent shape
-
-        def stub_bars(symbols):
-            return {s: [] for s in symbols}
-
-        def stub_status(exchange):
-            return MagicMock(is_market_open=True, exchange=exchange)
-
-        def stub_bar_close(ts, preset):
-            # Only True on the recorded tick_ts values — never invents a bar close.
-            # Since we drive run_tick exactly once per recorded TickEvent, this
-            # can safely always return False (the recorded ticks already
-            # represent every tick the loop had).
-            return False
-
-        tl._fetch_batch_quote = stub_quote
-        tl._fetch_recent_bars = stub_bars
-        tl._fetch_session_status = stub_status
-        tl._is_signal_bar_close = stub_bar_close
-        try:
-            yield
-        finally:
-            tl._fetch_batch_quote = original_quote
-            tl._fetch_recent_bars = original_bars
-            tl._fetch_session_status = original_status
-            tl._is_signal_bar_close = original_bar_close
 
 
 # ---------------------------------------------------------------------------
