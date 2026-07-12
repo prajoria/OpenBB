@@ -135,7 +135,9 @@ def _tech_df(result: object) -> object:
     return pd.DataFrame(records)
 
 
-def _compute_technical_trend(obb: object, records: list[dict], config: IndicatorConfig) -> dict[str, float]:
+def _compute_technical_trend(
+    obb: object, records: list[dict], config: IndicatorConfig
+) -> dict[str, float]:
     """Compute the trend family from ``obb.technical.*`` with explicit §11 periods.
 
     Sources ``macd_hist`` / ``adx`` / ``ema_fast`` / ``ema_slow`` (and the derived
@@ -159,20 +161,31 @@ def _compute_technical_trend(obb: object, records: list[dict], config: Indicator
     """
     out: dict[str, float] = {}
 
-    macd = obb.technical.macd(data=records, fast=config.macd_fast, slow=config.macd_slow, signal=config.macd_signal)
+    macd = obb.technical.macd(
+        data=records,
+        fast=config.macd_fast,
+        slow=config.macd_slow,
+        signal=config.macd_signal,
+    )
     macd_hist = _df_last_finite(_tech_df(macd), "close_MACDh")
     if macd_hist is not None:
         out["macd_hist"] = macd_hist
 
-    adx_value = _df_last_finite(_tech_df(obb.technical.adx(data=records, length=config.adx_length)), "ADX_")
+    adx_value = _df_last_finite(
+        _tech_df(obb.technical.adx(data=records, length=config.adx_length)), "ADX_"
+    )
     if adx_value is not None:
         out["adx"] = adx_value
 
-    ema_fast = _df_last_finite(_tech_df(obb.technical.ema(data=records, length=config.ema_fast)), "close_EMA_")
+    ema_fast = _df_last_finite(
+        _tech_df(obb.technical.ema(data=records, length=config.ema_fast)), "close_EMA_"
+    )
     if ema_fast is not None:
         out["ema_fast"] = ema_fast
 
-    ema_slow = _df_last_finite(_tech_df(obb.technical.ema(data=records, length=config.ema_slow)), "close_EMA_")
+    ema_slow = _df_last_finite(
+        _tech_df(obb.technical.ema(data=records, length=config.ema_slow)), "close_EMA_"
+    )
     if ema_slow is not None:
         out["ema_slow"] = ema_slow
 
@@ -182,7 +195,9 @@ def _compute_technical_trend(obb: object, records: list[dict], config: Indicator
     return out
 
 
-def _compute_technical_momentum(obb: object, records: list[dict], config: IndicatorConfig) -> dict[str, float]:
+def _compute_technical_momentum(
+    obb: object, records: list[dict], config: IndicatorConfig
+) -> dict[str, float]:
     """Compute the momentum family from ``obb.technical.*`` with explicit §11 periods.
 
     Sources ``rsi`` and the Stochastic ``stoch_k`` / ``stoch_d`` from the
@@ -205,7 +220,10 @@ def _compute_technical_momentum(obb: object, records: list[dict], config: Indica
     """
     out: dict[str, float] = {}
 
-    rsi = _df_last_finite(_tech_df(obb.technical.rsi(data=records, length=config.rsi_length)), "close_RSI_")
+    rsi = _df_last_finite(
+        _tech_df(obb.technical.rsi(data=records, length=config.rsi_length)),
+        "close_RSI_",
+    )
     if rsi is not None:
         out["rsi"] = rsi
 
@@ -227,7 +245,9 @@ def _compute_technical_momentum(obb: object, records: list[dict], config: Indica
     return out
 
 
-def _compute_technical_volatility(obb: object, records: list[dict], config: IndicatorConfig) -> dict[str, float]:
+def _compute_technical_volatility(
+    obb: object, records: list[dict], config: IndicatorConfig
+) -> dict[str, float]:
     """Compute the volatility family from ``obb.technical.*`` with explicit §11 periods.
 
     Sources Bollinger ``bb_pctb`` (the ``BBP`` %B column), ``atr``, and the Keltner
@@ -252,17 +272,25 @@ def _compute_technical_volatility(obb: object, records: list[dict], config: Indi
     out: dict[str, float] = {}
 
     bb_pctb = _df_last_finite(
-        _tech_df(obb.technical.bbands(data=records, length=config.bb_length, std=config.bb_std)),
+        _tech_df(
+            obb.technical.bbands(
+                data=records, length=config.bb_length, std=config.bb_std
+            )
+        ),
         "close_BBP_",
     )
     if bb_pctb is not None:
         out["bb_pctb"] = bb_pctb
 
-    atr = _df_last_finite(_tech_df(obb.technical.atr(data=records, length=config.atr_length)), "ATR")
+    atr = _df_last_finite(
+        _tech_df(obb.technical.atr(data=records, length=config.atr_length)), "ATR"
+    )
     if atr is not None:
         out["atr"] = atr
 
-    keltner = _tech_df(obb.technical.kc(data=records, length=config.kc_length, scalar=config.kc_scalar))
+    keltner = _tech_df(
+        obb.technical.kc(data=records, length=config.kc_length, scalar=config.kc_scalar)
+    )
     kc_upper = _df_last_finite(keltner, "KCU")
     if kc_upper is not None:
         out["kc_upper"] = kc_upper
@@ -280,6 +308,7 @@ def technical_panel(
     *,
     config: IndicatorConfig = DEFAULT_CONFIG,
     obb_loader: Callable[[], object] | None = None,
+    panel_config=None,
 ) -> IndicatorPanel:
     """Build an :class:`IndicatorPanel` sourcing covered indicators from ``technical``.
 
@@ -325,8 +354,45 @@ def technical_panel(
     # Resolve the obb seam: an injected loader forces the technical leg (tests);
     # otherwise use the live loader only when the real extension is importable.
     if obb_loader is None and not _obb_technical_available():
-        return build_indicator_panel(symbol, as_of, ohlcv_rows, config=config)
+        # bd-7ct.5 (bd-ctt): forward panel_config to the classic fallback.
+        # In the fallback path, build_indicator_panel handles dispatch to
+        # the _ext stubs; a None panel_config resolves to PANEL_CLASSIC
+        # there (double-default is intentional — keeps the fallback path
+        # byte-identical to pre-bd-7ct when no kwarg is supplied).
+        return build_indicator_panel(
+            symbol,
+            as_of,
+            ohlcv_rows,
+            config=config,
+            panel_config=panel_config,
+        )
     loader = obb_loader or _load_obb
+
+    # bd-7ct.5 caveat: the tech leg below always uses classic panel keys
+    # (`_compute_technical_trend/momentum/volatility`). Family PRs
+    # (bd-luy/40v/z43) will add `_compute_technical_*_ext` mirrors when
+    # they land — until then, callers that pass `panel_config=PANEL_EXTENDED`
+    # on a machine with obb.technical installed silently get the classic
+    # panel from the tech branch, and the extended stubs from the fallback
+    # branch only. Since the stubs are pass-through in bd-7ct, this is
+    # observationally identical — but it's a real limitation to close
+    # in the family PRs.
+    #
+    # iter-1 code-reviewer YELLOW (a): emit a WARNING when a caller
+    # explicitly requests the extended panel on this branch so future
+    # "why is my extended flag doing nothing on my openbb_technical
+    # box?" tickets have a hint in the logs. Costs nothing today
+    # (stubs pass through so behavior is unchanged) but is the loud
+    # signal family PRs need to observe when they partially wire the
+    # tech-leg mirrors.
+    if panel_config is not None and getattr(panel_config, "panel", None) == "extended":
+        _logger.warning(
+            "technical_panel: PANEL_EXTENDED requested but tech-leg "
+            "mirrors (_compute_technical_*_ext) not yet implemented — "
+            "silently downgrading to classic panel for symbol %s. "
+            "Family PRs (bd-luy/40v/z43) will address this.",
+            symbol,
+        )
 
     # Build the frame here (outside the try) so empty/invalid input raises
     # ValueError cleanly rather than being caught below and mislabelled a
@@ -347,7 +413,9 @@ def technical_panel(
             volume=_compute_volume(df, config),
             candles=_compute_candles(df),
         )
-    except Exception:  # noqa: BLE001 - any technical failure degrades to the deterministic #72 panel
+    except (
+        Exception
+    ):  # noqa: BLE001 - any technical failure degrades to the deterministic #72 panel
         _logger.warning(
             "technical_panel for %s degraded to the classic #72 builder after an "
             "openbb.technical failure; the panel is still correct but not technical-sourced.",

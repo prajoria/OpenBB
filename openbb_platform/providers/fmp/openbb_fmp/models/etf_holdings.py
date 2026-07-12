@@ -102,7 +102,8 @@ class FMPEtfHoldingsFetcher(
         from openbb_fmp.utils.helpers import get_data_many
 
         api_key = credentials.get("fmp_api_key") if credentials else ""
-        url = f"https://financialmodelingprep.com/stable/etf/holdings?symbol={query.symbol}&apikey={api_key}"
+        # v3/etf-holder works on free-tier keys; stable/etf/holdings requires paid.
+        url = f"https://financialmodelingprep.com/api/v3/etf-holder/{query.symbol}?apikey={api_key}"
         return await get_data_many(url, **kwargs)
 
     @staticmethod
