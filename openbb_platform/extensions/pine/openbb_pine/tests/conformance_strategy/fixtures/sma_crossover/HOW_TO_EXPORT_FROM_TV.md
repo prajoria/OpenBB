@@ -28,24 +28,43 @@ the bd-cht conformance harness auto-skips this triple (per
 8. Commit the three CSVs into this directory. The bd-cht harness will
    auto-pick them up on next test run.
 
-## Deterministic bars vs live TV bars — a caveat
+## Deterministic bars vs live TV bars — reconciled via `bars.csv`
 
-bd-cht's harness uses a fixed-seed synthetic 500-bar random walk
-(`_deterministic_500_bars()` in `conftest.py`, seed 20260711). TV
-Strategy Tester runs on real market bars. This means the CSVs you
-export from TV will NOT match a pyne_compiler run on the deterministic
-bars — the expected values are for TV's bars, not the harness's.
+bd-cht's original harness used a fixed-seed synthetic 500-bar random
+walk (`_deterministic_500_bars()` in `conftest.py`, seed 20260711).
+TV Strategy Tester runs on real market bars, so a naive export would
+not match a pyne_compiler run on the synthetic bars.
 
-**Two options to reconcile:**
-- (a) Change the harness to load the fixture's `bars.csv` (a fourth
-  CSV file capturing the bars the strategy ran on) instead of the
-  deterministic generator. This makes fixtures self-contained.
-- (b) Author fixtures to specify their bar window (symbol + timeframe
-  + date range) and have a harness helper reproduce those exact bars
-  from a data source. More coupling, less reproducibility.
+**Landed in bd-0ru2**: export a `sma_crossover.bars.csv` alongside the three
+CSVs — the harness auto-detects it and uses those bars for the parity
+comparison, so the fixture is self-contained and byte-reproducible on
+any machine. If `bars.csv` is absent, the harness falls back to the
+deterministic 500-bar synthetic walk (used only by the internal
+`placeholder_smoke` fixture).
 
-Preferred: **(a)** — export a `sma_crossover.bars.csv` alongside the
-three CSVs. bd-ph0 phase 2 will land the harness change.
+### How to export `bars.csv` from TradingView
+
+TradingView exposes the underlying OHLCV on the chart itself, not the
+Strategy Tester panel:
+
+1. With the strategy still on the chart and the 500-bar window set
+   exactly as it was for the three tester CSVs, click the chart title
+   (top-left of the chart pane) → **Export chart data…** (also
+   available via the chart's `⋮` menu → *Export chart data…*).
+2. In the dialog:
+   - **Time format**: ISO (UTC preferred — matches
+     `_deterministic_500_bars()`'s `2024-01-01T00:00:00+00:00` shape)
+   - **Include hidden studies**: unchecked
+3. Save as `sma_crossover.bars.csv` in this directory.
+4. Verify the file has columns exactly:
+   `date, open, high, low, close, volume` (rename any TV variants like
+   `time` → `date` if needed — the harness's `_load_bars_csv()` requires
+   these exact names).
+5. The row count should match the strategy's bar range (typically 500).
+
+The harness's `_load_bars_csv()` keeps `date` as a raw string and
+parses OHLCV to `float` — the same record shape `run_byo` expects and
+that `_deterministic_500_bars()` produces.
 
 ## Clean-room note
 
