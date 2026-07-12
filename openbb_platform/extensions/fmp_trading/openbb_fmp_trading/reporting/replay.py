@@ -118,6 +118,10 @@ def replay(
     for tick_idx, tick_event in enumerate(sliced_ticks):
         # Snapshot the emit log before this tick
         before_len = len(replayed_emit_log)
+        # bd-9nd.12: tell the provider which recorded TickEvent's
+        # quotes to serve for this tick so the signal cascade sees
+        # real market data (not empty lists like pre-9nd.12 replay).
+        provider.set_current_tick_ts(tick_event.ts)
         try:
             tick_loop.run_tick(session, tick_event.ts, provider=provider)
         except Exception as exc:  # noqa: BLE001

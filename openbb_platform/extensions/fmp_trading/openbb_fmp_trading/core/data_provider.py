@@ -159,26 +159,72 @@ class StubbedDataProvider:
             :class:`ReplayTsMismatch` on unknown ts. When False, unknown
             ts returns False silently — legacy tolerant behavior.
         """
-        # Bucket events by ts so bd-9nd.12 can implement per-tick_ts
-        # quote/bar lookup without O(N) scans. Current implementation
-        # doesn't use this yet — reserved for the follow-up.
+        # Bucket events by ts for O(1) per-tick lookup by the comparator
+        # and by fetch_batch_quote's quote extraction.
         self._events_by_ts: dict = {}
+        # TickEvent-specific lookup for fetch_batch_quote — a ts can
+        # only have one TickEvent (the tick loop emits exactly one per
+        # call), so keying by ts is unambiguous.
+        self._tick_by_ts: dict = {}
         # Track ts values seen in TickEvents specifically — these are
-        # the ts values run_tick is expected to be driven with.
+        # the ts values run_tick is expected to be driven with (round-2
+        # strict-mode check).
         self._known_tick_ts: set = set()
         for e in events or []:
             ts = getattr(e, "ts", None)
             if ts is not None:
                 self._events_by_ts.setdefault(ts, []).append(e)
                 if getattr(e, "event_type", None) == "tick":
+                    self._tick_by_ts[ts] = e
                     self._known_tick_ts.add(ts)
+        # Set by :meth:`set_current_tick_ts` before each ``run_tick``
+        # call so ``fetch_batch_quote`` knows which recorded tick to
+        # read quotes from. None until first set — legacy callers get
+        # empty quotes, matching pre-9nd.12 behavior.
+        self._current_tick_ts: Any = None
         self._strict = strict
+
+    def set_current_tick_ts(self, tick_ts) -> None:
+        """Set which recorded ``TickEvent.ts`` to read quotes from.
+
+        Called by :func:`~openbb_fmp_trading.reporting.replay.replay`
+        immediately before each ``run_tick(session, tick_ts, provider=self)``
+        invocation. This is the seam that makes ``fetch_batch_quote``
+        return the recorded quotes for the CURRENT tick rather than
+        having to scan every event for a ts match.
+        """
+        self._current_tick_ts = tick_ts
 
     def fetch_batch_quote(
         self, symbols: list[str], provider: str
     ) -> list[dict[str, Any]]:
-        # bd-9nd.12: read from TickEvent.payload["quotes"] when available.
-        return []
+        """Return recorded quotes for the tick_ts we're currently replaying.
+
+        bd-9nd.12 implementation: reads ``quotes`` out of the most recent
+        ``TickEvent.payload["quotes"]`` seen at ``_current_tick_ts``.
+        The caller (:func:`replay`) sets that timestamp before each
+        ``run_tick`` call via :meth:`set_current_tick_ts`.
+
+        Returns ``[]`` when:
+          * ``_current_tick_ts`` is None (never set — bare use)
+          * No TickEvent at that ts (partial-journal edge case)
+          * TickEvent.payload lacks the "quotes" key (pre-9nd.12 journal)
+
+        In each of those cases the tick loop still runs; the signal
+        cascade just sees no quotes (matches pre-9nd.12 replay behavior).
+        """
+        if self._current_tick_ts is None:
+            return []
+        tick_event = self._tick_by_ts.get(self._current_tick_ts)
+        if tick_event is None:
+            return []
+        payload = getattr(tick_event, "payload", {}) or {}
+        recorded_quotes = payload.get("quotes")
+        if not recorded_quotes:
+            return []
+        # Filter to requested symbols so partial-watchlist replay works
+        symbol_set = set(symbols)
+        return [q for q in recorded_quotes if q.get("symbol") in symbol_set]
 
     def fetch_recent_bars(self, symbols: list[str]) -> dict[str, list[Any]]:
         return {s: [] for s in symbols}
