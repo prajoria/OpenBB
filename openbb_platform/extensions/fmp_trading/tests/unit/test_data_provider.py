@@ -270,3 +270,80 @@ class TestNoSharedMutableState:
             t.join(timeout=5)
 
         assert not errors, f"Concurrent run_tick errored: {errors}"
+
+
+class TestStubbedProviderStrictTsLookup:
+    """Round-2 review fix (silent-failure hunter, PR #478): tz/precision
+    drift between the driving loop and recorded journal must fail LOUD,
+    not silently return False and skip the signal cascade."""
+
+    def _make_tick_event(self, ts):
+        """Duck-typed TickEvent-shaped stub."""
+        class _E:
+            event_type = "tick"
+        e = _E()
+        e.ts = ts
+        return e
+
+    def test_unknown_ts_raises_in_strict_mode(self):
+        from datetime import datetime, timezone
+        from openbb_fmp_trading.core.data_provider import (
+            ReplayTsMismatch,
+            StubbedDataProvider,
+        )
+
+        recorded_ts = datetime(2026, 7, 11, 14, 30, 0, tzinfo=timezone.utc)
+        provider = StubbedDataProvider(
+            events=[self._make_tick_event(recorded_ts)]  # strict=True default
+        )
+
+        # Same wall-clock time but tz-naive → different ts value
+        wrong_ts = datetime(2026, 7, 11, 14, 30, 0)  # NO tzinfo
+        with pytest.raises(ReplayTsMismatch, match="not among recorded"):
+            provider.is_signal_bar_close(wrong_ts, preset="trend_follow")
+
+    def test_unknown_ts_error_shows_closest_recorded(self):
+        """Error message must include the closest recorded ts so the
+        operator can diagnose the drift (usually microsecond precision
+        or tz offset)."""
+        from datetime import datetime, timezone
+        from openbb_fmp_trading.core.data_provider import (
+            ReplayTsMismatch,
+            StubbedDataProvider,
+        )
+
+        recorded_ts = datetime(2026, 7, 11, 14, 30, 0, tzinfo=timezone.utc)
+        provider = StubbedDataProvider(events=[self._make_tick_event(recorded_ts)])
+
+        drifted_ts = datetime(2026, 7, 11, 14, 30, 0, 500000, tzinfo=timezone.utc)
+        with pytest.raises(ReplayTsMismatch) as excinfo:
+            provider.is_signal_bar_close(drifted_ts, preset="trend_follow")
+
+        assert "closest recorded" in str(excinfo.value)
+        assert "14:30" in str(excinfo.value)  # closest ts shown
+
+    def test_known_ts_returns_boolean_normally(self):
+        """Baseline: strict mode doesn't affect happy path."""
+        from datetime import datetime, timezone
+        from openbb_fmp_trading.core.data_provider import StubbedDataProvider
+
+        recorded_ts = datetime(2026, 7, 11, 14, 30, 0, tzinfo=timezone.utc)
+        provider = StubbedDataProvider(events=[self._make_tick_event(recorded_ts)])
+
+        # No SignalEvent at recorded_ts → False (but no raise)
+        assert provider.is_signal_bar_close(recorded_ts, preset="trend_follow") is False
+
+    def test_strict_false_restores_tolerant_silent_behavior(self):
+        """Legacy callers can opt back into silent-skip via strict=False."""
+        from datetime import datetime, timezone
+        from openbb_fmp_trading.core.data_provider import StubbedDataProvider
+
+        recorded_ts = datetime(2026, 7, 11, 14, 30, 0, tzinfo=timezone.utc)
+        provider = StubbedDataProvider(
+            events=[self._make_tick_event(recorded_ts)], strict=False
+        )
+
+        wrong_ts = datetime(2026, 7, 11, 14, 31, 0, tzinfo=timezone.utc)
+        # No raise; returns False silently (opt-in tolerant mode)
+        assert provider.is_signal_bar_close(wrong_ts, preset="trend_follow") is False
+

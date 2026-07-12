@@ -137,18 +137,42 @@ class StubbedDataProvider:
     monkey-patched module globals under a threading lock. The
     Protocol-based design is thread-safe by construction (no shared
     mutable state), reentrant, and doesn't need the lock.
+
+    Strict-lookup mode (bd-9nd.9 round 2, silent-failure-hunter finding):
+    when ``strict=True`` (default), calls to :meth:`is_signal_bar_close`
+    with a ts NOT present in the recorded events dict raise
+    :class:`ReplayTsMismatch`. Rationale: a tz-offset or microsecond
+    precision drift between the driving ``tick_event.ts`` and the
+    recorded ``SignalEvent.ts`` would otherwise SILENTLY return False,
+    causing replay to report "no divergence" while having skipped every
+    signal cascade. Prefer noisy failure over silent skip. Set
+    ``strict=False`` for legacy callers who explicitly want the tolerant
+    behavior (e.g. replaying a partial-window journal).
     """
 
-    def __init__(self, events: list | None = None) -> None:
-        """Store journal events for future quote lookup (bd-9nd.12)."""
+    def __init__(self, events: list | None = None, strict: bool = True) -> None:
+        """Store journal events for future quote lookup (bd-9nd.12).
+
+        Args:
+          events: Recorded JournalEvent list from the source run.
+          strict: When True (default), ``is_signal_bar_close`` raises
+            :class:`ReplayTsMismatch` on unknown ts. When False, unknown
+            ts returns False silently — legacy tolerant behavior.
+        """
         # Bucket events by ts so bd-9nd.12 can implement per-tick_ts
         # quote/bar lookup without O(N) scans. Current implementation
         # doesn't use this yet — reserved for the follow-up.
         self._events_by_ts: dict = {}
+        # Track ts values seen in TickEvents specifically — these are
+        # the ts values run_tick is expected to be driven with.
+        self._known_tick_ts: set = set()
         for e in events or []:
             ts = getattr(e, "ts", None)
             if ts is not None:
                 self._events_by_ts.setdefault(ts, []).append(e)
+                if getattr(e, "event_type", None) == "tick":
+                    self._known_tick_ts.add(ts)
+        self._strict = strict
 
     def fetch_batch_quote(
         self, symbols: list[str], provider: str
@@ -165,14 +189,41 @@ class StubbedDataProvider:
         return _StubSessionStatus(exchange=exchange, is_market_open=True)
 
     def is_signal_bar_close(self, tick_ts: datetime, preset: str) -> bool:
-        # Only return True when a recorded SignalEvent exists at this ts,
-        # so bar-close cascades ONLY fire on ticks that had them in the
-        # original run. Prevents inventing spurious bar closes during
-        # replay of a partial journal window.
+        # Round-2 review fix: catch tz/precision drift LOUDLY. If tick_ts
+        # is not among the recorded TickEvent ts values, either the caller
+        # is driving us with a fabricated ts (bug) or there's a
+        # tz/microsecond mismatch that would silently skip the signal
+        # cascade. Both cases should fail loud in strict mode.
+        if self._strict and tick_ts not in self._known_tick_ts:
+            # Show closest known ts to help the operator diagnose the drift.
+            closest = min(
+                self._known_tick_ts,
+                key=lambda k: abs((k - tick_ts).total_seconds()),
+                default=None,
+            )
+            raise ReplayTsMismatch(
+                f"tick_ts {tick_ts!r} not among recorded TickEvent ts values "
+                f"(closest recorded: {closest!r}). This usually indicates a "
+                f"timezone-offset or microsecond-precision drift between the "
+                f"driving loop and the recorded journal — check tzinfo on "
+                f"both sides. Pass strict=False to StubbedDataProvider to "
+                f"restore the tolerant (silent-skip) behavior."
+            )
         recorded_at_ts = self._events_by_ts.get(tick_ts, [])
         return any(
             getattr(e, "event_type", None) == "signal" for e in recorded_at_ts
         )
+
+
+class ReplayTsMismatch(ValueError):
+    """Raised when :class:`StubbedDataProvider` (strict mode) is asked
+    about a ``tick_ts`` that wasn't in the recorded events.
+
+    Almost always means a timezone-offset or microsecond-precision drift
+    between the driving loop and the recorded journal. Silent-skip would
+    hide this — see the ``strict`` argument on
+    :class:`StubbedDataProvider`.
+    """
 
 
 class _StubSessionStatus:
@@ -198,5 +249,6 @@ __all__ = [
     "DEFAULT_LIVE_PROVIDER",
     "DataProvider",
     "LiveDataProvider",
+    "ReplayTsMismatch",
     "StubbedDataProvider",
 ]
