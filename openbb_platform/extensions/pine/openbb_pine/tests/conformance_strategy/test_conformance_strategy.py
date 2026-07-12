@@ -70,10 +70,10 @@ def _read_stats_csv(path: Path) -> dict:
     return {k: _coerce_stats_value(v) for k, v in rows[0].items()}
 
 
-def test_strategy_equity_parity(strategy_conformance_triple, deterministic_500_bars):
+def test_strategy_equity_parity(strategy_conformance_triple, bars_for_triple):
     """Bar-by-bar equity match at 0.1% rtol per D5 §M2a."""
     triple = strategy_conformance_triple
-    result = _run(triple, deterministic_500_bars)
+    result = _run(triple, bars_for_triple)
     actual_curve = result.extra["equity_curve"]
     expected_curve = _read_equity_csv(triple.equity_path)
     assert len(actual_curve) == len(expected_curve), (
@@ -102,7 +102,7 @@ def test_strategy_equity_parity(strategy_conformance_triple, deterministic_500_b
 
 
 def test_strategy_trade_list_exact_match(
-    strategy_conformance_triple, deterministic_500_bars
+    strategy_conformance_triple, bars_for_triple
 ):
     """Trade count matches exactly.
 
@@ -113,7 +113,7 @@ def test_strategy_trade_list_exact_match(
     comparison when a real strategy with orders lands.
     """
     triple = strategy_conformance_triple
-    result = _run(triple, deterministic_500_bars)
+    result = _run(triple, bars_for_triple)
     actual_trades = result.extra.get("orders") or []
     expected_trades = _read_trades_csv(triple.trades_path)
     assert len(actual_trades) == len(expected_trades), (
@@ -122,10 +122,10 @@ def test_strategy_trade_list_exact_match(
     )
 
 
-def test_strategy_stats_parity(strategy_conformance_triple, deterministic_500_bars):
+def test_strategy_stats_parity(strategy_conformance_triple, bars_for_triple):
     """Stats dict values match at 0.1% rtol on floats, exact on int-valued fields."""
     triple = strategy_conformance_triple
-    result = _run(triple, deterministic_500_bars)
+    result = _run(triple, bars_for_triple)
     actual_stats = result.extra["stats"] or {}
     expected_stats = _read_stats_csv(triple.stats_path)
     for key, expected_val in expected_stats.items():
