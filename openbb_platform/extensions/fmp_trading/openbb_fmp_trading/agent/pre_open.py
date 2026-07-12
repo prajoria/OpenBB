@@ -417,13 +417,20 @@ class PreOpenAgentTurn:
         On any genuine loosening attempt we raise
         :class:`RiskOverrideLoosening` — the turn wrapper's retry-once
         path fires (or falls back).
+
+        Journal noise (bd-9nd.10): all violations found in a single
+        clamp pass are aggregated into ONE ``PromptInjectionRejectedEvent``
+        with ``payload["fields"] = [...]``. On a retry (attempt N+1)
+        the aggregate event fires again if the retry also loosened —
+        one event per pass, not one per field.
         """
         from datetime import time as _dtime
 
         default = self.config.default_risk
         llm = plan.session_risk
-        clamped_updates: dict = {}
-        loosening_detected = False
+        # bd-9nd.10: collect ALL violations, then emit ONE aggregate event.
+        # Each entry: {field, offending_value, clamped_to}
+        violations: list[dict] = []
 
         # Fields where SMALLER-is-tighter (larger = looser)
         for field in (
@@ -435,27 +442,28 @@ class PreOpenAgentTurn:
             llm_val = getattr(llm, field)
             default_val = getattr(default, field)
             if llm_val > default_val:
-                loosening_detected = True
-                clamped_updates[field] = default_val
-                self._journal_clamp(field, llm_val, default_val, plan)
+                violations.append({
+                    "field": field,
+                    "offending_value": llm_val,
+                    "clamped_to": default_val,
+                })
 
         # cooldown_after_stopout_min: SMALLER = LOOSER (shorter wait
         # between re-entries = less restriction). Security-review #1 fix.
         if llm.cooldown_after_stopout_min < default.cooldown_after_stopout_min:
-            loosening_detected = True
-            clamped_updates["cooldown_after_stopout_min"] = default.cooldown_after_stopout_min
-            self._journal_clamp(
-                "cooldown_after_stopout_min",
-                llm.cooldown_after_stopout_min,
-                default.cooldown_after_stopout_min,
-                plan,
-            )
+            violations.append({
+                "field": "cooldown_after_stopout_min",
+                "offending_value": llm.cooldown_after_stopout_min,
+                "clamped_to": default.cooldown_after_stopout_min,
+            })
 
         # day_dd_pct is negative; MORE NEGATIVE = looser (bigger allowed loss)
         if llm.day_dd_pct < default.day_dd_pct:
-            loosening_detected = True
-            clamped_updates["day_dd_pct"] = default.day_dd_pct
-            self._journal_clamp("day_dd_pct", llm.day_dd_pct, default.day_dd_pct, plan)
+            violations.append({
+                "field": "day_dd_pct",
+                "offending_value": llm.day_dd_pct,
+                "clamped_to": default.day_dd_pct,
+            })
 
         # flat_by_close_time_et: parse as time objects, not strings.
         # Security-review #4 fix — lexicographic '9:30' > '15:50' would
@@ -463,49 +471,89 @@ class PreOpenAgentTurn:
         try:
             llm_close = _dtime.fromisoformat(llm.flat_by_close_time_et)
             default_close = _dtime.fromisoformat(default.flat_by_close_time_et)
-        except ValueError as exc:
+        except ValueError:
             # Non-conforming HH:MM string is itself a loosening attempt
             # (bypass via malformed input). Reject.
-            loosening_detected = True
-            clamped_updates["flat_by_close_time_et"] = default.flat_by_close_time_et
-            self._journal_clamp(
-                "flat_by_close_time_et",
-                llm.flat_by_close_time_et,
-                default.flat_by_close_time_et,
-                plan,
-            )
+            violations.append({
+                "field": "flat_by_close_time_et",
+                "offending_value": llm.flat_by_close_time_et,
+                "clamped_to": default.flat_by_close_time_et,
+            })
         else:
             if llm_close > default_close:  # later time = looser
-                loosening_detected = True
-                clamped_updates["flat_by_close_time_et"] = default.flat_by_close_time_et
-                self._journal_clamp(
-                    "flat_by_close_time_et",
-                    llm.flat_by_close_time_et,
-                    default.flat_by_close_time_et,
-                    plan,
-                )
+                violations.append({
+                    "field": "flat_by_close_time_et",
+                    "offending_value": llm.flat_by_close_time_et,
+                    "clamped_to": default.flat_by_close_time_et,
+                })
 
-        if not loosening_detected:
+        if not violations:
             return plan
 
+        # bd-9nd.10: one aggregate event, not N per-field events.
+        # Round 2 review fix (pr-review-toolkit silent-failure-hunter P1):
+        # if the journal write throws, we STILL want RiskOverrideLoosening
+        # to propagate — the loosening signal is more security-critical
+        # than the audit-trail row. Losing the audit trail is bad; losing
+        # the raise and letting the LLM's loosened values through would
+        # defeat the entire clamp defense.
+        try:
+            self._journal_clamp_aggregate(violations, plan)
+        except Exception as journal_exc:  # noqa: BLE001 — see comment above
+            logger.exception(
+                "clamp aggregate journal write failed; RiskOverrideLoosening "
+                "will still fire (violated fields: %s) — audit trail lost: %s",
+                [v["field"] for v in violations],
+                journal_exc,
+            )
+
         raise RiskOverrideLoosening(
-            f"LLM tried to loosen risk on fields: {list(clamped_updates)}"
+            f"LLM tried to loosen risk on fields: {[v['field'] for v in violations]}"
         )
 
-    def _journal_clamp(
-        self, field: str, offending, clamped_to, plan: DailyPlan
+    def _journal_clamp_aggregate(
+        self, violations: list[dict], plan: DailyPlan
     ) -> None:
+        """Emit one aggregate ``PromptInjectionRejectedEvent`` covering
+        all clamp violations in a single :meth:`_clamp_risk_overrides` pass.
+
+        bd-9nd.10: pre-fix pattern was one journal write per loosened
+        field. On an LLM output that loosened 5 fields, the journal
+        received 5 rows — noisy for the operator + hard to correlate
+        (were these from one attempt or five?). One aggregate event
+        with ``payload["fields"] = [list-of-violations]`` gives a
+        cleaner audit trail: one attempt = one journal row.
+        """
         self.journal.write(
             PromptInjectionRejectedEvent(
                 ts=datetime.now(timezone.utc),
                 session_id=str(plan.date),
                 payload={
                     "defense_layer": "risk_clamp",
-                    "field": field,
-                    "offending_value": offending,
-                    "clamped_to": clamped_to,
+                    "field_count": len(violations),
+                    # List of {field, offending_value, clamped_to}.
+                    # Kept as a list-of-dicts (not a dict keyed by field)
+                    # so downstream JSON consumers see a stable shape
+                    # regardless of Python dict ordering.
+                    "fields": violations,
                 },
             )
+        )
+
+    # Legacy shim — kept for backward compatibility with any test that
+    # calls _journal_clamp directly. Emits a single-field aggregate event
+    # (same shape as the new one, just with one entry). Prefer
+    # _journal_clamp_aggregate for new call sites.
+    def _journal_clamp(
+        self, field: str, offending, clamped_to, plan: DailyPlan
+    ) -> None:
+        self._journal_clamp_aggregate(
+            [{
+                "field": field,
+                "offending_value": offending,
+                "clamped_to": clamped_to,
+            }],
+            plan,
         )
 
     # ------------------------------------------------------------------
