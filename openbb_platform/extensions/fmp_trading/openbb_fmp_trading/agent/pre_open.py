@@ -491,7 +491,21 @@ class PreOpenAgentTurn:
             return plan
 
         # bd-9nd.10: one aggregate event, not N per-field events.
-        self._journal_clamp_aggregate(violations, plan)
+        # Round 2 review fix (pr-review-toolkit silent-failure-hunter P1):
+        # if the journal write throws, we STILL want RiskOverrideLoosening
+        # to propagate — the loosening signal is more security-critical
+        # than the audit-trail row. Losing the audit trail is bad; losing
+        # the raise and letting the LLM's loosened values through would
+        # defeat the entire clamp defense.
+        try:
+            self._journal_clamp_aggregate(violations, plan)
+        except Exception as journal_exc:  # noqa: BLE001 — see comment above
+            logger.exception(
+                "clamp aggregate journal write failed; RiskOverrideLoosening "
+                "will still fire (violated fields: %s) — audit trail lost: %s",
+                [v["field"] for v in violations],
+                journal_exc,
+            )
 
         raise RiskOverrideLoosening(
             f"LLM tried to loosen risk on fields: {[v['field'] for v in violations]}"
