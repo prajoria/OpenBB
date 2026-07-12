@@ -309,6 +309,15 @@ def report(
     session_date = _parse_session_date(session_id, events)
     output_dir = _resolve_output_dir(output_dir, session_date)
     output_dir.mkdir(parents=True, exist_ok=True)
+    # bd-9nd.8 review round 5 P1: re-verify the chain AFTER mkdir. Between
+    # _resolve_output_dir's chain-walk and this mkdir(parents=True) call,
+    # an attacker with jail write access could plant a symlink in an
+    # intermediate directory that mkdir would then follow. Re-walking
+    # here catches any symlink that landed during the window OR that
+    # mkdir(parents=True) itself traversed. If we find one, the caller
+    # gets the same OutputPathEscapesJail as if the initial check had
+    # caught it — no silent write-through.
+    _reject_symlinks_in_chain(output_dir, _reports_root())
 
     warnings: list[str] = []
     md_path: Path | None = None
@@ -368,34 +377,100 @@ def report(
             )
         else:
             xlsx_path = output_dir / "end_of_day.xlsx"
-            # openpyxl doesn't accept an fd — it opens the path itself.
-            # But we still want the atomic "exists + no overwrite" check
-            # to be race-free, so use _open_for_write's fd, close it,
-            # and let openpyxl reopen. The atomic-create semantics of
-            # O_EXCL still catch the race.
+            # bd-9nd.8 review round 5 P0 (folds in bd-9nd.13): openpyxl
+            # doesn't accept an fd, so the old pattern was
+            #   unlink(xlsx_path); _open_for_write(xlsx_path); close(fd);
+            #   build_workbook(xlsx_path)  # <-- reopens by name
+            # The close→reopen window let an attacker plant a symlink at
+            # xlsx_path pointing outside the jail; openpyxl (no O_NOFOLLOW)
+            # would happily write through it. Additionally, when
+            # overwrite=True we forced _open_for_write to drop O_EXCL, so
+            # the "exclusive create" guarantee named in the prior comment
+            # was FALSE.
+            #
+            # Fix: write to a mkstemp() temp file in the SAME directory
+            # (same-fs so os.replace is atomic on POSIX), then atomically
+            # rename over xlsx_path. This inherits mkstemp's O_EXCL|O_CREAT
+            # atomicity for the temp file itself, and os.replace() is
+            # atomic on POSIX (best-effort on Windows). The pre-check
+            # for exists + WARN is preserved as an operator-signal.
             if xlsx_path.exists():
+                if not overwrite:
+                    raise OutputExists(
+                        f"refusing to overwrite {xlsx_path}: "
+                        f"pass overwrite=True to regenerate"
+                    )
                 logger.warning(
                     "report: overwriting existing %s (idempotent regen)", xlsx_path
                 )
-                # openpyxl doesn't support atomic exclusive-create; unlink
-                # so a stale file doesn't confuse the load-modify-save loop
-                xlsx_path.unlink()
-            # Use _open_for_write to gate on symlink + exists atomically.
-            # openpyxl will reopen and overwrite the empty file we create.
+            elif xlsx_path.is_symlink():
+                # Broken/dangling symlink at target — refuse. `exists()`
+                # returns False for a symlink to a nonexistent target,
+                # so we need the explicit lstat-based check.
+                raise OutputPathEscapesJail(
+                    f"refusing to write through symlink at {xlsx_path}"
+                )
+
             import os as _os
-            _fd = _open_for_write(xlsx_path, overwrite=True)  # already unlinked above
-            _os.close(_fd)
+            import tempfile
+
+            # mkstemp gives us: (a) an atomic O_EXCL|O_CREAT open with
+            # a random name (unguessable by racing attacker), (b) an fd
+            # we immediately close (openpyxl reopens by name — but the
+            # random name isn't guessable in the sub-ms window), (c) a
+            # path in the SAME directory as xlsx_path so os.replace is
+            # atomic on the same filesystem.
+            tmp_fd, tmp_path_str = tempfile.mkstemp(
+                prefix=".end_of_day.xlsx.",
+                suffix=".tmp",
+                dir=str(output_dir),
+            )
+            tmp_path = Path(tmp_path_str)
             try:
-                build_workbook(session_id, events, metrics, xlsx_path)
-            except (XLSXUnavailable, ImportError, OSError) as exc:
-                # Narrow catch (silent-failure review): only genuinely
-                # optional or environmental failures degrade to a WARN.
-                # AttributeError / KeyError / TypeError from event-shape
-                # drift PROPAGATE — those are real bugs, not "xlsx is
-                # optional" cases.
-                warnings.append(f"xlsx failed: {exc}")
-                logger.warning("report: xlsx build failed (%s); skipping", exc)
-                xlsx_path = None
+                _os.close(tmp_fd)
+                # Verify the temp file itself isn't a symlink (mkstemp
+                # produces a real file; this catches an impossibly-rare
+                # race where the tmpfile got replaced under us).
+                if tmp_path.is_symlink():
+                    raise OutputPathEscapesJail(
+                        f"tempfile at {tmp_path} became a symlink — abort"
+                    )
+                try:
+                    build_workbook(session_id, events, metrics, tmp_path)
+                except (XLSXUnavailable, ImportError, OSError) as exc:
+                    # Narrow catch (silent-failure review): only genuinely
+                    # optional or environmental failures degrade to a WARN.
+                    # AttributeError / KeyError / TypeError from event-shape
+                    # drift PROPAGATE — those are real bugs, not "xlsx is
+                    # optional" cases.
+                    warnings.append(f"xlsx failed: {exc}")
+                    logger.warning("report: xlsx build failed (%s); skipping", exc)
+                    xlsx_path = None
+                else:
+                    # Atomic rename into place. On POSIX this is a single
+                    # syscall (rename(2)) — no window where xlsx_path is
+                    # missing or partial. On Windows, os.replace atomically
+                    # replaces an existing file (unlike os.rename which
+                    # would fail).
+                    _os.replace(str(tmp_path), str(xlsx_path))
+                    # Tighten permissions after rename (mkstemp default is 0o600
+                    # on POSIX; os.replace preserves this, but be explicit).
+                    try:
+                        _os.chmod(str(xlsx_path), 0o600)
+                    except OSError:
+                        # Windows: chmod has limited effect; not fatal.
+                        pass
+            finally:
+                # Clean up temp file if build failed OR replace didn't run.
+                # tmp_path.exists() is False after a successful os.replace,
+                # so this only removes on error paths.
+                if tmp_path.exists():
+                    try:
+                        tmp_path.unlink()
+                    except OSError:
+                        logger.warning(
+                            "report: could not remove xlsx tempfile %s", tmp_path
+                        )
 
     return ReportManifest(
         session_id=session_id,

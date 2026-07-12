@@ -232,3 +232,256 @@ class TestAtomicWriteText:
         # If the fd leaked we'd see a warning from asyncio/gc; hard to
         # assert directly but the finally clause in _atomic_write_text
         # is what makes this safe.
+
+
+# ---------------------------------------------------------------------------
+# Round 5 review fixes: xlsx mkstemp+rename atomic write, mkdir-window re-check
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="symlink creation requires admin on Windows"
+)
+class TestMkdirWindowReCheck:
+    """Round 5 P1: re-run _reject_symlinks_in_chain AFTER mkdir(parents=True)
+    so a symlink planted in the window between _resolve_output_dir's chain-walk
+    and the mkdir call is still caught.
+    """
+
+    def test_symlink_planted_after_resolve_but_before_mkdir_is_caught(
+        self, tmp_path, monkeypatch
+    ):
+        """Simulate a race by planting the symlink during the mkdir call.
+
+        We monkey-patch Path.mkdir to plant a symlink at output_dir BEFORE
+        the underlying mkdir call runs. The post-mkdir chain re-check
+        must fire OutputPathEscapesJail.
+        """
+        from openbb_fmp_trading.reporting import report as report_mod
+        from openbb_fmp_trading.reporting.errors import OutputPathEscapesJail
+
+        # Use tmp_path as the jail
+        monkeypatch.setattr(
+            report_mod, "_reports_root", lambda: tmp_path
+        )
+        # Give ourselves a session_id + minimal journal so report() runs
+        # up through the mkdir + re-check gate
+        from openbb_fmp_trading.reporting import journal_reader
+
+        monkeypatch.setattr(
+            journal_reader, "read_session_events", lambda sid: iter([])
+        )
+        # Compute metrics from empty events must not error
+        from openbb_fmp_trading.models.report import SessionMetrics
+        from decimal import Decimal
+        monkeypatch.setattr(
+            journal_reader,
+            "compute_metrics_from_events",
+            lambda events: SessionMetrics(
+                realized_pnl=Decimal("0"),
+                pnl_source="empty",
+                total_commissions=Decimal("0"),
+                total_slippage=Decimal("0"),
+                veto_counts_by_gate={},
+                fill_count=0,
+                order_count=0,
+            ),
+        )
+        # Force session_date to today so _parse_session_date won't raise
+        from datetime import date as _date
+        monkeypatch.setattr(
+            report_mod, "_parse_session_date", lambda sid, events: _date(2026, 7, 11)
+        )
+
+        target_output_dir = tmp_path / "daytrade_2026-07-11"
+        outside = tmp_path.parent / "outside_jail_target"
+        outside.mkdir(exist_ok=True)
+
+        original_mkdir = Path.mkdir
+
+        def racing_mkdir(self, *args, **kwargs):
+            # Plant a symlink at exactly the target output_dir path
+            # BEFORE the real mkdir runs (simulating the race window).
+            if self == target_output_dir and not self.exists():
+                self.symlink_to(outside, target_is_directory=True)
+                return None  # mkdir(exist_ok=True) on the symlink is a no-op
+            return original_mkdir(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "mkdir", racing_mkdir)
+
+        with pytest.raises(OutputPathEscapesJail, match="symlink"):
+            report_mod.report(session_id="s20260711120000")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="mkstemp+rename atomicity is POSIX-specific; Windows uses different flow",
+)
+class TestXlsxMkstempRename:
+    """Round 5 P0: xlsx path uses tempfile.mkstemp + os.replace to close the
+    close→reopen window in the old unlink+open+close+openpyxl-reopen sequence.
+    """
+
+    def test_xlsx_temp_file_cleaned_up_on_build_failure(self, tmp_path, monkeypatch):
+        """If build_workbook raises, the tempfile in output_dir must not linger."""
+        from openbb_fmp_trading.reporting import report as report_mod
+        from openbb_fmp_trading.reporting.xlsx_builder import XLSXUnavailable
+
+        monkeypatch.setattr(report_mod, "_reports_root", lambda: tmp_path)
+
+        from openbb_fmp_trading.reporting import journal_reader
+
+        monkeypatch.setattr(
+            journal_reader, "read_session_events", lambda sid: iter([])
+        )
+        from openbb_fmp_trading.models.report import SessionMetrics
+        from decimal import Decimal
+
+        monkeypatch.setattr(
+            journal_reader,
+            "compute_metrics_from_events",
+            lambda events: SessionMetrics(
+                realized_pnl=Decimal("0"),
+                pnl_source="empty",
+                total_commissions=Decimal("0"),
+                total_slippage=Decimal("0"),
+                veto_counts_by_gate={},
+                fill_count=0,
+                order_count=0,
+            ),
+        )
+        from datetime import date as _date
+
+        monkeypatch.setattr(
+            report_mod,
+            "_parse_session_date",
+            lambda sid, events: _date(2026, 7, 11),
+        )
+
+        # Force build_workbook to raise XLSXUnavailable so we hit the
+        # tempfile-cleanup path in the finally block.
+        from openbb_fmp_trading.reporting import xlsx_builder
+
+        def raising_build(*args, **kwargs):
+            raise XLSXUnavailable("simulated")
+
+        monkeypatch.setattr(xlsx_builder, "build_workbook", raising_build)
+
+        result = report_mod.report(session_id="s20260711120000", format="xlsx")
+
+        # xlsx build failed → xlsx_path should be None in the manifest
+        assert result.xlsx_path is None
+        # No lingering .end_of_day.xlsx.*.tmp files in output_dir
+        output_dir = tmp_path / "daytrade_2026-07-11"
+        stale = list(output_dir.glob(".end_of_day.xlsx.*.tmp"))
+        assert stale == [], f"tempfile leaked on build failure: {stale}"
+
+    def test_xlsx_write_atomic_no_partial_file_on_success(self, tmp_path, monkeypatch):
+        """After successful build, xlsx_path exists AND no tempfile lingers."""
+        from openbb_fmp_trading.reporting import report as report_mod
+
+        monkeypatch.setattr(report_mod, "_reports_root", lambda: tmp_path)
+
+        from openbb_fmp_trading.reporting import journal_reader
+
+        monkeypatch.setattr(
+            journal_reader, "read_session_events", lambda sid: iter([])
+        )
+        from openbb_fmp_trading.models.report import SessionMetrics
+        from decimal import Decimal
+
+        monkeypatch.setattr(
+            journal_reader,
+            "compute_metrics_from_events",
+            lambda events: SessionMetrics(
+                realized_pnl=Decimal("0"),
+                pnl_source="empty",
+                total_commissions=Decimal("0"),
+                total_slippage=Decimal("0"),
+                veto_counts_by_gate={},
+                fill_count=0,
+                order_count=0,
+            ),
+        )
+        from datetime import date as _date
+
+        monkeypatch.setattr(
+            report_mod,
+            "_parse_session_date",
+            lambda sid, events: _date(2026, 7, 11),
+        )
+
+        # Stub build_workbook to actually write a minimal file so we
+        # exercise the successful os.replace path.
+        from openbb_fmp_trading.reporting import xlsx_builder
+
+        def fake_build(session_id, events, metrics, path):
+            path.write_bytes(b"PK\x03\x04fake-xlsx")
+
+        monkeypatch.setattr(xlsx_builder, "build_workbook", fake_build)
+
+        result = report_mod.report(session_id="s20260711120000", format="xlsx")
+
+        assert result.xlsx_path is not None
+        assert result.xlsx_path.exists()
+        assert result.xlsx_path.read_bytes().startswith(b"PK\x03\x04")
+        # No leftover tempfile
+        output_dir = tmp_path / "daytrade_2026-07-11"
+        stale = list(output_dir.glob(".end_of_day.xlsx.*.tmp"))
+        assert stale == [], f"tempfile leaked on success: {stale}"
+
+    def test_xlsx_symlink_at_target_rejected_before_temp_created(
+        self, tmp_path, monkeypatch
+    ):
+        """A pre-existing symlink at xlsx_path must be caught (via is_symlink
+        check) before any tempfile is created. Regression: `exists()` returns
+        False for a broken symlink, so a bare `if path.exists()` check would
+        miss a symlink pointing at a nonexistent target."""
+        from openbb_fmp_trading.reporting import report as report_mod
+        from openbb_fmp_trading.reporting.errors import OutputPathEscapesJail
+
+        monkeypatch.setattr(report_mod, "_reports_root", lambda: tmp_path)
+
+        from openbb_fmp_trading.reporting import journal_reader
+
+        monkeypatch.setattr(
+            journal_reader, "read_session_events", lambda sid: iter([])
+        )
+        from openbb_fmp_trading.models.report import SessionMetrics
+        from decimal import Decimal
+
+        monkeypatch.setattr(
+            journal_reader,
+            "compute_metrics_from_events",
+            lambda events: SessionMetrics(
+                realized_pnl=Decimal("0"),
+                pnl_source="empty",
+                total_commissions=Decimal("0"),
+                total_slippage=Decimal("0"),
+                veto_counts_by_gate={},
+                fill_count=0,
+                order_count=0,
+            ),
+        )
+        from datetime import date as _date
+
+        monkeypatch.setattr(
+            report_mod,
+            "_parse_session_date",
+            lambda sid, events: _date(2026, 7, 11),
+        )
+
+        # Pre-create output_dir and plant a dangling symlink at the xlsx target
+        output_dir = tmp_path / "daytrade_2026-07-11"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        xlsx_target = output_dir / "end_of_day.xlsx"
+        dangling = tmp_path.parent / "outside-dangling-target.xlsx"
+        # Do NOT create `dangling` — the symlink target is nonexistent
+        xlsx_target.symlink_to(dangling)
+
+        # exists() on a dangling symlink returns False; is_symlink() returns True.
+        assert not xlsx_target.exists()
+        assert xlsx_target.is_symlink()
+
+        with pytest.raises(OutputPathEscapesJail, match="symlink"):
+            report_mod.report(session_id="s20260711120000", format="xlsx")
