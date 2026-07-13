@@ -55,6 +55,7 @@ cp -rf source dest          # NOT: cp -r source dest
 **Authoritative protocol:** `docs/BEADS_HYGIENE.md` (post-migration).
 
 **Two-line summary:**
+
 1. **GitHub Issues are the source of truth.** Every unit of work has
    a GH Issue. Commit body cites its issue (`Closes #NN` for gh mode,
    `Refs bd-<id>` for bd fallback).
@@ -146,7 +147,7 @@ Use **GitHub Issues** as the source of truth for task tracking (post
 2026-07-13 migration). Use Beads (`bd`) as a local coordination cache
 when configured. See `docs/BEADS_HYGIENE.md` for the full protocol.
 
-### Quick Reference — gh mode (primary)
+### Quick Reference — gh mode (Codex, primary)
 
 ```bash
 gh issue list --state open --search "no:assignee -label:status:blocked"

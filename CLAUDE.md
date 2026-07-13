@@ -21,6 +21,7 @@ If you don't already know the title, look it up first (`gh issue view NN` /
 supersedes bd-only rules elsewhere in this file for any conflict).
 
 **Two-line summary:**
+
 1. **GitHub Issues are the source of truth.** Every unit of work has
    a GH Issue. Every commit body cites its issue (`Closes #NN` for
    gh mode auto-close, or `Refs bd-<id>` + manual `bd close` for bd
