@@ -50,7 +50,16 @@ per-lane Definition of Done in the Execution Plan §10.
 
 ## Deferred to follow-up beads
 
+- **CI wiring** — this harness is currently **dev-machine only**. No GitHub
+  Actions workflow invokes `npm run e2e`. That's intentional at M0 (the
+  smoke spec runs without a backend but real widget specs need `portfolio_app`
+  running, and we haven't decided per-suite-uvicorn vs shared-instance yet).
+  Tracked as a follow-up bead once the first P1 widget lands.
 - `webServer` block in `playwright.config.ts` to auto-start uvicorn — pending
   a decision on whether to spawn per-suite or share one instance
 - Cross-browser (webkit / firefox) — chromium-only until we hit a rendering
   bug that requires it
+- TypeScript-in-editor: `typescript` devDep was dropped in R2 (Playwright
+  bundles its own TS transpile via esbuild, so `npm run e2e` doesn't need
+  it). If an engineer wants editor tooling like `tsc --noEmit`, they can
+  `npm i -D typescript` locally without checking it in.

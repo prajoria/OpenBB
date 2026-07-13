@@ -9,11 +9,20 @@ playwright install`` which is a dev-machine setup step).
 
 These structural tests guard the *shape* so subsequent P1 widget tests
 just add ``.spec.ts`` files without rewriting the harness.
+
+Hardening (PR #468 R2):
+- ``playwright.config.ts`` checks upgraded from raw substring to
+  regex-scoped presence of ``defineConfig({ ... })`` and load-bearing
+  fields (``testDir``, ``baseURL``, at least one project). A file that
+  put those tokens in a comment or docstring no longer trips the guard.
+- ``package.json`` no longer declares the stale ``typescript`` devDep
+  — Playwright bundles its own TS transpile.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 E2E_ROOT = Path(__file__).resolve().parent / "e2e"
@@ -24,18 +33,48 @@ def test_e2e_directory_exists() -> None:
     assert E2E_ROOT.is_dir(), f"missing e2e dir: {E2E_ROOT}"
 
 
-def test_playwright_config_present_and_parseable() -> None:
-    """``playwright.config.ts`` must exist and be non-empty.
+def _config_body_stripped_of_comments() -> str:
+    """Return playwright.config.ts with // and /* */ comments removed.
 
-    Playwright refuses to run without a config; the harness is unusable
-    if this file is missing. We check the file exists and has enough
-    body to hold at least a ``defineConfig`` call.
+    Playwright config is TS/JS; substring checks on the raw file can be
+    fooled by tokens inside comments (PR #468 R2 finding 4). Strip
+    comments so structural checks assert on real code only.
+    """
+    cfg = E2E_ROOT / "playwright.config.ts"
+    body = cfg.read_text(encoding="utf-8")
+    # Remove /* ... */ blocks and // ... EOL comments. Not a full JS
+    # parser but good enough for the well-formed config we ship.
+    body = re.sub(r"/\*.*?\*/", "", body, flags=re.DOTALL)
+    body = re.sub(r"//[^\n]*", "", body)
+    return body
+
+
+def test_playwright_config_present_and_structurally_valid() -> None:
+    """``playwright.config.ts`` must call defineConfig with load-bearing fields.
+
+    Post-R2 (finding 4): asserts on comment-stripped source so a config
+    that put ``defineConfig`` or ``testDir`` in a comment doesn't sneak
+    past. Also asserts the three load-bearing fields (testDir, baseURL
+    env-override, at least one project).
     """
     cfg = E2E_ROOT / "playwright.config.ts"
     assert cfg.is_file(), "playwright.config.ts missing"
-    body = cfg.read_text(encoding="utf-8")
-    assert "defineConfig" in body, "playwright.config.ts must call defineConfig()"
-    assert "testDir" in body, "playwright.config.ts must set testDir"
+    src = _config_body_stripped_of_comments()
+
+    assert re.search(
+        r"defineConfig\s*\(", src
+    ), "config must invoke defineConfig(...) — not just mention it in a comment"
+    assert re.search(r"testDir\s*:", src), "config must set testDir field"
+    assert re.search(r"baseURL\s*:", src), "config must set a baseURL"
+    assert (
+        "PORTFOLIO_APP_BASE_URL" in src
+    ), "config must honor PORTFOLIO_APP_BASE_URL env override (see README)"
+    assert re.search(
+        r"projects\s*:\s*\[", src
+    ), "config must define at least one project (chromium)"
+    assert re.search(
+        r"name\s*:\s*['\"]chromium['\"]", src
+    ), "config must include a `chromium` project — matches README"
 
 
 def test_package_json_declares_playwright_and_scripts() -> None:
@@ -44,6 +83,10 @@ def test_package_json_declares_playwright_and_scripts() -> None:
     Locks the dependency so `npm install` in this dir gives every
     developer the same Playwright version. The ``e2e`` script is the
     single documented entry point used by CI and by devs alike.
+
+    Post-R2 (finding 5): asserts the stale `typescript` devDep was
+    removed. Playwright bundles its own TS transpile; carrying the
+    devDep without a tsconfig was dead weight.
     """
     pkg = E2E_ROOT / "package.json"
     assert pkg.is_file(), "package.json missing under tests/e2e/"
@@ -51,30 +94,42 @@ def test_package_json_declares_playwright_and_scripts() -> None:
     assert data.get("name"), "package.json must declare name"
     dev_deps = data.get("devDependencies", {})
     assert "@playwright/test" in dev_deps, "Playwright must be pinned as devDependency"
-    scripts = data.get("scripts", {})
-    assert "e2e" in scripts, (
-        "package.json must expose an `e2e` script (single documented "
-        "entry point for CI and devs)"
+    assert "typescript" not in dev_deps, (
+        "typescript devDep should be removed (Playwright bundles its own "
+        "transpile; no tsconfig.json is checked in). PR #468 R2 finding 5."
     )
+    scripts = data.get("scripts", {})
+    for required in ("e2e", "e2e:headed", "e2e:ui", "e2e:report"):
+        assert (
+            required in scripts
+        ), f"package.json must expose `{required}` script (README lists it)"
 
 
-def test_placeholder_widget_spec_present() -> None:
-    """At least one ``.spec.ts`` file must live under ``e2e/tests/``.
+def test_placeholder_widget_spec_present_and_actually_a_test() -> None:
+    """At least one ``.spec.ts`` file must live under ``e2e/tests/`` and
+    contain a real ``test(...)`` call.
 
-    The M0 placeholder test proves the harness *shape* — future P1
-    widget tests (`xray_sector.spec.ts`, `blotter.spec.ts`, etc.) drop
-    into the same directory and inherit the config automatically.
+    Post-R2 finding 4: an empty ``.spec.ts`` file would satisfy the
+    previous test. Assert the file actually calls ``test(...)`` so a
+    literal placeholder file (all comments) doesn't fake the harness.
     """
     specs = list((E2E_ROOT / "tests").glob("*.spec.ts"))
     assert specs, "at least one .spec.ts file must exist under tests/e2e/tests/"
+    for spec in specs:
+        body = spec.read_text(encoding="utf-8")
+        assert re.search(r"\btest\s*\(", body), (
+            f"{spec.name}: file must contain a `test(...)` call, not just "
+            "comments or imports"
+        )
 
 
-def test_readme_documents_setup_and_runbook() -> None:
-    """``README.md`` must document install + run so nobody guesses.
+def test_readme_documents_setup_and_runbook_and_ci_status() -> None:
+    """``README.md`` must document install + run + CI status.
 
-    Playwright requires an out-of-band ``npx playwright install`` after
-    ``npm install`` — the number one gotcha for new devs. The README
-    calls it out explicitly.
+    Post-R2 finding 2: the harness is dev-machine-only at M0. README now
+    explicitly documents that no GitHub Actions workflow runs the suite,
+    so a downstream engineer doesn't wait for green CI that will never
+    come.
     """
     readme = E2E_ROOT / "README.md"
     assert readme.is_file(), "README.md missing under tests/e2e/"
@@ -84,6 +139,9 @@ def test_readme_documents_setup_and_runbook() -> None:
         "playwright install" in body
     ), "README must document `npx playwright install` browser download"
     assert "npm run e2e" in body, "README must document how to run the suite"
+    assert (
+        "dev-machine only" in body or "no github actions" in body or "no ci" in body
+    ), "README must explicitly note that this harness is not wired to CI at M0"
 
 
 def test_gitignore_excludes_playwright_output() -> None:
