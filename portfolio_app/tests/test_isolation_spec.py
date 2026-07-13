@@ -172,3 +172,76 @@ def test_cache_key_no_pii() -> None:
           — no PII column names ever
     """
     raise NotImplementedError("Unskip in qy83.4.12 and implement.")
+
+
+# ---------------------------------------------------------------------------
+# Scenario 5 — same_user_different_paper_accounts
+# Added in PR #473 R2 (review finding 2): user A owning both paper_A1
+# and paper_A2 must NOT see paper_A2 rows when requesting paper_A1. The
+# user_id filter passes because they're the same user — the account_id
+# filter has to catch this. Missing scenario in the original 4.
+# ---------------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Pending until OpenBBTechnical-qy83.4.12 (P2 SEV-1). PRD §16.6: "
+        "account_id must be checked independently of user_id — a user with "
+        "multiple paper accounts must NOT see cross-account data even "
+        "though the user_id filter passes."
+    )
+)
+def test_same_user_different_paper_accounts_no_leakage() -> None:
+    """User A owning paper_A1 must not see paper_A2 rows via a paper_A1 request.
+
+    Threat model: a user creates multiple paper accounts (allowed and
+    encouraged per PRD §16.5). If the app only filters by user_id and
+    trusts the account_id query param, requesting `/paper/positions?
+    account_id=paper_A1` returns rows from paper_A2 as long as they
+    belong to user A. That is a per-account isolation violation even
+    though it isn't a cross-user leak.
+
+    P2 engineer TODO (do not weaken):
+        - Create paper_A1 and paper_A2 both owned by REAL_USER_A
+        - Insert one row in each
+        - GET /portfolio/intel/paper/positions?account_id=paper_A1 as A
+        - Assert rows are EXCLUSIVELY from paper_A1
+        - Repeat for /paper/order/list and /paper/fills/list
+    """
+    raise NotImplementedError("Unskip in qy83.4.12 and implement.")
+
+
+# ---------------------------------------------------------------------------
+# Scenario 6 — account_id_injection_and_traversal
+# Added in PR #473 R2 (review finding 2): the account_id query param
+# is a user-controlled string that MUST be validated before it enters
+# any SQL or filesystem path. Enumeration attacks + SQL/path injection
+# not covered by the original 4 scenarios.
+# ---------------------------------------------------------------------------
+@pytest.mark.skip(
+    reason=(
+        "Pending until OpenBBTechnical-qy83.4.12 (P2 SEV-1). PRD §16.6: "
+        "account_id is a user-controlled string; every read path must "
+        "validate against an allowlist regex and never interpolate raw."
+    )
+)
+def test_account_id_injection_and_traversal_rejected() -> None:
+    """Malicious account_id values must be rejected, not enumerated.
+
+    Threat scenarios that must all return 400 (not 200 with data, not
+    500 with a stack trace):
+
+    - SQL injection: `account_id="paper_alpha' OR 1=1 --"`
+    - Path traversal: `account_id="../real_alpha_brokerage"`
+    - Namespace-escape: `account_id="paper_%"` (LIKE-wildcard)
+    - Long-string DoS: `account_id="paper_" + "a" * 10_000`
+    - Unicode homoglyph: `account_id="paper_аlpha"` (Cyrillic 'а')
+    - Enumeration via 403 vs 404 differentiation (existing account
+      returns 403, missing account returns 404 — that leaks existence)
+      — the API must return the SAME error shape for both.
+
+    P2 engineer TODO (do not weaken):
+        - Add a validation regex ^paper_[a-z0-9_]{1,63}$ (or similar)
+          at request-parse time
+        - Every malicious input above returns 400 with a generic error
+        - Existing-vs-missing returns the same status + message
+    """
+    raise NotImplementedError("Unskip in qy83.4.12 and implement.")
