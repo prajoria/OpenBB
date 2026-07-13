@@ -289,8 +289,13 @@ For each QC finding on the branch:
 1. **Triage the finding:**
    - **Real bug that must be fixed:** proceed to step 2
    - **False positive / rubric-nit / low-value:**
-     `<TASK: close <finding-id> reason="triage: <specific-reason>">`
-     and skip to next
+     `<TASK: drop <finding-id> reason="triage: <specific-reason>">`
+     and skip to next. **Note the distinct verb** — `drop` is not
+     `close`. In gh mode this becomes `gh issue close --reason
+     "not planned" --comment "triage: ..."` so the closure metadata
+     honestly reflects rejection, not completion. Using `close` for
+     a rejected finding would mislabel it as completed work in
+     the GH graph.
 2. **Fix the finding:**
    - Return to Phase 4 (TDD) for the specific fix — write failing test, fix,
      confirm green
@@ -313,8 +318,7 @@ For each QC finding on the branch:
 Before exiting Phase 6:
 - [ ] `/openbb-qualitycontrol branch` returns 0 open findings on the branch's
       commits
-- [ ] Every raised finding is either fixed (issue closed with "fixed in <sha>")
-      or explicitly dropped (issue closed with "triage: <reason>")
+- [ ] Every raised finding is either fixed (issue closed with `<TASK: close>` + "fixed in <sha>") or explicitly dropped (issue closed with `<TASK: drop>` + "triage: <reason>" — in gh mode `--reason "not planned"`, in bd mode `bd close --reason=triage:...`)
 - [ ] All fix commits pushed to the feature branch
 - [ ] Pre-commit still passes end-to-end on the full branch
 
@@ -482,10 +486,27 @@ foreach ($l in $labels) {
 | bd | `bd close <id> --reason="<reason>"` |
 | ephemeral | `TaskUpdate(taskId=<id>, status=completed)` |
 
+Use `close` when the work in the issue was actually completed
+(shipped, merged, fixed).
+
+### Drop (reject) an issue
+
+Use `drop` — not `close` — when rejecting a false-positive
+finding, rubric-nit, or low-value item without doing work. The
+different verb maps to the different GitHub close-reason so the
+tracker graph honestly reflects rejection vs. completion.
+
+| Mode | Command |
+|---|---|
+| gh | `gh issue close <#N> --reason "not planned" --comment "triage: <reason>"` |
+| bd | `bd close <id> --reason="triage: <reason>"` |
+| ephemeral | `TaskUpdate(taskId=<id>, status=completed)` — no rejected state in TaskCreate; add "REJECTED: <reason>" prefix to your final summary |
+
 **Note on gh `--reason`:** the reason field is a **fixed vocabulary**
 (`completed` \| `not planned` \| `duplicate`). Free-form text goes in
-`--comment`, not `--reason`. To mark a false-positive triage: use
-`--reason "not planned" --comment "triage: <specific-reason>"`.
+`--comment`, not `--reason`. Use `close` for completed work and
+`drop` for rejected findings — the semantic distinction is important
+for the GH audit trail.
 
 ### List ready work
 
