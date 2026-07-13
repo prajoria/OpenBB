@@ -1,0 +1,998 @@
+{
+  "items": {
+    "102": {
+      "bead": "OpenBBTechnical-0e9",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrV_8",
+      "phase": "unphased"
+    },
+    "108": {
+      "bead": "OpenBBTechnical-0e9.6",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWCc",
+      "phase": "phase2"
+    },
+    "109": {
+      "bead": "OpenBBTechnical-0e9.7",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWEM",
+      "phase": "phase3"
+    },
+    "110": {
+      "bead": "OpenBBTechnical-0e9.8",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWF8",
+      "phase": "phase4"
+    },
+    "578": {
+      "bead": "OpenBBTechnical-ph0",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWH0",
+      "phase": "phase2"
+    },
+    "579": {
+      "bead": "OpenBBTechnical-3cf",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWJg",
+      "phase": "extraction"
+    },
+    "580": {
+      "bead": "OpenBBTechnical-78w",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWMA",
+      "phase": "extraction"
+    },
+    "581": {
+      "bead": "OpenBBTechnical-iz9i",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWNk",
+      "phase": "unphased"
+    },
+    "582": {
+      "bead": "OpenBBTechnical-wly",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWPw",
+      "phase": "unphased"
+    },
+    "583": {
+      "bead": "OpenBBTechnical-7a8",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWSA",
+      "phase": "unphased"
+    },
+    "584": {
+      "bead": "OpenBBTechnical-ypg",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWUE",
+      "phase": "phase2"
+    },
+    "585": {
+      "bead": "OpenBBTechnical-fwp",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWW4",
+      "phase": "phase2"
+    },
+    "586": {
+      "bead": "OpenBBTechnical-rnu",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWZQ",
+      "phase": "phase2"
+    },
+    "587": {
+      "bead": "OpenBBTechnical-nlm",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWbQ",
+      "phase": "phase2"
+    },
+    "588": {
+      "bead": "OpenBBTechnical-06g",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWd4",
+      "phase": "phase2"
+    },
+    "589": {
+      "bead": "OpenBBTechnical-6tc",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWgA",
+      "phase": "phase2"
+    },
+    "590": {
+      "bead": "OpenBBTechnical-r1m",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWhc",
+      "phase": "phase2"
+    },
+    "591": {
+      "bead": "OpenBBTechnical-c0d",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWjg",
+      "phase": "phase2"
+    },
+    "592": {
+      "bead": "OpenBBTechnical-h59",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWlc",
+      "phase": "phase2"
+    },
+    "593": {
+      "bead": "OpenBBTechnical-fyi7",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWns",
+      "phase": "unphased"
+    },
+    "594": {
+      "bead": "OpenBBTechnical-jxhh",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWpA",
+      "phase": "unphased"
+    },
+    "595": {
+      "bead": "OpenBBTechnical-z5zs",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWqk",
+      "phase": "unphased"
+    },
+    "596": {
+      "bead": "OpenBBTechnical-grww",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWsI",
+      "phase": "unphased"
+    },
+    "597": {
+      "bead": "OpenBBTechnical-1vr",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWt4",
+      "phase": "unphased"
+    },
+    "598": {
+      "bead": "OpenBBTechnical-gt7",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWv4",
+      "phase": "unphased"
+    },
+    "599": {
+      "bead": "OpenBBTechnical-qj7",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrWyY",
+      "phase": "unphased"
+    },
+    "600": {
+      "bead": "OpenBBTechnical-b29",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrW0g",
+      "phase": "unphased"
+    },
+    "601": {
+      "bead": "OpenBBTechnical-0ru2",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrW3I",
+      "phase": "unphased"
+    },
+    "602": {
+      "bead": "OpenBBTechnical-dyhr",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrW5M",
+      "phase": "unphased"
+    },
+    "603": {
+      "bead": "OpenBBTechnical-6atb",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrW8A",
+      "phase": "unphased"
+    },
+    "604": {
+      "bead": "OpenBBTechnical-bl57",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrW-s",
+      "phase": "unphased"
+    },
+    "605": {
+      "bead": "OpenBBTechnical-27v7",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXA4",
+      "phase": "unphased"
+    },
+    "606": {
+      "bead": "OpenBBTechnical-kbtx",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXCU",
+      "phase": "unphased"
+    },
+    "607": {
+      "bead": "OpenBBTechnical-579",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXFI",
+      "phase": "extraction"
+    },
+    "608": {
+      "bead": "OpenBBTechnical-9bh",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXHM",
+      "phase": "extraction"
+    },
+    "609": {
+      "bead": "OpenBBTechnical-or5",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXJE",
+      "phase": "extraction"
+    },
+    "610": {
+      "bead": "OpenBBTechnical-8j9",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXK8",
+      "phase": "extraction"
+    },
+    "611": {
+      "bead": "OpenBBTechnical-8sq",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXQM",
+      "phase": "extraction"
+    },
+    "612": {
+      "bead": "OpenBBTechnical-ijq",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXYQ",
+      "phase": "extraction"
+    },
+    "613": {
+      "bead": "OpenBBTechnical-tzm",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXeo",
+      "phase": "extraction"
+    },
+    "614": {
+      "bead": "OpenBBTechnical-3ch",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXgU",
+      "phase": "extraction"
+    },
+    "615": {
+      "bead": "OpenBBTechnical-kpg",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXiM",
+      "phase": "extraction"
+    },
+    "616": {
+      "bead": "OpenBBTechnical-sqf",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXlE",
+      "phase": "extraction"
+    },
+    "617": {
+      "bead": "OpenBBTechnical-7bl",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXoU",
+      "phase": "extraction"
+    },
+    "618": {
+      "bead": "OpenBBTechnical-8tl",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXqc",
+      "phase": "extraction"
+    },
+    "619": {
+      "bead": "OpenBBTechnical-fis",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXtE",
+      "phase": "extraction"
+    },
+    "620": {
+      "bead": "OpenBBTechnical-3qo",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXvM",
+      "phase": "unphased"
+    },
+    "621": {
+      "bead": "OpenBBTechnical-4dj",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrXyU",
+      "phase": "extraction"
+    },
+    "622": {
+      "bead": "OpenBBTechnical-cko",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrX0s",
+      "phase": "extraction"
+    },
+    "623": {
+      "bead": "OpenBBTechnical-gxy",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrX2g",
+      "phase": "extraction"
+    },
+    "624": {
+      "bead": "OpenBBTechnical-l05",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrX4k",
+      "phase": "extraction"
+    },
+    "625": {
+      "bead": "OpenBBTechnical-dnf",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrX6k",
+      "phase": "extraction"
+    },
+    "626": {
+      "bead": "OpenBBTechnical-dt1",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrX8Y",
+      "phase": "extraction"
+    },
+    "627": {
+      "bead": "OpenBBTechnical-209",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrX-w",
+      "phase": "extraction"
+    },
+    "628": {
+      "bead": "OpenBBTechnical-gzf",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYA8",
+      "phase": "extraction"
+    },
+    "629": {
+      "bead": "OpenBBTechnical-lef",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYCs",
+      "phase": "extraction"
+    },
+    "630": {
+      "bead": "OpenBBTechnical-9zb",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYEs",
+      "phase": "extraction"
+    },
+    "631": {
+      "bead": "OpenBBTechnical-r9m",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYGY",
+      "phase": "extraction"
+    },
+    "632": {
+      "bead": "OpenBBTechnical-rbf",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYIc",
+      "phase": "extraction"
+    },
+    "633": {
+      "bead": "OpenBBTechnical-0uh",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYKM",
+      "phase": "phase2"
+    },
+    "634": {
+      "bead": "OpenBBTechnical-cht",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYMA",
+      "phase": "phase2"
+    },
+    "635": {
+      "bead": "OpenBBTechnical-250",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYOQ",
+      "phase": "phase2"
+    },
+    "636": {
+      "bead": "OpenBBTechnical-4d0",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYQs",
+      "phase": "phase2"
+    },
+    "637": {
+      "bead": "OpenBBTechnical-liz",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYS0",
+      "phase": "phase2"
+    },
+    "638": {
+      "bead": "OpenBBTechnical-n6j",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYUs",
+      "phase": "phase2"
+    },
+    "639": {
+      "bead": "OpenBBTechnical-c1x",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYWc",
+      "phase": "phase2"
+    },
+    "640": {
+      "bead": "OpenBBTechnical-5k0",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYYw",
+      "phase": "phase2"
+    },
+    "641": {
+      "bead": "OpenBBTechnical-wxz",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYao",
+      "phase": "phase2"
+    },
+    "642": {
+      "bead": "OpenBBTechnical-d75",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYcw",
+      "phase": "phase2"
+    },
+    "643": {
+      "bead": "OpenBBTechnical-god",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYe0",
+      "phase": "phase2"
+    },
+    "644": {
+      "bead": "OpenBBTechnical-aeh",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYhU",
+      "phase": "phase2"
+    },
+    "645": {
+      "bead": "OpenBBTechnical-y86",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYjk",
+      "phase": "phase2"
+    },
+    "646": {
+      "bead": "OpenBBTechnical-h14",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYl0",
+      "phase": "phase2"
+    },
+    "647": {
+      "bead": "OpenBBTechnical-pxc",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYnc",
+      "phase": "phase2"
+    },
+    "648": {
+      "bead": "OpenBBTechnical-0e9.6.1",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYps",
+      "phase": "phase1"
+    },
+    "649": {
+      "bead": "OpenBBTechnical-0e9.13",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYrU",
+      "phase": "phase1"
+    },
+    "650": {
+      "bead": "OpenBBTechnical-0e9.12",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYtU",
+      "phase": "phase1"
+    },
+    "651": {
+      "bead": "OpenBBTechnical-0e9.11",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYvg",
+      "phase": "phase1"
+    },
+    "652": {
+      "bead": "OpenBBTechnical-0e9.9",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYx0",
+      "phase": "phase1"
+    },
+    "653": {
+      "bead": "OpenBBTechnical-0e9.5.61",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrYzA",
+      "phase": "phase1"
+    },
+    "654": {
+      "bead": "OpenBBTechnical-0e9.5.59",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrY0w",
+      "phase": "phase1"
+    },
+    "655": {
+      "bead": "OpenBBTechnical-0e9.5.58",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrY2I",
+      "phase": "phase1"
+    },
+    "656": {
+      "bead": "OpenBBTechnical-0e9.5.57",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrY48",
+      "phase": "phase1"
+    },
+    "657": {
+      "bead": "OpenBBTechnical-0e9.5.55",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrY6U",
+      "phase": "phase1"
+    },
+    "658": {
+      "bead": "OpenBBTechnical-0e9.5.56",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrY8A",
+      "phase": "phase1"
+    },
+    "659": {
+      "bead": "OpenBBTechnical-0e9.5.54",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrY9g",
+      "phase": "phase1"
+    },
+    "660": {
+      "bead": "OpenBBTechnical-0e9.5.53",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrY_g",
+      "phase": "phase1"
+    },
+    "661": {
+      "bead": "OpenBBTechnical-0e9.5.52",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZBg",
+      "phase": "phase1"
+    },
+    "662": {
+      "bead": "OpenBBTechnical-0e9.5.51",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZDA",
+      "phase": "phase1"
+    },
+    "663": {
+      "bead": "OpenBBTechnical-0e9.5.50",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZEY",
+      "phase": "phase1"
+    },
+    "664": {
+      "bead": "OpenBBTechnical-0e9.5.49",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZGI",
+      "phase": "phase1"
+    },
+    "665": {
+      "bead": "OpenBBTechnical-0e9.5.48",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZIU",
+      "phase": "phase1"
+    },
+    "666": {
+      "bead": "OpenBBTechnical-0e9.5.47",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZJ4",
+      "phase": "phase1"
+    },
+    "667": {
+      "bead": "OpenBBTechnical-0e9.5.46",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZLc",
+      "phase": "phase1"
+    },
+    "668": {
+      "bead": "OpenBBTechnical-0e9.5.45",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZM8",
+      "phase": "phase1"
+    },
+    "669": {
+      "bead": "OpenBBTechnical-0e9.5.44",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZPA",
+      "phase": "phase1"
+    },
+    "670": {
+      "bead": "OpenBBTechnical-0e9.5.43",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZS8",
+      "phase": "phase1"
+    },
+    "671": {
+      "bead": "OpenBBTechnical-0e9.5.42",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZV4",
+      "phase": "phase1"
+    },
+    "672": {
+      "bead": "OpenBBTechnical-0e9.5.41",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZX8",
+      "phase": "phase1"
+    },
+    "673": {
+      "bead": "OpenBBTechnical-0e9.5.40",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZZY",
+      "phase": "phase1"
+    },
+    "674": {
+      "bead": "OpenBBTechnical-0e9.5.39",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZa8",
+      "phase": "phase1"
+    },
+    "675": {
+      "bead": "OpenBBTechnical-0e9.5.38",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZco",
+      "phase": "phase1"
+    },
+    "676": {
+      "bead": "OpenBBTechnical-0e9.5.37",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZfA",
+      "phase": "phase1"
+    },
+    "677": {
+      "bead": "OpenBBTechnical-0e9.5.36",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZhA",
+      "phase": "phase1"
+    },
+    "678": {
+      "bead": "OpenBBTechnical-0e9.5.35",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZjM",
+      "phase": "phase1"
+    },
+    "679": {
+      "bead": "OpenBBTechnical-0e9.5.34",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZkc",
+      "phase": "phase1"
+    },
+    "680": {
+      "bead": "OpenBBTechnical-0e9.5.33",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZmM",
+      "phase": "phase1"
+    },
+    "681": {
+      "bead": "OpenBBTechnical-0e9.5.32",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZn8",
+      "phase": "phase1"
+    },
+    "682": {
+      "bead": "OpenBBTechnical-0e9.5.31",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZpo",
+      "phase": "phase1"
+    },
+    "683": {
+      "bead": "OpenBBTechnical-0e9.5.30",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZrI",
+      "phase": "phase1"
+    },
+    "684": {
+      "bead": "OpenBBTechnical-0e9.5.29",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZtE",
+      "phase": "phase1"
+    },
+    "685": {
+      "bead": "OpenBBTechnical-0e9.5.28",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZu0",
+      "phase": "phase1"
+    },
+    "686": {
+      "bead": "OpenBBTechnical-0e9.5.27",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZxE",
+      "phase": "phase1"
+    },
+    "687": {
+      "bead": "OpenBBTechnical-0e9.5.26",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZyI",
+      "phase": "phase1"
+    },
+    "688": {
+      "bead": "OpenBBTechnical-0e9.5.25",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZz0",
+      "phase": "phase1"
+    },
+    "689": {
+      "bead": "OpenBBTechnical-0e9.5.24",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZ10",
+      "phase": "phase1"
+    },
+    "690": {
+      "bead": "OpenBBTechnical-0e9.5.23",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZ4E",
+      "phase": "phase1"
+    },
+    "691": {
+      "bead": "OpenBBTechnical-0e9.5.22",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZ6Q",
+      "phase": "phase1"
+    },
+    "692": {
+      "bead": "OpenBBTechnical-0e9.5.21",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrZ9Q",
+      "phase": "phase1"
+    },
+    "693": {
+      "bead": "OpenBBTechnical-0e9.5.20",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraAE",
+      "phase": "phase1"
+    },
+    "694": {
+      "bead": "OpenBBTechnical-0e9.5.19",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraCk",
+      "phase": "phase1"
+    },
+    "695": {
+      "bead": "OpenBBTechnical-0e9.5.18",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraEs",
+      "phase": "phase1"
+    },
+    "696": {
+      "bead": "OpenBBTechnical-0e9.5.17",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraGo",
+      "phase": "phase1"
+    },
+    "697": {
+      "bead": "OpenBBTechnical-0e9.5.16",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraII",
+      "phase": "phase1"
+    },
+    "698": {
+      "bead": "OpenBBTechnical-0e9.5.14",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraLM",
+      "phase": "phase1"
+    },
+    "699": {
+      "bead": "OpenBBTechnical-0e9.5.15",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraNg",
+      "phase": "phase1"
+    },
+    "700": {
+      "bead": "OpenBBTechnical-0e9.5.13",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraQE",
+      "phase": "phase1"
+    },
+    "701": {
+      "bead": "OpenBBTechnical-0e9.5.12",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraR4",
+      "phase": "phase1"
+    },
+    "702": {
+      "bead": "OpenBBTechnical-0e9.5.11",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraT4",
+      "phase": "phase1"
+    },
+    "703": {
+      "bead": "OpenBBTechnical-0e9.5.10",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraWA",
+      "phase": "phase1"
+    },
+    "704": {
+      "bead": "OpenBBTechnical-0e9.5.9",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraYM",
+      "phase": "phase1"
+    },
+    "705": {
+      "bead": "OpenBBTechnical-0e9.5.8",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyracg",
+      "phase": "phase1"
+    },
+    "706": {
+      "bead": "OpenBBTechnical-0e9.5.7",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraeM",
+      "phase": "phase1"
+    },
+    "707": {
+      "bead": "OpenBBTechnical-0e9.5.6",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrags",
+      "phase": "phase1"
+    },
+    "708": {
+      "bead": "OpenBBTechnical-0e9.5.5",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraiw",
+      "phase": "phase1"
+    },
+    "709": {
+      "bead": "OpenBBTechnical-0e9.5.4",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrako",
+      "phase": "phase1"
+    },
+    "710": {
+      "bead": "OpenBBTechnical-0e9.5.2",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyravU",
+      "phase": "phase1"
+    },
+    "711": {
+      "bead": "OpenBBTechnical-0e9.5.3",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyraxE",
+      "phase": "phase1"
+    },
+    "712": {
+      "bead": "OpenBBTechnical-0e9.5.1",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrazQ",
+      "phase": "phase1"
+    },
+    "713": {
+      "bead": "OpenBBTechnical-0e9.4.6",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyra00",
+      "phase": "phase1"
+    },
+    "714": {
+      "bead": "OpenBBTechnical-0e9.4.4",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyra3o",
+      "phase": "phase1"
+    },
+    "715": {
+      "bead": "OpenBBTechnical-0e9.4.5",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyra58",
+      "phase": "phase1"
+    },
+    "716": {
+      "bead": "OpenBBTechnical-0e9.4.2",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyra8o",
+      "phase": "phase1"
+    },
+    "717": {
+      "bead": "OpenBBTechnical-0e9.4.3",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyra_Y",
+      "phase": "phase1"
+    },
+    "718": {
+      "bead": "OpenBBTechnical-0e9.4.1",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbBw",
+      "phase": "phase1"
+    },
+    "719": {
+      "bead": "OpenBBTechnical-0e9.5",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbEU",
+      "phase": "phase1"
+    },
+    "720": {
+      "bead": "OpenBBTechnical-0e9.4",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbGQ",
+      "phase": "phase1"
+    },
+    "721": {
+      "bead": "OpenBBTechnical-0e9.3",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbIo",
+      "phase": "phase1"
+    },
+    "722": {
+      "bead": "OpenBBTechnical-0e9.2",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbKw",
+      "phase": "phase1"
+    },
+    "723": {
+      "bead": "OpenBBTechnical-0e9.1",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbMs",
+      "phase": "phase1"
+    },
+    "724": {
+      "bead": "OpenBBTechnical-9cae",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbPY",
+      "phase": "unphased"
+    },
+    "725": {
+      "bead": "OpenBBTechnical-0e9.10",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbSc",
+      "phase": "phase1"
+    },
+    "726": {
+      "bead": "OpenBBTechnical-0e9.5.62",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbU8",
+      "phase": "phase1"
+    },
+    "727": {
+      "bead": "OpenBBTechnical-0e9.5.60",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbYo",
+      "phase": "phase1"
+    },
+    "728": {
+      "bead": "OpenBBTechnical-7lw",
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbbY",
+      "phase": "unphased"
+    },
+    "730": {
+      "bead": null,
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbt8",
+      "phase": "phase1",
+      "intermediate_epic": true
+    },
+    "731": {
+      "bead": null,
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbwc",
+      "phase": "extraction",
+      "intermediate_epic": true
+    },
+    "732": {
+      "bead": null,
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrbyQ",
+      "phase": "phase2",
+      "intermediate_epic": true
+    },
+    "733": {
+      "bead": null,
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrb1M",
+      "phase": "phase3",
+      "intermediate_epic": true
+    },
+    "734": {
+      "bead": null,
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrb4w",
+      "phase": "phase4",
+      "intermediate_epic": true
+    },
+    "735": {
+      "bead": null,
+      "item_id": "PVTI_lAHOAOc7384BdSi_zgyrb64",
+      "phase": "unphased",
+      "intermediate_epic": true
+    }
+  },
+  "phase_epics": {
+    "phase1": {
+      "number": 730,
+      "node_id": "I_kwDOQVcbSs8AAAABIqGhVA"
+    },
+    "extraction": {
+      "number": 731,
+      "node_id": "I_kwDOQVcbSs8AAAABIqGkjQ"
+    },
+    "phase2": {
+      "number": 732,
+      "node_id": "I_kwDOQVcbSs8AAAABIqGnZA"
+    },
+    "phase3": {
+      "number": 733,
+      "node_id": "I_kwDOQVcbSs8AAAABIqGqMA"
+    },
+    "phase4": {
+      "number": 734,
+      "node_id": "I_kwDOQVcbSs8AAAABIqGtkA"
+    },
+    "unphased": {
+      "number": 735,
+      "node_id": "I_kwDOQVcbSs8AAAABIqGw_Q"
+    }
+  },
+  "sub_issues_linked": [
+    "730->648",
+    "730->649",
+    "730->650",
+    "730->651",
+    "730->652",
+    "730->653",
+    "730->654",
+    "730->655",
+    "730->656",
+    "730->657",
+    "730->658",
+    "730->659",
+    "730->660",
+    "730->661",
+    "730->662",
+    "730->663",
+    "730->664",
+    "730->665",
+    "730->666",
+    "730->667",
+    "730->668",
+    "730->669",
+    "730->670",
+    "730->671",
+    "730->672",
+    "730->673",
+    "730->674",
+    "730->675",
+    "730->676",
+    "730->677",
+    "730->678",
+    "730->679",
+    "730->680",
+    "730->681",
+    "730->682",
+    "730->683",
+    "730->684",
+    "730->685",
+    "730->686",
+    "730->687",
+    "730->688",
+    "730->689",
+    "730->690",
+    "730->691",
+    "730->692",
+    "730->693",
+    "730->694",
+    "730->695",
+    "730->696",
+    "730->697",
+    "730->698",
+    "730->699",
+    "730->700",
+    "730->701",
+    "730->702",
+    "730->703",
+    "730->704",
+    "730->705",
+    "730->706",
+    "730->707",
+    "730->708",
+    "730->709",
+    "730->710",
+    "730->711",
+    "730->712",
+    "730->713",
+    "730->714",
+    "730->715",
+    "730->716",
+    "730->717",
+    "730->718",
+    "730->719",
+    "730->720",
+    "730->721",
+    "730->722",
+    "730->723",
+    "730->725",
+    "730->726",
+    "730->727",
+    "731->579",
+    "731->580",
+    "731->607",
+    "731->608",
+    "731->609",
+    "731->610",
+    "731->611",
+    "731->612",
+    "731->613",
+    "731->614",
+    "731->615",
+    "731->616",
+    "731->617",
+    "731->618",
+    "731->619",
+    "731->621",
+    "731->622",
+    "731->623",
+    "731->624",
+    "731->625",
+    "731->626",
+    "731->627",
+    "731->628",
+    "731->629",
+    "731->630",
+    "731->631",
+    "731->632",
+    "732->108",
+    "732->578",
+    "732->584",
+    "732->585",
+    "732->586",
+    "732->587",
+    "732->588",
+    "732->589",
+    "732->590",
+    "732->591",
+    "732->592",
+    "732->633",
+    "732->634",
+    "732->635",
+    "732->636",
+    "732->637",
+    "732->638",
+    "732->639",
+    "732->640",
+    "732->641",
+    "732->642",
+    "732->643",
+    "732->644",
+    "732->645",
+    "732->646",
+    "732->647",
+    "733->109",
+    "734->110",
+    "735->102",
+    "735->581",
+    "735->582",
+    "735->583",
+    "735->593",
+    "735->594",
+    "735->595",
+    "735->596",
+    "735->597",
+    "735->598",
+    "735->599",
+    "735->600",
+    "735->601",
+    "735->602",
+    "735->603",
+    "735->604",
+    "735->605",
+    "735->606",
+    "735->620",
+    "735->724",
+    "735->728"
+  ]
+}

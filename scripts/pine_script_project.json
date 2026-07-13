@@ -1,0 +1,52 @@
+{
+  "project_id": "PVT_kwHOAOc7384BdSi_",
+  "project_number": 5,
+  "project_url": "https://github.com/users/prajoria/projects/5",
+  "fields": {
+    "Area":     "PVTSSF_lAHOAOc7384BdSi_zhX1Hog",
+    "Priority": "PVTSSF_lAHOAOc7384BdSi_zhX1Hok",
+    "Type":     "PVTSSF_lAHOAOc7384BdSi_zhX1Hoo",
+    "Start":    "PVTF_lAHOAOc7384BdSi_zhX1Hos",
+    "End":      "PVTF_lAHOAOc7384BdSi_zhX1Hqs"
+  },
+  "options": {
+    "Area": {
+      "Parser":   "003d3de6",
+      "Runtime":  "f9bd956a",
+      "Types":    "aaacaf94",
+      "StdLib":   "2fe36165",
+      "Docs":     "cdc52034",
+      "Examples": "4b92c511",
+      "Tests":    "6df0743f",
+      "Tooling":  "622f7fa9"
+    },
+    "Priority": {
+      "P0": "0cbe9813",
+      "P1": "b8dbfb8e",
+      "P2": "083139cc",
+      "P3": "beb95063"
+    },
+    "Type": {
+      "Epic":    "d17da706",
+      "Feature": "ebf556ba",
+      "Task":    "b597b411",
+      "Bug":     "f133f51e"
+    }
+  },
+  "labels_created": [
+    "pine-script", "pine-parser", "pine-runtime", "pine-types",
+    "pine-stdlib", "pine-docs", "pine-examples", "pine-tests",
+    "pine-tooling", "priority-p0", "priority-p1", "priority-p2", "priority-p3"
+  ],
+  "labels_existed": ["type-epic"],
+  "epic": {
+    "number": 729,
+    "url": "https://github.com/prajoria/OpenBB/issues/729",
+    "node_id": "I_kwDOQVcbSs8AAAABIpkIXw",
+    "project_item_id": "PVTI_lAHOAOc7384BdSi_zgyq7-w",
+    "type": "Epic",
+    "priority": "P1",
+    "start": "2026-07-13",
+    "end": "2026-10-11"
+  }
+}
