@@ -1,18 +1,22 @@
-# bd → GitHub Issues Migration Plan (v3.1)
+# bd → GitHub Issues Migration Plan (v3.2)
 
 **Status:** DRAFT — awaiting approval
-**Date filed:** 2026-07-12
+**Date filed:** 2026-07-12 (v3.2 update: 2026-07-13)
 **Owner:** Prashant Rajoria (with Claude Code assistance)
-**Supersedes:** v3 — v3.1 addresses reviewer findings B1-B6 on PR #489:
-Appendix B (buggy `bd_gh_match.py` skeleton) removed; A3 defers script
-choice to plan-approver. `bd update --external-ref` flag verified
-inline. §2 documents closed-bead push behavior (push creates OPEN
-GH issue regardless of bd status). §C2 backgrounded-sync claim
-corrected to foreground. Rollback via `bd import` replaced with
-per-bead `bd close --reason=rollback` (JSONL edits prohibited by
-bd hygiene rules). Appendix A deduped: 86 unique ghost IDs (was
-73+15 with `bd-hpxh` counted twice). Added 2 mermaid diagrams:
-target-state data flow (§3), Phase A dep graph (§4).
+**Supersedes:** v3.1 — v3.2 addresses PR #489 re-review:
+- Appendix A rebuilt from live 80-ID grep. Was: block 1 = 73 rows
+  labeled "72 unique" (off by 1) and missing 7 real IDs. Now:
+  correct 80 commit-log IDs + 14 additional = **94 unique union**.
+- A2: explicit residual-duplicate cleanup step for
+  `OpenBBTechnical-1783912572966-1-5b51c294` (bd from the 2026-07-12
+  test pull) before A3 title-matching runs.
+- C4: expanded from CLAUDE.md-only to enumerate all 4 agent-
+  instruction surfaces (CLAUDE.md × 2, `.github/copilot-
+  instructions.md`, `AGENTS.md` BEADS + CODEX blocks). Contradictory
+  instructions across surfaces caused the original problem at the
+  instruction layer, same as the DB-layer collision.
+- A7: concrete YAML snippet the approver signs off on, not
+  approximate prose.
 **Companion doc (planned, Phase C):** `docs/BEADS_HYGIENE.md`
 
 ---
@@ -260,6 +264,16 @@ bd github pull 488               # execute
 - Execute reported: `✓ Pulled 1 issues (1 created, 0 updated)`
 - **Bd created a fresh bead** `OpenBBTechnical-1783912572966-1-5b51c294` with `external_ref: https://github.com/prajoria/OpenBB/issues/488` — it did **NOT** link to the existing matching bead `OpenBBTechnical-qy83.1.12`.
 - Duplicate has since been closed with reason pointing at `qy83.1.12`.
+  **Known residual (2026-07-13):** the closed duplicate bead
+  `OpenBBTechnical-1783912572966-1-5b51c294` remains in the DB
+  with `external_ref = https://github.com/prajoria/OpenBB/issues/488`
+  (the full URL form, not the canonical `gh-488` short form). Before
+  A3 runs, either (a) delete the bead entirely via
+  `bd delete OpenBBTechnical-1783912572966-1-5b51c294` (if that
+  command exists — verify), or (b) rewrite its `external_ref` to
+  the empty string via `bd update ... --external-ref ""`, so the
+  A3 title-matching pass doesn't treat it as a legitimate linkage.
+  Explicitly acknowledged rather than silently carried forward.
 
 **Consequences discovered:**
 
@@ -368,10 +382,22 @@ bd github push <pit-universe-id> <r1-ic-gate-id>
 
 ### A7 — Commit `.beads/config.yaml` with the manual github.owner/repo edit
 
-Once Phase A is stable:
+Once Phase A is stable, add these two lines to `.beads/config.yaml`
+(same top-level-key-with-colon style as the existing `sync.remote`
+entry near the bottom of the file — visible in `git diff`):
+
+```yaml
+sync.remote: "git+https://github.com/prajoria/OpenBB.git"
+
+# GitHub Issues sync (added Phase A A7 per docs/BD_MIGRATION_PLAN.md)
+github.owner: "prajoria"
+github.repo: "OpenBB"
+# github.token is NOT stored here — set via GITHUB_TOKEN env var
+```
+
+Then commit:
 
 ```bash
-# Edit .beads/config.yaml manually per A1 (or verify it was already edited)
 git add .beads/config.yaml
 git diff --cached                       # verify ONLY github.owner + github.repo lines added
 git commit -m "chore(beads): enable bd github sync (owner+repo, no secrets)"
@@ -503,10 +529,31 @@ Ongoing: after Phase C ships, `bd remember` still works but its
 canonical mirror is `docs/MEMORIES.md`. New memories go in both
 initially; bd `remember` may deprecate on a later cycle.
 
-### C4 — CLAUDE.md update
+### C4 — Agent-instruction surface updates
 
-Add a `## Coordination` section that:
+The bd-only directives are embedded in multiple agent-instruction
+files. All of them must be updated in the same PR so agents don't
+receive contradictory instructions.
 
+**Enumerated surfaces (verified 2026-07-13):**
+
+| File | Content | Action |
+|---|---|---|
+| `CLAUDE.md` (project) | "Beads Workflow Context" block + session-close protocol | Add `## Coordination` section citing `docs/BEADS_HYGIENE.md` as authoritative; deprecate bd-only rules |
+| `~/.claude/CLAUDE.md` (user global) | Beads coordination rules | Add note that project `CLAUDE.md` overrides on this repo |
+| `.github/copilot-instructions.md` | Lines 148-158 tell Copilot CLI "use bd for ALL task tracking" | Replace with mode-aware version (gh primary, bd fallback) |
+| `AGENTS.md` | `<!-- BEGIN BEADS INTEGRATION -->` block at line 52 + `<!-- BEGIN BEADS CODEX SETUP -->` at line 101 | Regenerate via `bd setup codex` after the migration, OR replace manually with the gh-first content |
+| `.claude/commands/openbb-dev-cycle.md` | Already updated in PR #490 | No action needed |
+
+**Rationale:** the CLAUDE.md update alone (as v3.1 said) is not
+enough. Copilot CLI reads `.github/copilot-instructions.md`; Codex
+reads the `<!-- BEGIN BEADS CODEX SETUP -->` block in `AGENTS.md`.
+Until all four surfaces are updated, agents in different runners
+will contradict each other on task tracking. This is the same
+"multiple sources of truth" bug that caused the bootstrap
+collision, at the instruction layer.
+
+Retains the original 3 bullets:
 - Cites `docs/BEADS_HYGIENE.md` as the authoritative protocol.
 - Removes the "Beads Workflow Context" block's rules that no
   longer apply (e.g., the ghost-ID recovery advice).
@@ -564,38 +611,46 @@ migration.
 
 ---
 
-## Appendix A — Ghost ID inventory (deduplicated for v3)
+## Appendix A — Ghost ID inventory (v3.2, verified 2026-07-13)
 
 **Sources combined:**
 1. `git log --all --oneline --grep='bd-[a-z0-9]\{3\}' --since='2026-06-01'`,
-   deduplicated (72 unique IDs after removing `bd-vwl` which does resolve)
+   deduplicated (81 unique IDs; `bd-vwl` excluded because it does
+   resolve as `OpenBBTechnical-vwl`; **80 commit-log ghost IDs**)
 2. Ensemble-lift spec + prior status summaries + `tmp/session-beads-
-   backup-2026-07-11.txt` (14 additional IDs not in commit-log grep)
+   backup-2026-07-11.txt` (**14 additional IDs** not in commit-log
+   grep; excludes `bd-hpxh` which is already in the commit-log list)
 
-**Total unique ghost IDs (union, deduped):** **86** — the two lists
-overlap on exactly `bd-hpxh`, which is documented once here.
-**Resolved in bd DB today:** 1 (`bd-vwl`, in the git-log set only).
+**Total unique ghost IDs (union):** **94** — matches §1's "80 of 81"
+statement for the commit-log subset, extended with 14 non-commit
+sources.
 
-**From commit-log grep (72 unique after excluding `bd-vwl`):**
+**Prior versions had incorrect counts** (v3.1 said 72+14=86; the
+block was actually 73 entries missing 7 real IDs — `bd-579`, `bd-cht`,
+`bd-liz`, `bd-omi`, `bd-q7u5`, `bd-wwvk`, `bd-ygoh`). Fixed in v3.2
+by regenerating the block from the live grep output.
+
+**Commit-log ghost IDs (80, verified 2026-07-13):**
 
 ```
-bd-0bp1     bd-2k86     bd-8sq      bd-c4h      bd-kpg      bd-t7p2
-bd-0h2.10   bd-3cf      bd-8tl      bd-dt1      bd-lef      bd-tnz
-bd-0h2.11   bd-3ch      bd-90e      bd-e3v8     bd-luy      bd-tzm
-bd-0h2.12   bd-3ka      bd-9bh      bd-fis      bd-lw3      bd-udq
-bd-0h2.14   bd-3qo      bd-9loj     bd-gv1e     bd-lyzk     bd-uolr
-bd-0h2.16   bd-3xq      bd-9nd.10   bd-gzf      bd-n3sf     bd-z7f
-bd-0h2.9    bd-4d0      bd-9nd.11   bd-hpxh     bd-o4q      bd-znw
-bd-0ru2     bd-5in      bd-9nd.12   bd-hyzu     bd-or5      bd-zuw
-bd-0uh      bd-6atb     bd-9nd.8    bd-ijq      bd-ph0
-bd-209      bd-78w      bd-9nd.9    bd-isvv     bd-qu2h
-bd-250      bd-7ct      bd-9zb      bd-jt4r     bd-r9m
-bd-2650     bd-85w      bd-bl57     bd-kbtx     bd-ri3
-bd-29n      bd-8j9      bd-c2fr     bd-kh08     bd-sqf
+bd-0bp1     bd-0h2.10   bd-0h2.11   bd-0h2.12   bd-0h2.14   bd-0h2.16
+bd-0h2.9    bd-0ru2     bd-0uh      bd-209      bd-250      bd-2650
+bd-29n      bd-2k86     bd-3cf      bd-3ch      bd-3ka      bd-3qo
+bd-3xq      bd-4d0      bd-579      bd-5in      bd-6atb     bd-78w
+bd-7ct      bd-85w      bd-8j9      bd-8sq      bd-8tl      bd-90e
+bd-9bh      bd-9loj     bd-9nd.10   bd-9nd.11   bd-9nd.12   bd-9nd.8
+bd-9nd.9    bd-9zb      bd-bl57     bd-c2fr     bd-c4h      bd-cht
+bd-dt1      bd-e3v8     bd-fis      bd-gv1e     bd-gzf      bd-hpxh
+bd-hyzu     bd-ijq      bd-isvv     bd-jt4r     bd-kbtx     bd-kh08
+bd-kpg      bd-lef      bd-liz      bd-luy      bd-lw3      bd-lyzk
+bd-n3sf     bd-o4q      bd-omi      bd-or5      bd-ph0      bd-q7u5
+bd-qu2h     bd-r9m      bd-ri3      bd-sqf      bd-t7p2     bd-tnz
+bd-tzm      bd-udq      bd-uolr     bd-wwvk     bd-ygoh     bd-z7f
+bd-znw      bd-zuw
 ```
 
-**Additional 14 ghost IDs from spec/summary/backup (excluding
-`bd-hpxh` which is already in the commit-log list above):**
+**Additional 14 ghost IDs from spec/summary/backup (not in commit
+log; `bd-hpxh` already listed above):**
 
 ```
 bd-b6k5     bd-7gwh     bd-gj2k     bd-8332     bd-1lgd
