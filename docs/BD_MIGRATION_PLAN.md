@@ -1,14 +1,18 @@
-# bd → GitHub Issues Migration Plan (v3)
+# bd → GitHub Issues Migration Plan (v3.1)
 
 **Status:** DRAFT — awaiting approval
 **Date filed:** 2026-07-12
 **Owner:** Prashant Rajoria (with Claude Code assistance)
-**Supersedes:** v2 of this doc — v2 assumed a naive `bd github sync
---pull-only` would produce a manageable de-dup pass. Executing A2
-live proved that bd creates duplicates by default (no title match)
-and that only 50/369 GH issues are pre-linked. v3 redesigns A3
-around title-similarity pre-matching with reviewer approval BEFORE
-any pull creates duplicates. See §8 for v1→v2→v3 history.
+**Supersedes:** v3 — v3.1 addresses reviewer findings B1-B6 on PR #489:
+Appendix B (buggy `bd_gh_match.py` skeleton) removed; A3 defers script
+choice to plan-approver. `bd update --external-ref` flag verified
+inline. §2 documents closed-bead push behavior (push creates OPEN
+GH issue regardless of bd status). §C2 backgrounded-sync claim
+corrected to foreground. Rollback via `bd import` replaced with
+per-bead `bd close --reason=rollback` (JSONL edits prohibited by
+bd hygiene rules). Appendix A deduped: 86 unique ghost IDs (was
+73+15 with `bd-hpxh` counted twice). Added 2 mermaid diagrams:
+target-state data flow (§3), Phase A dep graph (§4).
 **Companion doc (planned, Phase C):** `docs/BEADS_HYGIENE.md`
 
 ---
@@ -85,6 +89,13 @@ as commented-out placeholders but was never turned on.
 - **50 beads have `external_ref` set** — covering GH #89 + #356–#403 (a contiguous range from a prior era of manual linking)
 - **319 GH issues have NO bd linkage**
 - **690 bd beads have NO GH linkage**
+- **Closed-bead push behavior** — verified via `bd github push
+  <closed-id> --dry-run` on `OpenBBTechnical-qy83.1.15` (closed
+  bead): bd reports `Would create in GitHub: <title>` and would file
+  the GH issue in **OPEN** state regardless of the bd status. To
+  mirror closed status, a follow-up `gh issue close <#N>` is
+  required. This has direct consequence for A5 (closing 6 QC-R1
+  epics) — plan on push + close, not push alone.
 
 **Verified risks:**
 
@@ -135,6 +146,31 @@ Parallel-dev contamination model at the target state:
 | Ghost IDs from bootstrap | **Eliminated** — if bd DB is lost, `bd github sync --pull-only` rebuilds it from GH's immutable IDs |
 | Stale in-progress epics | `bd list --status in_progress` at session close + GH's own task-list rendering on parent issues |
 
+### Data flow at the target state
+
+```mermaid
+flowchart LR
+    dev[Developer / Agent] -->|bd create/close/update| bd[(bd local Dolt DB)]
+    bd -->|bd github sync\n--push-only| gh[(GitHub Issues)]
+    gh -->|bd github sync\n--pull-only| bd
+    bd -->|bd ready / dep queries| dev
+    gh -->|gh issue list / view| dev
+    dev -->|Closes #NN in commit| commit[(git history)]
+    commit -.->|auto-close on merge| gh
+
+    classDef durable fill:#e0f2ff,stroke:#1976d2,stroke-width:2px
+    classDef coord fill:#fff3e0,stroke:#f57c00
+    classDef ephemeral fill:#f5f5f5,stroke:#9e9e9e
+    class gh,commit durable
+    class bd coord
+    class dev ephemeral
+```
+
+- **Solid lines** = happens on every write.
+- **Dashed line** = GitHub's built-in `Closes #NN` auto-close.
+- **Blue** = durable (server-side, immutable IDs).
+- **Orange** = local coordination layer (fast queries, rebuildable from GH).
+
 ---
 
 ## 4. Phase A — verify + configure + pull-first
@@ -143,6 +179,44 @@ Parallel-dev contamination model at the target state:
 repo's specific state (852 beads + 488 GH issues + 114 GH labels)
 before any bulk push. All actions except the config commit are
 inspectable via `--dry-run` first.
+
+### Phase A step dependency graph
+
+```mermaid
+flowchart TD
+    A1["A1: Configure bd github<br/>(env + yaml keys)"]
+    A2["A2: Pull test — single<br/>GH issue #488 ✅ DONE"]
+    A3["A3: Title-similarity<br/>pre-match → TSV → approval"]
+    A4["A4: Pull the reconciled<br/>remainder"]
+    A5["A5: Push 6 QC-R1 epics<br/>(then gh close each)"]
+    A6["A6: File 2 trend-family<br/>beads + gh mirror"]
+    A7["A7: Commit .beads/<br/>config.yaml"]
+    A8["A8: bd dolt push +<br/>git push"]
+
+    A1 --> A2
+    A2 --> A3
+    A3 -->|TSV approved by user| A4
+    A4 --> A5
+    A4 --> A6
+    A5 --> A7
+    A6 --> A7
+    A7 --> A8
+
+    classDef done fill:#c8e6c9,stroke:#2e7d32
+    classDef blocked fill:#ffcdd2,stroke:#c62828
+    classDef ready fill:#fff3e0,stroke:#f57c00
+    class A1,A2 done
+    class A3 blocked
+    class A4,A5,A6,A7,A8 ready
+```
+
+- **Green** = executed live 2026-07-12.
+- **Red** = blocked on user approval of A3 design (this doc).
+- **Amber** = ready to execute once A3 unblocks.
+- All edges represent hard prerequisites: A3 cannot run without
+  A2's observations, A4 cannot run without A3's approved
+  pairings, A8 cannot run without both A7 and the other Phase A
+  writes.
 
 ### A1 — Configure bd github
 
@@ -207,12 +281,12 @@ gh issue list --repo prajoria/OpenBB --state all --limit 500 --json number,title
   > /tmp/gh_issues.json
 bd list --limit 0 --json > /tmp/bd_beads.json
 
-# Step 2: compute title-similarity candidate pairs (script in Appendix B)
-python scripts/bd_gh_match.py \
-  --gh /tmp/gh_issues.json --bd /tmp/bd_beads.json \
-  --min-score 0.75 \
-  --exclude-linked \
-  > /tmp/proposed_pairings.tsv
+# Step 2: compute title-similarity candidate pairs
+# The plan-approver picks the matching mechanism — Python script, awk,
+# spreadsheet, manual grep, or an existing tool. This doc doesn't
+# prescribe one because (a) any correct top-k title similarity works,
+# (b) shipping a script in the plan-doc PR is out of scope.
+# Whatever tool is used must produce a TSV in the format below.
 ```
 
 **Output format (proposed_pairings.tsv):**
@@ -232,7 +306,12 @@ Three action categories:
 
 **Execution:** batch script iterates the TSV, calling `bd update ... --external-ref` for LINKs, `bd github pull <N>` for PULL_NEWs, and `gh issue close` for CLOSE_GHs. Each row is one API call; if any row fails, log it and continue.
 
-**Verified constraint:** must confirm that `bd update --external-ref` actually exists as a bd flag (check `bd update --help`). If not, direct Dolt SQL update on the `.beads/*.db` DB is the fallback.
+**Verified 2026-07-12:** `bd update --external-ref` exists as a bd
+flag. Live verification: `bd update --help | grep external-ref` shows
+`--external-ref string    External reference (e.g., 'gh-9', 'jira-ABC', Linear URL)`.
+Short-form `gh-<N>` is the canonical format the other 50 pre-linked
+beads use — that's what the script must emit (**not** the full URL,
+which would be an inconsistent linkage format).
 
 ### A4 — Pull the reconciled remainder (safe, no more duplicates)
 
@@ -386,17 +465,29 @@ Simple rules, grounded in bd github sync's actual behavior:
    default. `--prefer-github` if bd was locally corrupted.
    `--prefer-local` if GH was mass-edited externally.
 
-### C2 — Post-hook for auto-sync (optional)
+### C2 — Post-hook for foreground auto-sync (optional)
 
 `.beads/hooks/post-update.sh`:
 
 ```bash
 #!/usr/bin/env bash
-# Runs after any bd write; syncs to GH in the background.
-bd github sync --push-only --quiet &
+# Runs after any bd write; syncs to GH before returning control.
+# Foreground (blocking) — do NOT background with `&`. A backgrounded
+# sync contradicts the "immediate GH visibility" goal: the bd write
+# returns, control passes to the next command, but GH may lag by
+# seconds (until the background process actually completes). Any
+# subsequent `gh issue view` in the same shell can see stale state.
+# Foreground makes the write atomic-with-visibility at the cost of
+# adding the sync latency (~0.5-2s per operation) to every bd call.
+bd github sync --push-only --quiet
 ```
 
 Wire via `bd config set hooks.post-update .beads/hooks/post-update.sh`.
+
+**Trade-off:** users who value command latency over strict "GH sees
+it now" ordering may prefer to omit this hook and run
+`bd github sync --push-only` manually at logical checkpoints
+(session close, before opening a PR, etc.).
 
 ### C3 — `docs/MEMORIES.md` seed
 
@@ -426,9 +517,13 @@ Add a `## Coordination` section that:
 ## 7. Rollback plan
 
 - **A1-A2:** env var + config unset, no state changes.
-- **A3 (pull):** `bd list --status open --json > /tmp/pre-pull.json`
-  before running; if pull creates unexpected duplicates, restore
-  via `bd import /tmp/pre-pull.json` (JSONL round-trip).
+- **A3 (pull):** every pull that turns out to be a duplicate gets
+  closed with `bd close <new-id> --reason="rollback: duplicate of
+  <existing-id>"`. Do NOT use `bd import` to bulk-restore from a
+  pre-pull JSONL snapshot — direct edits to `.beads/issues.jsonl`
+  are prohibited by the bd hygiene rules (JSONL is a passive export
+  that gets overwritten by the next `bd` write). Roll back one
+  bead at a time via `bd close` with an audit-trail reason.
 - **A5-A6:** individual `bd close --reason=rollback` + `gh issue close`
   on the specific new issues created.
 - **A7 config commit:** single revert.
@@ -469,13 +564,19 @@ migration.
 
 ---
 
-## Appendix A — Ghost ID inventory (unchanged from v1)
+## Appendix A — Ghost ID inventory (deduplicated for v3)
 
-**Source:** `git log --all --oneline --grep='bd-[a-z0-9]\{3\}'
---since='2026-06-01'`, deduplicated. **Total:** 81 unique bd IDs.
-**Resolved in bd DB today:** 1 (`bd-vwl`). **Ghost:** 80.
+**Sources combined:**
+1. `git log --all --oneline --grep='bd-[a-z0-9]\{3\}' --since='2026-06-01'`,
+   deduplicated (72 unique IDs after removing `bd-vwl` which does resolve)
+2. Ensemble-lift spec + prior status summaries + `tmp/session-beads-
+   backup-2026-07-11.txt` (14 additional IDs not in commit-log grep)
 
-Complete list:
+**Total unique ghost IDs (union, deduped):** **86** — the two lists
+overlap on exactly `bd-hpxh`, which is documented once here.
+**Resolved in bd DB today:** 1 (`bd-vwl`, in the git-log set only).
+
+**From commit-log grep (72 unique after excluding `bd-vwl`):**
 
 ```
 bd-0bp1     bd-2k86     bd-8sq      bd-c4h      bd-kpg      bd-t7p2
@@ -493,13 +594,13 @@ bd-2650     bd-85w      bd-bl57     bd-kbtx     bd-ri3
 bd-29n      bd-8j9      bd-c2fr     bd-kh08     bd-sqf
 ```
 
-Additional ghost IDs referenced elsewhere (from the ensemble-lift
-spec + prior status summaries):
+**Additional 14 ghost IDs from spec/summary/backup (excluding
+`bd-hpxh` which is already in the commit-log list above):**
 
 ```
 bd-b6k5     bd-7gwh     bd-gj2k     bd-8332     bd-1lgd
 bd-j7mw     bd-d4r3     bd-a4cl     bd-69px     bd-w1g7
-bd-hpxh     bd-tik      bd-40v      bd-z43      bd-alj
+bd-tik      bd-40v      bd-z43      bd-alj
 ```
 
 Note: with `bd github sync` in place, these ghost IDs remain
@@ -514,74 +615,6 @@ The v1 plan's Phase A step "file an aggregate `[bd-archive]` GH
 issue" is preserved as an option for A5/A6 if you want the ghost
 list mirrored to GH. Not strictly necessary once bd github sync
 runs on the live DB.
-
----
-
-## Appendix B — bd_gh_match.py skeleton (used by A3)
-
-Rough pseudocode for the title-similarity script referenced in A3:
-
-```python
-#!/usr/bin/env python
-"""bd_gh_match.py — propose bd↔GH pairings by title similarity.
-
-Emits a TSV of (gh_number, gh_title, bd_id, bd_title, score, action)
-for reviewer approval. Never modifies bd or GH state.
-"""
-import argparse, json, sys
-from difflib import SequenceMatcher
-
-def normalize(s: str) -> str:
-    # Strip common noise: [prefix] tags, punctuation, whitespace runs
-    import re
-    s = re.sub(r'\[[^\]]+\]', ' ', s)          # remove [portfolio] etc.
-    s = re.sub(r'[^\w\s]', ' ', s.lower())      # strip punct
-    s = re.sub(r'\s+', ' ', s).strip()
-    return s
-
-def similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, normalize(a), normalize(b)).ratio()
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--gh', required=True)
-    ap.add_argument('--bd', required=True)
-    ap.add_argument('--min-score', type=float, default=0.75)
-    ap.add_argument('--exclude-linked', action='store_true')
-    args = ap.parse_args()
-
-    gh = json.load(open(args.gh))
-    bd_raw = open(args.bd).read()
-    i = bd_raw.rfind(']')
-    bd = json.loads(bd_raw[:i+1])
-
-    linked_refs = {b['external_ref'] for b in bd if b.get('external_ref')}
-    unlinked_gh = [g for g in gh
-                   if f"gh-{g['number']}" not in linked_refs]
-    unlinked_bd = [b for b in bd
-                   if not (args.exclude_linked and b.get('external_ref'))]
-
-    print("GH#\tGH title\tbd ID\tbd title\tscore\taction")
-    for g in unlinked_gh:
-        best = max(
-            ((similarity(g['title'], b['title']), b) for b in unlinked_bd),
-            key=lambda x: x[0],
-            default=(0, None),
-        )
-        score, bead = best
-        if bead and score >= args.min_score:
-            action = "LINK"
-            print(f"{g['number']}\t{g['title']}\t{bead['id']}\t{bead['title']}\t{score:.2f}\t{action}")
-        else:
-            print(f"{g['number']}\t{g['title']}\t-\t-\t{score:.2f}\tPULL_NEW")
-
-if __name__ == '__main__':
-    main()
-```
-
-Script lives at `scripts/bd_gh_match.py` (not yet committed). If
-the reviewer approves the A3 approach, this script gets committed
-as a separate small PR alongside the plan.
 
 ---
 
