@@ -33,9 +33,11 @@ from collections.abc import Callable
 from pathlib import Path
 
 # ----------------------------------------------------------------------------
-# Configuration — the ONLY hardcoded path in the whole program.
+# Configuration — path is env-var overridable so Linux/CI dev-machines can
+# point elsewhere without editing the script (PR #474 review finding 2).
 # ----------------------------------------------------------------------------
-SHARED_ENV_PATH = Path("H:/masterswork/git/.env")
+_DEFAULT_SHARED_ENV = Path("H:/masterswork/git/.env")
+SHARED_ENV_PATH = Path(os.environ.get("PI_SHARED_ENV_PATH", str(_DEFAULT_SHARED_ENV)))
 
 # Variables the shared .env must supply. Values are NEVER printed —
 # only the presence + non-emptiness is asserted.
@@ -48,10 +50,11 @@ REQUIRED_VARS: tuple[str, ...] = (
 
 # Packages that must import cleanly for Lane A/B/C work to proceed.
 # Note: openbb_fmp_cached is intentionally NOT in this set at M0 because
-# it currently fails to import due to a fork-wide provider mismatch
-# (references openbb_fmp.models.aftermarket_trade which does not exist in
-# openbb-fmp 1.6.1) — tracked separately in bead OpenBBTechnical-qy83.1.14.
-# The smoke test will re-include it once that bead is fixed.
+# it had a used-before-defined NameError in cache_schema.py (tracked in
+# OpenBBTechnical-qy83.1.15, fixed in a separate PR against develop +
+# a mirror fix against portfolio). Re-include this once both fixes have
+# merged and downstream branches rebase. The original qy83.1.14 bead
+# was closed as superseded by qy83.1.15.
 REQUIRED_IMPORTS: tuple[str, ...] = (
     "openbb_core.app.router",
     "pandas",
@@ -123,19 +126,24 @@ def check_imports() -> tuple[bool, str]:
 
 
 def check_running_under_venv() -> tuple[bool, str]:
-    """Warn if system Python is invoked instead of .venv_win/python.
+    """Warn if system Python is invoked instead of a project venv.
 
-    CLAUDE.md is unambiguous: never use system Python. This is a
-    frequent, silent, painful failure mode — global Python's packages
-    are almost always the wrong version.
+    Uses the PEP 405 idiom ``sys.prefix != sys.base_prefix`` (true only inside
+    a venv, whether stdlib-created ``.venv_win``, poetry's
+    ``~/.cache/pypoetry/virtualenvs/…``, or any other tool). The previous
+    ``prefix.name.startswith('.venv')`` heuristic false-negatived on Poetry
+    envs (PR #474 review finding 3).
+
+    CLAUDE.md is unambiguous: never use system Python. This is a frequent,
+    silent, painful failure mode — global Python's packages are almost
+    always the wrong version.
     """
     prefix = Path(sys.prefix)
-    is_venv = prefix.name.startswith(".venv") or "venv" in prefix.parts
-    if not is_venv:
+    if sys.prefix == sys.base_prefix:
         return (
             False,
-            f"running under {prefix} — expected .venv_win/. "
-            "Activate the venv or invoke .venv_win/Scripts/python.exe.",
+            f"running under system Python at {prefix} — expected a venv. "
+            "Activate .venv_win or invoke .venv_win/Scripts/python.exe.",
         )
     return True, f"under venv at {prefix}"
 
