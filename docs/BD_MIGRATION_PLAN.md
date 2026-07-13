@@ -1,9 +1,14 @@
-# bd → GitHub Issues Migration Plan (v2)
+# bd → GitHub Issues Migration Plan (v3)
 
 **Status:** DRAFT — awaiting approval
 **Date filed:** 2026-07-12
 **Owner:** Prashant Rajoria (with Claude Code assistance)
-**Supersedes:** v1 of this doc (commit `bf273c57d`, obsolete — v1 hand-rolled a pairing protocol without checking that `bd github sync` exists natively).
+**Supersedes:** v2 of this doc — v2 assumed a naive `bd github sync
+--pull-only` would produce a manageable de-dup pass. Executing A2
+live proved that bd creates duplicates by default (no title match)
+and that only 50/369 GH issues are pre-linked. v3 redesigns A3
+around title-similarity pre-matching with reviewer approval BEFORE
+any pull creates duplicates. See §8 for v1→v2→v3 history.
 **Companion doc (planned, Phase C):** `docs/BEADS_HYGIENE.md`
 
 ---
@@ -67,10 +72,19 @@ as commented-out placeholders but was never turned on.
 |---|---|---|
 | Push a single bead to GH | ✅ | `bd github push <bead-id> --dry-run` shows "Would create in GitHub: <title>" |
 | Push all beads to GH | ✅ | `bd github sync --dry-run --push-only` reports it would create **852 issues** (all statuses, not just open) |
-| Pull a specific GH issue into bd | ✅ | `bd github pull <#NN> --dry-run` shows "Would import" |
+| Pull a specific GH issue into bd | ✅ | `bd github pull <#NN>` — **VERIFIED (executed live A2 2026-07-12):** creates a fresh bead, does NOT auto-match to existing beads with the same title |
 | Bidirectional sync | ✅ | Default `bd github sync` mode; conflict resolution via `--prefer-github`/`--prefer-local`/`--prefer-newer` |
 | Auth via env var | ✅ | `export GITHUB_TOKEN=$(gh auth token)` works if the `gh` CLI is signed in |
 | Selective sync by bead ID | ✅ | `--issues bd-a,bd-b,...` and `--parent <epic>` flags |
+| **Linkage field** | ✅ | Beads with `external_ref = gh-<N>` (short form) or the full GH URL are linked. Bd matches by exact `external_ref`, not title. |
+
+**Verified state (2026-07-12 counts):**
+
+- **369 GitHub issues** exist (#1 to #488, open + closed)
+- **740 bd beads** exist (713 open, 27 in-progress or blocked)
+- **50 beads have `external_ref` set** — covering GH #89 + #356–#403 (a contiguous range from a prior era of manual linking)
+- **319 GH issues have NO bd linkage**
+- **690 bd beads have NO GH linkage**
 
 **Verified risks:**
 
@@ -159,59 +173,77 @@ bd github status   # expect "✓ Configured"
 The token stays in `GITHUB_TOKEN` env var only — **never in the
 committed config file.**
 
-### A2 — Test pull-first on a single known GH issue
+### A2 — Test pull-first on a single known GH issue (✅ EXECUTED 2026-07-12)
 
 ```bash
-bd github pull 488 --dry-run    # #488 = the retroactive bd-qy83.1.12 mirror I filed earlier
+bd github pull 488 --dry-run    # #488 = the retroactive bd-qy83.1.12 mirror
+bd github pull 488               # execute
 ```
 
-**Expect:** "Would import: 488 - [bd] Dolt dep-schema missing depends_on_id column"
+**Observed behavior (critical for A3 design):**
 
-Then execute for real:
+- Dry-run reported: `[dry-run] Would import: 488 - [bd] Dolt dep-schema missing depends_on_id column (blocks all bd link)`
+- Execute reported: `✓ Pulled 1 issues (1 created, 0 updated)`
+- **Bd created a fresh bead** `OpenBBTechnical-1783912572966-1-5b51c294` with `external_ref: https://github.com/prajoria/OpenBB/issues/488` — it did **NOT** link to the existing matching bead `OpenBBTechnical-qy83.1.12`.
+- Duplicate has since been closed with reason pointing at `qy83.1.12`.
+
+**Consequences discovered:**
+
+1. **`external_ref` is bd's linkage field.** Bd matches an incoming GH issue to an existing bead only if that bead's `external_ref` = the GH URL/short-ref. Otherwise it creates a new bead. No title-similarity matching, no fuzzy match.
+2. **50 of 740 total beads already have `external_ref`** — all in the `gh-<N>` short form (e.g. `gh-381`, `gh-380`). These cover GH #89 and the contiguous range #356-#403. So a subset of the bd DB was previously linked to GH by some earlier tool/session, but the linkage was never continued.
+3. **319 of 369 GH issues have no bd-side external_ref** → a blind pull would create 319 duplicate beads.
+
+**Implication for A3:** the plan needs a title-similarity pre-match pass to propose bead-to-issue pairings for reviewer approval BEFORE any pull creates duplicates. Bulk pull is unsafe without this.
+
+### A3 — Pre-match unlinked GH issues to existing beads (redesigned after A2)
+
+**Goal:** produce a triage table of candidate bead↔GH-issue pairings so the reviewer can approve linkages before bd pulls (and would-otherwise-duplicate) any of them.
+
+**Approach:**
 
 ```bash
-bd github pull 488
-bd list --status closed | grep -i "dolt"   # should now show a bead pulled from #488
+# Step 1: enumerate the unlinked set on each side
+gh issue list --repo prajoria/OpenBB --state all --limit 500 --json number,title,state,body \
+  > /tmp/gh_issues.json
+bd list --limit 0 --json > /tmp/bd_beads.json
+
+# Step 2: compute title-similarity candidate pairs (script in Appendix B)
+python scripts/bd_gh_match.py \
+  --gh /tmp/gh_issues.json --bd /tmp/bd_beads.json \
+  --min-score 0.75 \
+  --exclude-linked \
+  > /tmp/proposed_pairings.tsv
 ```
 
-**Observe:**
-- Does bd create a new bead ID or link to the existing
-  `OpenBBTechnical-qy83.1.12`? (Critical — determines duplicate
-  behavior.)
-- Does bd preserve the GH issue body verbatim? Labels?
-  Closed-status?
+**Output format (proposed_pairings.tsv):**
 
-If the observation shows a duplicate is created (fresh bead ID
-rather than linking to `qy83.1.12`), **stop Phase A** and file
-that as a bd upstream issue. Migration plan then needs a
-manual reconciliation step for pre-existing GH↔bd matches.
+| GH# | GH title | bd ID | bd title | similarity | action |
+|---|---|---|---|---|---|
+| 100 | fix(fmp): retry on 429 | OpenBBTechnical-abc | fmp: retry on 429 rate limits | 0.92 | LINK |
+| 210 | [portfolio] paper broker | OpenBBTechnical-qy83.4.9 | [portfolio] [P2][Paper][Fills v0] Market + Limit orders | 0.83 | LINK |
+| 305 | orphan GH issue | — | — | — | PULL_NEW |
 
-### A3 — Pull the full existing GH issue set
+Three action categories:
+- **LINK** — matched pair. Set the bead's `external_ref` to `gh-<N>` (via `bd update <id> --external-ref gh-<N>` or direct DB update). Do NOT pull; it's already linked after the ref-set.
+- **PULL_NEW** — GH issue with no bd match; safe to `bd github pull <N>` → creates a fresh bead legitimately.
+- **CLOSE_GH** — GH issue is a stale reference to already-shipped work; close on GH, don't pull to bd.
 
-Once A2 confirms sane pull behavior:
+**Reviewer approves the TSV** (visually inspect, downgrade suspect LINK→PULL_NEW, upgrade some low-similarity pairs, mark CLOSE_GH). Approved TSV becomes the input to an execution script.
+
+**Execution:** batch script iterates the TSV, calling `bd update ... --external-ref` for LINKs, `bd github pull <N>` for PULL_NEWs, and `gh issue close` for CLOSE_GHs. Each row is one API call; if any row fails, log it and continue.
+
+**Verified constraint:** must confirm that `bd update --external-ref` actually exists as a bd flag (check `bd update --help`). If not, direct Dolt SQL update on the `.beads/*.db` DB is the fallback.
+
+### A4 — Pull the reconciled remainder (safe, no more duplicates)
+
+After A3 sets `external_ref` on every matched bead:
 
 ```bash
-bd github sync --pull-only --dry-run   # count how many GH issues would import
+bd github sync --pull-only --dry-run   # should now show only genuine unmatched GH issues
 bd github sync --pull-only              # execute
 ```
 
-**Expected outcome:** all 488 existing GH issues become beads in the
-bd DB. Some will duplicate existing beads (which is why A2 mattered);
-we deal with duplicates in A4.
-
-### A4 — Reconcile duplicates
-
-Run a manual sweep:
-
-```bash
-bd list --status open --json | jq '.[] | select(.title | test("^\\[bd\\]"))' | head
-# any beads titled "[bd] ..." are likely GH-pulled versions of existing beads
-```
-
-For each duplicate pair (bd-native + gh-pulled), decide which is
-authoritative and `bd close` the other with a reason pointing at
-the survivor. This is the manual pass the v1 plan tried to avoid;
-turns out it's unavoidable when merging two ID spaces.
+**Expected count:** ~50-150 new beads (only the PULL_NEW rows from A3). Any bead created here is intentional.
 
 ### A5 — Selective push: the 6 QC-R1 epics + trend-family follow-ups
 
@@ -485,16 +517,86 @@ runs on the live DB.
 
 ---
 
+## Appendix B — bd_gh_match.py skeleton (used by A3)
+
+Rough pseudocode for the title-similarity script referenced in A3:
+
+```python
+#!/usr/bin/env python
+"""bd_gh_match.py — propose bd↔GH pairings by title similarity.
+
+Emits a TSV of (gh_number, gh_title, bd_id, bd_title, score, action)
+for reviewer approval. Never modifies bd or GH state.
+"""
+import argparse, json, sys
+from difflib import SequenceMatcher
+
+def normalize(s: str) -> str:
+    # Strip common noise: [prefix] tags, punctuation, whitespace runs
+    import re
+    s = re.sub(r'\[[^\]]+\]', ' ', s)          # remove [portfolio] etc.
+    s = re.sub(r'[^\w\s]', ' ', s.lower())      # strip punct
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
+
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, normalize(a), normalize(b)).ratio()
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--gh', required=True)
+    ap.add_argument('--bd', required=True)
+    ap.add_argument('--min-score', type=float, default=0.75)
+    ap.add_argument('--exclude-linked', action='store_true')
+    args = ap.parse_args()
+
+    gh = json.load(open(args.gh))
+    bd_raw = open(args.bd).read()
+    i = bd_raw.rfind(']')
+    bd = json.loads(bd_raw[:i+1])
+
+    linked_refs = {b['external_ref'] for b in bd if b.get('external_ref')}
+    unlinked_gh = [g for g in gh
+                   if f"gh-{g['number']}" not in linked_refs]
+    unlinked_bd = [b for b in bd
+                   if not (args.exclude_linked and b.get('external_ref'))]
+
+    print("GH#\tGH title\tbd ID\tbd title\tscore\taction")
+    for g in unlinked_gh:
+        best = max(
+            ((similarity(g['title'], b['title']), b) for b in unlinked_bd),
+            key=lambda x: x[0],
+            default=(0, None),
+        )
+        score, bead = best
+        if bead and score >= args.min_score:
+            action = "LINK"
+            print(f"{g['number']}\t{g['title']}\t{bead['id']}\t{bead['title']}\t{score:.2f}\t{action}")
+        else:
+            print(f"{g['number']}\t{g['title']}\t-\t-\t{score:.2f}\tPULL_NEW")
+
+if __name__ == '__main__':
+    main()
+```
+
+Script lives at `scripts/bd_gh_match.py` (not yet committed). If
+the reviewer approves the A3 approach, this script gets committed
+as a separate small PR alongside the plan.
+
+---
+
 ## Approval checklist
 
 Reviewer signs off on:
 
-- [ ] Phase A steps A1-A2 (config + single-issue pull test) —
-  safe to run mid-session, no bulk operations
-- [ ] Phase A step A3 (full pull) requires explicit go-ahead after
-  A2 observations
-- [ ] Phase A step A4 (reconcile duplicates) is a manual pass —
-  approve the approach (bd close the loser, note the survivor)
+- [x] Phase A step A1 (config) — DONE (github.owner/repo set in bd
+  DB; yaml commit deferred to A7)
+- [x] Phase A step A2 (single-issue pull test) — DONE (verified bd
+  creates duplicates by default; `external_ref` is the linkage field;
+  50/369 GH issues already pre-linked)
+- [ ] Phase A step A3 (**redesigned**) — title-similarity pre-match
+  → reviewer approves TSV → batch-execute LINK/PULL_NEW/CLOSE_GH
+- [ ] Phase A step A4 (safe pull of unmatched remainder after A3)
 - [ ] Phase A step A5-A6 (selective push of 6 QC epics + 2 new
   trend-family beads) requires explicit go-ahead per batch
 - [ ] Phase A step A7 (`.beads/config.yaml` commit) — verify only
@@ -502,7 +604,8 @@ Reviewer signs off on:
 - [ ] Phase B and Phase C scope as described
 - [ ] Rollback plan (§7) suffices for each step
 
-**Bottom line:** v2 is much less code than v1, because `bd github
-sync` does most of the mechanics. The work is the *care*: pull
-before push, dry-run before bulk, reconcile duplicates manually,
-consolidate labels once. Then it self-maintains.
+**Bottom line:** v3 replaces v2's naive "bulk pull then clean up
+duplicates" with "pre-match → reviewer approves pairings → batch-
+execute → then pull only the genuine remainder." This is more
+work up front but avoids the 319-duplicate blast radius that v2's
+A3 would have created.
