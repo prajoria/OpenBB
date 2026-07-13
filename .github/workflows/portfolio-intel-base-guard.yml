@@ -32,15 +32,23 @@ jobs:
           echo "head-branch=${{ steps.branch-names.outputs.head_ref_branch }}"
           echo "base-branch=${{ steps.branch-names.outputs.base_ref_branch }}"
 
-      - name: Fail if a feat/pi-* branch targets develop or main
+      - name: Fail if a portfolio-intel branch targets develop or main
         env:
           HEAD_REF: ${{ steps.branch-names.outputs.head_ref_branch }}
           BASE_REF: ${{ steps.branch-names.outputs.base_ref_branch }}
         run: |
-          if [[ "$HEAD_REF" == feat/pi-* ]]; then
+          # Case-insensitive prefix match so Feat/pi-, FEAT/PI-, feature/pi-
+          # variants are also caught (PR #471 R2 finding 1). We explicitly
+          # accept the canonical `feat/pi-` AND any recognisable variant so
+          # a contributor typing `Feature/pi-x` doesn't silently bypass.
+          shopt -s nocasematch
+          if [[ "$HEAD_REF" == feat/pi-* ]] || \
+             [[ "$HEAD_REF" == feature/pi-* ]] || \
+             [[ "$HEAD_REF" == pi/* ]]; then
             echo "::error title=Wrong base branch::" \
                  "The head branch '$HEAD_REF' looks like portfolio-intel work" \
-                 "(feat/pi-* prefix), but this PR targets '$BASE_REF'." \
+                 "(feat/pi-* / feature/pi-* / pi/* prefix, case-insensitive)," \
+                 "but this PR targets '$BASE_REF'." \
                  "Per Execution Plan §2A, portfolio-intel PRs must target" \
                  "the 'portfolio' integration branch — the single" \
                  "portfolio→develop merge happens only at the M4 gate."
