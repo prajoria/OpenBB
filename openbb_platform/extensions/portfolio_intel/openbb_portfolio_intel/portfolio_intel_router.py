@@ -1,9 +1,18 @@
 """Top-level router for the portfolio_intel extension.
 
-Assembles the public ``obb.portfolio.intel.*`` surface. Sub-routers are
+Assembles the public ``obb.portfolio_intel.*`` surface. Sub-routers are
 attached lazily inside :func:`_include_subrouters` so that a missing
 optional sub-router (still under construction in P1/P2/P3) never breaks
 extension import. This mirrors the pattern used by ``openbb_backtest``.
+
+.. note::
+   The public namespace is ``obb.portfolio_intel.*`` (underscore, matching
+   the ``openbb_core_extension`` entry-point key), NOT ``obb.portfolio.intel.*``.
+   OpenBB's plugin loader does not dot-split entry-point keys — see the
+   sibling ``openbb-backtest`` extension whose entry-point ``backtest`` maps
+   to ``obb.backtest.*``. Nesting under ``obb.portfolio.*`` would collide
+   with the ``openbb-portfolio`` / ``openbb-portfolio-custom`` namespace
+   and was explicitly rejected during PR #466 review.
 
 In M0 the only command is :func:`about` — a health-check that returns the
 extension's version and name. Every widget that keys off
@@ -32,41 +41,46 @@ class ExtensionAbout(BaseModel):
     scope: str
 
 
+# Modules whose ImportError is expected to be swallowed silently (they are
+# planned sub-routers, not yet implemented). Every other ImportError — e.g.
+# a typo inside one of these modules once it exists — surfaces loudly so
+# CI catches it, addressing PR #466 review finding 2 (blanket
+# ``except ImportError`` was hiding real bugs).
+_PLANNED_SUBROUTERS: tuple[str, ...] = (
+    "openbb_portfolio_intel.routers.xray_router",
+    "openbb_portfolio_intel.routers.events_router",
+    "openbb_portfolio_intel.routers.smart_money_router",
+    "openbb_portfolio_intel.routers.risk_router",
+    "openbb_portfolio_intel.routers.whatif_router",
+    "openbb_portfolio_intel.routers.paper_router",
+    "openbb_portfolio_intel.routers.alerts_router",
+)
+
+
 def _include_subrouters() -> None:
     """Lazily attach sub-routers as they are implemented (P1 → P3).
 
-    Each ``include_router`` is added once its module exists; missing
-    optional sub-routers are skipped so the extension imports cleanly
-    during incremental development. This matches ``openbb_backtest``'s
-    convention exactly so cross-extension review stays trivial.
+    A ``ModuleNotFoundError`` whose ``.name`` matches the expected sub-router
+    path is caught silently — the sub-router simply hasn't landed yet.
+    Any other ``ModuleNotFoundError`` (from a typo inside a real sub-router
+    dependency) is re-raised so CI fails visibly instead of silently
+    dropping the sub-router from the public surface.
     """
-    for module_path, attr in (
-        ("openbb_portfolio_intel.routers.xray_router", "router"),
-        ("openbb_portfolio_intel.routers.events_router", "router"),
-        ("openbb_portfolio_intel.routers.smart_money_router", "router"),
-        ("openbb_portfolio_intel.routers.risk_router", "router"),
-        ("openbb_portfolio_intel.routers.whatif_router", "router"),
-        ("openbb_portfolio_intel.routers.paper_router", "router"),
-        ("openbb_portfolio_intel.routers.alerts_router", "router"),
-    ):
+    for module_path in _PLANNED_SUBROUTERS:
         try:
-            module = __import__(module_path, fromlist=[attr])
-        except ImportError:
-            # Not yet implemented — expected during P0/P1 incremental land.
-            continue
-        sub = getattr(module, attr, None)
+            module = __import__(module_path, fromlist=["router"])
+        except ModuleNotFoundError as exc:
+            # Only swallow if the missing module is THIS sub-router itself,
+            # not a transitive dependency it tried to import.
+            if exc.name == module_path:
+                continue
+            raise
+        sub = getattr(module, "router", None)
         if sub is not None:
             router.include_router(sub)
 
 
-@router.command(
-    model="ExtensionAbout",
-    examples=[
-        # Populated with APIEx / PythonEx once openbb_core.app.example_generators
-        # is available in this extension's test env; kept empty in M0 to
-        # avoid import-order coupling on the scaffold.
-    ],
-)
+@router.command(methods=["GET"])
 def about() -> OBBject[ExtensionAbout]:
     """Return the extension name, version, and scope.
 
@@ -74,6 +88,11 @@ def about() -> OBBject[ExtensionAbout]:
     analytic to stamp its response envelope with the extension version
     that produced it (per PRD §4 Guiding Principle 3 — deterministic
     outputs).
+
+    Matches the ``@router.command(methods=["GET"])`` signature of
+    ``openbb_backtest.backtest_router.about`` — passing ``model=<str>``
+    triggers OpenBB's standard-models registry lookup, which fails for
+    extension-local models (PR #466 review finding 4).
     """
     return OBBject(
         results=ExtensionAbout(
