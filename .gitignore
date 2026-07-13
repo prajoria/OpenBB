@@ -72,6 +72,9 @@ build/conda/tmp
 
 # Database backups
 *.sql
+# Allow tracked SQL migrations (portfolio_app + fmp_cached setup scripts)
+!portfolio_app/migrations/*.sql
+!openbb_platform/providers/fmp_cached/*.sql
 
 # Local session logs (fetch history, portfolio app runtime)
 logs/
