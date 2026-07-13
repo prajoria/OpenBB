@@ -49,38 +49,76 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ccf33ec3 -->
-## Beads Issue Tracker
+<!-- BEGIN BEADS INTEGRATION v:2 profile:gh-primary hash:updated-2026-07-13 -->
+## Coordination — GitHub Issues primary, bd fallback
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+**Authoritative protocol:** `docs/BEADS_HYGIENE.md` (post-migration).
 
-### Quick Reference
+**Two-line summary:**
+1. **GitHub Issues are the source of truth.** Every unit of work has
+   a GH Issue. Commit body cites its issue (`Closes #NN` for gh mode,
+   `Refs bd-<id>` for bd fallback).
+2. **Bd is a local coordination cache.** Optional. Configured via
+   `bd github sync` — writes propagate to GH via `bd github sync
+   --push-only`.
+
+### Quick Reference — gh mode (primary)
+
+```bash
+gh issue list --state open --search "no:assignee -label:status:blocked"  # find work
+gh issue view <#N>                                                        # view details
+gh issue edit <#N> --add-assignee @me --add-label "status:in-progress"    # claim
+gh issue close <#N> --reason completed --comment "shipped in <sha>"       # complete
+```
+
+### Quick Reference — bd fallback (if `gh auth status` fails or bd is preferred)
 
 ```bash
 bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --claim  # Claim work
 bd close <id>         # Complete work
+bd github sync --push-only  # Propagate bd writes to GH
 ```
 
 ### Rules
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- Use GitHub Issues for ALL task tracking — do NOT use TodoWrite,
+  TaskCreate, or markdown TODO lists. Bd optional as coordination
+  cache.
+- Every commit body cites its tracking issue (`Closes #NN` or
+  `Refs bd-<id>`). Rule #10 in `.claude/commands/openbb-dev-cycle.md`.
+- Use `docs/MEMORIES.md` for persistent knowledge — replaces
+  `bd remember` as the canonical store (bd `remember` still works
+  but doesn't survive DB loss / bootstrap collision).
+- On fresh clone: if `.beads/` exists and origin has
+  `refs/dolt/data`, run `bd bootstrap` (never `bd init`).
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See <https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md> for details and anti-patterns.
+**Architecture in one line:** GitHub Issues are the durable
+server-issued immutable ID space; bd is a local cache with
+`external_ref = gh-<N>` linkage that catches up via
+`bd github sync --pull-only`. Ghost-ID recovery available via
+`git log --grep 'bd-<id>'` and `docs/BD_MIGRATION_PLAN.md` Appendix A.
 
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, you MUST complete ALL steps below.
+Work is NOT complete until `git push` succeeds.
 
 **MANDATORY WORKFLOW:**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **Handle git/sync by active profile**:
+1. **File issues for remaining work** — use `gh issue create` (or
+   `bd create` in fallback)
+2. **Run quality gates** (if code changed) — tests, linters, builds
+3. **Update issue status** — close finished work (`gh issue close`
+   or `bd close`), update in-progress items
+4. **Propagate bd → GH if bd was used**:
+
+   ```bash
+   bd github sync --push-only    # push local bd writes to GH first
+   ```
+
+5. **Handle git/sync by active profile**:
 
    ```bash
    git pull --rebase
@@ -89,21 +127,35 @@ bd close <id>         # Complete work
    git status  # MUST show "up to date with origin"
    ```
 
-5. **Hand off** - Summarize changes, validation, issue status, and any blocked sync/commit/push step
+6. **Hand off** — Summarize changes, validation, issue status, and
+   any blocked sync/commit/push step
 
 **Critical rules:**
 
-- Explicit user or orchestrator instructions override this Beads block.
-- Do not commit or push without clear authority from the active profile or the current user request.
-- If a required sync or push is blocked, stop and report the exact command and error.
+- Explicit user or orchestrator instructions override this block.
+- Do not commit, push, `bd dolt push`, or `bd github push` without
+  clear authority from the active profile or the current user request.
+- If a required sync or push is blocked, stop and report the exact
+  command and error.
 <!-- END BEADS INTEGRATION -->
 
-<!-- BEGIN BEADS CODEX SETUP: generated by bd setup codex -->
-## Beads Issue Tracker (Codex)
+<!-- BEGIN BEADS CODEX SETUP: generated by bd setup codex; updated 2026-07-13 gh-primary -->
+## Coordination — Codex
 
-Use Beads (`bd`) for durable task tracking in repositories that include it. Use the `beads` skill at `.agents/skills/beads/SKILL.md` (project install) or `~/.agents/skills/beads/SKILL.md` (global install) for Beads workflow guidance, then use the `bd` CLI for issue operations.
+Use **GitHub Issues** as the source of truth for task tracking (post
+2026-07-13 migration). Use Beads (`bd`) as a local coordination cache
+when configured. See `docs/BEADS_HYGIENE.md` for the full protocol.
 
-### Quick Reference (Codex)
+### Quick Reference — gh mode (primary)
+
+```bash
+gh issue list --state open --search "no:assignee -label:status:blocked"
+gh issue view <#N>
+gh issue edit <#N> --add-assignee @me --add-label "status:in-progress"
+gh issue close <#N> --reason completed --comment "shipped in <sha>"
+```
+
+### Quick Reference — bd fallback (Codex)
 
 ```bash
 bd ready                # Find available work
@@ -111,12 +163,25 @@ bd show <id>            # View issue details
 bd update <id> --claim  # Claim work
 bd close <id>           # Complete work
 bd prime                # Refresh Beads context
+bd github sync --push-only  # Propagate to GH
 ```
 
 ### Rules (Codex)
 
-- Use `bd` for all task tracking; do not create markdown TODO lists.
-- Run `bd prime` when Beads context is missing or stale. Codex 0.129.0+ can load Beads context automatically through native hooks; use `/hooks` to inspect or toggle them.
+- Use GitHub Issues for ALL task tracking; bd as optional local cache.
+- Every commit body cites its tracking issue (`Closes #<N>` for gh,
+  `Refs bd-<id>` for bd fallback).
+- Codex 0.129.0+ can load Beads context automatically through
+  native hooks; use `/hooks` to inspect or toggle them.
+- Keep persistent project memory in `docs/MEMORIES.md`; do not use
+  ad hoc memory files. `bd remember` still works but survives only
+  as long as the bd DB.
+
+**Architecture in one line:** GitHub Issues are the durable
+server-issued immutable ID space; bd is a local cache with
+`external_ref = gh-<N>` linkage. See `docs/BD_MIGRATION_PLAN.md`
+for migration story + Appendix A ghost-ID inventory.
+<!-- END BEADS CODEX SETUP -->
 - Keep persistent project memory in Beads via `bd remember`; do not create ad hoc memory files.
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See <https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md> for details and anti-patterns.
