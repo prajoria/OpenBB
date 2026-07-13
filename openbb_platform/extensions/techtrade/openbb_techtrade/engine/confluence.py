@@ -22,11 +22,21 @@ the score are all ``float`` per the engine-wide Decimal/float discipline.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
 from openbb_techtrade.models import IndicatorPanel, IndicatorVote, MoverSignal
+
+# Module-level constant carrying the volume amplitude that ``volume_confirmation``
+# actually applies. Kept as a bare float (not a ``ConfluenceWeights`` attribute)
+# so ``ConfluenceWeights.__post_init__`` can reject non-matching overrides at
+# construction time without a chicken-and-egg on ``DEFAULT_WEIGHTS`` bootstrap
+# (bd-qu2h). Callers should NEVER hardcode 0.15 elsewhere — read
+# ``DEFAULT_WEIGHTS.volume`` (which equals this constant) so the coupling is
+# explicit.
+_LOCKED_VOLUME_AMPLITUDE: float = 0.15
 
 
 @dataclass(frozen=True)
@@ -48,14 +58,57 @@ class ConfluenceWeights:
     volatility : float
         Additive weight on the volatility family (default ``0.20``).
     volume : float
-        Amplitude of the volume confirmation multiplier (default ``0.15``); applied
-        as ``1 + volume · mean(volume_votes)``, *not* as an additive family vote.
+        Nominal volume multiplier amplitude, LOCKED to ``0.15`` for the #74
+        pipeline contract (bd-qu2h, bd-c2fr). ``volume_confirmation`` hardcodes
+        this amplitude via :data:`DEFAULT_WEIGHTS.volume`; passing any other
+        value here raises :class:`ValueError` at construction time rather than
+        silently discarding the override. The per-preset override path is
+        deferred to #75, which owns preset reweighting; until then the field
+        exists only to keep the public dataclass shape stable.
+
+    Raises
+    ------
+    ValueError
+        If ``volume`` differs from :data:`DEFAULT_WEIGHTS.volume` (``0.15``,
+        within ``abs_tol=1e-9`` for arithmetically-computed amplitudes).
+        Pre-fix (bd-qu2h) this was a silent no-op: the field was read exactly
+        nowhere in the engine, so custom values had zero effect on scoring.
     """
 
     trend: float = 0.40
     momentum: float = 0.25
     volatility: float = 0.20
-    volume: float = 0.15
+    volume: float = _LOCKED_VOLUME_AMPLITUDE
+
+    def __post_init__(self) -> None:
+        # bd-qu2h: ``volume_confirmation`` hardcodes ``DEFAULT_WEIGHTS.volume``
+        # and never reads ``self.volume``, so pre-fix a caller writing
+        # ``ConfluenceWeights(volume=0.35)`` silently got 0.15 with no error.
+        # Raise on any mismatch so the mis-configuration surfaces at
+        # construction rather than being quietly discarded. Long-term the #75
+        # preset work will wire ``self.volume`` through and this guard can
+        # relax to a range check.
+        #
+        # Tolerance rationale (PR #340 silent-failure-hunter finding): a raw
+        # ``!=`` here trips on arithmetically-computed 0.15 — e.g.
+        # ``3 * 0.05 == 0.15000000000000002`` under IEEE 754. Callers deriving
+        # the amplitude from a step count, a JSON round-trip, or a partial
+        # ``resolve_preset(weights={'volume': ...})`` should see the same
+        # accepted-value semantics as the literal ``0.15``. Use
+        # :func:`math.isclose` with ``abs_tol=1e-9`` — tight enough to catch
+        # genuine overrides (0.1499999999 vs 0.15 differ by 1e-10, but that
+        # is well below any operator-supplied resolution and inside our
+        # tolerance; a genuine override like 0.14 differs by 0.01, far above).
+        if not math.isclose(self.volume, _LOCKED_VOLUME_AMPLITUDE, abs_tol=1e-9):
+            raise ValueError(
+                f"volume={self.volume!r} is not supported. The #74 pipeline "
+                f"contract locks the volume amplitude to "
+                f"{_LOCKED_VOLUME_AMPLITUDE} — ``volume_confirmation`` "
+                f"hardcodes ``DEFAULT_WEIGHTS.volume`` and never reads "
+                f"``self.volume`` (bd-qu2h). Per-preset override is deferred "
+                f"to #75; until then, only ``volume={_LOCKED_VOLUME_AMPLITUDE}`` "
+                f"is accepted."
+            )
 
 
 #: The shipped Q4 default weights (un-tuned, honest baseline; #75 supplies presets).
@@ -126,7 +179,9 @@ def _mean(values: Iterable[float]) -> float:
     return sum(materialized) / len(materialized)
 
 
-def trend_votes(panel: IndicatorPanel, *, adx_gate: float = 20.0) -> list[IndicatorVote]:
+def trend_votes(
+    panel: IndicatorPanel, *, adx_gate: float = 20.0
+) -> list[IndicatorVote]:
     """Emit the trend-family votes: ADX-gated ``macd_hist`` and ``ema_cross`` (PRD §12.1).
 
     ``macd_hist`` votes its sign, damped by trend strength: full strength when
@@ -153,7 +208,9 @@ def trend_votes(panel: IndicatorPanel, *, adx_gate: float = 20.0) -> list[Indica
 
     if "macd_hist" in trend:
         adx = trend.get("adx")
-        gate = 1.0 if (adx is None or adx > adx_gate) else _clip(adx / adx_gate, 0.0, 1.0)
+        gate = (
+            1.0 if (adx is None or adx > adx_gate) else _clip(adx / adx_gate, 0.0, 1.0)
+        )
         votes.append(
             IndicatorVote(
                 family="trend",
@@ -207,7 +264,12 @@ def momentum_votes(panel: IndicatorPanel) -> list[IndicatorVote]:
         else:
             vote = 0.0
         votes.append(
-            IndicatorVote(family="momentum", name="rsi", vote=vote, weight=DEFAULT_WEIGHTS.momentum)
+            IndicatorVote(
+                family="momentum",
+                name="rsi",
+                vote=vote,
+                weight=DEFAULT_WEIGHTS.momentum,
+            )
         )
 
     if "stoch_k" in momentum and "stoch_d" in momentum:
@@ -255,7 +317,12 @@ def volatility_votes(
     base = _clip(2.0 * (volatility["bb_pctb"] - 0.5), -1.0, 1.0)
     vote = base if regime == "trend" else -base
     return [
-        IndicatorVote(family="volatility", name="bb_pctb", vote=vote, weight=DEFAULT_WEIGHTS.volatility)
+        IndicatorVote(
+            family="volatility",
+            name="bb_pctb",
+            vote=vote,
+            weight=DEFAULT_WEIGHTS.volatility,
+        )
     ]
 
 
@@ -283,7 +350,10 @@ def _volume_votes(panel: IndicatorPanel) -> list[IndicatorVote]:
         if name in volume:
             votes.append(
                 IndicatorVote(
-                    family="volume", name=name, vote=_sign(volume[name]), weight=DEFAULT_WEIGHTS.volume
+                    family="volume",
+                    name=name,
+                    vote=_sign(volume[name]),
+                    weight=DEFAULT_WEIGHTS.volume,
                 )
             )
     return votes
@@ -320,7 +390,10 @@ def volume_confirmation(panel: IndicatorPanel) -> float:
 
 
 def composite_score(
-    panel: IndicatorPanel, *, weights: ConfluenceWeights = DEFAULT_WEIGHTS
+    panel: IndicatorPanel,
+    *,
+    weights: ConfluenceWeights = DEFAULT_WEIGHTS,
+    panel_config=None,
 ) -> tuple[float, list[IndicatorVote]]:
     """Fuse a panel into a composite ``score ∈ [-1, +1]`` plus its full vote attribution.
 
@@ -351,12 +424,29 @@ def composite_score(
     tuple[float, list[IndicatorVote]]
         The composite ``score`` and every contributing :class:`IndicatorVote`.
     """
-    raw_votes = (
-        trend_votes(panel)
-        + momentum_votes(panel)
-        + volatility_votes(panel)
-        + _volume_votes(panel)
-    )
+    # bd-7ct.6 (bd-xim): panel_config dispatch. Resolved ONCE per call
+    # (per design spec §D1). Lazy imports so environments that never opt
+    # into the extended panel don't pull the _ext modules at import time.
+    if panel_config is None:
+        from openbb_techtrade.engine.panel_config import PANEL_CLASSIC  # noqa: PLC0415
+
+        panel_config = PANEL_CLASSIC
+    if panel_config.panel == "extended":
+        from openbb_techtrade.engine import confluence_ext  # noqa: PLC0415
+
+        raw_votes = (
+            confluence_ext.trend_votes_ext(panel)
+            + confluence_ext.momentum_votes_ext(panel)
+            + confluence_ext.volatility_votes_ext(panel)
+            + confluence_ext._volume_votes_ext(panel)
+        )
+    else:
+        raw_votes = (
+            trend_votes(panel)
+            + momentum_votes(panel)
+            + volatility_votes(panel)
+            + _volume_votes(panel)
+        )
     votes = [
         IndicatorVote(
             family=v.family,
@@ -365,7 +455,11 @@ def composite_score(
             # Additive families carry the weight used in ``raw``; volume carries the
             # fixed amplitude ``volume_confirmation`` actually applies, so the votes
             # reconcile the score for any ``weights`` (not just DEFAULT_WEIGHTS).
-            weight=DEFAULT_WEIGHTS.volume if v.family == "volume" else getattr(weights, v.family),
+            weight=(
+                DEFAULT_WEIGHTS.volume
+                if v.family == "volume"
+                else getattr(weights, v.family)
+            ),
         )
         for v in raw_votes
     ]
@@ -382,7 +476,9 @@ def composite_score(
     return score, votes
 
 
-def direction_for(score: float, *, entry_threshold: float = 0.4) -> Literal["long", "short", "flat"]:
+def direction_for(
+    score: float, *, entry_threshold: float = 0.4
+) -> Literal["long", "short", "flat"]:
     """Bucket a composite ``score`` into a trade direction (PRD §12.2, L5).
 
     The threshold edges are inclusive: ``score == +entry_threshold`` → ``"long"``.
@@ -437,6 +533,7 @@ def build_signal(
     weights: ConfluenceWeights = DEFAULT_WEIGHTS,
     entry_threshold: float = 0.4,
     rank_in_segment: int = 0,
+    panel_config=None,
 ) -> MoverSignal:
     """Assemble a :class:`MoverSignal` from a panel (score + direction + full votes).
 
@@ -463,7 +560,7 @@ def build_signal(
     MoverSignal
         The composite signal carrying ``score`` / ``direction`` / ``votes``.
     """
-    score, votes = composite_score(panel, weights=weights)
+    score, votes = composite_score(panel, weights=weights, panel_config=panel_config)
     return MoverSignal(
         symbol=panel.symbol,
         segment=segment,

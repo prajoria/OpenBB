@@ -1,0 +1,43 @@
+# Preset: mean_revert
+# Risk tuning: aggressive
+#
+# WARNING: aggressive = wider risk gates. Only use with a small starting
+# equity and after paper-trading the config for at least a full week.
+#
+# Larger position count, higher DD ceiling, shorter cooldowns. Suits
+# mean-reversion which typically wants many small parallel positions.
+
+date: null
+exchange: NASDAQ
+starting_equity: "100000"
+default_preset: mean_revert
+bandwidth_tier: premium
+bandwidth_monthly_bytes: 53687091200
+
+default_risk:
+  # Standard flat-by-close
+  flat_by_close_time_et: "15:50"
+
+  # More concurrent positions — mean_revert benefits from breadth
+  max_open_positions: 10
+
+  # Higher daily DD threshold (more room to breathe)
+  day_dd_pct: -3.0
+
+  # Short cooldown — mean_revert can re-enter after a stopout if the
+  # premise still holds
+  cooldown_after_stopout_min: 15
+
+  # Allow more sector concentration (mean_revert often clusters)
+  max_positions_per_sector: 4
+
+  # Smaller per-position size to offset larger count
+  max_position_size_pct_equity: 5.0
+
+  # Higher total notional
+  max_notional_pct_equity: 40.0
+
+agent_backend: claude
+agent_max_watchlist_size: 25  # wider watchlist for mean_revert
+
+default_watchlist: ["SPY", "QQQ", "IWM"]

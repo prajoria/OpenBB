@@ -2,7 +2,8 @@
 
 from openbb_core.provider.abstract.provider import Provider
 
-# Import original FMP fetchers  
+# Import original FMP fetchers
+from openbb_fmp.models.aftermarket_trade import FMPAftermarketTradeFetcher
 from openbb_fmp.models.available_indices import FMPAvailableIndicesFetcher
 from openbb_fmp_cached.models.balance_sheet import FMPCachedBalanceSheetFetcher
 from openbb_fmp.models.balance_sheet_growth import FMPBalanceSheetGrowthFetcher
@@ -28,9 +29,21 @@ from openbb_fmp.models.equity_gainers import FMPGainersFetcher
 # Import independent cached fetchers (with database persistence)
 from openbb_fmp_cached.models.analyst_estimates import FMPCachedAnalystEstimatesFetcher
 from openbb_fmp_cached.models.equity_historical import FMPCachedEquityHistoricalFetcher
+from openbb_fmp_cached.models.equity_intraday_historical import (
+    FMPCachedEquityIntradayHistoricalFetcher,
+)
+from openbb_fmp_cached.models.aftermarket_quote import (
+    FMPCachedAftermarketQuoteFetcher,
+)
+from openbb_fmp_cached.models.exchange_market_hours import (
+    FMPCachedExchangeMarketHoursFetcher,
+)
 from openbb_fmp_cached.models.equity_peers import FMPCachedEquityPeersFetcher
 from openbb_fmp_cached.models.equity_profile import FMPCachedEquityProfileFetcher
 from openbb_fmp_cached.models.equity_quote import FMPCachedEquityQuoteFetcher
+from openbb_fmp.models.equity_quote_batch_short import (
+    FMPEquityQuoteBatchShortFetcher,
+)
 from openbb_fmp_cached.models.etf_holdings import FMPCachedEtfHoldingsFetcher
 from openbb_fmp_cached.models.index_constituents import FMPCachedIndexConstituentsFetcher
 from openbb_fmp_cached.models.key_metrics import FMPCachedKeyMetricsFetcher
@@ -71,6 +84,9 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.technical_indicator_intraday import (
+    FMPTechnicalIndicatorIntradayFetcher,
+)
 from openbb_fmp.models.treasury_rates import FMPTreasuryRatesFetcher
 from openbb_fmp.models.world_news import FMPWorldNewsFetcher
 from openbb_fmp.models.yield_curve import FMPYieldCurveFetcher
@@ -83,13 +99,16 @@ def create_all_cached_fetchers():
     """Create cached versions of all FMP fetcher classes."""
     # Fetchers with dedicated database persistence (use directly, no wrapping)
     dedicated_fetchers = {
+        "AftermarketQuote": FMPCachedAftermarketQuoteFetcher,
         "AnalystEstimates": FMPCachedAnalystEstimatesFetcher,
         "EquityHistorical": FMPCachedEquityHistoricalFetcher,
         "EquityInfo": FMPCachedEquityProfileFetcher,
+        "EquityIntradayHistorical": FMPCachedEquityIntradayHistoricalFetcher,
         "EquityPeers": FMPCachedEquityPeersFetcher,
         "EquityQuote": FMPCachedEquityQuoteFetcher,
         "EtfHistorical": FMPCachedEquityHistoricalFetcher,
         "EtfHoldings": FMPCachedEtfHoldingsFetcher,
+        "ExchangeMarketHours": FMPCachedExchangeMarketHoursFetcher,
         "FinancialRatios": FMPCachedFinancialRatiosFetcher,
         "IndexConstituents": FMPCachedIndexConstituentsFetcher,
         "IncomeStatement": FMPCachedIncomeStatementFetcher,
@@ -156,6 +175,18 @@ def create_all_cached_fetchers():
         ("TreasuryRates", FMPTreasuryRatesFetcher),
         ("WorldNews", FMPWorldNewsFetcher),
         ("YieldCurve", FMPYieldCurveFetcher),
+        # Phase-0 intraday fetchers (fmp-day-trading PRD 2026-07-06 §5.1).
+        # NOTE (P2.1): AftermarketQuote + EquityIntradayHistorical promoted
+        # to tier-1 dedicated_fetchers above.
+        # NOTE (P2.2): ExchangeMarketHours also promoted to tier-1 with
+        # a 24h TTL via create_ttl_wrapper_class (see models/
+        # exchange_market_hours.py). The two entries kept here remain tier-2
+        # passthrough forever per PRD §5.1 (batch-short IS the cheap poll
+        # primitive so caching would defeat the point; indicators are rarely
+        # used).
+        ("AftermarketTrade", FMPAftermarketTradeFetcher),
+        ("EquityQuoteBatchShort", FMPEquityQuoteBatchShortFetcher),
+        ("TechnicalIndicatorIntraday", FMPTechnicalIndicatorIntradayFetcher),
         ("GovernmentTrades", FMPGovernmentTradesFetcher),
     ]
     

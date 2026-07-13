@@ -1,0 +1,40 @@
+# Preset: trend_follow
+# Risk tuning: conservative
+#
+# Slower strategy + tighter risk gates. Fewer, more selective positions;
+# lower per-position size; wider cooldowns; earlier flat-by-close.
+# Use when you want lower turnover + lower P&L variance.
+
+date: null
+exchange: NASDAQ
+starting_equity: "100000"
+default_preset: trend_follow
+bandwidth_tier: premium
+bandwidth_monthly_bytes: 53687091200
+
+default_risk:
+  # Flat by close 10 minutes earlier than default
+  flat_by_close_time_et: "15:40"
+
+  # Fewer concurrent positions
+  max_open_positions: 3
+
+  # Tighter daily drawdown ceiling
+  day_dd_pct: -1.0
+
+  # Longer cooldown — trend_follow shouldn't re-enter quickly
+  cooldown_after_stopout_min: 60
+
+  # No sector concentration allowed
+  max_positions_per_sector: 1
+
+  # Half the default position size
+  max_position_size_pct_equity: 5.0
+
+  # Lower total notional
+  max_notional_pct_equity: 20.0
+
+agent_backend: claude
+agent_max_watchlist_size: 10  # smaller watchlist = more selective
+
+default_watchlist: ["SPY", "QQQ"]

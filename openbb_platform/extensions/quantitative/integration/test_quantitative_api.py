@@ -62,7 +62,7 @@ def get_crypto_data():
 
     # TODO : add more crypto providers and symbols
     symbol = random.choice(["BTCUSD"])  # noqa: S311
-    provider = "fmp"
+    provider = "fmp"  # provider-purity-exempt: pre-existing integration test predates fmp-trading discipline (PRD §5.4)
 
     data["crypto_data"] = request_data(
         menu="crypto",

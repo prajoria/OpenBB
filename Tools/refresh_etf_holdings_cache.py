@@ -87,8 +87,17 @@ try:
     SPDR_SECTORS: tuple[str, ...] = tuple(sorted(GICS_SECTOR_ETFS.values()))
 except ImportError:  # pragma: no cover - extension absent in some environments
     SPDR_SECTORS = (
-        "XLB", "XLC", "XLE", "XLF", "XLI", "XLK",
-        "XLP", "XLRE", "XLU", "XLV", "XLY",
+        "XLB",
+        "XLC",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLRE",
+        "XLU",
+        "XLV",
+        "XLY",
     )
 
 # Built-in ETF detection set for Portfolio_Positions filtering (L4).
@@ -96,12 +105,26 @@ except ImportError:  # pragma: no cover - extension absent in some environments
 KNOWN_ETFS: frozenset[str] = frozenset(
     set(SPDR_SECTORS)
     | {
-        "SPY", "VOO", "IVV",
-        "QQQ", "DIA",
-        "VTI", "VXUS", "VEU", "VEA", "VWO",
-        "BND", "AGG", "BNDX", "TLT", "IEF",
-        "GLD", "SLV",
-        "ARKK", "ARKW", "ARKG",
+        "SPY",
+        "VOO",
+        "IVV",
+        "QQQ",
+        "DIA",
+        "VTI",
+        "VXUS",
+        "VEU",
+        "VEA",
+        "VWO",
+        "BND",
+        "AGG",
+        "BNDX",
+        "TLT",
+        "IEF",
+        "GLD",
+        "SLV",
+        "ARKK",
+        "ARKW",
+        "ARKG",
     }
 )
 
@@ -181,7 +204,7 @@ def refresh_one_etf(
     etf: str,
     *,
     dry_run: bool,
-    api_key: str | None,  # noqa: ARG001 - reserved for future explicit-key plumbing
+    api_key: str | None,  # noqa: ARG001 - signature compat; see _resolve_api_key NOTE
 ) -> tuple[str, int, str | None, float, str | None]:
     """Call obb.etf.holdings for one ETF; return a (status) tuple.
 
@@ -233,21 +256,29 @@ def refresh_universe(
             stats["errored"] += 1
             logger.warning(
                 "%-6s [-]               rows=0       elapsed=%dms   ERROR: %s",
-                etf, int(elapsed_ms), error,
+                etf,
+                int(elapsed_ms),
+                error,
             )
         elif row_count == 0 and not dry_run:
             stats["empty"] += 1
             logger.info(
                 "%-6s [-]               rows=0       elapsed=%dms   (empty)",
-                etf, int(elapsed_ms),
+                etf,
+                int(elapsed_ms),
             )
         elif dry_run:
-            logger.info("%-6s [dry-run]                                 (would refresh)", etf)
+            logger.info(
+                "%-6s [dry-run]                                 (would refresh)", etf
+            )
         else:
             stats["populated"] += 1
             logger.info(
                 "%-6s [%-15s] rows=%-7d elapsed=%dms",
-                etf, data_source or "-", row_count, int(elapsed_ms),
+                etf,
+                data_source or "-",
+                row_count,
+                int(elapsed_ms),
             )
     return stats
 
@@ -259,7 +290,9 @@ def refresh_universe(
 
 def _setup_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
 
 
 def _resolve_api_key(api_key_arg: str | None) -> str | None:
@@ -267,6 +300,18 @@ def _resolve_api_key(api_key_arg: str | None) -> str | None:
 
     Mirrors Tools/populate_cusip_map.py's pattern; user_settings is left to the
     provider's own internal resolver inside obb.etf.holdings.
+
+    NOTE (bd-2k86): post-fix, ``main()`` is the single source of truth for
+    plumbing the CLI flag — it exports ``os.environ['FMP_API_KEY']`` before
+    the lazy ``from openbb import obb`` import fires, and the obb provider
+    reads the env-var directly. This function is therefore vestigial in the
+    current call graph: the returned value is threaded to ``refresh_one_etf``
+    where it is marked ``# noqa: ARG001`` and discarded. Retained rather than
+    deleted so any future refactor that wires the parameter into
+    ``obb.etf.holdings(credentials=...)`` has a clean shape to fill in; do
+    NOT re-enable the parameter chain WITHOUT also removing the env-var side
+    channel above, otherwise the tool ends up with two config paths and
+    silently re-introduces bd-2k86.
     """
     if api_key_arg:
         return api_key_arg
@@ -280,24 +325,34 @@ def main() -> int:
         "the 11 GICS sector SPDRs + portfolio-held ETFs + extras.",
     )
     parser.add_argument(
-        "--database", default=None,
+        "--database",
+        default=None,
         help="Target MySQL database (default: from DatabaseConfig)",
     )
     parser.add_argument(
-        "--etfs", default=None,
+        "--etfs",
+        default=None,
         help="Extra comma-separated ETF tickers to refresh atop the defaults",
     )
     parser.add_argument(
-        "--skip-portfolio", action="store_true",
+        "--skip-portfolio",
+        action="store_true",
         help="Skip Portfolio_Positions read; SPDRs + --etfs only",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Print plan + resolved universe; no API calls, no DB writes",
     )
     parser.add_argument(
-        "--api-key", default=None,
-        help="Override FMP_API_KEY (else env FMP_API_KEY -> user_settings -> none)",
+        "--api-key",
+        default=None,
+        help=(
+            "Override FMP_API_KEY for this run (exports to os.environ so the "
+            "obb provider's own resolver picks it up). Precedence: this flag "
+            "> repo .env (loaded via python-dotenv override=True at module "
+            "import) > shell FMP_API_KEY > user_settings > none."
+        ),
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
@@ -309,14 +364,27 @@ def main() -> int:
     if args.database:
         os.environ["DB_NAME"] = args.database
 
+    # --api-key: export to os.environ['FMP_API_KEY'] BEFORE the lazy
+    # ``from openbb import obb`` import fires inside refresh_one_etf so the
+    # provider's own resolver picks it up. Pre-fix (bd-2k86) the flag was
+    # documented as an override but had no runtime effect — the resolved
+    # value was threaded to refresh_one_etf but marked ``# noqa: ARG001 -
+    # reserved for future explicit-key plumbing`` and never reached obb.
+    # Mirrors the --database → os.environ['DB_NAME'] pattern above.
+    # ``.strip()`` guards against ``--api-key "  "`` polluting env with
+    # whitespace that would then survive the credentials loader's
+    # ``if not value`` truthy check and surface as an opaque provider error;
+    # ``--api-key ""`` still no-ops silently (argparse-native falsy default).
+    if args.api_key and args.api_key.strip():
+        os.environ["FMP_API_KEY"] = args.api_key.strip()
+
     extras = (
         [s.strip() for s in args.etfs.split(",") if s and s.strip()]
-        if args.etfs else []
+        if args.etfs
+        else []
     )
 
-    portfolio_etfs = (
-        [] if args.skip_portfolio else list_portfolio_etfs(args.database)
-    )
+    portfolio_etfs = [] if args.skip_portfolio else list_portfolio_etfs(args.database)
     spdr_count = len(SPDR_SECTORS)
     universe = resolve_universe(
         database=args.database,
