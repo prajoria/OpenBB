@@ -26,10 +26,26 @@
 --   utf8mb4 across every table — matches openbb_platform/providers/
 --   fmp_cached/create_mysql_setup.sql so international company / holder
 --   names round-trip cleanly.
+--
+-- FOREIGN KEYS — INTENTIONAL DESIGN CHOICE (PR #467 R2)
+--   This migration declares zero foreign keys, even though intra-`paper_*`
+--   FKs (e.g. paper_fills.order_id → paper_orders.order_id) would be
+--   syntactically valid.
+--
+--   Why: PRD §16.7 replay contract requires that we can reconstruct
+--   historical account state by replaying paper_ledger in occurred_at
+--   order alone. Enforcing FK integrity at DB level would fight the
+--   replay pattern (a partial-then-full replay would violate the FK
+--   window until the parent is re-inserted). Referential integrity is
+--   enforced at application level in intel.py; the DB stays permissive
+--   so replay + reset (bead qy83.4.14) remain simple SQL operations.
+--
+--   Cross-namespace FKs to Portfolio_Positions / Account_Owner / ESPP_Plan
+--   are forbidden regardless — the privacy boundary in PRD §10.3 + §16.2
+--   requires ZERO coupling between paper_* and the real portfolio tables.
 -- ============================================================================
 
 SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS = 0;
 SET SQL_MODE = 'STRICT_ALL_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE';
 
 -- ----------------------------------------------------------------------------
@@ -138,8 +154,6 @@ CREATE TABLE IF NOT EXISTS paper_ledger (
     KEY ix_paper_ledger_account_time (account_id, occurred_at),
     KEY ix_paper_ledger_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================================
 -- End of 001_paper_trading.sql

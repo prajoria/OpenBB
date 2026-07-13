@@ -114,10 +114,15 @@ def _extract_table_body(sql: str, table: str) -> str:
 def test_paper_ledger_is_append_only(sql: str) -> None:
     """`paper_ledger` must be append-only per PRD 16.3 + 16.7 (replay).
 
-    Enforced structurally by (a) no `updated_at`, (b) a monotonic PK
-    (`entry_id`), (c) `occurred_at TIMESTAMP` for ordering. If the ledger
-    becomes updatable, `paper.account.replay` cannot reconstruct
-    historical state — which is our determinism contract.
+    Enforced structurally by (a) no `updated_at`, (b) a stable PK
+    (`entry_id` is a UUID CHAR(36) — the invariant is uniqueness, not
+    monotonicity; ordering is via `occurred_at`), (c) `occurred_at
+    TIMESTAMP` for ordering. If the ledger becomes updatable,
+    `paper.account.replay` cannot reconstruct historical state —
+    which is our determinism contract.
+
+    Docstring corrected in PR #467 R2 (finding 1): earlier version
+    misstated the invariant as "monotonic PK".
     """
     body = _extract_table_body(sql, "paper_ledger").lower()
     assert (
