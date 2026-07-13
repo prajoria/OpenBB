@@ -28,27 +28,69 @@ when neither is available. See §"Task tracking mode" below.
 
 ---
 
-## Task tracking mode (auto-detected at command start)
+## Task tracking mode (auto-detected at each tool call)
 
-Before Phase 1, probe the environment and select a mode:
+Before Phase 1 — and at any tool call that needs to file/claim/close a
+tracking issue — probe the environment and select a mode. **The result
+does NOT persist across tool calls** (each Bash/PowerShell invocation
+is a fresh process). Either (a) resolve the mode inline in each command,
+or (b) record the mode in your first response and keep referring to it
+explicitly in subsequent tool calls.
+
+**Bash (macOS / Linux / Git Bash on Windows):**
 
 ```bash
-if gh auth status &>/dev/null; then
+if gh auth status >/dev/null 2>&1; then
   TASK_MODE=gh
-  echo "✓ Task mode: gh (GitHub Issues primary)"
-elif [ -d .beads ] && command -v bd &>/dev/null; then
+  echo "OK Task mode: gh (GitHub Issues primary)"
+elif [ -d .beads ] && command -v bd >/dev/null 2>&1; then
   TASK_MODE=bd
-  echo "⚠ gh CLI not authenticated; falling back to bd (local coordination only)"
-  echo "  Reconcile later via: bd github sync --pull-only"
+  echo "WARN gh CLI not authenticated; falling back to bd (local coord only)"
+  echo "     Reconcile later via: bd github sync --pull-only"
 else
   TASK_MODE=ephemeral
-  echo "⚠ Neither gh nor bd available; using TaskCreate (session-only, lost at close)"
+  echo "WARN Neither gh nor bd available; using TaskCreate (session-only)"
 fi
+echo "TASK_MODE=$TASK_MODE"
+```
+
+**PowerShell (Windows-primary shell for this repo per CLAUDE.md):**
+
+```powershell
+$TASK_MODE = if ((gh auth status 2>$null; $LASTEXITCODE) -eq 0) {
+  Write-Host "OK Task mode: gh (GitHub Issues primary)"
+  'gh'
+} elseif ((Test-Path .beads) -and (Get-Command bd -ErrorAction SilentlyContinue)) {
+  Write-Host "WARN gh CLI not authenticated; falling back to bd"
+  Write-Host "     Reconcile later via: bd github sync --pull-only"
+  'bd'
+} else {
+  Write-Host "WARN Neither gh nor bd available; using TaskCreate (session-only)"
+  'ephemeral'
+}
+Write-Host "TASK_MODE=$TASK_MODE"
 ```
 
 The rest of this document uses `<TASK: create ...>`, `<TASK: claim ...>`,
-`<TASK: close ...>` etc. as mode-neutral placeholders. See §"Task command
-translations" at the bottom for the concrete command per mode.
+`<TASK: close ...>` etc. as **mode-neutral placeholders**. See
+§"Task command translations" at the bottom for the concrete command per
+mode.
+
+### How to use `<TASK: ...>` placeholders
+
+These are **not literal shell syntax** — they are template markers. Before
+running any tool call containing `<TASK: ...>`, you MUST resolve the
+placeholder to the concrete command from the translations table below,
+using the currently active mode.
+
+Example: if the doc says `<TASK: create title="foo" type=bug priority=P1>`
+and the mode is `gh`, resolve to:
+
+```
+gh issue create --repo prajoria/OpenBB --title "foo" --label type:bug --label priority:P1
+```
+
+Never paste `<TASK: ...>` verbatim into a shell or tool call — it will fail.
 
 **Rule of thumb:** if you're on a machine that can `gh pr create`, you can
 `gh issue create`. gh mode is available in 99% of dev environments.
@@ -205,14 +247,17 @@ before opening a PR, so we catch our own regressions before human reviewers do.
 
    <optional body>
 
-   Closes #<gh-issue> (or bd-<id> in bd mode)"
+   Closes #<gh-issue> (or Refs bd-<id> in bd mode)"
    ```
    Common scopes for this fork: `qc`, `beads`, `analysis`, `techtrade`,
    `backtest`, `fmp_cached`, `agents`, `tools`, `sec`, `notebooks`,
    `financialtoolkit`. **Cite the tracking issue in the commit body** so
    history is queryable:
    - gh mode: `Closes #491 (Point-in-time XLK universe builder)`
-   - bd mode: `Closes bd-b6k5 (Aroon Up/Down/Osc family)`
+   - bd mode: `Refs bd-b6k5 (Aroon Up/Down/Osc family)` — bd does not
+     parse commit messages; close the bead manually via `bd close bd-b6k5
+     --reason="shipped in <sha>"`. Use `Refs`, not `Closes`, since GitHub
+     only auto-closes on `Closes #NN` for its own issues.
 2. **Push the branch to origin:**
    ```bash
    git push -u origin <branch-name>
@@ -294,7 +339,7 @@ issues cheaper than a human round-trip.
    ````markdown
    ## Summary
    <1-2 paragraphs. `Closes #<gh-issue>` for gh-mode or
-   `Closes bd-<id>` for bd-mode. Links to design + plan docs.>
+   `Refs bd-<id>` for bd-mode. Links to design + plan docs.>
 
    ## What this PR ships
    - `path/to/file.py` (+42/-3 LoC) — <one-line change summary>
@@ -318,8 +363,8 @@ issues cheaper than a human round-trip.
    **Regression:** <what didn't change>
 
    ## Closed issues
-   - #<N>: <title> — CLOSED  (or bd-<id> in bd mode)
-   - <repeat per closed finding>
+   - #<N>: <title> — CLOSED  (gh mode: auto-closed by `Closes #<N>` in
+     commit body; bd mode: closed manually via `bd close bd-<id>`)
 
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ````
@@ -367,9 +412,14 @@ The `<TASK: ...>` placeholders above translate to the following per mode.
 
 | Mode | Command |
 |---|---|
-| gh | `gh issue create --repo prajoria/OpenBB --title "<title>" --body "<body>" --label "type:<T>,priority:<P>[,area:<A>]"` |
+| gh | `gh issue create --repo prajoria/OpenBB --title "<title>" --body "<body>" --label type:<T> --label priority:<P>[ --label area:<A>]` |
 | bd | `bd create --title="<title>" --description="<body>" --type=<T> --priority=<P>` |
 | ephemeral | `TaskCreate(subject="<title>", description="<body>")` |
+
+**Note on `gh issue create --label`:** repeat the flag per label rather
+than using the comma form (`--label "a,b,c"`). Both are accepted by gh,
+but repeated flags avoid quoting gotchas and validate each label
+independently.
 
 **Labels used in gh mode:**
 - `type:` — one of `feature`, `bug`, `task`, `epic`, `doc`
@@ -377,24 +427,43 @@ The `<TASK: ...>` placeholders above translate to the following per mode.
 - `area:` — optional, matches commit scope (`techtrade`, `analysis`,
   `fmp_cached`, `regime`, `backtest`, `tools`, `agents`, `notebooks`, etc.)
 
-**Auto-create missing labels:** before the first `gh issue create` call
-in a session, run:
+**Auto-create missing labels** — run once per session before the first
+`gh issue create` call:
+
+**Bash:**
 
 ```bash
-# Idempotent — gh label create returns non-zero if exists; safe to ignore
-gh label create "type:feature" --color "a2eeef" 2>/dev/null || true
-gh label create "type:bug" --color "d73a4a" 2>/dev/null || true
-gh label create "type:task" --color "0e8a16" 2>/dev/null || true
-gh label create "type:epic" --color "5319e7" 2>/dev/null || true
-gh label create "type:doc" --color "0075ca" 2>/dev/null || true
-gh label create "priority:P0" --color "b60205" 2>/dev/null || true
-gh label create "priority:P1" --color "d93f0b" 2>/dev/null || true
-gh label create "priority:P2" --color "fbca04" 2>/dev/null || true
-gh label create "priority:P3" --color "c2e0c6" 2>/dev/null || true
-gh label create "priority:P4" --color "cccccc" 2>/dev/null || true
-gh label create "status:in-progress" --color "0e8a16" 2>/dev/null || true
-gh label create "status:in-review" --color "fbca04" 2>/dev/null || true
-gh label create "status:blocked" --color "b60205" 2>/dev/null || true
+# Idempotent — gh label create fails if exists; safe to ignore via || true
+for spec in \
+  "type:feature|a2eeef" "type:bug|d73a4a" "type:task|0e8a16" \
+  "type:epic|5319e7" "type:doc|0075ca" \
+  "priority:P0|b60205" "priority:P1|d93f0b" "priority:P2|fbca04" \
+  "priority:P3|c2e0c6" "priority:P4|cccccc" \
+  "status:in-progress|0e8a16" "status:in-review|fbca04" \
+  "status:blocked|b60205"
+do
+  name="${spec%%|*}"; color="${spec##*|}"
+  gh label create "$name" --color "$color" >/dev/null 2>&1 || true
+done
+```
+
+**PowerShell:**
+
+```powershell
+$labels = @(
+  @{n='type:feature'; c='a2eeef'}, @{n='type:bug'; c='d73a4a'},
+  @{n='type:task';    c='0e8a16'}, @{n='type:epic'; c='5319e7'},
+  @{n='type:doc';     c='0075ca'},
+  @{n='priority:P0';  c='b60205'}, @{n='priority:P1'; c='d93f0b'},
+  @{n='priority:P2';  c='fbca04'}, @{n='priority:P3'; c='c2e0c6'},
+  @{n='priority:P4';  c='cccccc'},
+  @{n='status:in-progress'; c='0e8a16'},
+  @{n='status:in-review';   c='fbca04'},
+  @{n='status:blocked';     c='b60205'}
+)
+foreach ($l in $labels) {
+  try { gh label create $l.n --color $l.c 2>$null | Out-Null } catch {}
+}
 ```
 
 ### Claim an issue
@@ -413,6 +482,11 @@ gh label create "status:blocked" --color "b60205" 2>/dev/null || true
 | bd | `bd close <id> --reason="<reason>"` |
 | ephemeral | `TaskUpdate(taskId=<id>, status=completed)` |
 
+**Note on gh `--reason`:** the reason field is a **fixed vocabulary**
+(`completed` \| `not planned` \| `duplicate`). Free-form text goes in
+`--comment`, not `--reason`. To mark a false-positive triage: use
+`--reason "not planned" --comment "triage: <specific-reason>"`.
+
 ### List ready work
 
 | Mode | Command |
@@ -427,7 +501,7 @@ gh label create "status:blocked" --color "b60205" 2>/dev/null || true
 |---|---|
 | gh | Append to `docs/MEMORIES.md`. Format: `## <key> (<date>)\n\n<body>\n`. Commit with the next code change. |
 | bd | `bd remember "<key insight>"` |
-| ephemeral | Skip — session ends, memory doesn't matter |
+| ephemeral | **Emit a `MEMORY: <text>` line in your final session summary** so the user can manually transcribe to `docs/MEMORIES.md` next time gh mode is available. Do NOT drop the insight silently — cross-session knowledge is what caused the 2026-07 bootstrap collision's recovery pain. |
 
 ---
 
@@ -466,7 +540,8 @@ gh label create "status:blocked" --color "b60205" 2>/dev/null || true
 9. **Branching off `qualitycontrol`** — always base off `origin/develop`; the
    `qualitycontrol` branch is for QC-run reference only
 10. **Committing without citing the tracking issue** — every commit body must
-    reference its issue (gh `Closes #NN` or bd `Closes bd-XX`) so
+    reference its issue (gh `Closes #NN` — auto-closes on merge; or bd
+    `Refs bd-XX` + manual `bd close` since bd doesn't parse commits) so
     `git log --grep` can rebuild the trail if the tracker DB is lost
     (this is exactly what the 2026-07 bd bootstrap collision proved)
 
