@@ -44,7 +44,7 @@ class DailyConfig(Data):
     Passed to obb.fmp_trading.run(); serves as the input to PreOpenAgentTurn (P3).
     """
 
-    date: date | None = Field(default=None, description="Session date (None = today).")
+    session_date: date | None = Field(default=None, description="Session date (None = today).")
     exchange: Literal["NASDAQ", "NYSE", "AMEX"] = Field(default="NASDAQ")
     starting_equity: Decimal = Field(
         default=Decimal("100000"),

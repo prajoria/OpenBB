@@ -17,7 +17,7 @@ class SessionResult(Data):
     """End-of-day session summary — the terminal object obb.fmp_trading.run() returns."""
 
     session_id: str
-    date: date
+    trading_date: date
     exchange: str
     started_at: datetime
     ended_at: datetime

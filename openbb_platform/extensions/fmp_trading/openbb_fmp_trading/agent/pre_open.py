@@ -342,7 +342,7 @@ class PreOpenAgentTurn:
         self.journal.write(
             PromptInjectionRejectedEvent(
                 ts=datetime.now(timezone.utc),
-                session_id=str(plan.date),
+                session_id=str(plan.trading_date),
                 payload={
                     "defense_layer": "watchlist_size_cap",
                     "field": "watchlist",
@@ -375,7 +375,7 @@ class PreOpenAgentTurn:
             self.journal.write(
                 PromptInjectionRejectedEvent(
                     ts=datetime.now(timezone.utc),
-                    session_id=str(plan.date),
+                    session_id=str(plan.trading_date),
                     payload={
                         "defense_layer": "tradable_universe",
                         "field": "watchlist",
@@ -527,7 +527,7 @@ class PreOpenAgentTurn:
         self.journal.write(
             PromptInjectionRejectedEvent(
                 ts=datetime.now(timezone.utc),
-                session_id=str(plan.date),
+                session_id=str(plan.trading_date),
                 payload={
                     "defense_layer": "risk_clamp",
                     "field_count": len(violations),
@@ -620,7 +620,7 @@ class PreOpenAgentTurn:
 
         plan = DailyPlan(
             as_of=as_of,
-            date=as_of.date(),
+            trading_date=as_of.date(),
             watchlist=watchlist,
             preset=self.config.default_preset,
             alerts=[],
@@ -637,7 +637,7 @@ class PreOpenAgentTurn:
         self.journal.write(
             AgentFallbackEvent(
                 ts=as_of,
-                session_id=str(plan.date),
+                session_id=str(plan.trading_date),
                 payload={
                     "turn": "pre_open",
                     "reason": "agent_unavailable_or_invalid_output",
@@ -660,7 +660,7 @@ class PreOpenAgentTurn:
         self.journal.write(
             DailyPlanCommittedEvent(
                 ts=datetime.now(timezone.utc),
-                session_id=str(plan.date),
+                session_id=str(plan.trading_date),
                 payload={
                     "agent_backend": plan.agent_backend,
                     "is_deterministic_fallback": plan.is_deterministic_fallback,

@@ -47,7 +47,7 @@ class TestAggregateClampEvents:
         base_risk.update(overrides)
         return DailyPlan(
             as_of=datetime(2026, 7, 13, 13, 30, tzinfo=timezone.utc),
-            date=_date(2026, 7, 13),
+            trading_date=_date(2026, 7, 13),
             watchlist=["MSFT"],
             preset="intraday_momentum",
             alerts=[],

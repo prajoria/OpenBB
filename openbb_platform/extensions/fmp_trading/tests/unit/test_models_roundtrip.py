@@ -46,7 +46,7 @@ def _samples():
         starting_equity=Decimal("100000"), default_risk=risk
     )
     yield "DailyPlan", DailyPlan(
-        as_of=_NOW, date=date(2026, 7, 6), watchlist=["AAPL", "MSFT"],
+        as_of=_NOW, trading_date=date(2026, 7, 6), watchlist=["AAPL", "MSFT"],
         preset="intraday_momentum", alerts=[], session_risk=risk,
         thesis="test", agent_backend="none",
     )
@@ -121,10 +121,10 @@ def _samples():
         gate="per_symbol_cooldown", plan={},
     )
     yield "SessionResult", SessionResult(
-        session_id="s1", date=date(2026, 7, 6), exchange="NASDAQ",
+        session_id="s1", trading_date=date(2026, 7, 6), exchange="NASDAQ",
         started_at=_NOW, ended_at=_NOW, exit_code=0,
         daily_plan=DailyPlan(
-            as_of=_NOW, date=date(2026, 7, 6), watchlist=["AAPL"],
+            as_of=_NOW, trading_date=date(2026, 7, 6), watchlist=["AAPL"],
             preset="intraday_momentum", alerts=[], session_risk=risk,
             thesis="t", agent_backend="none",
         ),

@@ -19,7 +19,7 @@ class DailyPlan(Data):
     """
 
     as_of: datetime = Field(description="Commit timestamp (tz-aware UTC).")
-    date: date = Field(description="Trading date the plan applies to.")
+    trading_date: date = Field(description="Trading date the plan applies to.")
     watchlist: list[str] = Field(
         description="10-30 symbols the intraday loop will track."
     )

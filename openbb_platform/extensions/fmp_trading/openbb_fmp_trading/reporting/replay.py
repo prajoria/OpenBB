@@ -261,7 +261,7 @@ def _reconstruct_plan(events, session_date):
             payload = getattr(e, "payload", {}) or {}
             return DailyPlan(
                 as_of=getattr(e, "ts", datetime.now(timezone.utc)),
-                date=session_date,
+                trading_date=session_date,
                 watchlist=payload.get("watchlist", []),
                 preset=payload.get("preset", "trend_follow"),
                 alerts=[],
@@ -271,7 +271,7 @@ def _reconstruct_plan(events, session_date):
             )
     return DailyPlan(
         as_of=datetime.now(timezone.utc),
-        date=session_date,
+        trading_date=session_date,
         watchlist=[],
         preset="trend_follow",
         alerts=[],

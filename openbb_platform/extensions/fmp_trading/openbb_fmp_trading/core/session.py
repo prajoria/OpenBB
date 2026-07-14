@@ -64,7 +64,7 @@ class IntradaySession:
                 ts=datetime.now(timezone.utc),
                 session_id=self.session_id,
                 payload={
-                    "date": str(self.plan.date),
+                    "date": str(self.plan.trading_date),
                     "watchlist": list(self.plan.watchlist),
                     "preset": self.plan.preset,
                     "agent_backend": self.plan.agent_backend,
