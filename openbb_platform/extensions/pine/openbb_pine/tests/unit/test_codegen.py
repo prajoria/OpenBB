@@ -472,17 +472,21 @@ class TestCompilePineFacadeIntegration:
 
 
 class TestUnsupportedDirectives:
-    """``strategy()`` and ``library()`` are recognised but deferred."""
+    """``library()`` remains unsupported (PF011); ``strategy()`` is now
+    supported post-Wave-20 bump (bd-aeh, submodule 9cf7108)."""
 
-    def test_strategy_raises_pf010(self) -> None:
-        with pytest.raises(PineUnsupportedFeatureError) as exc:
-            _compile(
-                '//@version=6\n'
-                'strategy("Long Only", overlay=true)\n'
-                'plot(close)\n'
-            )
-        assert "PF010" in str(exc.value)
-        assert "strategy" in str(exc.value).lower()
+    def test_strategy_now_compiles(self) -> None:
+        """Post-bd-aeh: strategy() compiles to @script.strategy decorator.
+
+        Was previously ``test_strategy_raises_pf010`` — retired as of the
+        Pine P2 Wave 1 submodule bump per bd-kbtx.
+        """
+        result = _compile(
+            '//@version=6\n'
+            'strategy("Long Only", overlay=true)\n'
+            'plot(close)\n'
+        )
+        assert result.script_type == "strategy"
 
     def test_library_raises_pf011(self) -> None:
         with pytest.raises(PineUnsupportedFeatureError) as exc:

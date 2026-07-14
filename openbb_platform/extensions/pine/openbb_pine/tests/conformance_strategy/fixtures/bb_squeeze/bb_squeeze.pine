@@ -1,0 +1,19 @@
+//@version=6
+strategy("BB Squeeze", overlay=true, initial_capital=1000000)
+bb_len = input.int(20, "BB Length")
+bb_mult = input.float(2.0, "BB Std")
+squeeze_threshold = input.float(0.05, "Squeeze Threshold (BB width / basis)")
+basis = ta.sma(close, bb_len)
+dev = bb_mult * ta.stdev(close, bb_len)
+upper = basis + dev
+lower = basis - dev
+width = (upper - lower) / basis
+squeezing = width < squeeze_threshold
+breakout_up = close > upper and not squeezing and squeezing[1]
+if breakout_up
+    strategy.entry("Long", strategy.long)
+if close < basis
+    strategy.close("Long")
+plot(upper, "Upper", color=color.blue)
+plot(basis, "Basis", color=color.orange)
+plot(lower, "Lower", color=color.blue)

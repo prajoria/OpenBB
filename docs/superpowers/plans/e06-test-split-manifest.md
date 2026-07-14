@@ -4,19 +4,24 @@
 **Spec:** `docs/superpowers/specs/2026-07-06-pine-extraction-to-pynecore-design.md` §6.E0.6
 **Plan task:** `docs/superpowers/plans/2026-07-07-pine-extraction-implementation.md` E0.6
 **Baseline:** 1384 passed + 10 skipped (unchanged after refactor)
-**Total files audited:** 85 unit test files under
+**Total files audited:** 87 unit test files under
 `openbb_platform/extensions/pine/openbb_pine/tests/unit/` (81 pre-existing
 + 1 new `test_telemetry_module_globals.py` produced by the gray-zone
 refactor + 1 new `test_fmp_provider_conformance.py` added by E3.2
 (bd-3ch) + 1 new `test_byo_provider_conformance.py` added by E3.3
 (bd-tzm) + 1 new `test_deprecation_shims.py` added by E3.5 (bd-ijq)
-which STAYS by fiat since it exercises the fork-side §13.5 shims; the
+which STAYS by fiat since it exercises the fork-side §13.5 shims + 1
+new `test_strategies_router_run.py` added by bd-4d0 (Wave 22) covering
+the `/pine/strategies/run` 501→real flip, STAY via the
+`openbb_pine.routers.strategies_router` import + 1 new
+`test_strategies_router_run_byo.py` added by bd-250 (Wave 23) covering
+the `/pine/strategies/run_byo` BYO facade, STAY via the same import; the
 `__init__.py` is not counted as a test).
 
 **Ground truth for all counts below:** the E2 filter-repo list at
 lines 148–171 is authoritative. Every other bucket in this document
 (header total, MOVE/STAY tables, Counts section, Surprises notes) is
-derived from it: `MOVE = |E2 list| = 24`; `STAY = |disk test_*.py| − MOVE = 84 − 24 = 60`.
+derived from it: `MOVE = |E2 list| = 24`; `STAY = |disk test_*.py| − MOVE = 85 − 24 = 61`.
 
 ## Decision rule (spec §6.E0.6)
 
@@ -83,7 +88,7 @@ surface by the rule → STAY. See STAY table below.
 
 ---
 
-## STAY (58 files) — openbb-fork integration tests
+## STAY (59 files) — openbb-fork integration tests
 
 Any test hitting attribution, routers, MCP, CLI, providers, stdlib
 bridges, `_coverage_manifest`, `_load_bundled_widgets`, `about`,
@@ -98,6 +103,7 @@ bridges, `_coverage_manifest`, `_load_bundled_widgets`, `about`,
 | `test_cli_main.py` | `openbb_pine.cli.main` + `.diagnostics` + `.attribution` |
 | `test_diagnostics.py` | `openbb_pine.diagnostics` (fork-side, drives `about`+CLI) |
 | `test_executor_shell.py` | `openbb_pine.attribution` + `.runtime.executor_shell` — the shell + FMP wiring layer that stays |
+| `test_executor_strategy_branch.py` | `openbb_pine.runtime.executor_shell` — bd-liz strategy branch (stats + equity_curve); STAYS with the shell |
 | `test_extension_loads.py` | Imports `openbb_pine` itself + `.about` (extension entrypoint) |
 | `test_fmp_provider.py` | `openbb_pine.runtime.fmp_provider` |
 | `test_fmp_provider_conformance.py` | `openbb_pine.runtime.fmp_provider` + `pynecore.providers.provider.Provider` (E3.2 conformance) |
@@ -149,10 +155,10 @@ here get updated — do not adjust ad-hoc.
 | Bucket | Count |
 |---|---:|
 | MOVE (pyne_compiler-side, per E2 list) | **24** |
-| STAY (openbb-fork-side integration) | **60** |
-| **Total unit test files (excludes `__init__.py`)** | **84** = 81 pre-existing + 1 new `test_telemetry_module_globals.py` + 1 new `test_fmp_provider_conformance.py` (E3.2 bd-3ch) + 1 new `test_byo_provider_conformance.py` (E3.3 bd-tzm) |
+| STAY (openbb-fork-side integration) | **61** |
+| **Total unit test files (excludes `__init__.py`)** | **85** = 81 pre-existing + 1 new `test_telemetry_module_globals.py` + 1 new `test_fmp_provider_conformance.py` (E3.2 bd-3ch) + 1 new `test_byo_provider_conformance.py` (E3.3 bd-tzm) + 1 new `test_deprecation_shims.py` (E3.5 bd-ijq) + 1 new `test_executor_strategy_branch.py` (bd-liz) |
 
-MOVE + STAY = 24 + 60 = 84. On disk: `ls .../tests/unit/*.py | wc -l` = 85, minus `__init__.py` = 84. ✅
+MOVE + STAY = 24 + 61 = 85. On disk: `ls .../tests/unit/*.py | wc -l` = 86, minus `__init__.py` = 85. ✅
 
 ---
 

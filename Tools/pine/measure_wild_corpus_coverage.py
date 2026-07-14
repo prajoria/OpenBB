@@ -51,6 +51,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import importlib
+import importlib.util
 import json
 import sys
 from collections import Counter
@@ -59,6 +60,18 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_INDEX_PATH = REPO_ROOT / "tests" / "wild_corpus" / "index.json"
+# Repo-local path to the coverage manifest. Used as the primary loader so the
+# tool works in CI environments where `openbb_pine` is not pip-installed
+# (bd-6atb: prior CI runs reported 0/49 because the importlib fallback below
+# silently swallowed the ImportError → every set empty → every script blocked).
+MANIFEST_FILE_PATH = (
+    REPO_ROOT
+    / "openbb_platform"
+    / "extensions"
+    / "pine"
+    / "openbb_pine"
+    / "_coverage_manifest.py"
+)
 DEFAULT_CURATED_INDEX_PATH = REPO_ROOT / "tests" / "wild_corpus" / "curated_index.json"
 DEFAULT_BASELINE_PATH = (
     REPO_ROOT / "tools" / "pine" / "_baselines" / "wild_corpus_coverage.json"
@@ -90,15 +103,32 @@ def _load_implemented_baseline() -> dict[str, Any]:
     a consumer can tell "empty by design" from "empty by accident".
     """
     try:
-        # Always re-import freshly so tests that mutate the module see the
-        # latest values.
-        module = importlib.import_module("openbb_pine._coverage_manifest")
-        importlib.reload(module)
+        # Prefer loading the manifest directly from its on-disk path so this
+        # tool works in CI environments where `openbb_pine` isn't pip-
+        # installed. Falling through to importlib.import_module (the previous
+        # behaviour) silently returned empty sets whenever the extension was
+        # missing from sys.path — which is exactly what happened in the
+        # wild-corpus-coverage.yml workflow, producing the bogus 0/49 report.
+        module: Any
+        if MANIFEST_FILE_PATH.exists():
+            spec = importlib.util.spec_from_file_location(
+                "openbb_pine._coverage_manifest_local", MANIFEST_FILE_PATH
+            )
+            if spec is None or spec.loader is None:
+                raise ImportError(f"could not build spec for {MANIFEST_FILE_PATH}")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            manifest_status = f"loaded_from_file: {MANIFEST_FILE_PATH}"
+        else:
+            # Always re-import freshly so tests that mutate the module see the
+            # latest values.
+            module = importlib.import_module("openbb_pine._coverage_manifest")
+            importlib.reload(module)
+            manifest_status = "loaded"
         versions = sorted(getattr(module, "PINE_VERSIONS_SUPPORTED", frozenset()))
         builtins = frozenset(getattr(module, "BUILTINS_IMPLEMENTED", frozenset()))
         features = frozenset(getattr(module, "FEATURES_IMPLEMENTED", frozenset()))
-        manifest_status = "loaded"
-    except (ImportError, ModuleNotFoundError) as exc:
+    except (ImportError, ModuleNotFoundError, OSError) as exc:
         versions, builtins, features = [], frozenset(), frozenset()
         manifest_status = f"not_importable: {exc}"
 

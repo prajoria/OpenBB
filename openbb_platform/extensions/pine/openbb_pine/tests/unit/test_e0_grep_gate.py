@@ -114,9 +114,10 @@ _UNIT_TESTS_DIR = (
 
 # Ground-truth counts from the manifest header.
 _EXPECTED_MOVE = 24
-_EXPECTED_STAY = 61
-_EXPECTED_TOTAL = 85  # 85 test_*.py files (excludes __init__.py); +1 vs
-# post-E3.3 baseline for test_deprecation_shims.py (E3.5 bd-ijq)
+_EXPECTED_STAY = 64
+_EXPECTED_TOTAL = 88  # 88 test_*.py files (excludes E0.7 infra); +1 vs
+# post-E3.5 baseline for test_executor_strategy_branch.py (bd-liz —
+# executor_shell strategy branch; STAYS with the shell)
 
 # Fork-side surfaces: any test importing these STAYS. Mirrors the
 # classification grep documented in the manifest, but restricted to
@@ -160,6 +161,14 @@ _MANIFEST_STAY_BY_FIAT = frozenset({
     # classifier calls it MOVE (shim targets are pyne_compiler.*); by
     # intent it STAYS with the shims until v0.next+1.
     "test_deprecation_shims.py",
+    # bd-liz: the strategy branch lives in executor_shell (fork-side —
+    # OBBject wrapper, POWERED_BY_FULL attribution), but the test
+    # imports only ``openbb_pine.runtime.executor_shell`` +
+    # ``openbb_pine.errors``, neither of which is in the FORK_SIDE
+    # regex (executor_shell is fork-side by module location, not by
+    # import surface). Classifier calls it MOVE; by intent it STAYS
+    # with the shell.
+    "test_executor_strategy_branch.py",
 })
 
 

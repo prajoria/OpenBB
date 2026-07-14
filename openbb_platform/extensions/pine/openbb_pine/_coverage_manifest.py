@@ -140,14 +140,35 @@ BUILTINS_IMPLEMENTED: frozenset[str] = frozenset({
     "math.log",
     "math.exp",
     "math.sign",
+    # Phase 2 — strategy directive + order management (bd-h14 signatures +
+    # bd-aeh codegen). Graduated from SIGNATURE_ONLY once @script.strategy
+    # codegen shipped, turning strategy.* calls into runnable code paths.
+    "strategy.entry",
+    "strategy.exit",
+    "strategy.close",
+    "strategy.close_all",
+    "strategy.cancel",
+    "strategy.cancel_all",
+    # Phase 2 — strategy.* constants (bd-h14 + bd-aeh). Graduated from
+    # SIGNATURE_ONLY alongside the order-management calls.
+    "strategy.long",
+    "strategy.short",
+    "strategy.fixed",
+    "strategy.cash",
+    "strategy.percent_of_equity",
+    # Phase 2 — request.security builtin (bd-god call-site codegen +
+    # __security_contexts__ runtime bridge).
+    "request.security",
 })
 """Fully-qualified Pine builtin identifiers implemented (not stubbed)."""
 
 FEATURES_IMPLEMENTED: frozenset[str] = frozenset({
     # Top-level declarations (C2 parser + C3 type checker + C5 codegen).
     "indicator",              # @script.indicator via C5 codegen
-    # "strategy",             # deferred to Phase 2 (bead 0e9.5.6)
+    "strategy",               # @script.strategy via C5 codegen (bd-aeh)
     # "library",              # deferred to Phase 3 (bead 0e9.5.7 P3)
+    # Phase 2 — cross-symbol / cross-timeframe data access (bd-god).
+    "request.security",
     # Grammar features (C1 lexer + C2 parser + C3 type checker).
     "var",                    # var x = ...
     "varip",                  # varip x = ...
@@ -188,9 +209,7 @@ every wild-corpus script's use of ``indicator()`` / ``plot()`` / ``input.int``
 as "unsupported feature" and dragging the coverage percentage to 0.
 
 Deferred to later phases (still missing):
-- ``strategy`` (Phase 2 — bead 0e9.5.6 / #pine-P2)
 - ``library`` (Phase 3 — bead 0e9.5.7 / #pine-P3)
-- ``request.security`` (Phase 2)
 - Drawings (``line.new``, ``label.new``, ``box.new``, ``table.new``; Phase 3)
 - Import statements (Phase 3 library support)
 """

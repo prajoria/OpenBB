@@ -216,11 +216,17 @@ def _dummy_span():
     )
 
 
-def test_injected_sink_receives_codegen_pf010_signal() -> None:
-    """visit_Program's PF010 strategy-deferral raise MUST call
-    ``sink.record_unsupported_feature('PF010')`` on the injected sink —
+def test_injected_sink_receives_codegen_pf011_signal() -> None:
+    """visit_Program's PF011 library-deferral raise MUST call
+    ``sink.record_unsupported_feature('PF011')`` on the injected sink —
     not on the module-global default. This is the end-to-end proof the
-    plumbing works."""
+    plumbing works.
+
+    Was ``test_injected_sink_receives_codegen_pf010_signal`` until
+    bd-aeh landed strategy codegen; retired-and-inverted per bd-kbtx.
+    library() remains M3-deferred so it still raises PF010's sibling
+    PF011, exercising the same telemetry contract.
+    """
     from pyne_compiler.compiler import ir
     from pyne_compiler.compiler.codegen import _CodegenVisitor
     from pyne_compiler.telemetry import OpenBBTelemetrySink
@@ -229,7 +235,7 @@ def test_injected_sink_receives_codegen_pf010_signal() -> None:
     span = _dummy_span()
     directive = ir.ScriptDirective(
         loc=span,
-        kind="strategy",
+        kind="library",
         title="x",
         shorttitle=None,
         overlay=None,
@@ -248,7 +254,7 @@ def test_injected_sink_receives_codegen_pf010_signal() -> None:
     with pytest.raises(PineUnsupportedFeatureError):
         visitor.visit_Program(prog)
 
-    assert sink.get_unsupported_feature_counts().get("PF010") == 1
+    assert sink.get_unsupported_feature_counts().get("PF011") == 1
 
 
 def test_injected_sink_receives_type_checker_signal() -> None:
