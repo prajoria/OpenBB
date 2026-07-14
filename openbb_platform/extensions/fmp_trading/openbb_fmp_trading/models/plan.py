@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date as _date, datetime
+from datetime import (
+    date as _date,
+    datetime,
+)
 
 from openbb_core.provider.abstract.data import Data
 from pydantic import Field
