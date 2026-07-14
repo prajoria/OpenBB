@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from openbb_core.provider.abstract.data import Data
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from openbb_fmp_trading.models.alert import AlertSpec
 from openbb_fmp_trading.models.config import RiskConfig
@@ -19,7 +19,14 @@ class DailyPlan(Data):
     """
 
     as_of: datetime = Field(description="Commit timestamp (tz-aware UTC).")
-    trading_date: date = Field(description="Trading date the plan applies to.")
+    trading_date: date = Field(
+        description="Trading date the plan applies to.",
+        # Backward-compat: older serialized plans and hand-written tests use
+        # the shorter `date` key. Renamed to `trading_date` because `date`
+        # shadowed the imported `datetime.date` type under `from __future__
+        # import annotations`, breaking Pydantic class construction. See #744.
+        validation_alias=AliasChoices("trading_date", "date"),
+    )
     watchlist: list[str] = Field(
         description="10-30 symbols the intraday loop will track."
     )

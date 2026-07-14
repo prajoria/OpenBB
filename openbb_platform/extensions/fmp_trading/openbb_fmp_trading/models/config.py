@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Literal
 
 from openbb_core.provider.abstract.data import Data
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 
 class RiskConfig(Data):
@@ -44,7 +44,15 @@ class DailyConfig(Data):
     Passed to obb.fmp_trading.run(); serves as the input to PreOpenAgentTurn (P3).
     """
 
-    session_date: date | None = Field(default=None, description="Session date (None = today).")
+    session_date: date | None = Field(
+        default=None,
+        description="Session date (None = today).",
+        # Backward-compat: user YAMLs may still use the older `date:` key.
+        # Renamed from `date` to `session_date` because `date` shadowed the
+        # imported `datetime.date` type under `from __future__ import
+        # annotations`, breaking Pydantic class construction. See #744.
+        validation_alias=AliasChoices("session_date", "date"),
+    )
     exchange: Literal["NASDAQ", "NYSE", "AMEX"] = Field(default="NASDAQ")
     starting_equity: Decimal = Field(
         default=Decimal("100000"),

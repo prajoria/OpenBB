@@ -64,6 +64,11 @@ class IntradaySession:
                 ts=datetime.now(timezone.utc),
                 session_id=self.session_id,
                 payload={
+                    # Wire-protocol key stays `date` (external contract for
+                    # journal consumers). Python attribute is
+                    # `plan.trading_date` (renamed from `date` because the
+                    # field name shadowed the imported `datetime.date` under
+                    # `from __future__ import annotations`; see #744).
                     "date": str(self.plan.trading_date),
                     "watchlist": list(self.plan.watchlist),
                     "preset": self.plan.preset,

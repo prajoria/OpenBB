@@ -46,6 +46,10 @@ class ProviderFetcherTest(unittest.TestCase):
     # a follow-up to #754. When a fetcher is added with matching VCR
     # cassette + assertion in test_<provider>_fetchers.py, remove it
     # from this set.
+    #
+    # Anti-growth guard: `test_coverage_gap_size_matches_baseline` fails
+    # if this set grows without a matching baseline bump. Adding a new
+    # exempt fetcher must be an explicit, reviewer-visible decision.
     _COVERAGE_GAP_FETCHERS: set[str] = {
         # openbb_fmp — 6 new upstream fetchers added on develop without tests
         "FMPAftermarketQuoteFetcher",
@@ -73,6 +77,36 @@ class ProviderFetcherTest(unittest.TestCase):
         "FMPCachedInstitutionalOwnershipFetcher",
         "FMPCachedKeyMetricsFetcher",
     }
+
+    #: Baseline size for `_COVERAGE_GAP_FETCHERS`. If this set grows, the
+    #: baseline must be bumped in the same PR — forces reviewer to see and
+    #: sign off on the new exemption instead of silently hiding it.
+    _COVERAGE_GAP_BASELINE: int = 22
+
+    def test_coverage_gap_size_matches_baseline(self):
+        """Prevent silent growth of the fetcher-coverage skiplist.
+
+        The `_COVERAGE_GAP_FETCHERS` set is technical debt (see #756).
+        Adding a new entry must be an explicit act: bump
+        `_COVERAGE_GAP_BASELINE` in the same PR and justify in the commit
+        message. Removing entries (as coverage is added) is fine —
+        `assertLessEqual` catches only growth beyond baseline.
+        """
+        actual = len(self._COVERAGE_GAP_FETCHERS)
+        self.assertLessEqual(
+            actual,
+            self._COVERAGE_GAP_BASELINE,
+            msg=(
+                f"_COVERAGE_GAP_FETCHERS has grown to {actual} entries "
+                f"(baseline: {self._COVERAGE_GAP_BASELINE}). Do not silently "
+                f"add fetchers here. Either write test coverage for the new "
+                f"fetcher (preferred) OR explicitly bump _COVERAGE_GAP_BASELINE "
+                f"in this file with a justification in the commit message."
+            ),
+        )
+        # Also emit the size to test output so it's visible in CI even
+        # when green — makes technical-debt trend legible run-over-run.
+        print(f"\n[coverage-gap] {actual}/{self._COVERAGE_GAP_BASELINE} fetchers exempted (see #756)")
 
     def test_provider_fetchers_w_tests(self):
         """Ensure all the fetchers in each provider have tests.
