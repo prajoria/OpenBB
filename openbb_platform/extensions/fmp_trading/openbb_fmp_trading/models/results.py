@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from openbb_core.provider.abstract.data import Data
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from openbb_fmp_trading.models.plan import DailyPlan
 from openbb_fmp_trading.models.session_state import BandwidthState, PnLSnapshot
@@ -17,7 +17,12 @@ class SessionResult(Data):
     """End-of-day session summary — the terminal object obb.fmp_trading.run() returns."""
 
     session_id: str
-    date: date
+    trading_date: date = Field(
+        description="Trading date the session ran for.",
+        # Backward-compat: older serialized results use `date`. Renamed
+        # for consistency with DailyPlan.trading_date (see #744).
+        validation_alias=AliasChoices("trading_date", "date"),
+    )
     exchange: str
     started_at: datetime
     ended_at: datetime

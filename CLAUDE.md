@@ -15,58 +15,30 @@ so it is understandable without a lookup.
 If you don't already know the title, look it up first (`gh issue view NN` /
 `bd show <id>`) before mentioning it.
 
-## Branch Protection Policy (updated 2026-07-04)
+## Coordination — GitHub Issues primary, bd fallback
 
-**`openbb_pine_support` is the primary integration branch for Pine +
-TradingView work in this fork. `develop` is the downstream integration
-branch. Neither may be pushed to directly by Claude.**
+**Authoritative protocol:** `docs/BEADS_HYGIENE.md` (shipped Phase C,
+supersedes bd-only rules elsewhere in this file for any conflict).
 
-Rationale: `openbb_pine_support` accumulates every Pine/TradingView commit
-(compiler, runtime, provider bridge, docs) and stays clean for team review.
-`develop` receives occasional bulk merges from `openbb_pine_support`,
-executed manually by a human — never by an agent. Direct pushes to either
-branch bypass review and defeat the merge-window model.
+**Two-line summary:**
 
-**Historical note:** From 2026-07-03 through 2026-07-04 the protected pair
-was `openbb_tradingview` + `develop`. The remote `openbb_tradingview` was
-deleted server-side, so `openbb_pine_support` inherits the master/main
-role for Pine work going forward.
+1. **GitHub Issues are the source of truth.** Every unit of work has
+   a GH Issue. Every commit body cites its issue (`Closes #NN` for
+   gh mode auto-close, or `Refs bd-<id>` + manual `bd close` for bd
+   fallback mode). Branch names embed the issue reference
+   (`feat/topic-gh-491` or `feat/topic-bd-b6k5`).
+2. **Bd is a local coordination cache** with fast dep-graph queries.
+   Optional. Configured via `bd github sync` — writes propagate to
+   GH via `bd github push` / `bd github sync --push-only`. If bd is
+   present and configured, use it; otherwise fall back to plain `gh`.
 
-### Required workflow
+**Migration state:** `docs/BD_MIGRATION_PLAN.md` (Phase A + B complete
+as of 2026-07-13; Phase C shipping in this PR). Cross-session memories
+live in `docs/MEMORIES.md` — do NOT rely on `bd remember` for
+knowledge that must survive a bd DB loss.
 
-```bash
-# 1. Start from openbb_pine_support
-git switch openbb_pine_support
-git pull --ff-only
-
-# 2. Cut a feature branch
-git switch -c <feature-name> openbb_pine_support
-
-# 3. Do the work + commit on the feature branch
-# ... edits, tests, `git commit` ...
-
-# 4. Push the feature branch (never the base)
-git push -u origin <feature-name>
-
-# 5. Open a PR targeting openbb_pine_support
-gh pr create --base openbb_pine_support --head <feature-name>
-```
-
-### Enforcement
-
-A `PreToolUse` hook (`.claude/hooks/block-protected-branch-push.py`, wired
-via `.claude/settings.json`) denies any `git push` command whose
-destination refspec resolves to `openbb_pine_support` or `develop`. This
-covers direct pushes, `HEAD:<branch>` refspecs, `<local>:<protected>`
-refspecs, deletes (`:<branch>`), force pushes (`--force`,
-`--force-with-lease`, `+refspec`), env-prefixed invocations, chained
-commands, and bare `git push` while on a protected branch.
-
-If you legitimately need to bypass (e.g. amending a commit already on a
-protected branch during a manual maintenance session), disable the hook
-temporarily by editing `.claude/settings.json` or run the push from outside
-Claude — the guard is a scalpel, not a firewall, and `git push` from a
-regular terminal is unaffected.
+The `/openbb-dev-cycle` command auto-detects mode at runtime and
+picks the right tool. See `.claude/commands/openbb-dev-cycle.md`.
 
 ## Overview
 
