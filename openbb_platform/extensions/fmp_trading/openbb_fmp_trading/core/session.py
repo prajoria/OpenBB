@@ -43,10 +43,10 @@ class IntradaySession:
     """Market-hours state machine — see module docstring for chokepoint contract."""
 
     plan: DailyPlan
-    journal: Any            # openbb_core_journal.JournalWriter (J4 / P1.4)
-    risk_manager: Any       # RiskManager (Phase 1 P1.2)
-    broker: Any             # BrokerInterface — PaperBroker in v1 (P2.4)
-    bandwidth: Any          # BandwidthMeter (Phase 1 P1.3)
+    journal: Any  # openbb_core_journal.JournalWriter (J4 / P1.4)
+    risk_manager: Any  # RiskManager (Phase 1 P1.2)
+    broker: Any  # BrokerInterface — PaperBroker in v1 (P2.4)
+    bandwidth: Any  # BandwidthMeter (Phase 1 P1.3)
     session_id: str = field(default_factory=_utc_now_stamp)
     _ticks_processed: int = 0
     _flat_window_open: bool = False
@@ -64,7 +64,12 @@ class IntradaySession:
                 ts=datetime.now(timezone.utc),
                 session_id=self.session_id,
                 payload={
-                    "date": str(self.plan.date),
+                    # Wire-protocol key stays `date` (external contract for
+                    # journal consumers). Python attribute is
+                    # `plan.trading_date` (renamed from `date` because the
+                    # field name shadowed the imported `datetime.date` under
+                    # `from __future__ import annotations`; see #744).
+                    "date": str(self.plan.trading_date),
                     "watchlist": list(self.plan.watchlist),
                     "preset": self.plan.preset,
                     "agent_backend": self.plan.agent_backend,

@@ -29,7 +29,6 @@ from typing import Literal
 
 from openbb_techtrade.models import IndicatorPanel, IndicatorVote, MoverSignal
 
-
 # Module-level constant carrying the volume amplitude that ``volume_confirmation``
 # actually applies. Kept as a bare float (not a ``ConfluenceWeights`` attribute)
 # so ``ConfluenceWeights.__post_init__`` can reject non-matching overrides at
@@ -391,7 +390,10 @@ def volume_confirmation(panel: IndicatorPanel) -> float:
 
 
 def composite_score(
-    panel: IndicatorPanel, *, weights: ConfluenceWeights = DEFAULT_WEIGHTS
+    panel: IndicatorPanel,
+    *,
+    weights: ConfluenceWeights = DEFAULT_WEIGHTS,
+    panel_config=None,
 ) -> tuple[float, list[IndicatorVote]]:
     """Fuse a panel into a composite ``score ∈ [-1, +1]`` plus its full vote attribution.
 
@@ -422,12 +424,29 @@ def composite_score(
     tuple[float, list[IndicatorVote]]
         The composite ``score`` and every contributing :class:`IndicatorVote`.
     """
-    raw_votes = (
-        trend_votes(panel)
-        + momentum_votes(panel)
-        + volatility_votes(panel)
-        + _volume_votes(panel)
-    )
+    # bd-7ct.6 (bd-xim): panel_config dispatch. Resolved ONCE per call
+    # (per design spec §D1). Lazy imports so environments that never opt
+    # into the extended panel don't pull the _ext modules at import time.
+    if panel_config is None:
+        from openbb_techtrade.engine.panel_config import PANEL_CLASSIC  # noqa: PLC0415
+
+        panel_config = PANEL_CLASSIC
+    if panel_config.panel == "extended":
+        from openbb_techtrade.engine import confluence_ext  # noqa: PLC0415
+
+        raw_votes = (
+            confluence_ext.trend_votes_ext(panel)
+            + confluence_ext.momentum_votes_ext(panel)
+            + confluence_ext.volatility_votes_ext(panel)
+            + confluence_ext._volume_votes_ext(panel)
+        )
+    else:
+        raw_votes = (
+            trend_votes(panel)
+            + momentum_votes(panel)
+            + volatility_votes(panel)
+            + _volume_votes(panel)
+        )
     votes = [
         IndicatorVote(
             family=v.family,
@@ -514,6 +533,7 @@ def build_signal(
     weights: ConfluenceWeights = DEFAULT_WEIGHTS,
     entry_threshold: float = 0.4,
     rank_in_segment: int = 0,
+    panel_config=None,
 ) -> MoverSignal:
     """Assemble a :class:`MoverSignal` from a panel (score + direction + full votes).
 
@@ -540,7 +560,7 @@ def build_signal(
     MoverSignal
         The composite signal carrying ``score`` / ``direction`` / ``votes``.
     """
-    score, votes = composite_score(panel, weights=weights)
+    score, votes = composite_score(panel, weights=weights, panel_config=panel_config)
     return MoverSignal(
         symbol=panel.symbol,
         segment=segment,

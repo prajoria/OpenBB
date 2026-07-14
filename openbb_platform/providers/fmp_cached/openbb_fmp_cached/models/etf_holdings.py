@@ -124,7 +124,12 @@ async def _try_fmp(
     credentials: dict[str, str] | None,
     **kwargs: Any,
 ) -> list[dict]:
-    """FMP API tier. Returns [] on 402 / any error (never raises)."""
+    """FMP API tier. Returns [] on 402 / any error (never raises).
+
+    bd-3ka: per-tier failures are logged at DEBUG here (never WARNING).
+    The aggregate ALL-tiers-failed WARNING lives in aextract_data so
+    a benign 402-then-rescue doesn't produce user-facing noise.
+    """
     try:
         fetch_query = query.model_copy(update={"symbol": symbol})
         raw = await FMPEtfHoldingsFetcher.aextract_data(
@@ -134,12 +139,18 @@ async def _try_fmp(
         )
         return list(raw or [])
     except Exception as exc:  # noqa: BLE001
-        logger.warning("FMP etf_holdings %s failed: %s", symbol, exc)
+        # bd-3ka: DEBUG (not WARNING) — Tier-2/3 fallback may rescue.
+        # The aggregate WARNING at aextract_data fires only when EVERY
+        # tier fails, so ops still sees real breakage.
+        logger.debug("FMP etf_holdings %s failed: %s", symbol, exc)
         return []
 
 
 async def _try_issuer(symbol: str) -> list[dict]:
-    """Issuer-file tier. Returns [] for unknown ticker / HTTP error."""
+    """Issuer-file tier. Returns [] for unknown ticker / HTTP error.
+
+    bd-3ka: per-tier failures are logged at DEBUG here (never WARNING).
+    """
     try:
         from openbb_fmp_cached.models.etf_holdings_issuer import (  # noqa: PLC0415
             fetch_issuer_holdings,
@@ -147,7 +158,9 @@ async def _try_issuer(symbol: str) -> list[dict]:
 
         return await asyncio.to_thread(fetch_issuer_holdings, symbol)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("issuer-tier %s failed: %s", symbol, exc)
+        # bd-3ka: DEBUG (not WARNING) — Tier-3 may rescue, and the
+        # aggregate WARNING at aextract_data covers real all-tiers-fail.
+        logger.debug("issuer-tier %s failed: %s", symbol, exc)
         return []
 
 
@@ -212,6 +225,16 @@ class FMPCachedEtfHoldingsFetcher(FMPEtfHoldingsFetcher):
             _store_etf_holdings(symbol, nport_rows, data_source="sec_nport")
             return nport_rows
 
+        # bd-3ka: single aggregate WARNING when ALL tiers exhausted.
+        # This is the ONLY log line ops should see at WARNING level from
+        # this fetcher — per-tier failures are DEBUG (see _try_fmp /
+        # _try_issuer) because a lower tier may rescue. A benign 402 on
+        # FMP followed by an issuer-tier success produces zero WARNINGs.
+        logger.warning(
+            "etf_holdings %s: all tiers exhausted (FMP, issuer, N-PORT) "
+            "— returning empty holdings list",
+            symbol,
+        )
         return []
 
     @staticmethod
@@ -220,14 +243,40 @@ class FMPCachedEtfHoldingsFetcher(FMPEtfHoldingsFetcher):
         data: list[dict],
         **kwargs: Any,
     ) -> list[FMPEtfHoldingsData]:
-        """Normalize to FMPEtfHoldingsData; tolerate missing fields from fallback tiers."""
+        """Normalize to FMPEtfHoldingsData; tolerate missing fields from fallback tiers.
+
+        bd-5in: if EVERY row in a non-empty response fails validation
+        (100% schema drift), promote from DEBUG to WARNING with a sample
+        error message. Partial failures stay at DEBUG per existing
+        tolerance — the WARN only fires for the case where a caller
+        thinks they got no data but the truth is "endpoint returned N
+        rows and all N failed validation."
+        """
         validated: list[FMPEtfHoldingsData] = []
+        failed_count = 0
+        sample_error: str | None = None
         for record in data or []:
             try:
                 validated.append(FMPEtfHoldingsData.model_validate(record))
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                failed_count += 1
+                if sample_error is None:
+                    sample_error = f"{type(exc).__name__}: {exc}"
                 logger.debug(
                     "Skipping etf_holdings record that does not match FMP schema: %s",
-                    record.get("symbol", "?"),
+                    record.get("symbol", "?") if isinstance(record, dict) else "?",
                 )
+
+        # bd-5in loud-empty: N/N validation failures on non-empty input
+        # → schema drift (or wholesale endpoint contract change). Promote
+        # to WARNING with a sample so ops can distinguish this from
+        # "endpoint returned []" or the benign partial-failure case.
+        if data and failed_count == len(data):
+            logger.warning(
+                "etf_holdings transform: %d/%d rows failed schema validation "
+                "— possible upstream schema drift. Sample error: %s",
+                failed_count,
+                len(data),
+                sample_error or "(no error captured)",
+            )
         return validated

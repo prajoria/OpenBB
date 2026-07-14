@@ -1,0 +1,49 @@
+{
+  "regime_detect": {
+    "name": "Market Regime",
+    "description": "Current market regime (TRENDING_BULL / RANGING / TRENDING_BEAR / CRISIS / UNKNOWN) classified from SPY vs 200d SMA and VIX level with 3-day hysteresis + 33-day walkback fallback. Enables downstream Analysis and techtrade consumers to adapt composite scoring and position sizing to the current market state.",
+    "category": "Analysis",
+    "subCategory": "Regime",
+    "searchCategory": "Regime",
+    "type": "markdown",
+    "widgetId": "regime_detect",
+    "endpoint": "/regime/detect",
+    "gridData": {
+      "w": 20,
+      "h": 8
+    },
+    "params": [
+      {
+        "paramName": "as_of",
+        "label": "As Of",
+        "description": "Snap the classification to this date (YYYY-MM-DD). Defaults to today.",
+        "type": "date",
+        "value": null,
+        "optional": true,
+        "show": true
+      },
+      {
+        "paramName": "lookback_days",
+        "label": "Lookback Days",
+        "description": "SPY + VIX history window (minimum 233 for 200d SMA + 33d walkback).",
+        "type": "number",
+        "value": 400,
+        "optional": true,
+        "show": false
+      },
+      {
+        "paramName": "provider",
+        "label": "Provider",
+        "description": "OpenBB data provider. Omit to use the platform default.",
+        "type": "text",
+        "value": "",
+        "optional": true,
+        "show": true
+      }
+    ],
+    "data": {
+      "dataKey": "regime",
+      "markdown": "## Market Regime: **{regime}**\n\n- **As of:** {as_of}\n- **SPY:** {spy_symbol} ({spy_rows} rows)\n- **VIX:** {vix_symbol} ({vix_rows} rows)\n- **Provider:** {provider}\n"
+    }
+  }
+}

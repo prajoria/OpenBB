@@ -1,0 +1,152 @@
+{
+  "NVDA": {
+    "bb_pctb": {
+      "coefficient": 0.012,
+      "n_samples": 1021
+    },
+    "cmf": {
+      "coefficient": 0.0152,
+      "n_samples": 1021
+    },
+    "ema_cross": {
+      "coefficient": -0.0238,
+      "n_samples": 1021
+    },
+    "macd_hist": {
+      "coefficient": 0.0185,
+      "n_samples": 1021
+    },
+    "obv_slope": {
+      "coefficient": -0.0061,
+      "n_samples": 1021
+    },
+    "rsi": {
+      "coefficient": 0.0192,
+      "n_samples": 1021
+    },
+    "stoch": {
+      "coefficient": -0.0059,
+      "n_samples": 1021
+    }
+  },
+  "PG": {
+    "bb_pctb": {
+      "coefficient": -0.0092,
+      "n_samples": 1021
+    },
+    "cmf": {
+      "coefficient": -0.0119,
+      "n_samples": 1021
+    },
+    "ema_cross": {
+      "coefficient": -0.0784,
+      "n_samples": 1021
+    },
+    "macd_hist": {
+      "coefficient": 0.0305,
+      "n_samples": 1021
+    },
+    "obv_slope": {
+      "coefficient": 0.0217,
+      "n_samples": 1021
+    },
+    "rsi": {
+      "coefficient": -0.0267,
+      "n_samples": 1021
+    },
+    "stoch": {
+      "coefficient": -0.0309,
+      "n_samples": 1021
+    }
+  },
+  "PLTR": {
+    "bb_pctb": {
+      "coefficient": -0.0113,
+      "n_samples": 1021
+    },
+    "cmf": {
+      "coefficient": 0.0573,
+      "n_samples": 1021
+    },
+    "ema_cross": {
+      "coefficient": 0.0188,
+      "n_samples": 1021
+    },
+    "macd_hist": {
+      "coefficient": 0.0105,
+      "n_samples": 1021
+    },
+    "obv_slope": {
+      "coefficient": -0.0018,
+      "n_samples": 1021
+    },
+    "rsi": {
+      "coefficient": 0.0033,
+      "n_samples": 1021
+    },
+    "stoch": {
+      "coefficient": 0.0083,
+      "n_samples": 1021
+    }
+  },
+  "SPY": {
+    "bb_pctb": {
+      "coefficient": -0.0046,
+      "n_samples": 1020
+    },
+    "cmf": {
+      "coefficient": -0.0452,
+      "n_samples": 1020
+    },
+    "ema_cross": {
+      "coefficient": -0.0198,
+      "n_samples": 1020
+    },
+    "macd_hist": {
+      "coefficient": -0.0433,
+      "n_samples": 1020
+    },
+    "obv_slope": {
+      "coefficient": -0.0103,
+      "n_samples": 1020
+    },
+    "rsi": {
+      "coefficient": -0.0053,
+      "n_samples": 1020
+    },
+    "stoch": {
+      "coefficient": -0.0067,
+      "n_samples": 1020
+    }
+  },
+  "XOM": {
+    "bb_pctb": {
+      "coefficient": -0.0502,
+      "n_samples": 1021
+    },
+    "cmf": {
+      "coefficient": 0.0077,
+      "n_samples": 1021
+    },
+    "ema_cross": {
+      "coefficient": -0.045,
+      "n_samples": 1021
+    },
+    "macd_hist": {
+      "coefficient": 0.02,
+      "n_samples": 1021
+    },
+    "obv_slope": {
+      "coefficient": -0.0029,
+      "n_samples": 1021
+    },
+    "rsi": {
+      "coefficient": -0.0528,
+      "n_samples": 1021
+    },
+    "stoch": {
+      "coefficient": -0.038,
+      "n_samples": 1021
+    }
+  }
+}

@@ -9,11 +9,19 @@ P2.4 scope: full signal wiring. Bar-close detection triggers
 (chokepoint) → RiskManager → PaperBroker. Every quant op delegates to
 ``obb.techtrade.*``. NO signal math reimplemented here (G3 / NG2).
 
-The five ``_fetch_*`` / ``_run_*`` / ``_build_*`` helpers are all
-module-level so tests can monkey-patch them individually. That granularity
-matters: a signal-wiring test can stub only the techtrade calls while
-letting bar/quote/session-status fetching go through the same code path
-production runs.
+Data-fetch seams (bd-9nd.9 refactor): ``run_tick`` accepts an optional
+``provider: DataProvider`` parameter. When omitted, a module-level
+``LiveDataProvider`` is used — that provider delegates back to the
+module-level ``_fetch_*`` / ``_is_signal_bar_close`` helpers below, so
+existing test-monkeypatch of those helpers keeps working. Replay passes
+a ``StubbedDataProvider`` that reads recorded events instead of hitting
+FMP — no more module-global monkey-patching under a threading lock.
+
+The five ``_fetch_*`` / ``_run_*`` / ``_build_*`` helpers stay
+module-level (not methods) so tests that predate bd-9nd.9 continue to
+work: any ``monkeypatch.setattr(tick_loop, "_fetch_batch_quote", ...)``
+call will be picked up by ``LiveDataProvider`` because it dispatches
+through the module attribute at call time.
 """
 
 from __future__ import annotations
@@ -21,26 +29,54 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from openbb_fmp_trading.core.data_provider import (
+    DEFAULT_LIVE_PROVIDER,
+    DataProvider,
+)
 from openbb_fmp_trading.models.journal_events import SignalEvent, TickEvent
 
 
-def run_tick(session: Any, tick_ts: datetime) -> list[Any]:
+def run_tick(
+    session: Any,
+    tick_ts: datetime,
+    provider: DataProvider | None = None,
+) -> list[Any]:
     """Execute one tick: poll quotes, journal a TickEvent, dispatch signals if
     this tick lands on a bar close, return every emitted event.
 
     Bar-close discipline: we only run signals when the current tick coincides
     with a signal-bar close boundary (default 5-min). Non-close ticks keep
     the poll loop cheap — one batch-quote fetch and one TickEvent, nothing more.
+
+    Args:
+        session: The :class:`IntradaySession` driving the tick.
+        tick_ts: Current tick's tz-aware timestamp.
+        provider: Optional :class:`DataProvider` for data fetches. Defaults
+            to the module-level ``LiveDataProvider`` (which delegates to
+            ``obb.fmp_trading.*``). Replay passes ``StubbedDataProvider``.
     """
+    if provider is None:
+        provider = DEFAULT_LIVE_PROVIDER
+
     events: list[Any] = []
-    quotes = _fetch_batch_quote(session.plan.watchlist, provider="fmp_cached")
-    tick = _build_tick_data(session, tick_ts, quotes)
+    quotes = provider.fetch_batch_quote(
+        session.plan.watchlist, provider="fmp_cached"
+    )
+    tick = _build_tick_data(session, tick_ts, quotes, provider)
     tick_event = TickEvent(
         ts=tick_ts,
         session_id=session.session_id,
         payload={
             "watchlist_size": len(session.plan.watchlist),
             "quotes_fetched": len(quotes),
+            # bd-9nd.12: carry the actual quote content so replay's
+            # StubbedDataProvider can feed real recorded quotes back to
+            # techtrade.signals, enabling full signal-cascade determinism
+            # (not just control-flow). Structured as list[dict] to match
+            # what fetch_batch_quote returns. Storage cost: ~50-100 B per
+            # symbol; at 30-symbol watchlist + 5-min ticks that's ~10 KB
+            # per tick × ~7800 ticks/day = ~78 MB/day — acceptable.
+            "quotes": list(quotes),
         },
     )
     events.append(tick_event)
@@ -61,7 +97,7 @@ def run_tick(session: Any, tick_ts: datetime) -> list[Any]:
     # windows do NOT short-circuit here — the RiskManager's G1 gate is
     # what rejects new opens, so any techtrade signal fires normally and
     # gets vetoed downstream (that veto is the audit trail we want).
-    if _is_signal_bar_close(tick_ts, session.plan.preset):
+    if provider.is_signal_bar_close(tick_ts, session.plan.preset):
         signals = _run_techtrade_signals(session.plan, tick)
         for sig in signals:
             signal_event = SignalEvent(
@@ -84,18 +120,37 @@ def run_tick(session: Any, tick_ts: datetime) -> list[Any]:
 
 
 # ---------------------------------------------------------------------------
-# Module-level seams — all patched individually in unit tests. Keeping them
-# as free functions (not methods) means a test can substitute one without
-# constructing a full session or importing the real openbb runtime.
+# Module-level seams — kept for test-monkeypatch backward compat.
+# LiveDataProvider (in data_provider.py) delegates to these at call time,
+# so any monkeypatch here is transparently picked up.
 # ---------------------------------------------------------------------------
 
 
 def _fetch_batch_quote(symbols: list[str], provider: str) -> list[dict[str, Any]]:
-    """Fetch batched quotes for the watchlist via fmp_trading.quote_batch."""
+    """Fetch batched quotes for the watchlist via fmp_trading.quote_batch.
+
+    bd-9nd.12 round 2 (silent-failure hunter P0): use ``mode="json"`` so
+    Decimal fields become strings and datetime fields become ISO strings
+    HERE, at the emit boundary. Without ``mode="json"``, quotes carry
+    Python-native Decimal/datetime, which ``event.model_dump_json()``
+    coerces to strings at journal-write time — but ``json.loads`` at
+    replay-read time gives strings back with no coercion (the payload
+    field is typed ``dict[str, Any]``). Result: live-run quotes have
+    ``Decimal("430.15")`` while replayed quotes have ``"430.15"``.
+    Any techtrade consumer doing arithmetic on ``q["price"]`` would
+    silently TypeError or, worse, do string-concat.
+
+    Fix: normalize at the FETCH boundary so live and replayed quotes
+    are structurally identical. Downstream consumers who need arithmetic
+    now MUST parse to Decimal themselves — but they do so uniformly,
+    not conditionally on whether the run is live or replayed.
+    """
     from openbb import obb
 
     result = obb.fmp_trading.quote_batch(symbols=symbols, short=True, provider=provider)
-    return [r.model_dump() for r in result.results]
+    # mode="json" → Decimal/datetime → str/ISO. Idempotent through the
+    # journal write/read cycle: live quotes == replayed quotes exactly.
+    return [r.model_dump(mode="json") for r in result.results]
 
 
 def _fetch_recent_bars(symbols: list[str]) -> dict[str, list[Any]]:
@@ -137,19 +192,27 @@ def _build_techtrade_plan(signal: Any, tick: Any) -> Any:
     return result.results
 
 
-def _build_tick_data(session: Any, tick_ts: datetime, quotes: list[dict[str, Any]]) -> Any:
+def _build_tick_data(
+    session: Any,
+    tick_ts: datetime,
+    quotes: list[dict[str, Any]],
+    provider: DataProvider,
+) -> Any:
     """Assemble the TickData bundle handed to signals + RiskManager.
 
     Fetches recent bars + session status only when we're on a bar close —
-    tests that stub ``_is_signal_bar_close`` to False skip the extra I/O.
-    Kept as a helper so P2.5 can inject flat-by-close state without editing
-    every call site of run_tick.
+    tests that stub ``is_signal_bar_close`` to False (via the provider)
+    skip the extra I/O. Kept as a helper so P2.5 can inject flat-by-close
+    state without editing every call site of run_tick.
+
+    Data-fetch delegation: takes the DataProvider so bar / session-status
+    fetches route through the same seam the top-level quote fetch does.
     """
     from openbb_fmp_trading.models.session_state import TickData
 
-    if _is_signal_bar_close(tick_ts, session.plan.preset):
-        bars_recent = _fetch_recent_bars(session.plan.watchlist)
-        session_status = _fetch_session_status(exchange="NASDAQ")
+    if provider.is_signal_bar_close(tick_ts, session.plan.preset):
+        bars_recent = provider.fetch_recent_bars(session.plan.watchlist)
+        session_status = provider.fetch_session_status(exchange="NASDAQ")
     else:
         bars_recent = {}
         session_status = None
@@ -167,6 +230,9 @@ def _is_signal_bar_close(tick_ts: datetime, preset: str) -> bool:
     Presets may override this in the future (e.g. 1-min for scalping,
     15-min for slower confluence). Keeping the preset arg in the signature
     now so future callers don't need to be edited.
+
+    Kept as a module-level helper so ``LiveDataProvider`` and any
+    pre-bd-9nd.9 test monkeypatch have a single stable target.
     """
     return tick_ts.minute % 5 == 0 and tick_ts.second == 0
 
