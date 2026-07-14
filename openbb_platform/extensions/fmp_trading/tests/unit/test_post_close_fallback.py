@@ -35,7 +35,7 @@ def _plan():
 
     return DailyPlan(
         as_of=datetime(2026, 7, 13, 13, 30, tzinfo=timezone.utc),
-        date=date(2026, 7, 13),
+        trading_date=date(2026, 7, 13),
         watchlist=["MSFT", "AAPL"],
         preset="intraday_momentum",
         alerts=[],

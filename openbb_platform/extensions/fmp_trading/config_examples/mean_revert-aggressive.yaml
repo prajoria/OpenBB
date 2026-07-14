@@ -7,7 +7,7 @@
 # Larger position count, higher DD ceiling, shorter cooldowns. Suits
 # mean-reversion which typically wants many small parallel positions.
 
-date: null
+session_date: null
 exchange: NASDAQ
 starting_equity: "100000"
 default_preset: mean_revert
