@@ -155,3 +155,4 @@ pr[0-9]*-review.txt
 .dolt/
 *.db
 .beads-credential-key
+tmp_bd_gh_migration/

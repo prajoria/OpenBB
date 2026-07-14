@@ -15,6 +15,31 @@ so it is understandable without a lookup.
 If you don't already know the title, look it up first (`gh issue view NN` /
 `bd show <id>`) before mentioning it.
 
+## Coordination — GitHub Issues primary, bd fallback
+
+**Authoritative protocol:** `docs/BEADS_HYGIENE.md` (shipped Phase C,
+supersedes bd-only rules elsewhere in this file for any conflict).
+
+**Two-line summary:**
+
+1. **GitHub Issues are the source of truth.** Every unit of work has
+   a GH Issue. Every commit body cites its issue (`Closes #NN` for
+   gh mode auto-close, or `Refs bd-<id>` + manual `bd close` for bd
+   fallback mode). Branch names embed the issue reference
+   (`feat/topic-gh-491` or `feat/topic-bd-b6k5`).
+2. **Bd is a local coordination cache** with fast dep-graph queries.
+   Optional. Configured via `bd github sync` — writes propagate to
+   GH via `bd github push` / `bd github sync --push-only`. If bd is
+   present and configured, use it; otherwise fall back to plain `gh`.
+
+**Migration state:** `docs/BD_MIGRATION_PLAN.md` (Phase A + B complete
+as of 2026-07-13; Phase C shipping in this PR). Cross-session memories
+live in `docs/MEMORIES.md` — do NOT rely on `bd remember` for
+knowledge that must survive a bd DB loss.
+
+The `/openbb-dev-cycle` command auto-detects mode at runtime and
+picks the right tool. See `.claude/commands/openbb-dev-cycle.md`.
+
 ## Overview
 
 OpenBB is an open-source financial data platform that provides the "connect once, consume everywhere" infrastructure for integrating financial data sources. The project consists of multiple components:
