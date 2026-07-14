@@ -36,25 +36,27 @@ if not exist "%PROXY_ENTRY%" (
 )
 
 rem ---------------------------------------------------------------------------
-rem File logging: tee stdout+stderr to a log file so we can inspect upstream
-rem model decisions after the fact. The proxy itself has no built-in file
-rem logger; we capture consola's verbose output here.
+rem File logging + rotation: launch is delegated to start-copilot-proxy.ps1
+rem (co-located with this .bat). That script owns the :4141 port guard, the
+rem size-based log ROTATION (proxy.log -> .1 -> .2 ... so it can never balloon
+rem again; a 40+ GB log was seen pre-rotation), the compact errors-only sink,
+rem and UTF-8 output encoding so consola's box-drawing banner is not mojibake.
+rem Keeping the logic in a .ps1 avoids the brittle quoting of a bat-embedded
+rem PowerShell one-liner and makes rotation testable in isolation.
+rem
+rem Tunables (env vars, all optional):
+rem   PROXY_MAX_LOG_MB   active proxy.log rotation threshold   (default 50)
+rem   PROXY_MAX_ERR_MB   proxy-errors.log rotation threshold   (default 25)
+rem   PROXY_LOG_KEEP     archives kept per log                 (default 5)
 rem ---------------------------------------------------------------------------
 set "LOG_DIR=%USERPROFILE%\.local\share\copilot-api"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
-set "LOG_FILE=%LOG_DIR%\proxy.log"
 
-echo [start-copilot-proxy] Logging to: %LOG_FILE%
+if not defined PROXY_MAX_LOG_MB set "PROXY_MAX_LOG_MB=50"
+if not defined PROXY_MAX_ERR_MB set "PROXY_MAX_ERR_MB=25"
+if not defined PROXY_LOG_KEEP set "PROXY_LOG_KEEP=5"
+
+echo [start-copilot-proxy] Logging to: %LOG_DIR%\proxy.log
 echo [start-copilot-proxy] COPILOT_API_FORCE_MODEL=%COPILOT_API_FORCE_MODEL%
 
-rem ---------------------------------------------------------------------------
-rem Pre-flight: only one instance can bind :4141. Starting a second one makes
-rem Node throw an unhandled EADDRINUSE 'error' event and exit 1 ("it crashes").
-rem If a proxy is already listening, reuse it and exit cleanly instead of
-rem crashing. Stop the existing process first if you want a fresh start.
-rem
-rem The port check, the node launch and the timestamped Tee logging all run in a
-rem single PowerShell session so the guard and the server share one context.
-rem --verbose makes consola emit request payloads and "Forcing model X -> Y".
-rem ---------------------------------------------------------------------------
-powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort 4141 -State Listen -ErrorAction SilentlyContinue) { Write-Host '[start-copilot-proxy] A proxy is already listening on :4141 - reusing it (not starting a second instance). Stop the existing process first for a fresh start.'; exit 0 }; & node '%PROXY_ENTRY%' start --port 4141 --verbose %* 2>&1 | ForEach-Object { '{0:HH:mm:ss.fff} {1}' -f (Get-Date), $_ } | Tee-Object -FilePath '%LOG_FILE%' -Append"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-copilot-proxy.ps1" -Port 4141 -ProxyEntry "%PROXY_ENTRY%" -LogDir "%LOG_DIR%" -MaxLogMB %PROXY_MAX_LOG_MB% -MaxErrMB %PROXY_MAX_ERR_MB% -Retention %PROXY_LOG_KEEP% %*
