@@ -68,9 +68,7 @@ def replay(
     from openbb_fmp_trading.reporting.journal_reader import read_journal_file
 
     events = list(read_journal_file(Path(journal_path)))
-    tick_events = [
-        e for e in events if getattr(e, "event_type", None) == "tick"
-    ]
+    tick_events = [e for e in events if getattr(e, "event_type", None) == "tick"]
 
     # Slice by tick index
     sliced_ticks = (
@@ -79,9 +77,7 @@ def replay(
 
     session_start = _find_session_start(events)
     session_id = (
-        getattr(session_start, "session_id", "unknown")
-        if session_start
-        else "unknown"
+        getattr(session_start, "session_id", "unknown") if session_start else "unknown"
     )
     session_date = _extract_session_date(events)
     plan = _reconstruct_plan(events, session_date)
@@ -103,8 +99,8 @@ def replay(
         plan=plan,
         journal=_CapturingJournal(),
         risk_manager=MagicMock(),  # replay doesn't re-evaluate risk
-        broker=MagicMock(),         # replay doesn't re-submit orders
-        bandwidth=MagicMock(),      # P6: no meter charging on replay
+        broker=MagicMock(),  # replay doesn't re-submit orders
+        bandwidth=MagicMock(),  # P6: no meter charging on replay
     )
 
     diverged_at_tick: int | None = None
@@ -114,6 +110,7 @@ def replay(
     # hazard. Two concurrent replay() calls each get their own
     # StubbedDataProvider bound to their own recorded events.
     from openbb_fmp_trading.core.data_provider import StubbedDataProvider
+
     provider = StubbedDataProvider(events=events)
     for tick_idx, tick_event in enumerate(sliced_ticks):
         # Snapshot the emit log before this tick
@@ -210,12 +207,23 @@ def _find_divergence(
 # (input). This list is the minimal deterministic surface that
 # _process_signal's contract exposes; add fields here as they become
 # load-bearing for regression detection.
-_DETERMINISTIC_PAYLOAD_KEYS = frozenset({
-    "fill_price", "fill_qty", "commission", "slippage",
-    "order_ref", "symbol", "intent", "qty",
-    "reason_code", "gate", "verdict",
-    "watchlist_size", "quotes_fetched",
-})
+_DETERMINISTIC_PAYLOAD_KEYS = frozenset(
+    {
+        "fill_price",
+        "fill_qty",
+        "commission",
+        "slippage",
+        "order_ref",
+        "symbol",
+        "intent",
+        "qty",
+        "reason_code",
+        "gate",
+        "verdict",
+        "watchlist_size",
+        "quotes_fetched",
+    }
+)
 
 
 def _bucket_events_by_tick_ts(events: list) -> dict:
@@ -261,7 +269,7 @@ def _reconstruct_plan(events, session_date):
             payload = getattr(e, "payload", {}) or {}
             return DailyPlan(
                 as_of=getattr(e, "ts", datetime.now(timezone.utc)),
-                date=session_date,
+                trading_date=session_date,
                 watchlist=payload.get("watchlist", []),
                 preset=payload.get("preset", "trend_follow"),
                 alerts=[],
@@ -271,7 +279,7 @@ def _reconstruct_plan(events, session_date):
             )
     return DailyPlan(
         as_of=datetime.now(timezone.utc),
-        date=session_date,
+        trading_date=session_date,
         watchlist=[],
         preset="trend_follow",
         alerts=[],

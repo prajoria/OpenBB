@@ -5,7 +5,7 @@
 # lower per-position size; wider cooldowns; earlier flat-by-close.
 # Use when you want lower turnover + lower P&L variance.
 
-date: null
+session_date: null
 exchange: NASDAQ
 starting_equity: "100000"
 default_preset: trend_follow

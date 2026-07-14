@@ -4,7 +4,7 @@
 # Balanced starter config for most operators. Uses the PRD default
 # RiskConfig values throughout. If you're new to the tool, start here.
 
-date: null  # null = today
+session_date: null  # null = today
 exchange: NASDAQ
 starting_equity: "100000"
 default_preset: intraday_momentum
