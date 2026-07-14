@@ -94,14 +94,16 @@ def _load_prompt(name: str) -> str:
 #: :func:`PostCloseAgentTurn._persist_state`'s payload must be added
 #: here explicitly (fail-closed — a new free-form ``notes`` field
 #: doesn't reach the pre-open prompt until it's been reviewed).
-_SUMMARY_ALLOWED_KEYS: frozenset[str] = frozenset({
-    "date",             # str - ISO date
-    "session_id",       # str - identifier, no free-form
-    "realized_pnl",     # str/decimal
-    "fill_count",       # int
-    "order_count",      # int
-    "veto_counts",      # dict[str, int] - gate names + counts
-})
+_SUMMARY_ALLOWED_KEYS: frozenset[str] = frozenset(
+    {
+        "date",  # str - ISO date
+        "session_id",  # str - identifier, no free-form
+        "realized_pnl",  # str/decimal
+        "fill_count",  # int
+        "order_count",  # int
+        "veto_counts",  # dict[str, int] - gate names + counts
+    }
+)
 
 #: Sub-keys of ``veto_counts`` are gate names (G1..G8, or
 #: reason_code strings). We keep them but strip anything that isn't a
@@ -231,8 +233,8 @@ class PreOpenAgentTurn:
                 tools=self._tools(),
                 required_final_tool="submit_daily_plan",
                 budget=self.bandwidth,
-                temperature=0.0,           # A6: reproducibility + audit
-                max_iterations=8,          # A4: cap tool-call round-trips
+                temperature=0.0,  # A6: reproducibility + audit
+                max_iterations=8,  # A4: cap tool-call round-trips
                 max_tokens=4096,
             )
             # A4: reconcile bandwidth against actual usage
@@ -251,7 +253,8 @@ class PreOpenAgentTurn:
             logger.error(
                 "PreOpenAgentTurn: unexpected backend failure (%s: %s); "
                 "using fallback",
-                type(exc).__name__, exc,
+                type(exc).__name__,
+                exc,
             )
 
         # --- Validate + apply P0/P1 defenses ---
@@ -271,7 +274,8 @@ class PreOpenAgentTurn:
                 logger.warning(
                     "PreOpenAgentTurn: LLM output failed defense/validation "
                     "(%s: %s); falling through to deterministic fallback",
-                    type(exc).__name__, exc,
+                    type(exc).__name__,
+                    exc,
                 )
 
         # --- Fallback path ---
@@ -291,9 +295,7 @@ class PreOpenAgentTurn:
     # LLM output validation + P0 defense stack
     # ------------------------------------------------------------------
 
-    def _validate_and_defend(
-        self, tool_call: ToolCall, as_of: datetime
-    ) -> DailyPlan:
+    def _validate_and_defend(self, tool_call: ToolCall, as_of: datetime) -> DailyPlan:
         """Parse + defend the LLM's ``submit_daily_plan`` args.
 
         Runs in this order — earlier defenses catch cheaper failures:
@@ -337,7 +339,9 @@ class PreOpenAgentTurn:
         logger.warning(
             "PreOpenAgentTurn: truncating watchlist from %d to %d symbols; "
             "dropped: %s",
-            len(plan.watchlist), MAX_WATCHLIST_SIZE, excess,
+            len(plan.watchlist),
+            MAX_WATCHLIST_SIZE,
+            excess,
         )
         self.journal.write(
             PromptInjectionRejectedEvent(
@@ -350,7 +354,9 @@ class PreOpenAgentTurn:
                 },
             )
         )
-        return plan.model_copy(update={"watchlist": plan.watchlist[:MAX_WATCHLIST_SIZE]})
+        return plan.model_copy(
+            update={"watchlist": plan.watchlist[:MAX_WATCHLIST_SIZE]}
+        )
 
     def _enforce_tradable_universe(self, plan: DailyPlan) -> DailyPlan:
         """A1: drop symbols outside the tradable universe.
@@ -370,7 +376,8 @@ class PreOpenAgentTurn:
         if dropped:
             logger.warning(
                 "PreOpenAgentTurn: dropping %d out-of-universe symbols: %s",
-                len(dropped), dropped,
+                len(dropped),
+                dropped,
             )
             self.journal.write(
                 PromptInjectionRejectedEvent(
@@ -442,28 +449,34 @@ class PreOpenAgentTurn:
             llm_val = getattr(llm, field)
             default_val = getattr(default, field)
             if llm_val > default_val:
-                violations.append({
-                    "field": field,
-                    "offending_value": llm_val,
-                    "clamped_to": default_val,
-                })
+                violations.append(
+                    {
+                        "field": field,
+                        "offending_value": llm_val,
+                        "clamped_to": default_val,
+                    }
+                )
 
         # cooldown_after_stopout_min: SMALLER = LOOSER (shorter wait
         # between re-entries = less restriction). Security-review #1 fix.
         if llm.cooldown_after_stopout_min < default.cooldown_after_stopout_min:
-            violations.append({
-                "field": "cooldown_after_stopout_min",
-                "offending_value": llm.cooldown_after_stopout_min,
-                "clamped_to": default.cooldown_after_stopout_min,
-            })
+            violations.append(
+                {
+                    "field": "cooldown_after_stopout_min",
+                    "offending_value": llm.cooldown_after_stopout_min,
+                    "clamped_to": default.cooldown_after_stopout_min,
+                }
+            )
 
         # day_dd_pct is negative; MORE NEGATIVE = looser (bigger allowed loss)
         if llm.day_dd_pct < default.day_dd_pct:
-            violations.append({
-                "field": "day_dd_pct",
-                "offending_value": llm.day_dd_pct,
-                "clamped_to": default.day_dd_pct,
-            })
+            violations.append(
+                {
+                    "field": "day_dd_pct",
+                    "offending_value": llm.day_dd_pct,
+                    "clamped_to": default.day_dd_pct,
+                }
+            )
 
         # flat_by_close_time_et: parse as time objects, not strings.
         # Security-review #4 fix — lexicographic '9:30' > '15:50' would
@@ -474,18 +487,22 @@ class PreOpenAgentTurn:
         except ValueError:
             # Non-conforming HH:MM string is itself a loosening attempt
             # (bypass via malformed input). Reject.
-            violations.append({
-                "field": "flat_by_close_time_et",
-                "offending_value": llm.flat_by_close_time_et,
-                "clamped_to": default.flat_by_close_time_et,
-            })
-        else:
-            if llm_close > default_close:  # later time = looser
-                violations.append({
+            violations.append(
+                {
                     "field": "flat_by_close_time_et",
                     "offending_value": llm.flat_by_close_time_et,
                     "clamped_to": default.flat_by_close_time_et,
-                })
+                }
+            )
+        else:
+            if llm_close > default_close:  # later time = looser
+                violations.append(
+                    {
+                        "field": "flat_by_close_time_et",
+                        "offending_value": llm.flat_by_close_time_et,
+                        "clamped_to": default.flat_by_close_time_et,
+                    }
+                )
 
         if not violations:
             return plan
@@ -511,9 +528,7 @@ class PreOpenAgentTurn:
             f"LLM tried to loosen risk on fields: {[v['field'] for v in violations]}"
         )
 
-    def _journal_clamp_aggregate(
-        self, violations: list[dict], plan: DailyPlan
-    ) -> None:
+    def _journal_clamp_aggregate(self, violations: list[dict], plan: DailyPlan) -> None:
         """Emit one aggregate ``PromptInjectionRejectedEvent`` covering
         all clamp violations in a single :meth:`_clamp_risk_overrides` pass.
 
@@ -548,11 +563,13 @@ class PreOpenAgentTurn:
         self, field: str, offending, clamped_to, plan: DailyPlan
     ) -> None:
         self._journal_clamp_aggregate(
-            [{
-                "field": field,
-                "offending_value": offending,
-                "clamped_to": clamped_to,
-            }],
+            [
+                {
+                    "field": field,
+                    "offending_value": offending,
+                    "clamped_to": clamped_to,
+                }
+            ],
             plan,
         )
 
@@ -730,8 +747,8 @@ class PreOpenAgentTurn:
                 "structurally sanitized then base64-encoded JSON per "
                 "design-spec §6.6 + security-review #2. Only typed values "
                 "kept; free-form text dropped):\n"
-                "<untrusted_tool_output tool=\"state_store\" "
-                "encoding=\"base64_json\">\n"
+                '<untrusted_tool_output tool="state_store" '
+                'encoding="base64_json">\n'
                 f"{encoded}\n"
                 "</untrusted_tool_output>\n"
                 "(Decode as base64 then parse as JSON. Every field is a "
