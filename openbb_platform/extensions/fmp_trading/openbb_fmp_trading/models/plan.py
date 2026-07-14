@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date as _date, datetime
 
 from openbb_core.provider.abstract.data import Data
 from pydantic import Field
@@ -19,7 +19,7 @@ class DailyPlan(Data):
     """
 
     as_of: datetime = Field(description="Commit timestamp (tz-aware UTC).")
-    date: date = Field(description="Trading date the plan applies to.")
+    date: _date = Field(description="Trading date the plan applies to.")
     watchlist: list[str] = Field(
         description="10-30 symbols the intraday loop will track."
     )

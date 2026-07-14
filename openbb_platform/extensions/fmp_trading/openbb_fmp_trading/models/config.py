@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date as _date
 from decimal import Decimal
 from typing import Literal
 
@@ -44,7 +44,7 @@ class DailyConfig(Data):
     Passed to obb.fmp_trading.run(); serves as the input to PreOpenAgentTurn (P3).
     """
 
-    date: date | None = Field(default=None, description="Session date (None = today).")
+    date: _date | None = Field(default=None, description="Session date (None = today).")
     exchange: Literal["NASDAQ", "NYSE", "AMEX"] = Field(default="NASDAQ")
     starting_equity: Decimal = Field(
         default=Decimal("100000"),
