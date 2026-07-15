@@ -117,18 +117,6 @@ Both files are `.gitignore`d — never commit them.
 # and populates the 83 cache tables
 PYTHONIOENCODING=utf-8 .venv_win/Scripts/python.exe \
     openbb_platform/providers/fmp_cached/setup_database.py
-
-# NOTE: the setup script has a known bug (create_cache_tables awaits a
-# sync function, throwing 'object bool can't be used in await'). If you
-# hit that error, run the sync equivalent directly:
-.venv_win/Scripts/python.exe -c "
-import sys; sys.path.insert(0, 'openbb_platform/providers/fmp_cached')
-from openbb_fmp_cached.utils.database import init_database
-from openbb_fmp_cached.utils.cache_schema import create_all_flattened_tables
-init_database()
-result = create_all_flattened_tables()
-print(f'created/verified {len(result)} tables')
-"
 ```
 
 ### 6. Verify tests can run
@@ -168,7 +156,3 @@ settings — see the "MySQL setup" section above.
 **`Access denied for user 'fmp_user'@'localhost'`**
 → Credentials in `user_settings.json` / `.env` don't match the MySQL user
 you created. Recreate the user or update the config to match.
-
-**`create_cache_tables` fails with `object bool can't be used in await`**
-→ Known bug in `setup_database.py`. Use the sync workaround in step 5.
-Tracked as a follow-up to #771.
