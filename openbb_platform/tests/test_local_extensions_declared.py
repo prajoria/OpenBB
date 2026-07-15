@@ -148,3 +148,47 @@ def test_non_poetry_allowlist_entries_actually_exist_and_are_non_poetry():
             f"should be declared as a Poetry path dep in main "
             f"openbb_platform/pyproject.toml. Remove from the allow-list."
         )
+
+
+def test_every_path_based_dep_points_to_existing_pyproject():
+    """Catch typos in `path = "extensions/foo"` at test time, not install time.
+
+    If someone adds:
+
+        openbb-typo = { path = "extensions/typoo", develop = true, optional = true }
+
+    Poetry only complains when a developer runs `poetry install`. A cheap
+    guard here means the typo is caught by CI on the PR that introduces
+    it (before any developer wastes time on the install failure).
+
+    Reviewer note on PR #766 flagged this: "if someone mistypes the path
+    in a future addition, Poetry will fail at install time (not test
+    time). A cheap extra assertion in the guard test: for each
+    fork-declared path-dep, verify the target pyproject.toml exists."
+    """
+    with open(ROOT / "pyproject.toml", encoding="utf-8") as f:
+        data = load(f)
+    deps = data["tool"]["poetry"]["dependencies"]  # type: ignore
+
+    missing_paths: list[str] = []
+    for name, spec in deps.items():
+        # Only path-based deps have a "path" key; skip version-based ones
+        if not isinstance(spec, dict):
+            continue
+        path_str = spec.get("path")  # type: ignore
+        if not path_str:
+            continue
+        target = ROOT / str(path_str) / "pyproject.toml"
+        if not target.exists():
+            missing_paths.append(
+                f"{name!s}: path = {path_str!r} → resolved to "
+                f"{target.relative_to(ROOT).as_posix()} (does not exist)"
+            )
+
+    assert not missing_paths, (
+        "\n\nMain openbb_platform/pyproject.toml declares path-based deps "
+        "that point to non-existent pyproject.toml files:\n\n"
+        + "\n".join(f"  - {m}" for m in missing_paths)
+        + "\n\nFix the `path = \"...\"` value to point at a real "
+        "pyproject.toml under openbb_platform/, or remove the entry entirely."
+    )
