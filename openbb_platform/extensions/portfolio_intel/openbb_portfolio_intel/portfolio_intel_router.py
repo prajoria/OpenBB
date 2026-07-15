@@ -61,18 +61,26 @@ def _include_subrouters() -> None:
     """Lazily attach sub-routers as they are implemented (P1 → P3).
 
     A ``ModuleNotFoundError`` whose ``.name`` matches the expected sub-router
-    path is caught silently — the sub-router simply hasn't landed yet.
-    Any other ``ModuleNotFoundError`` (from a typo inside a real sub-router
-    dependency) is re-raised so CI fails visibly instead of silently
-    dropping the sub-router from the public surface.
+    path — or its parent package (``openbb_portfolio_intel.routers``, which
+    doesn't exist at M0 because no sub-routers have landed yet) — is caught
+    silently. Any other ``ModuleNotFoundError`` (from a typo inside a real
+    sub-router dependency) is re-raised so CI fails visibly instead of
+    silently dropping the sub-router from the public surface.
+
+    See GH #741 — the original guard only checked ``exc.name == module_path``
+    (leaf), which re-raised when the parent ``routers/`` package was itself
+    absent. That made ``from openbb import obb`` fail across the whole fork
+    whenever this extension was installed but its sub-routers weren't.
     """
     for module_path in _PLANNED_SUBROUTERS:
         try:
             module = __import__(module_path, fromlist=["router"])
         except ModuleNotFoundError as exc:
-            # Only swallow if the missing module is THIS sub-router itself,
-            # not a transitive dependency it tried to import.
-            if exc.name == module_path:
+            parent_pkg = module_path.rsplit(".", 1)[0]
+            # Swallow both the leaf-missing case (sub-router file absent)
+            # and the parent-missing case (routers/ package itself absent at
+            # M0). Anything else (transitive missing dep) surfaces loudly.
+            if exc.name in (module_path, parent_pkg):
                 continue
             raise
         sub = getattr(module, "router", None)
