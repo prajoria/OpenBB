@@ -56,7 +56,7 @@ def test_equity_quote_cache_miss_fetches_and_stores():
         patch("openbb_fmp_cached.models.equity_quote.init_database"),
         patch("openbb_fmp_cached.models.equity_quote.create_equity_quote_table"),
         patch("openbb_fmp_cached.models.equity_quote.execute_query", side_effect=[[], 1]),
-        patch("openbb_fmp_cached.models.equity_quote.execute_many") as mock_many,
+        patch("openbb_fmp_cached.models.equity_quote.replace_rows") as mock_many,  # #784
         patch(
             "openbb_fmp_cached.models.equity_quote.FMPEquityQuoteFetcher.aextract_data",
             new_callable=AsyncMock,
@@ -157,7 +157,7 @@ def test_balance_sheet_cache_miss_fetches_and_stores():
         patch("openbb_fmp_cached.models.balance_sheet.init_database"),
         patch("openbb_fmp_cached.models.balance_sheet.create_balance_sheet_table"),
         patch("openbb_fmp_cached.models.balance_sheet.execute_query", side_effect=[[], 1]),
-        patch("openbb_fmp_cached.models.balance_sheet.execute_many") as mock_many,
+        patch("openbb_fmp_cached.models.balance_sheet.replace_rows") as mock_many,  # #784
         patch(
             "openbb_fmp_cached.models.balance_sheet.FMPBalanceSheetFetcher.aextract_data",
             new_callable=AsyncMock,
@@ -182,7 +182,7 @@ def test_cash_flow_cache_miss_fetches_and_stores():
         patch("openbb_fmp_cached.models.cash_flow.init_database"),
         patch("openbb_fmp_cached.models.cash_flow.create_cash_flow_table"),
         patch("openbb_fmp_cached.models.cash_flow.execute_query", side_effect=[[], 1]),
-        patch("openbb_fmp_cached.models.cash_flow.execute_many") as mock_many,
+        patch("openbb_fmp_cached.models.cash_flow.replace_rows") as mock_many,  # #784
         patch(
             "openbb_fmp_cached.models.cash_flow.FMPCashFlowStatementFetcher.aextract_data",
             new_callable=AsyncMock,
