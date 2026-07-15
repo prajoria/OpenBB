@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock
 
-from providers.tradingeconomics.openbb_tradingeconomics.utils.url_generator import (
+from openbb_tradingeconomics.utils.url_generator import (
     check_args,
     generate_url,
 )
