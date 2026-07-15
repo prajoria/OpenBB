@@ -1,7 +1,7 @@
 """Test the quantitative helpers."""
 
 import pandas as pd
-from extensions.quantitative.openbb_quantitative.helpers import (
+from openbb_quantitative.helpers import (
     validate_window,
 )
 
