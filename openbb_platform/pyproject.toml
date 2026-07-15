@@ -88,37 +88,35 @@ openbb-regime = { path = "extensions/regime", version = "0.1.0", develop = true,
 openbb-techtrade = { path = "extensions/techtrade", version = "0.1.0", develop = true, optional = true }
 
 [tool.poetry.extras]
+# Alphabetically sorted; fork-specific extras are inline with community ones.
+# `openbb-agents` is intentionally NOT declared here — it uses PEP 621 +
+# flit_core, not Poetry, so it cannot be a path dep. Install manually with:
+#   pip install -e openbb_platform/extensions/agents
 alpha_vantage = ["openbb-alpha-vantage"]
+backtest = ["openbb-backtest"]
 biztoc = ["openbb-biztoc"]
 cboe = ["openbb-cboe"]
 charting = ["openbb-charting"]
 deribit = ["openbb-deribit"]
+devtools = ["openbb-devtools"]
 ecb = ["openbb-ecb"]
 econometrics = ["openbb-econometrics"]
 famafrench = ["openbb-famafrench"]
+financialtoolkit = ["openbb-financialtoolkit"]
 finra = ["openbb-finra"]
 finviz = ["openbb-finviz"]
-mcp_server = ["openbb-mcp-server"]
-portfolio = ["openbb-portfolio-custom"]
-
-# Fork-specific extras (see path-based deps above).
-# Note: `agents` extra intentionally omitted — openbb-agents is not a
-# Poetry package (uses PEP 621 + flit_core). Install manually with
-# `pip install -e openbb_platform/extensions/agents`.
-backtest = ["openbb-backtest"]
-devtools = ["openbb-devtools"]
-financialtoolkit = ["openbb-financialtoolkit"]
 fmp_cached = ["openbb-fmp-cached"]
 fmp_trading = ["openbb-fmp-trading"]
-regime = ["openbb-regime"]
-techtrade = ["openbb-techtrade"]
-
-nasdaq = ["openbb-nasdaq"]
+mcp_server = ["openbb-mcp-server"]
 multpl = ["openbb-multpl"]
+nasdaq = ["openbb-nasdaq"]
+portfolio = ["openbb-portfolio-custom"]
 quantitative = ["openbb-quantitative"]
+regime = ["openbb-regime"]
 seeking_alpha = ["openbb-seeking-alpha"]
 stockgrid = ["openbb-stockgrid"]
 technical = ["openbb-technical"]
+techtrade = ["openbb-techtrade"]
 tmx = ["openbb-tmx"]
 tradier = ["openbb-tradier"]
 wsj = ["openbb-wsj"]
