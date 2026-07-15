@@ -154,27 +154,29 @@ class TestCacheRead:
     def test_cache_hit(self, mock_query):
         record = _fmp_record("AAPL")
         mock_query.return_value = [{"data_json": json.dumps(record)}]
-        result = _get_cached_institutional("AAPL")
+        # year+quarter are required post-uolr (deterministic cache key).
+        # See #783.
+        result = _get_cached_institutional("AAPL", year=2024, quarter=4)
         assert len(result) == 1
         assert result[0]["symbol"] == "AAPL"
 
     @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
     def test_cache_miss(self, mock_query):
         mock_query.return_value = []
-        result = _get_cached_institutional("TSLA")
+        result = _get_cached_institutional("TSLA", year=2024, quarter=4)
         assert result == []
 
     @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
     def test_cache_db_error_returns_empty(self, mock_query):
         mock_query.side_effect = Exception("DB connection lost")
-        result = _get_cached_institutional("MSFT")
+        result = _get_cached_institutional("MSFT", year=2024, quarter=4)
         assert result == []
 
     @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
     def test_cache_query_params(self, mock_query):
         """Verify the cache reads with correct symbol and TTL cutoff."""
         mock_query.return_value = []
-        _get_cached_institutional("NVDA")
+        _get_cached_institutional("NVDA", year=2024, quarter=4)
         args, kwargs = mock_query.call_args
         assert "NVDA" in args[1]  # symbol in params tuple
         # Second param should be a datetime (freshness cutoff)
@@ -185,7 +187,7 @@ class TestCacheRead:
         """Verify JSON string in data_json is properly parsed."""
         record = _fmp_record()
         mock_query.return_value = [{"data_json": json.dumps(record)}]
-        result = _get_cached_institutional("MSFT")
+        result = _get_cached_institutional("MSFT", year=2024, quarter=4)
         assert isinstance(result[0], dict)
         assert result[0]["ownership_percent"] == 0.72
 
@@ -194,13 +196,13 @@ class TestCacheRead:
         """Verify dict payload in data_json is handled directly."""
         record = _fmp_record()
         mock_query.return_value = [{"data_json": record}]
-        result = _get_cached_institutional("MSFT")
+        result = _get_cached_institutional("MSFT", year=2024, quarter=4)
         assert result[0]["ownership_percent"] == 0.72
 
     @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
     def test_cache_skips_none_payload(self, mock_query):
         mock_query.return_value = [{"data_json": None}]
-        result = _get_cached_institutional("MSFT")
+        result = _get_cached_institutional("MSFT", year=2024, quarter=4)
         assert result == []
 
 
