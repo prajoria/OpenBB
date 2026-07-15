@@ -5,40 +5,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Communication Conventions
 
 **Always pair an issue number with its title/description — never cite a bare number.**
-When referencing any issue (GitHub `#NN` or beads `bd-NN`) in a question, status
-update, summary, commit message, or PR body, write it as `#NN (short description)`
-so it is understandable without a lookup.
+When referencing any GitHub Issue (`#NN`) in a question, status update, summary,
+commit message, or PR body, write it as `#NN (short description)` so it is
+understandable without a lookup.
 
 - Good: `#65 (Scaffold techtrade extension + entry point + green build)`
 - Bad: `#65`
 
-If you don't already know the title, look it up first (`gh issue view NN` /
-`bd show <id>`) before mentioning it.
+If you don't already know the title, look it up first (`gh issue view NN`)
+before mentioning it.
 
-## Coordination — GitHub Issues primary, bd fallback
+## Coordination — GitHub Issues only
 
-**Authoritative protocol:** `docs/BEADS_HYGIENE.md` (shipped Phase C,
-supersedes bd-only rules elsewhere in this file for any conflict).
+**GitHub Issues are the sole source of truth for all work tracking in this
+repository, across every branch.** The prior beads (`bd`) system has been
+retired. Do NOT use `bd` commands, do NOT create `.beads/` state, and do NOT
+cite `bd-XX` identifiers in new work.
 
-**Two-line summary:**
+**Workflow:**
 
-1. **GitHub Issues are the source of truth.** Every unit of work has
-   a GH Issue. Every commit body cites its issue (`Closes #NN` for
-   gh mode auto-close, or `Refs bd-<id>` + manual `bd close` for bd
-   fallback mode). Branch names embed the issue reference
-   (`feat/topic-gh-491` or `feat/topic-bd-b6k5`).
-2. **Bd is a local coordination cache** with fast dep-graph queries.
-   Optional. Configured via `bd github sync` — writes propagate to
-   GH via `bd github push` / `bd github sync --push-only`. If bd is
-   present and configured, use it; otherwise fall back to plain `gh`.
+1. Every unit of work has a GitHub Issue. Find work with `gh issue list`.
+2. Claim by self-assigning: `gh issue edit <NN> --add-assignee @me`.
+3. Branch names embed the issue number: `feat/topic-gh-<NN>`,
+   `fix/topic-gh-<NN>`, `docs/topic-gh-<NN>`.
+4. Every commit body cites its issue: `Refs #NN` (or `Closes #NN` on the
+   final commit / PR body for auto-close on merge).
+5. PR title cites the issue: `<type>(<scope>): <what> (#NN)`.
 
-**Migration state:** `docs/BD_MIGRATION_PLAN.md` (Phase A + B complete
-as of 2026-07-13; Phase C shipping in this PR). Cross-session memories
-live in `docs/MEMORIES.md` — do NOT rely on `bd remember` for
-knowledge that must survive a bd DB loss.
+**Cross-session memory:** durable knowledge lives in `docs/MEMORIES.md`
+(a plain checked-in markdown file). Append new entries; do NOT create
+scratch `MEMORY.md` files in random locations.
 
-The `/openbb-dev-cycle` command auto-detects mode at runtime and
-picks the right tool. See `.claude/commands/openbb-dev-cycle.md`.
+**Legacy references:** any `bd-XX` identifier in old commit history, old
+comments, or old docs is historical only — treat it as a permanent
+identifier of past work, but never file new `bd-XX` items.
 
 ## Overview
 
@@ -530,51 +530,60 @@ print(p7.action_label, p7.composite_score)
 .venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "integration" -v
 ```
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ccf33ec3 -->
-## Beads Issue Tracker
+<!-- BEGIN ISSUE TRACKING -->
+## Issue Tracking — GitHub Issues (bd retired)
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+This project uses **GitHub Issues** for ALL work tracking, across every
+branch. The prior `bd (beads)` system has been retired repository-wide.
 
 ### Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+gh issue list --state open --assignee @me     # Your open work
+gh issue list --state open --label ready      # Work available to claim
+gh issue view <NN>                             # Details
+gh issue edit <NN> --add-assignee @me          # Claim work
+gh issue close <NN> --reason completed         # Mark complete
+gh issue create --title "..." --body "..."     # New issue
 ```
 
 ### Rules
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See <https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md> for details and anti-patterns.
+- Use `gh` (GitHub CLI) for ALL task tracking — do NOT use `bd`, TodoWrite,
+  TaskCreate, or ad-hoc markdown TODO lists.
+- Do NOT run `bd` commands or create `.beads/` state in any branch.
+- Cross-session memory belongs in `docs/MEMORIES.md` (checked-in file), not
+  in `bd remember` or scratch `MEMORY.md` files.
+- Historical `bd-XX` references in old commits/docs are read-only relics;
+  do not create new ones.
 
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, complete ALL steps below. Work is NOT
+complete until `git push` succeeds (when the current profile authorizes it).
 
 **MANDATORY WORKFLOW:**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **Handle git/sync by active profile**:
+1. **File follow-up issues** — for anything discovered but not fixed,
+   `gh issue create` before closing the session.
+2. **Run quality gates** (if code changed) — tests, linters, builds.
+3. **Update issue status** — `gh issue close <NN>` for finished work;
+   comment progress on any that remain in-flight.
+4. **Handle git per active profile**:
 
    ```bash
    git pull --rebase
-   bd dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```
 
-5. **Hand off** - Summarize changes, validation, issue status, and any blocked sync/commit/push step
+5. **Hand off** — summarize changes, validation, issue status, and any
+   blocked commit/push step.
 
 **Critical rules:**
 
-- Explicit user or orchestrator instructions override this Beads block.
-- Do not commit or push without clear authority from the active profile or the current user request.
-- If a required sync or push is blocked, stop and report the exact command and error.
-<!-- END BEADS INTEGRATION -->
+- Explicit user or orchestrator instructions override this block.
+- Do not commit or push without clear authority from the active profile
+  or the current user request.
+- If a required push is blocked, stop and report the exact command + error.
+<!-- END ISSUE TRACKING -->
