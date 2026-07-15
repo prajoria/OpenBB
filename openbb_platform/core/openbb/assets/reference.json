@@ -5,11 +5,963 @@
         "description": "Investment research for everyone, anywhere.",
         "core": "1.6.10",
         "extensions": {
-            "openbb_core_extension": [],
-            "openbb_provider_extension": [],
+            "openbb_core_extension": [
+                "portfolio_intel@0.0.1",
+                "regime@0.1.0",
+                "techtrade@0.1.0"
+            ],
+            "openbb_provider_extension": [
+                "fmp@1.6.1",
+                "fmp_cached@1.0.0",
+                "fred@1.6.2",
+                "yfinance@1.6.3"
+            ],
             "openbb_obbject_extension": []
         }
     },
-    "paths": {},
-    "routers": {}
+    "paths": {
+        "/portfolio_intel/about": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Return the extension name, version, and scope.\n\nHealth-check command used by the M0 gate demo and by every derived\nanalytic to stamp its response envelope with the extension version\nthat produced it (per PRD \u00a74 Guiding Principle 3 \u2014 deterministic\noutputs).\n\nMatches the ``@router.command(methods=[\"GET\"])`` signature of\n``openbb_backtest.backtest_router.about`` \u2014 passing ``model=<str>``\ntriggers OpenBB's standard-models registry lookup, which fails for\nextension-local models (PR #466 review finding 4).",
+            "examples": "",
+            "parameters": {
+                "standard": []
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "ExtensionAbout",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/regime/detect": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Detect the current MarketRegime from SPY + VIX daily bars.",
+            "examples": "Examples\n--------\n\n```python\nfrom openbb import obb\n# Current market regime\nobb.regime.detect()\n# Regime as of a historical date (backtesting)\nobb.regime.detect(as_of=2020-03-16)\n```\n\n",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "as_of",
+                        "type": "str",
+                        "description": "ISO-format date (``YYYY-MM-DD``) to snap the classification to. Defaults to today. Useful for backtesting or auditing a historical regime call.",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "lookback_days",
+                        "type": "int",
+                        "description": "Days of daily bars to fetch. Must be >= 233 (200d SMA + 33d walkback window). Default 400 gives a comfortable margin over weekends and holidays.",
+                        "default": 400,
+                        "optional": true
+                    },
+                    {
+                        "name": "spy_symbol",
+                        "type": "str",
+                        "description": "Symbol for the broad market index. SPY is the standard.",
+                        "default": "SPY",
+                        "optional": true
+                    },
+                    {
+                        "name": "vix_symbol",
+                        "type": "str",
+                        "description": "Symbol for the volatility index. The ``^VIX`` prefix works with yfinance / fmp_cached; users on other providers may need a different ticker convention.",
+                        "default": "^VIX",
+                        "optional": true
+                    },
+                    {
+                        "name": "provider",
+                        "type": "ForwardRef('str') | None",
+                        "description": "OpenBB data provider. Defaults to ``\"fmp_cached\"`` (matches CLAUDE.md's Provider rule \u2014 see :data:`_DEFAULT_PROVIDER`). Callers can override explicitly for R&D use cases, but downstream Analysis + techtrade consumers assume fmp_cached response shapes.",
+                        "default": "fmp_cached",
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/segments": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "list supported GICS segments and their (placeholder) resolved universes.",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "universe_source",
+                        "type": "str",
+                        "description": "How each segment universe is resolved (``etf_holdings`` / ``constituent_list`` / ``screener``). Defaults to ``\"etf_holdings\"``.",
+                        "default": "etf_holdings",
+                        "optional": true
+                    },
+                    {
+                        "name": "rank_metric",
+                        "type": "str",
+                        "description": "Metric used to rank movers within a segment (``pct_change`` / ``volume`` / ``gap`` / ``rel_volume``). Defaults to ``\"pct_change\"``.",
+                        "default": "pct_change",
+                        "optional": true
+                    },
+                    {
+                        "name": "top_n",
+                        "type": "int",
+                        "description": "Number of top movers to keep per segment. Defaults to ``10``.",
+                        "default": 10,
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/movers": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Rank the day's top movers for one or all GICS segments (PRD \u00a710, issue #70).\n\nRanks a single GICS sector when ``segment`` is given, or all 11 sectors in\ncanonical order when ``segment`` is ``None``. The requested ``as_of`` is snapped\nback to the most recent trading session before ranking, so the result is always\nlook-ahead-free.",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "segment",
+                        "type": "str | None",
+                        "description": "A single GICS sector name (e.g. ``\"Information Technology\"``) to rank, or ``None`` to rank all 11 sectors. Defaults to ``None``.",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "metric",
+                        "type": "str",
+                        "description": "Metric used to rank movers within each segment (``pct_change`` / ``volume`` / ``gap`` / ``rel_volume``). Defaults to ``\"pct_change\"``.",
+                        "default": "pct_change",
+                        "optional": true
+                    },
+                    {
+                        "name": "top_n",
+                        "type": "int",
+                        "description": "Number of top movers to keep per segment. Defaults to ``10``.",
+                        "default": 10,
+                        "optional": true
+                    },
+                    {
+                        "name": "as_of",
+                        "type": "str | None",
+                        "description": "ISO date to rank as of; snapped to the most recent session. Defaults to today when ``None``.",
+                        "default": null,
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/signals": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Compute ranked confluence signals for a symbol set or a GICS segment (PRD \u00a712.3, issue #75).\n\nScores either an explicit ``symbols`` set or a ``segment``'s ranked top movers with the\n#74 confluence engine under the named ``preset``, then ranks the results by signed score\ndescending (most-long first) into a contiguous ``rank_in_segment``. Each returned signal\ncarries the per-indicator votes -- with the preset's weight tilt visible in every\n``vote.weight`` -- so the engine can always answer *\"why long?\"*. The requested ``as_of``\nis snapped back to the most recent trading session before scoring, so the result is\nalways look-ahead-free.",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "segment",
+                        "type": "str | None",
+                        "description": "A single GICS sector name (e.g. ``\"Information Technology\"``) to resolve into its ranked top movers, or ``None`` to score an explicit ``symbols`` set. Defaults to ``None``.",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "symbols",
+                        "type": "list[str] | None",
+                        "description": "Explicit instrument symbols to score; takes precedence over ``segment``. Defaults to ``None``.",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "preset",
+                        "type": "str",
+                        "description": "Named confluence preset: ``\"trend_follow\"`` (default, the Q4 base) / ``\"mean_revert\"`` / ``\"breakout\"``. Each re-tilts the same four indicator families toward a style.",
+                        "default": "trend_follow",
+                        "optional": true
+                    },
+                    {
+                        "name": "as_of",
+                        "type": "str | None",
+                        "description": "ISO date to score as of; snapped to the most recent session. Defaults to today when ``None``.",
+                        "default": null,
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/plan": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Assemble per-symbol trade plans for a symbol set or a GICS segment (PRD \u00a79.2, issue #77).\n\nRuns the #75 confluence signal chain under the named ``preset`` over either an explicit\n``symbols`` set or a ``segment``'s ranked top movers, then assembles one ``TradePlan`` per\nranked signal -- sizing the #76 stop / target / quantity at ``risk`` of notional, mapping the\nbroker-ready order legs, and attaching an inline recommendation. The plans preserve the signal\nchain's ranking order. The requested ``as_of`` is snapped back to the most recent trading\nsession before scoring, so each plan is look-ahead-free.",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "segment",
+                        "type": "str | None",
+                        "description": "A single GICS sector name (e.g. ``\"Information Technology\"``) to resolve into its ranked top movers, or ``None`` to plan an explicit ``symbols`` set. Defaults to ``None``.",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "symbols",
+                        "type": "list[str] | None",
+                        "description": "Explicit instrument symbols to plan; takes precedence over ``segment``. Defaults to ``None``.",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "preset",
+                        "type": "str",
+                        "description": "Named confluence preset: ``\"trend_follow\"`` (default) / ``\"mean_revert\"`` / ``\"breakout\"``.",
+                        "default": "trend_follow",
+                        "optional": true
+                    },
+                    {
+                        "name": "risk",
+                        "type": "float",
+                        "description": "Fraction of notional risked per trade, fed to the #76 sizing. Defaults to ``0.01``.",
+                        "default": 0.01,
+                        "optional": true
+                    },
+                    {
+                        "name": "as_of",
+                        "type": "str | None",
+                        "description": "ISO date to plan as of; snapped to the most recent session. Defaults to today when ``None``.",
+                        "default": null,
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/orders": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Materialize the broker-ready order legs of a single trade plan (PRD \u00a79.2, issue #77).\n\nRe-validates the supplied ``plan`` (an in-memory :class:`TradePlan` or one deserialized from\nJSON) and returns its order legs unchanged -- an idempotent round-trip. A flat plan carries no\nposition and yields an empty list.",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "plan",
+                        "type": "TradePlan",
+                        "description": "The trade plan whose orders to materialize.",
+                        "default": null,
+                        "optional": false
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/simulate": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Paper-fill a set of order legs against a forward OHLCV window (PRD \u00a714.1, issue #78).\n\nDrives the #78 :class:`~openbb_techtrade.execution.broker.PaperBroker` over ``bars`` (whose\nfirst row is the next-bar-open session *t+1*): fills the ``entry`` leg at ``bars[0]`` open with\nadverse slippage, then walks the contingent ``exit_stop`` / ``exit_target`` / ``exit_time`` legs\nbar-by-bar, taking the first triggered exit with a conservative stop-wins tie-break. The signal\nbar *t* is never read, so the result is no-look-ahead by construction. An empty order list (a\nflat plan) yields an empty Filllist.",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "orders",
+                        "type": "list[Order]",
+                        "description": "The canonical #77 order legs to simulate (entry first, then contingent exits).",
+                        "default": null,
+                        "optional": false
+                    },
+                    {
+                        "name": "bars",
+                        "type": "list",
+                        "description": "The forward OHLCV window starting at *t+1*; each bar carries ``open`` / ``high`` / ``low`` and a ``timestamp`` or ``date``.",
+                        "default": null,
+                        "optional": false
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/scan": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Screen all 11 GICS sectors into a cross-segment ranked plan list (PRD \u00a79.2, issue #79).\n\nThe one-call orchestrator: ranks each sector's top ``top_n`` movers by ``metric``, runs them\nthrough the #75 signals -> #76 rules/sizing -> #77 orders chain, optionally paper-fills via #78,\nthen returns the actionable plans **cross-segment ranked** by ``|signal.score|`` descending\n(symbol, then segment, tie-break). ``metric`` selects *which movers* per sector enter the chain;\nit is **not** the cross-segment plan-rank key. ``as_of`` is snapped once to the last ``XNYS``\nsession (look-ahead-free) and threaded to every sector. ``simulate=False`` returns the order\nskeletons only; ``limit`` slices the top of the ranked list. Skipped sectors / symbols (transient\nfetch failures) surface in ``OBBject.warnings`` rather than aborting the scan.",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "metric",
+                        "type": "str",
+                        "description": "Mover rank metric (``pct_change`` / ``volume`` / ``gap`` / ``rel_volume``). Defaults to ``\"pct_change\"``.",
+                        "default": "pct_change",
+                        "optional": true
+                    },
+                    {
+                        "name": "top_n",
+                        "type": "int",
+                        "description": "Per-segment mover cap. Defaults to ``10`` (up to ``11 x top_n`` plans returned, sorted).",
+                        "default": 10,
+                        "optional": true
+                    },
+                    {
+                        "name": "preset",
+                        "type": "str",
+                        "description": "Confluence/rule preset. Defaults to ``\"trend_follow\"``.",
+                        "default": "trend_follow",
+                        "optional": true
+                    },
+                    {
+                        "name": "risk",
+                        "type": "float | None",
+                        "description": "Risk-per-trade fraction for #76 sizing; ``None`` uses the chain default ``0.01``.",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "as_of",
+                        "type": "str | None",
+                        "description": "ISO date to scan as of; snapped to the most recent session. Defaults to today when ``None``.",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "simulate",
+                        "type": "bool",
+                        "description": "Request inline #78 fills. Defaults to ``True``. NOTE (v1): the live command does not yet fetch forward (``t+1...``) bars, so no fills are attached over the HTTP surface regardless of this flag -- the ranked order skeletons are returned either way. The live forward-bar fetcher is a tracked follow-up; the ``scan_segments`` ``bars=`` seam already fills when a window is supplied (exercised offline).",
+                        "default": true,
+                        "optional": true
+                    },
+                    {
+                        "name": "limit",
+                        "type": "int | None",
+                        "description": "Optional global top-of-list slice after the cross-segment sort. Defaults to ``None``.",
+                        "default": null,
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/export": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Write the 6-sheet recommendation workbook to disk (PRD \u00a714.3, issue #81).\n\nRenders ``plans`` as a polished, deterministic ``.xlsx`` workbook with six sheets\n(``Recommendations`` / ``Levels`` / ``Reasoning`` / ``Orders`` / ``Fills`` / ``Summary``),\na compliance disclaimer on the Recommendations sheet (locked by PRD \u00a720 Q9), conditional\nformatting (color-coded Action, R:R data bar, score color scale, etc.), and a frozen + filterable\nheader row. Rows are sorted by ``segment`` \u2192 ``conviction`` \u2192 ``action`` \u2192 ``symbol`` so the\nworkbook is byte-stable for identical inputs (design L6).\n\nMoney / quantities stay :class:`~decimal.Decimal` end-to-end; cells store the unrounded\n``float(Decimal)`` and Excel ``number_format`` controls display rounding only -- the model value\nis always the source of truth (design Q-E / L9). The only datetime cell is the deterministic\n:class:`~openbb_techtrade.models.Fill` ``timestamp`` (#78 Q-F session-close localization), never\na wall-clock; the filename date is the run's ``as_of`` (design L4).",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "plans",
+                        "type": "list[TradePlan]",
+                        "description": "Paper-filled trade plans -- typically the output of :func:`obb.techtrade.scan` (#79) or :func:`obb.techtrade.plan` (#77). Each plan carries the ``recommendation``, ``signal.votes``, ``orders``, and ``simulated_fills`` that feed the six sheets. An empty list yields a header-only workbook (still containing the disclaimer).",
+                        "default": null,
+                        "optional": false
+                    },
+                    {
+                        "name": "path",
+                        "type": "str | None",
+                        "description": "Explicit output path. Overrides the ``ExportConfig`` default of ``Analysis/exports/techtrade_<as_of>.xlsx`` (design L4 / Q-F). The parent directory is auto-created. A same-as-of run overwrites silently (deterministic, re-runnable artifact).",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "engine",
+                        "type": "str",
+                        "description": "Workbook engine: ``\"openpyxl\"`` (default, core dependency, full conditional formatting, design L1 / Q-B B1) or ``\"xlsxwriter\"`` (optional, lazy-imported, best-effort richer formatting -- no parity guarantee).",
+                        "default": "openpyxl",
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/validate": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Robustness-validate a TradePlan via openbb-backtest (PRD \u00a715, issue #82).\n\nTranslates ``plan`` into a :class:`~openbb_backtest.models.BacktestConfig` (universe\n``[plan.symbol]``, window ``[as_of - horizon_years, as_of]``, strategy\n``techtrade_confluence``), calls ``openbb-backtest``'s ``validate`` over WFO / CPCV\nfolds, attaches the returned :class:`~openbb_backtest.models.ValidationReport` to\n``plan.validation`` via :meth:`~pydantic.BaseModel.model_copy` (immutable\ndiscipline), and returns the verdict.\n\nThe reported ``verdict`` is one of ``\"robust\"`` / ``\"fragile\"`` / ``\"overfit\"``,\nderived by ``openbb-backtest``'s gate (precedence ``overfit > robust > fragile``);\nthe effective thresholds are recorded on ``report.thresholds`` so the verdict is\nauditable. techtrade does not re-implement the gate (design L4 / L5).",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "plan",
+                        "type": "TradePlan",
+                        "description": "The plan to validate (single-symbol, single ``as_of``).",
+                        "default": null,
+                        "optional": false
+                    },
+                    {
+                        "name": "method",
+                        "type": "str",
+                        "description": "Resampling method: ``\"wfo\"`` (default) or ``\"cpcv\"``. Forwarded 1:1 to backtest's validator.",
+                        "default": "wfo",
+                        "optional": true
+                    },
+                    {
+                        "name": "thresholds",
+                        "type": "dict[str, float] | None",
+                        "description": "Verdict-threshold overrides merged over backtest's defaults (``pbo_robust`` / ``pbo_overfit`` / ``dsr_robust`` / ``dsr_overfit``). ``None`` uses backtest's defaults (design L5).",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "horizon_years",
+                        "type": "int",
+                        "description": "Number of years of history to span the folds (default 5).",
+                        "default": 5,
+                        "optional": true
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str | None",
+                        "description": "Data provider for the fold history; ``None`` uses backtest's default (``fmp_cached`` in this fork).",
+                        "default": null,
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/tune": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Tune indicator periods for a GICS segment, gated by #82's validate (PRD \u00a712.4, \u00a715).\n\nSteps (design \u00a74.1):\n\n1. Pool the segment's universe OHLCV into ``(X, y)`` (L4 + Q-C horizon\n window + Q-B forward-return target).\n2. Fit tuneta over the L6 8-knob search space -> candidate IndicatorConfig.\n3. Build a sample TradePlan for the segment's benchmark ETF (Q-A A1).\n4. ``with tune_override({segment: candidate}):`` make the candidate\n visible to the validate fold loop without writing to disk first\n (\u00a75.3 W2 -- safe because #82's fold loop is sequential in-thread).\n5. ``validate_plan(plan, method=method, thresholds=thresholds,\n horizon_years=horizon_years, provider=provider)`` -> verdict.\n6. Gate: if verdict == \"robust\" AND the candidate genuinely differs from\n DEFAULT_CONFIG (Q-F guard 3) -> persist via write_tuned. Otherwise\n persisted=False + a diagnostic reason string. Logged at WARNING on\n fragile/overfit so a long loop is visible without an exception.\n7. Return OBBject[TuningReport].\n\nRaises\n------\nTechtradeDependencyError\n When ``tuneta`` is not installed (raised by fit_segment via\n :func:`_require_tuneta`); or when ``openbb-backtest`` is not installed\n (raised by validate_plan via #82's ``_require_backtest``). The error\n message names the specific extra; for a full tune the user needs both\n ``[tuneta]`` and ``[validation]``.\nValueError\n If ``segment`` is not one of the 11 GICS sectors in\n :data:`SEGMENT_BENCHMARK_ETFS` (Q-A A1).",
+            "examples": "",
+            "parameters": {
+                "standard": [
+                    {
+                        "name": "segment",
+                        "type": "str",
+                        "description": "",
+                        "default": null,
+                        "optional": false
+                    },
+                    {
+                        "name": "as_of",
+                        "type": "date | None",
+                        "description": "",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "horizon_years",
+                        "type": "int",
+                        "description": "",
+                        "default": 5,
+                        "optional": true
+                    },
+                    {
+                        "name": "forward_horizon_bars",
+                        "type": "int",
+                        "description": "",
+                        "default": 20,
+                        "optional": true
+                    },
+                    {
+                        "name": "trials",
+                        "type": "int",
+                        "description": "",
+                        "default": 100,
+                        "optional": true
+                    },
+                    {
+                        "name": "early_stop",
+                        "type": "int",
+                        "description": "",
+                        "default": 20,
+                        "optional": true
+                    },
+                    {
+                        "name": "method",
+                        "type": "str",
+                        "description": "",
+                        "default": "wfo",
+                        "optional": true
+                    },
+                    {
+                        "name": "thresholds",
+                        "type": "dict[str, float] | None",
+                        "description": "",
+                        "default": null,
+                        "optional": true
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str | None",
+                        "description": "",
+                        "default": null,
+                        "optional": true
+                    }
+                ]
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        },
+        "/techtrade/about": {
+            "deprecated": {
+                "flag": null,
+                "message": null
+            },
+            "description": "Return techtrade extension metadata.\n\nReturns\n-------\nOBBject\n An OBBject whose ``results`` is a dict of extension name + version.",
+            "examples": "",
+            "parameters": {
+                "standard": []
+            },
+            "returns": {
+                "OBBject": [
+                    {
+                        "name": "results",
+                        "type": "Any",
+                        "description": "Serializable results."
+                    },
+                    {
+                        "name": "provider",
+                        "type": "str",
+                        "description": "Provider name."
+                    },
+                    {
+                        "name": "warnings",
+                        "type": "Optional[list[Warning_]]",
+                        "description": "list of warnings."
+                    },
+                    {
+                        "name": "chart",
+                        "type": "Optional[Chart]",
+                        "description": "Chart object."
+                    },
+                    {
+                        "name": "extra",
+                        "type": "dict[str, Any]",
+                        "description": "Extra info."
+                    }
+                ]
+            },
+            "data": {},
+            "model": "",
+            "openapi_extra": {
+                "model": ""
+            }
+        }
+    },
+    "routers": {
+        "/portfolio_intel": {
+            "description": "Portfolio Intelligence engine."
+        },
+        "/regime": {
+            "description": "Shared market-regime detector (Analysis + techtrade consumers)."
+        },
+        "/techtrade": {
+            "description": "Per-segment indicator-period tuning gated by validation."
+        }
+    }
 }
