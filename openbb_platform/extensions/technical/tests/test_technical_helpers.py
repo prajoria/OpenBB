@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from extensions.technical.openbb_technical.helpers import (
+from openbb_technical.helpers import (
     calculate_cones,
     calculate_fib_levels,
     clenow_momentum,
