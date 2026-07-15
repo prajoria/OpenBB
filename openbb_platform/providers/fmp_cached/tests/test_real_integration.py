@@ -28,6 +28,10 @@ from openbb_fmp_cached.models.equity_historical import (
     _analyze_cache_gaps
 )
 
+# NOTE: module-level pytestmark is defined further down (after the
+# env-detection helpers) as a LIST that combines the integration
+# marker with a skipif on missing API key / DB config. See #782.
+
 
 def load_env_file():
     """Load environment variables from .env file at OpenBB project root."""
@@ -116,11 +120,18 @@ def get_mysql_config():
 REAL_API_KEY = get_fmp_api_key()
 MYSQL_CONFIG = get_mysql_config()
 
-# Skip all tests if no API key or database config
-pytestmark = pytest.mark.skipif(
-    not REAL_API_KEY or not all(MYSQL_CONFIG.values()),
-    reason="Requires FMP API key in OpenBB user settings and test mode configuration"
-)
+# Module-level markers (as a list so both apply — see #782):
+# - integration: this file makes live FMP + MySQL calls; excluded
+#   from the default `-m "not integration"` sweep.
+# - skipif:     even under `-m integration`, skip if the environment
+#               lacks the API key or DB config.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not REAL_API_KEY or not all(MYSQL_CONFIG.values()),
+        reason="Requires FMP API key in OpenBB user settings and test mode configuration"
+    ),
+]
 
 
 @pytest.fixture
