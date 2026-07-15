@@ -153,25 +153,28 @@ async def test_connection():
     
     return True
 
-async def create_cache_tables():
+def create_cache_tables():
     """Create the cache tables."""
     print("🗂️  Creating cache tables...")
-    
+
     try:
         # Add the provider to Python path
         sys.path.append(str(Path(__file__).parent))
-        
+
         from openbb_fmp_cached.utils.database import init_database
         from openbb_fmp_cached.utils.cache_schema import create_all_tables
-        
-        # Initialize database and create tables
-        # The database module will read from OpenBB user settings
-        await init_database()
-        await create_all_tables()
-        
+
+        # Initialize database and create tables.
+        # NOTE: init_database and create_all_tables are SYNCHRONOUS
+        # (they return bool / dict, not coroutines). Awaiting them
+        # raised `TypeError: object bool can't be used in 'await'
+        # expression` — see #775.
+        init_database()
+        create_all_tables()
+
         print("✅ Cache tables created successfully!")
         return True
-        
+
     except Exception as e:
         print(f"❌ Error creating cache tables: {e}")
         return False
@@ -232,8 +235,8 @@ async def main():
         print("💡 Run configure_mysql.py first to set up MySQL credentials")
         return False
     
-    # Step 4: Create cache tables
-    if not await create_cache_tables():
+    # Step 4: Create cache tables (sync call — see note in create_cache_tables)
+    if not create_cache_tables():
         print("❌ Cache tables creation failed!")
         return False
     
