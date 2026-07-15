@@ -3779,39 +3779,66 @@ def ensure_financial_ratios_unique_index():
             # ADD UNIQUE below may also fail (that failure is handled).
             logger.debug("financial_ratios dedupe skipped: %s", exc)
 
-        # Step 3: add UNIQUE constraint. Idempotent + errno-aware.
-        add_unique_sql = """
-        ALTER TABLE financial_ratios
-        ADD UNIQUE KEY uk_symbol_date_period_currency
-            (symbol, date, period, currency)
-        """
+        # Step 3: add UNIQUE constraint. Truly idempotent — pre-check
+        # for the index before attempting ALTER, so on repeat runs we
+        # never hit the 1061 "Duplicate key name" error path (which
+        # execute_query logs at ERROR level *before* our try/except
+        # can suppress it, producing noisy log output and tripping
+        # caplog assertions in tests). See #776.
         try:
-            execute_query(add_unique_sql)
-            logger.info(
-                "financial_ratios: added UNIQUE(symbol, date, period, "
-                "currency) constraint (bd-hyzu)"
+            existing = execute_query(
+                "SHOW INDEX FROM financial_ratios "
+                "WHERE Key_name = %s",
+                ("uk_symbol_date_period_currency",),
             )
         except Exception as exc:
-            msg = str(exc)
-            # Errno 1061 = "Duplicate key name" — expected on fresh installs
-            # and repeat migrations. Silent at DEBUG.
-            if "1061" in msg or "Duplicate key name" in msg:
-                logger.debug("financial_ratios UNIQUE already present: %s", exc)
-            elif "1062" in msg or "Duplicate entry" in msg:
-                # Errno 1062 = "Duplicate entry for key" — UNEXPECTED.
-                # Dedupe missed something (NULL rows, race, or a corner
-                # case). Log LOUDLY so operators can investigate + flag
-                # stays False for next-call retry.
-                logger.warning(
-                    "financial_ratios UNIQUE constraint could not be added — "
-                    "duplicates remain after dedupe (bd-hyzu): %s",
-                    exc,
+            # If we can't even query indexes, skip the ADD attempt and
+            # keep the flag False so a subsequent call retries.
+            logger.warning(
+                "financial_ratios: SHOW INDEX pre-check failed: %s", exc
+            )
+            return
+        if existing:
+            logger.debug(
+                "financial_ratios UNIQUE(symbol, date, period, currency) "
+                "already present — skipping ALTER"
+            )
+        else:
+            add_unique_sql = """
+            ALTER TABLE financial_ratios
+            ADD UNIQUE KEY uk_symbol_date_period_currency
+                (symbol, date, period, currency)
+            """
+            try:
+                execute_query(add_unique_sql)
+                logger.info(
+                    "financial_ratios: added UNIQUE(symbol, date, period, "
+                    "currency) constraint (bd-hyzu)"
                 )
-                return  # keep flag False for retry
-            else:
-                # Other errors (permissions, disconnect, etc.) — log +
-                # keep flag False so a retry has a chance.
-                logger.warning("financial_ratios UNIQUE ADD failed: %s", exc)
+            except Exception as exc:
+                msg = str(exc)
+                # Errno 1061 = "Duplicate key name" — a race, not a
+                # steady-state error. Silent at DEBUG.
+                if "1061" in msg or "Duplicate key name" in msg:
+                    logger.debug(
+                        "financial_ratios UNIQUE already present (race): %s",
+                        exc,
+                    )
+                elif "1062" in msg or "Duplicate entry" in msg:
+                    # Errno 1062 = "Duplicate entry for key" — UNEXPECTED.
+                    # Dedupe missed something (NULL rows, race, or a corner
+                    # case). Log LOUDLY so operators can investigate + flag
+                    # stays False for next-call retry.
+                    logger.warning(
+                        "financial_ratios UNIQUE constraint could not be added — "
+                        "duplicates remain after dedupe (bd-hyzu): %s",
+                        exc,
+                    )
+                    return  # keep flag False for retry
+                else:
+                    # Other errors (permissions, disconnect, etc.) — log +
+                    # keep flag False so a retry has a chance.
+                    logger.warning("financial_ratios UNIQUE ADD failed: %s", exc)
                 return
 
         # All 3 steps completed (or ADD UNIQUE hit 1061 which is expected).
