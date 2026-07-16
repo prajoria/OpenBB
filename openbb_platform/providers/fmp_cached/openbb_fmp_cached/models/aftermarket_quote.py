@@ -172,6 +172,11 @@ def _fetch_fresh_rows(
     symbols: list[str], cutoff: datetime,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Return (fresh_hits, stale_or_missing_symbols)."""
+    # Empty input → nothing can be fresh. Guard here rather than build
+    # `WHERE symbol IN ()`, which MySQL rejects with a 1064 syntax error.
+    # See #774 (fmp_cached: SQL syntax error on empty symbols list).
+    if not symbols:
+        return [], []
     placeholders = ",".join(["%s"] * len(symbols))
     sql = f"""
     SELECT symbol, price, bid, ask, bid_size, ask_size, volume, timestamp

@@ -1,7 +1,7 @@
 """Base fallback for FMP cached models - provides only credential translation."""
 
 import logging
-from typing import Any, Dict, Type
+from typing import Any, Dict, Type, get_args, get_origin
 
 from openbb_core.provider.abstract.fetcher import Fetcher
 
@@ -10,6 +10,41 @@ logger = logging.getLogger(__name__)
 # NOTE: This base class provides only fallback functionality with credential translation.
 # Each endpoint should implement its own dedicated database persistence logic in its specific model file.
 # This is NOT caching - it's persistent database storage to avoid unnecessary API calls.
+
+
+def _resolve_fetcher_type_params(cls: Type) -> tuple:
+    """Walk ``cls``'s MRO to find its concrete ``Fetcher[Q, R]`` type params.
+
+    Returns ``(Q, R)`` on success, ``(None, None)`` if no parameterized
+    ``Fetcher`` base is found anywhere in the MRO chain.
+
+    Design (bd-c4h PR #464 pre-merge review fold-in): the previous
+    single-level ``__orig_bases__`` walk silently regressed to bare
+    ``Fetcher`` for any indirect inheritance pattern, e.g.::
+
+        class SomeSharedBase(Fetcher[Q, R]): ...
+        class FMPFooFetcher(SomeSharedBase): ...  # __orig_bases__ = (SomeSharedBase,)
+
+    ``get_origin(SomeSharedBase)`` returns ``None`` (it's not a
+    generic alias), so the single-level check misses the specialization
+    and falls back to the unparameterized ``Fetcher`` — reintroducing
+    the RegistryMap ``~Q`` ValueError at registry time. Walking the
+    full MRO catches these cases because each intermediate class carries
+    its own ``__orig_bases__``.
+
+    Returns ``(None, None)`` for genuinely unparameterized inputs
+    (test doubles); the caller emits a WARN in that case.
+    """
+    # __mro__ walks the class + all its bases in method-resolution order.
+    # For each class we inspect its __orig_bases__ (Generic-preserving
+    # form of __bases__) for a Fetcher[Q, R] specialization.
+    for klass in getattr(cls, "__mro__", (cls,)):
+        for base in getattr(klass, "__orig_bases__", ()):
+            if get_origin(base) is Fetcher:
+                args = get_args(base)
+                if len(args) >= 2:
+                    return args[0], args[1]
+    return None, None
 
 
 def create_fallback_fetcher_class(original_fetcher_class: Type[Fetcher], endpoint_name: str) -> Type[Fetcher]:
@@ -125,7 +160,13 @@ def create_ttl_wrapper_class(
     import json
     from datetime import datetime, timedelta
 
-    from openbb_fmp_cached.utils.database import execute_many, execute_query
+    # Import the database MODULE (not names) so tests can patch
+    # `openbb_fmp_cached.utils.database.execute_query` and the closures below
+    # will resolve the current attribute on every call. Binding
+    # `from ... import execute_query` here captures a reference at
+    # wrapper-construction time and defeats `unittest.mock.patch` on the
+    # module attribute (see #793).
+    from openbb_fmp_cached.utils import database as _db
 
     ttl = timedelta(seconds=ttl_seconds)
 
@@ -139,7 +180,7 @@ def create_ttl_wrapper_class(
 
     def _load_ttl_cache(cache_name: str, cache_key: str, cutoff: datetime):
         """SELECT payload if a fresh row exists; None on MISS or DB error."""
-        rows = execute_query(
+        rows = _db.execute_query(
             "SELECT payload FROM ttl_cache "
             "WHERE cache_name = %s AND cache_key = %s AND cached_at > %s",
             (cache_name, cache_key, cutoff),
@@ -150,7 +191,7 @@ def create_ttl_wrapper_class(
 
     def _upsert_ttl_cache(cache_name: str, cache_key: str, data) -> None:
         """UPSERT the payload; refreshes cached_at via ON DUPLICATE KEY UPDATE."""
-        execute_many(
+        _db.execute_many(
             """INSERT INTO ttl_cache (cache_name, cache_key, payload)
                VALUES (%s, %s, %s)
                ON DUPLICATE KEY UPDATE
@@ -174,7 +215,40 @@ def create_ttl_wrapper_class(
             return {"fmp_api_key": val}
         return credentials
 
-    class _TTLWrapped(Fetcher):
+    # Bug fix (bd-g1i1 from OpenBBTechnical repo, bd-c4h locally): the
+    # wrapper class must specialize the Generic type params from
+    # Fetcher[Q, R], otherwise RegistryMap._get_model walks the generic
+    # and finds ~Q still unresolved -> ValueError('~Q must be a subclass
+    # of QueryParams') at provider registration time.
+    #
+    # Two review-fold-in hardenings (PR #464 pre-merge review):
+    #  (a) MRO walk (not just direct __orig_bases__) so indirect inheritance
+    #      like `class FMPFooFetcher(SomeSharedBase)` where
+    #      `SomeSharedBase(Fetcher[Q, R])` also resolves. Reviewer point:
+    #      single-level walk silently regressed to bare Fetcher for these
+    #      cases and reintroduced the original bug at registry time.
+    #  (b) On fallback (no Fetcher[Q, R] found ANYWHERE in the MRO chain),
+    #      emit a WARN so the regression surfaces in CI logs instead of
+    #      only at provider registration. Test doubles that inherit
+    #      directly from bare Fetcher trigger this WARN — acceptable
+    #      noise; real provider fetchers should never trigger it after
+    #      the MRO walk.
+    _query_type, _data_type = _resolve_fetcher_type_params(inner_fetcher_cls)
+
+    if _query_type is not None and _data_type is not None:
+        _WrapperBase = Fetcher[_query_type, _data_type]
+    else:
+        logger.warning(
+            "create_ttl_wrapper_class(%s): could not resolve Fetcher[Q, R] "
+            "type params from inner_fetcher_cls MRO — falling back to bare "
+            "Fetcher. If %s is a registered provider (not a test double), "
+            "this WILL reintroduce the RegistryMap ~Q ValueError at "
+            "obb.build() time. See bd-c4h.",
+            name, inner_fetcher_cls.__name__,
+        )
+        _WrapperBase = Fetcher
+
+    class _TTLWrapped(_WrapperBase):
         """Generated at runtime by create_ttl_wrapper_class."""
 
         @staticmethod

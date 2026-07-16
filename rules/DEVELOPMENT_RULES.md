@@ -206,6 +206,194 @@ Certain symbols are skipped in `fetch_position_history.py`:
 `Cash`, `NSAV`, `MVVYF`, `EADSF`, `NXDR`, `NHX202764`, `NHX203309`
 (cash positions, OTC/delisted stocks, CUSIDs without FMP data).
 
+### Seams, Mocks, and Silent-Zero Failures
+
+**Case study:** bd `OpenBBTechnical-z7f` — `obb.techtrade.movers` returned
+0 movers for every sector segment for months while 363 unit tests
+stayed green. The bug was in the *contract between two mocked
+subsystems*, not in either subsystem alone. See the bead for the full
+postmortem; the rules below prevent the same class of mistake.
+
+#### R7.1 — Never let two mocks agree with themselves
+If a public function `f(a, b)` internally combines results from two
+injected seams `fetch_a()` and `fetch_b()`, at least ONE test must
+exercise `f` with **realistic-shape** fixtures for **both** seams —
+i.e. fixtures captured from a real production response, not
+hand-crafted dicts.
+
+Hand-crafted mocks describe the developer's *mental model* of the data,
+not the data itself. When both mocks come from the same head, the test
+is a closed loop that cannot disagree with the assumption being tested.
+
+**Do:** record one live JSON response per seam under
+`tests/fixtures/<module>/` and load it with `json.load()` in the test.
+**Don't:** write `[{"symbol": "AAPL", "pct_change": 0.05}]` and pretend
+that's what the API returns.
+
+#### R7.2 — Every public entry point needs a "not empty" smoke test
+For every command exposed on the `obb.*` surface or in a public engine
+API, write one test named `test_<entry>_returns_non_empty_for_<realistic_input>`.
+
+The test may be marked `@pytest.mark.integration` and skipped in fast
+CI, but it MUST exist and run in the integration suite. `len(result) > 0`
+is a lower bar than any semantic assertion, and catches the entire
+"silent zero" failure class.
+
+#### R7.3 — Empty results must be loud, not silent
+Wherever code returns an empty list / zero count that a caller could
+reasonably expect to be non-empty, log a `WARNING` explaining WHY it
+was empty (upstream returned 0, filter removed everything, cache miss,
+etc.). Prefer a warning with concrete numbers over a bare empty return.
+
+```python
+# Bad — silent zero
+return [c for c in candidates if c.symbol in allowed]
+
+# Good — loud zero
+filtered = [c for c in candidates if c.symbol in allowed]
+if candidates and not filtered:
+    LOG.warning(
+        "filter removed all candidates: %d candidates, %d in allowed set, 0 intersection",
+        len(candidates), len(allowed),
+    )
+return filtered
+```
+
+If a user reports "returns nothing", grep for the warning in logs
+should immediately localize the culprit.
+
+#### R7.4 — Prefer narrow-then-fan-out over fan-out-then-filter
+When you need "top N from set S", fetch S directly and rank — do NOT
+fetch a market-wide firehose F and then filter `F ∩ S`. The firehose
+approach is mathematically brittle: any time `F` and `S` are drawn
+from different populations (small caps vs. mega caps, US vs. global,
+delayed vs. real-time), the intersection is silently empty.
+
+If you must use a firehose, assert `len(F ∩ S) > 0` in the code path
+and warn if not.
+
+#### R7.5 — Test the assumption, not just the behavior
+For every injected seam, add one test that asserts the seam's *shape
+contract* against a recorded live response. This is separate from
+behavior tests. Named `test_<seam>_response_shape_matches_expected`.
+
+Example: `test_fmp_discovery_gainers_returns_symbols_matching_universe_grain`
+would have failed on day 1 because FMP `gainers` returns penny-stock
+symbols while sector-ETF universes return mega-caps.
+
+#### R7.6 — One real end-to-end call before shipping any injectable seam
+When designing a new `callable=None` seam parameter, make ONE real call
+to the live implementation *before* writing the mocked tests. Save the
+response as a fixture (R7.1). If you can't call the real thing during
+design, you don't yet know what shape it returns — and your tests will
+encode your guess, not the reality.
+
+#### R7.7 — Fixtures MUST produce different outputs under buggy vs. fixed code
+
+The strongest test of a regression test is: temporarily revert the
+production fix, run the test, and verify it FAILS. If the test still
+passes with the fix reverted, the fixture doesn't discriminate — the
+test is *ceremonial* even if the assertion is precise.
+
+Discovered the hard way across multiple review iterations of PR #331
+(bd-0h2.9): 3 of the first-draft regression tests passed under BOTH
+pre-fix and post-fix code because the fixtures had TARGET returns
+that dominated the perturbation the fix was meant to catch.
+
+**Discipline:** every load-bearing test gets a reverse-verification
+run at author-time. Mutate the production code the test claims to
+guard, observe the test fail, restore. If mutation doesn't fail the
+test, the fixture is wrong — reshape it (or convert to AST /
+`caplog` assertion, see R7.8 / R7.9).
+
+#### R7.8 — AST inspection beats `inspect.getsource` for wiring guards
+
+For "test that a specific kwarg is threaded through a constructor"
+or "test that this function is called with this argument," textual
+assertions on `inspect.getsource(fn)` are **defeatable by
+comment-poisoning**. Concrete failure caught in PR #331 iter-3:
+mutating `foo=foo,` → `foo=0.0,  # BUG: foo=foo disabled` passed a
+textual `"foo=foo" in src` check because the string still appeared
+inside the comment.
+
+```python
+# WRONG — defeatable by comments
+assert "momentum_accel_63d=momentum_accel_63d" in inspect.getsource(fn)
+
+# RIGHT — walks the parsed AST, comments are stripped by the parser
+tree = ast.parse(inspect.getsource(fn))
+for node in ast.walk(tree):
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id == "Phase6Result":
+            for kw in node.keywords:
+                if kw.arg == "momentum_accel_63d":
+                    assert isinstance(kw.value, ast.Name), "hardcoded literal!"
+                    assert kw.value.id == "momentum_accel_63d"
+```
+
+The AST is the code; the source text is the presentation. Any
+assertion at the presentation layer can be defeated by
+presentation-layer changes (comments, whitespace, formatting) that
+don't affect behavior.
+
+#### R7.9 — `caplog` assertions beat value assertions for R7.3 loud-empty branches
+
+When the load-bearing behavior is "the code emits a WARNING and
+returns 0.0," asserting on the value alone is **defeatable by
+coincidence** — the mutation may happen to produce 0.0 through a
+different code path. Assert on the WARNING substring instead: the
+warning fires only from the specific branch the mutation removes.
+
+```python
+# WRONG — coincidence-defeatable
+assert accel == 0.0
+
+# RIGHT — the warning is the load-bearing signal
+with caplog.at_level(logging.WARNING, logger="my_module"):
+    accel = my_function(degenerate_input)
+assert accel == 0.0
+warnings = [r for r in caplog.records if "peer set too thin" in r.getMessage()]
+assert len(warnings) == 1
+```
+
+Verified via mutation testing in PR #331 iter-3: mutating
+`if len(x) < 3:` → `< 2:` correctly caused the caplog test to fail
+(0 warnings) while a naive `assert accel == 0.0` still passed.
+
+#### R7.10 — Test file module identity MUST match production module identity
+
+`caplog.at_level(logger="my_module")` targets a specific logger by
+name. If the test file imports the production module by one path and
+other code imports it by another, they resolve to DIFFERENT logger
+objects — and `caplog` captures nothing. Silent test skip.
+
+**Windows sys.path.insert gotcha (PR #331 iter-4):** the same file
+can be simultaneously importable as `stock_analysis` (via
+`sys.path.insert(0, ".../Analysis")`) AND `Analysis.stock_analysis`
+(via repo root). Both create distinct module identities with
+distinct loggers. Rule: within a test file, always import the
+production module by exactly one path, and use that same path in
+every `caplog.at_level(logger=...)` call. The same rule applies to
+`monkeypatch.setattr(module_x, ...)` when production reads the
+attribute via a lazily-imported `from module_x import y` — a
+different path resolves to a different module object; the patch
+silently targets an orphan copy and the test passes for the wrong
+reason.
+
+#### R7.11 — Ceremonial tests ship in EVERY iteration's first draft
+
+Empirically observed across 4 review iterations of PR #331: the
+first-draft regression tests were ceremonial in iter-1 (fixture
+dominance), iter-2 (fixture dominance), iter-3 (test duplicated the
+fixed arithmetic in the test body), and iter-4 (test used imported
+constant + wrong code path). The pattern is universal: if you don't
+reverse-verify, you ship ceremony.
+
+**Discipline:** the exit criterion for shipping a regression test is
+not "the test passes on the fix" — it's "the test *fails* on the
+reverted-fix and *passes* on the fix." Every load-bearing test
+needs both assertions, empirically observed.
+
 ---
 
 ## 8. Logging
@@ -337,6 +525,10 @@ Before committing any code changes, verify:
 - [ ] Idempotency verified (script runnable twice)
 - [ ] Performance targets met (response times)
 - [ ] Privacy transformation tested
+- [ ] Public entry points have a `not-empty` smoke test (R7.2)
+- [ ] Injected seams tested against realistic-shape fixtures, not hand-crafted mocks (R7.1)
+- [ ] Empty-result paths emit a `WARNING` explaining the cause (R7.3)
+- [ ] "Filter over firehose" architectures either avoided or assert non-empty intersection (R7.4)
 
 ### **📋 Documentation**
 - [ ] Context files updated if architecture changed
@@ -350,4 +542,4 @@ Before committing any code changes, verify:
 
 ---
 
-*Last updated: 2026-03-06*
+*Last updated: 2026-07-03*

@@ -1,0 +1,458 @@
+{
+  "provider": "fmp_cached",
+  "endpoint": "obb.equity.discovery.gainers",
+  "captured_at_utc": "2026-07-04T08:00:17.183685+00:00",
+  "row_count": 50,
+  "rows": [
+    {
+      "symbol": "CLRO",
+      "name": "ClearOne, Inc.",
+      "price": 6.48,
+      "change": 3.26,
+      "percent_change": 1.0124224,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "CWD",
+      "name": "CaliberCos Inc.",
+      "price": 1.23,
+      "change": 0.5847,
+      "percent_change": 0.9060902,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "YRD",
+      "name": "Yiren Digital Ltd.",
+      "price": 1.44,
+      "change": 0.5382,
+      "percent_change": 0.5968064,
+      "volume": null,
+      "exchange": "NYSE"
+    },
+    {
+      "symbol": "DSY",
+      "name": "Big Tree Cloud Holdings Limited",
+      "price": 4.47,
+      "change": 1.59,
+      "percent_change": 0.5520832999999999,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "SURG",
+      "name": "SurgePays, Inc.",
+      "price": 0.5729,
+      "change": 0.158,
+      "percent_change": 0.3808147,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "SLBT",
+      "name": "Horizon Space Acquisition II Corp.",
+      "price": 5.99,
+      "change": 1.54,
+      "percent_change": 0.3460674,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "HLP",
+      "name": "Hongli Group Inc.",
+      "price": 0.752,
+      "change": 0.1925,
+      "percent_change": 0.3440572,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "CMMB",
+      "name": "Chemomab Therapeutics Ltd.",
+      "price": 2.27,
+      "change": 0.57,
+      "percent_change": 0.3352941,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "SDEV",
+      "name": "NovaBay Pharmaceuticals, Inc.",
+      "price": 1.36,
+      "change": 0.32,
+      "percent_change": 0.30769230000000003,
+      "volume": null,
+      "exchange": "NYSE"
+    },
+    {
+      "symbol": "CCTG",
+      "name": "CCSC Technology International Holdings Limited Ordinary Shares",
+      "price": 0.91,
+      "change": 0.202,
+      "percent_change": 0.2853107,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "BNRG",
+      "name": "Brenmiller Energy Ltd",
+      "price": 1.03,
+      "change": 0.2203,
+      "percent_change": 0.2720761,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "LIMN",
+      "name": "Liminatus Pharma, Inc. Class A Common Stock",
+      "price": 0.1425,
+      "change": 0.0277,
+      "percent_change": 0.2412892,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "PPCB",
+      "name": "Propanc Biopharma, Inc.",
+      "price": 1.77,
+      "change": 0.33,
+      "percent_change": 0.2291667,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "WBX",
+      "name": "Wallbox N.V.",
+      "price": 4.16,
+      "change": 0.76,
+      "percent_change": 0.2235294,
+      "volume": null,
+      "exchange": "NYSE"
+    },
+    {
+      "symbol": "AVXX",
+      "name": "Defiance Daily Target 2X Long AVAV ETF",
+      "price": 9.04,
+      "change": 1.6,
+      "percent_change": 0.2150538,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "MYPS",
+      "name": "PLAYSTUDIOS, Inc.",
+      "price": 0.6273,
+      "change": 0.108,
+      "percent_change": 0.2079723,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "MRNX",
+      "name": "Daily Target 2X Long MRNA ETF",
+      "price": 55.08,
+      "change": 9.44,
+      "percent_change": 0.20683610000000002,
+      "volume": null,
+      "exchange": "AMEX"
+    },
+    {
+      "symbol": "VACH",
+      "name": "Voyager Acquisition Corp.",
+      "price": 2.07,
+      "change": 0.345,
+      "percent_change": 0.2,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "MINE",
+      "name": "Mayfair Gold Corp.",
+      "price": 2.57,
+      "change": 0.41,
+      "percent_change": 0.1898148,
+      "volume": null,
+      "exchange": "AMEX"
+    },
+    {
+      "symbol": "FIGG",
+      "name": "Leverage Shares 2x Long FIG Daily ETF",
+      "price": 19.38,
+      "change": 3.04,
+      "percent_change": 0.1860465,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "VRXA",
+      "name": "Veraxa Biotech Holding AG",
+      "price": 2.04,
+      "change": 0.315,
+      "percent_change": 0.1826087,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "PLBL",
+      "name": "Polibeli Group Ltd",
+      "price": 10.26,
+      "change": 1.58,
+      "percent_change": 0.1820276,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "BMGL",
+      "name": "Basel Medical Group Ltd Ordinary Shares",
+      "price": 8.35,
+      "change": 1.26,
+      "percent_change": 0.1777151,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "COSM",
+      "name": "Cosmos Health Inc.",
+      "price": 0.2371,
+      "change": 0.0355,
+      "percent_change": 0.1760913,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "GETY",
+      "name": "Getty Images Holdings, Inc.",
+      "price": 0.9039,
+      "change": 0.1339,
+      "percent_change": 0.1738961,
+      "volume": null,
+      "exchange": "NYSE"
+    },
+    {
+      "symbol": "BWET",
+      "name": "Breakwave Tanker Shipping ETF",
+      "price": 174.29,
+      "change": 25.31,
+      "percent_change": 0.1698886,
+      "volume": null,
+      "exchange": "AMEX"
+    },
+    {
+      "symbol": "SOXS",
+      "name": "Direxion Daily Semiconductor Bear 3X ETF",
+      "price": 4.51,
+      "change": 0.65,
+      "percent_change": 0.16839379999999998,
+      "volume": null,
+      "exchange": "AMEX"
+    },
+    {
+      "symbol": "CLVT",
+      "name": "Clarivate Plc",
+      "price": 2.59,
+      "change": 0.37,
+      "percent_change": 0.1666667,
+      "volume": null,
+      "exchange": "NYSE"
+    },
+    {
+      "symbol": "BIYA",
+      "name": "Baiya International Group Inc.",
+      "price": 0.6275,
+      "change": 0.0892,
+      "percent_change": 0.1657069,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "RVNL",
+      "name": "GraniteShares 2x Long RIVN Daily ETF",
+      "price": 37.9731,
+      "change": 5.3731,
+      "percent_change": 0.164819,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "TENX",
+      "name": "Tenax Therapeutics, Inc.",
+      "price": 15.46,
+      "change": 2.17,
+      "percent_change": 0.1632807,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "MERC",
+      "name": "Mercer International Inc.",
+      "price": 0.78,
+      "change": 0.1081,
+      "percent_change": 0.160887,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "TECX",
+      "name": "Tectonic Therapeutic, Inc.",
+      "price": 37.93,
+      "change": 5.19,
+      "percent_change": 0.1585217,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "TSDD",
+      "name": "GraniteShares 2x Short TSLA Daily ETF",
+      "price": 7.89,
+      "change": 1.05,
+      "percent_change": 0.1535088,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "MSTP",
+      "name": "GraniteShares 2x Long MSTR Daily ETF",
+      "price": 14.8997,
+      "change": 1.9797,
+      "percent_change": 0.15322760000000002,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "MSTX",
+      "name": "Daily Target 2X Long MSTR ETF",
+      "price": 9.83,
+      "change": 1.3,
+      "percent_change": 0.1524033,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "TSLQ",
+      "name": "Tradr 2X Short TSLA Daily ETF",
+      "price": 18.68,
+      "change": 2.47,
+      "percent_change": 0.1523751,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "AURA",
+      "name": "Aura Biosciences, Inc.",
+      "price": 7.74,
+      "change": 1.01,
+      "percent_change": 0.1500743,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "HFFG",
+      "name": "HF Foods Group Inc.",
+      "price": 1.82,
+      "change": 0.23,
+      "percent_change": 0.1446541,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "LAFAR",
+      "name": "LaFayette Acquisition Corp. Rights",
+      "price": 0.1144,
+      "change": 0.0144,
+      "percent_change": 0.14400000000000002,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "VRAX",
+      "name": "Virax Biolabs Group Limited",
+      "price": 3.13,
+      "change": 0.39,
+      "percent_change": 0.1423358,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "AIRT",
+      "name": "Air T, Inc.",
+      "price": 28.87,
+      "change": 3.52,
+      "percent_change": 0.138856,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "MST",
+      "name": "Leveraged Long + Income MSTR ETF",
+      "price": 9.12,
+      "change": 1.1,
+      "percent_change": 0.1371571,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "UPC",
+      "name": "Universe Pharmaceuticals Inc.",
+      "price": 6.32,
+      "change": 0.76,
+      "percent_change": 0.1366906,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "CVKD",
+      "name": "Cadrenal Therapeutics, Inc. Common Stock",
+      "price": 3.6,
+      "change": 0.43,
+      "percent_change": 0.1356467,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "MOGU",
+      "name": "MOGU Inc.",
+      "price": 2.05,
+      "change": 0.24,
+      "percent_change": 0.1325967,
+      "volume": null,
+      "exchange": "NYSE"
+    },
+    {
+      "symbol": "BRCC",
+      "name": "BRC Inc.",
+      "price": 1.21,
+      "change": 0.14,
+      "percent_change": 0.13084110000000002,
+      "volume": null,
+      "exchange": "NYSE"
+    },
+    {
+      "symbol": "GDXU",
+      "name": "MicroSectors Gold Miners 3X Leveraged ETN",
+      "price": 95.79,
+      "change": 11.04,
+      "percent_change": 0.1302655,
+      "volume": null,
+      "exchange": "AMEX"
+    },
+    {
+      "symbol": "IZM",
+      "name": "ICZOOM Group Inc.",
+      "price": 0.3723,
+      "change": 0.0428,
+      "percent_change": 0.1298938,
+      "volume": null,
+      "exchange": "NASDAQ"
+    },
+    {
+      "symbol": "NKTX",
+      "name": "Nkarta, Inc.",
+      "price": 3.22,
+      "change": 0.37,
+      "percent_change": 0.12982459999999998,
+      "volume": null,
+      "exchange": "NASDAQ"
+    }
+  ]
+}

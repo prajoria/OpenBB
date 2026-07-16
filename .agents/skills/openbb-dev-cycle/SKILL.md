@@ -1,39 +1,37 @@
 ---
 name: openbb-dev-cycle
-description: Disciplined 10-phase gated feature-development workflow for the OpenBB platform with a convergent multi-tool review loop — chains brainstorming, planning, git-worktree isolation, TDD implementation, code simplification, harness-based end-to-end verify, pre-push local review (coderabbit + pr-review-toolkit), commit + push + PR open, and a Phase-9 convergence loop that iterates code-review + security-review + coderabbit:autofix until every finding is either fixed-with-verify or filed as a bead. Uses beads (bd) for task tracking. Use when starting or running a full feature-development cycle in this repo, when the user asks for the "openbb-dev-cycle" or "dev cycle" workflow, or when implementing a non-trivial OpenBB/Analysis feature that must ship through a real PR-review loop.
+description: Disciplined 10-phase gated feature-development workflow for the OpenBB platform with a convergent multi-tool review loop — chains brainstorming, planning, git-worktree isolation, TDD implementation, code simplification, harness-based end-to-end verify, pre-push local review (coderabbit + pr-review-toolkit), commit + push + PR open, and a Phase-9 convergence loop that iterates code-review + security-review + coderabbit:autofix until every finding is either fixed-with-verify or filed as a GitHub issue. Uses **GitHub Issues** as the primary task tracker (attached to program projects) and `bd remember` only for cross-session persistent memory. Use when starting or running a full feature-development cycle in this repo, when the user asks for the "openbb-dev-cycle" or "dev cycle" workflow, or when implementing a non-trivial OpenBB/Analysis feature that must ship through a real PR-review loop.
 ---
 
-# OpenBB Feature Development Cycle (v2)
+# OpenBB Feature Development Cycle (v3)
 
 A disciplined, gated workflow for developing features in the OpenBB platform. Each phase must complete before the next begins. **No shortcuts.**
 
-## What changed vs v1
+## What changed vs v2
 
-v1 was a 7-phase waterfall that stopped at "user approves the review, commit + push." v2 keeps every v1 gate but adds three phases and rewrites Phase 6 as an explicit convergence loop:
+v2 used `bd` (beads) as the primary tracker. v3 replaces that with **GitHub Issues** attached to program-level GitHub Projects — the fork's tracking authority now lives in GH. Everything else is preserved:
 
-- **Phase 6 — Harness Verify (NEW):** drive the actual code path end-to-end via `/verify`, not just pytest. Tests exercise assumptions; `/verify` exercises the real code path.
-- **Phase 7 — Pre-Push Local Review (NEW, split from v1 Phase 6):** run `coderabbit:code-review` + `pr-review-toolkit:review-pr` locally against the diff before pushing.
-- **Phase 8 — Initial Commit → Push → PR Open (split from v1 Phase 6/7):** `commit-commands:commit-push-pr` opens the PR *once*.
-- **Phase 9 — Convergence Loop (NEW, replaces v1 rubber-stamp review):** fan-out `code-review` + `security-review` + `coderabbit:autofix` on the open PR; every finding becomes an Apply/Defer/Modify row in a findings table; loop exits only when the exit predicate holds. Files beads for deferred findings.
+- Phase 2: `bd create` → `gh issue create` (with program label + sub-issue link to the program epic).
+- Phase 4: `bd update --claim` / `bd close` → GH Project "Status" field (`In Progress` / `Done`) + `gh issue close`.
+- Phase 9: deferred review findings → `gh issue create` (with `deferred-from-review` label) instead of `bd create`.
+- `bd remember` **is kept** for cross-session persistent memory (that's beads' genuine strength — GH has no equivalent for LLM-injected context). No other `bd` calls.
 
-The rest — brainstorming, planning + beads, TDD, simplify, finishing — is preserved from v1.
-
----
+If a repo has no active GH Project for the program, the skill halts and asks the user to create one (or points at `docs/prompts/create-*-project.md` templates).
 
 ## Phase list (10 phases, 10 gates)
 
 | # | Phase | Gate |
 |---|-------|------|
 | 1 | Design & Brainstorming | Design spec approved by user, committed |
-| 2 | Planning + Beads | Plan md + `bd` tree wired, user-approved |
-| 3 | Workspace Isolation | Worktree/branch live, first bead claimed |
-| 4 | TDD Implementation | Unit tests green, all planned beads closed |
+| 2 | Planning + GH Issues | Plan md + GH issue tree wired (each plan step is a sub-issue of the program epic), user-approved |
+| 3 | Workspace Isolation | Worktree/branch live, first GH issue moved to `In Progress` on the project |
+| 4 | TDD Implementation | Unit tests green, all planned GH issues closed with `Closes #NN` in the merge commit |
 | 5 | Simplify + Diagnostics | `simplify` applied, IDE diagnostics clean |
 | 6 | **Harness Verify** | `/verify` drives changed code path end-to-end, output captured |
 | 7 | **Pre-Push Local Review** | `coderabbit:code-review` + `pr-review-toolkit:review-pr` findings triaged locally |
-| 8 | **Initial Commit → Push → PR Open** | `commit-commands:commit-push-pr` returns a PR URL; `HEAD_0` recorded |
-| 9 | **Convergence Loop** | Every finding resolved-with-verify OR filed as bead with justification; **exit predicate holds** |
-| 10 | Finish | `superpowers:finishing-a-development-branch` completes; CLAUDE.md revised; `bd remember` written |
+| 8 | **Initial Commit → Push → PR Open** | `commit-commands:commit-push-pr` returns a PR URL; PR body references program issues via `Closes #NN`; `HEAD_0` recorded |
+| 9 | **Convergence Loop** | Every finding resolved-with-verify OR filed as GH issue with justification; **exit predicate holds** |
+| 10 | Finish | `superpowers:finishing-a-development-branch` completes; CLAUDE.md revised; `bd remember` written for cross-session context |
 
 ### Phase 1: Design & Brainstorming
 
@@ -44,36 +42,86 @@ The rest — brainstorming, planning + beads, TDD, simplify, finishing — is pr
 
 **Checklist:** [ ] spec written & committed  [ ] user approved  [ ] no TBDs.
 
-### Phase 2: Planning + Beads
+### Phase 2: Planning + GH Issues
 
 1. Invoke `superpowers:writing-plans`. Numbered steps; review checkpoints every ~3 steps. Use `feature-dev:code-architect` for architecture depth.
-2. File beads for each deliverable:
+2. **Identify the program**: find the GH Project + program epic issue for this work (e.g. Portfolio Intelligence Engine → Project #4, epic issue #491). If no program exists, halt and ask the user which project to attach to, or point at a `docs/prompts/create-*-project.md` template to spin one up.
+3. **File a GH issue for each deliverable**:
    ```bash
-   bd create --title="<step summary>" --description="<what and why>" --type=task --priority=2
-   bd link <child> --blocked-by <parent>
-   ```
-3. Present plan; wait for user approval.
+   gh issue create --repo <owner>/<repo> \
+     --title "[<program-tag>] <step summary>" \
+     --body "$(cat <<EOF
+   <what and why>
 
-**Checklist:** [ ] plan md written  [ ] beads created + wired  [ ] user approved.
+   ---
+   **Provenance**
+   - Parent epic: #<epic-issue>
+   - Plan step: <N> of <total>
+   - Design spec: docs/superpowers/specs/<date>-<topic>-design.md
+   EOF
+   )" \
+     --label "<program-label>,type-task,<phase-label>,<lane-label>"
+   ```
+4. **Wire as sub-issue of the program epic** via the sub-issues REST API. Use the child issue's numeric database ID (NOT the issue number) from `gh api /repos/<owner>/<repo>/issues/<n>`:
+   ```bash
+   CHILD_DB_ID=$(gh api /repos/<owner>/<repo>/issues/<child-n> --jq .id)
+   gh api -X POST /repos/<owner>/<repo>/issues/<epic-n>/sub_issues \
+     -H "Accept: application/vnd.github+json" \
+     -f sub_issue_id=$CHILD_DB_ID
+   ```
+5. **Add each issue to the program project** and set custom fields (Phase/Lane/Type/Start/End as applicable):
+   ```bash
+   gh project item-add <project-number> --owner <owner> --url <issue-url>
+   ```
+6. Present the plan + issue URLs; wait for user approval.
+
+**Checklist:** [ ] plan md written  [ ] GH issue per deliverable  [ ] each issue linked as sub-issue of program epic  [ ] each issue added to program project with fields set  [ ] user approved.
+
+**Migration note**: this replaces v2's `bd create` + `bd link --blocked-by`. Beads is no longer used for task tracking — only `bd remember` in Phase 10 for cross-session state.
 
 ### Phase 3: Workspace Isolation
 
 1. Invoke `superpowers:using-git-worktrees` (or a feature branch when worktrees don't fit).
-2. Claim the first issue: `bd update <id> --claim`.
+2. **Mark the first issue as In Progress** on the program project:
+   ```bash
+   # Find item_id for the issue in the project (from scripts/<program>_project_items.json,
+   # or via `gh project item-list <n> --owner <owner> --format json | jq ...`)
+   # Then update the "Status" single-select field to "In Progress":
+   gh api graphql -f query='
+     mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+       updateProjectV2ItemFieldValue(input: {
+         projectId: $project, itemId: $item, fieldId: $field,
+         value: { singleSelectOptionId: $option }
+       }) { projectV2Item { id } }
+     }' \
+     -f project=<PROJECT_ID> \
+     -f item=<ITEM_ID> \
+     -f field=<STATUS_FIELD_ID> \
+     -f option=<IN_PROGRESS_OPTION_ID>
+   ```
+   Or simply comment on the issue: `gh issue comment <n> --body "Starting work on branch: \`<branch>\`"` — comment is a lightweight equivalent when the project field-value dance is overkill.
 
-**Checklist:** [ ] isolated CWD  [ ] first bead claimed.
+**Checklist:** [ ] isolated CWD  [ ] first GH issue marked In Progress OR commented with branch name.
 
 ### Phase 4: TDD Implementation
 
-For each plan step:
+For each plan step (each corresponds to one GH issue):
 
-1. `bd update <id> --claim`
+1. Move the GH issue's Status to `In Progress` on the program project (see Phase 3 snippet), OR comment `Starting <issue-N>` on the issue.
 2. Invoke `superpowers:test-driven-development` — RED → GREEN → REFACTOR. Mandatory, not optional.
-3. On failure: `superpowers:systematic-debugging`. Bug outside current task? `bd create --type=bug --priority=1`.
+3. On failure: `superpowers:systematic-debugging`. **Bug outside current task?**
+   ```bash
+   gh issue create --repo <owner>/<repo> \
+     --title "[<program-tag>] Bug: <one-line summary>" \
+     --body "Discovered while working on #<parent-issue>. Reproducer:\n\n\`\`\`\n<reproducer>\n\`\`\`\n\nExpected: ...\nActual: ..." \
+     --label "<program-label>,type-bug,priority-p1"
+   ```
+   Link it as a sub-issue of the parent if scope-related, or leave standalone if orthogonal.
 4. Independent sub-tasks? `superpowers:dispatching-parallel-agents` or `superpowers:subagent-driven-development`.
-5. `bd close <id>`; re-run unit tests: `.venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "not integration" -v`
+5. When the issue's work is complete: leave the GH issue **open** — it will be auto-closed by the merge commit via `Closes #NN` in the PR body (Phase 8). Do NOT manually close mid-cycle; the merge-commit reference is the durable audit trail.
+6. Re-run unit tests: `.venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "not integration" -v`.
 
-**Checklist:** [ ] all plan steps done  [ ] all unit tests green  [ ] all beads closed  [ ] no unfiled bugs.
+**Checklist:** [ ] all plan steps done  [ ] all unit tests green  [ ] no unfiled bugs (every discovered bug has a `type-bug` GH issue).
 
 ### Phase 5: Simplify + Diagnostics
 
@@ -83,7 +131,7 @@ For each plan step:
 
 **Checklist:** [ ] `simplify` applied  [ ] diagnostics clean  [ ] test output shown.
 
-### Phase 6: Harness Verify (NEW)
+### Phase 6: Harness Verify
 
 **Green pytest is not enough.** Pytest exercises assumptions via fixtures/mocks. `/verify` drives the real code path.
 
@@ -99,13 +147,13 @@ For each plan step:
 
 **Checklist:** [ ] `/verify` invoked  [ ] real code path exercised (not just tests)  [ ] stdout captured to evidence log.
 
-### Phase 7: Pre-Push Local Review (NEW)
+### Phase 7: Pre-Push Local Review
 
 Run local review tools BEFORE pushing — cheaper to fix pre-push.
 
 1. `coderabbit:code-review` — local CLI, reads staged/committed diff, no PR needed.
 2. `pr-review-toolkit:review-pr` — despite the name, reads local `git diff --name-only`; orchestrates up to 6 subagents (comment-analyzer, pr-test-analyzer, silent-failure-hunter, type-design-analyzer, code-reviewer, code-simplifier).
-3. Triage findings via Apply / Defer / Modify (see triage section below). Apply-rows must re-run `/verify` on the affected path.
+3. Triage findings via Apply / Defer / Modify (see triage section below). Apply-rows must re-run `/verify` on the affected path. Defer-rows file a GH issue (not a bead — see triage section for the exact `gh issue create` call).
 
 **Checklist:** [ ] both tools run  [ ] every finding triaged  [ ] no `action = empty` rows remain.
 
@@ -113,13 +161,14 @@ Run local review tools BEFORE pushing — cheaper to fix pre-push.
 
 Use `commit-commands:commit-push-pr` **once** — it opens the PR. Do NOT call it again in the loop (it will create a duplicate PR).
 
-1. `commit-commands:commit-push-pr` — branches (if on protected base), commits, pushes with `-u`, opens PR against `openbb_pine_support` (per branch-protection policy in `CLAUDE.md`).
-2. Record `HEAD_0 = git rev-parse HEAD` — the loop's seed.
-3. Note the PR URL — you will need it in Phase 9.
+1. `commit-commands:commit-push-pr` — branches (if on protected base), commits, pushes with `-u`, opens PR against the program's integration branch (per branch-protection policy in `CLAUDE.md`; e.g. `openbb_pine_support`, `portfolio`).
+2. **Add `Closes #NN` / `Refs #NN` to the PR body** for every plan-step GH issue this PR resolves. GH will auto-close referenced issues when the PR merges — this is the primary mechanism keeping the issue tracker in sync with what shipped.
+3. Record `HEAD_0 = git rev-parse HEAD` — the loop's seed.
+4. Note the PR URL — you will need it in Phase 9.
 
-**Checklist:** [ ] PR URL exists  [ ] `HEAD_0` recorded  [ ] branch pushed with tracking.
+**Checklist:** [ ] PR URL exists  [ ] PR body cites every plan-step issue with `Closes #NN`  [ ] `HEAD_0` recorded  [ ] branch pushed with tracking.
 
-### Phase 9: Convergence Loop (NEW — the heart of this skill)
+### Phase 9: Convergence Loop (the heart of this skill)
 
 **Entry**: immediately after Phase 8 returns the PR URL.
 
@@ -132,17 +181,17 @@ Each iteration:
    - `coderabbit:autofix` — reads unresolved review threads via GraphQL (`isResolved=false && isOutdated=false`)
 2. **Collate findings** into `.dev-cycle/findings-pr<NNN>-iter<N>.md`:
    ```
-   | severity | title | location | tool | action | bead_id | verify_evidence |
+   | severity | title | location | tool | action | gh_issue | verify_evidence |
    ```
 3. **Per-row triage** (Apply / Defer / Modify — see triage section below).
 4. **Apply rows**: fix → re-run `/verify` on affected path → paste stdout into `verify_evidence`.
-5. **Defer rows**: `bd create` with mandatory justification → record `bead_id`.
+5. **Defer rows**: `gh issue create` with mandatory justification → record `gh_issue` (issue number + URL).
 6. When every row has a terminal action, `commit-commands:commit` (plain — NOT `commit-push-pr`) + `git push`.
 7. **Re-run the exit predicate.** Increment iteration counter. Re-enter loop OR exit.
 
 **Exit predicate — all four clauses must hold**:
 ```
-∀ f ∈ findings_iter_N.  f.action ∈ {applied_and_verified, deferred_with_bead}
+∀ f ∈ findings_iter_N.  f.action ∈ {applied_and_verified, deferred_with_gh_issue}
 ∧ coderabbit:autofix reports 0 unresolved GH review threads on current HEAD
 ∧ code-review (built-in) returns "skip — already reviewed at HEAD"
 ∧ security-review reports 0 unaddressed HIGH/CRITICAL findings
@@ -155,24 +204,24 @@ The `code-review` skip-per-HEAD behavior is the strongest convergence signal in 
 
 **State between iterations**:
 - `.dev-cycle/findings-pr<NNN>-iter<N>.md` — per-iteration snapshot, diffable across iters
-- Beads — only for deferred items, so `bd ready` reflects real outstanding work
-- Applied-and-verified rows live only in the scratchpad; they don't need a bead
+- GH issues — only for deferred items, so `gh issue list --label deferred-from-review` reflects real outstanding work
+- Applied-and-verified rows live only in the scratchpad; they don't need a GH issue
 
 **CRITICAL RULE — the loop's only exit is the predicate** (adapted from `ralph-loop/1.0.0/commands/ralph-loop.md:18`):
 
-> **If the exit predicate has not been satisfied, you may NOT declare the loop done.** Do not output false completion signals to escape the loop, even if you think you're stuck, the user is impatient, or you should exit for other reasons. The predicate is the only exit. Filing a bead is progress; **filing a bead is not exit**. Re-run the predicate after every state change.
+> **If the exit predicate has not been satisfied, you may NOT declare the loop done.** Do not output false completion signals to escape the loop, even if you think you're stuck, the user is impatient, or you should exit for other reasons. The predicate is the only exit. Filing a GH issue is progress; **filing a GH issue is not exit**. Re-run the predicate after every state change.
 
 ### Phase 10: Finish
 
 Only after Phase 9 exits cleanly.
 
 1. `superpowers:finishing-a-development-branch` — guided merge/PR/keep/discard decision. It runs its own test-gate; **do not call it inside Phase 9**.
-2. `bd preflight && bd stats` — lint, stale, orphan checks; verify counts.
+2. **Verify GH issue closure**: `gh issue list --label <program-label> --state closed --search "closed:>=<PR-merge-date>"` — every issue referenced with `Closes #NN` should now be closed. Manually close any that GH missed (rare — happens if the PR body used the wrong syntax).
 3. `claude-md-management:revise-claude-md` — capture any new patterns/conventions surfaced by this cycle.
-4. `bd remember "<stable-key>" "<what shipped, one paragraph>"` — persistent cross-session state.
-5. `bd dolt push` — publish DB changes (per Beads Rule 3 in `~/.claude/CLAUDE.md`).
+4. **`bd remember "<stable-key>" "<what shipped, one paragraph>"`** — persistent cross-session state. This is the ONLY `bd` call in the v3 workflow; beads' memory feature has no GH equivalent (issue comments don't auto-inject into future LLM sessions the way `bd prime` output does).
+5. `bd dolt push` — publish the memory update to the shared beads DB.
 
-**Checklist:** [ ] `finishing-a-development-branch` completed  [ ] CLAUDE.md updated if warranted  [ ] `bd remember` written  [ ] bd DB synced.
+**Checklist:** [ ] `finishing-a-development-branch` completed  [ ] all program issues closed on GH  [ ] CLAUDE.md updated if warranted  [ ] `bd remember` written  [ ] bd DB synced.
 
 ---
 
@@ -188,27 +237,42 @@ Only after Phase 9 exits cleanly.
 | Phase 9 (per-iter) | `security-review` (built-in) | Security findings on PR | Findings table (HIGH/CRIT gates exit) |
 | Phase 9 (per-iter) | `coderabbit:autofix` | Reads GH review threads (GraphQL) | Direct exit-predicate input |
 
-**Deferred**: GitHub Copilot PR review. Follow-up bead tracks adding it once the `gh api` invocation is confirmed.
+**Deferred**: GitHub Copilot PR review. Follow-up issue tracks adding it once the `gh api` invocation is confirmed.
 
 ---
 
 ## Findings triage: Apply / Defer / Modify
 
-Every row of the findings table must land in exactly one bucket before the iteration can close (adapted from `coderabbit:autofix` skill).
+Every row of the findings table must land in exactly one bucket before the iteration can close.
 
 - **Apply** — in-scope, safe, single-commit fix.
   - Required: (a) fix, (b) `/verify` re-run on affected path, (c) evidence pasted into `verify_evidence` column.
-  - No bead needed — verified-fix closes the row.
+  - No GH issue needed — verified-fix closes the row.
 
 - **Defer** — out of scope, needs design, blocked by external dep, or explicitly downgraded by user.
-  - Required: `bd create --title="Deferred from PR #<NNN> review: <finding>" --description="Location: <path:line>. Reviewer: <tool>. Justification: <specific reason, NOT 'later' or 'follow-up'>" --type=<bug|task> --priority=<1-4>`
-  - Record `bead_id` in the row.
+  - Required: file a GH issue with the program label + `deferred-from-review` label + mandatory justification:
+    ```bash
+    gh issue create --repo <owner>/<repo> \
+      --title "[<program-tag>] Deferred from PR #<NNN> review: <finding>" \
+      --body "$(cat <<EOF
+    **Location**: <path:line>
+    **Reviewer**: <tool>
+    **Justification for deferring**: <specific reason, NOT "later" or "follow-up">
+    **Original finding**:
 
-- **Modify** — partial fix now, remainder deferred. Both an Apply-style verify AND a Defer-style bead.
+    <finding text>
+    EOF
+    )" \
+      --label "<program-label>,type-<bug|task>,deferred-from-review,priority-p<1-4>"
+    # Then link as sub-issue of the program epic if scope-related.
+    ```
+  - Record `gh_issue` (number + URL) in the row.
+
+- **Modify** — partial fix now, remainder deferred. Both an Apply-style verify AND a Defer-style GH issue.
 
 **Loop-blocking rule**: a row with `action = empty`, `action = "noted"`, or `action = "will fix later"` is **loop-blocking**. The exit predicate reads the table; nothing else counts. No side-channel resolution.
 
-**Filing a bead is progress; filing a bead is not exit.** After filing beads for any deferred rows, re-run the exit predicate — a bead-backed row satisfies the first clause, but the other three clauses (autofix threads, code-review no-op, security-review clean) must ALSO hold before the iteration exits.
+**Filing a GH issue is progress; filing a GH issue is not exit.** After filing issues for any deferred rows, re-run the exit predicate — an issue-backed row satisfies the first clause, but the other three clauses (autofix threads, code-review no-op, security-review clean) must ALSO hold before the iteration exits.
 
 ---
 
@@ -218,11 +282,11 @@ The RED baseline for this skill showed one dominant failure mode: **loop-exit un
 
 | Scenario | Excuse | Reality |
 |----------|--------|---------|
-| Loop-exit early | "Just one nit left, ship it" | Nit unresolved = unresolved. Apply or file a bead — pick one — then **re-run the predicate**. |
-| Loop-exit early | "Don't refactor under deadline pressure — that's a principle" | Filing a bead IS the deferral — no refactor needed. But filing the bead does not exit the loop; re-run the predicate. |
-| Loop-exit early | "I filed the bead, so we're done" | Filing a bead is progress, not exit. The predicate has 4 clauses; the bead only satisfies clause 1. |
+| Loop-exit early | "Just one nit left, ship it" | Nit unresolved = unresolved. Apply or file a GH issue — pick one — then **re-run the predicate**. |
+| Loop-exit early | "Don't refactor under deadline pressure — that's a principle" | Filing a GH issue IS the deferral — no refactor needed. But filing the issue does not exit the loop; re-run the predicate. |
+| Loop-exit early | "I filed the issue, so we're done" | Filing an issue is progress, not exit. The predicate has 4 clauses; the issue only satisfies clause 1. |
 | Loop-exit early | "User said 'ship it', that overrides the predicate" | User didn't see the findings table. Show them the table + predicate state, then let them decide. |
-| Loop-exit early | "Coderabbit's low-severity findings don't count" | Exit predicate is *all* findings, not severity-filtered. Low-severity findings can be Deferred with a low-priority bead — but they must be filed. |
+| Loop-exit early | "Coderabbit's low-severity findings don't count" | Exit predicate is *all* findings, not severity-filtered. Low-severity findings can be Deferred with a low-priority GH issue — but they must be filed. |
 | Loop-exit early | "Iteration 5, I'll declare done at 4 by lowering the bar" | Escape hatch at iter 5 = escalate to user, not lower the bar. Predicate is fixed. |
 | Loop-exit early | "The PR was auto-approved, skip the loop" | Auto-approval is not review; the loop is what turns approval into evidence. |
 | Skip harness verify | "Unit tests are green, `/verify` is redundant" | Tests exercise assumptions; `/verify` exercises the real code path. `enterprise_value=None` on real data is invisible to green tests. |
@@ -230,6 +294,8 @@ The RED baseline for this skill showed one dominant failure mode: **loop-exit un
 | Findings not filed | "We can remember these 3 findings for the next commit" | Context loss between iterations is normal; unfiled = lost. The tracker is the memory. |
 | Commit before verify | "Tests were green 20 min ago" | Stale evidence isn't evidence; the file state changed since. |
 | Commit before verify | "Only whitespace / a type hint changed" | If the change was worth making, its effect is worth verifying. |
+| Task tracker | "I'll use `bd create` — it's faster than gh CLI" | v3 says: GH Issues is the tracker of record. `bd create` is not used. `bd remember` (Phase 10) is the only surviving `bd` call. |
+| Task tracker | "The issue tree in GH is verbose, I'll just track in my head" | Untracked = lost between sessions. GH issue + sub-issue link is the durable index. |
 
 ---
 
@@ -239,18 +305,19 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 
 - "Just one nit left."
 - "The user seems tired of the loop."
-- "I filed the bead, we're done."
+- "I filed the GH issue, we're done."
 - "It's technically not a bug."
 - "Tests passed, that's enough."
-- "I'll fix it real quick without filing a bead."
+- "I'll fix it real quick without filing an issue."
 - "Iteration 5, so I'll declare done at 4 by lowering the bar."
 - "I already know what `/verify` would say."
 - "The review tool timed out — treat as clean."
 - "Coderabbit is being pedantic — ignore."
-- "Deferring everything to beads means we're done." (needs a justification per row, not blanket)
+- "Deferring everything to GH issues means we're done." (needs a justification per row, not blanket)
 - "The PR was auto-approved, skip the loop."
 - "Only whitespace changed, skip verify."
 - "This is different because <plausible-sounding reason>."
+- "`bd create` is faster than the gh CLI." (v3: GH Issues is the tracker — `bd` is not.)
 
 **All of these mean: STOP. Re-check the exit predicate. If it doesn't hold, keep looping.**
 
@@ -261,15 +328,15 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 | Phase | Skill invoked | Produces | Next phase consumes |
 |-------|---------------|----------|---------------------|
 | 1 | `superpowers:brainstorming` (+ Context7) | Design spec md | Plan input |
-| 2 | `superpowers:writing-plans` | Plan md + `bd` tree | Issue queue |
+| 2 | `superpowers:writing-plans` + `gh issue create` + `gh api sub_issues` | Plan md + GH issue tree under program epic | Issue queue |
 | 3 | `superpowers:using-git-worktrees` | Isolated CWD | Implementation location |
-| 4 | `superpowers:test-driven-development` (+ `systematic-debugging`) | Green tests, closed beads | Diff for simplify |
+| 4 | `superpowers:test-driven-development` (+ `systematic-debugging`) | Green tests, GH issues left open (auto-close via merge commit) | Diff for simplify |
 | 5 | `simplify` + `mcp__ide__getDiagnostics` | Cleaned diff | `/verify` target |
 | 6 | `/verify` (built-in) | Runtime evidence log | Pre-push review target |
-| 7 | `coderabbit:code-review` + `pr-review-toolkit:review-pr` | Local findings table | Applied/deferred before push |
-| 8 | `commit-commands:commit-push-pr` (**once only**) | PR URL, `HEAD_0` | Loop seed |
+| 7 | `coderabbit:code-review` + `pr-review-toolkit:review-pr` | Local findings table | Applied/deferred (via `gh issue create`) before push |
+| 8 | `commit-commands:commit-push-pr` (**once only**) | PR URL with `Closes #NN` per plan-step issue, `HEAD_0` | Loop seed |
 | 9 (per iter) | `code-review` + `security-review` + `coderabbit:autofix`; then `commit-commands:commit` + `git push` | Iter-N findings table + new HEAD | Next iter OR predicate exit |
-| 10 | `superpowers:finishing-a-development-branch` + `claude-md-management:revise-claude-md` + `bd remember` + `bd dolt push` | Merged/closed branch, updated CLAUDE.md | Done |
+| 10 | `superpowers:finishing-a-development-branch` + `claude-md-management:revise-claude-md` + `bd remember` + `bd dolt push` | Merged/closed branch, closed program issues, updated CLAUDE.md, cross-session memory | Done |
 
 ---
 
@@ -277,7 +344,9 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 
 - **Always use `.venv_win`** — never system Python (stale extension installs).
 - **`fmp_cached` is the only provider** — no `fmp` fallback, no yfinance.
-- **Branch-protection**: PRs target `openbb_pine_support`. See `H:\masterswork\git\OpenBB-Pine\CLAUDE.md` for the enforcement hook.
+- **Branch-protection**: PRs target the program's integration branch. Portfolio Intelligence Engine targets `portfolio`; single `portfolio → develop` merge at M4. See per-program CLAUDE.md.
+- **GH Issues is the tracker** — every plan step, discovered bug, and deferred review finding gets a `gh issue create` (with program label + sub-issue link). `bd create` / `bd close` are NOT used in v3.
+- **`bd remember` is the exception** — beads' persistent memory (auto-injected by `bd prime` in new sessions) has no GH equivalent. Use it in Phase 10 for anything the next session should know.
 - **Test commands**:
   ```bash
   # Unit (~1s, no API needed)
@@ -286,8 +355,7 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
   # Integration (~19 min, needs fmp_cached API key)
   .venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "integration" -v
   ```
-- **Beads for everything** — `bd create`, `bd close`, `bd ready`. Never markdown TODOs, never `TodoWrite`/`TaskCreate`.
-- **Conservative git profile** — never `git commit`, `git push`, or `bd dolt push` without explicit authorization in the current session. Propose the commit, wait for approval.
+- **Conservative git profile** — never `git commit`, `git push`, or `bd dolt push` without explicit authorization in the current session. Propose the commit, wait for approval. Same policy for `gh issue create` in bulk (>3 issues in one action): confirm the count and scope with the user before firing.
 
 ---
 
@@ -295,14 +363,16 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 
 1. **Skipping brainstorming** — "It's simple" is where assumptions cause the most rework.
 2. **Writing code before tests** — TDD is gated, not optional.
-3. **Using TodoWrite/TaskCreate** — beads (`bd`) is the only task tracker.
-4. **Claiming done without evidence** — show test / verify output, not assertions.
-5. **Blind agreement with review feedback** — verify technically first (see `superpowers:receiving-code-review`).
-6. **Committing without running tests + `/verify`** — always verify before commit.
-7. **Skipping harness verify because "tests are green"** — tests are not the app.
-8. **Calling `commit-push-pr` inside the loop** — creates a duplicate PR. Use plain `commit` + `git push`.
-9. **Exiting the loop on user impatience** — the predicate is the only exit.
-10. **Filing a bead and declaring the loop done** — filing satisfies clause 1 of the predicate only; re-run the predicate.
+3. **Using `bd create` / `bd close` for task tracking** — v3 uses GH Issues. `bd remember` in Phase 10 is the only surviving `bd` call.
+4. **Using TodoWrite/TaskCreate for permanent work** — GH Issues is the only long-lived tracker.
+5. **Claiming done without evidence** — show test / verify output, not assertions.
+6. **Blind agreement with review feedback** — verify technically first (see `superpowers:receiving-code-review`).
+7. **Committing without running tests + `/verify`** — always verify before commit.
+8. **Skipping harness verify because "tests are green"** — tests are not the app.
+9. **Calling `commit-push-pr` inside the loop** — creates a duplicate PR. Use plain `commit` + `git push`.
+10. **Exiting the loop on user impatience** — the predicate is the only exit.
+11. **Filing a GH issue and declaring the loop done** — filing satisfies clause 1 of the predicate only; re-run the predicate.
+12. **PR body without `Closes #NN`** — orphans the program issues from the shipping PR; they stay open forever unless manually closed. Every plan-step issue MUST be cited.
 
 ---
 
@@ -321,5 +391,7 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 | Local review before push | `coderabbit:code-review` + `pr-review-toolkit:review-pr` (Phase 7) |
 | Open the PR (once) | `commit-commands:commit-push-pr` (Phase 8) |
 | Iterate reviews on open PR | `code-review` + `security-review` + `coderabbit:autofix` (Phase 9) |
+| Filing a task, bug, or deferred finding | `gh issue create` (Phase 2, 4, 7, 9) — NOT `bd create` |
+| Cross-session persistent memory | `bd remember` (Phase 10 only) |
 | Receiving review feedback | `superpowers:receiving-code-review` |
 | Feature branch complete | `superpowers:finishing-a-development-branch` (Phase 10 only) |

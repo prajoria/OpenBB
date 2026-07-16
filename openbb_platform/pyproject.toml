@@ -9,7 +9,7 @@ readme = "README.md"
 packages = [{ include = "openbb", from = "core" }]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<4"
+python = ">=3.10,<3.14"
 openbb-core = "^1.6.10"
 openbb-platform-api = "^1.3.6"
 
@@ -67,25 +67,56 @@ openbb-technical = { version = "^1.6.2", optional = true }
 openbb-mcp-server = { version = "^1.4.1", optional = true }
 openbb-portfolio-custom = { path = "extensions/portfolio", develop = true, optional = true }
 
+# Fork-specific local extensions (path-based, develop mode).
+# These live only in this fork and are declared here so `dev_install.py -e`
+# picks them up automatically — same pattern as openbb-portfolio-custom
+# above. Without these declarations, each new dev has to manually
+# `pip install -e` every extension after cloning, which is the root
+# cause of the "test failures on my machine but not yours" divergence
+# (see PR #758 review + docs/BD_MIGRATION_PLAN.md discussion 2026-07-14).
+#
+# Note: openbb-agents uses PEP 621 [project] + flit_core, not Poetry, so it
+# CANNOT be a Poetry path dep. It must be installed separately by hand:
+#   pip install -e openbb_platform/extensions/agents
+# (Its git submodule third_party/adk-python must also be initialized.)
+openbb-backtest = { path = "extensions/backtest", develop = true, optional = true }
+openbb-devtools = { path = "extensions/devtools", develop = true, optional = true }
+openbb-financialtoolkit = { path = "extensions/financialtoolkit", develop = true, optional = true }
+openbb-fmp-cached = { path = "providers/fmp_cached", develop = true, optional = true }
+openbb-fmp-trading = { path = "extensions/fmp_trading", develop = true, optional = true }
+openbb-regime = { path = "extensions/regime", develop = true, optional = true }
+openbb-techtrade = { path = "extensions/techtrade", develop = true, optional = true }
+
 [tool.poetry.extras]
+# Alphabetically sorted; fork-specific extras are inline with community ones.
+# `openbb-agents` is intentionally NOT declared here — it uses PEP 621 +
+# flit_core, not Poetry, so it cannot be a path dep. Install manually with:
+#   pip install -e openbb_platform/extensions/agents
 alpha_vantage = ["openbb-alpha-vantage"]
+backtest = ["openbb-backtest"]
 biztoc = ["openbb-biztoc"]
 cboe = ["openbb-cboe"]
 charting = ["openbb-charting"]
 deribit = ["openbb-deribit"]
+devtools = ["openbb-devtools"]
 ecb = ["openbb-ecb"]
 econometrics = ["openbb-econometrics"]
 famafrench = ["openbb-famafrench"]
+financialtoolkit = ["openbb-financialtoolkit"]
 finra = ["openbb-finra"]
 finviz = ["openbb-finviz"]
+fmp_cached = ["openbb-fmp-cached"]
+fmp_trading = ["openbb-fmp-trading"]
 mcp_server = ["openbb-mcp-server"]
-portfolio = ["openbb-portfolio-custom"]
-nasdaq = ["openbb-nasdaq"]
 multpl = ["openbb-multpl"]
+nasdaq = ["openbb-nasdaq"]
+portfolio = ["openbb-portfolio-custom"]
 quantitative = ["openbb-quantitative"]
+regime = ["openbb-regime"]
 seeking_alpha = ["openbb-seeking-alpha"]
 stockgrid = ["openbb-stockgrid"]
 technical = ["openbb-technical"]
+techtrade = ["openbb-techtrade"]
 tmx = ["openbb-tmx"]
 tradier = ["openbb-tradier"]
 wsj = ["openbb-wsj"]
@@ -93,22 +124,30 @@ wsj = ["openbb-wsj"]
 
 all = [
     "openbb-alpha-vantage",
+    "openbb-backtest",
     "openbb-biztoc",
     "openbb-cboe",
     "openbb-charting",
     "openbb-deribit",
+    "openbb-devtools",
     "openbb-ecb",
     "openbb-econometrics",
     "openbb-famafrench",
+    "openbb-financialtoolkit",
     "openbb-finra",
     "openbb-finviz",
+    "openbb-fmp-cached",
+    "openbb-fmp-trading",
     "openbb-mcp-server",
     "openbb-multpl",
     "openbb-nasdaq",
+    "openbb-portfolio-custom",
     "openbb-quantitative",
+    "openbb-regime",
     "openbb-seeking-alpha",
     "openbb-stockgrid",
     "openbb-technical",
+    "openbb-techtrade",
     "openbb-tmx",
     "openbb-tradier",
     "openbb-wsj",

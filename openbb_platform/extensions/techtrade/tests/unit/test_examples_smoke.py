@@ -9,6 +9,20 @@ example signatures stay in sync with the code"; CONTENT lock-in lives in
 If this test ever fails, the README/examples and the engine have drifted -- fix
 one or the other, never silence the test.
 
+**bd-vwl (2026-07-11) — Q-A A3 residual limitation:** the fake-obb callables
+below all accept ``**kw`` (see ``_fake_export`` at ~line 165 and the
+``lambda **kw: ...`` bindings at ~lines 172, 213, 264). This is intentional
+so tests don't have to enumerate every kwarg each router accepts, but it
+means the smoke does NOT catch README-side kwarg drift: adding a call like
+``obb.techtrade.scan(garbage=...)`` to a README example still passes here
+because the fake silently swallows ``garbage``. Design's Q-A explicitly
+limits scope to SHAPE-only for exactly this reason (kwarg validation would
+require importing the real routers, which needs ``openbb.build()`` — the
+very thing this test avoids). If you need kwarg-drift protection on a
+specific router, add a targeted integration test that imports the real
+router and inspects its signature via ``inspect.signature`` — that lives
+outside this file's scope.
+
 Why monkeypatch the ``openbb`` module instead of the engine's ``_fetcher`` seams:
 the brief's Step 3 anticipated this gap. The live ``obb.techtrade.{scan, plan,
 export, simulate, validate}`` router signatures do NOT accept ``candidate_fetcher

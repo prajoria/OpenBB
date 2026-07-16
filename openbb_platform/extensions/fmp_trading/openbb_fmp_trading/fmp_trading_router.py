@@ -16,6 +16,7 @@ from __future__ import annotations
 from importlib import import_module
 from pathlib import Path
 
+from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
@@ -46,7 +47,10 @@ def _include_subrouters() -> None:
 _include_subrouters()
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[APIEx(parameters={})],
+)
 def doctor() -> OBBject:
     """Return an fmp_trading environment health report.
 

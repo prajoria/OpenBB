@@ -73,6 +73,35 @@ class TestFreshRowsPartition:
         assert hits == []
         assert miss == []
 
+    def test_empty_symbols_short_circuits_before_sql(self):
+        """Regression guard for #774.
+
+        _fetch_fresh_rows([], ...) must NOT call execute_query, because
+        the empty-list branch previously built `WHERE symbol IN ()` which
+        MySQL rejects with a 1064 syntax error. The old-style hermetic
+        return-value check (test_empty_symbols_returns_empty above) does
+        NOT catch this — an empty rows list from execute_query also
+        yields ([], []), so the assertion passes even against buggy code
+        that fires malformed SQL at the DB.
+
+        Mutation-verified (per CLAUDE.md R7.11): reverting the guard
+        (`if not symbols: return [], []`) causes execute_query to be
+        called with the malformed IN () query, failing this test.
+        """
+        from openbb_fmp_cached.models.aftermarket_quote import _fetch_fresh_rows
+
+        with patch(
+            "openbb_fmp_cached.models.aftermarket_quote.execute_query"
+        ) as mock_execute:
+            hits, miss = _fetch_fresh_rows([], datetime(2026, 7, 8))
+
+        assert hits == []
+        assert miss == []
+        mock_execute.assert_not_called(), (
+            "empty-symbols must short-circuit before hitting the DB; "
+            "otherwise the WHERE symbol IN () SQL fires and 1064s"
+        )
+
 
 class TestUpsertShape:
     """_upsert_aftermarket_rows uses execute_many with correct row-tuple shape."""

@@ -22,6 +22,7 @@ The test will:
 import asyncio
 import sys
 import time
+import pytest
 from datetime import date, datetime
 from pathlib import Path
 
@@ -34,6 +35,12 @@ from openbb_fmp_cached.models.equity_historical import (
     get_cache_statistics,
     clear_cache_for_symbol
 )
+
+# Module-level marker: this file makes live FMP API calls via
+# credentials in user_settings.json. Without it, `pytest -m
+# "not integration"` would include these tests and they'd fail
+# without keys / network. See #782.
+pytestmark = pytest.mark.integration
 
 
 class Colors:

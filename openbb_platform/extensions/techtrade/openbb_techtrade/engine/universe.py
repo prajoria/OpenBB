@@ -19,10 +19,13 @@ checked for a plausible membership count (PRD §10 "membership-count sanity").
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable
 
 from openbb_techtrade.engine.screener import GICS_SECTOR_ETFS, list_segments
 from openbb_techtrade.models import SegmentConfig
+
+_logger = logging.getLogger(__name__)
 
 # GICS sector name -> FMP equity-screener ``sector`` literal (PRD §10, §20 Q3).
 # Used by the live screener default to translate a canonical GICS segment into the
@@ -87,7 +90,21 @@ def _default_holdings_fetcher(etf_symbol: str) -> list[str]:
 
     result = obb.etf.holdings(symbol=etf_symbol, provider="fmp_cached")
     rows = result.results or []
-    return [row.symbol for row in rows if getattr(row, "symbol", None)]
+    symbols = [row.symbol for row in rows if getattr(row, "symbol", None)]
+    # R7.3 loud-empty: an ETF holdings response with zero usable symbols would
+    # masquerade as a valid empty universe downstream and cascade into every
+    # subsequent stage returning 0 movers. Distinguish "endpoint returned []"
+    # (rows empty) from "endpoint returned symbols with no ticker" (rows kept
+    # but all filtered) so an operator can tell which upstream hop is broken.
+    if not symbols:
+        _logger.warning(
+            "obb.etf.holdings(symbol=%r, provider=fmp_cached) yielded no "
+            "usable symbols (rows_returned=%d) — downstream universe will "
+            "be empty",
+            etf_symbol,
+            len(rows),
+        )
+    return symbols
 
 
 def _default_screener_fetcher(segment: str) -> list[str]:
@@ -124,7 +141,9 @@ def _default_screener_fetcher(segment: str) -> list[str]:
     return [row.symbol for row in rows if getattr(row, "symbol", None)]
 
 
-def validate_membership(segment: str, universe: list[str], min_members: int = 5) -> None:
+def validate_membership(
+    segment: str, universe: list[str], min_members: int = 5
+) -> None:
     """Assert a resolved universe is non-empty and has a plausible member count.
 
     Implements the PRD §10 "membership-count sanity" check.
@@ -217,7 +236,9 @@ def resolve_universe(
         fetcher = screener_fetcher or _default_screener_fetcher
         raw = fetcher(config.segment)
     else:  # Defensive: SegmentConfig's Literal should prevent reaching here.
-        raise ValueError(f"Unknown universe_source {source!r} for segment {config.segment!r}.")
+        raise ValueError(
+            f"Unknown universe_source {source!r} for segment {config.segment!r}."
+        )
 
     universe = _clean_symbols(raw)
     # A caller-supplied constituent_list reflects deliberate intent, so the
@@ -264,7 +285,9 @@ def resolve_all_segments(
     """
     resolved: dict[str, list[str]] = {}
     for config in list_segments(universe_source=universe_source):
-        constituents = constituents_map.get(config.segment) if constituents_map else None
+        constituents = (
+            constituents_map.get(config.segment) if constituents_map else None
+        )
         resolved[config.segment] = resolve_universe(
             config,
             constituents=constituents,

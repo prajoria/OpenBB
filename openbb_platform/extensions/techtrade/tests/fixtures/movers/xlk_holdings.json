@@ -1,0 +1,758 @@
+{
+  "provider": "fmp_cached",
+  "endpoint": "obb.etf.holdings(symbol='XLK')",
+  "captured_at_utc": "2026-07-04T08:00:17.183685+00:00",
+  "row_count": 75,
+  "rows": [
+    {
+      "symbol": "NVDA",
+      "name": "NVIDIA CORP",
+      "cusip": "67066G104",
+      "isin": null,
+      "weight": 0.0012830866,
+      "shares": 78359799.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "AAPL",
+      "name": "APPLE INC",
+      "cusip": "037833100",
+      "isin": null,
+      "weight": 0.0011592611,
+      "shares": 47517470.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "MSFT",
+      "name": "MICROSOFT CORP",
+      "cusip": "594918104",
+      "isin": null,
+      "weight": 0.0007653746,
+      "shares": 24032922.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "AVGO",
+      "name": "BROADCOM INC",
+      "cusip": "11135F101",
+      "isin": null,
+      "weight": 0.00046886270000000003,
+      "shares": 15317916.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "AMD",
+      "name": "ADVANCED MICRO DEVICES",
+      "cusip": "007903107",
+      "isin": null,
+      "weight": 0.00045056560000000004,
+      "shares": 10051651.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "MU",
+      "name": "MICRON TECHNOLOGY INC",
+      "cusip": "595112103",
+      "isin": null,
+      "weight": 0.0004298168,
+      "shares": 5024192.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "INTC",
+      "name": "INTEL CORP",
+      "cusip": "458140100",
+      "isin": null,
+      "weight": 0.00039285670000000004,
+      "shares": 37320061.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "AMAT",
+      "name": "APPLIED MATERIALS INC",
+      "cusip": "038222105",
+      "isin": null,
+      "weight": 0.0003381721,
+      "shares": 6268984.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "LRCX",
+      "name": "LAM RESEARCH CORP",
+      "cusip": "512807306",
+      "isin": null,
+      "weight": 0.0003203201,
+      "shares": 9878685.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "CSCO",
+      "name": "CISCO SYSTEMS INC",
+      "cusip": "17275R102",
+      "isin": null,
+      "weight": 0.0003025653,
+      "shares": 31201572.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "KLAC",
+      "name": "KLA CORP",
+      "cusip": "482480100",
+      "isin": null,
+      "weight": 0.00022763510000000002,
+      "shares": 10318766.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "SNDK",
+      "name": "SANDISK CORP",
+      "cusip": "80004C200",
+      "isin": null,
+      "weight": 0.00019702109999999998,
+      "shares": 1169829.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "PLTR",
+      "name": "PALANTIR TECHNOLOGIES INC A",
+      "cusip": "69608A108",
+      "isin": null,
+      "weight": 0.0001889885,
+      "shares": 18137474.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "PANW",
+      "name": "PALO ALTO NETWORKS INC",
+      "cusip": "697435105",
+      "isin": null,
+      "weight": 0.0001869059,
+      "shares": 6406359.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "TXN",
+      "name": "TEXAS INSTRUMENTS INC",
+      "cusip": "882508104",
+      "isin": null,
+      "weight": 0.0001777904,
+      "shares": 7189114.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "IBM",
+      "name": "INTL BUSINESS MACHINES CORP",
+      "cusip": "459200101",
+      "isin": null,
+      "weight": 0.0001761292,
+      "shares": 7424481.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ORCL",
+      "name": "ORACLE CORP",
+      "cusip": "68389X105",
+      "isin": null,
+      "weight": 0.0001582978,
+      "shares": 13404185.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "MRVL",
+      "name": "MARVELL TECHNOLOGY INC",
+      "cusip": "573874104",
+      "isin": null,
+      "weight": 0.00015593360000000001,
+      "shares": 6916260.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "APH",
+      "name": "AMPHENOL CORP CL A",
+      "cusip": "032095101",
+      "isin": null,
+      "weight": 0.0001387017,
+      "shares": 9718039.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "WDC",
+      "name": "WESTERN DIGITAL CORP",
+      "cusip": "958102105",
+      "isin": null,
+      "weight": 0.000135021,
+      "shares": 2722775.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "STX",
+      "name": "SEAGATE TECHNOLOGY HOLDINGS",
+      "cusip": "G7997R103",
+      "isin": null,
+      "weight": 0.0001343429,
+      "shares": 1771266.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "CRWD",
+      "name": "CROWDSTRIKE HOLDINGS INC   A",
+      "cusip": "22788C105",
+      "isin": null,
+      "weight": 0.0001287645,
+      "shares": 8042720.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "QCOM",
+      "name": "QUALCOMM INC",
+      "cusip": "747525103",
+      "isin": null,
+      "weight": 0.0001255253,
+      "shares": 8325898.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ADI",
+      "name": "ANALOG DEVICES INC",
+      "cusip": "032654105",
+      "isin": null,
+      "weight": 0.0001243202,
+      "shares": 3856512.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "GLW",
+      "name": "CORNING INC",
+      "cusip": "219350105",
+      "isin": null,
+      "weight": 0.00011311909999999999,
+      "shares": 6186595.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ANET",
+      "name": "ARISTA NETWORKS INC",
+      "cusip": "040413205",
+      "isin": null,
+      "weight": 0.0001126287,
+      "shares": 8156469.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "APP",
+      "name": "APPLOVIN CORP CLASS A",
+      "cusip": "03831W108",
+      "isin": null,
+      "weight": 0.00994459,
+      "shares": 2125293.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "CRM",
+      "name": "SALESFORCE INC",
+      "cusip": "79466L302",
+      "isin": null,
+      "weight": 0.00874168,
+      "shares": 6462124.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "DELL",
+      "name": "DELL TECHNOLOGIES  C",
+      "cusip": "24703L202",
+      "isin": null,
+      "weight": 0.00805316,
+      "shares": 2285085.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "NOW",
+      "name": "SERVICENOW INC",
+      "cusip": "81762P102",
+      "isin": null,
+      "weight": 0.007143119999999999,
+      "shares": 8146721.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "CDNS",
+      "name": "CADENCE DESIGN SYS INC",
+      "cusip": "127387108",
+      "isin": null,
+      "weight": 0.00682044,
+      "shares": 2178769.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "FTNT",
+      "name": "FORTINET INC",
+      "cusip": "34959E109",
+      "isin": null,
+      "weight": 0.00648139,
+      "shares": 4919332.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "DDOG",
+      "name": "DATADOG INC   CLASS A",
+      "cusip": "23804L103",
+      "isin": null,
+      "weight": 0.00572806,
+      "shares": 2613337.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "SNPS",
+      "name": "SYNOPSYS INC",
+      "cusip": "871607107",
+      "isin": null,
+      "weight": 0.005700070000000001,
+      "shares": 1513207.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ADBE",
+      "name": "ADOBE INC",
+      "cusip": "00724F101",
+      "isin": null,
+      "weight": 0.005582780000000001,
+      "shares": 3192929.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ACN",
+      "name": "ACCENTURE PLC CL A",
+      "cusip": "G1151C101",
+      "isin": null,
+      "weight": 0.005270359999999999,
+      "shares": 4849745.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "INTU",
+      "name": "INTUIT INC",
+      "cusip": "461202103",
+      "isin": null,
+      "weight": 0.0048353499999999995,
+      "shares": 2184573.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "COHR",
+      "name": "COHERENT CORP",
+      "cusip": "19247G107",
+      "isin": null,
+      "weight": 0.00472157,
+      "shares": 1545442.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "NXPI",
+      "name": "NXP SEMICONDUCTORS NV",
+      "cusip": "N6596X109",
+      "isin": null,
+      "weight": 0.00461431,
+      "shares": 1994357.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "MSI",
+      "name": "MOTOROLA SOLUTIONS INC",
+      "cusip": "620076307",
+      "isin": null,
+      "weight": 0.00455265,
+      "shares": 1311273.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "TER",
+      "name": "TERADYNE INC",
+      "cusip": "880770102",
+      "isin": null,
+      "weight": 0.00437945,
+      "shares": 1236591.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "MPWR",
+      "name": "MONOLITHIC POWER SYSTEMS INC",
+      "cusip": "609839105",
+      "isin": null,
+      "weight": 0.0042832799999999996,
+      "shares": 388097.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "CIEN",
+      "name": "CIENA CORP",
+      "cusip": "171779309",
+      "isin": null,
+      "weight": 0.00428066,
+      "shares": 1116956.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "LITE",
+      "name": "LUMENTUM HOLDINGS INC",
+      "cusip": "55024U109",
+      "isin": null,
+      "weight": 0.00408046,
+      "shares": 614568.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "TEL",
+      "name": "TE CONNECTIVITY PLC",
+      "cusip": "G87052109",
+      "isin": null,
+      "weight": 0.00384939,
+      "shares": 2305824.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "HPE",
+      "name": "HEWLETT PACKARD ENTERPRISE",
+      "cusip": "42824C109",
+      "isin": null,
+      "weight": 0.00381762,
+      "shares": 10481277.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "KEYS",
+      "name": "KEYSIGHT TECHNOLOGIES IN",
+      "cusip": "49338L103",
+      "isin": null,
+      "weight": 0.00376795,
+      "shares": 1354762.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "FLEX",
+      "name": "FLEX LTD",
+      "cusip": "Y2573F102",
+      "isin": null,
+      "weight": 0.00369549,
+      "shares": 2904420.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "MCHP",
+      "name": "MICROCHIP TECHNOLOGY INC",
+      "cusip": "595017104",
+      "isin": null,
+      "weight": 0.00314188,
+      "shares": 4274600.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ADSK",
+      "name": "AUTODESK INC",
+      "cusip": "052769106",
+      "isin": null,
+      "weight": 0.00276117,
+      "shares": 1667880.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "JBL",
+      "name": "JABIL INC",
+      "cusip": "466313103",
+      "isin": null,
+      "weight": 0.00259237,
+      "shares": 833397.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ON",
+      "name": "ON SEMICONDUCTOR",
+      "cusip": "682189105",
+      "isin": null,
+      "weight": 0.00242782,
+      "shares": 3095769.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ROP",
+      "name": "ROPER TECHNOLOGIES INC",
+      "cusip": "776696106",
+      "isin": null,
+      "weight": 0.00234319,
+      "shares": 797171.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "Q",
+      "name": "QNITY ELECTRONICS INC",
+      "cusip": "74743L100",
+      "isin": null,
+      "weight": 0.0021019,
+      "shares": 1653683.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "NTAP",
+      "name": "NETAPP INC",
+      "cusip": "64110D104",
+      "isin": null,
+      "weight": 0.00202013,
+      "shares": 1558756.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "TDY",
+      "name": "TELEDYNE TECHNOLOGIES INC",
+      "cusip": "879360105",
+      "isin": null,
+      "weight": 0.00200535,
+      "shares": 365964.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "FICO",
+      "name": "FAIR ISAAC CORP",
+      "cusip": "303250104",
+      "isin": null,
+      "weight": 0.00183194,
+      "shares": 183194.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "WDAY",
+      "name": "WORKDAY INC CLASS A",
+      "cusip": "98138H101",
+      "isin": null,
+      "weight": 0.00173727,
+      "shares": 1609173.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "FSLR",
+      "name": "FIRST SOLAR INC",
+      "cusip": "336433107",
+      "isin": null,
+      "weight": 0.00163262,
+      "shares": 848843.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "FFIV",
+      "name": "F5 INC",
+      "cusip": "315616102",
+      "isin": null,
+      "weight": 0.00156671,
+      "shares": 445675.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "VRSN",
+      "name": "VERISIGN INC",
+      "cusip": "92343E102",
+      "isin": null,
+      "weight": 0.00137206,
+      "shares": 646967.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "HPQ",
+      "name": "HP INC",
+      "cusip": "40434L105",
+      "isin": null,
+      "weight": 0.0013183700000000001,
+      "shares": 7224401.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "CTSH",
+      "name": "COGNIZANT TECH SOLUTIONS A",
+      "cusip": "192446102",
+      "isin": null,
+      "weight": 0.00127408,
+      "shares": 3743290.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "CDW",
+      "name": "CDW CORP/DE",
+      "cusip": "12514G108",
+      "isin": null,
+      "weight": 0.00115753,
+      "shares": 1009129.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "AKAM",
+      "name": "AKAMAI TECHNOLOGIES INC",
+      "cusip": "00971T101",
+      "isin": null,
+      "weight": 0.00107366,
+      "shares": 1148412.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "SMCI",
+      "name": "SUPER MICRO COMPUTER INC",
+      "cusip": "86800U302",
+      "isin": null,
+      "weight": 0.0010187,
+      "shares": 4445608.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "GEN",
+      "name": "GEN DIGITAL INC",
+      "cusip": "668771108",
+      "isin": null,
+      "weight": 0.00094209,
+      "shares": 4353766.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "PTC",
+      "name": "PTC INC",
+      "cusip": "69370C100",
+      "isin": null,
+      "weight": 0.00090572,
+      "shares": 912409.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "ZBRA",
+      "name": "ZEBRA TECHNOLOGIES CORP CL A",
+      "cusip": "989207105",
+      "isin": null,
+      "weight": 0.00083529,
+      "shares": 376292.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "TYL",
+      "name": "TYLER TECHNOLOGIES INC",
+      "cusip": "902252105",
+      "isin": null,
+      "weight": 0.00083277,
+      "shares": 333097.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "TRMB",
+      "name": "TRIMBLE INC",
+      "cusip": "896239100",
+      "isin": null,
+      "weight": 0.00080241,
+      "shares": 1841439.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "GDDY",
+      "name": "GODADDY INC   CLASS A",
+      "cusip": "380237107",
+      "isin": null,
+      "weight": 0.00075334,
+      "shares": 1045933.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "SWKS",
+      "name": "SKYWORKS SOLUTIONS INC",
+      "cusip": "83088M102",
+      "isin": null,
+      "weight": 0.00064916,
+      "shares": 1188083.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "IT",
+      "name": "GARTNER INC",
+      "cusip": "366651107",
+      "isin": null,
+      "weight": 0.00058627,
+      "shares": 528871.0,
+      "value": null,
+      "updated": null
+    },
+    {
+      "symbol": "IXTU6",
+      "name": "XAK TECHNOLOGY    SEP26",
+      "cusip": "ADI394XJ2",
+      "isin": null,
+      "weight": -2.9880000000000002e-05,
+      "shares": 28500.0,
+      "value": null,
+      "updated": null
+    }
+  ]
+}

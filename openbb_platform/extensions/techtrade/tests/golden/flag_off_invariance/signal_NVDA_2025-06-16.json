@@ -1,0 +1,52 @@
+{
+  "as_of": "2025-06-16",
+  "direction": "flat",
+  "rank_in_segment": 0,
+  "score": 0.10315123366147987,
+  "segment": "TEST_SECTOR",
+  "symbol": "NVDA",
+  "votes": [
+    {
+      "family": "trend",
+      "name": "macd_hist",
+      "vote": -1.0,
+      "weight": 0.4
+    },
+    {
+      "family": "trend",
+      "name": "ema_cross",
+      "vote": 1.0,
+      "weight": 0.4
+    },
+    {
+      "family": "momentum",
+      "name": "rsi",
+      "vote": 0.7233340873004882,
+      "weight": 0.25
+    },
+    {
+      "family": "momentum",
+      "name": "stoch",
+      "vote": -1.0,
+      "weight": 0.25
+    },
+    {
+      "family": "volatility",
+      "name": "bb_pctb",
+      "vote": 0.6886723637445942,
+      "weight": 0.2
+    },
+    {
+      "family": "volume",
+      "name": "obv_slope",
+      "vote": 1.0,
+      "weight": 0.15
+    },
+    {
+      "family": "volume",
+      "name": "cmf",
+      "vote": -1.0,
+      "weight": 0.15
+    }
+  ]
+}

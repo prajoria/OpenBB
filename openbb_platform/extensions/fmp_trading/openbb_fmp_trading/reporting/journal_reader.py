@@ -26,7 +26,7 @@ attacks the character blocklist missed.
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterable
 
@@ -152,21 +152,37 @@ def compute_metrics_from_events(events) -> SessionMetrics:
             if fp is not None:
                 try:
                     realized_pnl_from_fills += Decimal(str(fp))
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError, InvalidOperation) as exc:
+                    # bd-9nd.11: WARN so a bad row surfaces in logs.
+                    # Silent swallow was hard to trace during P&L
+                    # reconciliation ("why does the summed_from_fills
+                    # source not match the fill count?").
+                    logger.warning(
+                        "compute_metrics: skipping unparseable "
+                        "realized_pnl=%r on fill event at ts=%s (%s)",
+                        fp, getattr(e, "ts", "?"), exc,
+                    )
             # Review finding #6: aggregate cost drag
             comm = payload.get("commission")
             if comm is not None:
                 try:
                     total_commissions += Decimal(str(comm))
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError, InvalidOperation) as exc:
+                    logger.warning(
+                        "compute_metrics: skipping unparseable "
+                        "commission=%r on fill event at ts=%s (%s)",
+                        comm, getattr(e, "ts", "?"), exc,
+                    )
             slip = payload.get("slippage")
             if slip is not None:
                 try:
                     total_slippage += Decimal(str(slip))
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError, InvalidOperation) as exc:
+                    logger.warning(
+                        "compute_metrics: skipping unparseable "
+                        "slippage=%r on fill event at ts=%s (%s)",
+                        slip, getattr(e, "ts", "?"), exc,
+                    )
         elif et == "veto":
             gate = payload.get("gate") or payload.get("reason_code") or "unknown"
             veto_counts[gate] = veto_counts.get(gate, 0) + 1
@@ -175,8 +191,16 @@ def compute_metrics_from_events(events) -> SessionMetrics:
             if rp is not None:
                 try:
                     authoritative_pnl = Decimal(str(rp))
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError, InvalidOperation) as exc:
+                    # session_end is authoritative — losing this to a
+                    # parse error means we silently fall back to
+                    # 'summed_from_fills' with no signal. WARN loudly.
+                    logger.warning(
+                        "compute_metrics: session_end realized_pnl=%r "
+                        "at ts=%s unparseable (%s); falling back to "
+                        "summed_from_fills",
+                        rp, getattr(e, "ts", "?"), exc,
+                    )
 
     # Provenance: review finding #4 — operator sees WHICH source produced
     # the number so a "we crashed mid-session" report doesn't look like a

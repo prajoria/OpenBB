@@ -16,13 +16,23 @@ command docstrings.
 
 from __future__ import annotations
 
+from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
 router = Router(prefix="", description="List supported GICS segments and universes.")
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[
+        APIEx(parameters={}),
+        APIEx(
+            description="Rank by volume; keep top 5 per segment.",
+            parameters={"rank_metric": "volume", "top_n": 5},
+        ),
+    ],
+)
 def segments(
     universe_source: str = "etf_holdings",
     rank_metric: str = "pct_change",
@@ -57,7 +67,23 @@ def segments(
     )
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[
+        APIEx(
+            description="All 11 sectors, default pct_change ranking.",
+            parameters={},
+        ),
+        APIEx(
+            description="Just Information Technology, top 5 by volume.",
+            parameters={
+                "segment": "Information Technology",
+                "metric": "volume",
+                "top_n": 5,
+            },
+        ),
+    ],
+)
 def movers(
     segment: str | None = None,
     metric: str = "pct_change",
