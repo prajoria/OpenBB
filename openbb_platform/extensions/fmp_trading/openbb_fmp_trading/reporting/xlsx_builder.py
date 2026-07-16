@@ -62,8 +62,18 @@ def build_workbook(
     # Step 1: techtrade produces the base 6-sheet workbook.
     _call_techtrade_export(session_id, events, metrics, output_path, engine=engine)
 
-    # Step 2: open + append 3 intraday sheets
-    wb = load_workbook(output_path)
+    # Step 2: open + append 3 intraday sheets.
+    #
+    # `load_workbook(path)` validates the file extension (openpyxl rejects
+    # anything that isn't .xlsx / .xlsm / .xltx / .xltm). When the caller
+    # is `report.py`, it writes to a `<name>.xlsx.<rand>.tmp` file first
+    # then does an atomic rename — so the path we receive here has a `.tmp`
+    # extension and load_workbook refuses it. Load via BytesIO to bypass
+    # the extension check (the file content is still a valid xlsx zip).
+    with open(output_path, "rb") as f:
+        _wb_bytes = f.read()
+    from io import BytesIO
+    wb = load_workbook(BytesIO(_wb_bytes))
     _append_intraday_fills_sheet(wb, events)
     _append_vetoes_sheet(wb, events)
     _append_per_symbol_pnl_sheet(wb, events)
