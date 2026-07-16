@@ -13,6 +13,12 @@ openbb-core = "^1.6.10"
 pandas = "*"
 numpy = "*"
 openpyxl = "*"
+# pandas-ta-classic is unconditionally imported at runtime by
+# openbb_techtrade.engine.indicators and .indicators_technical to register
+# the pandas ``.ta`` accessor (see indicators.py:550, indicators_technical.py:403).
+# Before this was declared, ``dev_install.py -e`` didn't install it and
+# techtrade's own unit tests failed to collect on CI (see issue #817).
+pandas-ta-classic = "*"
 
 [tool.poetry.extras]
 # tuneta -> MIT, optional per-segment indicator tuning (PRD §12.4, issue #83)
