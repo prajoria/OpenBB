@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
+from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 from pydantic import BaseModel
@@ -52,7 +53,10 @@ class BacktestAbout(BaseModel):
     extension_version: str
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[APIEx(parameters={})],
+)
 def about() -> OBBject[BacktestAbout]:
     """Return backtest extension metadata."""
     try:
