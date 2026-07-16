@@ -26,6 +26,7 @@ annotation) to emit its import into the generated package -- mirroring the
 
 from typing import Any
 
+from openbb_core.app.model.example import PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
@@ -34,7 +35,25 @@ from openbb_techtrade.models import TradePlan
 router = Router(prefix="", description="Robustness-validate a TradePlan via openbb-backtest.")
 
 
-@router.command(methods=["POST"])
+@router.command(
+    methods=["POST"],
+    examples=[
+        PythonEx(
+            description="Validate a plan with default WFO folds.",
+            code=[
+                "plans = obb.techtrade.plan(segment='Information Technology').results",
+                "report = obb.techtrade.validate(plan=plans[0]).results",
+            ],
+        ),
+        PythonEx(
+            description="Validate with CPCV over a 3-year horizon.",
+            code=[
+                "plans = obb.techtrade.plan(segment='Information Technology').results",
+                "report = obb.techtrade.validate(plan=plans[0], method='cpcv', horizon_years=3).results",
+            ],
+        ),
+    ],
+)
 async def validate(
     plan: TradePlan,
     method: str = "wfo",

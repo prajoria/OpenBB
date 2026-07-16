@@ -28,6 +28,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
@@ -116,7 +117,23 @@ def _reason_for(verdict: str, report: Any, *, no_op: bool) -> str:
     return f"verdict={verdict} (pbo={pbo:.2f}, dsr={dsr:.2f})"
 
 
-@router.command(methods=["POST"])
+@router.command(
+    methods=["POST"],
+    examples=[
+        APIEx(
+            description="Tune Information Technology with defaults.",
+            parameters={"segment": "Information Technology"},
+        ),
+        APIEx(
+            description="Tune Financials over 3 years with 50 trials.",
+            parameters={
+                "segment": "Financials",
+                "horizon_years": 3,
+                "trials": 50,
+            },
+        ),
+    ],
+)
 async def tune(
     segment: str,
     *,
