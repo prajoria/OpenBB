@@ -188,3 +188,32 @@ GraphQL is exhausted.
 
 **Session artifact:** `tmp_bd_gh_migration/` (gitignored) contains
 snapshots + matching scripts. Safe to delete after Phase C ships.
+
+---
+
+## portfolio-intel-tracker-sync-2026-07-16
+
+Retroactive close pass on Project #4 (Portfolio Intelligence Engine) —
+tracker had drifted from `origin/portfolio` because every merged
+`feat/pi-*` PR cited the retired `OpenBBTechnical-qy83.1.N` bd-id in its
+`Closes` clause, which GitHub could not resolve. Closed 6 shipped-but-open
+issues (#504, #506, #507, #509, #510, #511) with linking comments naming
+the shipping PR (#466, #467, #468, #471, #473, #474). Project #4 status
+went from `3 Done / 87 Todo` to `9 Done / 81 Todo`.
+
+Also authored two planning artifacts:
+- `docs/superpowers/audits/2026-07-16-project4-baseline-and-dedup.md` —
+  the audit trail
+- `docs/superpowers/plans/2026-07-16-portfolio-intel-roadmap.md` —
+  Nadia's M1-M4 roadmap synthesized on top of the tracker's existing
+  P0/P1/P2/P3 phase decomposition
+
+**Team roster** (all AI agents): Nadia (PM), Kai (backend/data/router),
+Priya (widgets/frontend/UX), Rohan (platform/infra/migrations),
+Mira (QA lead, PR gate), Zev (external adversarial reviewer, outright
+veto). Bulk-close permission granted for `Closes`-referenced merged PRs;
+Stage 4 field-cleanup + new-issue filing still needs Daisy's ack.
+
+**Followup preventer:** file `feat/pi-ops/enforce-gh-closes-syntax` to
+add a CI check rejecting PRs whose `Closes` clause doesn't cite a real
+`#NN` — prevents recurrence of the tracker drift this pass fixed.
