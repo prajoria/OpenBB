@@ -33,13 +33,30 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
+from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
 router = Router(prefix="")
 
 
-@router.command(methods=["POST"])
+@router.command(
+    methods=["POST"],
+    examples=[
+        APIEx(
+            description="Render all formats for a specific session.",
+            parameters={"session_id": "s20260101120000"},
+        ),
+        APIEx(
+            description="Render only XLSX; skip the LLM narrative.",
+            parameters={
+                "session_id": "s20260101120000",
+                "format": "xlsx",
+                "include_agent_narrative": False,
+            },
+        ),
+    ],
+)
 def report(
     session_id: str,
     format: Literal["md", "xlsx", "json", "all"] = "all",
@@ -78,7 +95,23 @@ def report(
     return OBBject(results=manifest.model_dump(mode="json"))
 
 
-@router.command(methods=["POST"])
+@router.command(
+    methods=["POST"],
+    examples=[
+        APIEx(
+            description="Full replay of a specific session.",
+            parameters={"session_id": "s20260101120000"},
+        ),
+        APIEx(
+            description="Replay only the first 100 ticks.",
+            parameters={
+                "session_id": "s20260101120000",
+                "from_tick": 0,
+                "to_tick": 100,
+            },
+        ),
+    ],
+)
 def replay(
     session_id: str,
     from_tick: int = 0,
