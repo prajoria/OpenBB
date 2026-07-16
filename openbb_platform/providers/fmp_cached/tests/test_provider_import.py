@@ -224,9 +224,13 @@ class TestFullPlatformImport:
         script = textwrap.dedent(
             """
             from openbb import obb
-            # Access a fmp_trading-adjacent attribute to force provider
-            # registration for the fmp_cached path this fix targets.
-            _ = obb.provider
+            # Touch a namespace attribute that only exists once every
+            # extension has been registered. `obb.equity` is the safest
+            # bet — it's guaranteed by openbb-equity which is a required
+            # dep of the platform. The pre-existing test used
+            # `obb.provider` which was removed from the public API in a
+            # recent core release (still present as `_get_provider`).
+            _ = obb.equity
             print('OK')
             """
         )
