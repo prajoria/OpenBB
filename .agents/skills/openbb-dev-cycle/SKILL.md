@@ -1,6 +1,6 @@
 ---
 name: openbb-dev-cycle
-description: Disciplined 10-phase gated feature-development workflow for the OpenBB platform with a convergent multi-tool review loop — chains brainstorming, planning, git-worktree isolation, TDD implementation, code simplification, harness-based end-to-end verify, pre-push local review (coderabbit + pr-review-toolkit), commit + push + PR open, and a Phase-9 convergence loop that iterates code-review + security-review + coderabbit:autofix until every finding is either fixed-with-verify or filed as a GitHub issue. Uses **GitHub Issues** as the primary task tracker (attached to program projects) and `bd remember` only for cross-session persistent memory. Use when starting or running a full feature-development cycle in this repo, when the user asks for the "openbb-dev-cycle" or "dev cycle" workflow, or when implementing a non-trivial OpenBB/Analysis feature that must ship through a real PR-review loop.
+description: Disciplined 10-phase gated feature-development workflow for the OpenBB platform with a convergent multi-tool review loop — chains brainstorming, planning, git-worktree isolation, TDD implementation, code simplification, harness-based end-to-end verify, pre-push local review (coderabbit + pr-review-toolkit), commit + push + PR open, and a Phase-9 convergence loop that iterates code-review + security-review + coderabbit:autofix until every finding is either fixed-with-verify or filed as a GitHub issue. **GitHub Issues is the sole task tracker**; the prior `bd` (beads) system is fully retired on this repo. Cross-session persistent memory lives in `docs/MEMORIES.md`. Use when starting or running a full feature-development cycle in this repo, when the user asks for the "openbb-dev-cycle" or "dev cycle" workflow, or when implementing a non-trivial OpenBB/Analysis feature that must ship through a real PR-review loop.
 ---
 
 # OpenBB Feature Development Cycle (v3)
@@ -9,12 +9,12 @@ A disciplined, gated workflow for developing features in the OpenBB platform. Ea
 
 ## What changed vs v2
 
-v2 used `bd` (beads) as the primary tracker. v3 replaces that with **GitHub Issues** attached to program-level GitHub Projects — the fork's tracking authority now lives in GH. Everything else is preserved:
+v2 used `bd` (beads) as the primary tracker. v3 replaces that with **GitHub Issues** attached to program-level GitHub Projects — the fork's tracking authority now lives in GH. Beads is **fully retired** on this repo (including `bd remember`):
 
 - Phase 2: `bd create` → `gh issue create` (with program label + sub-issue link to the program epic).
 - Phase 4: `bd update --claim` / `bd close` → GH Project "Status" field (`In Progress` / `Done`) + `gh issue close`.
 - Phase 9: deferred review findings → `gh issue create` (with `deferred-from-review` label) instead of `bd create`.
-- `bd remember` **is kept** for cross-session persistent memory (that's beads' genuine strength — GH has no equivalent for LLM-injected context). No other `bd` calls.
+- Phase 10 cross-session memory: `bd remember` → append to checked-in `docs/MEMORIES.md`. No `bd` calls anywhere.
 
 If a repo has no active GH Project for the program, the skill halts and asks the user to create one (or points at `docs/prompts/create-*-project.md` templates).
 
@@ -31,7 +31,7 @@ If a repo has no active GH Project for the program, the skill halts and asks the
 | 7 | **Pre-Push Local Review** | `coderabbit:code-review` + `pr-review-toolkit:review-pr` findings triaged locally |
 | 8 | **Initial Commit → Push → PR Open** | `commit-commands:commit-push-pr` returns a PR URL; PR body references program issues via `Closes #NN`; `HEAD_0` recorded |
 | 9 | **Convergence Loop** | Every finding resolved-with-verify OR filed as GH issue with justification; **exit predicate holds** |
-| 10 | Finish | `superpowers:finishing-a-development-branch` completes; CLAUDE.md revised; `bd remember` written for cross-session context |
+| 10 | Finish | `superpowers:finishing-a-development-branch` completes; CLAUDE.md revised; cross-session note appended to `docs/MEMORIES.md` |
 
 ### Phase 1: Design & Brainstorming
 
@@ -77,11 +77,11 @@ If a repo has no active GH Project for the program, the skill halts and asks the
 
 **Checklist:** [ ] plan md written  [ ] GH issue per deliverable  [ ] each issue linked as sub-issue of program epic  [ ] each issue added to program project with fields set  [ ] user approved.
 
-**Migration note**: this replaces v2's `bd create` + `bd link --blocked-by`. Beads is no longer used for task tracking — only `bd remember` in Phase 10 for cross-session state.
+**Migration note**: this replaces v2's `bd create` + `bd link --blocked-by`. Beads is fully retired on this repo — no `bd` calls anywhere, including `bd remember` (Phase 10 uses `docs/MEMORIES.md` instead).
 
 ### Phase 3: Workspace Isolation
 
-1. Invoke `superpowers:using-git-worktrees` (or a feature branch when worktrees don't fit).
+1. Invoke `superpowers:using-git-worktrees` (or a feature branch when worktrees don't fit). **Branch name MUST embed the GH issue number**: `feat/pi-<topic>-gh-<NN>`, `fix/pi-<topic>-gh-<NN>`, or `docs/pi-<topic>-gh-<NN>` for portfolio work (the `pi-` scope tag identifies portfolio; the `-gh-<NN>` suffix is required by the repo's coordination protocol). PR target is the program's integration branch (`portfolio` for Portfolio Intelligence Engine) — never `develop` directly.
 2. **Mark the first issue as In Progress** on the program project:
    ```bash
    # Find item_id for the issue in the project (from scripts/<program>_project_items.json,
@@ -161,7 +161,7 @@ Run local review tools BEFORE pushing — cheaper to fix pre-push.
 
 Use `commit-commands:commit-push-pr` **once** — it opens the PR. Do NOT call it again in the loop (it will create a duplicate PR).
 
-1. `commit-commands:commit-push-pr` — branches (if on protected base), commits, pushes with `-u`, opens PR against the program's integration branch (per branch-protection policy in `CLAUDE.md`; e.g. `openbb_pine_support`, `portfolio`).
+1. `commit-commands:commit-push-pr` — branches (if on protected base), commits, pushes with `-u`, opens PR against the program's integration branch (per branch-protection policy in `CLAUDE.md`; e.g. `openbb_pine_support`, `portfolio`). **For Portfolio Intelligence Engine, PR target is `portfolio` — never `develop`. The single `portfolio → develop` promotion PR is gated on Daisy's explicit, loud sign-off; do not open that PR unprompted.**
 2. **Add `Closes #NN` / `Refs #NN` to the PR body** for every plan-step GH issue this PR resolves. GH will auto-close referenced issues when the PR merges — this is the primary mechanism keeping the issue tracker in sync with what shipped.
 3. Record `HEAD_0 = git rev-parse HEAD` — the loop's seed.
 4. Note the PR URL — you will need it in Phase 9.
@@ -218,10 +218,9 @@ Only after Phase 9 exits cleanly.
 1. `superpowers:finishing-a-development-branch` — guided merge/PR/keep/discard decision. It runs its own test-gate; **do not call it inside Phase 9**.
 2. **Verify GH issue closure**: `gh issue list --label <program-label> --state closed --search "closed:>=<PR-merge-date>"` — every issue referenced with `Closes #NN` should now be closed. Manually close any that GH missed (rare — happens if the PR body used the wrong syntax).
 3. `claude-md-management:revise-claude-md` — capture any new patterns/conventions surfaced by this cycle.
-4. **`bd remember "<stable-key>" "<what shipped, one paragraph>"`** — persistent cross-session state. This is the ONLY `bd` call in the v3 workflow; beads' memory feature has no GH equivalent (issue comments don't auto-inject into future LLM sessions the way `bd prime` output does).
-5. `bd dolt push` — publish the memory update to the shared beads DB.
+4. **Append a cross-session memory entry to `docs/MEMORIES.md`** — one short paragraph describing what shipped, keyed by a stable topic (e.g. `## portfolio-intel: paper migration shipped (2026-07-16, PR #NNN)`). This is the durable state that a future session needs to know so it doesn't redo the work. Commit `docs/MEMORIES.md` in the same commit as CLAUDE.md revisions.
 
-**Checklist:** [ ] `finishing-a-development-branch` completed  [ ] all program issues closed on GH  [ ] CLAUDE.md updated if warranted  [ ] `bd remember` written  [ ] bd DB synced.
+**Checklist:** [ ] `finishing-a-development-branch` completed  [ ] all program issues closed on GH  [ ] CLAUDE.md updated if warranted  [ ] `docs/MEMORIES.md` appended and committed.
 
 ---
 
@@ -294,7 +293,7 @@ The RED baseline for this skill showed one dominant failure mode: **loop-exit un
 | Findings not filed | "We can remember these 3 findings for the next commit" | Context loss between iterations is normal; unfiled = lost. The tracker is the memory. |
 | Commit before verify | "Tests were green 20 min ago" | Stale evidence isn't evidence; the file state changed since. |
 | Commit before verify | "Only whitespace / a type hint changed" | If the change was worth making, its effect is worth verifying. |
-| Task tracker | "I'll use `bd create` — it's faster than gh CLI" | v3 says: GH Issues is the tracker of record. `bd create` is not used. `bd remember` (Phase 10) is the only surviving `bd` call. |
+| Task tracker | "I'll use `bd create` — it's faster than gh CLI" | v3 says: GH Issues is the tracker of record on this repo. Beads is fully retired — no `bd` calls, including `bd remember`. Cross-session memory goes in `docs/MEMORIES.md`. |
 | Task tracker | "The issue tree in GH is verbose, I'll just track in my head" | Untracked = lost between sessions. GH issue + sub-issue link is the durable index. |
 
 ---
@@ -317,7 +316,7 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 - "The PR was auto-approved, skip the loop."
 - "Only whitespace changed, skip verify."
 - "This is different because <plausible-sounding reason>."
-- "`bd create` is faster than the gh CLI." (v3: GH Issues is the tracker — `bd` is not.)
+- "`bd create` is faster than the gh CLI." (v3: GH Issues is the tracker on this repo — beads is fully retired, including `bd remember`.)
 
 **All of these mean: STOP. Re-check the exit predicate. If it doesn't hold, keep looping.**
 
@@ -336,7 +335,7 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 | 7 | `coderabbit:code-review` + `pr-review-toolkit:review-pr` | Local findings table | Applied/deferred (via `gh issue create`) before push |
 | 8 | `commit-commands:commit-push-pr` (**once only**) | PR URL with `Closes #NN` per plan-step issue, `HEAD_0` | Loop seed |
 | 9 (per iter) | `code-review` + `security-review` + `coderabbit:autofix`; then `commit-commands:commit` + `git push` | Iter-N findings table + new HEAD | Next iter OR predicate exit |
-| 10 | `superpowers:finishing-a-development-branch` + `claude-md-management:revise-claude-md` + `bd remember` + `bd dolt push` | Merged/closed branch, closed program issues, updated CLAUDE.md, cross-session memory | Done |
+| 10 | `superpowers:finishing-a-development-branch` + `claude-md-management:revise-claude-md` + append `docs/MEMORIES.md` | Merged/closed branch, closed program issues, updated CLAUDE.md, cross-session memory | Done |
 
 ---
 
@@ -344,9 +343,9 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 
 - **Always use `.venv_win`** — never system Python (stale extension installs).
 - **`fmp_cached` is the only provider** — no `fmp` fallback, no yfinance.
-- **Branch-protection**: PRs target the program's integration branch. Portfolio Intelligence Engine targets `portfolio`; single `portfolio → develop` merge at M4. See per-program CLAUDE.md.
-- **GH Issues is the tracker** — every plan step, discovered bug, and deferred review finding gets a `gh issue create` (with program label + sub-issue link). `bd create` / `bd close` are NOT used in v3.
-- **`bd remember` is the exception** — beads' persistent memory (auto-injected by `bd prime` in new sessions) has no GH equivalent. Use it in Phase 10 for anything the next session should know.
+- **Branch-protection**: PRs target the program's integration branch. Portfolio Intelligence Engine targets `portfolio`; the single `portfolio → develop` promotion PR is gated on Daisy's explicit, loud sign-off (see per-program CLAUDE.md). Regular flow: `develop → portfolio` is one-way absorb only.
+- **GH Issues is the tracker** — every plan step, discovered bug, and deferred review finding gets a `gh issue create` (with program label + sub-issue link). `bd create` / `bd close` are NOT used.
+- **Cross-session memory** lives in checked-in `docs/MEMORIES.md`. Beads is fully retired on this repo — no `bd` calls, including `bd remember`.
 - **Test commands**:
   ```bash
   # Unit (~1s, no API needed)
@@ -355,7 +354,7 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
   # Integration (~19 min, needs fmp_cached API key)
   .venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "integration" -v
   ```
-- **Conservative git profile** — never `git commit`, `git push`, or `bd dolt push` without explicit authorization in the current session. Propose the commit, wait for approval. Same policy for `gh issue create` in bulk (>3 issues in one action): confirm the count and scope with the user before firing.
+- **Conservative git profile** — never `git commit` or `git push` without explicit authorization in the current session. Propose the commit, wait for approval. Same policy for `gh issue create` in bulk (>3 issues in one action): confirm the count and scope with the user before firing.
 
 ---
 
@@ -363,7 +362,7 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 
 1. **Skipping brainstorming** — "It's simple" is where assumptions cause the most rework.
 2. **Writing code before tests** — TDD is gated, not optional.
-3. **Using `bd create` / `bd close` for task tracking** — v3 uses GH Issues. `bd remember` in Phase 10 is the only surviving `bd` call.
+3. **Using `bd create` / `bd close` for task tracking** — v3 uses GH Issues. Beads is fully retired on this repo, including `bd remember` (Phase 10 uses `docs/MEMORIES.md`).
 4. **Using TodoWrite/TaskCreate for permanent work** — GH Issues is the only long-lived tracker.
 5. **Claiming done without evidence** — show test / verify output, not assertions.
 6. **Blind agreement with review feedback** — verify technically first (see `superpowers:receiving-code-review`).
@@ -392,6 +391,6 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 | Open the PR (once) | `commit-commands:commit-push-pr` (Phase 8) |
 | Iterate reviews on open PR | `code-review` + `security-review` + `coderabbit:autofix` (Phase 9) |
 | Filing a task, bug, or deferred finding | `gh issue create` (Phase 2, 4, 7, 9) — NOT `bd create` |
-| Cross-session persistent memory | `bd remember` (Phase 10 only) |
+| Cross-session persistent memory | Append to `docs/MEMORIES.md` (Phase 10) |
 | Receiving review feedback | `superpowers:receiving-code-review` |
 | Feature branch complete | `superpowers:finishing-a-development-branch` (Phase 10 only) |
