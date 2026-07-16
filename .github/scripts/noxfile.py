@@ -29,7 +29,12 @@ def unit_test_platform(session):
         *PLATFORM_TESTS,
         f"--cov={PLATFORM_DIR}",
         "-m",
-        "not integration",
+        # Skip:
+        # - integration (need API keys / network)
+        # - requires_agents (openbb-agents needs Rust toolchain for litellm; too heavy for stock CI)
+        # - requires_mysql (fmp_cached tests need a live MySQL container)
+        # - nightly (expensive subprocess-spawning tests)
+        "not integration and not requires_agents and not requires_mysql and not nightly",
     )
 
 
