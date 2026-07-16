@@ -37,7 +37,14 @@ class TickData(Data):
         default_factory=dict,
         description="Last N bars per symbol (window sized by indicator lookback).",
     )
-    session_status: SessionStatus
+    session_status: SessionStatus | None = Field(
+        default=None,
+        description=(
+            "Exchange session-state snapshot. Only populated on bar-close ticks "
+            "(tick_loop._build_tick_data skips the fetch on mid-bar ticks to "
+            "keep the poll loop cheap). Consumers must handle None."
+        ),
+    )
 
 
 class PnLSnapshot(Data):

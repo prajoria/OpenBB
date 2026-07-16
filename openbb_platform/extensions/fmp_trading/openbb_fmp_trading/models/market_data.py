@@ -31,15 +31,31 @@ class IntradayBar(Data):
 
 
 class Quote(Data):
-    """Real-time (or short-form) quote row. `short` variant omits bid/ask fields."""
+    """Real-time (or short-form) quote row.
+
+    Only ``symbol`` and ``price`` are required — the other trade-tape fields
+    (``change``, ``change_pct``, ``volume``, ``timestamp``) are optional
+    because different call sites supply different levels of detail:
+
+    - Live fetches from FMP quote_batch provide the full set.
+    - StubbedDataProvider replay from journal payloads may only carry
+      ``{"symbol": ..., "price": ...}`` (the minimum needed for the
+      downstream signal / risk gates).
+    - Test fixtures typically use the minimal form to keep test bodies
+      short.
+
+    Leaving them optional at the model boundary means both callers work
+    without discriminated-union ceremony. See issue #821, cluster C.
+    """
 
     symbol: str
     price: Decimal
-    change: Decimal
-    change_pct: float
-    volume: int
-    timestamp: datetime
-    # short=False adds these — all optional to accommodate both variants:
+    # Trade-tape fields (optional — see class docstring)
+    change: Decimal | None = None
+    change_pct: float | None = None
+    volume: int | None = None
+    timestamp: datetime | None = None
+    # Full-quote-only fields (optional — populated only on short=False fetches):
     bid: Decimal | None = None
     ask: Decimal | None = None
     bid_size: int | None = None
