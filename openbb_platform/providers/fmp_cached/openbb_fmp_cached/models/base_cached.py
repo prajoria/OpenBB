@@ -160,7 +160,13 @@ def create_ttl_wrapper_class(
     import json
     from datetime import datetime, timedelta
 
-    from openbb_fmp_cached.utils.database import execute_many, execute_query
+    # Import the database MODULE (not names) so tests can patch
+    # `openbb_fmp_cached.utils.database.execute_query` and the closures below
+    # will resolve the current attribute on every call. Binding
+    # `from ... import execute_query` here captures a reference at
+    # wrapper-construction time and defeats `unittest.mock.patch` on the
+    # module attribute (see #793).
+    from openbb_fmp_cached.utils import database as _db
 
     ttl = timedelta(seconds=ttl_seconds)
 
@@ -174,7 +180,7 @@ def create_ttl_wrapper_class(
 
     def _load_ttl_cache(cache_name: str, cache_key: str, cutoff: datetime):
         """SELECT payload if a fresh row exists; None on MISS or DB error."""
-        rows = execute_query(
+        rows = _db.execute_query(
             "SELECT payload FROM ttl_cache "
             "WHERE cache_name = %s AND cache_key = %s AND cached_at > %s",
             (cache_name, cache_key, cutoff),
@@ -185,7 +191,7 @@ def create_ttl_wrapper_class(
 
     def _upsert_ttl_cache(cache_name: str, cache_key: str, data) -> None:
         """UPSERT the payload; refreshes cached_at via ON DUPLICATE KEY UPDATE."""
-        execute_many(
+        _db.execute_many(
             """INSERT INTO ttl_cache (cache_name, cache_key, payload)
                VALUES (%s, %s, %s)
                ON DUPLICATE KEY UPDATE
