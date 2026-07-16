@@ -71,7 +71,7 @@ _DEFAULT_PROVIDER: str = "fmp_cached"
 @router.command(
     methods=["GET"],
     include_in_schema=False,
-    examples=[],
+    examples=[APIEx(parameters={})],
 )
 def about() -> OBBject:
     """Metadata endpoint — describes the regime router surface."""
