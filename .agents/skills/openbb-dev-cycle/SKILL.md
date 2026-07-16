@@ -342,7 +342,7 @@ Modeled on `superpowers/6.1.1/skills/using-superpowers/SKILL.md:33-48`.
 ## OpenBB-specific rules
 
 - **Always use `.venv_win`** — never system Python (stale extension installs).
-- **`fmp_cached` is the only provider** — no `fmp` fallback, no yfinance.
+- **Provider policy — `fmp_cached` preferred, `fmp` is fallback.** Always use `fmp_cached` when the endpoint exists there. Only fall back to raw `fmp` when `fmp_cached` genuinely does not cover the endpoint — and when you do, **file a GH issue** with label `area:fmp-cached-gap` describing the gap. **Do NOT implement the `fmp_cached` extension yourself** — a separate team owns `providers/fmp_cached/`. The portfolio team's job is to file the gap issue and unblock via fallback (or another provider if genuinely needed), never to open PRs adding endpoints to `fmp_cached`. Never yfinance. Rationale: `fmp_cached` gives reproducible tests, deterministic dev loops, and cost control; the fallback exists so a missing endpoint never blocks the roadmap, but every use of the fallback is tracked debt handed off to the `fmp_cached` team.
 - **Branch-protection**: PRs target the program's integration branch. Portfolio Intelligence Engine targets `portfolio`; the single `portfolio → develop` promotion PR is gated on Daisy's explicit, loud sign-off (see per-program CLAUDE.md). Regular flow: `develop → portfolio` is one-way absorb only.
 - **GH Issues is the tracker** — every plan step, discovered bug, and deferred review finding gets a `gh issue create` (with program label + sub-issue link). `bd create` / `bd close` are NOT used.
 - **Cross-session memory** lives in checked-in `docs/MEMORIES.md`. Beads is fully retired on this repo — no `bd` calls, including `bd remember`.
