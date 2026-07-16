@@ -40,6 +40,59 @@ scratch `MEMORY.md` files in random locations.
 comments, or old docs is historical only — treat it as a permanent
 identifier of past work, but never file new `bd-XX` items.
 
+## Pine Support Branch Workflow (long-running feature branch)
+
+**`openbb_pine_support` is a LONG-RUNNING integration branch for all Pine
+Script support work.** Treat it the way you would treat `develop` for the
+scope of the Pine project: it accumulates completed feature work over
+many sessions, and only gets promoted to `develop` via a single PR when
+the user explicitly says so.
+
+**Hard rules (do NOT violate without explicit user instruction):**
+
+1. **Never open a PR from `openbb_pine_support` → `develop`** until the
+   user says, in their own words, something equivalent to
+   *"let's finally generate a PR to develop"* / *"open the develop PR now"*.
+   Until then, this branch stays open and keeps accumulating merges from
+   feature side-branches. Merging `develop` INTO `openbb_pine_support` to
+   stay current is fine and encouraged; the forbidden direction is the
+   outgoing PR.
+2. **All Pine-related development happens on side-branches cut from
+   `openbb_pine_support`, not from `develop`.** Naming:
+   `feat/pine-<topic>-gh-<NN>`, `fix/pine-<topic>-gh-<NN>`,
+   `docs/pine-<topic>-gh-<NN>`. Side-branches PR back into
+   `openbb_pine_support` (NOT into `develop`) via
+   `gh pr create --base openbb_pine_support`.
+3. **Every Pine issue lives on GitHub Project #5 (Pine Script Support)**:
+   <https://github.com/users/prajoria/projects/5/views/2>. When filing a
+   new issue for Pine work, add it to that project:
+
+   ```bash
+   gh issue create --title "<title>" --body "<body>" \
+     --project "Pine Script Support"
+   # or for an existing issue:
+   gh project item-add 5 --owner prajoria --url <issue-url>
+   ```
+
+   If unsure whether a piece of work is "Pine-related," ask before
+   filing; do not silently attach unrelated work to Project #5.
+4. **PR titles for side-branches** follow the standard convention plus a
+   `pine:` scope tag so they're greppable:
+   `<type>(pine/<area>): <what> (#NN)` — e.g.
+   `feat(pine/parser): tokenize plot() calls (#217)`.
+5. **The eventual `openbb_pine_support` → `develop` PR** (when the user
+   asks) should summarize the accumulated Pine work, list the closed
+   Project #5 items, and note any migrations / breaking changes. Do not
+   pre-draft this PR body speculatively — wait for the go-ahead.
+
+**Session-start check for this branch:** if the current branch is
+`openbb_pine_support`, print a one-line reminder that it is a
+long-running integration branch and that new work should be done on a
+side-branch cut from HEAD, not committed directly. Direct commits to
+`openbb_pine_support` are allowed only for (a) merge commits from side
+branches, (b) merges pulling `develop` in, and (c) trivial doc/regen
+cleanups the user has explicitly authorized this session.
+
 ## Overview
 
 OpenBB is an open-source financial data platform that provides the "connect once, consume everywhere" infrastructure for integrating financial data sources. The project consists of multiple components:
