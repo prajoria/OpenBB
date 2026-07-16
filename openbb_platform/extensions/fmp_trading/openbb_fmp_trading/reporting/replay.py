@@ -175,8 +175,20 @@ def _find_divergence(
     ``prompt_version`` (agent-produced content varies across LLM runs by
     design).
     """
-    emitted_types = [type(e).__name__ for e in emitted]
-    recorded_types = [type(e).__name__ for e in recorded] if recorded else []
+    # Compare on the wire-protocol `event_type` string field, NOT the Python
+    # class name. Recorded events come back from the JournalReader as bare
+    # `JournalEvent` instances (see reporting/journal_reader.py:104), while
+    # emitted events are typed subclasses like `TickEvent` / `SignalEvent`
+    # (bd-9nd P1.4, #372 / #412 refactor). Comparing `type(e).__name__`
+    # produced `['TickEvent'] != ['JournalEvent']` for every recording and
+    # broke all replay tests. The `event_type` string ("tick" / "signal" /
+    # "order" / "fill") is the actual invariant the journal preserves.
+    emitted_types = [getattr(e, "event_type", type(e).__name__) for e in emitted]
+    recorded_types = (
+        [getattr(r, "event_type", type(r).__name__) for r in recorded]
+        if recorded
+        else []
+    )
     if emitted_types != recorded_types:
         return ReplayDivergenceError(
             tick_index=tick_idx,
