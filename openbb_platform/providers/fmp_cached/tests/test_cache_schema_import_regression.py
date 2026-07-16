@@ -45,14 +45,21 @@ _CACHE_SCHEMA_PATH = (
 def test_openbb_fmp_cached_imports_cleanly_in_process() -> None:
     """``import openbb_fmp_cached`` must succeed in this process.
 
-    Force-purges any cached ``openbb_fmp_cached*`` modules first so a
-    prior successful import in the same pytest session doesn't mask a
-    NameError that would fire on first import.
-    """
-    for mod in list(sys.modules):
-        if mod.startswith("openbb_fmp_cached"):
-            del sys.modules[mod]
+    Note: this test intentionally does NOT purge ``sys.modules`` first.
+    An earlier version did (to guarantee "fresh import" semantics), but
+    that mutation leaked into sibling test files whose fetcher class
+    definitions had already captured references to
+    ``openbb_fmp_cached.models.<X>.execute_query``. After the purge, those
+    production references still pointed at the pre-purge module while
+    ``patch("openbb_fmp_cached.models.<X>.execute_query")`` in later tests
+    targeted the newly-imported module attribute — silently-non-triggered
+    mocks and ~28 downstream test failures.
 
+    The fresh-import guarantee is provided by
+    :func:`test_openbb_fmp_cached_imports_cleanly_in_subprocess` below,
+    which is bulletproof (a real fresh interpreter) and cannot pollute
+    the parent test session.
+    """
     try:
         importlib.import_module("openbb_fmp_cached")
     except NameError as exc:
