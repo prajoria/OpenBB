@@ -26,6 +26,30 @@ from unittest.mock import MagicMock
 import pytest
 
 
+def _stub_recent_bars(symbols):
+    """One real IntradayBar per symbol — signal-wiring tests need
+    bars_recent populated for broker.submit's `bar` arg."""
+    from openbb_fmp_trading.models.market_data import IntradayBar
+
+    ts = datetime(2026, 7, 6, 13, 35, tzinfo=timezone.utc)
+    return {
+        s: [
+            IntradayBar(
+                symbol=s,
+                interval="5min",
+                ts=ts,
+                open=Decimal("430.00"),
+                high=Decimal("430.30"),
+                low=Decimal("429.90"),
+                close=Decimal("430.25"),
+                volume=1000,
+            )
+        ]
+        for s in symbols
+    }
+
+
+
 def _make_plan():
     from openbb_fmp_trading.models.config import RiskConfig
     from openbb_fmp_trading.models.plan import DailyPlan
@@ -63,11 +87,18 @@ def stub_techtrade(monkeypatch):
     )
     monkeypatch.setattr(
         tick_loop, "_fetch_recent_bars",
-        lambda symbols: {s: [MagicMock(close=Decimal("430.25"))] for s in symbols},
+        # Return one real IntradayBar per symbol — the signal wiring
+        # test asserts broker.submit was called with a `bar` arg, so
+        # bars_recent needs at least one entry. Using a MagicMock
+        # (prior version) fails Pydantic validation on TickData.bars_recent.
+        _stub_recent_bars,
     )
     monkeypatch.setattr(
         tick_loop, "_fetch_session_status",
-        lambda exchange: MagicMock(is_market_open=True, exchange=exchange),
+        # Return None — TickData.session_status is Optional[SessionStatus].
+        # signal-wiring tests don't read session_status; they only assert
+        # the emit-chain shape.
+        lambda exchange: None,
     )
     monkeypatch.setattr(
         tick_loop, "_run_techtrade_signals",
@@ -134,7 +165,11 @@ class TestApprovedSignalPath:
         rm.propose_trade.assert_called_once()
         broker.submit.assert_called_once()
         submit_kwargs = broker.submit.call_args
-        assert submit_kwargs.kwargs.get("bar") is not None or submit_kwargs.args[1] is not None
+        # bar may be passed as kwarg or as the second positional arg. Check
+        # both without IndexError'ing when only one positional is supplied.
+        _bar_kw = submit_kwargs.kwargs.get("bar")
+        _bar_pos = submit_kwargs.args[1] if len(submit_kwargs.args) > 1 else None
+        assert _bar_kw is not None or _bar_pos is not None
 
         # Fill payload carries the price + commission for downstream P&L reconstruction
         fill = next(e for e in events if isinstance(e, FillEvent))
@@ -234,10 +269,10 @@ class TestIdleBarClose:
             lambda symbols, provider: [{"symbol": "MSFT", "price": "430"}],
         )
         monkeypatch.setattr(
-            tick_loop, "_fetch_recent_bars", lambda symbols: {"MSFT": [MagicMock()]}
+            tick_loop, "_fetch_recent_bars", lambda symbols: {"MSFT": []},
         )
         monkeypatch.setattr(
-            tick_loop, "_fetch_session_status", lambda exchange: MagicMock()
+            tick_loop, "_fetch_session_status", lambda exchange: None,
         )
         monkeypatch.setattr(tick_loop, "_is_signal_bar_close", lambda ts, preset: True)
         monkeypatch.setattr(tick_loop, "_run_techtrade_signals", lambda plan, tick: [])

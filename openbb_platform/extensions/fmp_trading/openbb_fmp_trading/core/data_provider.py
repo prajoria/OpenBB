@@ -174,9 +174,15 @@ class StubbedDataProvider:
             ts = getattr(e, "ts", None)
             if ts is not None:
                 self._events_by_ts.setdefault(ts, []).append(e)
+                # Track ALL event ts (not just tick events) as "known"
+                # timestamps for strict-mode validation. The intent of
+                # strict-mode is "reproduce the recorded control-flow"
+                # — a SignalEvent at ts N proves the original run's
+                # driver visited that ts, so replay is allowed to visit
+                # it too, even if no TickEvent was recorded at N.
+                self._known_tick_ts.add(ts)
                 if getattr(e, "event_type", None) == "tick":
                     self._tick_by_ts[ts] = e
-                    self._known_tick_ts.add(ts)
         # Set by :meth:`set_current_tick_ts` before each ``run_tick``
         # call so ``fetch_batch_quote`` knows which recorded tick to
         # read quotes from. None until first set — legacy callers get
@@ -241,6 +247,14 @@ class StubbedDataProvider:
         # tz/microsecond mismatch that would silently skip the signal
         # cascade. Both cases should fail loud in strict mode.
         if self._strict and tick_ts not in self._known_tick_ts:
+            # If no events were recorded at all, strict-mode has nothing
+            # to check against — a partial-journal or empty-window replay
+            # legitimately has no known tick timestamps. Return False
+            # (no bar close) rather than raising, matching the design
+            # intent "reproduce recorded control-flow" — with zero
+            # recorded signals, there's nothing to reproduce.
+            if not self._known_tick_ts:
+                return False
             # Show closest known ts to help the operator diagnose the drift.
             # Guard against tz-naive-vs-aware subtraction: if tick_ts is
             # naive but recorded is aware (or vice versa), the subtraction
