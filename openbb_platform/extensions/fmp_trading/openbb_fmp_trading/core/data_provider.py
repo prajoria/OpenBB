@@ -242,11 +242,19 @@ class StubbedDataProvider:
         # cascade. Both cases should fail loud in strict mode.
         if self._strict and tick_ts not in self._known_tick_ts:
             # Show closest known ts to help the operator diagnose the drift.
-            closest = min(
-                self._known_tick_ts,
-                key=lambda k: abs((k - tick_ts).total_seconds()),
-                default=None,
-            )
+            # Guard against tz-naive-vs-aware subtraction: if tick_ts is
+            # naive but recorded is aware (or vice versa), the subtraction
+            # in the key lambda raises TypeError, masking the intended
+            # ReplayTsMismatch. Fall back to "no closest" in that case —
+            # the error message still names the drift class.
+            try:
+                closest = min(
+                    self._known_tick_ts,
+                    key=lambda k: abs((k - tick_ts).total_seconds()),
+                    default=None,
+                )
+            except TypeError:
+                closest = None
             raise ReplayTsMismatch(
                 f"tick_ts {tick_ts!r} not among recorded TickEvent ts values "
                 f"(closest recorded: {closest!r}). This usually indicates a "

@@ -17,6 +17,8 @@ import threading
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
+import pytest
+
 
 class TestDataProviderProtocolConformance:
     def test_live_provider_is_data_provider(self):
@@ -320,7 +322,11 @@ class TestStubbedProviderStrictTsLookup:
             provider.is_signal_bar_close(drifted_ts, preset="trend_follow")
 
         assert "closest recorded" in str(excinfo.value)
-        assert "14:30" in str(excinfo.value)  # closest ts shown
+        # The closest recorded ts is embedded via ``{closest!r}`` which
+        # renders as ``datetime.datetime(2026, 7, 11, 14, 30, ...)`` —
+        # comma-separated components, not the colon-separated ISO form.
+        # Assert the H+M components appear in the repr shape.
+        assert "14, 30" in str(excinfo.value)  # closest ts shown
 
     def test_known_ts_returns_boolean_normally(self):
         """Baseline: strict mode doesn't affect happy path."""
