@@ -2,6 +2,52 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project ↔ Repo Mapping (do not lose this)
+
+Portfolio work is tracked in a single GitHub Project bound to a single repo,
+against a single long-lived integration branch. Recorded here so it survives
+session context loss.
+
+- **GitHub Project:** [Portfolio Intelligence Engine (#4)](https://github.com/users/prajoria/projects/4) — private, owned by `prajoria`, 90 items, all Issues
+- **Repo (only one):** [`prajoria/OpenBB`](https://github.com/prajoria/OpenBB) — fork of `OpenBB-finance/OpenBB` (upstream)
+- **Long-lived integration branch:** [`portfolio`](https://github.com/prajoria/OpenBB/tree/portfolio) — published on origin, this is where all portfolio-intel work converges
+- **Base of `portfolio`:** `develop` (origin/HEAD)
+- **Absorb-from-develop branches:** `chore/absorb-develop-plain`, `chore/absorb-develop-into-portfolio` — used to periodically bring `develop` INTO `portfolio` (one-way, see workflow below)
+- **Feature branches:** `feat/pi-*` (e.g. `feat/pi-app/paper-migration`, `feat/pi-widgets/playwright-harness`) — cut FROM `portfolio`, PR back INTO `portfolio`
+- **Bead epic:** `bd-qy83` (Portfolio Intelligence), children `bd-qy83.1.*`
+- **Local workspace path:** `H:\masterswork\git\OpenBB-Portfolio\OpenBB` (distinct from `H:\masterswork\git\OpenBB` which tracks `develop` for non-portfolio work)
+
+### Workflow rules — Portfolio Intelligence Engine
+
+1. **One-way absorb only.** Merges/rebases flow **`develop` → `portfolio`** to
+   keep portfolio current. Do **NOT** open a PR from `portfolio` → `develop`
+   without an explicit, loud sign-off from the user (Daisy). Silence is not
+   consent. Until that sign-off arrives, `portfolio` accumulates work
+   locally-to-the-fork and never proposes back to base.
+2. **Side branches only.** Never commit directly to `portfolio`. All work
+   happens on side branches cut from `portfolio` (typically `feat/pi-*`),
+   which PR **into `portfolio`**. `portfolio` is a merge target, not a
+   worktop.
+3. **Every unit of work is a tracked GitHub Issue in `prajoria/OpenBB`.**
+   Every such issue is added to Project #4 (Portfolio Intelligence Engine).
+   No issue → no work. Commits/PRs cite the issue per the "Communication
+   Conventions" and "Coordination — GitHub Issues primary, bd fallback"
+   sections below.
+4. **Upstream promotion is user-initiated.** When Daisy explicitly says "open
+   a PR from portfolio to develop" (or equivalent unambiguous instruction),
+   only then create the PR from `portfolio` → `develop` (or upstream
+   `OpenBB-finance/OpenBB:develop` if directed).
+
+### Cross-check commands
+
+```bash
+gh project view 4 --owner prajoria
+gh project item-list 4 --owner prajoria --format json | jq '.items | group_by(.repository) | map({repo:.[0].repository,count:length})'
+git -C H:/masterswork/git/OpenBB-Portfolio/OpenBB remote -v
+git ls-remote origin refs/heads/portfolio            # confirms origin/portfolio exists
+git -C H:/masterswork/git/OpenBB-Portfolio/OpenBB log origin/portfolio -5 --oneline
+```
+
 ## Communication Conventions
 
 **Always pair an issue number with its title/description — never cite a bare number.**
