@@ -30,7 +30,7 @@ from openbb_techtrade.engine.panel_config import (
 )
 from openbb_techtrade.testing import assert_matches_golden
 
-from tests.fixtures import load_basket
+from ..fixtures import load_basket
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden" / "flag_off_invariance"
 

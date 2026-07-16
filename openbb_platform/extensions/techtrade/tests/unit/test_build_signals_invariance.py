@@ -27,7 +27,7 @@ import pytest
 from openbb_techtrade.engine import indicators, signals
 from openbb_techtrade.testing import assert_matches_golden
 
-from tests.fixtures import load_basket
+from ..fixtures import load_basket
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden" / "build_signals_invariance"
 

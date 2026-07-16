@@ -31,7 +31,7 @@ from openbb_techtrade.engine.panel_eval import (
 )
 from openbb_techtrade.testing import assert_matches_golden
 
-from tests.fixtures import load_basket
+from ..fixtures import load_basket
 
 # Golden snapshot location (per the #71 harness convention).
 GOLDEN_DIR = Path(__file__).parent.parent / "golden" / "panel_eval"

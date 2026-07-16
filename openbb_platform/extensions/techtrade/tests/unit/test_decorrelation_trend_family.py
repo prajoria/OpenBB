@@ -33,7 +33,7 @@ import pytest
 from openbb_techtrade.engine import indicators
 from openbb_techtrade.engine.confluence_ext import trend_votes_ext
 from openbb_techtrade.engine.panel_config import PANEL_EXTENDED
-from tests.fixtures import load_basket
+from ..fixtures import load_basket
 
 
 DECORRELATION_CEILING = 0.70
