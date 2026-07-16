@@ -242,7 +242,8 @@ completed on Daisy's blanket approval. Six actions executed:
 New labels created: `pm:blocked-on-decision` (red B60205),
 `area:fmp-cached-gap` (yellow FBCA04), `milestone:M0/M1/M2/M3/M4` (blue).
 
-**Standing state after Stage 4:** Project #4 = 8 Done / 82 Todo (0 in
-progress). Two open Daisy-blocking items: #498 (fill-model decision) and
-initial ack on Kai claiming #512 (recommended M1 first branch).
-Everything else is unblocked and ready to pick up.
+**Standing state after Stage 4:** Project #4 = **10 Done / 82 Todo** (92
+total; the 2 new items #826 + #827 raised the total from 90). Two open
+Daisy-blocking items: #498 (fill-model decision) and initial ack on Kai
+claiming #512 (recommended M1 first branch). Everything else is
+unblocked and ready to pick up.
