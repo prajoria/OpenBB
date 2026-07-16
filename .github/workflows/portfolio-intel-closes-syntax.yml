@@ -1,0 +1,83 @@
+name: Portfolio-Intel Closes-Syntax Check
+
+# Issue: #826
+# Prevents the tracker-drift class that the 2026-07-16 audit fixed:
+# feat/pi-* PRs whose body cites the retired `OpenBBTechnical-qy83.1.N`
+# bd-id in the Closes clause do NOT auto-close their GH issue, because
+# GitHub only recognizes `#NN` / `owner/repo#NN` grammar. This workflow
+# enforces the grammar so shipped work stays in sync with Project #4.
+#
+# Companion: .github/workflows/portfolio-intel-base-guard.yml
+# Script:    .github/scripts/closes-syntax-check.sh (function under test)
+# Tests:     .github/scripts/test-closes-syntax.sh (17 fixtures)
+
+on:
+  pull_request:
+    branches:
+      - portfolio
+    # `edited` catches body-only edits (fix a typo in the Closes clause
+    # after the initial open — must re-validate).
+    types: [opened, synchronize, reopened, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-closes-syntax:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Get branch names
+        id: branch-names
+        uses: tj-actions/branch-names@5250492686b253f06fa55861556d1027b067aeb5 # v9
+
+      - name: Show branches under test
+        run: |
+          echo "head-branch=${{ steps.branch-names.outputs.head_ref_branch }}"
+          echo "base-branch=${{ steps.branch-names.outputs.base_ref_branch }}"
+
+      - name: Skip if head branch is not portfolio-intel
+        id: scope
+        env:
+          HEAD_REF: ${{ steps.branch-names.outputs.head_ref_branch }}
+        run: |
+          shopt -s nocasematch
+          if [[ "$HEAD_REF" == feat/pi-* ]] || \
+             [[ "$HEAD_REF" == feature/pi-* ]] || \
+             [[ "$HEAD_REF" == pi/* ]]; then
+            echo "in_scope=true" >> "$GITHUB_OUTPUT"
+            echo "Head branch '$HEAD_REF' is portfolio-intel — running Closes-syntax check."
+          else
+            echo "in_scope=false" >> "$GITHUB_OUTPUT"
+            echo "Head branch '$HEAD_REF' is not portfolio-intel — skipping."
+          fi
+
+      - name: Checkout (script only)
+        if: steps.scope.outputs.in_scope == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Validate PR body Closes syntax
+        if: steps.scope.outputs.in_scope == 'true'
+        env:
+          # Passing the body via env avoids shell-quoting hell inherent
+          # to interpolating ${{ github.event.pull_request.body }} into
+          # a run: block (a body with backticks or $ breaks the shell).
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          # shellcheck source=./.github/scripts/closes-syntax-check.sh
+          source .github/scripts/closes-syntax-check.sh
+          printf '%s' "$PR_BODY" | check_closes_syntax
+
+      - name: Run self-test fixture set (belt-and-braces)
+        if: steps.scope.outputs.in_scope == 'true'
+        run: |
+          set -euo pipefail
+          bash .github/scripts/test-closes-syntax.sh
