@@ -64,21 +64,31 @@ class TestEnsureFinancialRatiosUniqueIndex:
         cache_schema._reset_fr_migration_flag_for_tests()
 
     def test_migration_runs_null_cleanup_dedupe_add_unique(self):
-        """Happy path: 3 queries in order (NULL cleanup, dedupe, ADD UNIQUE)."""
+        """Happy path (fresh install, index missing): 4 queries in order —
+        NULL cleanup, dedupe, SHOW INDEX pre-check, ADD UNIQUE.
+
+        The SHOW INDEX pre-check was added for #776: it lets us skip the
+        ALTER entirely on repeat runs so we never hit the 1061 error
+        path (which execute_query logs at ERROR before our try/except
+        can suppress it).
+        """
         from openbb_fmp_cached.utils import cache_schema
 
         executed_sqls: list[str] = []
 
         def fake_execute(sql, params=()):
             executed_sqls.append(sql)
+            # Return [] for SHOW INDEX → index missing → ADD UNIQUE proceeds
+            if "SHOW INDEX" in sql:
+                return []
             return None
 
         with patch.object(cache_schema, "execute_query", side_effect=fake_execute):
             cache_schema.ensure_financial_ratios_unique_index()
 
         assert (
-            len(executed_sqls) == 3
-        ), f"Expected 3 queries (NULL, dedupe, ALTER). Got {len(executed_sqls)}."
+            len(executed_sqls) == 4
+        ), f"Expected 4 queries (NULL, dedupe, SHOW INDEX, ALTER). Got {len(executed_sqls)}."
         # Step 1: NULL cleanup — MUST include all 4 key columns.
         assert "DELETE FROM financial_ratios" in executed_sqls[0]
         assert "symbol IS NULL" in executed_sqls[0]
@@ -95,9 +105,39 @@ class TestEnsureFinancialRatiosUniqueIndex:
         assert (
             "cached_at < fr2.cached_at" in executed_sqls[1]
         ), "Dedupe MUST keep the newest by cached_at."
-        # Step 3: ADD UNIQUE with currency.
-        assert "ALTER TABLE financial_ratios" in executed_sqls[2]
-        assert "ADD UNIQUE KEY uk_symbol_date_period_currency" in executed_sqls[2]
+        # Step 3: SHOW INDEX pre-check (#776).
+        assert "SHOW INDEX FROM financial_ratios" in executed_sqls[2]
+        # Step 4: ADD UNIQUE with currency.
+        assert "ALTER TABLE financial_ratios" in executed_sqls[3]
+        assert "ADD UNIQUE KEY uk_symbol_date_period_currency" in executed_sqls[3]
+
+    def test_migration_skips_alter_when_index_already_exists(self):
+        """Repeat-run path (#776): SHOW INDEX returns a row → no ALTER,
+        no 1061 error, no ERROR log noise."""
+        from openbb_fmp_cached.utils import cache_schema
+
+        executed_sqls: list[str] = []
+
+        def fake_execute(sql, params=()):
+            executed_sqls.append(sql)
+            # SHOW INDEX returns a row → index already present
+            if "SHOW INDEX" in sql:
+                return [{"Key_name": "uk_symbol_date_period_currency"}]
+            return None
+
+        with patch.object(cache_schema, "execute_query", side_effect=fake_execute):
+            cache_schema.ensure_financial_ratios_unique_index()
+
+        # NULL cleanup, dedupe, SHOW INDEX — no ALTER.
+        assert len(executed_sqls) == 3, (
+            f"Expected 3 queries (NULL, dedupe, SHOW INDEX) when index "
+            f"already exists — no ALTER should fire. Got {len(executed_sqls)}."
+        )
+        assert not any("ALTER TABLE" in s for s in executed_sqls), (
+            "ALTER TABLE MUST NOT fire when the index already exists — "
+            "otherwise execute_query logs the 1061 error at ERROR level "
+            "before our try/except catches it. See #776."
+        )
 
     def test_migration_ran_only_once_per_process(self):
         """PR #427 code-reviewer P1: ran-once flag skips subsequent calls."""
@@ -107,6 +147,8 @@ class TestEnsureFinancialRatiosUniqueIndex:
 
         def fake_execute(sql, params=()):
             call_count["n"] += 1
+            if "SHOW INDEX" in sql:
+                return []
             return None
 
         with patch.object(cache_schema, "execute_query", side_effect=fake_execute):
@@ -117,8 +159,8 @@ class TestEnsureFinancialRatiosUniqueIndex:
             second_run_calls = call_count["n"]
 
         assert (
-            first_run_calls == 3
-        ), f"First run should do 3 queries, got {first_run_calls}"
+            first_run_calls == 4
+        ), f"First run should do 4 queries, got {first_run_calls}"
         assert second_run_calls == first_run_calls, (
             f"2nd call MUST skip (flag set). Got {second_run_calls - first_run_calls} "
             f"extra queries — pre-fix migration ran on EVERY aextract_data call, "
@@ -137,22 +179,27 @@ class TestEnsureFinancialRatiosUniqueIndex:
             sqls_seen.append(sql)
             if "DELETE fr1" in sql:
                 raise RuntimeError("dedupe timeout")
+            if "SHOW INDEX" in sql:
+                return []
             return None
 
         with patch.object(cache_schema, "execute_query", side_effect=fake_execute):
             cache_schema.ensure_financial_ratios_unique_index()
 
-        # NULL cleanup, dedupe (raises), ADD UNIQUE — 3 executes attempted.
+        # NULL cleanup, dedupe (raises), SHOW INDEX, ADD UNIQUE — 4 attempts.
         assert (
-            call_count["n"] == 3
+            call_count["n"] == 4
         ), "ADD UNIQUE MUST fire even if dedupe raised (best-effort migration)."
         assert any("ALTER TABLE" in s for s in sqls_seen)
 
     def test_add_unique_errno_1061_already_present_is_silent(self, caplog):
-        """1061 Duplicate key name = expected on fresh installs / repeats."""
+        """1061 Duplicate key name = race condition (index appeared between
+        SHOW INDEX pre-check and ALTER). Silent at DEBUG."""
         from openbb_fmp_cached.utils import cache_schema
 
         def fake_execute(sql, params=()):
+            if "SHOW INDEX" in sql:
+                return []  # Pre-check says missing → proceed to ALTER
             if "ALTER TABLE" in sql:
                 raise Exception(
                     "(1061, \"Duplicate key name 'uk_symbol_date_period_currency'\")"
@@ -166,8 +213,8 @@ class TestEnsureFinancialRatiosUniqueIndex:
 
         loud_records = [r for r in caplog.records if r.levelno >= 30]
         assert loud_records == [], (
-            f"1061 on ADD UNIQUE is the expected path — must NOT log at "
-            f"WARNING+. Got: {loud_records}"
+            f"1061 on ADD UNIQUE (race) — must NOT log at WARNING+. "
+            f"Got: {loud_records}"
         )
 
     def test_add_unique_errno_1062_unexpected_logs_warning(self, caplog):
@@ -181,6 +228,8 @@ class TestEnsureFinancialRatiosUniqueIndex:
         from openbb_fmp_cached.utils import cache_schema
 
         def fake_execute(sql, params=()):
+            if "SHOW INDEX" in sql:
+                return []  # Pre-check says missing → proceed to ALTER
             if "ALTER TABLE" in sql:
                 raise Exception(
                     "(1062, \"Duplicate entry 'AAPL-2024-01-01-annual-USD' "
@@ -212,6 +261,8 @@ class TestEnsureFinancialRatiosUniqueIndex:
 
         def fake_execute(sql, params=()):
             call_count["n"] += 1
+            if "SHOW INDEX" in sql:
+                return []  # Pre-check says missing → proceed to ALTER
             if "ALTER TABLE" in sql:
                 raise Exception('(1062, "Duplicate entry ...")')
             return None

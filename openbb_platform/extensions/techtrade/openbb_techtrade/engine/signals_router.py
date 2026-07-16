@@ -19,13 +19,26 @@ is documented in the command docstring.
 
 from __future__ import annotations
 
+from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
 router = Router(prefix="", description="Compute ranked confluence trade signals.")
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[
+        APIEx(
+            description="Score all IT-sector movers under the trend-follow preset.",
+            parameters={"segment": "Information Technology"},
+        ),
+        APIEx(
+            description="Score an explicit symbol set with mean-reversion tilt.",
+            parameters={"symbols": ["AAPL", "MSFT"], "preset": "mean_revert"},
+        ),
+    ],
+)
 def signals(
     segment: str | None = None,
     symbols: list[str] | None = None,

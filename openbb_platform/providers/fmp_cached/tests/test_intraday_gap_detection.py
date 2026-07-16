@@ -107,10 +107,19 @@ class TestTailInvalidation:
         ) as mock_exec:
             _invalidate_same_session_tail("MSFT", "5min", [today_bar])
         mock_exec.assert_called_once()
-        # Assert UPDATE...is_valid=FALSE appears in the SQL:
+        # Assert UPDATE ... is_valid=FALSE appears in the SQL. Compare
+        # case-insensitively AND whitespace-insensitively — the production
+        # emitter may render "FALSE" or "false", and formatters may or
+        # may not put spaces around "=". Lowercasing the expected substring
+        # matches sql.lower() correctly (regression: earlier version
+        # asserted "is_valid = FALSE" against sql.lower(), which trivially
+        # fails once the assertion applies .lower() to the haystack).
         sql = mock_exec.call_args[0][0]
         assert "UPDATE" in sql.upper()
-        assert "is_valid = FALSE" in sql.lower() or "is_valid=FALSE" in sql.replace(" ", "").lower()
+        assert (
+            "is_valid = false" in sql.lower()
+            or "is_valid=false" in sql.replace(" ", "").lower()
+        )
 
     def test_prior_day_tail_left_untouched(self):
         from openbb_fmp_cached.models.equity_intraday_historical import (

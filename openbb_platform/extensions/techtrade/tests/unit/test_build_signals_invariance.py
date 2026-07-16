@@ -27,7 +27,18 @@ import pytest
 from openbb_techtrade.engine import indicators, signals
 from openbb_techtrade.testing import assert_matches_golden
 
-from tests.fixtures import load_basket
+# Load the techtrade tests/fixtures module by absolute path to bypass
+# pytest's `tests` package-name ambiguity when running under repo-root
+# scope (multiple tests/__init__.py trees exist across extensions, and
+# under `--import-mode=importlib` the enclosing package resolution is
+# not stable). See PR restoring Unit test Platform CI.
+import importlib.util as _iu
+from pathlib import Path as _Path
+_fixtures_path = _Path(__file__).parent.parent / "fixtures" / "__init__.py"
+_spec = _iu.spec_from_file_location("_techtrade_fixtures", _fixtures_path)
+_fixtures_mod = _iu.module_from_spec(_spec)
+_spec.loader.exec_module(_fixtures_mod)
+load_basket = _fixtures_mod.load_basket
 
 GOLDEN_DIR = Path(__file__).parent.parent / "golden" / "build_signals_invariance"
 

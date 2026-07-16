@@ -165,9 +165,17 @@ class TestTTLWrapperGenericSpecialization:
         class _MyD(Data):
             pass
 
+        # Fetcher.__init_subclass__ requires each concrete subclass to
+        # implement extract_data OR aextract_data — this contract was
+        # tightened after these tests were written. Give the fixtures a
+        # no-op aextract_data so class construction proceeds; the test
+        # is about type-param resolution, not fetcher behavior.
+        async def _noop_aextract(query, credentials, **kwargs):
+            return []
+
         # Indirect inheritance: intermediate class specializes the generic
         class _Intermediate(Fetcher[_MyQ, _MyD]):
-            pass
+            aextract_data = staticmethod(_noop_aextract)
 
         class _Concrete(_Intermediate):
             pass
@@ -189,8 +197,14 @@ class TestTTLWrapperGenericSpecialization:
             _resolve_fetcher_type_params,
         )
 
+        # Same base-class contract as above — a no-op aextract_data lets
+        # us build the test fixture without triggering
+        # Fetcher.__init_subclass__'s NotImplementedError.
+        async def _noop_aextract(query, credentials, **kwargs):
+            return []
+
         class _BareChild(Fetcher):
-            pass
+            aextract_data = staticmethod(_noop_aextract)
 
         q, r = _resolve_fetcher_type_params(_BareChild)
         assert q is None
@@ -221,7 +235,7 @@ class TestFullPlatformImport:
             capture_output=True,
             text=True,
             check=False,
-            timeout=60,  # openbb.build() can take a while cold
+            timeout=300,  # openbb.build() on this repo is ~2m cold; 60s was too tight
         )
         if result.returncode != 0:
             pytest.fail(

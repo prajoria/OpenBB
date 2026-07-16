@@ -49,12 +49,20 @@ from openbb_fmp_cached.models.institutional_ownership import (
 # ---------------------------------------------------------------------------
 
 
-def _fmp_record(symbol: str = "MSFT", ownership_pct: float = 0.72) -> dict:
-    """Create a minimal FMP-format institutional ownership record."""
+def _fmp_record(symbol: str = "MSFT", ownership_pct: float = 0.72,
+                year: int = 2024, quarter: int = 4) -> dict:
+    """Create a minimal FMP-format institutional ownership record.
+
+    #783/#784: year and quarter are required in the cached payload for
+    the year/quarter-filtered read path (_get_cached_institutional).
+    Defaults match the test call sites (year=2024, quarter=4).
+    """
     return {
         "symbol": symbol,
         "cik": "0000789019",
         "date": "2026-01-15",
+        "year": year,
+        "quarter": quarter,
         "investors_holding": 4500,
         "last_investors_holding": 4400,
         "investors_holding_change": 100,
@@ -154,27 +162,29 @@ class TestCacheRead:
     def test_cache_hit(self, mock_query):
         record = _fmp_record("AAPL")
         mock_query.return_value = [{"data_json": json.dumps(record)}]
-        result = _get_cached_institutional("AAPL")
+        # year+quarter are required post-uolr (deterministic cache key).
+        # See #783.
+        result = _get_cached_institutional("AAPL", year=2024, quarter=4)
         assert len(result) == 1
         assert result[0]["symbol"] == "AAPL"
 
     @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
     def test_cache_miss(self, mock_query):
         mock_query.return_value = []
-        result = _get_cached_institutional("TSLA")
+        result = _get_cached_institutional("TSLA", year=2024, quarter=4)
         assert result == []
 
     @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
     def test_cache_db_error_returns_empty(self, mock_query):
         mock_query.side_effect = Exception("DB connection lost")
-        result = _get_cached_institutional("MSFT")
+        result = _get_cached_institutional("MSFT", year=2024, quarter=4)
         assert result == []
 
     @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
     def test_cache_query_params(self, mock_query):
         """Verify the cache reads with correct symbol and TTL cutoff."""
         mock_query.return_value = []
-        _get_cached_institutional("NVDA")
+        _get_cached_institutional("NVDA", year=2024, quarter=4)
         args, kwargs = mock_query.call_args
         assert "NVDA" in args[1]  # symbol in params tuple
         # Second param should be a datetime (freshness cutoff)
@@ -185,7 +195,7 @@ class TestCacheRead:
         """Verify JSON string in data_json is properly parsed."""
         record = _fmp_record()
         mock_query.return_value = [{"data_json": json.dumps(record)}]
-        result = _get_cached_institutional("MSFT")
+        result = _get_cached_institutional("MSFT", year=2024, quarter=4)
         assert isinstance(result[0], dict)
         assert result[0]["ownership_percent"] == 0.72
 
@@ -194,50 +204,48 @@ class TestCacheRead:
         """Verify dict payload in data_json is handled directly."""
         record = _fmp_record()
         mock_query.return_value = [{"data_json": record}]
-        result = _get_cached_institutional("MSFT")
+        result = _get_cached_institutional("MSFT", year=2024, quarter=4)
         assert result[0]["ownership_percent"] == 0.72
 
     @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
     def test_cache_skips_none_payload(self, mock_query):
         mock_query.return_value = [{"data_json": None}]
-        result = _get_cached_institutional("MSFT")
+        result = _get_cached_institutional("MSFT", year=2024, quarter=4)
         assert result == []
 
 
 class TestCacheWrite:
-    @patch("openbb_fmp_cached.models.institutional_ownership.execute_many")
-    @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
-    def test_store_records(self, mock_query, mock_many):
+    # #784: _store_institutional now writes via replace_rows() (from
+    # bd-kh08 / PR #414), NOT execute_many. Each symbol gets one atomic
+    # DELETE+INSERT transaction. Patch replace_rows to observe writes.
+    @patch("openbb_fmp_cached.models.institutional_ownership.replace_rows")
+    def test_store_records(self, mock_replace):
         records = [_fmp_record("MSFT"), _fmp_record("AAPL")]
         _store_institutional(records, data_source="fmp")
-        # Should delete old data for both symbols
-        assert mock_query.call_count == 2
-        # Should insert 2 records
-        assert mock_many.call_count == 1
-        insert_params = mock_many.call_args[0][1]
-        assert len(insert_params) == 2
+        # One replace_rows call per unique symbol (2 symbols → 2 calls).
+        assert mock_replace.call_count == 2
+        # Each call's `rows` arg is a list of the rows for that symbol.
+        symbols_written = {call.args[2] for call in mock_replace.call_args_list}
+        assert symbols_written == {"MSFT", "AAPL"}
 
-    @patch("openbb_fmp_cached.models.institutional_ownership.execute_many")
-    @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
-    def test_store_attaches_data_source(self, mock_query, mock_many):
+    @patch("openbb_fmp_cached.models.institutional_ownership.replace_rows")
+    def test_store_attaches_data_source(self, mock_replace):
         records = [_fmp_record()]
         _store_institutional(records, data_source="yfinance")
-        insert_params = mock_many.call_args[0][1]
-        stored_json = json.loads(insert_params[0][2])
+        # Grab the rows list (positional arg index 3).
+        rows = mock_replace.call_args.args[3]
+        stored_json = json.loads(rows[0]["data_json"])
         assert stored_json["data_source"] == "yfinance"
 
-    @patch("openbb_fmp_cached.models.institutional_ownership.execute_many")
-    @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
-    def test_store_empty_is_noop(self, mock_query, mock_many):
+    @patch("openbb_fmp_cached.models.institutional_ownership.replace_rows")
+    def test_store_empty_is_noop(self, mock_replace):
         _store_institutional([], data_source="fmp")
-        mock_query.assert_not_called()
-        mock_many.assert_not_called()
+        mock_replace.assert_not_called()
 
-    @patch("openbb_fmp_cached.models.institutional_ownership.execute_many")
-    @patch("openbb_fmp_cached.models.institutional_ownership.execute_query")
-    def test_store_db_error_handled(self, mock_query, mock_many):
-        mock_query.side_effect = Exception("DB write failed")
-        # Should not raise
+    @patch("openbb_fmp_cached.models.institutional_ownership.replace_rows")
+    def test_store_db_error_handled(self, mock_replace):
+        mock_replace.side_effect = Exception("DB write failed")
+        # Should not raise — per-symbol try/except swallows per D4.
         _store_institutional([_fmp_record()], data_source="fmp")
 
 
@@ -609,8 +617,14 @@ class TestFallbackChain:
             assert len(result) == 1
             assert result[0]["data_source"] == "yfinance"
             mock_sec.assert_not_called()
-            # Store should be called with yfinance source
-            mock_store.assert_called_once_with([yf_record], data_source="yfinance")
+            # Store should be called with yfinance source. Loosened
+            # assert_called_once_with → check records + data_source
+            # explicitly, since _store_institutional now also takes
+            # year/quarter kwargs from _effective_year_quarter (#784).
+            mock_store.assert_called_once()
+            call = mock_store.call_args
+            assert call.args[0] == [yf_record]
+            assert call.kwargs.get("data_source") == "yfinance"
 
     @pytest.mark.asyncio
     async def test_fmp_and_yfinance_fail_sec_succeeds(self):
@@ -686,7 +700,12 @@ class TestFallbackChain:
             )
             assert len(result) == 1
             assert result[0]["data_source"] == "sec_13f"
-            mock_store.assert_called_once_with([sec_record], data_source="sec_13f")
+            # See TestFallbackChain.test_fmp_fails_yfinance_succeeds (#784)
+            # for the rationale behind loosening from assert_called_once_with.
+            mock_store.assert_called_once()
+            call = mock_store.call_args
+            assert call.args[0] == [sec_record]
+            assert call.kwargs.get("data_source") == "sec_13f"
 
     @pytest.mark.asyncio
     async def test_all_sources_fail_returns_empty(self):
@@ -725,7 +744,8 @@ class TestFallbackChain:
         cached_record = _fmp_record("AAPL")
         fresh_record = _fmp_record("MSFT")
 
-        def mock_cache(symbol):
+        def mock_cache(symbol, year, quarter):
+            # #784: signature matches post-uolr _get_cached_institutional
             return [cached_record] if symbol == "AAPL" else []
 
         with patch(

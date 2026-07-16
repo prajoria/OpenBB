@@ -171,7 +171,7 @@ def find_decorator(file_path: str, function_name: str) -> str:
     base_path = normalized_dir.split("openbb_platform/")[0]
     file_path = os.path.join(base_path, "openbb_platform", file_path)
 
-    with open(file_path) as file:
+    with open(file_path, encoding="utf-8") as file:
         lines = file.readlines()
 
     decorator_lines = []
@@ -219,6 +219,9 @@ def get_decorator_details(function) -> Decorator | None:
 
     if isinstance(parsed_source.body[0], (FunctionDef, AsyncFunctionDef)):
         func_def = parsed_source.body[0]
+        name: str | None = None
+        args: dict = {}
+        kwargs: dict = {}
         for decorator in func_def.decorator_list:
             if isinstance(decorator, Call):
                 name = (
@@ -232,6 +235,8 @@ def get_decorator_details(function) -> Decorator | None:
                 name = (
                     decorator.id if isinstance(decorator, Name) else unparse(decorator)
                 )
+        if name is None:
+            return None
         return Decorator(name, args, kwargs)
     return None
 

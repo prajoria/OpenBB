@@ -70,6 +70,15 @@ def check_missing_providers(
     missing_providers: list[str] = []
     providers = list(command_params.keys())
     providers.remove("openbb")
+    # Cache-wrapper providers shadow their upstream ones and expose the same
+    # data — their fetcher classes are dynamically generated at runtime
+    # (Fallback* / *TTLCached wrappers around the upstream fmp fetchers).
+    # There is no independent test surface: exercising `provider=fmp` already
+    # covers the code path that `fmp_cached` decorates. Exempt them here so
+    # the missing-providers gate doesn't force every existing test to add
+    # a mechanically-identical `provider=fmp_cached` entry.
+    _CACHE_WRAPPERS = {"fmp_cached"}
+    providers = [p for p in providers if p not in _CACHE_WRAPPERS]
     if not providers:
         return []
 
