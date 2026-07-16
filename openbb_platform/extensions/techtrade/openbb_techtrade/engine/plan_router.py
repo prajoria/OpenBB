@@ -25,6 +25,7 @@ see the real :class:`TradePlan` class (not a stringized annotation) to emit its 
 generated package -- mirroring ``quantitative_router``'s ``data: list[Data]`` convention.
 """
 
+from openbb_core.app.model.example import APIEx, PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
@@ -33,7 +34,19 @@ from openbb_techtrade.models import Order, TradePlan
 router = Router(prefix="", description="Assemble per-symbol technical trade plans and orders.")
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[
+        APIEx(
+            description="Plan a single GICS segment with the trend-follow preset.",
+            parameters={"segment": "Information Technology"},
+        ),
+        APIEx(
+            description="Plan an explicit symbol set with mean-reversion.",
+            parameters={"symbols": ["AAPL", "MSFT"], "preset": "mean_revert"},
+        ),
+    ],
+)
 def plan(
     segment: str | None = None,
     symbols: list[str] | None = None,
@@ -76,7 +89,18 @@ def plan(
     )
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Materialize the order legs from a plan built above.",
+            code=[
+                "plans = obb.techtrade.plan(segment='Information Technology').results",
+                "orders = obb.techtrade.orders(plan=plans[0]).results",
+            ],
+        ),
+    ],
+)
 def orders(plan: TradePlan) -> OBBject:
     """Materialize the broker-ready order legs of a single trade plan (PRD §9.2, issue #77).
 
@@ -99,7 +123,19 @@ def orders(plan: TradePlan) -> OBBject:
     return OBBject(results=materialize_orders(plan))
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[
+        PythonEx(
+            description="Paper-fill an order set against a forward OHLCV window.",
+            code=[
+                "plans = obb.techtrade.plan(segment='Information Technology').results",
+                "orders = obb.techtrade.orders(plan=plans[0]).results",
+                "fills = obb.techtrade.simulate(orders=orders, bars=forward_bars).results",
+            ],
+        ),
+    ],
+)
 def simulate(orders: list[Order], bars: list) -> OBBject:
     """Paper-fill a set of order legs against a forward OHLCV window (PRD §14.1, issue #78).
 
@@ -128,7 +164,19 @@ def simulate(orders: list[Order], bars: list) -> OBBject:
     return OBBject(results=simulate_orders(orders, bars))
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[
+        APIEx(
+            description="Default cross-segment scan with paper-fill.",
+            parameters={},
+        ),
+        APIEx(
+            description="Top-5 movers per sector by volume; no fills.",
+            parameters={"metric": "volume", "top_n": 5, "simulate": False},
+        ),
+    ],
+)
 def scan(
     metric: str = "pct_change",
     top_n: int = 10,

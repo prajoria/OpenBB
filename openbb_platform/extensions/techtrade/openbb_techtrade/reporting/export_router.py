@@ -17,6 +17,7 @@ takes a ``plans: list[TradePlan]`` model parameter, and the static package build
 package -- mirroring the ``plan_router.orders`` convention.
 """
 
+from openbb_core.app.model.example import PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
@@ -25,7 +26,25 @@ from openbb_techtrade.models import ExportConfig, TradePlan
 router = Router(prefix="", description="Write the 6-sheet recommendation workbook (PRD §14.3).")
 
 
-@router.command(methods=["POST"])
+@router.command(
+    methods=["POST"],
+    examples=[
+        PythonEx(
+            description="Export a set of scanned plans to the default workbook path.",
+            code=[
+                "plans = obb.techtrade.scan(top_n=5).results",
+                "obb.techtrade.export(plans=plans)",
+            ],
+        ),
+        PythonEx(
+            description="Export to an explicit path with the xlsxwriter engine.",
+            code=[
+                "plans = obb.techtrade.scan(top_n=5).results",
+                "obb.techtrade.export(plans=plans, path='/tmp/plans.xlsx', engine='xlsxwriter')",
+            ],
+        ),
+    ],
+)
 def export(
     plans: list[TradePlan],
     path: str | None = None,
