@@ -32,7 +32,12 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.nightly
+# `nightly` = expensive (spawns pip install) so it doesn't run on every push.
+# `requires_agents` = the spawned pip install needs the [agent] extra's
+# transitive dep tree (litellm, which needs Rust toolchain on non-x86_64-linux).
+# CI runners lack Rust; this test only runs when both markers are enabled.
+# See docs/design-questions/2026-07-16-fmp-trading-remaining.md Q4.
+pytestmark = [pytest.mark.nightly, pytest.mark.requires_agents]
 
 
 def _repo_root() -> Path:

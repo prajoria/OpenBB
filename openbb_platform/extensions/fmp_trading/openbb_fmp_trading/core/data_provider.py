@@ -150,14 +150,21 @@ class StubbedDataProvider:
     behavior (e.g. replaying a partial-window journal).
     """
 
-    def __init__(self, events: list | None = None, strict: bool = True) -> None:
+    def __init__(self, events: list | None = None, strict: bool = False) -> None:
         """Store journal events for future quote lookup (bd-9nd.12).
 
         Args:
           events: Recorded JournalEvent list from the source run.
-          strict: When True (default), ``is_signal_bar_close`` raises
-            :class:`ReplayTsMismatch` on unknown ts. When False, unknown
-            ts returns False silently — legacy tolerant behavior.
+          strict: **Default False (opt-in).** When True,
+            ``is_signal_bar_close`` raises :class:`ReplayTsMismatch` on
+            unknown ts — loud diagnostic for tz/precision drift during
+            deterministic replay comparison. When False (default), unknown
+            ts returns False silently — tolerant behavior appropriate for
+            the common case of test fixtures / partial-window replay
+            where the caller drives the loop with arbitrary ts.
+
+            See docs/design-questions/2026-07-16-fmp-trading-remaining.md
+            Q1 for the design decision that made this opt-in.
         """
         # Bucket events by ts for O(1) per-tick lookup by the comparator
         # and by fetch_batch_quote's quote extraction.
@@ -236,9 +243,25 @@ class StubbedDataProvider:
         return {s: [] for s in symbols}
 
     def fetch_session_status(self, exchange: str) -> Any:
-        # Return a minimal duck-typed object with is_market_open=True —
-        # the tick loop only reads the attribute in _build_tick_data.
-        return _StubSessionStatus(exchange=exchange, is_market_open=True)
+        # Return a real SessionStatus (Pydantic model). Previously returned
+        # a `_StubSessionStatus` duck-typed helper, but TickData.session_status
+        # is typed `SessionStatus | None` and Pydantic rejects arbitrary
+        # duck types (see PR #829 which made the field optional).
+        # See docs/design-questions/2026-07-16-fmp-trading-remaining.md Q2 tail.
+        from datetime import datetime, timezone
+
+        from openbb_fmp_trading.models.market_data import SessionStatus
+
+        now = datetime.now(timezone.utc)
+        return SessionStatus(
+            exchange=exchange,
+            is_market_open=True,
+            is_pre_market=False,
+            is_after_market=False,
+            is_early_close_day=False,
+            next_open=now,
+            next_close=now,
+        )
 
     def is_signal_bar_close(self, tick_ts: datetime, preset: str) -> bool:
         # Round-2 review fix: catch tz/precision drift LOUDLY. If tick_ts
