@@ -181,16 +181,36 @@ Per-issue session estimate rounded to 0.5s:
 5. **Zev's veto** is codified as outright block on merge. If this becomes a bottleneck (Zev vetoes on nits), Nadia proposes a severity-scoped veto in a Stage 4 amendment.
 6. **Nadia herself is an AI agent** — the "weekly Monday sync" (#505) is really a session-boundary sync, not a calendar meeting. Nadia will re-file #505's description in Stage 4 to reflect the AI-agent-team reality.
 
-## Immediate next actions (Stage 4 candidates)
+## Immediate next actions (Stage 4 — COMPLETED 2026-07-16)
 
-1. Close #500 as `not planned` (obsolete bd item).
-2. Add `pm:blocked-on-decision` label to #498, pinging Daisy.
-3. Re-describe #505 to reflect AI-agent session cadence rather than human weekly meeting.
-4. Set Milestone field (`M1`/`M2`/`M3`/`M4`) on every open item in Project #4 per this doc's mapping.
-5. File `feat/pi-ops/enforce-gh-closes-syntax` GH issue to prevent the tracker-drift class this audit fixed (CI reject PRs whose `Closes` clause doesn't cite a real `#NN`).
-6. Kai + Rohan pair-run the M1 fmp_cached preflight audit → surfaces `area:fmp-cached-gap` issues *before* M1 code work starts.
+Stage 4 executed on Daisy's blanket approval. Actions taken:
 
-**All of (1)–(6) need Daisy's ack for either the field-set operation or the new-issue filing.**
+1. ✅ **Closed #500** as `not planned` — obsolete bd-schema bug (bd retired).
+2. ✅ **Added `pm:blocked-on-decision` + `status:blocked` labels to #498** — new labels created (`pm:blocked-on-decision`, red B60205). Nadia commented citing M3 blocker.
+3. ✅ **Re-described #505** — retitled `Session-boundary portfolio<-develop absorb cadence (Nadia owned)`, body rewritten for AI-agent session cadence (replaces the human-weekly-meeting framing).
+4. ✅ **Phase/Lane fields set on 3 gap items:**
+   - #780 (TV 31-indicator coverage) → `Phase=P0` / `Lane=A-Data`
+   - #781 (Single Equity Profile Dashboard) → `Phase=P1` / `Lane=D-Widgets+QA`
+   - #802 (portfolio_intel entry-point missing router) → `Phase=P0` / `Lane=C-App+Paper`
+
+   Phase/Lane on the remaining 87 items was **already set correctly** by the bd→gh migration; zero conflicts between title `[P?]/[M?]` tags and field values.
+5. ✅ **Filed #826** — `[portfolio] [ops] CI: reject PRs whose Closes clause doesn't cite a real #NN`. Set `Phase=M0` / `Lane=C-App+Paper`, linked as sub-issue of #492 (PHASE M0 epic). Prevents recurrence of the tracker drift Stage 2 fixed.
+6. ✅ **Filed #827** — `[portfolio] [M1-preflight] fmp_cached endpoint audit for P0 data-layer clusters`. Set `Phase=P0` / `Lane=A-Data`, linked as sub-issue of #493 (PHASE P0 epic). Rohan owns; must close before Kai starts on any P0 cluster.
+
+**Additional label infrastructure created:** `pm:blocked-on-decision`, `area:fmp-cached-gap`, `milestone:M0`/`M1`/`M2`/`M3`/`M4` (five milestone labels; Project #4 already had a proper `Phase` single-select field so milestone labels are redundant for now — kept for cross-repo consistency if the epic ever spans repos).
+
+## Standing next actions (post-Stage 4)
+
+1. **Daisy resolves #498** (paper fill model source) — unblocks M3.
+2. **Rohan starts #827** (fmp_cached preflight audit) — unblocks M1 kickoff.
+3. **Kai claims first P0 cluster** — recommendation: #512 (EtfHoldings) since epic marks it PRIORITY / unblocks Lane B. Branch: `feat/pi-data/etf-holdings-gh-512`.
+4. **Priya + Mira** begin M2 harness scaffolding in parallel (any widget setup that doesn't need real endpoints yet).
+5. Someone claims #826 (Ops task) — one session's work, unblocks reviewer discipline on all future PRs.
+
+## PR #762 (chore/absorb-develop-into-portfolio) — status
+
+Currently OPEN. Superseded by the 2026-07-16 in-session merge on `portfolio` (commit `79818d75e`). Nadia recommends closing #762 without merging, referencing this session's completed absorb.
+
 
 ---
 

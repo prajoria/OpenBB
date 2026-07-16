@@ -217,3 +217,32 @@ Stage 4 field-cleanup + new-issue filing still needs Daisy's ack.
 **Followup preventer:** file `feat/pi-ops/enforce-gh-closes-syntax` to
 add a CI check rejecting PRs whose `Closes` clause doesn't cite a real
 `#NN` — prevents recurrence of the tracker drift this pass fixed.
+
+---
+
+## portfolio-intel-stage4-2026-07-16
+
+Stage 4 tracker-hygiene pass on Project #4 (Portfolio Intelligence Engine)
+completed on Daisy's blanket approval. Six actions executed:
+
+1. Closed #500 (obsolete bd-schema bug) as `not planned`.
+2. #498 (fill-model decision) labelled `pm:blocked-on-decision` +
+   `status:blocked`. Blocks M3 kickoff. Nadia will re-ping each session.
+3. #505 re-described from "weekly Monday sync" to "session-boundary
+   absorb cadence, Nadia owned" — fits AI-agent team model.
+4. #780/#781/#802 got their Phase/Lane fields set on Project #4
+   (previously missing). All other 87 items had correct field values
+   from the bd->gh migration; zero conflicts.
+5. Filed #826 (CI: reject Closes clauses that don't cite real #NN) —
+   Ops/M0/C-App+Paper. Sub-issue of #492. Prevents recurrence of the
+   tracker drift Stage 2 fixed.
+6. Filed #827 (fmp_cached preflight audit for P0 clusters) — Rohan
+   owns. P0/A-Data. Sub-issue of #493. Gates Kai's M1 kickoff.
+
+New labels created: `pm:blocked-on-decision` (red B60205),
+`area:fmp-cached-gap` (yellow FBCA04), `milestone:M0/M1/M2/M3/M4` (blue).
+
+**Standing state after Stage 4:** Project #4 = 8 Done / 82 Todo (0 in
+progress). Two open Daisy-blocking items: #498 (fill-model decision) and
+initial ack on Kai claiming #512 (recommended M1 first branch).
+Everything else is unblocked and ready to pick up.
