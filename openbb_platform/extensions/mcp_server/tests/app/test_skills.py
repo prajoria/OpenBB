@@ -20,6 +20,22 @@ def _find_system_calls(mock_mcp):
     ]
 
 
+def _find_skill_awareness_nudge(mock_mcp):
+    """Return add_prompt calls that are the SKILL-AWARENESS system nudge
+    specifically (not the bundled system_prompt.txt).
+
+    Distinguishing marker: the skill-awareness nudge's rendered content
+    mentions ``list_resources()`` — the bundled system_prompt.txt does not.
+    Every test in this file that predates the bundled system_prompt.txt
+    addition assumed only ONE 'system'-tagged prompt would be added and
+    could grab `system_calls[0]`. Now there are two, and we need to
+    disambiguate. Keeping the original single-item assertion pattern via
+    this filter lets test bodies stay readable.
+    """
+    calls = _find_system_calls(mock_mcp)
+    return [c for c in calls if "list_resources()" in c[0][0].fn()]
+
+
 def _add_provider_calls(mock_mcp):
     """Return all add_provider calls."""
     return mock_mcp.add_provider.call_args_list
@@ -251,7 +267,7 @@ def test_default_system_prompt_added_when_bundled_skills_loaded(
 
     create_mcp_server(settings, FastAPI())
 
-    system_calls = _find_system_calls(mock_mcp)
+    system_calls = _find_skill_awareness_nudge(mock_mcp)
     assert len(system_calls) == 1
 
     added = system_calls[0][0][0]
@@ -276,7 +292,7 @@ def test_default_system_prompt_added_when_vendor_skills_loaded(
 
     create_mcp_server(settings, FastAPI())
 
-    system_calls = _find_system_calls(mock_mcp)
+    system_calls = _find_skill_awareness_nudge(mock_mcp)
     assert len(system_calls) == 1
     content = system_calls[0][0][0].fn()
     assert "list_resources()" in content
@@ -294,8 +310,12 @@ def test_no_default_system_prompt_when_no_skills(
 
     create_mcp_server(settings, FastAPI())
 
-    assert len(_find_system_calls(mock_mcp)) == 0
-    assert mock_mcp.instructions is None
+    assert len(_find_skill_awareness_nudge(mock_mcp)) == 0
+    # `mock_mcp.instructions` may be set by the bundled system_prompt.txt
+    # loader (unconditional path in _setup_file_system_prompt) — that's
+    # separate from the skill-awareness nudge this test asserts against.
+    # The test's intent is only that the NUDGE is not added when no skills
+    # are configured; the bundled file's independent presence is fine.
 
 
 @patch("openbb_mcp_server.app.app.process_fastapi_routes_for_mcp")
@@ -347,7 +367,7 @@ def test_explicit_instructions_not_overridden(
 
     create_mcp_server(settings, FastAPI())
 
-    system_calls = _find_system_calls(mock_mcp)
+    system_calls = _find_skill_awareness_nudge(mock_mcp)
     assert len(system_calls) == 1
     assert mock_mcp.instructions == "My explicit instructions."
 
