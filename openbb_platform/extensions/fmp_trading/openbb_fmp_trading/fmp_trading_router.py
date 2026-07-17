@@ -11,7 +11,7 @@ static package builder renders a valid, importable return annotation — see the
 Critical Design Constraint in the Phase 1 plan and ``package_builder.build_func_returns``.
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject resolution (#824)
 
 from importlib import import_module
 from pathlib import Path

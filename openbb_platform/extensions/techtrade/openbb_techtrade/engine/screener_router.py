@@ -14,7 +14,7 @@ package builder renders a valid, importable return annotation — see
 command docstrings.
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject resolution (#824)
 
 from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject

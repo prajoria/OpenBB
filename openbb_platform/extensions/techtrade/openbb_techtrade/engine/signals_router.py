@@ -17,7 +17,7 @@ importable return annotation -- see ``techtrade_router`` and
 is documented in the command docstring.
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject resolution (#824)
 
 from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
