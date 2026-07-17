@@ -1,6 +1,7 @@
 """Tests for openbb_agents.config — model config and dynamic probe."""
 
 import os
+import pytest
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -55,6 +56,13 @@ class TestEnvVarOverride:
 
 
 class TestProbeModel:
+    # Both probe tests patch `litellm.completion` — the litellm package
+    # ships with the [agent] extra. On stock CI (no Rust to build
+    # litellm), the module isn't importable and the patch target
+    # doesn't resolve. Mark as requires_agents so it's deselected under
+    # `-m "not requires_agents"`. See #818.
+
+    @pytest.mark.requires_agents
     def test_probe_returns_true_on_success(self):
         cfg = _fresh_config()
         mock_response = MagicMock()
@@ -63,6 +71,7 @@ class TestProbeModel:
             result = cfg.probe_model("openai/gpt-4o")
         assert result is True
 
+    @pytest.mark.requires_agents
     def test_probe_returns_false_on_exception(self):
         cfg = _fresh_config()
         with patch("litellm.completion", side_effect=Exception("connection refused")):
