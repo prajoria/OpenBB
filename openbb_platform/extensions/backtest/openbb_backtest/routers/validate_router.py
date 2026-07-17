@@ -24,7 +24,7 @@ See ``docs/designs/backtest-design/09-api-surface.md`` §1–§2 and
 ``08-validation.md`` §3.
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject[X] resolution (#824)
 
 import logging
 from collections.abc import Callable
@@ -45,10 +45,12 @@ from openbb_backtest.models import (
 )
 from openbb_backtest.router_helpers import build_feed, resolve_engine, resolve_provider
 
-if TYPE_CHECKING:
-    import pandas as pd
+# Runtime imports (formerly under `if TYPE_CHECKING`). Needed at import
+# time because this file no longer uses `from __future__ import annotations`
+# — see #824 for the root cause.
+import pandas as pd  # noqa: F401, E402
 
-    from openbb_backtest.interfaces import Broker, DataFeed, Engine, Strategy
+from openbb_backtest.interfaces import Broker, DataFeed, Engine, Strategy  # noqa: F401, E402
 
 logger = logging.getLogger(__name__)
 

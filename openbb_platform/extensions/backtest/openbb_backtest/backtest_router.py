@@ -11,7 +11,11 @@ importing them lazily inside the command bodies. This module also exposes the
 See ``docs/designs/backtest-design/01-scaffolding.md`` and ``09-api-surface.md``.
 """
 
-from __future__ import annotations
+# NOTE: deliberately NOT `from __future__ import annotations`. The router
+# return annotations `-> OBBject[BacktestAbout]` must be evaluated at
+# class-body time so FastAPI's TypeAdapter (which drives OpenAPI schema
+# generation) sees a real parameterized type, not a `ForwardRef` string.
+# See issue #824.
 
 from importlib.metadata import PackageNotFoundError, version
 
