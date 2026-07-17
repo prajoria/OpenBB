@@ -717,16 +717,22 @@ class TestPathDetectionHelpers:
     """Test path detection logic for cross-platform compatibility."""
 
     def test_is_absolute_path_detection_unix(self):
-        """Test absolute path detection for Unix paths."""
-        from pathlib import Path
+        """Test absolute path detection for Unix paths.
+
+        Uses PurePosixPath explicitly so the assertions have deterministic
+        Unix semantics on any host OS. `pathlib.Path("/foo").is_absolute()`
+        returns False on Windows (no drive letter) but True on POSIX —
+        which meant the test was Windows-hostile before this fix.
+        """
+        from pathlib import PurePosixPath
 
         # Unix absolute paths
-        assert Path("/home/user/app.py").is_absolute() is True
-        assert Path("/app.py").is_absolute() is True
+        assert PurePosixPath("/home/user/app.py").is_absolute() is True
+        assert PurePosixPath("/app.py").is_absolute() is True
         # Relative paths
-        assert Path("app.py").is_absolute() is False
-        assert Path("./app.py").is_absolute() is False
-        assert Path("subdir/app.py").is_absolute() is False
+        assert PurePosixPath("app.py").is_absolute() is False
+        assert PurePosixPath("./app.py").is_absolute() is False
+        assert PurePosixPath("subdir/app.py").is_absolute() is False
 
     @pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific test")
     def test_is_absolute_path_detection_windows(self):
