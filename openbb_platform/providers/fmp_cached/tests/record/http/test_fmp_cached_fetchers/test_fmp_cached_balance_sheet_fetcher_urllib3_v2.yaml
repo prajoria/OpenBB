@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/balance-sheet-statement?apikey=MOCK_API_KEY&limit=1&period=annual&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4VVTWvjMBC991eEnDdgSf5SbqHtQiG0pc0eyrIHxZ4moraUleVuw7L/fUdOnFpy
+        smsIAc3TfLx5M/p+NZn8xt9kMi2Fhel8MqURTWYRn9Fs+uVgafb1WlfOtlg8LvtTAzttLJTXrTGg
+        ir2zf3u+6c2FfHMnEX6MRoSz3vAqK6k2N8NoJJox0ttFUcAO/Y4RkyidR2RO009XTSGqFxCmB/aW
+        HRipS3f69eWUkWi2C1Ve49/tz1a+iwqUbRDDEs7iqPv6irdY2gpMfafeobH1EUjyLGUe8Ojz+Tw+
+        iVOeeXgF9gkKwODrChwkozzxIVi/bvG+j2M8y3yctlswAYiRPPJAEvNRVhvXnSTrrT1J2EIhS3fT
+        c3roqF00DRzKjpM88W5abUU1hmVhLTujsRN2/1gJZR3pO0fNPViExzwPWN9oXf6SVTXIRyor1EZi
+        facwIRrpv7uMqrTajBuDXFK/kVZ8nO7S6CzX91qFJafYPZ/wjpkzSEoIzf1yO6ejhDsHp1OUJo3J
+        OMKj2PdNzymq0kMcFTTApDxP/Ty74AMEYREZeTEtlLcfO1DNIRIn3IOcxuQG1rYjjlEfUYidxHSX
+        IBp4WFdyI6zUqjmyc+DFpxobMUirPy3hFfBK+QSo59btBR4lviaH0l1KscY1Y2XnJKaMXdavjyVp
+        kjKf8F5CxyKznFF/ji4U+akC5xfZ9RUXlOShQ8xKfAzSPAsNJOpXRTmP/e4GOg1IIDw/NwE+6j/l
+        d6LKaDQOG+SWYyN9Qq1BX63ZP1tdvA0i4cI68BEaCl3XWvWnnCWp79CAFVKhmIVR+Pi4sDMS09Qf
+        SFGW0qXuxkviUrk+FDaIgzPR1m2FL1P50MlN15jTFgdEvsOdwjRgqZvOfYLrdszgytXf5bnVVQmm
+        cUvR7sP5P4vIWMaCpeWw/7DXUmmDRtyPYHD9hWEGjcAtuvK8Xdo8/iLlaZyfEdZxVAihLBs9gP0c
+        pXF8TBdNf65+/AUoONnfjAgAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Fri, 17 Jul 2026 01:06:00 GMT
+      Etag:
+      - W/"88c-h2bfKwLUI+4wMe136ujlfLpR+3s"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
