@@ -546,11 +546,13 @@ class TestTransformsAdded:
         settings = MCPSettings()  # type: ignore
         mock_mcp, _, _ = _build_server(settings, prompts_json=[prompt_def])
 
-        # Find the StaticPrompt among add_prompt calls
+        # Find the StaticPrompt for our inline my_prompt among all
+        # add_prompt calls. The bundled server_prompts.json adds ~42
+        # other StaticPrompts, so filter by our specific name.
         added_prompts = [
             call[0][0]
             for call in mock_mcp.add_prompt.call_args_list
-            if isinstance(call[0][0], StaticPrompt)
+            if isinstance(call[0][0], StaticPrompt) and call[0][0].name == "my_prompt"
         ]
         assert len(added_prompts) == 1
         assert added_prompts[0].argument_defaults == {"aspect": "fundamentals"}
