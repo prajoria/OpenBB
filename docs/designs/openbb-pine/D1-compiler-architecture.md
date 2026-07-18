@@ -988,7 +988,7 @@ Steps 1-9 are D1 territory; 10-13 are D2.
 
 ## 9. Risks and design hot spots
 
-| # | Risk | Sev | Lik | Owner | Mitigation |
+| # | Risk | Sev | Likelihood | Owner | Mitigation |
 |---|---|---|---|---|---|
 | D1-R1 | `lark` produces an unanticipated parse-tree shape (e.g. v6 grammar evolves) | M | M | Compiler eng | IR builder is one-method-per-rule `Transformer`; new rules add a method, don't refactor. Grammar diffs visible in PR review. |
 | D1-R2 | Codegen change accidentally emits an `ast.*` type the allowlist rejects | L | M | Compiler eng | Failure mode is `PineCodegenError` raised in dev/test before merge; nightly snapshot tests (PRD §7.2) catch drift. |

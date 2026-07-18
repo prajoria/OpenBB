@@ -1253,7 +1253,7 @@ D3-specific extras.
 
 ## 14. Risk register (D3-scoped)
 
-| # | Risk | Sev | Lik | Owner | Mitigation |
+| # | Risk | Sev | Likelihood | Owner | Mitigation |
 |---|---|---|---|---|---|
 | D3-R1 | Sub-router import-time creep pushes past 200 ms | M | M | router author | Lazy imports inside command bodies; `test_import_time_under_200_ms` every PR (§12.3). |
 | D3-R2 | `OBBject[dict]` slips into a new endpoint, breaks static package builder | H | M | router author | `test_no_obbject_dict_or_any_returns` (§5); PR checklist row. |
