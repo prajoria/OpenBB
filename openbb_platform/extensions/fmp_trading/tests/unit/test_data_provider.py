@@ -17,6 +17,8 @@ import threading
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
+import pytest
+
 
 class TestDataProviderProtocolConformance:
     def test_live_provider_is_data_provider(self):
@@ -238,6 +240,19 @@ class TestNoSharedMutableState:
                 AssertionError("Module helper called — provider injection failed")
             ),
         )
+        # Also stub the downstream fetchers + signal-cascade — the test is
+        # about StubbedDataProvider thread-isolation, not signal cascade
+        # correctness. Without these, tick_loop wanders into fmp_cached's
+        # cache-analysis path which needs a live MySQL DB (see issue #794).
+        monkeypatch.setattr(
+            tick_loop, "_fetch_recent_bars", lambda symbols: {s: [] for s in symbols}
+        )
+        monkeypatch.setattr(
+            tick_loop, "_fetch_session_status", lambda exchange: None
+        )
+        monkeypatch.setattr(
+            tick_loop, "_run_techtrade_signals", lambda plan, tick: []
+        )
 
         ts_a = datetime(2026, 7, 13, 13, 30, tzinfo=timezone.utc)
         ts_b = datetime(2026, 7, 13, 13, 35, tzinfo=timezone.utc)
@@ -254,7 +269,12 @@ class TestNoSharedMutableState:
             try:
                 session = MagicMock()
                 session.plan.watchlist = ["MSFT"]
-                session.plan.preset = "intraday_momentum"
+                # techtrade signals validate the preset name — must be one of
+                # trend_follow / mean_revert / breakout (see
+                # techtrade/strategies/presets.py:105). intraday_momentum is
+                # only a name used in the fmp_trading agent prompt, not a
+                # techtrade preset.
+                session.plan.preset = "trend_follow"
                 session.session_id = "concurrent"
                 tick_loop.run_tick(session, tick_ts, provider=provider)
             except Exception as exc:  # noqa: BLE001
@@ -294,7 +314,8 @@ class TestStubbedProviderStrictTsLookup:
 
         recorded_ts = datetime(2026, 7, 11, 14, 30, 0, tzinfo=timezone.utc)
         provider = StubbedDataProvider(
-            events=[self._make_tick_event(recorded_ts)]  # strict=True default
+            events=[self._make_tick_event(recorded_ts)],
+            strict=True,  # opt into raise-on-drift (design Q1)
         )
 
         # Same wall-clock time but tz-naive → different ts value
@@ -313,14 +334,21 @@ class TestStubbedProviderStrictTsLookup:
         )
 
         recorded_ts = datetime(2026, 7, 11, 14, 30, 0, tzinfo=timezone.utc)
-        provider = StubbedDataProvider(events=[self._make_tick_event(recorded_ts)])
+        provider = StubbedDataProvider(
+            events=[self._make_tick_event(recorded_ts)],
+            strict=True,  # opt into raise-on-drift (design Q1)
+        )
 
         drifted_ts = datetime(2026, 7, 11, 14, 30, 0, 500000, tzinfo=timezone.utc)
         with pytest.raises(ReplayTsMismatch) as excinfo:
             provider.is_signal_bar_close(drifted_ts, preset="trend_follow")
 
         assert "closest recorded" in str(excinfo.value)
-        assert "14:30" in str(excinfo.value)  # closest ts shown
+        # The closest recorded ts is embedded via ``{closest!r}`` which
+        # renders as ``datetime.datetime(2026, 7, 11, 14, 30, ...)`` —
+        # comma-separated components, not the colon-separated ISO form.
+        # Assert the H+M components appear in the repr shape.
+        assert "14, 30" in str(excinfo.value)  # closest ts shown
 
     def test_known_ts_returns_boolean_normally(self):
         """Baseline: strict mode doesn't affect happy path."""

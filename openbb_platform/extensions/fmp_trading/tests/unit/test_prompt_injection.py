@@ -23,6 +23,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# Shared helper — defined in the sibling test_risk_clamp.py module. Same
+# fixture shape as we'd use, so imported to avoid duplication.
+# TestFlatByCloseTimeInjectionBypass below needs it to build tool-call
+# fixtures for L2's time-string bypass check.
+from tests.unit.test_risk_clamp import _tool_call_with_risk  # noqa: E402
+
 
 def _cfg():
     from openbb_fmp_trading.models.config import DailyConfig, RiskConfig

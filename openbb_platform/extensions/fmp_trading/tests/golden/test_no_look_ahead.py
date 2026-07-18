@@ -36,18 +36,22 @@ from unittest.mock import MagicMock
 import pytest
 
 
-def _make_5min_bars(start: datetime, count: int) -> list[SimpleNamespace]:
+def _make_5min_bars(start: datetime, count: int) -> list:
     """Synthetic monotonically-increasing 5-min bars for a single symbol.
 
-    Uses SimpleNamespace instead of MagicMock so equality on bar.ts is
-    stable — MagicMock's default __eq__ returns a mock, which would
-    silently pass the AC-5 assertion.
+    Returns real IntradayBar instances — TickData.bars_recent is typed
+    ``dict[str, list[IntradayBar]]`` and Pydantic rejects SimpleNamespace
+    or MagicMock. Earlier this used SimpleNamespace for stable equality;
+    IntradayBar (a pydantic Data model) has value-based equality that's
+    equally stable.
     """
+    from openbb_fmp_trading.models.market_data import IntradayBar
+
     bars = []
     for i in range(count):
         ts = start + timedelta(minutes=5 * i)
         bars.append(
-            SimpleNamespace(
+            IntradayBar(
                 symbol="MSFT",
                 interval="5min",
                 ts=ts,
@@ -69,7 +73,7 @@ def _make_plan():
         as_of=datetime(2026, 7, 6, 13, 25, tzinfo=timezone.utc),
         trading_date=date(2026, 7, 6),
         watchlist=["MSFT"],
-        preset="intraday_momentum",
+        preset="trend_follow",
         alerts=[],
         session_risk=RiskConfig(),
         thesis="AC-5 golden",
@@ -140,7 +144,9 @@ class TestNoLookAheadAtFiveMinGranularity:
         )
         monkeypatch.setattr(
             tick_loop, "_fetch_session_status",
-            lambda exchange: SimpleNamespace(is_market_open=True),
+            # Return None — TickData.session_status is Optional[SessionStatus].
+            # AC-5 doesn't read session_status; only asserts bar-vs-signal ordering.
+            lambda exchange: None,
         )
         monkeypatch.setattr(
             tick_loop, "_run_techtrade_signals", lambda plan, tick: [fake_sig]

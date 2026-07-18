@@ -16,7 +16,7 @@ gate, and return ``OBBject``-wrapped Data models. Two cross-cutting rules from
 See ``docs/designs/backtest-design/09-api-surface.md`` §1–§2.
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject[X] resolution (#824)
 
 import logging
 from typing import TYPE_CHECKING, Any
@@ -39,8 +39,10 @@ from openbb_backtest.router_helpers import (
     sanitize_result,
 )
 
-if TYPE_CHECKING:
-    from openbb_backtest.interfaces import Broker, DataFeed, Engine, Strategy
+# Runtime imports (formerly under `if TYPE_CHECKING`). Needed at import
+# time because this file no longer uses `from __future__ import annotations`
+# — see #824 for the root cause.
+from openbb_backtest.interfaces import Broker, DataFeed, Engine, Strategy  # noqa: F401, E402
 
 logger = logging.getLogger(__name__)
 

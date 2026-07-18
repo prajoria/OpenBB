@@ -297,7 +297,7 @@ class TestClampAggregateJournalWriteFailure:
         from unittest.mock import MagicMock
 
         from openbb_fmp_trading.agent import pre_open as pre_open_mod
-        from openbb_fmp_trading.models.errors import RiskOverrideLoosening
+        from openbb_fmp_trading.agent.errors import RiskOverrideLoosening
 
         # Build a minimal turn stub that _clamp_risk_overrides can call.
         # Since the exact PreOpenAgentTurn shape depends on other deps

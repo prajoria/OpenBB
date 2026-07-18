@@ -20,7 +20,7 @@ See ``docs/designs/backtest-design/09-api-surface.md`` §1 and
 ``03-data-bundle.md``.
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject[X] resolution (#824)
 
 import builtins
 import json
@@ -36,8 +36,10 @@ from openbb_backtest.models import BacktestConfig, BundleInfo
 from openbb_backtest.router_helpers import resolve_provider
 from openbb_backtest.settings import DEFAULT_SETTINGS
 
-if TYPE_CHECKING:
-    from openbb_backtest.data.bundle import BundleIngestor, BundleMetadata
+# Runtime imports (formerly under `if TYPE_CHECKING`). Needed at import
+# time because this file no longer uses `from __future__ import annotations`
+# — see #824 for the root cause.
+from openbb_backtest.data.bundle import BundleIngestor, BundleMetadata  # noqa: F401, E402
 
 logger = logging.getLogger(__name__)
 

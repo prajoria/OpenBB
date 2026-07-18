@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/income-statement?apikey=MOCK_API_KEY&limit=1&period=annual&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA51UTW/aQBC951dYnEu1Xn+AublxUlVKIWrSQ1T1sHgH2MbetXbXlLTqf++sjYNt
+        UCrVCIHnvXkz83bsb1ee9xu/njfhzMJk4U0oodGUJFM6m7xrEfNSrlXhsDS9v+uiGiqlLfDrWmuQ
+        +YvDvz5kHZyLZxcheAWU+EnQARtRCLnN+tV8Mg38Dmd5DhXqnjM8Ei+Iv6DxScrkrHgCpjtih1Sg
+        heIuevt0angPsnaaoR/jhzRX164ydrX58kqhlCQxGVC2Whlzr9VGWCT4SYRjDQgaDLaS71LJMxQq
+        VFWCtDeHCqQBgzlBGEUjTZCgWYEZKS+FFMZqZsUeekl0Fo/qGCichZj0melnsPi/xx+xPv5PBWV3
+        oC9oKvSVjerF1I/OvcR6/QrzwPeHJAn2k7SAnuFvrkrolRH/Ao7SPYRDpSEX2JySbtYSd1P8am7d
+        YflxMh+Uh7WwnDkoDEM6O8McEtAZTYZNK7nqLGibuznkRc2b27Y1d8x05OYwpZEOyGgTrLKsWDnf
+        O+HWvSU4yelYUzSkD7BRGh7Z4XK7LQnhk1+UzPzRTHD0+Var8lpJbLTGXo9zKmka/153/WJahg9i
+        mwl8kDhYqJT/qI11z4R5VEs4P17Zi71VMgNe5+MSa2WtKu+EhOXbMlC5tNn7MDkFMlHU+M5p4/Ex
+        /hPEdofRdI8TbeFhZ1Z1sxhhEs6jvuRFJmo6MhLDOHEbhtw/V9//Ajx4hXRzBQAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Fri, 17 Jul 2026 01:06:01 GMT
+      Etag:
+      - W/"573-I8nwBSN93YHwoFpf6KqV50YdhWM"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

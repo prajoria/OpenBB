@@ -150,14 +150,21 @@ class StubbedDataProvider:
     behavior (e.g. replaying a partial-window journal).
     """
 
-    def __init__(self, events: list | None = None, strict: bool = True) -> None:
+    def __init__(self, events: list | None = None, strict: bool = False) -> None:
         """Store journal events for future quote lookup (bd-9nd.12).
 
         Args:
           events: Recorded JournalEvent list from the source run.
-          strict: When True (default), ``is_signal_bar_close`` raises
-            :class:`ReplayTsMismatch` on unknown ts. When False, unknown
-            ts returns False silently — legacy tolerant behavior.
+          strict: **Default False (opt-in).** When True,
+            ``is_signal_bar_close`` raises :class:`ReplayTsMismatch` on
+            unknown ts — loud diagnostic for tz/precision drift during
+            deterministic replay comparison. When False (default), unknown
+            ts returns False silently — tolerant behavior appropriate for
+            the common case of test fixtures / partial-window replay
+            where the caller drives the loop with arbitrary ts.
+
+            See docs/design-questions/2026-07-16-fmp-trading-remaining.md
+            Q1 for the design decision that made this opt-in.
         """
         # Bucket events by ts for O(1) per-tick lookup by the comparator
         # and by fetch_batch_quote's quote extraction.
@@ -174,9 +181,15 @@ class StubbedDataProvider:
             ts = getattr(e, "ts", None)
             if ts is not None:
                 self._events_by_ts.setdefault(ts, []).append(e)
+                # Track ALL event ts (not just tick events) as "known"
+                # timestamps for strict-mode validation. The intent of
+                # strict-mode is "reproduce the recorded control-flow"
+                # — a SignalEvent at ts N proves the original run's
+                # driver visited that ts, so replay is allowed to visit
+                # it too, even if no TickEvent was recorded at N.
+                self._known_tick_ts.add(ts)
                 if getattr(e, "event_type", None) == "tick":
                     self._tick_by_ts[ts] = e
-                    self._known_tick_ts.add(ts)
         # Set by :meth:`set_current_tick_ts` before each ``run_tick``
         # call so ``fetch_batch_quote`` knows which recorded tick to
         # read quotes from. None until first set — legacy callers get
@@ -230,9 +243,25 @@ class StubbedDataProvider:
         return {s: [] for s in symbols}
 
     def fetch_session_status(self, exchange: str) -> Any:
-        # Return a minimal duck-typed object with is_market_open=True —
-        # the tick loop only reads the attribute in _build_tick_data.
-        return _StubSessionStatus(exchange=exchange, is_market_open=True)
+        # Return a real SessionStatus (Pydantic model). Previously returned
+        # a `_StubSessionStatus` duck-typed helper, but TickData.session_status
+        # is typed `SessionStatus | None` and Pydantic rejects arbitrary
+        # duck types (see PR #829 which made the field optional).
+        # See docs/design-questions/2026-07-16-fmp-trading-remaining.md Q2 tail.
+        from datetime import datetime, timezone
+
+        from openbb_fmp_trading.models.market_data import SessionStatus
+
+        now = datetime.now(timezone.utc)
+        return SessionStatus(
+            exchange=exchange,
+            is_market_open=True,
+            is_pre_market=False,
+            is_after_market=False,
+            is_early_close_day=False,
+            next_open=now,
+            next_close=now,
+        )
 
     def is_signal_bar_close(self, tick_ts: datetime, preset: str) -> bool:
         # Round-2 review fix: catch tz/precision drift LOUDLY. If tick_ts
@@ -241,12 +270,28 @@ class StubbedDataProvider:
         # tz/microsecond mismatch that would silently skip the signal
         # cascade. Both cases should fail loud in strict mode.
         if self._strict and tick_ts not in self._known_tick_ts:
+            # If no events were recorded at all, strict-mode has nothing
+            # to check against — a partial-journal or empty-window replay
+            # legitimately has no known tick timestamps. Return False
+            # (no bar close) rather than raising, matching the design
+            # intent "reproduce recorded control-flow" — with zero
+            # recorded signals, there's nothing to reproduce.
+            if not self._known_tick_ts:
+                return False
             # Show closest known ts to help the operator diagnose the drift.
-            closest = min(
-                self._known_tick_ts,
-                key=lambda k: abs((k - tick_ts).total_seconds()),
-                default=None,
-            )
+            # Guard against tz-naive-vs-aware subtraction: if tick_ts is
+            # naive but recorded is aware (or vice versa), the subtraction
+            # in the key lambda raises TypeError, masking the intended
+            # ReplayTsMismatch. Fall back to "no closest" in that case —
+            # the error message still names the drift class.
+            try:
+                closest = min(
+                    self._known_tick_ts,
+                    key=lambda k: abs((k - tick_ts).total_seconds()),
+                    default=None,
+                )
+            except TypeError:
+                closest = None
             raise ReplayTsMismatch(
                 f"tick_ts {tick_ts!r} not among recorded TickEvent ts values "
                 f"(closest recorded: {closest!r}). This usually indicates a "

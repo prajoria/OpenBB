@@ -28,7 +28,7 @@ mutation" level; ``report()`` writes files (to the operator's disk)
 even after jailing, which is a different privilege class.
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject resolution (#824)
 
 from pathlib import Path
 from typing import Literal

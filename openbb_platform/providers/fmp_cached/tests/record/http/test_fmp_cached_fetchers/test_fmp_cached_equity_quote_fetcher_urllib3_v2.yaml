@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/quote?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA12QPW+DMBCG9/wKizmyzBl/pBtKh1SKqlQdqw4uPRFUwBYQWlT1vxcTQ2kGL89z
+        vvfuXjaEfI+PkKgdqjdbRnckStPTMdpeaW0qnJhzJZKHOqOzcU2RecU5pyADzM6mzvGETYZ1Z3Lv
+        Y6qEVvpfwYgFVfOn3paXKUWCVFxpCPzdDEf76SNAUrX7o4ciP0/JCZVxwAOaZs31il+7AIupCLQy
+        zQd2e+NGnuhdopgGyYRk6+XSPhfM92OMCtDyxgHzEhSnCQ8Kv5b9osf0+T59mq9lHdbTJpoyJpZO
+        2Bf20u5L206nBLVM2BUVtp2p/ISx0gnwMS8e3c/m9RffrDXjtgEAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Fri, 17 Jul 2026 01:06:00 GMT
+      Etag:
+      - W/"1b6-dimooOFzH+2CpBu4r0YMr6EngeM"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

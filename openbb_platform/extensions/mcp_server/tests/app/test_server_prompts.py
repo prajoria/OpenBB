@@ -109,7 +109,15 @@ def test_skip_invalid_prompts(
 
     create_mcp_server(settings, fastapi_app)
 
-    mock_mcp_instance.add_prompt.assert_not_called()
+    # `add_prompt` may still be called for the bundled system_prompt.txt
+    # (unconditional path in _setup_file_system_prompt). Assert that
+    # none of the INVALID prompts made it through — filter out
+    # system-tagged calls.
+    non_system_calls = [
+        c for c in mock_mcp_instance.add_prompt.call_args_list
+        if not (hasattr(c[0][0], "tags") and "system" in c[0][0].tags)
+    ]
+    assert non_system_calls == []
     assert mock_logger.error.call_count == 4
 
 
@@ -153,8 +161,15 @@ def test_skip_invalid_arguments_in_prompts(
 
     create_mcp_server(settings, fastapi_app)
 
-    mock_mcp_instance.add_prompt.assert_called_once()
-    added_prompt = mock_mcp_instance.add_prompt.call_args[0][0]
+    # Bundled system_prompt.txt adds an extra system-tagged call — filter
+    # it out so this test's assertion focuses on the actual invalid-arg
+    # prompt processing under test.
+    non_system_calls = [
+        c for c in mock_mcp_instance.add_prompt.call_args_list
+        if not (hasattr(c[0][0], "tags") and "system" in c[0][0].tags)
+    ]
+    assert len(non_system_calls) == 1
+    added_prompt = non_system_calls[0][0][0]
     assert added_prompt.name == "test_prompt_invalid_arg"
     assert not added_prompt.arguments
     mock_logger.error.assert_called_once()

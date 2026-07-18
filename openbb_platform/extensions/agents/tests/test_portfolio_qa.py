@@ -8,6 +8,15 @@ valid ADK LlmAgent instance.
 import sys
 from pathlib import Path
 
+import pytest
+
+# Every test in this file imports from `google.adk` (via
+# openbb_agents.agents.portfolio_qa). The ADK dep requires the [agent]
+# extra which pulls litellm (Rust toolchain required to build). CI
+# runners lack Rust; mark the whole module so it's deselected under
+# `-m "not requires_agents"`. See #818.
+pytestmark = pytest.mark.requires_agents
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
