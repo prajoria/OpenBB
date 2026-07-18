@@ -61,6 +61,14 @@ expect PASS "16: leading spaces"                         '    Closes #826'
 expect FAIL "17: mixed valid + invalid on same line"     'Closes #826, bd-qy83.1.4'
 expect PASS "18: noissue prose containing verb-word"     $'Some description.\n\nFixes a typo in the roadmap doc.\n\nnoissue: docs-only cleanup'
 expect PASS "19: prose 'Fixes a typo' without noissue but with valid Closes" $'## Summary\n\nFixes a typo in the doc.\n\nCloses #826'
+# --- issue #851: tighten prose-vs-clause on backticked identifiers ---
+expect PASS "20: prose 'Fixes `ClassName`' with valid Closes below" $'Fixes `ModuleNotFoundError` that broke import.\n\nCloses #826'
+expect PASS "21: prose 'Resolves `some_func`' with valid Closes"    $'Resolves `some_func` edge case.\n\nCloses #826'
+expect PASS "22: prose 'Fixes `kebab-case-thing`' with valid Closes" $'Fixes `some-typo-thing` in docs.\n\nCloses #826'
+expect FAIL "23: bd-id in backticks (the historical drift target — must still catch)" 'Closes `bd-qy83.1.4`'
+expect FAIL "24: OpenBBTechnical-id in backticks (also historical target)" 'Closes `OpenBBTechnical-qy83.1.4`'
+expect FAIL "25: backticked #NN-ish but malformed (starts with #)"  'Closes `#not-a-number`'
+expect PASS "26: prose 'Closes `SomeClass`' with noissue marker"    $'Closes `SomeClass` circular ref.\n\nnoissue: refactor-only'
 
 echo
 echo "=== Summary ==="
