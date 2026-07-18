@@ -5,6 +5,20 @@ from __future__ import annotations
 import pytest
 
 
+# Autouse fixture: strip out any strategy the tests below register so
+# the process-global ``_STRATEGIES`` dict is clean between runs. Without
+# this the "already registered" branch reproduces on any second
+# collection (same pytest process, sibling test files, or a repeated
+# call to the same node). #869.
+@pytest.fixture(autouse=True)
+def _cleanup_test_strategies():
+    yield
+    from openbb_backtest.registry import _STRATEGIES
+
+    for name in ("unit_demo_strategy", "unit_dup_strategy"):
+        _STRATEGIES.pop(name, None)
+
+
 def test_package_imports():
     import openbb_backtest
 
