@@ -7,12 +7,13 @@ extension import. This mirrors the pattern used by ``openbb_backtest``.
 
 .. note::
    The public namespace is ``obb.portfolio_intel.*`` (underscore, matching
-   the ``openbb_core_extension`` entry-point key), NOT ``obb.portfolio.intel.*``.
+   the ``openbb_core_extension`` entry-point key) — NOT the dotted form
+   that would result from splitting the entry-point key on ``_``.
    OpenBB's plugin loader does not dot-split entry-point keys — see the
    sibling ``openbb-backtest`` extension whose entry-point ``backtest`` maps
-   to ``obb.backtest.*``. Nesting under ``obb.portfolio.*`` would collide
-   with the ``openbb-portfolio`` / ``openbb-portfolio-custom`` namespace
-   and was explicitly rejected during PR #466 review.
+   to ``obb.backtest.*``. Nesting under an ``obb.portfolio.*`` sub-tree
+   would collide with the ``openbb-portfolio`` / ``openbb-portfolio-custom``
+   namespace and was explicitly rejected during PR #466 review.
 
 In M0 the only command is :func:`about` — a health-check that returns the
 extension's version and name. Every widget that keys off
@@ -60,19 +61,28 @@ _PLANNED_SUBROUTERS: tuple[str, ...] = (
 def _include_subrouters() -> None:
     """Lazily attach sub-routers as they are implemented (P1 → P3).
 
-    A ``ModuleNotFoundError`` whose ``.name`` matches the expected sub-router
-    path is caught silently — the sub-router simply hasn't landed yet.
-    Any other ``ModuleNotFoundError`` (from a typo inside a real sub-router
-    dependency) is re-raised so CI fails visibly instead of silently
-    dropping the sub-router from the public surface.
+    A ``ModuleNotFoundError`` is caught silently when the missing
+    module is either:
+
+    * exactly ``module_path`` — the leaf sub-router file hasn't
+      landed yet, OR
+    * an ancestor of ``module_path`` — the intermediate ``routers``
+      package hasn't been created yet (the M0 state, per issue #802).
+
+    Any other ``ModuleNotFoundError`` — e.g. a typo inside a real
+    sub-router's transitive dependency — is re-raised so CI fails
+    visibly instead of silently dropping the sub-router from the
+    public surface (PR #466 review invariant).
     """
     for module_path in _PLANNED_SUBROUTERS:
         try:
             module = __import__(module_path, fromlist=["router"])
         except ModuleNotFoundError as exc:
-            # Only swallow if the missing module is THIS sub-router itself,
-            # not a transitive dependency it tried to import.
-            if exc.name == module_path:
+            # Only swallow if the missing module is THIS sub-router
+            # itself (leaf) OR an ancestor package of it. Anything
+            # else (transitive dep miss) must re-raise so CI catches
+            # real bugs.
+            if exc.name == module_path or module_path.startswith(exc.name + "."):
                 continue
             raise
         sub = getattr(module, "router", None)
