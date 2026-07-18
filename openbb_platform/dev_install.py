@@ -108,6 +108,10 @@ def _package_marker_active(info: dict) -> bool:
     if not marker:
         return True
     try:
+        # pylint: disable=import-outside-toplevel
+        # Deliberate lazy import: packaging may not exist yet at bootstrap
+        # (pre-first-install) — falling through to the permissive branch
+        # below is safer than crashing.
         from packaging.markers import Marker
     except ImportError:
         # If packaging isn't available at bootstrap time, be permissive —
@@ -173,14 +177,14 @@ def _collect_dev_deps() -> list[str]:
     return sorted(names)
 
 
-def _pip_install(args: list[str], cwd: Path | None = None) -> None:
+def _pip_install(pip_args: list[str], cwd: Path | None = None) -> None:
     """Run ``python -m pip install`` with the given args, streaming output.
 
     Uses the currently-running interpreter, so this installs into whichever
     venv the user invoked the script from. That is the fix for #865: poetry
     couldn't do this reliably; pip always does.
     """
-    cmd = [sys.executable, "-m", "pip", "install", *args]
+    cmd = [sys.executable, "-m", "pip", "install", *pip_args]
     print(f"$ {' '.join(cmd)}", flush=True)  # noqa: T201
     subprocess.run(cmd, cwd=cwd, check=True)
 
