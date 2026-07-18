@@ -247,3 +247,37 @@ total; the 2 new items #826 + #827 raised the total from 90). Two open
 Daisy-blocking items: #498 (fill-model decision) and initial ack on Kai
 claiming #512 (recommended M1 first branch). Everything else is
 unblocked and ready to pick up.
+
+---
+
+## portfolio-intel-pr837-shipped-2026-07-17
+
+PR #837 (feat/pi-ops/enforce-closes-syntax-gh-826) merged into portfolio
+at commit a07ca8431 on 2026-07-17. Ships the CI Closes-syntax check that
+validates PR bodies against the `Closes #NN` / `owner/repo#NN` grammar
+on all feat/pi-* PRs targeting portfolio. Dogfood-verified: the workflow
+ran on its own PR and passed.
+
+**Discovered during Phase 10:** GitHub's built-in "Closes #NN" auto-close
+only fires on merges into the repo's DEFAULT branch (develop). Merges
+into portfolio (non-default) do NOT auto-close referenced issues. This
+is a GH platform behavior, not a config we can flip. Verified live:
+#826 stayed OPEN after #837 merged despite well-formed `Closes #826`.
+
+**Consequence:** grammar-check (#826/#837) is necessary but not
+sufficient. Follow-up issue #847 filed: add a companion workflow that
+runs on push-to-portfolio and issues gh close for any #NN cited in the
+merged PR body. Until #847 ships, every feat/pi-* → portfolio merge
+needs a manual `gh issue close` (Nadia-owned, session-boundary chore).
+
+**Also learned:** upstream develop removed `obb.provider` from the
+public API (see fixup commit d61d4f8c9). Replacement is
+`obb.<extension>.<method>` — future portfolio-intel routers must NOT
+reference `obb.provider`.
+
+**Bonus finding for the codespell fix in #838:** codespell false-positive
+on SME (Subject Matter Expert) in PRD.md. Mitigated in #837 via
+`.codespell.ignore += sme`; root-cause cleanup tracked separately.
+
+Merge commit: a07ca8431. Absorb-from-develop merge: b23048543 (15
+develop commits, clean, zero conflicts).
