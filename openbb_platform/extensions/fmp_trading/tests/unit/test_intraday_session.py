@@ -116,6 +116,37 @@ class TestSessionConstruction:
 class TestRunTick:
     """P2.3 AC-B: run_tick polls quotes and emits one TickEvent per tick."""
 
+    @pytest.fixture(autouse=True)
+    def _stub_extra_fetchers(self, monkeypatch):
+        """Stub the extra fetchers that fire on bar-close ticks.
+
+        `_build_tick_data` calls `_fetch_recent_bars` and
+        `_fetch_session_status` when the tick is a bar close. Those hit
+        `obb.fmp_trading.bars_intraday` / `.session_status` — routes NOT
+        yet registered on the router (see #821). Individual tests only
+        monkeypatch `_fetch_batch_quote`; add class-level stubs for the
+        other two so the tests isolate the specific path under test.
+
+        Also stub ``_run_techtrade_signals`` because a bar-close tick
+        drives it through techtrade with the session's plan.preset —
+        which is a MagicMock in these tests and fails pydantic
+        validation inside techtrade's build_signals. The test is
+        asserting the tick/quote path, not the signal cascade — the
+        latter is exercised in test_tick_loop_signal_wiring.py.
+        """
+        from openbb_fmp_trading.core import tick_loop
+
+        monkeypatch.setattr(
+            tick_loop, "_fetch_recent_bars",
+            lambda symbols: {s: [] for s in symbols},
+        )
+        monkeypatch.setattr(
+            tick_loop, "_fetch_session_status", lambda exchange: None,
+        )
+        monkeypatch.setattr(
+            tick_loop, "_run_techtrade_signals", lambda plan, tick: [],
+        )
+
     def test_run_tick_polls_quotes_and_emits_tick_event(self, monkeypatch):
         from openbb_fmp_trading.core import tick_loop
         from openbb_fmp_trading.models.journal_events import TickEvent

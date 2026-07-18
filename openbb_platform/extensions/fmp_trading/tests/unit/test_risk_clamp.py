@@ -227,9 +227,15 @@ class TestClampJournalsRejection:
             for c in journal.write.call_args_list
             if isinstance(c.args[0], PromptInjectionRejectedEvent)
         ]
+        # The risk-clamp defense emits an AGGREGATE rejection with a
+        # `fields` list-of-dicts (not a single-field `field`) so downstream
+        # JSON consumers see a stable shape. See pre_open._journal_clamp_aggregate.
         assert any(
             r.payload["defense_layer"] == "risk_clamp"
-            and r.payload["field"] == "max_position_size_pct_equity"
-            and r.payload["offending_value"] == 99.0
+            and any(
+                v.get("field") == "max_position_size_pct_equity"
+                and v.get("offending_value") == 99.0
+                for v in r.payload.get("fields", [])
+            )
             for r in rejections
         )

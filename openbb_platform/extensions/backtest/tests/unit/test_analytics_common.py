@@ -115,6 +115,14 @@ def test_assert_normalized_rejects_absolute_dollar_amounts():
 
 
 def test_optional_import_returns_module_when_present():
+    # `empyrical-reloaded` is an optional analytics dep — CI doesn't install
+    # it and neither does a bare `dev_install.py -e`. Skip when absent so
+    # the "when present" branch only runs where the dep is actually
+    # available. The `optional_import` "when absent" contract is separately
+    # tested by test_optional_import_absent_names_pip_package_and_is_actionable
+    # below. See #819.
+    pytest.importorskip("empyrical")
+
     from openbb_backtest.analytics._common import optional_import
 
     mod = optional_import("empyrical")

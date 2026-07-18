@@ -175,8 +175,32 @@ def _find_divergence(
     ``prompt_version`` (agent-produced content varies across LLM runs by
     design).
     """
-    emitted_types = [type(e).__name__ for e in emitted]
-    recorded_types = [type(e).__name__ for e in recorded] if recorded else []
+    # Compare on the wire-protocol `event_type` string field, NOT the Python
+    # class name. Recorded events come back from the JournalReader as bare
+    # `JournalEvent` instances (see reporting/journal_reader.py:104), while
+    # emitted events are typed subclasses like `TickEvent` / `SignalEvent`
+    # (bd-9nd P1.4, #372 / #412 refactor). Comparing `type(e).__name__`
+    # produced `['TickEvent'] != ['JournalEvent']` for every recording and
+    # broke all replay tests. The `event_type` string ("tick" / "signal" /
+    # "order" / "fill") is the actual invariant the journal preserves.
+    #
+    # Filter out session-scoped events (session_start, session_end) from
+    # both sides — these fire once per session, not per tick, and are
+    # deterministic by construction (session_id shape + timestamps). Their
+    # presence in recorded fixtures caused
+    # `expected=['session_start', 'tick'], actual=['tick']` divergence on
+    # every replay's tick 0. See docs/design-questions/2026-07-16-fmp-trading-remaining.md Q2.
+    _SESSION_SCOPED = {"session_start", "session_end"}
+
+    def _tick_event_types(events_list):
+        return [
+            getattr(e, "event_type", type(e).__name__)
+            for e in (events_list or [])
+            if getattr(e, "event_type", None) not in _SESSION_SCOPED
+        ]
+
+    emitted_types = _tick_event_types(emitted)
+    recorded_types = _tick_event_types(recorded)
     if emitted_types != recorded_types:
         return ReplayDivergenceError(
             tick_index=tick_idx,

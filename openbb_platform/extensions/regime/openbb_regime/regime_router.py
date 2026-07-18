@@ -32,7 +32,7 @@ backtests), :func:`openbb_regime.detect_market_regime` is still
 exported for direct import.
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject resolution (#824)
 
 import logging
 from datetime import datetime, timedelta, timezone

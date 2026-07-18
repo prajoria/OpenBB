@@ -29,8 +29,15 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _jail_to_tmp(tmp_path, monkeypatch):
-    """Set the reports jail to tmp_path for every test in this file."""
+    """Set the reports jail to tmp_path for every test in this file.
+
+    Also unlocks the techtrade excel_export absolute-path guard — pytest's
+    ``tmp_path`` is always absolute, and the format="all" pipeline routes
+    xlsx generation through techtrade's export which rejects absolute
+    paths by default (security guard, documented escape hatch).
+    """
     monkeypatch.setenv("FMP_TRADING_REPORTS_ROOT", str(tmp_path))
+    monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
     return tmp_path
 
 

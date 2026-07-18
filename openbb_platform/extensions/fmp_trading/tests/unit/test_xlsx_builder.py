@@ -19,6 +19,14 @@ from decimal import Decimal
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _allow_absolute_export_paths(monkeypatch):
+    """xlsx_builder → techtrade excel_export rejects absolute paths by
+    default (security guard). Pytest's tmp_path is always absolute, so
+    every test in this module needs the documented escape hatch."""
+    monkeypatch.setenv("TECHTRADE_EXPORT_ALLOW_ABSOLUTE", "1")
+
+
 # Techtrade base workbook sheets — verified from
 # openbb_platform/extensions/techtrade/openbb_techtrade/reporting/excel_export.py
 # (SHEET_ORDER at line 74).

@@ -1352,8 +1352,13 @@ async def _fetch_from_fmp_direct(
     # Build a params dict (all the query.model_dump() fields except the ones
     # we handle specially: symbol is per-request, adjustment / interval /
     # include_dividends are consumed above to build the base_url).
+    # Stringify date/datetime values — yarl (aiohttp's URL builder) rejects
+    # non-str/int/float query params, and query.model_dump() emits real
+    # `datetime.date` objects that would otherwise raise TypeError from
+    # get_str_query_from_sequence_iterable. #785.
+    from datetime import date as _date, datetime as _datetime
     query_params = {
-        key: value
+        key: (value.isoformat() if isinstance(value, (_date, _datetime)) else value)
         for key, value in query.model_dump().items()
         if value is not None
         and key not in ("symbol", "adjustment", "interval", "include_dividends")

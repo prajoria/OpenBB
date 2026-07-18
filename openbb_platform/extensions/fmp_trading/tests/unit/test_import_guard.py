@@ -23,6 +23,13 @@ import textwrap
 
 import pytest
 
+# `test_agent_submodules_fail_cleanly_when_extra_hidden` spawns a
+# pip install of the extension WITHOUT the [agent] extra to verify the
+# guard fires. The install itself pulls litellm which requires Rust
+# toolchain on non-x86_64-linux platforms. CI runners lack Rust; skip
+# unless the runner explicitly opts in via -m "requires_agents".
+# See docs/design-questions/2026-07-16-fmp-trading-remaining.md Q4.
+
 
 def test_core_imports_when_extra_hidden():
     """Fresh subprocess where anthropic/mcp/jinja2 are pre-poisoned;
@@ -63,6 +70,7 @@ def test_core_imports_when_extra_hidden():
     assert "OK" in result.stdout
 
 
+@pytest.mark.requires_agents
 def test_agent_submodules_fail_cleanly_when_extra_hidden():
     """agent.backend, agent.tool_registry, agent.mcp_server ALL raise
     ImportError cleanly when the extras are missing. No partial import

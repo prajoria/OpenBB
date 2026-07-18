@@ -14,7 +14,7 @@ Constraint) and ``package_builder.build_func_returns``.
 See PRD §9.1 (layout) and §9.2 (command surface).
 """
 
-from __future__ import annotations
+# from __future__ import annotations  # removed: breaks FastAPI OBBject resolution (#824)
 
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
