@@ -114,10 +114,12 @@ _UNIT_TESTS_DIR = (
 
 # Ground-truth counts from the manifest header.
 _EXPECTED_MOVE = 24
-_EXPECTED_STAY = 64
-_EXPECTED_TOTAL = 88  # 88 test_*.py files (excludes E0.7 infra); +1 vs
-# post-E3.5 baseline for test_executor_strategy_branch.py (bd-liz —
-# executor_shell strategy branch; STAYS with the shell)
+_EXPECTED_STAY = 65
+_EXPECTED_TOTAL = 89  # 89 test_*.py files (excludes E0.7 infra); +1 vs
+# post-E3.5 baseline for test_strategies_router_list.py (#588 —
+# /pine/strategies/list catalog endpoint; STAYS with the fork-side router)
+# and +1 vs the earlier baseline for test_executor_strategy_branch.py
+# (bd-liz — executor_shell strategy branch; STAYS with the shell)
 
 # Fork-side surfaces: any test importing these STAYS. Mirrors the
 # classification grep documented in the manifest, but restricted to
