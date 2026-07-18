@@ -54,13 +54,6 @@ openbb-news = { path = "./extensions/news", develop = true }
 openbb-regulators = { path = "./extensions/regulators", develop = true }
 openbb-mcp-server = { path = "./extensions/mcp_server", develop = true, markers = "python_version >= '3.10'" }
 
-# Fork-only extensions (Portfolio Intelligence Engine + backtest primitives).
-# openbb-portfolio-intel imports from openbb_backtest.interfaces at runtime
-# (SimpleFillModel implements the Broker Protocol — issue #498 A' resolution),
-# so both must be installed together on any dev checkout.
-openbb-backtest = { path = "./extensions/backtest", develop = true }
-openbb-portfolio-intel = { path = "./extensions/portfolio_intel", develop = true }
-
 # Community dependencies
 openbb-alpha-vantage = { path = "./providers/alpha_vantage", optional = true, develop = true }
 openbb-biztoc = { path = "./providers/biztoc", optional = true, develop = true }
