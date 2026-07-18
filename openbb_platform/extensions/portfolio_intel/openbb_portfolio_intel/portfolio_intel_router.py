@@ -81,8 +81,13 @@ def _include_subrouters() -> None:
             # Only swallow if the missing module is THIS sub-router
             # itself (leaf) OR an ancestor package of it. Anything
             # else (transitive dep miss) must re-raise so CI catches
-            # real bugs.
-            if exc.name == module_path or module_path.startswith(exc.name + "."):
+            # real bugs. `exc.name` is Optional[str] per typeshed:
+            # a bare `raise ModuleNotFoundError()` sets it to None,
+            # which we treat as "unknown provenance" → re-raise.
+            missing = exc.name
+            if missing is not None and (
+                missing == module_path or module_path.startswith(missing + ".")
+            ):
                 continue
             raise
         sub = getattr(module, "router", None)

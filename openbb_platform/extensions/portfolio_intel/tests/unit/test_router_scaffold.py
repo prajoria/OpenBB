@@ -213,15 +213,21 @@ def test_include_subrouters_only_swallows_own_missing_modules() -> None:
     # The fix widens acceptance to any ancestor. Assert BOTH exact-match
     # and ancestor-match branches are present so a future refactor can't
     # regress to the old too-narrow guard without failing this test.
-    assert "exc.name == module_path" in src, (
+    assert "missing == module_path" in src, (
         "must accept the exact-leaf-missing case (all sub-routers not yet "
         "implemented — original PR #466 intent)"
     )
-    assert 'module_path.startswith(exc.name + ".")' in src, (
+    assert 'module_path.startswith(missing + ".")' in src, (
         "must also accept any-ancestor-missing case (parent `routers` "
         "package not yet created — issue #802 root cause). Without this "
         "branch, a missing intermediate package re-raises and crashes "
         "the extension load."
+    )
+    assert "missing is not None" in src, (
+        "must guard against exc.name being None (bare "
+        "`raise ModuleNotFoundError()` sets .name to None per typeshed) "
+        "— otherwise the ancestor-check would crash with TypeError on "
+        "None + '.'."
     )
 
 
@@ -291,3 +297,31 @@ def test_include_subrouters_reraises_unrelated_missing_dep(monkeypatch) -> None:
         "the transitive-dep miss must propagate; the guard must not "
         "swallow it just because it happened during a sub-router import"
     )
+
+
+def test_include_subrouters_reraises_when_exc_name_is_none(monkeypatch) -> None:
+    """The guard must not crash — and must re-raise — when exc.name is None.
+
+    A bare ``raise ModuleNotFoundError()`` (or ``ModuleNotFoundError("msg")``
+    without the ``name=`` kwarg) leaves ``exc.name`` as ``None`` per
+    typeshed. The guard must not attempt string concatenation with None
+    (would raise ``TypeError: unsupported operand type(s) for +: 'NoneType'
+    and 'str'``), and must re-raise the ModuleNotFoundError untouched
+    since we cannot classify its provenance.
+    """
+    import sys
+
+    import openbb_portfolio_intel.portfolio_intel_router as pim_router
+
+    class _NamelessFinder:
+        """Meta-path finder that raises ModuleNotFoundError with name=None."""
+
+        def find_spec(self, fullname, path=None, target=None):  # noqa: ARG002
+            if fullname.startswith("openbb_portfolio_intel.routers"):
+                raise ModuleNotFoundError("unnamed miss")
+
+    monkeypatch.setattr(sys, "meta_path", [_NamelessFinder(), *sys.meta_path])
+
+    with pytest.raises(ModuleNotFoundError) as excinfo:
+        pim_router._include_subrouters()
+    assert excinfo.value.name is None
