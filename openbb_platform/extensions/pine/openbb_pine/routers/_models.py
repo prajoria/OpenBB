@@ -286,7 +286,7 @@ def _powered_by_short_default() -> str:
     "single source of truth" guarantee — a future move of the literal only
     touches ``attribution.py``.
     """
-    from openbb_pine.attribution import POWERED_BY_SHORT
+    from openbb_pine.attribution import POWERED_BY_SHORT  # pylint: disable=import-outside-toplevel  # intentional deferred import (pre-existing, predates #588)
 
     return POWERED_BY_SHORT
 
