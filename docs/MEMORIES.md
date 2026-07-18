@@ -356,3 +356,60 @@ default sweep so portfolio-intel can `from openbb_backtest.interfaces
 import Broker` reliably.
 
 **#498 closed** with A' resolution.
+
+---
+
+## portfolio-intel-cycle-6-and-full-verify-2026-07-18
+
+Two PRs shipped 2026-07-18:
+
+- **PR #857** (feat/pi-ops/closes-syntax-tighten-prose-gh-851) merged
+  at ddf408f150f6 — closes-syntax check no longer false-positives on
+  prose like "Fixes `SomeError`". Root cause: heuristic triggered on
+  bare backtick after verb; fix requires backticked content itself to
+  look issue-shaped (starts with #, contains bd-, contains
+  OpenBBTechnical-). 26 fixtures green. Dogfooded on the PR's own body.
+
+- **PR #858** (feat/pi-ops/add-openbb-backtest-to-devinstall-gh-856)
+  merged at 4e945e650b5e — declares openbb-backtest as portfolio-intel
+  runtime dep. Originally also touched dev_install.py; scope narrowed
+  after fresh-venv testing proved poetry doesn't populate pip venvs
+  (dev_install fix moved to #865).
+
+- **PR #866** (feat/pi-ops/dev-install-pip-based-gh-865) merged at
+  ab671c50d33c — rewrote dev_install.py from poetry-based to pip-based.
+  Live-verified in fresh .venv_test_dev_install: 35 openbb extensions
+  install cleanly, 21 load in obb. Full 5-iter cycle (3 style fixes +
+  1 pyproject-declaration fix + original) — the last was the
+  local-extensions-declared meta-test catching that
+  openbb-portfolio-intel was in dev_install's LOCAL_DEPS but not in
+  the main platform pyproject.
+
+**Full test setup verified in .venv_portfolio:**
+- Notebook 01-foundations-techtrade-and-analysis.ipynb: 13/13 cells,
+  0 errors (after installing openbb-regime).
+- Platform-wide unit sweep (ignoring 25 non-installed community/
+  optional packages): 3117 passed, 20 skipped, 34 failed in 5:28.
+  1 of the 34 was directly related to #866 (fixed in commit
+  6e01d0d52). Remaining 33 are pre-existing on portfolio HEAD:
+  techtrade Ichimoku regressions (11), integration-test-coverage
+  meta-checks (7), router validation (3), platform_api app-json (2),
+  test_extension_map/openapi/command_runner_chart (3), techtrade
+  scaffolding (2), test_extension_versions (1 portfolio-custom
+  version-mismatch), and a few others.
+
+**Extensions still missing from dev_install.py's LOCAL_DEPS
+(follow-up cleanup needed, filing #867-class):**
+- openbb-regime (extensions/regime)
+- openbb-fmp-cached (providers/fmp_cached)
+- openbb-fmp-trading (extensions/fmp_trading)
+- openbb-financialtoolkit (extensions/financialtoolkit)
+- openbb-agents (extensions/agents — PEP 621 flit, cannot be poetry dep)
+
+**Closed 2026-07-18:** #802, #826, #851, #856, #865 (all shipped;
+manual-close discipline since GH auto-close doesn't fire on non-default-
+branch merges). PR #762 closed as superseded.
+
+**Env note:** portfolio work now uses .venv_portfolio (isolated,
+python 3.12.10) instead of shared .venv_win. See CLAUDE.md §
+Environment Setup for the pip -e sequence.
