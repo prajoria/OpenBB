@@ -253,7 +253,7 @@ class PineHealth(BaseModel):
         description='e.g. "PyneCore 6.5.2 (Apache-2.0)".',
     )
     powered_by: str = Field(
-        default_factory=lambda: _powered_by_short_default(),
+        default_factory=lambda: _powered_by_short_default(),  # noqa: PLW0108  # intentional lambda for lazy binding (pre-existing, predates #588)
         description=(
             "PyneSys §4(d) attribution — §2.6 surface #3. MUST equal "
             "``openbb_pine.attribution.POWERED_BY_SHORT``."
