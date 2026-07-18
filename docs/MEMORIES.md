@@ -323,3 +323,36 @@ the extension loader.
 **Cycle stats:** 2 commits (initial + mypy-guard), 13/13 unit tests
 green, 6/6 CI green after iter-2. Second successful openbb-dev-cycle
 run this session.
+
+---
+
+## portfolio-intel-backtest-verify-2026-07-17
+
+Third absorb of origin/develop into portfolio (da4ac3079). 3 new commits
+absorbed: #846 fmp_cached test realignment, #852 fmp etf-holdings cassette,
+#853 sec VCR + broken ownership_changes skip. Clean merge, 0 conflicts.
+
+**openbb-backtest state check (per #498 A' resolution work):**
+Extension source at openbb_platform/extensions/backtest/ is fully
+functional but was NOT pip-installed in the .venv_win provisioning —
+that's why `hasattr(obb, 'backtest') == False` on the checkout.
+
+After `pip install -e openbb_platform/extensions/backtest`:
+- 459 unit tests pass, 4 skipped, 0 fail.
+- obb.backtest exposes 9 methods: about, bundle, factor_eval, pipeline,
+  reconcile, run, sweep, tearsheet, validate.
+- Broker Protocol (fill/commission/slippage) already exists at
+  openbb_backtest.interfaces:Broker (@runtime_checkable).
+- RealisticBroker in openbb_backtest.engine.execution composes
+  Commission/Slippage/FillModel/ShortModel/Constraints — production shape.
+
+**Impact on #498 A' resolution:** the "swappable interface for future
+migration" A' promised is ALREADY THERE. SimpleFillModel becomes an
+adapter implementing the existing Broker Protocol, not a
+we-define-the-interface exercise.
+
+**Prerequisite filed:** #856 — add openbb-backtest to dev_install
+default sweep so portfolio-intel can `from openbb_backtest.interfaces
+import Broker` reliably.
+
+**#498 closed** with A' resolution.
