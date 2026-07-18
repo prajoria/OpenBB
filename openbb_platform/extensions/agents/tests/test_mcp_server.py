@@ -330,7 +330,13 @@ class TestMcpToolErrorWireContract:
             method="tools/call",
             params=CallToolRequestParams(name="probe_tool", arguments={"x": 1}),
         )
-        result = asyncio.get_event_loop().run_until_complete(handler(request))
+        # Py3.12 makes `asyncio.get_event_loop()` raise
+        # `RuntimeError: There is no current event loop in thread ...`
+        # when no loop is running. `asyncio.run()` creates its own
+        # loop, runs the coroutine, and tears down cleanly — the right
+        # replacement for one-shot "run a coroutine from sync code"
+        # patterns. #873.
+        result = asyncio.run(handler(request))
 
         # SDK wraps the exception into a ServerResult carrying CallToolResult
         # with isError=True and the exception's str() as the text content.
