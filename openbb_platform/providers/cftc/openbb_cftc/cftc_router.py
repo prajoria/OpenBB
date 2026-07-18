@@ -2,6 +2,7 @@
 
 # pylint: disable=W0212,W0613
 
+import logging
 from typing import Any
 
 from openbb_core.app.model.command_context import CommandContext
@@ -15,16 +16,43 @@ from openbb_core.app.provider_interface import (
 from openbb_core.app.query import Query
 from openbb_core.app.router import Router
 
+logger = logging.getLogger(__name__)
+
 router = Router(prefix="")
 COT_CHOICES: list[dict[str, str | dict[str, str | None]]] = []
 
 
 async def build_choices():
-    """Build the choices for Workspace."""
+    """Build the choices for Workspace.
+
+    Fetches the COT contract list from CFTC on FastAPI startup and
+    caches it in ``COT_CHOICES``. Failure to fetch (upstream 503, HTML
+    error page instead of JSON, network timeout, ...) MUST NOT prevent
+    the REST API from starting — the choices are a UX nicety for
+    Workspace's dropdown, not a hard runtime dependency. Degrade to an
+    empty list and log an error so operators can triage. #874.
+    """
     # pylint: disable=import-outside-toplevel
     from openbb_cftc.models.cot_search import CftcCotSearchFetcher
 
-    contracts = await CftcCotSearchFetcher.fetch_data({}, {})
+    global COT_CHOICES  # noqa: PLW0603  # pylint: disable=W0603
+
+    try:
+        contracts = await CftcCotSearchFetcher.fetch_data({}, {})
+    except Exception as exc:  # pylint: disable=broad-except
+        # publicreporting.cftc.gov returns HTML on 503; aiohttp raises
+        # ContentTypeError. Any of ClientError, TimeoutError, or JSON
+        # decode errors during startup would crash uvicorn. Catch
+        # broadly + log so the API still boots. Operators can either
+        # restart later or re-invoke `build_choices` out-of-band.
+        logger.error(
+            "cftc.build_choices: upstream fetch failed — starting with "
+            "empty COT_CHOICES so the API still boots. Error: %r",
+            exc,
+        )
+        COT_CHOICES = []
+        return
+
     choices: list[dict[str, str | dict[str, str | None]]] = []
 
     for d in contracts:
@@ -34,8 +62,6 @@ async def build_choices():
             "extraInfo": {"description": f"{d.subcategory.strip()}  | {d.code.strip()}", "rightOfDescription": ""},  # type: ignore
         }
         choices.append(choice)
-
-    global COT_CHOICES  # noqa: PLW0603  # pylint: disable=W0603
 
     COT_CHOICES = choices
 
