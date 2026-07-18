@@ -51,11 +51,20 @@ check_closes_syntax() {
     # A line that has a verb but is not a well-formed Closes clause is
     # either prose ("this PR closes ...") or a malformed clause
     # ("Closes bd-xxx"). Distinguish by whether the verb appears at
-    # start-of-line AND is followed by an issue-referencing token
-    # (starts with `#`, `\``, a digit, or a bd-id-shape identifier).
-    # A line like "Fixes a typo in the docs." is prose and must NOT
-    # be classified as a malformed Closes clause.
-    if [[ "$lower_line" =~ ^[[:space:]]*[-*]?[[:space:]]*(closes|fixes|resolves)[[:space:]]+([#\`0-9]|[a-z][[:alnum:]._-]*/|openbbtechnical-|bd-) ]]; then
+    # start-of-line AND is followed by a token that itself looks
+    # issue-referencing:
+    #   - starts with `#`  (issue reference candidate)
+    #   - starts with a digit (bare number typo — catches `Closes 826`)
+    #   - starts with owner/repo shape (cross-repo ref candidate)
+    #   - is a bd-id or OpenBBTechnical-id (backticked OR bare — historical
+    #     drift target)
+    #
+    # Issue #851: prose like "Fixes `SomeError`" or "Fixes `some-func`" must
+    # NOT classify as intent-to-close. The previous heuristic tripped on
+    # backticks unconditionally, misclassifying description prose. We now
+    # require the backticked CONTENT (via a second regex on
+    # `\`(bd-|openbbtechnical-|#)`) to be issue-shaped before triggering.
+    if [[ "$lower_line" =~ ^[[:space:]]*[-*]?[[:space:]]*(closes|fixes|resolves)[[:space:]]+(#|[0-9]|[a-z][[:alnum:]._-]*/|openbbtechnical-|bd-|\`(bd-|openbbtechnical-|#)) ]]; then
       # Line INTENDS to be a Closes clause. Grammar-check strictly.
       if [[ "$lower_line" =~ $LINE_RE ]]; then
         valid_lines+=("$line")
