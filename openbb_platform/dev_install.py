@@ -1,4 +1,16 @@
-"""Install for development script."""
+"""Install for development script.
+
+Iterates the LOCAL_DEPS declaration and pip-installs each entry as editable.
+Replaces the previous poetry-based flow (see #865) which silently no-op'd
+in fresh pip venvs — poetry saw no [tool.poetry] project spec and reported
+'no dependencies to install or update' without writing anything.
+
+Usage:
+    python dev_install.py            # core + platform-required extensions
+    python dev_install.py -e         # + community/optional deps + per-package dev deps
+    python dev_install.py -c         # also install the openbb-cli package
+    python dev_install.py -e -c      # both
+"""
 
 # flake8: noqa: S603
 
@@ -6,14 +18,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tomlkit import dumps, load, loads
+from tomlkit import load, loads
 
 PLATFORM_PATH = Path(__file__).parent.resolve()
-LOCK = PLATFORM_PATH / "poetry.lock"
-PYPROJECT = PLATFORM_PATH / "pyproject.toml"
 CLI_PATH = Path(__file__).parent.parent.resolve() / "cli"
-CLI_PYPROJECT = CLI_PATH / "pyproject.toml"
-CLI_LOCK = CLI_PATH / "poetry.lock"
 
 LOCAL_DEPS = """
 [tool.poetry.dependencies]
@@ -54,6 +62,13 @@ openbb-news = { path = "./extensions/news", develop = true }
 openbb-regulators = { path = "./extensions/regulators", develop = true }
 openbb-mcp-server = { path = "./extensions/mcp_server", develop = true, markers = "python_version >= '3.10'" }
 
+# Fork-only extensions (Portfolio Intelligence Engine + backtest primitives).
+# openbb-portfolio-intel imports from openbb_backtest.interfaces at runtime
+# (SimpleFillModel implements the Broker Protocol — issue #498 A' resolution),
+# so both must be installed together on any dev checkout.
+openbb-backtest = { path = "./extensions/backtest", develop = true }
+openbb-portfolio-intel = { path = "./extensions/portfolio_intel", develop = true }
+
 # Community dependencies
 openbb-alpha-vantage = { path = "./providers/alpha_vantage", optional = true, develop = true }
 openbb-biztoc = { path = "./providers/biztoc", optional = true, develop = true }
@@ -78,132 +93,137 @@ openbb-technical = { path = "./extensions/technical", optional = true, develop =
 """
 
 
-def extract_dependencies(local_dep_path, dev: bool = False):
-    """Extract development dependencies from a given package's pyproject.toml."""
-    package_pyproject_path = PLATFORM_PATH / local_dep_path
-    if package_pyproject_path.exists():
-        with open(package_pyproject_path / "pyproject.toml") as f:
-            package_pyproject_toml = load(f)
-        if dev:
-            return (
-                package_pyproject_toml.get("tool", {})
-                .get("poetry", {})
-                .get("group", {})
-                .get("dev", {})
-                .get("dependencies", {})
-            )
-        return (
-            package_pyproject_toml.get("tool", {})
-            .get("poetry", {})
-            .get("dependencies", {})
-        )
-    return {}
+def _is_python_version_dep(name: str) -> bool:
+    """Skip the pseudo-dep 'python' declared as version-range in LOCAL_DEPS."""
+    return name == "python"
 
 
-def get_all_dev_dependencies():
-    """Aggregate development dependencies from all local packages."""
-    all_dev_dependencies = {}
+def _package_marker_active(info: dict) -> bool:
+    """Honor the ``markers = "python_version >= 'X.Y'"`` gate if present.
+
+    LOCAL_DEPS uses this on ``openbb-devtools`` and ``openbb-mcp-server``.
+    We evaluate the marker with the actual runtime interpreter version.
+    """
+    marker = info.get("markers")
+    if not marker:
+        return True
+    try:
+        # pylint: disable=import-outside-toplevel
+        # Deliberate lazy import: packaging may not exist yet at bootstrap
+        # (pre-first-install) — falling through to the permissive branch
+        # below is safer than crashing.
+        from packaging.markers import Marker
+    except ImportError:
+        # If packaging isn't available at bootstrap time, be permissive —
+        # a marker miss here just installs one extra package.
+        return True
+    return Marker(marker).evaluate()
+
+
+def _iter_paths(include_optional: bool):
+    """Yield (name, path_str) for every LOCAL_DEPS entry to install.
+
+    Skips the ``python`` pseudo-dep, skips ``optional`` entries when
+    ``include_optional`` is False, honors ``markers`` on gated packages.
+    """
     local_deps = loads(LOCAL_DEPS).get("tool", {}).get("poetry", {})["dependencies"]
-    for _, package_info in local_deps.items():
-        if "path" in package_info:
-            dev_deps = extract_dependencies(Path(package_info["path"]), dev=True)
-            all_dev_dependencies.update(dev_deps)
-    return all_dev_dependencies
+    for name, info in local_deps.items():
+        if _is_python_version_dep(name):
+            continue
+        if not isinstance(info, dict) or "path" not in info:
+            continue
+        if info.get("optional") and not include_optional:
+            continue
+        if not _package_marker_active(info):
+            continue
+        yield name, info["path"]
 
 
-def install_platform_local(_extras: bool = False):
-    """Install the Platform locally for development purposes."""
-    original_lock = LOCK.read_text(encoding="utf-8")
-    original_pyproject = PYPROJECT.read_text(encoding="utf-8")
+def _extract_dev_deps_from_pyproject(package_path: Path) -> dict:
+    """Return the ``[tool.poetry.group.dev.dependencies]`` table for a package.
 
-    local_deps = loads(LOCAL_DEPS).get("tool", {}).get("poetry", {})["dependencies"]
-    with open(PYPROJECT) as f:
-        pyproject_toml = load(f)
-    pyproject_toml.get("tool", {}).get("poetry", {}).get("dependencies", {}).update(
-        local_deps
+    Empty if the package has no dev group. Used to install pytest / mypy /
+    ruff (etc.) into the venv when the user passes ``--extras``.
+    """
+    pyproject = package_path / "pyproject.toml"
+    if not pyproject.exists():
+        return {}
+    with open(pyproject, encoding="utf-8") as f:
+        data = load(f)
+    return (
+        data.get("tool", {})
+        .get("poetry", {})
+        .get("group", {})
+        .get("dev", {})
+        .get("dependencies", {})
     )
+
+
+def _collect_dev_deps() -> list[str]:
+    """Aggregate dev-dep NAMES across every LOCAL_DEPS package (extras mode).
+
+    Returns a sorted, de-duplicated list of package names (no version
+    constraints — pip resolves the latest compatible). Poetry-only version
+    syntax (``^1.2``, ``~=1.2``) isn't pip-parseable, so we ship the name
+    only and let pip pick.
+    """
+    names: set[str] = set()
+    for _, path_str in _iter_paths(include_optional=True):
+        deps = _extract_dev_deps_from_pyproject(PLATFORM_PATH / path_str)
+        for dep_name in deps:
+            if dep_name == "python":
+                continue
+            names.add(dep_name)
+    return sorted(names)
+
+
+def _pip_install(pip_args: list[str], cwd: Path | None = None) -> None:
+    """Run ``python -m pip install`` with the given args, streaming output.
+
+    Uses the currently-running interpreter, so this installs into whichever
+    venv the user invoked the script from. That is the fix for #865: poetry
+    couldn't do this reliably; pip always does.
+    """
+    cmd = [sys.executable, "-m", "pip", "install", *pip_args]
+    print(f"$ {' '.join(cmd)}", flush=True)  # noqa: T201
+    subprocess.run(cmd, cwd=cwd, check=True)
+
+
+def install_platform_local(_extras: bool = False) -> None:
+    """Install the Platform locally for development purposes.
+
+    Iterates LOCAL_DEPS and pip-installs each entry as editable. When
+    ``_extras`` is True, also installs community/optional packages plus the
+    per-package dev dependencies (pytest, mypy, ruff, etc.).
+    """
+    paths = list(_iter_paths(include_optional=_extras))
+    print(f"Installing {len(paths)} editable package(s)...", flush=True)  # noqa: T201
+    editable_args: list[str] = []
+    for _name, path_str in paths:
+        editable_args.extend(["-e", str(PLATFORM_PATH / path_str)])
+    # Single pip invocation resolves the dependency graph across all
+    # packages at once, avoiding N re-resolves and version-thrash.
+    _pip_install(editable_args)
 
     if _extras:
-        dev_dependencies = get_all_dev_dependencies()
-        pyproject_toml.get("tool", {}).get("poetry", {}).setdefault(
-            "group", {}
-        ).setdefault("dev", {}).setdefault("dependencies", {})
-        pyproject_toml.get("tool", {}).get("poetry", {})["group"]["dev"][
-            "dependencies"
-        ].update(dev_dependencies)
-
-    TEMP_PYPROJECT = dumps(pyproject_toml)
-
-    try:
-        with open(PYPROJECT, "w", encoding="utf-8", newline="\n") as f:
-            f.write(TEMP_PYPROJECT)
-
-        CMD = [sys.executable, "-m", "poetry"]
-        extras_args = ["-E", "all"] if _extras else []
-
-        subprocess.run(
-            CMD + ["lock", "--regenerate"],
-            cwd=PLATFORM_PATH,
-            check=True,
-        )
-        subprocess.run(
-            CMD + ["install"] + extras_args,
-            cwd=PLATFORM_PATH,
-            check=True,
-        )
-
-    except (Exception, KeyboardInterrupt) as e:
-        print(e)  # noqa: T201
-        print("Restoring pyproject.toml and poetry.lock")  # noqa: T201
-
-    finally:
-        # Revert pyproject.toml and poetry.lock to their original state.
-        with open(PYPROJECT, "w", encoding="utf-8", newline="\n") as f:
-            f.write(original_pyproject)
-
-        with open(LOCK, "w", encoding="utf-8", newline="\n") as f:
-            f.write(original_lock)
+        dev_names = _collect_dev_deps()
+        if dev_names:
+            print(  # noqa: T201
+                f"Installing {len(dev_names)} dev dependency package(s)...",
+                flush=True,
+            )
+            _pip_install(dev_names)
 
 
-def install_platform_cli():
-    """Install the CLI locally for development purposes."""
-    original_lock = CLI_LOCK.read_text(encoding="utf-8")
-    original_pyproject = CLI_PYPROJECT.read_text(encoding="utf-8")
+def install_platform_cli() -> None:
+    """Install the openbb-cli package locally for development.
 
-    with open(CLI_PYPROJECT) as f:
-        pyproject_toml = load(f)
-
-    # remove "openbb" from dependencies
-    pyproject_toml.get("tool", {}).get("poetry", {}).get("dependencies", {}).pop(
-        "openbb", None
-    )
-
-    TEMP_PYPROJECT = dumps(pyproject_toml)
-
-    try:
-        with open(CLI_PYPROJECT, "w", encoding="utf-8", newline="\n") as f:
-            f.write(TEMP_PYPROJECT)
-
-        CMD = [sys.executable, "-m", "poetry"]
-
-        subprocess.run(
-            CMD + ["lock", "--regenerate"],
-            cwd=CLI_PATH,
-            check=True,  # noqa: S603
-        )
-        subprocess.run(CMD + ["install"], cwd=CLI_PATH, check=True)  # noqa: S603
-
-    except (Exception, KeyboardInterrupt) as e:
-        print(e)  # noqa: T201
-        print("Restoring pyproject.toml and poetry.lock")  # noqa: T201
-
-    finally:
-        # Revert pyproject.toml and poetry.lock to their original state.
-        with open(CLI_PYPROJECT, "w", encoding="utf-8", newline="\n") as f:
-            f.write(original_pyproject)
-
-        with open(CLI_LOCK, "w", encoding="utf-8", newline="\n") as f:
-            f.write(original_lock)
+    The CLI's pyproject depends on the meta ``openbb`` package (which we
+    don't install here — the individual extensions above are already
+    editable). pip resolves the direct CLI deps against site-packages.
+    """
+    print("Installing openbb-cli (editable)...", flush=True)  # noqa: T201
+    _pip_install(["-e", str(CLI_PATH)])
 
 
 if __name__ == "__main__":
