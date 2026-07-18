@@ -281,3 +281,45 @@ on SME (Subject Matter Expert) in PRD.md. Mitigated in #837 via
 
 Merge commit: a07ca8431. Absorb-from-develop merge: b23048543 (15
 develop commits, clean, zero conflicts).
+
+---
+
+## portfolio-intel-pr850-shipped-2026-07-17
+
+PR #850 (feat/pi-ops/portfolio-intel-entry-point-gh-802) merged into
+portfolio at c1d5d6464 on 2026-07-17. Fixes #802 — the
+`_include_subrouters()` guard now accepts both leaf-missing and
+ancestor-missing ModuleNotFoundError, restoring `from openbb import
+obb` for anyone with openbb-portfolio-intel installed.
+
+**Root cause:** ModuleNotFoundError.name is the deepest missing
+ancestor, not the target module. When the intermediate `routers`
+package didn't exist yet, exc.name=='openbb_portfolio_intel.routers'
+never matched the leaf module_path, so the exception re-raised into
+the extension loader.
+
+**Fix invariants preserved:**
+- Leaf-missing (sub-router not yet implemented): swallow silently.
+- Ancestor-missing (parent `routers` package doesn't exist): swallow.
+- Transitive dep miss (real bug inside a sub-router): re-raise.
+- exc.name is None (bare `raise ModuleNotFoundError()`): re-raise (mypy
+  caught the Optional[str] typeshed contract; 4th test locks it in).
+
+**Two Phase-9 findings this cycle**, both triaged Modify:
+1. mypy caught `exc.name + '.'` on Optional[str] — Apply fixed
+   in-branch, added 4th regression test with monkeypatched nameless
+   finder.
+2. #837's own closes-syntax check false-positived on this PR's original
+   body ("Fixes `ErrorClass`..." prose) — Apply: rewrote body to
+   "Repairs...". Defer: root-cause tightening tracked at #851.
+
+**Follow-ups filed this cycle**:
+- #849: obb.portfolio_intel.about() NameError on ExtensionAbout (found
+  via /verify; auto-generated package proxy doesn't import extension-
+  local return-type models).
+- #851: closes-syntax heuristic tightens on backticked-identifier
+  prose after Fixes/Closes/Resolves verbs.
+
+**Cycle stats:** 2 commits (initial + mypy-guard), 13/13 unit tests
+green, 6/6 CI green after iter-2. Second successful openbb-dev-cycle
+run this session.
