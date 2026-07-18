@@ -10,6 +10,11 @@ packages = [{ include = "openbb_portfolio_intel" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 openbb-core = "^1.5.8"
+# openbb-backtest provides the Broker Protocol (openbb_backtest.interfaces:Broker)
+# and RealisticBroker execution primitive that portfolio-intel's SimpleFillModel
+# and paper-trading engine implement / consume (#498 A' resolution). Hard runtime
+# dep — imports happen at module-load time in P2 paper-trading routers.
+openbb-backtest = "^0.1.0"
 # All portfolio math shares numpy/pandas with Analysis/stock_analysis.py so
 # metric parity is guaranteed by shared imports, not copy-paste (PRD §14.1).
 numpy = "*"
