@@ -75,7 +75,33 @@ def test_core_unchanged_when_agent_extra_removed(tmp_path):
     else:
         venv_python = venv_dir / "bin" / "python"
 
-    # 2. Install the extension WITHOUT [agent]
+    # 2. Install path-based deps FIRST so pip finds them locally.
+    #    openbb-fmp-trading declares openbb-techtrade and openbb-fmp-cached
+    #    as required deps, but neither is published to PyPI — they're
+    #    in-tree fork packages. Without pre-installing them, pip resolves
+    #    to PyPI and fails with:
+    #        ERROR: Could not find a version that satisfies the requirement
+    #               openbb-techtrade<0.2.0,>=0.1.0 (from versions: none)
+    #    See #870.
+    techtrade_dir = _repo_root() / "openbb_platform" / "extensions" / "techtrade"
+    fmp_cached_dir = _repo_root() / "openbb_platform" / "providers" / "fmp_cached"
+    preinstall = subprocess.run(
+        [
+            str(venv_python), "-m", "pip", "install",
+            "-e", str(techtrade_dir),
+            "-e", str(fmp_cached_dir),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if preinstall.returncode != 0:
+        pytest.fail(
+            "pip install of in-tree deps (techtrade, fmp_cached) failed:\n"
+            f"stdout:\n{preinstall.stdout}\nstderr:\n{preinstall.stderr}"
+        )
+
+    # 3. Install the extension WITHOUT [agent]
     install = subprocess.run(
         [str(venv_python), "-m", "pip", "install", "-e", str(ext_dir), "pytest"],
         capture_output=True,
@@ -88,7 +114,7 @@ def test_core_unchanged_when_agent_extra_removed(tmp_path):
             f"stdout:\n{install.stdout}\nstderr:\n{install.stderr}"
         )
 
-    # 3. Run non-agent unit tests. Exclude tests that require the extra:
+    # 4. Run non-agent unit tests. Exclude tests that require the extra:
     #    - test_post_close_fallback (imports jinja2 via importorskip; ok)
     #    - test_pre_open_fallback (uses pre_open which lazy-imports anthropic — ok)
     #
