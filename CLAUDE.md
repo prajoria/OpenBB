@@ -116,13 +116,41 @@ OpenBB is an open-source financial data platform that provides the "connect once
 
 ### Environment Setup
 
-```bash
-# Activate .venv_win (PowerShell — Windows)
-.\.venv_win\Scripts\Activate.ps1
+**Portfolio work uses `.venv_portfolio`, NOT `.venv_win`.** The shared
+`.venv_win` is used by parallel dev paths in sibling worktrees and gets
+polluted / overstepped when multiple checkouts touch it. `.venv_portfolio`
+is the isolated Python environment for portfolio-intel branch work.
 
-# Install for development (editable installs) — run inside .venv_win
-cd openbb_platform && python dev_install.py -e
+```bash
+# One-time setup (fresh venv, Python 3.12+)
+python -m venv .venv_portfolio
+.venv_portfolio/Scripts/python.exe -m pip install --upgrade pip
+
+# Install the extensions portfolio-intel work depends on (editable).
+# The `dev_install.py` path via poetry doesn't populate a fresh pip venv;
+# use direct pip -e for reliability.
+.venv_portfolio/Scripts/python.exe -m pip install \
+  -e openbb_platform/core \
+  -e openbb_platform/extensions/backtest \
+  -e openbb_platform/extensions/portfolio_intel \
+  -e openbb_platform/providers/fmp_cached \
+  -e openbb_platform/providers/fmp \
+  -e openbb_platform/providers/yfinance
+.venv_portfolio/Scripts/python.exe -m pip install pytest pytest-asyncio pytest-mock
+
+# Smoke test — should print portfolio_intel + backtest in the extension list.
+.venv_portfolio/Scripts/python.exe -c "from openbb import obb; print([a for a in dir(obb) if not a.startswith('_')])"
+
+# Activate (PowerShell)
+.\.venv_portfolio\Scripts\Activate.ps1
 ```
+
+**Legacy `.venv_win` note:** older instructions and scripts (`openbb.sh`,
+`start_desktop_dev.ps1`, `portfolio_app/setup.ps1`) still reference
+`.venv_win`. Those paths remain valid for non-portfolio work, but portfolio
+branch commits must be tested with `.venv_portfolio` to prove they work in
+a clean environment. If a test passes on `.venv_win` but fails on
+`.venv_portfolio`, treat it as an install-path bug (see #856-class issues).
 
 ### Using Helper Script
 
@@ -137,24 +165,26 @@ cd openbb_platform && python dev_install.py -e
 
 ### Testing
 
+Portfolio work runs against `.venv_portfolio` (see Environment Setup).
+
 ```bash
-# Run unit tests (excludes integration tests) — use .venv_win python
-.venv_win\Scripts\python.exe -m pytest openbb_platform -m "not integration"
+# Run unit tests (excludes integration tests)
+.venv_portfolio\Scripts\python.exe -m pytest openbb_platform -m "not integration"
 
 # Run Analysis module unit tests (no live API needed)
-.venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "not integration" -v
+.venv_portfolio\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "not integration" -v
 
 # Run Analysis integration tests (requires fmp_cached API key — reads from user_settings.json + .env)
-.venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "integration" -v
+.venv_portfolio\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "integration" -v
 
 # Test specific provider
-.venv_win\Scripts\python.exe -m pytest openbb_platform/providers/yfinance/tests/
+.venv_portfolio\Scripts\python.exe -m pytest openbb_platform/providers/yfinance/tests/
 
 # Run integration tests (requires API keys)
-.venv_win\Scripts\python.exe -m pytest openbb_platform -m "integration"
+.venv_portfolio\Scripts\python.exe -m pytest openbb_platform -m "integration"
 
 # Test installation
-.venv_win\Scripts\python.exe test_openbb.py
+.venv_portfolio\Scripts\python.exe test_openbb.py
 ```
 
 ### API Server
@@ -220,8 +250,8 @@ openbb-cli
 ### After Code Changes
 
 ```bash
-# Rebuild platform to reflect changes (run with .venv_win python)
-.venv_win\Scripts\python.exe -c "import openbb; openbb.build()"
+# Rebuild platform to reflect changes (run with .venv_portfolio python)
+.venv_portfolio\Scripts\python.exe -c "import openbb; openbb.build()"
 ```
 
 ## Code Quality
@@ -293,22 +323,22 @@ from openbb import obb
 - **Supported**: Python 3.10 - 3.13
 - **Package Manager**: Poetry (for dependency management)
 - **Virtual Environment**: Use the project venv for all Python execution in this repo.
-  On Windows this checkout uses `.venv_win`; on other platforms use your local
+  On Windows this checkout uses `.venv_portfolio`; on other platforms use your local
   `.venv` equivalent. Paths below are shown repo-relative — resolve them against
   your own repo root.
 
 #### Project venv — the canonical development environment
 
 ```text
-Python:    .venv_win\Scripts\python.exe
-pip:       .venv_win\Scripts\pip.exe
-pytest:    .venv_win\Scripts\python.exe -m pytest
+Python:    .venv_portfolio\Scripts\python.exe
+pip:       .venv_portfolio\Scripts\pip.exe
+pytest:    .venv_portfolio\Scripts\python.exe -m pytest
 ```
 
 **IMPORTANT:** Never use the system/global Python interpreter for running OpenBB
 code. It typically has a different (newer) set of extensions installed that does
 not match the editable installs in the project venv. Always invoke the
-project-venv interpreter (the repo-relative `.venv_win\Scripts\python.exe` above,
+project-venv interpreter (the repo-relative `.venv_portfolio\Scripts\python.exe` above,
 or your platform's equivalent — referred to as `$PYTHON` elsewhere).
 
 All `python`, `pip`, and `pytest` commands in this CLAUDE.md should be run with the
@@ -316,11 +346,11 @@ project-venv interpreter, e.g.:
 
 ```bash
 # Activate (PowerShell)
-.\.venv_win\Scripts\Activate.ps1
+.\.venv_portfolio\Scripts\Activate.ps1
 
 # Or use the repo-relative path (always works without activation)
-.venv_win\Scripts\python.exe -m pytest Analysis/tests/ -m "not integration"
-.venv_win\Scripts\python.exe -m pytest Analysis/tests/ -m "integration"
+.venv_portfolio\Scripts\python.exe -m pytest Analysis/tests/ -m "not integration"
+.venv_portfolio\Scripts\python.exe -m pytest Analysis/tests/ -m "integration"
 ```
 
 ## Important Notes
@@ -553,7 +583,7 @@ The `Analysis/` directory contains a standalone 7-phase single-stock investment 
 ### Quick start
 
 ```python
-# Always use .venv_win python — credentials auto-loaded from user_settings.json
+# Always use .venv_portfolio python — credentials auto-loaded from user_settings.json
 from stock_analysis import AnalysisConfig, run_full_analysis
 
 results = run_full_analysis(AnalysisConfig(symbol="MSFT"))
@@ -578,10 +608,10 @@ print(p7.action_label, p7.composite_score)
 
 ```bash
 # Unit tests (no API needed, ~1s)
-.venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "not integration" -v
+.venv_portfolio\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "not integration" -v
 
 # Integration tests against MSFT + AAPL via fmp_cached (~19 min)
-.venv_win\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "integration" -v
+.venv_portfolio\Scripts\python.exe -m pytest Analysis/tests/test_stock_analysis.py -m "integration" -v
 ```
 
 <!-- BEGIN ISSUE TRACKING -->
