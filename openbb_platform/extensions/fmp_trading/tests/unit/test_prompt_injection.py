@@ -23,11 +23,20 @@ from unittest.mock import MagicMock
 
 import pytest
 
-# Shared helper — defined in the sibling test_risk_clamp.py module. Same
-# fixture shape as we'd use, so imported to avoid duplication.
-# TestFlatByCloseTimeInjectionBypass below needs it to build tool-call
-# fixtures for L2's time-string bypass check.
-from tests.unit.test_risk_clamp import _tool_call_with_risk  # noqa: E402
+# Shared helper — loaded from the sibling ``conftest.py`` via
+# absolute-path ``importlib.util`` because under
+# ``--import-mode=importlib`` each test file is a top-level module and
+# relative imports across test files fail; sys.modules['conftest'] is
+# unstable (later-loaded conftests shadow earlier ones). #860.
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path as _Path
+
+_ctft_path = _Path(__file__).parent / "conftest.py"
+_ctft_spec = spec_from_file_location("fmp_trading_unit_conftest", _ctft_path)
+_ctft = module_from_spec(_ctft_spec)
+_ctft_spec.loader.exec_module(_ctft)
+_tool_call_with_risk = _ctft._tool_call_with_risk
+del _ctft, _ctft_spec, _ctft_path, module_from_spec, spec_from_file_location, _Path
 
 
 def _cfg():

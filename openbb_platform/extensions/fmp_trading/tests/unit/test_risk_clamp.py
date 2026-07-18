@@ -18,6 +18,21 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# ``_tool_call_with_risk`` lives in ``conftest.py`` so both this file
+# and ``test_prompt_injection.py`` can share the fixture. Loaded via
+# absolute-path ``importlib.util`` because under ``--import-mode=importlib``
+# relative imports across test files fail and ``sys.modules['conftest']``
+# is unstable across nested conftests. #860.
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path as _Path
+
+_ctft_path = _Path(__file__).parent / "conftest.py"
+_ctft_spec = spec_from_file_location("fmp_trading_unit_conftest", _ctft_path)
+_ctft = module_from_spec(_ctft_spec)
+_ctft_spec.loader.exec_module(_ctft)
+_tool_call_with_risk = _ctft._tool_call_with_risk
+del _ctft, _ctft_spec, _ctft_path, module_from_spec, spec_from_file_location, _Path
+
 
 def _cfg():
     from openbb_fmp_trading.models.config import DailyConfig, RiskConfig
@@ -27,30 +42,6 @@ def _cfg():
         default_preset="trend_follow",
         default_risk=RiskConfig(),  # standard defaults
         starting_equity=Decimal("100000"),
-    )
-
-
-def _tool_call_with_risk(risk_updates: dict, watchlist=("MSFT",)):
-    """Build a submit_daily_plan tool-call arg dict with LLM-emitted
-    session_risk overrides."""
-    from openbb_fmp_trading.agent.backend import ToolCall
-    from openbb_fmp_trading.models.config import RiskConfig
-
-    base_risk = RiskConfig().model_dump()
-    base_risk.update(risk_updates)
-    return ToolCall(
-        name="submit_daily_plan",
-        args={
-            "as_of": "2026-07-13T13:30:00+00:00",
-            "date": "2026-07-13",
-            "watchlist": list(watchlist),
-            "preset": "intraday_momentum",
-            "alerts": [],
-            "session_risk": base_risk,
-            "thesis": "t",
-            "agent_backend": "claude",
-        },
-        model_id="claude-sonnet-4-5",
     )
 
 

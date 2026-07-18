@@ -14,7 +14,23 @@ from openbb_fmp_cached.models.equity_historical import (
     _detect_missing_ranges,
     get_cache_statistics
 )
-from .test_config import PERFORMANCE_THRESHOLDS, TEST_CREDENTIALS
+# Test config lives in a sibling ``_config.py`` (renamed from the old
+# ``test_config.py`` to avoid a name collision with
+# ``openbb_platform/extensions/agents/tests/test_config.py`` — two
+# modules with the same basename can collide across the collection
+# path). Loaded via ``importlib.util`` from an absolute path so it
+# works under ``--import-mode=importlib`` (which makes relative
+# imports across test files unreliable). #860.
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path as _Path
+
+_config_path = _Path(__file__).parent / "_config.py"
+_config_spec = spec_from_file_location("openbb_fmp_cached_tests_config", _config_path)
+_config = module_from_spec(_config_spec)
+_config_spec.loader.exec_module(_config)
+PERFORMANCE_THRESHOLDS = _config.PERFORMANCE_THRESHOLDS
+TEST_CREDENTIALS = _config.TEST_CREDENTIALS
+del _config, _config_spec, _config_path, module_from_spec, spec_from_file_location, _Path
 
 
 class TestCachePerformance:
