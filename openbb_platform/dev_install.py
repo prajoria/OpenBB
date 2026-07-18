@@ -204,7 +204,9 @@ def install_platform_local(_extras: bool = False) -> None:
     if _extras:
         dev_names = _collect_dev_deps()
         if dev_names:
-            print(f"Installing {len(dev_names)} dev dependency package(s)...", flush=True)  # noqa: T201
+            print(
+                f"Installing {len(dev_names)} dev dependency package(s)...", flush=True
+            )  # noqa: T201
             _pip_install(dev_names)
 
 
