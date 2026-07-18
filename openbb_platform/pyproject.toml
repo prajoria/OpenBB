@@ -84,6 +84,7 @@ openbb-devtools = { path = "extensions/devtools", develop = true, optional = tru
 openbb-financialtoolkit = { path = "extensions/financialtoolkit", develop = true, optional = true }
 openbb-fmp-cached = { path = "providers/fmp_cached", develop = true, optional = true }
 openbb-fmp-trading = { path = "extensions/fmp_trading", develop = true, optional = true }
+openbb-portfolio-intel = { path = "extensions/portfolio_intel", develop = true, optional = true }
 openbb-regime = { path = "extensions/regime", develop = true, optional = true }
 openbb-techtrade = { path = "extensions/techtrade", develop = true, optional = true }
 
@@ -111,6 +112,7 @@ mcp_server = ["openbb-mcp-server"]
 multpl = ["openbb-multpl"]
 nasdaq = ["openbb-nasdaq"]
 portfolio = ["openbb-portfolio-custom"]
+portfolio_intel = ["openbb-portfolio-intel"]
 quantitative = ["openbb-quantitative"]
 regime = ["openbb-regime"]
 seeking_alpha = ["openbb-seeking-alpha"]
@@ -142,6 +144,7 @@ all = [
     "openbb-multpl",
     "openbb-nasdaq",
     "openbb-portfolio-custom",
+    "openbb-portfolio-intel",
     "openbb-quantitative",
     "openbb-regime",
     "openbb-seeking-alpha",
