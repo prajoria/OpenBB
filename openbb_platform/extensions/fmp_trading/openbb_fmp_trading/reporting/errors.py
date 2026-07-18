@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+# Re-export ``OutputPathEscapesJail`` from ``.report`` so callers can
+# import it from a single canonical location (``.errors``) rather than
+# having to know it lives in ``.report``. Test suites already expect
+# the ``.errors`` path (see test_report_toctou_hardening.py line 441).
+# #868.
+from .report import OutputPathEscapesJail  # noqa: F401  (re-exported)
+
 
 class ReplayDivergenceError(Exception):
     """Raised when :func:`replay` produced an event that differs from
@@ -39,4 +46,4 @@ class ReplayDivergenceError(Exception):
         )
 
 
-__all__ = ["ReplayDivergenceError"]
+__all__ = ["OutputPathEscapesJail", "ReplayDivergenceError"]
