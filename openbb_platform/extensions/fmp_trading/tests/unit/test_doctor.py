@@ -92,3 +92,49 @@ def test_cli_doctor_exit_code_matches_errors(tmp_path: Path, capsys, monkeypatch
     assert "openbb-daytrade doctor" in captured.out
     # With a halted-bandwidth state, errors should be present -> exit 1.
     assert exit_code == 1
+
+
+def test_check_mysql_cache_uses_surviving_symbol():
+    """Regression #861: _check_mysql_cache must NOT import a non-existent
+    ``ping_cache`` from a phantom ``openbb_fmp_cached.utils.helpers``.
+
+    The prior implementation had `from openbb_fmp_cached.utils.helpers
+    import ping_cache` — neither module nor symbol exists — swallowed by
+    a bare `except Exception: return False`. Doctor always reported
+    ``mysql_cache_ok: false`` regardless of real DB state.
+
+    This test asserts on the SOURCE (AST-walked) rather than behaviour,
+    because behavioural verification requires a live MySQL container.
+    AST inspection catches the specific class of "import a symbol that
+    doesn't exist" bug without needing infra.
+    """
+    import ast
+    import inspect
+
+    from openbb_fmp_trading.core import doctor as doctor_mod
+
+    tree = ast.parse(inspect.getsource(doctor_mod._check_mysql_cache))
+
+    imported_symbols: list[tuple[str, str]] = []  # (module, name)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                imported_symbols.append((node.module, alias.name))
+
+    # The bug: `openbb_fmp_cached.utils.helpers.ping_cache` is imported.
+    # The fix: import surviving symbols from `openbb_fmp_cached.utils.database`.
+    assert ("openbb_fmp_cached.utils.helpers", "ping_cache") not in imported_symbols, (
+        "Regression: _check_mysql_cache still imports the non-existent "
+        "`ping_cache` from `openbb_fmp_cached.utils.helpers`. See #861."
+    )
+
+    # Also verify the current symbols DO resolve at import time — this
+    # catches "someone renamed get_connection_pool" future-drift.
+    for module, name in imported_symbols:
+        if module.startswith("openbb_fmp_cached"):
+            imported_mod = __import__(module, fromlist=[name])
+            assert hasattr(imported_mod, name), (
+                f"_check_mysql_cache imports {module}.{name} which does not "
+                f"exist. Silent-swallow bug pattern from #861 will re-trigger."
+            )
+

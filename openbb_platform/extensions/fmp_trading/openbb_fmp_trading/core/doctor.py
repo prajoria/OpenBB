@@ -46,13 +46,30 @@ def _check_fmp_credentials() -> bool:
 def _check_mysql_cache() -> bool:
     """True iff the fmp_cached MySQL cache is reachable.
 
-    Uses a best-effort import + ping. Missing openbb_fmp_cached, missing
-    pymysql, unreachable server all degrade to False rather than raising.
+    Uses ``openbb_fmp_cached.utils.database.get_connection_pool`` to
+    open + ping a connection. Missing ``openbb_fmp_cached``, missing
+    ``pymysql``, unreachable server all degrade to False rather than
+    raising.
+
+    History: the previous implementation imported a
+    ``ping_cache`` helper from ``openbb_fmp_cached.utils.helpers`` —
+    a module + symbol that don't exist. The ``except Exception``
+    guard silently swallowed the ``ImportError``, so doctor always
+    reported ``mysql_cache_ok: false`` even when the cache was
+    healthy. Silent false-negative bug that sent operators debugging
+    the wrong subsystem. #861.
     """
     try:
-        from openbb_fmp_cached.utils.helpers import ping_cache  # type: ignore
+        from openbb_fmp_cached.utils.database import (
+            get_connection_pool,  # type: ignore
+        )
 
-        return ping_cache()
+        pool = get_connection_pool()
+        with pool.get_connection() as conn:
+            # pymysql exposes .ping(reconnect=True) — round-trips a
+            # PING packet; raises if server is unreachable / creds bad.
+            conn.ping(reconnect=True)
+        return True
     except Exception:
         return False
 
