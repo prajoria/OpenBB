@@ -173,9 +173,11 @@ def test_about_command_uses_return_annotation_not_model_string() -> None:
 
     src = Path(pim_router.__file__).read_text(encoding="utf-8")
     # Find the @router.command block immediately preceding `def about(`.
+    # re.DOTALL so the decorator body can span multiple lines (matches the
+    # openbb_backtest.backtest_router.about pattern with `examples=[...]`).
     import re
 
-    m = re.search(r"@router\.command\(([^)]*)\)\s*\ndef about\(", src)
+    m = re.search(r"@router\.command\((.*?)\)\s*\ndef about\(", src, flags=re.DOTALL)
     assert m, "could not locate @router.command(...) preceding `def about(`"
     decorator_args = m.group(1)
     assert 'model="' not in decorator_args and "model='" not in decorator_args, (
@@ -287,7 +289,6 @@ def test_include_subrouters_reraises_unrelated_missing_dep(monkeypatch) -> None:
                     "No module named 'some_missing_pkg'",
                     name="some_missing_pkg",
                 )
-            return None
 
     monkeypatch.setattr(sys, "meta_path", [_BadFinder(), *sys.meta_path])
 

@@ -23,8 +23,7 @@ See ``docs/Specs/Portfolio-Intelligence-Engine-PRD.md`` §9 for the full
 command inventory (P1+) and §8 for the layered architecture.
 """
 
-from __future__ import annotations
-
+from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 from pydantic import BaseModel
@@ -95,7 +94,10 @@ def _include_subrouters() -> None:
             router.include_router(sub)
 
 
-@router.command(methods=["GET"])
+@router.command(
+    methods=["GET"],
+    examples=[APIEx(parameters={})],
+)
 def about() -> OBBject[ExtensionAbout]:
     """Return the extension name, version, and scope.
 
