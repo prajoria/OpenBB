@@ -57,6 +57,8 @@ obb/*
 
 # OpenBB Distribution
 !build/conda/installer/*.sh
+# Portfolio-intel CI scripts sourced by .github/workflows/*.yml
+!.github/scripts/*.sh
 *.pkg
 
 # Tools local context (PII, credentials, paths)
