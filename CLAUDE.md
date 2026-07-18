@@ -93,6 +93,46 @@ side-branch cut from HEAD, not committed directly. Direct commits to
 branches, (b) merges pulling `develop` in, and (c) trivial doc/regen
 cleanups the user has explicitly authorized this session.
 
+**Python environment isolation** — Pine work MUST use
+`.venv_pine_support` (`H:\masterswork\git\OpenBB-Pine\.venv_pine_support`),
+not the shared `.venv_win`. `.venv_win` is used by parallel folders
+(Analysis, techtrade, and other dev paths) that share this machine, and
+`pip install -e` operations bleed across every session using the same
+interpreter. `.venv_pine_support` contains only:
+
+- `openbb-core` (editable)
+- `openbb-pine` (editable)
+- `pyne_compiler` (editable from `third_party/pynecore`)
+- `openbb-fmp-cached` (editable — the only provider Pine uses)
+- Dev tooling: `pytest`, `pytest-mock`, `pytest-asyncio`, `pytest-recorder`,
+  `pytest-cov`, `time-machine`, `pytest-subtests`, `pytest-order`,
+  `pytest-spec`, `black`, `ruff`, `codespell`
+
+To reproduce or bootstrap after a clean checkout:
+
+```powershell
+C:\Users\daaji\AppData\Local\Programs\Python\Python312\python.exe -m venv .venv_pine_support
+.venv_pine_support\Scripts\python.exe -m pip install --upgrade pip
+.venv_pine_support\Scripts\python.exe -m pip install `
+  -e openbb_platform/core `
+  -e third_party/pynecore `
+  -e openbb_platform/providers/fmp_cached `
+  -e openbb_platform/extensions/pine `
+  pytest pytest-mock pytest-asyncio pytest-recorder pytest-cov `
+  time-machine pytest-subtests pytest-order pytest-spec `
+  black ruff codespell
+```
+
+Replace every `.venv_win\Scripts\python.exe` invocation in Pine-scope
+work with `.venv_pine_support\Scripts\python.exe`. If a test needs
+another extension (e.g. `openbb-backtest` for the #589 bridge), `pip
+install -e openbb_platform/extensions/backtest` into
+`.venv_pine_support` and note the addition here. **Do NOT run
+`openbb_platform/dev_install.py -e`** — that installs every extension
+and defeats the isolation.
+
+`.venv_pine_support` is gitignored.
+
 ## Overview
 
 OpenBB is an open-source financial data platform that provides the "connect once, consume everywhere" infrastructure for integrating financial data sources. The project consists of multiple components:

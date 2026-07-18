@@ -74,6 +74,8 @@ build/conda/tmp
 .venv_win/
 .venv_openbb/
 .venv_openbb_master/
+.venv_pine_support/
+.venv_win.backup-*/
 
 # Database backups
 *.sql
