@@ -253,7 +253,9 @@ class PineHealth(BaseModel):
         description='e.g. "PyneCore 6.5.2 (Apache-2.0)".',
     )
     powered_by: str = Field(
-        default_factory=lambda: _powered_by_short_default(),  # noqa: PLW0108  # intentional lambda for lazy binding (pre-existing, predates #588)
+        # noqa comment on its own line (below) keeps the field line <140 chars for pylint C0301.
+        # pylint: disable-next=unnecessary-lambda  # pre-existing, predates #588 (see #875)
+        default_factory=lambda: _powered_by_short_default(),  # noqa: PLW0108
         description=(
             "PyneSys §4(d) attribution — §2.6 surface #3. MUST equal "
             "``openbb_pine.attribution.POWERED_BY_SHORT``."
