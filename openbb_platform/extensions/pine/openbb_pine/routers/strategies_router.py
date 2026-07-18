@@ -158,8 +158,7 @@ async def run(
         raise PineTypeError(
             rule="PT099",
             message=(
-                "Source does not use strategy(...); "
-                "use /pine/run for indicators."
+                "Source does not use strategy(...); " "use /pine/run for indicators."
             ),
         )
     _apply_strategy_params(result, strategy_params or {})

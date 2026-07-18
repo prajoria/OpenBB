@@ -135,9 +135,7 @@ class BundledStrategyEntry(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(
-        description='Human-readable strategy name, e.g. "RSI Reversal".'
-    )
+    name: str = Field(description='Human-readable strategy name, e.g. "RSI Reversal".')
     pine_source_path: str = Field(
         description=(
             'Location of the bundled Pine source. Uses the ``"inline:<id>"`` '
@@ -400,9 +398,7 @@ class PineRunRequest(BaseModel):
         """Either provider+symbol or data must be present (D3 §4.1)."""
         if self.data is None:
             if self.provider is None:
-                raise ValueError(
-                    "either `provider` (+ `symbol`) or `data` must be set"
-                )
+                raise ValueError("either `provider` (+ `symbol`) or `data` must be set")
             if self.symbol is None:
                 raise ValueError(
                     "`symbol` is required when `provider` is set "
