@@ -13,6 +13,15 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
+# Module-level marker: this file mixes sync and `async def` test
+# functions. The repo-root pytest.ini doesn't set `asyncio_mode = auto`
+# (extension-local pytest.ini does, but doesn't apply during repo-wide
+# collection). Without this marker `async def test_...` would skip
+# with "async def functions are not natively supported". #867.
+pytestmark = pytest.mark.asyncio
+
 # Add the provider to the Python path
 provider_path = Path("/home/daaji/masterswork/git/OpenBB/openbb_platform/providers/fmp_cached")
 sys.path.insert(0, str(provider_path))
