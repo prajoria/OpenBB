@@ -177,6 +177,7 @@ branch; head not matching the Pine naming convention) **always** require
 explicit per-merge authorization — this rule does not apply to them.
 
 **After merging:**
+
 - Verify referenced issues auto-closed (`gh issue view <NN>`)
 - `git fetch origin openbb_pine_support && git pull` to sync local
 - Delete the local feature branch if `--delete-branch` was used remotely
