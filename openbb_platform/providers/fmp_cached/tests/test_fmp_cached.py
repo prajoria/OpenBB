@@ -8,6 +8,16 @@ import time
 from datetime import datetime, timedelta, date
 from pathlib import Path
 
+import pytest
+
+# Module-level marker: this file mixes sync and `async def` test
+# functions. The repo-root pytest.ini doesn't set `asyncio_mode = auto`
+# (extension-local pytest.ini does, but it doesn't apply during repo-
+# wide collection), so async tests would otherwise skip with:
+#     async def functions are not natively supported.
+# The marker is a no-op for sync tests. #867.
+pytestmark = pytest.mark.asyncio
+
 def test_configuration():
     """Test if configuration is properly set up."""
     print("Testing configuration...")

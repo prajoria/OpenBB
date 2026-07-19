@@ -72,9 +72,30 @@ def test_core_imports_when_extra_hidden():
 
 @pytest.mark.requires_agents
 def test_agent_submodules_fail_cleanly_when_extra_hidden():
-    """agent.backend, agent.tool_registry, agent.mcp_server ALL raise
-    ImportError cleanly when the extras are missing. No partial import
-    residue, no half-loaded modules."""
+    """agent.* modules must NOT crash at import time when the [agent]
+    extra is absent. Two behaviors are both acceptable:
+
+      1. **Lazy import** — the module imports cleanly; heavy deps
+         (anthropic, mcp SDK) are imported at first use.
+      2. **ImportError at import** — the module top-level imports the
+         heavy dep and refuses to load without it.
+
+    What's forbidden:
+
+      * A partial import (some names bound, some not) that produces
+        AttributeError / NameError later on.
+      * An UNEXPECTED exception type at import time (RuntimeError,
+        TypeError, etc.), which indicates a bug in the module's guard
+        code rather than a real "extra missing" signal.
+
+    Historical contract: this test previously demanded ImportError for
+    ``agent.backend`` and ``agent.mcp_server``. Both were refactored
+    to lazy-import their heavy deps inside call sites, so they now
+    import cleanly even without the extras. The contract has been
+    updated to reflect the reality: import-time "no top-level extra
+    dep" is EQUALLY VALID as "raises ImportError at import" — both
+    prove the extra is genuinely optional. #871.
+    """
     script = textwrap.dedent(
         """
         import sys
@@ -95,7 +116,7 @@ def test_agent_submodules_fail_cleanly_when_extra_hidden():
             sys.modules.pop(mod_name, None)
             try:
                 __import__(mod_name)
-                results[mod_name] = 'IMPORTED_UNEXPECTEDLY'
+                results[mod_name] = 'IMPORTED_OK_LAZY'
             except ImportError:
                 results[mod_name] = 'ImportError_ok'
             except Exception as exc:
@@ -104,16 +125,16 @@ def test_agent_submodules_fail_cleanly_when_extra_hidden():
         for k, v in results.items():
             print(f'{k}: {v}')
 
-        # backend, mcp_server MUST raise ImportError.
-        # (pre_open + post_close + tool_registry may or may not — they
-        #  don't top-level import anthropic; they use lazy imports.
-        #  That's ALSO acceptable behavior.)
-        assert results['openbb_fmp_trading.agent.backend'] == 'ImportError_ok', (
-            f"backend didn't fail cleanly: {results['openbb_fmp_trading.agent.backend']!r}"
-        )
-        assert results['openbb_fmp_trading.agent.mcp_server'] == 'ImportError_ok', (
-            f"mcp_server didn't fail cleanly: {results['openbb_fmp_trading.agent.mcp_server']!r}"
-        )
+        # Every agent module must either import cleanly (lazy) OR
+        # raise ImportError. Any other exception type is a bug in the
+        # module's guard code. #871.
+        acceptable = {'IMPORTED_OK_LAZY', 'ImportError_ok'}
+        for mod_name, status in results.items():
+            assert status in acceptable, (
+                f'{mod_name} produced unexpected status {status!r} - '
+                f'agent modules must either lazy-import or raise '
+                f'ImportError, never any other exception at import time.'
+            )
         print('OK')
         """
     )

@@ -58,6 +58,15 @@ def test_extension_versions_match_main_pyproject():
                 pkg in package_map
             ), f"{pkg} listed in main pyproject.toml but no pyproject.toml found with that name"
 
+            # Poetry 2.x rejects `path + version` combos on a single
+            # dep entry ("must be valid exactly by one definition —
+            # 0 matches found"). Every path-based dep here therefore
+            # has no `version` key to compare against; the extension's
+            # own version IS the authoritative one and there's nothing
+            # to check for consistency. Skip. #872.
+            if isinstance(main_version, dict) and "path" in main_version:
+                continue
+
             # Load the extension's pyproject.toml
             with open(package_map[pkg], encoding="utf-8") as f:
                 ext_data = load(f)
@@ -72,6 +81,6 @@ def test_extension_versions_match_main_pyproject():
             m_version = str(m_version).lstrip("^")
 
             assert ext_version == m_version, (
-                f"Version mismatch for {pkg}: main pyproject.toml has"
-                f"{m_version}, extension pyproject.toml has {ext_version}"
+                f"Version mismatch for {pkg}: main pyproject.toml has "
+                f"{m_version!r}, extension pyproject.toml has {ext_version!r}"
             )
