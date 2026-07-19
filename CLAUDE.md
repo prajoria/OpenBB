@@ -133,6 +133,59 @@ and defeats the isolation.
 
 `.venv_pine_support` is gitignored.
 
+### Merge authorization for Pine-scope PRs
+
+**Session-scoped, opt-in.** By default, Claude never runs `gh pr merge` in
+any repo — merges are always a human action. The exception below only
+activates when the user says something equivalent to *"apply the Pine
+merge rule this session"* / *"you're authorized to merge Pine PRs this
+session"*. New session = grant lapses. The rule stays disabled until
+re-authorized.
+
+Once authorized in-session, Claude MAY run `gh pr merge` on a PR without
+further prompting **only when ALL of** the following hold:
+
+1. **Repo:** `prajoria/OpenBB` (the fork; not `OpenBB-finance/OpenBB` upstream).
+2. **Base branch:** `openbb_pine_support` (never `develop` or any other
+   long-lived branch).
+3. **Head branch matches Pine convention:** `feat/pine-*`, `fix/pine-*`,
+   `docs/pine-*`, or `chore(pine)/*`.
+4. **All CI checks on PR HEAD are `SUCCESS`.** No `PENDING`, `QUEUED`,
+   `FAILURE`, `CANCELLED`, or `SKIPPED` on required checks. Verify with
+   `gh pr view <N> --json statusCheckRollup` right before merge — CI can
+   invalidate between the last check and the merge attempt.
+5. **Phase 9 exit predicate holds** (per `openbb-dev-cycle` skill):
+   - Every review finding either applied-and-verified or deferred with a
+     GH issue link
+   - Latest `code-review` invocation returned "no issues" or skip-per-HEAD
+   - Latest `security-review` has 0 unaddressed HIGH/CRITICAL findings
+   - Latest `coderabbit:autofix` reports 0 unresolved GH review threads
+6. **PR body contains `Closes #NN`** for at least one issue on Project #5
+   (Pine Script Support). Otherwise the merge orphans the tracker.
+7. **No `[hold]`, `[wip]`, or `do-not-merge` label** on the PR.
+
+**Any PR failing any clause requires explicit per-merge authorization**
+from the user, even in an authorized session.
+
+**Merge method:** default to `gh pr merge <N> --repo prajoria/OpenBB
+--squash --delete-branch` unless the user has previously stated a different
+preference this session or the PR body says otherwise. Squash keeps the
+integration branch's history readable (one commit per feature).
+
+**PRs outside Pine scope** (base `develop`, `portfolio`, or any non-Pine
+branch; head not matching the Pine naming convention) **always** require
+explicit per-merge authorization — this rule does not apply to them.
+
+**After merging:**
+
+- Verify referenced issues auto-closed (`gh issue view <NN>`)
+- `git fetch origin openbb_pine_support && git pull` to sync local
+- Delete the local feature branch if `--delete-branch` was used remotely
+- Comment or notify in-chat: "Merged #NNN — issues #A, #B now closed."
+
+**Escape hatch:** if the user says *"stop / cancel / don't merge that"*
+mid-flow, abort immediately. Even under this rule, the last word is theirs.
+
 ## Overview
 
 OpenBB is an open-source financial data platform that provides the "connect once, consume everywhere" infrastructure for integrating financial data sources. The project consists of multiple components:

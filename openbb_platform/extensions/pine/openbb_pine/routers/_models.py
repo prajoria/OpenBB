@@ -21,6 +21,7 @@ __all__ = [
     # Response models
     "PineCompileResponse",
     "BundledIndicatorEntry",
+    "BundledStrategyEntry",
     "BuiltinsCoverage",
     "PineHealth",
     # Request models
@@ -61,7 +62,7 @@ class PineCompileResponse(BaseModel):
         le=6,
     )
     compiler_version: str = Field(
-        description='``openbb_pine.__version__`` at the time of compile.'
+        description="``openbb_pine.__version__`` at the time of compile."
     )
     builtins_used: list[str] = Field(
         default_factory=list,
@@ -103,6 +104,65 @@ class BundledIndicatorEntry(BaseModel):
         )
     )
     pine_version: int = Field(
+        description="Pine version of the bundled source (5 or 6).",
+        ge=5,
+        le=6,
+    )
+
+
+class BundledStrategyEntry(BaseModel):
+    """One entry in ``GET /pine/strategies/list`` (D3 §4.4 sibling, #588).
+
+    Same "catalog projection" shape as :class:`BundledIndicatorEntry` but
+    carries the two strategy-only fields the run/backtest layer needs to
+    render defaults in a widget's params form:
+
+    * ``strategy_type`` — one of ``"long_only"``, ``"short_only"``,
+      ``"long_short"``. Mirrors Pine's ``strategy(..., default_qty_type,
+      ...)`` positional-vs-keyword surface. Widgets use it to gate the
+      long-vs-short toggle.
+    * ``initial_capital_default`` — the ``strategy(..., initial_capital=...)``
+      default the widget pre-fills. Pine's own default is 100_000 (see
+      TradingView docs / `strategy.equity` sourcing); we match it verbatim.
+
+    ``pine_source_path`` uses the same ``"inline:<id>"`` convention as the
+    indicators catalog — the Pine source lives verbatim in the bundled
+    ``strategies.json`` entry's ``params.source`` rather than a separate
+    ``.pine`` file. This is deliberate: it keeps the shipped asset
+    single-file (one JSON) so packaging via ``importlib.resources`` in
+    Phase 4 stays trivial.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description='Human-readable strategy name, e.g. "RSI Reversal".')
+    pine_source_path: str = Field(
+        description=(
+            'Location of the bundled Pine source. Uses the ``"inline:<id>"`` '
+            "convention when the source is embedded in strategies.json rather "
+            "than shipped as a separate .pine file."
+        )
+    )
+    description: str = Field(
+        description="One-line human-readable description of the strategy."
+    )
+    strategy_type: Literal["long_only", "short_only", "long_short"] = Field(
+        default="long_short",
+        description=(
+            "Direction constraint the strategy honors. Defaults to "
+            '``"long_short"`` (widest surface) when the catalog entry omits it.'
+        ),
+    )
+    initial_capital_default: float = Field(
+        default=100_000.0,
+        gt=0.0,
+        description=(
+            "Default initial capital pre-filled by the widget. Matches Pine's "
+            "own ``strategy(..., initial_capital=100_000)`` default."
+        ),
+    )
+    pine_version: int = Field(
+        default=6,
         description="Pine version of the bundled source (5 or 6).",
         ge=5,
         le=6,
@@ -193,7 +253,9 @@ class PineHealth(BaseModel):
         description='e.g. "PyneCore 6.5.2 (Apache-2.0)".',
     )
     powered_by: str = Field(
-        default_factory=lambda: _powered_by_short_default(),
+        # noqa comment on its own line (below) keeps the field line <140 chars for pylint C0301.
+        # pylint: disable-next=unnecessary-lambda  # pre-existing, predates #588 (see #875)
+        default_factory=lambda: _powered_by_short_default(),  # noqa: PLW0108
         description=(
             "PyneSys §4(d) attribution — §2.6 surface #3. MUST equal "
             "``openbb_pine.attribution.POWERED_BY_SHORT``."
@@ -226,6 +288,7 @@ def _powered_by_short_default() -> str:
     "single source of truth" guarantee — a future move of the literal only
     touches ``attribution.py``.
     """
+    # pylint: disable-next=import-outside-toplevel  # intentional deferred import (pre-existing, predates #588)
     from openbb_pine.attribution import POWERED_BY_SHORT
 
     return POWERED_BY_SHORT
@@ -266,7 +329,7 @@ class PineByoData(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _format_payload_matches(self) -> "PineByoData":
+    def _format_payload_matches(self) -> PineByoData:
         """Each format MUST carry the field its name implies."""
         if self.format == "records" and not self.records:
             raise ValueError("format='records' requires non-empty `records`")
@@ -334,13 +397,11 @@ class PineRunRequest(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _exactly_one_data_source(self) -> "PineRunRequest":
+    def _exactly_one_data_source(self) -> PineRunRequest:
         """Either provider+symbol or data must be present (D3 §4.1)."""
         if self.data is None:
             if self.provider is None:
-                raise ValueError(
-                    "either `provider` (+ `symbol`) or `data` must be set"
-                )
+                raise ValueError("either `provider` (+ `symbol`) or `data` must be set")
             if self.symbol is None:
                 raise ValueError(
                     "`symbol` is required when `provider` is set "

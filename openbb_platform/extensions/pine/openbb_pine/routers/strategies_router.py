@@ -23,22 +23,36 @@ Returns a bare OBBject with ``.extra`` carrying ``stats``, ``equity_curve``,
 attribution/telemetry envelope (D5 §8.1).
 """
 
+# pylint: disable=too-many-arguments,too-many-positional-arguments,unused-argument
+# ^ Pre-existing warnings on ``async def run`` / ``async def run_byo`` (both
+# predate #588). ``run`` takes 10 kwargs (source, provider, symbol, interval,
+# start, end, params, data, strategy_params, timeout_s) because that IS the
+# HTTP contract exposed at ``POST /pine/strategies/run`` — the parameter list
+# IS the endpoint spec. Bundling into a Pydantic request object would break the
+# public API surface and diverge from the sibling ``/pine/run`` endpoint. The
+# ``data`` param is ARG001 by design ("reserved for BYO follow-up") and has an
+# in-line ``noqa`` marker already. Follow-up refactor tracked in the pine
+# lint-cleanup backlog; disabling here to unblock #588 CI without pretending
+# these are #588's issues.
+
 from __future__ import annotations
 
 from typing import Any
 
+from openbb_core.app.model.abstract.warning import Warning_
 from openbb_core.app.model.example import PythonEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
+from pyne_compiler.errors.codes import ERROR_CODES, ErrorCodeSpec
 
+from openbb_pine import _load_bundled_strategies
 from openbb_pine.errors import PineTypeError
-from openbb_pine.routers._models import PineByoData
+from openbb_pine.routers._models import BundledStrategyEntry, PineByoData
 from openbb_pine.routers.run_router import (
     _byo_records_to_dataframe,
     _compile_and_run,
 )
 from openbb_pine.runtime.provider_selection import resolve_provider
-from pyne_compiler.errors.codes import ERROR_CODES, ErrorCodeSpec
 
 # bd-4d0 — register PT099 (fork-side "wrong endpoint" gate). PT001-008 are
 # reserved by D1 §4.4 for compile-time type-checker rules; PT099 is the
@@ -156,8 +170,7 @@ async def run(
         raise PineTypeError(
             rule="PT099",
             message=(
-                "Source does not use strategy(...); "
-                "use /pine/run for indicators."
+                "Source does not use strategy(...); " "use /pine/run for indicators."
             ),
         )
     _apply_strategy_params(result, strategy_params or {})
@@ -170,11 +183,11 @@ async def run(
         PythonEx(
             description="Run a Pine strategy over caller-supplied OHLCV records.",
             code=[
-                'records = [',
+                "records = [",
                 '    {"date": "2024-01-02T00:00:00Z", "open": 184.1, "high": 186.4,',
                 '     "low": 183.9, "close": 185.6, "volume": 52341900},',
-                '    # ... more bars ...',
-                ']',
+                "    # ... more bars ...",
+                "]",
                 'obb.pine.strategies.run_byo(source=open("breakout.pine").read(), '
                 'records=records, symbol="AAPL")',
             ],
@@ -256,6 +269,94 @@ async def run_byo(
         )
     _apply_strategy_params(result, strategy_params or {})
     return result
+
+
+# ---------------------------------------------------------------------------
+# GET /pine/strategies/list  (#588)
+# ---------------------------------------------------------------------------
+
+
+def _strategies_to_entries() -> list[BundledStrategyEntry]:
+    """Project the ``strategies.json`` catalog into typed
+    :class:`BundledStrategyEntry` instances.
+
+    Mirrors :func:`openbb_pine.routers.catalog_router._widgets_to_entries`
+    on the indicators side. Missing optional fields fall back to the model
+    defaults (``strategy_type='long_short'``, ``initial_capital_default=
+    100_000.0``, ``pine_version=6``) — these are the widest-surface
+    values that let a widget render even for a minimally-specified
+    catalog entry.
+    """
+    entries: list[BundledStrategyEntry] = []
+    for strategy_id, spec in _load_bundled_strategies().items():
+        # Build kwargs, dropping unset keys so Pydantic defaults kick in.
+        kwargs: dict[str, Any] = {
+            "name": spec.get("name", strategy_id),
+            "pine_source_path": f"inline:{strategy_id}",
+            "description": spec.get("description", ""),
+        }
+        for optional_key in (
+            "strategy_type",
+            "initial_capital_default",
+            "pine_version",
+        ):
+            if optional_key in spec:
+                kwargs[optional_key] = spec[optional_key]
+        entries.append(BundledStrategyEntry(**kwargs))
+    return entries
+
+
+@router.command(methods=["GET"], path="/catalog")
+def strategies_list() -> OBBject:
+    """List the bundled Pine strategies shipped with the extension (#588).
+
+    Exposed at ``GET /pine/strategies/catalog`` — NOT ``/list``.
+
+    The URL path is ``/catalog`` rather than the more symmetrical ``/list``
+    because the openbb-package static generator turns the URL's final
+    segment into the generated method name (``obb.pine.strategies.<name>``).
+    Naming it ``list`` shadowed Python's builtin ``list`` inside the
+    generated class body, causing ``obb.pine.strategies.run``'s
+    ``data: list | dict | ...`` annotation to resolve ``list`` to the
+    method-in-construction rather than the builtin, raising
+    ``TypeError: unsupported operand type(s) for |: 'function' and 'type'``
+    at facade-import time. Caught by ``/verify`` in the #588 dev cycle;
+    documented here so the pattern stays out of every future fork-side
+    ``@router.command`` we add.
+
+    Mirror of :func:`openbb_pine.routers.catalog_router.indicators_list`
+    for strategies. Reads :func:`openbb_pine._load_bundled_strategies`
+    (``assets/strategies.json``). When the catalog is empty (pre-#587
+    landing) returns ``[]`` plus a ``PineStrategyCatalogEmpty`` warning
+    so callers distinguish "no bundled strategies yet" from "endpoint
+    broken."
+
+    Bare ``OBBject`` return per PRD §16.6 — the static package builder
+    generates ``openbb.package.pine_strategies`` from this annotation and
+    cannot parametrize the generic without importing our fork-side
+    ``BundledStrategyEntry``. Same rule audited by commit ``6e1ff5dc3``.
+
+    Returns
+    -------
+    OBBject
+        Results is ``list[BundledStrategyEntry]`` (one entry per
+        strategies.json top-level key). ``warnings`` carries a single
+        ``PineStrategyCatalogEmpty`` entry when the catalog is empty and
+        is ``None`` otherwise.
+    """
+    entries = _strategies_to_entries()
+    warnings: list[Warning_] = []
+    if not entries:
+        warnings.append(
+            Warning_(
+                category="PineStrategyCatalogEmpty",
+                message=(
+                    "no bundled strategies yet — bundled Pine strategy "
+                    "sources land with #587 (P2 widgets bead)"
+                ),
+            )
+        )
+    return OBBject(results=entries, warnings=warnings or None)
 
 
 __all__ = ["router"]

@@ -34,3 +34,4 @@
 ./desktop/src/tests/routes/index.test.tsx
 ./openbb_platform/providers/congress_gov/openbb_congress_gov/utils/helpers.py
 ./Analysis/docs/Full Research.md
+./temp/TradingView/**
