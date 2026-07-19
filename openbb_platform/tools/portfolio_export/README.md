@@ -67,6 +67,38 @@ pe list
 pe status
 ```
 
+## Generate test data (offline, no broker session)
+
+`pe-testdata` produces a Fidelity-shaped CSV with the same header layout
+`pe replay` emits, but with all sensitive fields randomized within
+realistic bounds. Use it to exercise the loader + downstream importers
+without touching a real broker session.
+
+```powershell
+# Default: 10-row preset (AAPL/MSFT/GOOGL/AMZN/NVDA/SPY/VTI/TLT/SPAXX/BRK.B)
+pe-testdata --seed 42
+
+# Household export: two users, two accounts, rows round-robin
+pe-testdata --user-ids alice,bob --accounts X78542853,Z12345678 --date 2026-07-18
+
+# Custom holdings via CSV or JSON template
+#   template needs Symbol / Description / Quantity / Last price columns
+pe-testdata --template my_holdings.csv --seed 42
+```
+
+**Design invariants** — these hold by construction so tests can assert
+equality (Fidelity's own CSVs hold them too, within display precision):
+
+- `Current value = Quantity × Last price`
+- `Cost basis total = Quantity × Average cost basis`
+- `Total gain/loss $ = Current value − Cost basis total`
+- `Today's gain/loss $ = Quantity × Last price change`
+- `Percent of account` per account sums to 100
+
+Fields kept from the template as-is: `Symbol`, `Description`, `Quantity`,
+`Last price`. Everything else is derived or bounded-random. Money-market
+symbols (SPAXX, etc.) get blank gain/loss cells per Fidelity convention.
+
 ## Writing a recording
 
 Every recording is a module under `recordings/` that defines:

@@ -162,3 +162,6 @@ pr[0-9]*-review.txt
 *.db
 .beads-credential-key
 tmp_bd_gh_migration/
+
+# Test-data-generator output (regeneratable from pe-testdata)
+test_portfolio_output/
