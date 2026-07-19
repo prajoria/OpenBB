@@ -105,13 +105,24 @@ def maybe_export_to_backtest(strategy_result: OBBject) -> None:
         # whole point of this bridge is to make openbb-backtest OPTIONAL.
         # Top-level import would defeat that and turn the soft-dep into
         # a hard-dep at module-import time.
+        # #589 flipped this from `from openbb_backtest.analytics import
+        # ingest_pine_strategy` (which never existed upstream — D5 §6.2
+        # was stale) to the Pine-side adapter that actually produces the
+        # openbb_backtest.models shapes. The import still probes
+        # openbb_backtest itself first so the ImportError path fires on
+        # the same "openbb-backtest not installed" case as before.
+        # pylint: disable-next=import-outside-toplevel,unused-import  # intentional soft-dep probe
+        import openbb_backtest  # noqa: F401 -- probe only; raises ImportError if absent
+
         # pylint: disable-next=import-outside-toplevel  # intentional soft-dep guard
-        from openbb_backtest.analytics import ingest_pine_strategy
+        from openbb_pine.analytics import ingest_pine_strategy
     except ImportError:
         extra.setdefault("warnings", []).append(_BACKTEST_MISSING_WARNING)
         return
 
-    ingest_pine_strategy(strategy_result)
+    # Store the translated BacktestResult on extra so downstream widget
+    # renderers / notebooks can consume it without re-running the adapter.
+    extra["backtest_result"] = ingest_pine_strategy(strategy_result)
 
 
 __all__ = ["maybe_export_to_backtest"]
