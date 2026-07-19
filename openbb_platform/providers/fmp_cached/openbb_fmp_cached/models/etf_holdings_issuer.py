@@ -38,10 +38,12 @@ class IssuerSpec(NamedTuple):
     """Per-issuer (URL template, parser callable, data_source tag).
 
     The parser signature is ``(content_bytes: bytes, *, ticker: str) -> list[dict]``.
+    Typed with ``...`` so mypy doesn't complain about the keyword arg at the
+    call site (NamedTuple + Callable[[bytes], ...] would forbid the ticker kwarg).
     """
 
     url: str
-    parser: Callable[[bytes], list[dict]]
+    parser: Callable[..., list[dict]]
     issuer_id: str
 
 
