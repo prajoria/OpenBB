@@ -59,11 +59,20 @@ class TestProbeModel:
     # Both probe tests patch `litellm.completion` — the litellm package
     # ships with the [agent] extra. On stock CI (no Rust to build
     # litellm), the module isn't importable and the patch target
-    # doesn't resolve. Mark as requires_agents so it's deselected under
-    # `-m "not requires_agents"`. See #818.
+    # doesn't resolve. Two layers of guard:
+    #
+    #   1. ``@pytest.mark.requires_agents`` — deselected under CI's
+    #      ``-m "not requires_agents"`` (see #818).
+    #   2. ``pytest.importorskip("litellm")`` at test body entry — if
+    #      the harness runs WITHOUT the marker filter, the missing
+    #      dep still produces a clean skip rather than an error at
+    #      collection time (the ``patch("litellm.completion", ...)``
+    #      resolves the dotted path eagerly).
+    # See harness known-noise report.
 
     @pytest.mark.requires_agents
     def test_probe_returns_true_on_success(self):
+        pytest.importorskip("litellm")
         cfg = _fresh_config()
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "pong"
@@ -73,6 +82,7 @@ class TestProbeModel:
 
     @pytest.mark.requires_agents
     def test_probe_returns_false_on_exception(self):
+        pytest.importorskip("litellm")
         cfg = _fresh_config()
         with patch("litellm.completion", side_effect=Exception("connection refused")):
             result = cfg.probe_model("openai/gpt-4o")
