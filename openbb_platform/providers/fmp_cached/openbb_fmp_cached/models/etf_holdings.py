@@ -40,7 +40,17 @@ ETF_HOLDINGS_TTL_DAYS = 1
 
 
 def _get_cached_etf_holdings(etf_symbol: str) -> list[dict]:
-    """Return cached holdings rows for an ETF if fresh+valid, else []."""
+    """Return cached holdings rows for an ETF if fresh+valid, else [].
+
+    Note (#512): drops rows whose weight looks like a pre-normalize
+    fraction (0 < w < 1 with total sum < 5) — a signature of the
+    pre-#512 SSGA-parser bug that stored fraction-shaped weights.
+    Post-#512 the parser stores percentages (sum ≈ 100). Serving a
+    pre-#512 cached row through the FMPEtfHoldingsData validator
+    would divide by 100 again, producing weights 100× understated.
+    Fail-safe: drop suspicious rows so the tier chain re-populates
+    from the fixed parser.
+    """
     if not etf_symbol:
         return []
     freshness_cutoff = datetime.now() - timedelta(days=ETF_HOLDINGS_TTL_DAYS)
@@ -72,6 +82,32 @@ def _get_cached_etf_holdings(etf_symbol: str) -> list[dict]:
                 continue
         else:
             loaded.append(payload)
+
+    # #512 fail-safe: detect and drop rows that look like pre-fix
+    # fraction-shaped weights (SSGA parser previously stored fractions
+    # for large holdings and unnormalized-percents for sub-1% holdings —
+    # the tell is a total weight sum well below 5). Correct post-fix
+    # rows are percentages summing to ~100. If we see a partial-fraction
+    # cache row, treat as if empty so the tier chain re-runs the fixed
+    # parser. Fires at most once per (etf, ttl) window.
+    if loaded:
+        weights = [r.get("weight") for r in loaded if r.get("weight") is not None]
+        if weights:
+            total = sum(w for w in weights if isinstance(w, (int, float)))
+            # A well-formed cached SSGA/FMP payload sums to ~100 (percent).
+            # An FMP-tier row already-normalized to fractions would sum to
+            # ~1 (some paths store post-validator output). Anything in
+            # (2, 50) is suspicious — likely the mixed-normalize bug.
+            if 2.0 < total < 50.0:
+                logger.warning(
+                    "etf_holdings cache for %s has suspicious weight sum "
+                    "%.2f (expected ~100 or ~1); treating as stale — "
+                    "tier chain will re-populate. See #512.",
+                    etf_symbol,
+                    total,
+                )
+                return []
+
     return loaded
 
 

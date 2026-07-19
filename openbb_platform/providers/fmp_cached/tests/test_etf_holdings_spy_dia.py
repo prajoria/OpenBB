@@ -237,6 +237,9 @@ def test_obb_etf_holdings_spy_e2e_via_mocked_issuer_http() -> None:
 
     # Patch requests at issuer-tier module scope, skip FMP tier, and skip
     # cache-read so we go live through the tier chain to the issuer parser.
+    # ALSO patch init_database + _store_etf_holdings so the test never
+    # touches a real MySQL instance (would pollute the CI cache and
+    # cross-contaminate other tests).
     with (
         patch("openbb_fmp_cached.models.etf_holdings_issuer.requests") as mock_requests,
         patch(
@@ -247,6 +250,8 @@ def test_obb_etf_holdings_spy_e2e_via_mocked_issuer_http() -> None:
             "openbb_fmp_cached.models.etf_holdings._get_cached_etf_holdings",
             return_value=[],
         ),
+        patch("openbb_fmp_cached.models.etf_holdings.init_database"),
+        patch("openbb_fmp_cached.models.etf_holdings._store_etf_holdings"),
     ):
         response = MagicMock()
         response.status_code = 200
@@ -280,3 +285,84 @@ def test_obb_etf_holdings_spy_e2e_via_mocked_issuer_http() -> None:
         "Likely a double-divide between issuer-parser format and "
         "FMPEtfHoldingsData.normalize_percent validator."
     )
+
+
+# ---------------------------------------------------------------------------
+# #512 fail-safe: stale pre-fix cache rows must be dropped on read
+# ---------------------------------------------------------------------------
+
+
+def test_cache_read_drops_suspicious_partial_sum_rows() -> None:
+    """Pre-#512 rows (fraction-shaped weights summing to ~57 for SPY, ~17 for
+    XLK, ~2.5 for DIA) must be treated as stale so the tier chain re-runs.
+
+    The 2-50 sum window catches the "mixed-normalize" mode where the OLD
+    parser output percentages for large holdings but fractions for small
+    ones. A correctly-shipped payload sums to either ~100 (percent form)
+    or ~1 (already normalized). Anything in (2, 50) is a bug signature.
+    """
+    from unittest.mock import patch
+
+    from openbb_fmp_cached.models.etf_holdings import _get_cached_etf_holdings
+
+    # 3 rows summing to ~10 — the failure mode we're guarding against
+    suspicious = [
+        {"symbol": "AAA", "weight": 5.0},
+        {"symbol": "BBB", "weight": 3.0},
+        {"symbol": "CCC", "weight": 2.0},
+    ]
+    fake_db_rows = [{"data_json": r} for r in suspicious]
+
+    with patch(
+        "openbb_fmp_cached.models.etf_holdings.execute_query",
+        return_value=fake_db_rows,
+    ):
+        loaded = _get_cached_etf_holdings("SPY")
+    assert (
+        loaded == []
+    ), f"expected empty (drop suspicious pre-#512 rows); got {len(loaded)} rows"
+
+
+def test_cache_read_accepts_valid_percent_form_rows() -> None:
+    """A well-formed percent-form payload (sums to ~100) is served intact."""
+    from unittest.mock import patch
+
+    from openbb_fmp_cached.models.etf_holdings import _get_cached_etf_holdings
+
+    valid_percent = [
+        {"symbol": "AAA", "weight": 40.0},
+        {"symbol": "BBB", "weight": 35.0},
+        {"symbol": "CCC", "weight": 25.0},
+    ]
+    fake_db_rows = [{"data_json": r} for r in valid_percent]
+
+    with patch(
+        "openbb_fmp_cached.models.etf_holdings.execute_query",
+        return_value=fake_db_rows,
+    ):
+        loaded = _get_cached_etf_holdings("SPY")
+    assert len(loaded) == 3
+
+
+def test_cache_read_accepts_valid_fraction_form_rows() -> None:
+    """A well-formed fraction-form payload (sums to ~1) is also served intact.
+
+    (Some pre-existing FMP paths may have stored fractions directly.)
+    """
+    from unittest.mock import patch
+
+    from openbb_fmp_cached.models.etf_holdings import _get_cached_etf_holdings
+
+    valid_fraction = [
+        {"symbol": "AAA", "weight": 0.40},
+        {"symbol": "BBB", "weight": 0.35},
+        {"symbol": "CCC", "weight": 0.25},
+    ]
+    fake_db_rows = [{"data_json": r} for r in valid_fraction]
+
+    with patch(
+        "openbb_fmp_cached.models.etf_holdings.execute_query",
+        return_value=fake_db_rows,
+    ):
+        loaded = _get_cached_etf_holdings("SPY")
+    assert len(loaded) == 3
