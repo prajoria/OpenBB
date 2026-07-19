@@ -203,70 +203,67 @@ def test_maybe_export_short_circuits_when_script_type_missing(monkeypatch):
 
 
 def test_maybe_export_calls_ingest_pine_strategy_when_available(monkeypatch):
-    """When ``openbb_backtest.analytics.ingest_pine_strategy`` is
-    importable, the bridge calls it with the strategy_result and does
-    NOT append a warning.
+    """When ``openbb_backtest`` is importable, the bridge invokes the
+    Pine-side ``openbb_pine.analytics.ingest_pine_strategy`` adapter
+    (added in #589) with the strategy_result and does NOT append a
+    missing-dep warning.
 
-    Uses a synthetic ``openbb_backtest.analytics`` module (with a
-    tracking mock ``ingest_pine_strategy``) planted in ``sys.modules``
-    so the test does not depend on the real ``openbb-backtest`` package
-    being installed.
+    Pre-#589 the bridge tried to call an imaginary
+    ``openbb_backtest.analytics.ingest_pine_strategy`` per D5 §6.2
+    (which was stale — see PR #910 body). #589 flipped the call site
+    to the Pine-side adapter that produces the real openbb_backtest
+    model shapes. This test monkeypatches the Pine-side symbol so we
+    don't invoke the full model machinery inside a lightweight bridge
+    unit test.
     """
-    import types
-
+    import openbb_pine.analytics
     from openbb_pine.runtime.backtest_bridge import maybe_export_to_backtest
 
     called_with: list[object] = []
+    sentinel = object()
 
-    def _fake_ingest(res: object) -> None:
+    def _fake_ingest(res: object) -> object:
         called_with.append(res)
+        return sentinel
 
-    fake_analytics = types.ModuleType("openbb_backtest.analytics")
-    fake_analytics.ingest_pine_strategy = _fake_ingest  # type: ignore[attr-defined]
-    fake_pkg = types.ModuleType("openbb_backtest")
-    fake_pkg.analytics = fake_analytics  # type: ignore[attr-defined]
-
-    monkeypatch.setitem(sys.modules, "openbb_backtest", fake_pkg)
-    monkeypatch.setitem(sys.modules, "openbb_backtest.analytics", fake_analytics)
+    monkeypatch.setattr(openbb_pine.analytics, "ingest_pine_strategy", _fake_ingest)
 
     result = _make_strategy_result()
     maybe_export_to_backtest(result)
 
-    assert called_with == [result], (
-        "ingest_pine_strategy should be called exactly once with the " "OBBject result"
-    )
-    assert (
-        result.extra.get("warnings", []) == []
-    ), "no warning should be appended on the happy path"
+    assert called_with == [
+        result
+    ], "ingest_pine_strategy should be called exactly once with the OBBject result"
+    # No "openbb-backtest not installed" warning on the happy path.
+    warnings = result.extra.get("warnings", [])
+    assert not any(
+        "not installed" in w for w in warnings
+    ), f"unexpected missing-dep warning on happy path: {warnings}"
+    # #589 also stashes the BacktestResult on extra["backtest_result"]
+    # so downstream consumers don't have to re-run the adapter.
+    assert result.extra.get("backtest_result") is sentinel
 
 
 def test_maybe_export_does_not_swallow_ingest_pine_strategy_errors(monkeypatch):
-    """If ``ingest_pine_strategy`` itself raises (a real bug in the
-    downstream analytics layer, NOT a missing-dep case), the exception
-    should propagate.
+    """If the Pine-side ``ingest_pine_strategy`` itself raises (a real
+    bug in the adapter or in openbb_backtest.compute_metrics), the
+    exception must propagate.
 
     Silently swallowing a real downstream failure would violate CLAUDE.md
     R7.3 (loud empties) — the caller needs to see the exception to
     diagnose. Only the ``ImportError`` case (dep genuinely absent) is
     absorbed by the bridge.
     """
-    import types
-
+    import openbb_pine.analytics
     from openbb_pine.runtime.backtest_bridge import maybe_export_to_backtest
 
     class DownstreamBug(RuntimeError):
         pass
 
-    def _broken_ingest(res: object) -> None:
-        raise DownstreamBug("simulated openbb-backtest internal error")
+    def _broken_ingest(res: object) -> object:
+        raise DownstreamBug("simulated openbb-backtest / adapter internal error")
 
-    fake_analytics = types.ModuleType("openbb_backtest.analytics")
-    fake_analytics.ingest_pine_strategy = _broken_ingest  # type: ignore[attr-defined]
-    fake_pkg = types.ModuleType("openbb_backtest")
-    fake_pkg.analytics = fake_analytics  # type: ignore[attr-defined]
-
-    monkeypatch.setitem(sys.modules, "openbb_backtest", fake_pkg)
-    monkeypatch.setitem(sys.modules, "openbb_backtest.analytics", fake_analytics)
+    monkeypatch.setattr(openbb_pine.analytics, "ingest_pine_strategy", _broken_ingest)
 
     result = _make_strategy_result()
     with pytest.raises(DownstreamBug, match="simulated"):
