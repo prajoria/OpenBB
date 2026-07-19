@@ -63,3 +63,41 @@ class XRayLookThroughResult(BaseModel):
         description="Deepest recursion level hit during unwrap (0 = no unwrap)."
     )
     warnings: list[str] = Field(default_factory=list)
+
+
+class RiskMetricsResult(BaseModel):
+    """/risk/metrics response — parametric portfolio-level risk metrics (#528).
+
+    All metrics use the parametric (Gaussian) VaR/CVaR variant — the only
+    one that admits a clean Euler component decomposition (see #558 What-If
+    §9.6). Callers who need historical VaR should call
+    :func:`openbb_portfolio_intel.analytics.risk.value_at_risk` directly
+    with a return series.
+    """
+
+    volatility: float | None = Field(
+        default=None,
+        description=(
+            "Portfolio std-dev (per-period, same time-scale as input returns). "
+            "None when the basket has any symbol missing from returns_source."
+        ),
+    )
+    var_95: float | None = Field(
+        default=None,
+        description=(
+            "Parametric VaR at 95% confidence (loss magnitude, positive). "
+            "Computed as z * volatility."
+        ),
+    )
+    cvar_95: float | None = Field(
+        default=None,
+        description=(
+            "Parametric CVaR at 95% (expected shortfall, positive). "
+            "Computed as phi(z) / (1 - Phi(z)) * volatility."
+        ),
+    )
+    beta: float | None = Field(
+        default=None,
+        description="Portfolio beta vs benchmark_returns (cov / benchmark var).",
+    )
+    warnings: list[str] = Field(default_factory=list)
