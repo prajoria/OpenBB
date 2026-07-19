@@ -38,10 +38,12 @@ class IssuerSpec(NamedTuple):
     """Per-issuer (URL template, parser callable, data_source tag).
 
     The parser signature is ``(content_bytes: bytes, *, ticker: str) -> list[dict]``.
+    Typed with ``...`` so mypy doesn't complain about the keyword arg at the
+    call site (NamedTuple + Callable[[bytes], ...] would forbid the ticker kwarg).
     """
 
     url: str
-    parser: Callable[[bytes], list[dict]]
+    parser: Callable[..., list[dict]]
     issuer_id: str
 
 
@@ -118,26 +120,40 @@ def _parse_ssga_xlsx(content: bytes, *, ticker: str) -> list[dict]:
             continue
 
         weight = _to_float(_g(row, idx_weight))
-        # SSGA expresses weight as a percent (14.79788 = 14.79788%); normalize
-        # to fraction. A weight > 1 is a strong signal it's the percent form.
-        if weight is not None and weight > 1:
-            weight = weight / 100.0
+        # SSGA expresses the "Weight" column as a percent (14.79788 =
+        # 14.79788%). This is the SAME shape FMP's API returns for the
+        # weight field, so we emit percentages unchanged — the
+        # FMPEtfHoldingsData validator normalizes percent → fraction
+        # on model construction (openbb_fmp/models/etf_holdings.py
+        # `normalize_percent` field_validator, mode='before'). Passing
+        # a fraction here would cause a second /100 divide, producing
+        # weights 100× too small (verified live for #512 —
+        # SPY.total_weight = 0.01 vs expected 1.0).
+        # NOTE: the previous `if weight > 1: weight /= 100` heuristic
+        # was ALSO wrong (silently dropped sub-1% holdings' 100× division
+        # relative to large holdings inside the same file), but both
+        # buggy behaviors were masked because callers never summed weights
+        # end-to-end until #512's coverage test added the assertion.
 
         cusip_raw = _g(row, idx_cusip)
         cusip: str | None = None
-        if cusip_raw is not None and not (isinstance(cusip_raw, str) and cusip_raw.strip() in ("-", "")):
+        if cusip_raw is not None and not (
+            isinstance(cusip_raw, str) and cusip_raw.strip() in ("-", "")
+        ):
             cusip = str(cusip_raw).strip().zfill(9)[:9]
 
-        holdings.append({
-            "symbol": str(sym).strip().upper(),
-            "name": str(name).strip() if name else None,
-            "weight": weight,
-            "shares": _to_float(_g(row, idx_shares)),
-            "value": _to_float(_g(row, idx_value)),
-            "cusip": cusip,
-            "isin": str(_g(row, idx_isin)).strip() if _g(row, idx_isin) else None,
-            "data_source": "issuer_ssga",
-        })
+        holdings.append(
+            {
+                "symbol": str(sym).strip().upper(),
+                "name": str(name).strip() if name else None,
+                "weight": weight,
+                "shares": _to_float(_g(row, idx_shares)),
+                "value": _to_float(_g(row, idx_value)),
+                "cusip": cusip,
+                "isin": str(_g(row, idx_isin)).strip() if _g(row, idx_isin) else None,
+                "data_source": "issuer_ssga",
+            }
+        )
     return holdings
 
 
@@ -159,12 +175,28 @@ def _ssga_spec(ticker: str) -> IssuerSpec:
 # All 11 GICS sector SPDRs are State Street funds; same URL template.
 # Matches openbb_techtrade.engine.screener.GICS_SECTOR_ETFS.values() exactly.
 _SPDR_SECTORS = (
-    "XLB", "XLC", "XLE", "XLF", "XLI", "XLK",
-    "XLP", "XLRE", "XLU", "XLV", "XLY",
+    "XLB",
+    "XLC",
+    "XLE",
+    "XLF",
+    "XLI",
+    "XLK",
+    "XLP",
+    "XLRE",
+    "XLU",
+    "XLV",
+    "XLY",
 )
 
+# SSGA also publishes the SPDR trust products (SPY = S&P 500, DIA = DJIA)
+# via the same URL template + same workbook layout — no new parser needed.
+# Added for #512 to unblock the portfolio_basket universe. Follow-ups:
+# QQQ (Invesco), IWM/IVV/ACWI/EFA/EEM (iShares), VTI/VOO (Vanguard) each
+# need a distinct parser and are tracked as separate issues.
+_SSGA_TRUST_PRODUCTS = ("SPY", "DIA")
+
 ISSUER_REGISTRY: dict[str, IssuerSpec] = {
-    t: _ssga_spec(t) for t in _SPDR_SECTORS
+    t: _ssga_spec(t) for t in (*_SPDR_SECTORS, *_SSGA_TRUST_PRODUCTS)
 }
 
 
