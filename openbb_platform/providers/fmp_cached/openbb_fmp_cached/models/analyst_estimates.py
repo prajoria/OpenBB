@@ -133,8 +133,8 @@ class FMPCachedAnalystEstimatesFetcher(
         if credentials and 'fmp_cached_api_key' in credentials:
             fmp_credentials = {'fmp_api_key': credentials['fmp_cached_api_key']}
         else:
-            fmp_credentials = credentials
-        
+            fmp_credentials = credentials  # type: ignore[assignment]
+
         # Handle multiple symbols
         symbols = query.symbol.split(",") if "," in query.symbol else [query.symbol]
         all_results = []
@@ -481,7 +481,7 @@ async def _fetch_from_fmp_direct(
     return results
 
 
-def get_cache_statistics(symbol: str = None, period: str = None) -> Dict[str, Any]:
+def get_cache_statistics(symbol: str | None = None, period: str | None = None) -> Dict[str, Any]:
     """Get cache statistics for analyst estimates."""
     try:
         if symbol and period:
@@ -528,7 +528,7 @@ def get_cache_statistics(symbol: str = None, period: str = None) -> Dict[str, An
         return {"error": str(e)}
 
 
-def clear_cache_for_symbol(symbol: str, period: str = None) -> bool:
+def clear_cache_for_symbol(symbol: str, period: str | None = None) -> bool:
     """Clear cached analyst estimates for a specific symbol."""
     try:
         if period:
