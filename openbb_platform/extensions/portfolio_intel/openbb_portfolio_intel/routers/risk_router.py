@@ -47,12 +47,14 @@ from openbb_portfolio_intel.analytics.risk import (
     portfolio_volatility,
 )
 from openbb_portfolio_intel.analytics.xray import (
+    DEFAULT_WEIGHT_TOLERANCE,
     Holding,
     effective_n as _effective_n,
     herfindahl_hirschman as _herfindahl_hirschman,
     look_through as _xray_look_through,
 )
 from openbb_portfolio_intel.models import (
+    BasketPosition,
     ConcentrationSummary,
     RiskMetricsResult,
 )
@@ -85,8 +87,6 @@ def _positions_from_basket(basket: list[dict]) -> list[tuple[str, Decimal]]:
     Also runs the same shorts/empty guard as xray_router (via
     ``_validate_basket``), so the two routes reject inputs identically.
     """
-    from openbb_portfolio_intel.models import BasketPosition  # noqa: PLC0415
-
     positions = [
         BasketPosition(symbol=str(r["symbol"]), weight=Decimal(str(r["weight"])))
         for r in basket
@@ -97,10 +97,6 @@ def _positions_from_basket(basket: list[dict]) -> list[tuple[str, Decimal]]:
 
 def _weights_sum_to_one(pairs: list[tuple[str, Decimal]]) -> None:
     """Reject if the basket weights don't sum to ~1.0 (xray tolerance)."""
-    from openbb_portfolio_intel.analytics.xray import (
-        DEFAULT_WEIGHT_TOLERANCE,
-    )  # noqa: PLC0415
-
     total = sum((w for _, w in pairs), Decimal("0"))
     if abs(total - Decimal("1")) > DEFAULT_WEIGHT_TOLERANCE:
         raise ValueError(
