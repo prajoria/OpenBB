@@ -413,3 +413,62 @@ branch merges). PR #762 closed as superseded.
 **Env note:** portfolio work now uses .venv_portfolio (isolated,
 python 3.12.10) instead of shared .venv_win. See CLAUDE.md §
 Environment Setup for the pip -e sequence.
+
+---
+
+## portfolio-intel-autopilot-batch-2026-07-19
+
+Four cycles shipped under batch merge-authority grant (2026-07-19):
+
+- **#889** (cycle 9, feat pi-tools/testdata-generator-in-pe-gh-888) —
+  pe-testdata console script + 7 round-trip smoke tests. 21/21 tests.
+  Merged 543b75ea1.
+- **#890** (cycle 10, feat pi-ops/auto-close-on-portfolio-merge-gh-847) —
+  auto-close workflow: on push to portfolio, parse merge commit for
+  Closes|Fixes|Resolves #NN (case-insensitive, handles comma-multi),
+  comment + close each cited issue with --reason completed. Kills the
+  manual-close chore we did 7 times earlier this session (#826/#802/
+  #849/#856/#865/#886/#888). Merged 10ee38efa.
+- **#891** (cycle 11, feat pi-ops/local-deps-fork-extensions-gh-876) —
+  adds openbb-regime, openbb-fmp-cached, openbb-fmp-trading,
+  openbb-financialtoolkit to dev_install.py LOCAL_DEPS. Fresh venv
+  setup now installs all fork-only extensions automatically. 39
+  required entries (was 35). #876 auto-closed by #890's workflow —
+  first automated close in the session. Merged 3946bbeb9.
+- **#893** (cycle 12, feat pi-app/simple-fill-model-broker-protocol-gh-892) —
+  **first genuine feature PR for portfolio-intel**. SimpleFillModel
+  implementing openbb_backtest.interfaces.Broker Protocol (per #498 A'
+  resolution). Market orders only; Limit/Stop/TIF deferred to #563/#544.
+  9 unit tests + Protocol conformance + live /verify. 22/22 tests green.
+  #892 auto-closed by #890's workflow. Merged 65d6484be.
+
+**Batch auth (this batch only)**: user granted merge authority for
+cycles 9-12. I honored: (a) only merged CI-green PRs, (b) never touched
+portfolio→develop (M4 gate stays user-owned), (c) auto-close workflow
+did the tracker sync so no manual close on the 3 latest merges.
+
+**Zero-iteration streak**: cycles 3, 4, 9, 10, 11, 12 — 6 of the last 8
+merges landed with 6/6 CI on iter-1. Local pre-flight of all 4 linters
+(black + ruff + pylint + mypy) in .venv_portfolio pays off; no more
+"CI catches what local missed" iterations.
+
+**Project #4 state after batch**: 21 Done / 79 Todo / 100 total. Up
+from 17/82/99 at batch start. First P2 issue closed (#892 — Paper/Fills
+adapter). M0 anchor #492 sub-issue rollup climbed further.
+
+**Ready for cycle 13 = #512 (EtfHoldings, first real P0 Data)** —
+STOPPED at that boundary per grant terms. Kai's first real feature
+work outside ops/scaffold territory. Not started; awaiting Daisy's
+explicit go-signal per the grant.
+
+**Cross-cycle infrastructure now live and validated end-to-end**:
+- CI grammar-check (#837/#857): prevents retired-bd-id drift class
+- Auto-close workflow (#890): closes cited issues on portfolio-merge
+- Fresh venv provisioning (#866, #891): dev_install.py populates
+  all fork extensions
+- Portfolio_export vendored (#887) + pe-testdata (#889): CSV data
+  substrate for paper trading testing
+- Broker Protocol adapter (#893): paper trading foundation
+
+The scaffold phase is done. From cycle 13 forward is real analytics/
+data work per the roadmap.
