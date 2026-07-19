@@ -472,3 +472,94 @@ explicit go-signal per the grant.
 
 The scaffold phase is done. From cycle 13 forward is real analytics/
 data work per the roadmap.
+
+---
+
+## portfolio-intel-session-close-2026-07-19
+
+**Session ended 2026-07-19 with 29 Done / 71 Todo on Project #4 (100 total)** —
+up from 3 Done / 87 Todo / 90 total at session start (2026-07-16). Net delta:
++26 Done, -16 Todo (some items filed then closed same session; +10 new items
+added during the session).
+
+**14 cycles shipped this session:**
+
+| Cycle | Issue(s) | PR | Nature |
+|---|---|---|---|
+| 1 | #826 | #837 | CI grammar-check for Closes #NN |
+| 2 | #802 | #850 | portfolio_intel entry-point crash |
+| 3 | #851 | #857 | closes-syntax heuristic tighten |
+| 4 | #856 | #858 | openbb-backtest as portfolio_intel runtime dep |
+| 6 | #865 | #866 | pip-based dev_install.py rewrite |
+| 7 | #849 | #885 | ExtensionAbout NameError (from __future__ annotations bug) |
+| 8 | #886 | #887 | vendor portfolio_export into openbb_platform/tools/ |
+| 9 | #888 | #889 | pe-testdata console-script module |
+| 10 | #847 | #890 | auto-close #NN on portfolio-merge CI workflow |
+| 11 | #876 | #891 | 4 fork extensions added to LOCAL_DEPS |
+| 12 | #892 | #893 | SimpleFillModel Broker Protocol adapter |
+| 13 | #526, #535, #536 | #897 | X-Ray look-through + rollups + HHI |
+| 14 | #537, #538 | #899 | Event Calendar merge + Smart-Money aggregator |
+| 15 | #539, #540 | #901 | Risk metrics + Contribution-to-risk (marginal + component VaR) |
+
+Plus: #497 closed as done-in-practice; #500 closed as `not planned` (obsolete
+bd bug); #504/#506/#507/#509/#510/#511 retroactively closed via 2026-07-16
+audit (bd-id → gh-id retroactive close pass); #762 closed as superseded PR.
+
+**Testing state:** portfolio_intel test suite went from 0 to 66/66 tests
+this session. All deterministic, all pure-function tests (no live API).
+
+**Infrastructure now live and validated end-to-end:**
+
+- CI grammar-check + closes-syntax + auto-close workflows (#837/#857/#890)
+  → tracker sync fully automated on portfolio-merge
+- Portfolio integration branch pattern working (13 merges into portfolio
+  this session, zero conflicts on any absorb from develop)
+- Fresh venv provisioning (#866, #891) — dev_install.py populates 39 required
+  extensions cleanly
+- portfolio_export vendored (#887) + pe-testdata generator (#889) — synthetic
+  Fidelity CSV substrate for testing
+- SimpleFillModel Broker Protocol adapter (#893) — paper trading foundation
+- X-Ray / Events / Risk analytics (#897/#899/#901) — pure math substrate
+  ready for widget + route wiring
+
+**Parked (41 items) with clear reasons — see per-issue comments on:**
+
+- Widgets (12 items): need Playwright/render env
+- Demos (2 items): need running system
+- Data-with-API-keys (17 items): need fmp_cached credentials / #827 preflight
+- Product-PRDs (2 items): need Daisy design input
+- External-ack ops (8 items): need Daisy decision, M4 sign-off, etc.
+
+**Blocked on Daisy for cycle N+1:**
+
+- #498 fill-model decision (already resolved as A' this session)
+- Kai's first M1 P0 branch pick (was recommended #512; still standing)
+- M4 promotion PR (#568, portfolio → develop, requires loud sign-off per
+  CLAUDE.md rule)
+- Product PRDs #780, #781 for design input
+
+**Available runnable work for next session (~15-20 more cycles possible):**
+
+- #558 What-If diff engine (stateless, pure function)
+- #559, #560 Brinson attribution (pure math)
+- #545, #548 Paper ledger + cost-basis math
+- #546 SEV-1 cross-account isolation
+- #563, #544 SimpleFillModel extensions (Limit + TIF + Stop family)
+- #562 paper migration + account CRUD
+- #547 fill-engine hardening
+- #527, #528, #541, #542, #572 router scaffolds (thin, need widgets to be
+  useful but scaffoldable)
+- #561, #573 backtest hand-off contract + wire-up
+- #571, #574 alert-rule engine + wiring
+- #570 sentiment rollup
+- #555 UX PAPER-badge component
+
+**Workflow discipline validated:**
+
+- Batch merge auth granted for cycles 9-12 respected: never merged CI-red,
+  never touched portfolio→develop, workflow #890 auto-closed 6 issues via
+  Closes syntax
+- Zero-iteration streak on cycles 3, 4, 9-15 (10 of last 13 merges) — all-4
+  linter pre-flight (black + ruff + pylint + mypy) in .venv_portfolio pays off
+- Pre-flight vs post-hoc lint ratio dramatically improved after
+  .venv_portfolio was set up mid-session with the CI linters installed
