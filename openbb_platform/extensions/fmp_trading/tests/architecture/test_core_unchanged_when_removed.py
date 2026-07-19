@@ -76,18 +76,27 @@ def test_core_unchanged_when_agent_extra_removed(tmp_path):
         venv_python = venv_dir / "bin" / "python"
 
     # 2. Install path-based deps FIRST so pip finds them locally.
-    #    openbb-fmp-trading declares openbb-techtrade and openbb-fmp-cached
-    #    as required deps, but neither is published to PyPI — they're
-    #    in-tree fork packages. Without pre-installing them, pip resolves
-    #    to PyPI and fails with:
-    #        ERROR: Could not find a version that satisfies the requirement
-    #               openbb-techtrade<0.2.0,>=0.1.0 (from versions: none)
-    #    See #870.
+    #    Two classes of in-tree dep to preinstall:
+    #
+    #    a) openbb-techtrade + openbb-fmp-cached — declared but not on
+    #       PyPI (fork-only packages). See #870.
+    #
+    #    b) openbb-core — declared as ^1.6.x (which IS on PyPI), BUT
+    #       the PyPI wheel omits the `openbb_core_journal` subpackage.
+    #       Local `core/pyproject.toml` ships it via
+    #       `packages = [{ include = "openbb_core_journal" }, ...]`
+    #       but the wheel manifest doesn't. fmp_trading's models
+    #       import `openbb_core_journal` at module load, so the
+    #       PyPI-resolved openbb-core makes every fmp_trading test
+    #       collection fail with ModuleNotFoundError. Editable install
+    #       of the local core walks the tree and picks it up. See #894.
+    core_dir = _repo_root() / "openbb_platform" / "core"
     techtrade_dir = _repo_root() / "openbb_platform" / "extensions" / "techtrade"
     fmp_cached_dir = _repo_root() / "openbb_platform" / "providers" / "fmp_cached"
     preinstall = subprocess.run(
         [
             str(venv_python), "-m", "pip", "install",
+            "-e", str(core_dir),
             "-e", str(techtrade_dir),
             "-e", str(fmp_cached_dir),
         ],
@@ -97,8 +106,8 @@ def test_core_unchanged_when_agent_extra_removed(tmp_path):
     )
     if preinstall.returncode != 0:
         pytest.fail(
-            "pip install of in-tree deps (techtrade, fmp_cached) failed:\n"
-            f"stdout:\n{preinstall.stdout}\nstderr:\n{preinstall.stderr}"
+            "pip install of in-tree deps (core, techtrade, fmp_cached) "
+            f"failed:\nstdout:\n{preinstall.stdout}\nstderr:\n{preinstall.stderr}"
         )
 
     # 3. Install the extension WITHOUT [agent]
