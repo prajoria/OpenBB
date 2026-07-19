@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from openbb_sec.utils.company_facts import resolve_company_facts
 from openbb_sec.utils.statement_schema import StatementSchema
+from openbb_sec.utils.statement_schema._detection import get_filing_dates
 
 _FIXTURE_DIR = Path(__file__).parent / "record"
 
@@ -1032,6 +1033,13 @@ def _anchor(year, extra=None):
     return base
 
 
+def _pick(rows, tag, date):
+    """Return the single record matching a standardized tag and period end."""
+    matches = [r for r in rows if r["tag"] == tag and r["period_ending"] == date]
+    assert len(matches) == 1, f"expected one {tag} @ {date}, got {len(matches)}"
+    return matches[0]
+
+
 class TestFinancialIS:
     """Financial institution revenue decomposition (banks)."""
 
@@ -1126,6 +1134,211 @@ class TestFinancialIS:
         ]
         assert len(niiap) == 1
         assert niiap[0]["value"] == 55_000  # 60k - 5k
+
+
+class TestProvisionTagMigration:
+    """Modern provision-for-credit-losses tag chains (IFRS + US-GAAP CECL)."""
+
+    _NII = {
+        "tag": "InterestIncomeExpenseNet",
+        "val": 60_000,
+        "start": "2023-01-01",
+        "end": "2023-12-31",
+    }
+    _NONINT = {
+        "tag": "NoninterestIncome",
+        "val": 20_000,
+        "start": "2023-01-01",
+        "end": "2023-12-31",
+    }
+    _PRETAX = {
+        "tag": "IncomeLossFromContinuingOperationsBeforeIncomeTaxes"
+        "ExtraordinaryItemsNoncontrollingInterest",
+        "val": 50_000,
+        "start": "2023-01-01",
+        "end": "2023-12-31",
+    }
+    _TAX = {
+        "tag": "IncomeTaxExpenseBenefit",
+        "val": 10_000,
+        "start": "2023-01-01",
+        "end": "2023-12-31",
+    }
+
+    def test_ifrs_adjustments_for_impairment_captures_provision(self):
+        """IFRS bank tag AdjustmentsForImpairmentLoss... yields a positive provision."""
+        mock = create_mock_facts(
+            _anchor(2023)
+            + [
+                self._NII,
+                self._NONINT,
+                {
+                    "ns": "ifrs-full",
+                    "tag": "AdjustmentsForImpairmentLossReversalOf"
+                    "ImpairmentLossRecognisedInProfitOrLoss",
+                    "val": 4_000,
+                    "start": "2023-01-01",
+                    "end": "2023-12-31",
+                },
+                self._PRETAX,
+                self._TAX,
+            ]
+        )
+        res = resolve_company_facts(mock, period="annual")
+        assert res.company_type == "financial"
+        prov = _pick(res.income_statement, "provision_for_credit_losses", "2023-12-31")
+        assert prov["value"] == 4_000
+        assert "AdjustmentsForImpairmentLoss" in prov["source"]
+        niiap = _pick(
+            res.income_statement,
+            "net_interest_income_after_provision",
+            "2023-12-31",
+        )
+        assert niiap["value"] == 56_000  # 60k NII - 4k provision
+
+    def test_ifrs_adjustments_for_provisions_wins_over_impairment(self):
+        """BMO pattern: AdjustmentsForProvisions is preferred over the impairment tag."""
+        mock = create_mock_facts(
+            _anchor(2023)
+            + [
+                self._NII,
+                self._NONINT,
+                {
+                    "ns": "ifrs-full",
+                    "tag": "AdjustmentsForProvisions",
+                    "val": 3_700,
+                    "start": "2023-01-01",
+                    "end": "2023-12-31",
+                },
+                {
+                    "ns": "ifrs-full",
+                    "tag": "AdjustmentsForImpairmentLossReversalOf"
+                    "ImpairmentLossRecognisedInProfitOrLoss",
+                    "val": 100,
+                    "start": "2023-01-01",
+                    "end": "2023-12-31",
+                },
+                self._PRETAX,
+                self._TAX,
+            ]
+        )
+        res = resolve_company_facts(mock, period="annual")
+        prov = _pick(res.income_statement, "provision_for_credit_losses", "2023-12-31")
+        assert prov["value"] == 3_700
+        assert "AdjustmentsForProvisions" in prov["source"]
+
+    def test_cecl_funded_plus_unfunded_are_combined(self):
+        """BAC pattern: provision = funded + unfunded when no NII-after-provision tag."""
+        mock = create_mock_facts(
+            _anchor(2023)
+            + [
+                self._NII,
+                self._NONINT,
+                {
+                    "tag": "FinancingReceivableExcludingAccruedInterest"
+                    "CreditLossExpenseReversal",
+                    "val": 5_000,
+                    "start": "2023-01-01",
+                    "end": "2023-12-31",
+                },
+                {
+                    "tag": "OffBalanceSheetCreditLossLiability"
+                    "CreditLossExpenseReversal",
+                    "val": -300,
+                    "start": "2023-01-01",
+                    "end": "2023-12-31",
+                },
+                self._PRETAX,
+                self._TAX,
+            ]
+        )
+        res = resolve_company_facts(mock, period="annual")
+        prov = _pick(res.income_statement, "provision_for_credit_losses", "2023-12-31")
+        assert prov["value"] == 4_700  # 5000 funded + (-300) unfunded
+        assert "(combined)" in prov["source"]
+        cf_prov = _pick(res.cash_flow, "provision_for_loan_losses", "2023-12-31")
+        assert cf_prov["value"] == 4_700
+
+    def test_cecl_not_combined_when_nii_after_provision_reported(self):
+        """Citi pattern: funded provision left alone when NII-after-provision is tagged."""
+        mock = create_mock_facts(
+            _anchor(2023)
+            + [
+                self._NII,
+                self._NONINT,
+                {
+                    "tag": "ProvisionForLoanLossesExpensed",
+                    "val": 5_000,
+                    "start": "2023-01-01",
+                    "end": "2023-12-31",
+                },
+                {
+                    "tag": "OffBalanceSheetCreditLossLiability"
+                    "CreditLossExpenseReversal",
+                    "val": -300,
+                    "start": "2023-01-01",
+                    "end": "2023-12-31",
+                },
+                {
+                    "tag": "InterestIncomeExpenseAfterProvisionForLoanLoss",
+                    "val": 55_000,
+                    "start": "2023-01-01",
+                    "end": "2023-12-31",
+                },
+                self._PRETAX,
+                self._TAX,
+            ]
+        )
+        res = resolve_company_facts(mock, period="annual")
+        prov = _pick(res.income_statement, "provision_for_credit_losses", "2023-12-31")
+        assert prov["value"] == 5_000  # funded only; unfunded NOT added
+        assert "(combined)" not in prov["source"]
+
+
+class TestBankInsuranceClassification:
+    """Tie-break between the insurance and financial company-type templates."""
+
+    def test_bank_with_insurance_subsidiary_is_financial(self, schema):
+        """More core-banking signals than insurance IS signals resolves to financial."""
+        facts = create_mock_facts(
+            [
+                {"tag": "InsuranceRevenue", "val": 1, "end": "2024-12-31"},
+                {"tag": "NetEarnedPremium", "val": 1, "end": "2024-12-31"},
+                {
+                    "tag": "InsuranceContractsThatAreLiabilities",
+                    "val": 1,
+                    "end": "2024-12-31",
+                },
+                {"tag": "InterestIncomeExpenseNet", "val": 1, "end": "2024-12-31"},
+                {"tag": "NetInterestIncome", "val": 1, "end": "2024-12-31"},
+                {"tag": "TradingIncomeExpense", "val": 1, "end": "2024-12-31"},
+            ]
+        )["facts"]
+        # ins_is=2, ins_total=3, fin=3 -> financial
+        assert schema.detect_type(facts) == "financial"
+
+    def test_genuine_insurer_stays_insurance(self, schema):
+        """Insurance IS signals outnumbering financial signals stays insurance."""
+        facts = create_mock_facts(
+            [
+                {"tag": "PremiumsEarnedNet", "val": 1, "end": "2024-12-31"},
+                {
+                    "tag": "PolicyholderBenefitsAndClaimsIncurredNet",
+                    "val": 1,
+                    "end": "2024-12-31",
+                },
+                {"tag": "InsuranceRevenue", "val": 1, "end": "2024-12-31"},
+                {
+                    "tag": "LiabilityForFuturePolicyBenefits",
+                    "val": 1,
+                    "end": "2024-12-31",
+                },
+                {"tag": "InterestIncomeExpenseNet", "val": 1, "end": "2024-12-31"},
+                {"tag": "TradingIncomeExpense", "val": 1, "end": "2024-12-31"},
+            ]
+        )["facts"]
+        # ins_is=3, fin=2 -> insurance
+        assert schema.detect_type(facts) == "insurance"
 
 
 class TestInsuranceIS:
@@ -2131,6 +2344,8 @@ class TestCashBridgePeriodCarryover:
 
 
 class TestTTM:
+    """Trailing-twelve-month aggregation from quarterly records."""
+
     @staticmethod
     def _quarterly_revenue(years_quarters):
         entries = []
@@ -2373,6 +2588,8 @@ class TestTTM:
 
 
 class TestPctChange:
+    """Period-over-period and year-over-year percentage change."""
+
     @staticmethod
     def _annual_revenue(year_vals):
         entries = []
@@ -2617,6 +2834,8 @@ class TestPctChange:
 
 
 class TestPeriodType:
+    """period_type metadata propagation into output records."""
+
     def test_period_type_in_records(self):
         mock = create_mock_facts(
             [
@@ -2643,3 +2862,210 @@ class TestPeriodType:
         assets = [r for r in res.balance_sheet if r["tag"] == "total_assets"]
         if assets:
             assert assets[0]["period_type"] == "instant"
+
+
+def _six_k_filer_facts():
+    """Build facts for a 40-F/20-F filer that furnishes financials via 6-K.
+
+    Mirrors real foreign private issuers (e.g. Canadian National Railway):
+    most fiscal years are annual-only (the full-year statements are tagged on
+    a 6-K exhibit rather than in the 40-F/20-F), while a few earlier years
+    additionally carry genuine interim (3/6/9-month) periods on 6-K.
+    """
+    entries: list[dict] = []
+    # Annual-only years: only a full-year period is reported, via 6-K, filed
+    # ~6 weeks after year-end (as real FY 6-K exhibits are).
+    for year, assets, rev in ((2021, 23000, 7600), (2022, 24000, 8000)):
+        filed = f"{year + 1}-02-15"
+        entries += [
+            {
+                "tag": "Assets",
+                "val": assets,
+                "end": f"{year}-12-31",
+                "form": "6-K",
+                "filed": filed,
+            },
+            {
+                "tag": "Revenues",
+                "val": rev,
+                "start": f"{year}-01-01",
+                "end": f"{year}-12-31",
+                "form": "6-K",
+                "fp": "FY",
+                "filed": filed,
+            },
+            {
+                "tag": "NetCashProvidedByUsedInOperatingActivities",
+                "val": 2000,
+                "start": f"{year}-01-01",
+                "end": f"{year}-12-31",
+                "form": "6-K",
+                "fp": "FY",
+                "filed": filed,
+            },
+        ]
+    # 2023: full-year plus genuine interim periods (cumulative 3/6/9-month).
+    entries += [
+        {
+            "tag": "Assets",
+            "val": 26000,
+            "end": "2023-12-31",
+            "form": "6-K",
+            "filed": "2024-02-15",
+        },
+        {
+            "tag": "Revenues",
+            "val": 9000,
+            "start": "2023-01-01",
+            "end": "2023-12-31",
+            "form": "6-K",
+            "fp": "FY",
+            "filed": "2024-02-15",
+        },
+        {
+            "tag": "NetCashProvidedByUsedInOperatingActivities",
+            "val": 2200,
+            "start": "2023-01-01",
+            "end": "2023-12-31",
+            "form": "6-K",
+            "fp": "FY",
+            "filed": "2024-02-15",
+        },
+    ]
+    for end, filed, assets, rev, cf in (
+        ("2023-03-31", "2023-05-01", 24500, 2000, 500),  # ~90 days
+        ("2023-06-30", "2023-08-01", 25000, 4100, 1000),  # ~181 days
+        ("2023-09-30", "2023-11-01", 25500, 6200, 1500),  # ~273 days (9-month)
+    ):
+        entries += [
+            {
+                "tag": "Assets",
+                "val": assets,
+                "end": end,
+                "form": "6-K",
+                "filed": filed,
+            },
+            {
+                "tag": "Revenues",
+                "val": rev,
+                "start": "2023-01-01",
+                "end": end,
+                "form": "6-K",
+                "filed": filed,
+            },
+            {
+                "tag": "NetCashProvidedByUsedInOperatingActivities",
+                "val": cf,
+                "start": "2023-01-01",
+                "end": end,
+                "form": "6-K",
+                "filed": filed,
+            },
+        ]
+    return create_mock_facts(entries)
+
+
+def _six_k_lapsed_interim_facts():
+    """Build facts for a 6-K filer whose interim reporting lapsed.
+
+    Annual (FY) periods continue through 2024, but the only interim periods
+    are from 2020 — the quarterly series would be sparse/stale, so it must be
+    treated as no quarterly data.
+    """
+    entries: list[dict] = []
+    for year in (2020, 2021, 2022, 2023, 2024):
+        filed = f"{year + 1}-02-15"
+        entries += [
+            {
+                "tag": "Assets",
+                "val": 24000 + year,
+                "end": f"{year}-12-31",
+                "form": "6-K",
+                "filed": filed,
+            },
+            {
+                "tag": "Revenues",
+                "val": 8000,
+                "start": f"{year}-01-01",
+                "end": f"{year}-12-31",
+                "form": "6-K",
+                "fp": "FY",
+                "filed": filed,
+            },
+        ]
+    # Lone interim periods, only for 2020.
+    for end, filed in (("2020-06-30", "2020-08-01"), ("2020-09-30", "2020-11-01")):
+        entries += [
+            {"tag": "Assets", "val": 23500, "end": end, "form": "6-K", "filed": filed},
+            {
+                "tag": "Revenues",
+                "val": 2000,
+                "start": "2020-01-01",
+                "end": end,
+                "form": "6-K",
+                "filed": filed,
+            },
+        ]
+    return create_mock_facts(entries)
+
+
+class TestSixKReportingPeriods:
+    """Period detection for 40-F/20-F filers that report via 6-K exhibits."""
+
+    def test_annual_fy_periods_detected_from_6k(self):
+        facts = _six_k_filer_facts()["facts"]
+        annual = get_filing_dates(facts, "annual")
+        assert annual == {"2021-12-31", "2022-12-31", "2023-12-31"}
+
+    def test_nine_month_interim_period_detected(self):
+        facts = _six_k_filer_facts()["facts"]
+        quarterly = get_filing_dates(facts, "quarterly")
+        assert {"2023-03-31", "2023-06-30", "2023-09-30"} <= quarterly
+
+    def test_annual_only_years_excluded_from_quarterly(self):
+        # Years with no interim data must not surface as phantom Q4/H2 rows.
+        facts = _six_k_filer_facts()["facts"]
+        quarterly = get_filing_dates(facts, "quarterly")
+        assert "2021-12-31" not in quarterly
+        assert "2022-12-31" not in quarterly
+
+    def test_annual_balance_sheet_not_empty(self):
+        res = resolve_company_facts(_six_k_filer_facts(), period="annual")
+        assert res.balance_sheet, "annual balance sheet must not be empty for 6-K filer"
+        dates = {r["period_ending"] for r in res.balance_sheet}
+        assert {"2021-12-31", "2022-12-31", "2023-12-31"} <= dates
+        assert all(r["fiscal_period"] == "FY" for r in res.balance_sheet)
+
+    def test_annual_total_assets_value(self):
+        res = resolve_company_facts(_six_k_filer_facts(), period="annual")
+        ta = {
+            r["period_ending"]: r["value"]
+            for r in res.balance_sheet
+            if r["tag"] == "total_assets"
+        }
+        assert ta.get("2023-12-31") == 26000
+
+    def test_quarterly_excludes_annual_only_years(self):
+        res = resolve_company_facts(_six_k_filer_facts(), period="quarterly")
+        dates = {r["period_ending"] for r in res.balance_sheet}
+        assert "2021-12-31" not in dates
+        assert "2022-12-31" not in dates
+
+    def test_lapsed_interim_yields_no_quarterly_dates(self):
+        # Interim reporting that stopped years before the latest annual period
+        # is discontinuous and must be treated as no quarterly data.
+        facts = _six_k_lapsed_interim_facts()["facts"]
+        assert get_filing_dates(facts, "quarterly") == set()
+        assert get_filing_dates(facts, "annual") == {
+            "2020-12-31",
+            "2021-12-31",
+            "2022-12-31",
+            "2023-12-31",
+            "2024-12-31",
+        }
+
+    def test_lapsed_interim_quarterly_raises(self):
+        from openbb_core.app.model.abstract.error import OpenBBError
+
+        with pytest.raises(OpenBBError, match="quarterly"):
+            resolve_company_facts(_six_k_lapsed_interim_facts(), period="quarterly")
