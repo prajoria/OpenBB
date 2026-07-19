@@ -52,6 +52,7 @@ from openbb_pine.routers.run_router import (
     _byo_records_to_dataframe,
     _compile_and_run,
 )
+from openbb_pine.runtime.backtest_bridge import maybe_export_to_backtest
 from openbb_pine.runtime.provider_selection import resolve_provider
 
 # bd-4d0 — register PT099 (fork-side "wrong endpoint" gate). PT001-008 are
@@ -174,6 +175,10 @@ async def run(
             ),
         )
     _apply_strategy_params(result, strategy_params or {})
+    # #590: hand off to openbb-backtest analytics if installed. No-op
+    # otherwise (a warning is appended to result.extra["warnings"]).
+    # Payload translation is deferred to #589.
+    maybe_export_to_backtest(result)
     return result
 
 
@@ -268,6 +273,10 @@ async def run_byo(
             ),
         )
     _apply_strategy_params(result, strategy_params or {})
+    # #590: hand off to openbb-backtest analytics if installed. No-op
+    # otherwise (a warning is appended to result.extra["warnings"]).
+    # Payload translation is deferred to #589.
+    maybe_export_to_backtest(result)
     return result
 
 
