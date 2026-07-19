@@ -69,6 +69,17 @@ openbb-mcp-server = { path = "./extensions/mcp_server", develop = true, markers 
 openbb-backtest = { path = "./extensions/backtest", develop = true }
 openbb-portfolio-intel = { path = "./extensions/portfolio_intel", develop = true }
 
+# Additional fork-only extensions + provider (issue #876). Kept as required
+# rather than optional because portfolio-intel work + notebook 01 depend on
+# them at import time.
+# openbb-agents is deliberately NOT here: it uses PEP 621 + flit_core, not
+# poetry, so it can't be a poetry path-dep. Install separately:
+#   pip install -e openbb_platform/extensions/agents
+openbb-regime = { path = "./extensions/regime", develop = true }
+openbb-fmp-cached = { path = "./providers/fmp_cached", develop = true }
+openbb-fmp-trading = { path = "./extensions/fmp_trading", develop = true }
+openbb-financialtoolkit = { path = "./extensions/financialtoolkit", develop = true }
+
 # Community dependencies
 openbb-alpha-vantage = { path = "./providers/alpha_vantage", optional = true, develop = true }
 openbb-biztoc = { path = "./providers/biztoc", optional = true, develop = true }
