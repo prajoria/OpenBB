@@ -3,6 +3,7 @@
 # pylint: disable=W0212,W0613
 
 import logging
+from contextlib import asynccontextmanager
 from typing import Any
 
 from openbb_core.app.model.command_context import CommandContext
@@ -20,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 router = Router(prefix="")
 COT_CHOICES: list[dict[str, str | dict[str, str | None]]] = []
+
+
+@asynccontextmanager
+async def _cot_router_lifespan(_):
+    await build_choices()
+    yield
 
 
 async def build_choices():
@@ -56,17 +63,24 @@ async def build_choices():
     choices: list[dict[str, str | dict[str, str | None]]] = []
 
     for d in contracts:
+        description = (
+            f"{getattr(d, 'subcategory', '').strip() or getattr(d, 'commodity_name', '').strip()}"
+            f"  | {getattr(d, 'code', '').strip()}"
+        )
         choice: dict[str, str | dict[str, str | None]] = {
-            "label": d.name.strip(),  # type: ignore
-            "value": d.code.strip(),  # type: ignore
-            "extraInfo": {"description": f"{d.subcategory.strip()}  | {d.code.strip()}", "rightOfDescription": ""},  # type: ignore
+            "label": getattr(d, "name", "").strip(),
+            "value": getattr(d, "code", "").strip(),
+            "extraInfo": {
+                "description": description,
+                "rightOfDescription": "",
+            },
         }
         choices.append(choice)
 
     COT_CHOICES = choices
 
 
-router.api_router.add_event_handler("startup", build_choices)
+router.api_router.lifespan_context = _cot_router_lifespan
 
 
 async def get_cot_choices() -> list[dict[str, str | dict[str, str | None]]]:
@@ -153,7 +167,7 @@ async def cot(
 
 
 async def get_cftc_apps_json() -> list[dict[str, Any]]:
-    """Get the IMF apps.json file.
+    """Get the CFTC apps.json file.
 
     This endpoint serves the apps.json file containing OpenBB Workspace app configurations.
     It is automatically merged with any existing apps.json files in the Workspace and API.
