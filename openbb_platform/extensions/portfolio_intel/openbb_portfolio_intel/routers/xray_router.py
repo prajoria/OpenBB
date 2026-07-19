@@ -71,7 +71,7 @@ def _fetch_holdings(symbol: str, provider: str | None = None):
     production this calls into the shipped ``fmp_cached`` multi-tier
     fetcher (FMP → issuer file → N-PORT stub).
     """
-    from openbb import obb  # noqa: PLC0415 — lazy so `import openbb` stays light
+    from openbb import obb  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
 
     return obb.etf.holdings(symbol=symbol, provider=provider)
 
