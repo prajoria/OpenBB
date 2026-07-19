@@ -60,7 +60,7 @@ from openbb_portfolio_intel.models import (
 )
 from openbb_portfolio_intel.routers.xray_router import (
     _build_holdings_provider,
-    _fetch_holdings,  # noqa: F401 — imported for xray/risk parity + test patching
+    _fetch_holdings,  # noqa: F401  # pylint: disable=unused-import
     _validate_basket,
 )
 
@@ -134,7 +134,7 @@ def metrics(
     benchmark_returns: list[float],
     provider: (
         str | None
-    ) = None,  # noqa: ARG001 — provider unused for now (returns are caller-supplied)
+    ) = None,  # noqa: ARG001  # pylint: disable=unused-argument
 ) -> OBBject:
     """Parametric portfolio-level risk metrics: volatility, VaR(95%), CVaR(95%), beta.
 
