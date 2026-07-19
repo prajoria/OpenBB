@@ -36,8 +36,8 @@ from datetime import (
 )
 from typing import Any, Literal
 
-import pymysql  # type: ignore[import-untyped]
-import pymysql.cursors  # type: ignore[import-untyped]
+import pymysql
+import pymysql.cursors
 import requests
 from dateutil import parser
 from openbb_core.provider.abstract.fetcher import Fetcher
@@ -704,7 +704,7 @@ class FMPCachedIndexConstituentsFetcher(
         if credentials and "fmp_cached_api_key" in credentials:
             fmp_credentials = {"fmp_api_key": credentials["fmp_cached_api_key"]}
         else:
-            fmp_credentials = credentials  # type: ignore[assignment]
+            fmp_credentials = credentials
 
         # Historical queries always go to API (not cached)
         if query.historical:

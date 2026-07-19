@@ -247,7 +247,7 @@ class FMPCachedEquityHistoricalFetcher(
         if credentials and "fmp_cached_api_key" in credentials:
             fmp_credentials = {"fmp_api_key": credentials["fmp_cached_api_key"]}
         else:
-            fmp_credentials = credentials  # type: ignore[assignment]
+            fmp_credentials = credentials
 
         # Handle multiple symbols
         symbols = query.symbol.split(",") if "," in query.symbol else [query.symbol]
@@ -374,7 +374,7 @@ class FMPCachedEquityHistoricalFetcher(
 
                     # Update database with dividend data
                     # Group by symbol to update each symbol's data
-                    symbol_data_map: dict = {}
+                    symbol_data_map = {}
                     for item in all_results:
                         sym = item.get("symbol")
                         if sym not in symbol_data_map:
@@ -810,7 +810,7 @@ def _detect_missing_ranges(
         min_cached = min(cached_dates) if cached_dates else None
         max_cached = max(cached_dates) if cached_dates else None
 
-        if not min_cached or not max_cached or min_cached > start_date or max_cached < end_date:
+        if not min_cached or min_cached > start_date or max_cached < end_date:
             return [(start_date, end_date)]
 
         # For intraday, also check for significant gaps (more than 7 days)
@@ -958,7 +958,7 @@ def _get_basic_market_holidays(start_year: int, end_year: int) -> set[date]:
     # ------------------------------------------------------------------
     # 2. Compute holidays (comprehensive fallback)
     # ------------------------------------------------------------------
-    holidays: set[date] = set()  # type: ignore[no-redef]
+    holidays: set[date] = set()
 
     def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
         """Return the *n*-th occurrence of *weekday* in *month/year*."""
@@ -1632,7 +1632,7 @@ async def _fetch_dividends_from_fmp(
     return dividend_map
 
 
-def get_cache_statistics(symbol: str | None = None) -> dict[str, Any]:
+def get_cache_statistics(symbol: str = None) -> dict[str, Any]:
     """Get cache statistics for equity historical data."""
     try:
         if symbol:

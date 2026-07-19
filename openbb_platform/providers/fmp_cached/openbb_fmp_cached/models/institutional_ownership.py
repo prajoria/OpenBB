@@ -263,7 +263,7 @@ def _effective_year_quarter(year: int | None, quarter: int | None) -> tuple[int,
             if y < current.year
             else (current.quarter - 1 if current.quarter > 1 else 1)
         )
-    return int(y), int(q)  # type: ignore[arg-type]
+    return int(y), int(q)
 
 
 # ---------------------------------------------------------------------------
