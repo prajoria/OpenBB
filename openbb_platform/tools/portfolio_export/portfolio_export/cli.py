@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Sequence
+from collections.abc import Sequence
 
 from portfolio_export.config import ConfigError, load_config
 from portfolio_export.record import run_record
@@ -82,9 +82,7 @@ def _build_parser() -> argparse.ArgumentParser:
     csvs.add_argument(
         "--dir",
         default=None,
-        help=(
-            "Directory to scan (default: the configured download_dir)."
-        ),
+        help=("Directory to scan (default: the configured download_dir)."),
     )
     csvs.add_argument(
         "--no-recursive",
@@ -112,9 +110,7 @@ def _cmd_list(cfg) -> int:
     def _entries(d):
         if not d.exists():
             return []
-        return sorted(
-            f.stem for f in d.glob("*.py") if f.name not in {"__init__.py"}
-        )
+        return sorted(f.stem for f in d.glob("*.py") if f.name not in {"__init__.py"})
 
     user = _entries(cfg.user_recordings_dir)
     bundled = _entries(cfg.bundled_recordings_dir)
@@ -218,7 +214,9 @@ def _cmd_inspect(args) -> int:
 
     info = describe(df)
     print(f"[inspect] file  : {path}")
-    print(f"[inspect] shape : {info['shape']['rows']} rows x {info['shape']['cols']} cols")
+    print(
+        f"[inspect] shape : {info['shape']['rows']} rows x {info['shape']['cols']} cols"
+    )
     print("[inspect] columns (name -> dtype):")
     for name, dtype in info["columns"].items():
         print(f"  {name:<30} {dtype}")

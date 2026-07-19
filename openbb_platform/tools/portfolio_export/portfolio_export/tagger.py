@@ -112,9 +112,7 @@ def tag_csv(
     return output_path, rows_tagged
 
 
-def _normalize_data_row(
-    row: list[str], expected_cols: int
-) -> list[str] | None:
+def _normalize_data_row(row: list[str], expected_cols: int) -> list[str] | None:
     """Return the row trimmed to `expected_cols`, or None if it's a footer.
 
     Broker CSVs commonly append a trailing comma to data rows (giving

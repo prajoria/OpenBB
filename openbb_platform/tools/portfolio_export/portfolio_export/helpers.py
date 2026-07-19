@@ -15,8 +15,10 @@ import time
 from pathlib import Path
 from urllib.parse import urlparse
 
-from playwright.sync_api import Page, TimeoutError as PWTimeoutError
-
+from playwright.sync_api import (
+    Page,
+    TimeoutError as PWTimeoutError,
+)
 
 _SLUG_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -113,6 +115,7 @@ def require_login(
          user can log in / do MFA. Resumes when the user closes the inspector.
       3. Re-check the signal; raise RuntimeError if still not present.
     """
+
     def _matches() -> bool:
         if is_selector:
             try:

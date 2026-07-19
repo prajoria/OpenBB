@@ -14,11 +14,8 @@ Guiding rules:
 """
 
 from playwright.sync_api import Page
-
 from portfolio_export.helpers import (
     require_login,
-    save_page_html,
-    save_page_snapshot,
 )
 
 URL = "https://digital.fidelity.com/"

@@ -47,7 +47,10 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           # "Checking PR diff"
-          echo "diff_files=$(git diff --diff-filter=d --name-only origin/${{ github.base_ref }}...${HEAD_REF} | grep -E '^(openbb_platform|cli)/.*\.py$' | grep -v 'openbb_platform/core/openbb/package' | grep -v 'integration' | grep -v 'tests' | xargs)" >> $GITHUB_ENV
+          # Exclude openbb_platform/tools/ — vendored external tools with their
+          # own lint conventions (e.g. portfolio_export CLI uses print() by
+          # design; not subject to platform-wide T201/D100/etc.). See #886.
+          echo "diff_files=$(git diff --diff-filter=d --name-only origin/${{ github.base_ref }}...${HEAD_REF} | grep -E '^(openbb_platform|cli)/.*\.py$' | grep -v 'openbb_platform/core/openbb/package' | grep -v 'openbb_platform/tools/' | grep -v 'integration' | grep -v 'tests' | xargs)" >> $GITHUB_ENV
           echo $diff_files
 
         env:

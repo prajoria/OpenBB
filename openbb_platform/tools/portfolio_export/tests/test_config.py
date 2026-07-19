@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
-
 from portfolio_export.config import ConfigError, load_config
-
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 

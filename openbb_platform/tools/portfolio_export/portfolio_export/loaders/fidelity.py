@@ -98,12 +98,7 @@ def load_positions(path: str | Path) -> pd.DataFrame:
     if len(df.columns) == 0:
         return df
     first_col = df.columns[0]
-    mask = (
-        df[first_col]
-        .astype("string")
-        .fillna("")
-        .str.match(_ACCOUNT_CELL_RE)
-    )
+    mask = df[first_col].astype("string").fillna("").str.match(_ACCOUNT_CELL_RE)
     df = df.loc[mask].reset_index(drop=True)
 
     # Type coercion — only for columns actually present.
@@ -142,15 +137,12 @@ def describe(df: pd.DataFrame) -> dict[str, object]:
             "count": int(df["Account number"].nunique(dropna=True)),
             "rows_per_account": {
                 str(k): int(v)
-                for k, v in df["Account number"]
-                .value_counts(dropna=False)
-                .items()
+                for k, v in df["Account number"].value_counts(dropna=False).items()
             },
         }
     if "Type" in df.columns:
         out["type_breakdown"] = {
-            str(k): int(v)
-            for k, v in df["Type"].value_counts(dropna=False).items()
+            str(k): int(v) for k, v in df["Type"].value_counts(dropna=False).items()
         }
     if "user_id" in df.columns:
         out["user_id_values"] = sorted(

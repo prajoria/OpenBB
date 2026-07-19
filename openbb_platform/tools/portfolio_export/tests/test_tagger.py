@@ -9,7 +9,6 @@ import csv
 from pathlib import Path
 
 import pytest
-
 from portfolio_export.tagger import USER_ID_COL, TaggerError, tag_csv
 
 

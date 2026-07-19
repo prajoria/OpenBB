@@ -15,6 +15,7 @@ from pathlib import Path
 
 try:
     from dotenv import load_dotenv
+
     _HAS_DOTENV = True
 except ImportError:  # pragma: no cover - dotenv is a declared dep
     _HAS_DOTENV = False
