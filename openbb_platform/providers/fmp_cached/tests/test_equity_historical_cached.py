@@ -843,9 +843,20 @@ class TestMultiSymbolSupport:
         interval_type = "1d"
         adjustment_type = "splits_only"
 
+        # Explicitly clean GOOGL rows too. The shared fixture only
+        # cleans `AAPL` + `TEST%` — but this test asserts GOOGL has
+        # zero rows, so any pre-existing GOOGL rows (e.g. from a
+        # harness that restores a MySQL dump between runs) break the
+        # assertion. Local delete keeps the test resilient against
+        # ambient DB state. Harness known-noise report.
+        execute_query(
+            "DELETE FROM equity_historical WHERE symbol = %s",
+            ("GOOGL",),
+        )
+
         # Insert data for AAPL only
         insert_query = """
-        INSERT INTO equity_historical 
+        INSERT INTO equity_historical
         (symbol, date, close, interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
