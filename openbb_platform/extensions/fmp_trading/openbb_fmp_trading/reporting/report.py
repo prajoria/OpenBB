@@ -186,6 +186,44 @@ def _reject_symlinks_in_chain(candidate: Path, jail: Path) -> None:
             ) from exc
 
 
+def _refuse_symlink_at_target(path: Path) -> None:
+    """Refuse writes where ``path`` itself is a symlink.
+
+    Complements :func:`_reject_symlinks_in_chain` (which walks the
+    parent directory chain) and :func:`_open_for_write`'s
+    ``O_NOFOLLOW`` (which catches symlinks at open time).
+
+    This exists because the writer's overwrite path in :func:`report`
+    unconditionally ``unlink()``s an existing ``path`` before calling
+    ``_atomic_write_text``. ``Path.unlink()`` removes the symlink
+    itself (not the target), which clears the way for a fresh write
+    that never triggers ``O_NOFOLLOW`` — the attacker's symlink is
+    silently destroyed and replaced by our regular file. Net effect:
+    the attacker doesn't get to hijack our write, but the
+    ``OutputPathEscapesJail`` we contract to raise is never raised,
+    and downstream security-hardening tests report DID NOT RAISE.
+
+    Fix: call this BEFORE any unlink, so the symlink-at-target case
+    raises with the specific exception the tests + spec require. #896.
+
+    Uses :meth:`Path.is_symlink` (which does NOT follow the link) —
+    the correct check for "is the final path component itself a link".
+    Returns None on success; raises :class:`OutputPathEscapesJail` on
+    detected symlink.
+    """
+    try:
+        if path.is_symlink():
+            raise OutputPathEscapesJail(
+                f"refusing to write through symlink at {path}"
+            )
+    except OSError as exc:
+        # Path.is_symlink can raise on unusual filesystems / permission
+        # issues. Play safe: treat "can't determine" as "refuse".
+        raise OutputPathEscapesJail(
+            f"cannot verify {path} is not a symlink: {exc}"
+        ) from exc
+
+
 def _open_for_write(path: Path, overwrite: bool) -> Any:
     """Atomically open ``path`` for writing with TOCTOU-safe semantics.
 
@@ -339,6 +377,15 @@ def report(
         # TOCTOU window where an attacker could plant a symlink between
         # the check and the write. When overwriting, unlink first (also
         # done atomically via O_NOFOLLOW) then write fresh.
+        #
+        # #896: BEFORE the unlink, refuse if the target is a symlink.
+        # Path.exists() follows symlinks (returns True for a symlink
+        # pointing to an existing file), and Path.unlink() removes the
+        # symlink itself — so a naive `if exists: unlink()` step
+        # destroys the attacker's symlink and clears the path for our
+        # fresh write, defeating _open_for_write's O_NOFOLLOW check
+        # (which never sees a symlink to reject).
+        _refuse_symlink_at_target(md_path)
         if md_path.exists():
             logger.warning(
                 "report: overwriting existing %s (idempotent regen)", md_path
@@ -356,6 +403,10 @@ def report(
             session_id=session_id,
         )
         json_path = output_dir / "manifest.json"
+        # #896: refuse symlink at target BEFORE the unlink step (which
+        # would destroy the attacker-planted symlink and clear the
+        # path for our fresh write, defeating O_NOFOLLOW).
+        _refuse_symlink_at_target(json_path)
         if json_path.exists():
             logger.warning(
                 "report: overwriting existing %s (idempotent regen)", json_path
@@ -394,6 +445,11 @@ def report(
             # atomicity for the temp file itself, and os.replace() is
             # atomic on POSIX (best-effort on Windows). The pre-check
             # for exists + WARN is preserved as an operator-signal.
+            # #896: refuse symlink at target BEFORE the exists() +
+            # overwrite branches (same rationale as md_path and
+            # json_path — the mkstemp+rename below would otherwise
+            # succeed and destroy the symlink instead of raising).
+            _refuse_symlink_at_target(xlsx_path)
             if xlsx_path.exists():
                 if not overwrite:
                     raise OutputExists(
@@ -407,6 +463,9 @@ def report(
                 # Broken/dangling symlink at target — refuse. `exists()`
                 # returns False for a symlink to a nonexistent target,
                 # so we need the explicit lstat-based check.
+                # (Kept as belt-and-suspenders: _refuse_symlink_at_target
+                # above also catches this; this arm is now dead code but
+                # left as a defense-in-depth marker.)
                 raise OutputPathEscapesJail(
                     f"refusing to write through symlink at {xlsx_path}"
                 )

@@ -2,6 +2,7 @@
 
 # pylint: disable=W0212,W0613
 
+import logging
 from typing import Any
 
 from openbb_core.app.model.command_context import CommandContext
@@ -15,27 +16,79 @@ from openbb_core.app.provider_interface import (
 from openbb_core.app.query import Query
 from openbb_core.app.router import Router
 
+logger = logging.getLogger(__name__)
+
 router = Router(prefix="")
 COT_CHOICES: list[dict[str, str | dict[str, str | None]]] = []
 
 
 async def build_choices():
-    """Build the choices for Workspace."""
+    """Build the choices for Workspace.
+
+    Fetches the COT contract list from CFTC on FastAPI startup and
+    caches it in ``COT_CHOICES``. Failure to fetch or parse (upstream
+    503, HTML error page, network timeout, unexpected null fields, ...)
+    MUST NOT prevent the REST API from starting — the choices are a
+    UX nicety for Workspace's dropdown, not a hard runtime dependency.
+    Degrade to an empty list and log an error so operators can triage.
+    #874, #902.
+    """
     # pylint: disable=import-outside-toplevel
     from openbb_cftc.models.cot_search import CftcCotSearchFetcher
 
-    contracts = await CftcCotSearchFetcher.fetch_data({}, {})
-    choices: list[dict[str, str | dict[str, str | None]]] = []
-
-    for d in contracts:
-        choice: dict[str, str | dict[str, str | None]] = {
-            "label": d.name.strip(),  # type: ignore
-            "value": d.code.strip(),  # type: ignore
-            "extraInfo": {"description": f"{d.subcategory.strip()}  | {d.code.strip()}", "rightOfDescription": ""},  # type: ignore
-        }
-        choices.append(choice)
-
     global COT_CHOICES  # noqa: PLW0603  # pylint: disable=W0603
+
+    try:
+        contracts = await CftcCotSearchFetcher.fetch_data({}, {})
+    except Exception as exc:  # pylint: disable=broad-except
+        # publicreporting.cftc.gov returns HTML on 503; aiohttp raises
+        # ContentTypeError. Any of ClientError, TimeoutError, or JSON
+        # decode errors during startup would crash uvicorn. Catch
+        # broadly + log so the API still boots. Operators can either
+        # restart later or re-invoke `build_choices` out-of-band.
+        logger.error(
+            "cftc.build_choices: upstream fetch failed — starting with "
+            "empty COT_CHOICES so the API still boots. Error: %r",
+            exc,
+        )
+        COT_CHOICES = []
+        return
+
+    # Parse-path guard (#902): even with a healthy fetch, per-record
+    # fields can be null (the pydantic model declares
+    # ``subcategory: str | None`` etc.). Skip any record missing the
+    # required identifiers, and null-safe the strips so a null
+    # subcategory doesn't crash the whole startup. Wrapped in a broad
+    # try/except so any future field-shape regression at the record
+    # level also degrades to an empty cache rather than killing the
+    # API — mirrors the fetch-path degrade pattern from #874.
+    choices: list[dict[str, str | dict[str, str | None]]] = []
+    try:
+        for d in contracts:
+            # Required identifiers: skip records where either is null.
+            # A choice without a label or value is useless to Workspace.
+            if not d.name or not d.code:
+                continue
+            name = d.name.strip()
+            code = d.code.strip()
+            subcategory = (d.subcategory or "").strip()
+            choice: dict[str, str | dict[str, str | None]] = {
+                "label": name,
+                "value": code,
+                "extraInfo": {
+                    "description": f"{subcategory}  | {code}",
+                    "rightOfDescription": "",
+                },
+            }
+            choices.append(choice)
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error(
+            "cftc.build_choices: record parsing failed — starting with "
+            "empty COT_CHOICES so the API still boots. Error: %r",
+            exc,
+        )
+        COT_CHOICES = []
+        return
 
     COT_CHOICES = choices
 

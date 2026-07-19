@@ -75,7 +75,42 @@ def test_core_unchanged_when_agent_extra_removed(tmp_path):
     else:
         venv_python = venv_dir / "bin" / "python"
 
-    # 2. Install the extension WITHOUT [agent]
+    # 2. Install path-based deps FIRST so pip finds them locally.
+    #    Two classes of in-tree dep to preinstall:
+    #
+    #    a) openbb-techtrade + openbb-fmp-cached — declared but not on
+    #       PyPI (fork-only packages). See #870.
+    #
+    #    b) openbb-core — declared as ^1.6.x (which IS on PyPI), BUT
+    #       the PyPI wheel omits the `openbb_core_journal` subpackage.
+    #       Local `core/pyproject.toml` ships it via
+    #       `packages = [{ include = "openbb_core_journal" }, ...]`
+    #       but the wheel manifest doesn't. fmp_trading's models
+    #       import `openbb_core_journal` at module load, so the
+    #       PyPI-resolved openbb-core makes every fmp_trading test
+    #       collection fail with ModuleNotFoundError. Editable install
+    #       of the local core walks the tree and picks it up. See #894.
+    core_dir = _repo_root() / "openbb_platform" / "core"
+    techtrade_dir = _repo_root() / "openbb_platform" / "extensions" / "techtrade"
+    fmp_cached_dir = _repo_root() / "openbb_platform" / "providers" / "fmp_cached"
+    preinstall = subprocess.run(
+        [
+            str(venv_python), "-m", "pip", "install",
+            "-e", str(core_dir),
+            "-e", str(techtrade_dir),
+            "-e", str(fmp_cached_dir),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if preinstall.returncode != 0:
+        pytest.fail(
+            "pip install of in-tree deps (core, techtrade, fmp_cached) "
+            f"failed:\nstdout:\n{preinstall.stdout}\nstderr:\n{preinstall.stderr}"
+        )
+
+    # 3. Install the extension WITHOUT [agent]
     install = subprocess.run(
         [str(venv_python), "-m", "pip", "install", "-e", str(ext_dir), "pytest"],
         capture_output=True,
@@ -88,7 +123,7 @@ def test_core_unchanged_when_agent_extra_removed(tmp_path):
             f"stdout:\n{install.stdout}\nstderr:\n{install.stderr}"
         )
 
-    # 3. Run non-agent unit tests. Exclude tests that require the extra:
+    # 4. Run non-agent unit tests. Exclude tests that require the extra:
     #    - test_post_close_fallback (imports jinja2 via importorskip; ok)
     #    - test_pre_open_fallback (uses pre_open which lazy-imports anthropic — ok)
     #
