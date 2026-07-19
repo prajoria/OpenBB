@@ -261,6 +261,16 @@ def _validate_market_data_shapes(md: MarketData) -> None:
             f"benchmark_returns length {md.benchmark_returns.shape[0]} does "
             f"not match returns time dimension {md.returns.shape[0]}"
         )
+    # NaN in cov / returns / benchmark_returns silently poisons every
+    # downstream numpy computation (var_95 comes back NaN with no warning).
+    # Fail loud at the boundary — upstream data drift shouldn't produce
+    # clean-looking WhatIfDiff rows.
+    if n > 0 and np.isnan(md.cov).any():
+        raise ValueError("cov contains NaN — refuse to compute risk on poisoned data")
+    if md.returns.size and np.isnan(md.returns).any():
+        raise ValueError("returns contains NaN — refuse to compute risk on poisoned data")
+    if md.benchmark_returns.size and np.isnan(md.benchmark_returns).any():
+        raise ValueError("benchmark_returns contains NaN — refuse to compute risk on poisoned data")
 
 
 def _validate_prices_present(symbols: set[str], prices: dict[str, Decimal]) -> None:
@@ -356,15 +366,27 @@ def _fill_risk_and_contrib_diffs(
     def _side(
         weights: dict[str, Decimal],
     ) -> tuple[float | None, float | None, float | None, float | None, dict[str, float]]:
-        """Return (vol, var_95, cvar_95, beta, {symbol: component_var})."""
+        """Return (vol, var_95, cvar_95, beta, {symbol: component_var}).
+
+        If **any** book symbol is missing from ``md.returns_symbols``, all
+        aggregate rows return None. Silently dropping the missing weight
+        from ``w`` would produce partial-book risk numbers that look
+        clean but understate the true variance — the caller has no
+        signal that ~1/N of the book's contribution is missing. Only
+        return numbers when the returns matrix fully covers the book.
+        """
         if not weights:
             return None, None, None, None, {}
+        # Refuse to compute aggregate risk if the returns matrix doesn't
+        # cover every book symbol. Per-symbol contribution rows stay
+        # per-symbol None below.
+        missing_on_side = set(weights) - set(md.returns_symbols)
+        if missing_on_side:
+            return None, None, None, None, {}
         w = np.zeros(len(md.returns_symbols))
-        contrib_symbols: list[str] = []
         for i, s in enumerate(md.returns_symbols):
             if s in weights:
                 w[i] = float(weights[s])
-                contrib_symbols.append(s)
         if w.sum() == 0:
             return None, None, None, None, {}
         vol = portfolio_volatility(w, md.cov)
@@ -383,13 +405,17 @@ def _fill_risk_and_contrib_diffs(
     def _both_none_warn(sym: str) -> MetricDiff:
         return MetricDiff(metric=sym, current=None, projected=None, delta=None)
 
-    # Emit warnings for book symbols missing from returns_symbols.
+    # Emit warnings for book symbols missing from returns_symbols. When
+    # this set is non-empty, aggregate risk rows will be None for BOTH
+    # sides (the missing-symbol data drift affects current and projected
+    # identically; None keeps the diff apples-to-apples).
     book_symbols = set(current_weights) | set(projected_weights)
     missing = book_symbols - set(md.returns_symbols)
     for m in sorted(missing):
         diff.warnings.append(
-            f"{m}: no returns/covariance data — risk and contribution rows for "
-            "this symbol will be None"
+            f"{m}: no returns/covariance data — aggregate risk rows "
+            "(volatility/var_95/cvar_95/beta) and this symbol's contribution "
+            "row are None"
         )
 
     c_vol, c_var, c_cvar, c_beta, c_comp = _side(current_weights)

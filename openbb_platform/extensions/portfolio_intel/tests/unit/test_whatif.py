@@ -228,7 +228,41 @@ def test_symbol_missing_from_returns_matrix_degrades_risk_row() -> None:
     # Contribution row for NVDA is None-None-None.
     nvda_contrib = _by_metric(diff.contribution_diffs, "NVDA")
     assert nvda_contrib.current is None and nvda_contrib.projected is None
+    # AGGREGATE risk rows are None on both sides — silently reporting
+    # partial-book variance would mislead the user (only ~2/3 of book
+    # covered by returns matrix, and there's no visual signal at that row).
+    for metric in ("volatility", "var_95", "cvar_95", "beta"):
+        row = _by_metric(diff.risk_diffs, metric)
+        assert row.current is None, f"{metric}.current should be None"
+        assert row.projected is None, f"{metric}.projected should be None"
+        assert row.delta is None, f"{metric}.delta should be None"
     assert any("NVDA" in w for w in diff.warnings)
+
+
+def test_partial_returns_coverage_does_not_leak_partial_book_variance() -> None:
+    """Reverse-verification for R7.11: even a single-symbol drop must yield None risk.
+
+    If we compute risk on the covered subset (silently), the returned var_95
+    would be a plausible non-None float that the caller cannot distinguish
+    from a valid full-book VaR. This test catches that regression.
+    """
+    positions, md = _base_book()
+    # Two-symbol book, one-symbol returns matrix — max partial-coverage scenario.
+    positions = positions[:2]  # AAPL + MSFT only
+    keep = [i for i, s in enumerate(md.returns_symbols) if s == "AAPL"]
+    md = MarketData(
+        prices=md.prices,
+        holdings_provider=md.holdings_provider,
+        attribute_provider=md.attribute_provider,
+        returns=md.returns[:, keep],
+        returns_symbols=[md.returns_symbols[i] for i in keep],
+        cov=md.cov[np.ix_(keep, keep)],
+        benchmark_returns=md.benchmark_returns,
+    )
+    diff = run_whatif(positions, [], md)
+    var_row = _by_metric(diff.risk_diffs, "var_95")
+    assert var_row.current is None
+    assert var_row.projected is None
 
 
 # ---------------------------------------------------------------------------
@@ -441,6 +475,24 @@ def test_cov_shape_mismatch_raises() -> None:
         benchmark_returns=md.benchmark_returns,
     )
     with pytest.raises(ValueError, match=r"cov"):
+        run_whatif(positions, [], md)
+
+
+def test_nan_in_cov_raises_loud() -> None:
+    """NaN in cov silently poisons var_95/component_var — refuse at the boundary."""
+    positions, md = _base_book()
+    cov = md.cov.copy()
+    cov[0, 0] = np.nan
+    md = MarketData(
+        prices=md.prices,
+        holdings_provider=md.holdings_provider,
+        attribute_provider=md.attribute_provider,
+        returns=md.returns,
+        returns_symbols=md.returns_symbols,
+        cov=cov,
+        benchmark_returns=md.benchmark_returns,
+    )
+    with pytest.raises(ValueError, match=r"NaN"):
         run_whatif(positions, [], md)
 
 
