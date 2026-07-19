@@ -25,16 +25,14 @@ from __future__ import annotations
 import re
 
 import pytest
-
-from pyne_compiler.compiler import compile_pine, compile_pine_to_program, ir
+from pyne_compiler.compiler import compile_pine_to_program, ir
 from pyne_compiler.compiler.v5_migration import (
-    V5Rewrite,
     V5_REWRITES,
     detect_pine_version,
     migrate_v5_to_v6,
 )
-from openbb_pine.errors import PineUnsupportedFeatureError
 
+from openbb_pine.errors import PineUnsupportedFeatureError
 
 # ---------------------------------------------------------------------------
 # detect_pine_version
@@ -45,15 +43,16 @@ class TestDetectPineVersion:
     """Pragma routing — PF001 / PF002 / default-to-6 (D1 §1.2, PRD §3.3)."""
 
     def test_detects_v5(self) -> None:
-        assert detect_pine_version("//@version=5\nindicator(\"X\")\n") == 5
+        assert detect_pine_version('//@version=5\nindicator("X")\n') == 5
 
     def test_detects_v6(self) -> None:
-        assert detect_pine_version("//@version=6\nindicator(\"X\")\n") == 6
+        assert detect_pine_version('//@version=6\nindicator("X")\n') == 6
 
     def test_no_pragma_defaults_to_6(self) -> None:
         """TradingView's editor auto-inserts the pragma; unprefixed source
-        is more likely a paste-of-a-snippet than legacy v4."""
-        assert detect_pine_version("indicator(\"X\")\nx = 1\n") == 6
+        is more likely a paste-of-a-snippet than legacy v4.
+        """
+        assert detect_pine_version('indicator("X")\nx = 1\n') == 6
 
     def test_empty_source_defaults_to_6(self) -> None:
         assert detect_pine_version("") == 6
@@ -61,7 +60,7 @@ class TestDetectPineVersion:
     def test_v4_raises_pf001(self) -> None:
         """v1-v4 is an explicit PRD §3.3 non-goal."""
         with pytest.raises(PineUnsupportedFeatureError) as exc:
-            detect_pine_version("//@version=4\nstudy(\"X\")\n")
+            detect_pine_version('//@version=4\nstudy("X")\n')
         assert "PF001" in str(exc.value)
         assert "v4" in str(exc.value)
         # The tracking URL should be surfaced so the user can file
@@ -70,7 +69,7 @@ class TestDetectPineVersion:
 
     def test_v3_raises_pf001(self) -> None:
         with pytest.raises(PineUnsupportedFeatureError) as exc:
-            detect_pine_version("//@version=3\nstudy(\"X\")\n")
+            detect_pine_version('//@version=3\nstudy("X")\n')
         assert "PF001" in str(exc.value)
 
     def test_v1_raises_pf001(self) -> None:
@@ -81,24 +80,24 @@ class TestDetectPineVersion:
     def test_v7_raises_pf002(self) -> None:
         """We don't speculate ahead — v6 is the target."""
         with pytest.raises(PineUnsupportedFeatureError) as exc:
-            detect_pine_version("//@version=7\nindicator(\"X\")\n")
+            detect_pine_version('//@version=7\nindicator("X")\n')
         assert "PF002" in str(exc.value)
 
     def test_v10_raises_pf002(self) -> None:
         with pytest.raises(PineUnsupportedFeatureError) as exc:
-            detect_pine_version("//@version=10\nindicator(\"X\")\n")
+            detect_pine_version('//@version=10\nindicator("X")\n')
         assert "PF002" in str(exc.value)
 
     def test_pragma_with_trailing_whitespace(self) -> None:
         """Whitespace after the version number is tolerated."""
-        assert detect_pine_version("//@version=5   \nindicator(\"X\")\n") == 5
+        assert detect_pine_version('//@version=5   \nindicator("X")\n') == 5
 
     def test_pragma_not_first_line(self) -> None:
         """A pragma anywhere in source is read; PRD lexer only honors col-0
         but ``detect_pine_version`` is more permissive — it's a fingerprint,
         not authoritative routing. The lexer/parser still owns final routing.
         """
-        src = "// some comment\n//@version=5\nindicator(\"X\")\n"
+        src = '// some comment\n//@version=5\nindicator("X")\n'
         assert detect_pine_version(src) == 5
 
 
@@ -114,9 +113,9 @@ class TestRewriteCatalogShape:
 
     def test_every_rewrite_has_compiled_pattern(self) -> None:
         for rw in V5_REWRITES:
-            assert isinstance(rw.pattern, re.Pattern), (
-                f"{rw.name}: pattern must be a compiled re.Pattern"
-            )
+            assert isinstance(
+                rw.pattern, re.Pattern
+            ), f"{rw.name}: pattern must be a compiled re.Pattern"
 
     def test_every_rewrite_has_description(self) -> None:
         for rw in V5_REWRITES:
@@ -135,7 +134,8 @@ class TestRewriteCatalogShape:
     def test_every_rewrite_bidi_safe_flag(self) -> None:
         """We currently mark every shipped rewrite bidi_safe; the test
         catches the next contributor who flips one to False without
-        weighing the consequences."""
+        weighing the consequences.
+        """
         for rw in V5_REWRITES:
             assert rw.bidi_safe is True, (
                 f"{rw.name}: bidi_safe=False — explain why in the V5_REWRITES "
@@ -144,7 +144,7 @@ class TestRewriteCatalogShape:
 
     def test_v5rewrite_apply_returns_tuple(self) -> None:
         rw = V5_REWRITES[0]
-        result, n = rw.apply("study(\"X\")")
+        result, n = rw.apply('study("X")')
         assert isinstance(result, str)
         assert isinstance(n, int)
         assert n >= 1
@@ -159,7 +159,7 @@ class TestPerRewrite:
     """One v5 input → expected v6 output per rewrite."""
 
     def test_study_to_indicator_basic(self) -> None:
-        out, log = migrate_v5_to_v6("//@version=5\nstudy(\"My Indicator\")\n")
+        out, log = migrate_v5_to_v6('//@version=5\nstudy("My Indicator")\n')
         assert "indicator(" in out
         assert "study(" not in out
         # Migration log mentions the rewrite by name.
@@ -167,7 +167,7 @@ class TestPerRewrite:
 
     def test_study_to_indicator_with_args(self) -> None:
         out, _ = migrate_v5_to_v6(
-            "//@version=5\nstudy(\"X\", overlay=true, shorttitle=\"X\")\n"
+            '//@version=5\nstudy("X", overlay=true, shorttitle="X")\n'
         )
         assert 'indicator("X", overlay=true, shorttitle="X")' in out
 
@@ -182,7 +182,9 @@ class TestPerRewrite:
         assert "mystudy_var" in out
 
     def test_strip_transp_basic(self) -> None:
-        out, _ = migrate_v5_to_v6('//@version=5\nindicator("X")\nplot(close, transp=50)\n')
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nindicator("X")\nplot(close, transp=50)\n'
+        )
         assert "transp=" not in out
         assert "plot(close)" in out
 
@@ -248,6 +250,122 @@ class TestPerRewrite:
         assert "my_obj.security(" in out
         assert "request.security" not in out
 
+    # ---- strategy.* when= stripping (#592 — v5→v6 order-placement family)
+    #
+    # Pine v6 removed `when=` from every `strategy.*` order-placement
+    # function (`entry`, `order`, `exit`, `close`, `close_all`, `cancel`,
+    # `cancel_all`). Users must gate calls with `if`/`switch` instead.
+    # The shim strips `when=<simple-expr>` unconditionally for the simple
+    # form; complex/multi-line `when=` expressions fall through and hit
+    # the compile-time PF003 error for manual migration.
+
+    def test_strategy_exit_strips_when_bool_literal(self) -> None:
+        """`strategy.exit(..., when=true)` → `strategy.exit(...)`."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.exit("tp", from_entry="long", profit=10, when=true)\n'
+        )
+        assert "when=" not in out
+        assert 'strategy.exit("tp", from_entry="long", profit=10)' in out
+
+    def test_strategy_exit_strips_when_identifier(self) -> None:
+        """`strategy.exit(..., when=cond)` → `strategy.exit(...)`."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.exit("tp", when=cond, profit=10)\n'
+        )
+        assert "when=" not in out
+        # Argument order preserved; the surviving call is syntactically valid.
+        assert 'strategy.exit("tp", profit=10)' in out
+
+    def test_strategy_exit_strips_when_simple_binop(self) -> None:
+        """Simple `when=x > y` gets stripped; the user has to migrate to `if`."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.exit("tp", when=close > open, profit=10)\n'
+        )
+        assert "when=" not in out
+        assert 'strategy.exit("tp", profit=10)' in out
+
+    def test_strategy_exit_no_shim_when_no_when_arg(self) -> None:
+        """A v5 `strategy.exit` without `when=` is untouched."""
+        src = '//@version=5\nstrategy("X")\nstrategy.exit("tp", from_entry="long", profit=10)\n'
+        out, _ = migrate_v5_to_v6(src)
+        assert 'strategy.exit("tp", from_entry="long", profit=10)' in out
+
+    def test_strategy_entry_strips_when(self) -> None:
+        """Same rewrite applies to `strategy.entry(..., when=...)`."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.entry("l", strategy.long, when=signal)\n'
+        )
+        assert "when=" not in out
+        assert 'strategy.entry("l", strategy.long)' in out
+
+    def test_strategy_close_strips_when(self) -> None:
+        """Same rewrite applies to `strategy.close(..., when=...)`."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.close("l", when=bearish)\n'
+        )
+        assert "when=" not in out
+        assert 'strategy.close("l")' in out
+
+    def test_strategy_close_all_strips_when(self) -> None:
+        """`strategy.close_all(when=...)` — the arg is often the only one."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.close_all(when=flat_signal)\n'
+        )
+        assert "when=" not in out
+        # Standalone `when=` in a single-arg call collapses to `strategy.close_all()`.
+        assert "strategy.close_all()" in out
+
+    def test_strategy_cancel_strips_when(self) -> None:
+        """`strategy.cancel("id", when=cond)`."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.cancel("id1", when=filled)\n'
+        )
+        assert "when=" not in out
+        assert 'strategy.cancel("id1")' in out
+
+    def test_strategy_cancel_all_strips_when(self) -> None:
+        """`strategy.cancel_all(when=cond)`."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.cancel_all(when=session_end)\n'
+        )
+        assert "when=" not in out
+        assert "strategy.cancel_all()" in out
+
+    def test_strategy_order_strips_when(self) -> None:
+        """`strategy.order(..., when=cond)`."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.order("o", strategy.long, 100, when=cond)\n'
+        )
+        assert "when=" not in out
+        assert 'strategy.order("o", strategy.long, 100)' in out
+
+    def test_when_shim_does_not_touch_non_strategy_calls(self) -> None:
+        """`when=` on a non-`strategy.*` function stays put (not our jurisdiction)."""
+        # An indicator with a hypothetical `alert(..., when=cond)` — NOT in
+        # the strategy.* family; leave alone.
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nindicator("X")\nalert("msg", when=some_cond, freq=alert.freq_once)\n'
+        )
+        assert "when=some_cond" in out
+
+    def test_when_shim_does_not_touch_kwarg_named_when_in_string(self) -> None:
+        """`when=` inside a quoted string literal is data, not code — do not touch."""
+        out, _ = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.entry("l", strategy.long, comment="fires when=up")\n'
+        )
+        # The string "fires when=up" is a comment, not a v5 `when=` kwarg.
+        # Our regex must NOT eat inside string literals.
+        assert 'comment="fires when=up"' in out
+
+    def test_when_shim_logs_which_function_was_rewritten(self) -> None:
+        """Rewrite log carries a name that identifies the strategy.* when= strip."""
+        _, log = migrate_v5_to_v6(
+            '//@version=5\nstrategy("X")\nstrategy.exit("tp", when=true, profit=10)\n'
+        )
+        assert any(
+            "when" in entry.lower() and "strategy" in entry.lower() for entry in log
+        )
+
     def test_pragma_rewritten_to_v6(self) -> None:
         out, _ = migrate_v5_to_v6("//@version=5\n")
         assert "//@version=6" in out
@@ -283,8 +401,8 @@ class TestIdempotence:
             # Combined: every rewrite firing in one source.
             (
                 '//@version=5\nstudy("Combined")\n'
-                'plot(close, color=color.blue, transp=20)\n'
-                'y = iff(close > open, 1, 0)\n'
+                "plot(close, color=color.blue, transp=20)\n"
+                "y = iff(close > open, 1, 0)\n"
                 't = tickerid("NYSE", "AAPL")\n'
                 's = security("AAPL", "1D", close)\n'
             ),
@@ -317,8 +435,8 @@ class TestEndToEnd:
         v5_src = (
             "//@version=5\n"
             'study("Combo", overlay=true)\n'
-            'plot(close, color=color.red, transp=40)\n'
-            'y = iff(close > open, close, open)\n'
+            "plot(close, color=color.red, transp=40)\n"
+            "y = iff(close > open, close, open)\n"
         )
         out, log = migrate_v5_to_v6(v5_src)
 
@@ -369,11 +487,7 @@ class TestCompilePineFacade:
 
     def test_v5_indicator_script_compiles(self) -> None:
         """The canonical M1-gate scenario: a v5 RSI script compiles unedited."""
-        src = (
-            "//@version=5\n"
-            'study("RSI")\n'
-            "plot(ta.rsi(close, 14))\n"
-        )
+        src = "//@version=5\n" 'study("RSI")\n' "plot(ta.rsi(close, 14))\n"
         prog = compile_pine_to_program(src)
         assert isinstance(prog, ir.Program)
         assert prog.version == 6  # migrated
@@ -383,11 +497,7 @@ class TestCompilePineFacade:
         assert prog.directive.title == "RSI"
 
     def test_v6_indicator_script_compiles_without_migration(self) -> None:
-        src = (
-            "//@version=6\n"
-            'indicator("RSI")\n'
-            "plot(ta.rsi(close, 14))\n"
-        )
+        src = "//@version=6\n" 'indicator("RSI")\n' "plot(ta.rsi(close, 14))\n"
         prog = compile_pine_to_program(src)
         assert isinstance(prog, ir.Program)
         assert prog.version == 6
@@ -439,12 +549,9 @@ class TestUnsupportedFeature:
     def test_nested_iff_raises_pf003(self) -> None:
         """A nested iff() with a function-call arg isn't matched by the
         simple ``[^,()]+`` regex; the sentinel scan catches it and raises
-        PF003 with the tracking URL."""
-        v5_src = (
-            "//@version=5\n"
-            'indicator("X")\n'
-            "y = iff(crossover(a, b), c, d)\n"
-        )
+        PF003 with the tracking URL.
+        """
+        v5_src = "//@version=5\n" 'indicator("X")\n' "y = iff(crossover(a, b), c, d)\n"
         with pytest.raises(PineUnsupportedFeatureError) as exc:
             migrate_v5_to_v6(v5_src)
         assert "PF003" in str(exc.value)
@@ -457,9 +564,7 @@ class TestUnsupportedFeature:
         """The tracking_url is an attribute, not just in the message text."""
         with pytest.raises(PineUnsupportedFeatureError) as exc:
             migrate_v5_to_v6(
-                "//@version=5\n"
-                'indicator("X")\n'
-                "y = iff(crossover(a, b), c, d)\n"
+                "//@version=5\n" 'indicator("X")\n' "y = iff(crossover(a, b), c, d)\n"
             )
         assert exc.value.tracking_url is not None
         assert "pine-v5-migration" in exc.value.tracking_url
