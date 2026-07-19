@@ -194,10 +194,12 @@ def run_whatif(
         projected_qty[sym] = pq
 
     # Compute market values, then weights.
-    current_values = {s: current_qty.get(s, Decimal("0")) * market_data.prices[s]
-                      for s in all_symbols}
-    projected_values = {s: projected_qty[s] * market_data.prices[s]
-                        for s in all_symbols}
+    current_values = {
+        s: current_qty.get(s, Decimal("0")) * market_data.prices[s] for s in all_symbols
+    }
+    projected_values = {
+        s: projected_qty[s] * market_data.prices[s] for s in all_symbols
+    }
 
     current_total = sum(current_values.values(), Decimal("0"))
     projected_total = sum(projected_values.values(), Decimal("0"))
@@ -211,29 +213,46 @@ def run_whatif(
     if current_total == 0:
         current_weights: dict[str, Decimal] = {}
     else:
-        current_weights = {s: v / current_total for s, v in current_values.items() if v > 0}
+        current_weights = {
+            s: v / current_total for s, v in current_values.items() if v > 0
+        }
 
-    projected_weights = {s: v / projected_total for s, v in projected_values.items() if v > 0}
+    projected_weights = {
+        s: v / projected_total for s, v in projected_values.items() if v > 0
+    }
 
     # Look-through both sides.
-    current_effective = _look_through_or_empty(current_weights, market_data.holdings_provider)
-    projected_effective = _look_through_or_empty(projected_weights, market_data.holdings_provider)
+    current_effective = _look_through_or_empty(
+        current_weights, market_data.holdings_provider
+    )
+    projected_effective = _look_through_or_empty(
+        projected_weights, market_data.holdings_provider
+    )
 
     # Build the six diff categories.
     diff = WhatIfDiff(warnings=warnings)
 
     _fill_exposure_diffs(diff, current_effective, projected_effective)
     _fill_rollup_diffs(
-        diff.sector_diffs, current_effective, projected_effective,
-        market_data.attribute_provider, "sector",
+        diff.sector_diffs,
+        current_effective,
+        projected_effective,
+        market_data.attribute_provider,
+        "sector",
     )
     _fill_rollup_diffs(
-        diff.country_diffs, current_effective, projected_effective,
-        market_data.attribute_provider, "country",
+        diff.country_diffs,
+        current_effective,
+        projected_effective,
+        market_data.attribute_provider,
+        "country",
     )
     _fill_concentration_diffs(diff, current_effective, projected_effective)
     _fill_risk_and_contrib_diffs(
-        diff, current_weights, projected_weights, market_data,
+        diff,
+        current_weights,
+        projected_weights,
+        market_data,
     )
 
     return diff
@@ -268,9 +287,14 @@ def _validate_market_data_shapes(md: MarketData) -> None:
     if n > 0 and np.isnan(md.cov).any():
         raise ValueError("cov contains NaN — refuse to compute risk on poisoned data")
     if md.returns.size and np.isnan(md.returns).any():
-        raise ValueError("returns contains NaN — refuse to compute risk on poisoned data")
+        raise ValueError(
+            "returns contains NaN — refuse to compute risk on poisoned data"
+        )
     if md.benchmark_returns.size and np.isnan(md.benchmark_returns).any():
-        raise ValueError("benchmark_returns contains NaN — refuse to compute risk on poisoned data")
+        raise ValueError(
+            "benchmark_returns contains NaN — refuse to compute risk on "
+            "poisoned data"
+        )
 
 
 def _validate_prices_present(symbols: set[str], prices: dict[str, Decimal]) -> None:
@@ -347,7 +371,9 @@ def _fill_concentration_diffs(
         MetricDiff(metric="hhi", current=c_hhi, projected=p_hhi, delta=p_hhi - c_hhi)
     )
     diff.concentration_diffs.append(
-        MetricDiff(metric="effective_n", current=c_en, projected=p_en, delta=p_en - c_en)
+        MetricDiff(
+            metric="effective_n", current=c_en, projected=p_en, delta=p_en - c_en
+        )
     )
     for k in (1, 5, 10):
         c = _topk(current, k)
@@ -365,7 +391,9 @@ def _fill_risk_and_contrib_diffs(
 ) -> None:
     def _side(
         weights: dict[str, Decimal],
-    ) -> tuple[float | None, float | None, float | None, float | None, dict[str, float]]:
+    ) -> tuple[
+        float | None, float | None, float | None, float | None, dict[str, float]
+    ]:
         """Return (vol, var_95, cvar_95, beta, {symbol: component_var}).
 
         If **any** book symbol is missing from ``md.returns_symbols``, all

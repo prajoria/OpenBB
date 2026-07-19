@@ -50,7 +50,11 @@ def _md(
     if returns is None:
         returns = rng.normal(loc=0.0005, scale=0.01, size=(T, len(syms)))
     if cov is None:
-        cov = np.cov(returns, rowvar=False, ddof=1) if len(syms) > 1 else np.array([[0.0001]])
+        cov = (
+            np.cov(returns, rowvar=False, ddof=1)
+            if len(syms) > 1
+            else np.array([[0.0001]])
+        )
     if benchmark_returns is None:
         benchmark_returns = rng.normal(loc=0.0004, scale=0.008, size=T)
     if attribute_provider is None:
@@ -84,9 +88,15 @@ def _base_book() -> tuple[list[PositionQty], MarketData]:
         "NVDA": Decimal("100"),
     }
     attribute_provider = {
-        "AAPL": Holding(symbol="AAPL", weight=Decimal("1"), sector="Tech", country="US"),
-        "MSFT": Holding(symbol="MSFT", weight=Decimal("1"), sector="Tech", country="US"),
-        "NVDA": Holding(symbol="NVDA", weight=Decimal("1"), sector="Semi", country="US"),
+        "AAPL": Holding(
+            symbol="AAPL", weight=Decimal("1"), sector="Tech", country="US"
+        ),
+        "MSFT": Holding(
+            symbol="MSFT", weight=Decimal("1"), sector="Tech", country="US"
+        ),
+        "NVDA": Holding(
+            symbol="NVDA", weight=Decimal("1"), sector="Semi", country="US"
+        ),
     }
     md = _md(prices, attribute_provider=attribute_provider)
     return positions, md
@@ -183,7 +193,9 @@ def test_new_symbol_via_delta_appears_in_projected_only() -> None:
         holdings_provider=md.holdings_provider,
         attribute_provider={
             **md.attribute_provider,
-            "GOOG": Holding(symbol="GOOG", weight=Decimal("1"), sector="Tech", country="US"),
+            "GOOG": Holding(
+                symbol="GOOG", weight=Decimal("1"), sector="Tech", country="US"
+            ),
         },
         returns=np.hstack([md.returns, md.returns[:, :1] * 0.9]),
         returns_symbols=md.returns_symbols + ["GOOG"],
@@ -367,8 +379,12 @@ def test_etf_delta_affects_underlying_exposures() -> None:
     ]
     prices = {"SPY": Decimal("400"), "AAPL": Decimal("200")}
     attribute_provider = {
-        "AAPL": Holding(symbol="AAPL", weight=Decimal("1"), sector="Tech", country="US"),
-        "MSFT": Holding(symbol="MSFT", weight=Decimal("1"), sector="Tech", country="US"),
+        "AAPL": Holding(
+            symbol="AAPL", weight=Decimal("1"), sector="Tech", country="US"
+        ),
+        "MSFT": Holding(
+            symbol="MSFT", weight=Decimal("1"), sector="Tech", country="US"
+        ),
     }
     holdings_provider = {
         "SPY": [
@@ -424,7 +440,9 @@ def test_missing_sector_rolls_up_as_unknown() -> None:
     md = MarketData(
         prices=md.prices,
         holdings_provider=md.holdings_provider,
-        attribute_provider={k: v for k, v in md.attribute_provider.items() if k != "NVDA"},
+        attribute_provider={
+            k: v for k, v in md.attribute_provider.items() if k != "NVDA"
+        },
         returns=md.returns,
         returns_symbols=md.returns_symbols,
         cov=md.cov,
