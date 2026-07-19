@@ -304,6 +304,21 @@ def _validate_prices_present(symbols: set[str], prices: dict[str, Decimal]) -> N
             f"prices missing for symbol(s): {sorted(missing)} — router "
             "should have populated MarketData.prices for every book/delta symbol"
         )
+    # Third-entry-point NaN guard (companion to the cov/returns/benchmark
+    # NaN checks in _validate_market_data_shapes). A Decimal("NaN") price
+    # flows through qty * price → Decimal("NaN"), whose > 0 comparison is
+    # False, so the symbol is silently dropped from projected_weights and
+    # the missing-from-returns_symbols guard doesn't fire (the symbol IS
+    # in returns_symbols) — partial-book variance silently reported.
+    # Reject NaN/Inf at the price boundary.
+    bad_prices = sorted(
+        s for s, p in prices.items() if s in symbols and not p.is_finite()
+    )
+    if bad_prices:
+        raise ValueError(
+            f"prices for symbol(s) {bad_prices} are not finite (NaN/Inf) "
+            "— refuse to compute risk on poisoned data"
+        )
 
 
 def _look_through_or_empty(

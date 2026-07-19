@@ -514,6 +514,28 @@ def test_nan_in_cov_raises_loud() -> None:
         run_whatif(positions, [], md)
 
 
+def test_nan_price_raises_loud() -> None:
+    """A Decimal('NaN') price silently drops the symbol via `v > 0` filter.
+
+    Because the symbol is still in returns_symbols, the missing-from-
+    returns_symbols guard doesn't fire, and _side() proceeds with a
+    partial weight vector summing < 1 — same silent-partial-book bug
+    as the earlier fix, via a different entry point.
+    """
+    positions, md = _base_book()
+    md = MarketData(
+        prices={**md.prices, "AAPL": Decimal("NaN")},
+        holdings_provider=md.holdings_provider,
+        attribute_provider=md.attribute_provider,
+        returns=md.returns,
+        returns_symbols=md.returns_symbols,
+        cov=md.cov,
+        benchmark_returns=md.benchmark_returns,
+    )
+    with pytest.raises(ValueError, match=r"AAPL.*NaN|not finite"):
+        run_whatif(positions, [], md)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
