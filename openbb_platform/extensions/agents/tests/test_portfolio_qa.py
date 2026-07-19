@@ -11,11 +11,17 @@ from pathlib import Path
 import pytest
 
 # Every test in this file imports from `google.adk` (via
-# openbb_agents.agents.portfolio_qa). The ADK dep requires the [agent]
-# extra which pulls litellm (Rust toolchain required to build). CI
-# runners lack Rust; mark the whole module so it's deselected under
-# `-m "not requires_agents"`. See #818.
+# openbb_agents.agents.portfolio_qa). Two-layer guard:
+#
+#   1. ``pytestmark = pytest.mark.requires_agents`` — deselected under
+#      the standard CI marker filter ``-m "not requires_agents"``
+#      (see #818).
+#   2. Module-level ``importorskip`` — if a harness runs WITHOUT the
+#      marker filter (e.g. bare ``pytest openbb_platform``), the
+#      missing dep produces a clean skip at collection rather than
+#      per-test errors. Harness known-noise report.
 pytestmark = pytest.mark.requires_agents
+pytest.importorskip("google.adk")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
