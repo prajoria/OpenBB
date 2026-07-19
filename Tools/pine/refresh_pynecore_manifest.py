@@ -46,11 +46,52 @@ ATTESTATION_FLAG = "--confirm-license-reviewed"
 
 
 def sha256_of(path: Path) -> str:
+    """Return hex sha256 of file contents with LF-normalized line endings.
+
+    Mirror of the verifier's :func:`Tools.pine.verify_pynecore_license.sha256_of`.
+    Line endings are canonicalized to LF before hashing so a manifest
+    captured on Windows (CRLF checkout) verifies cleanly on Linux CI
+    (LF checkout) and vice versa. See verify_pynecore_license.sha256_of
+    for the streaming CRLF-collapse algorithm.
+    """
     h = hashlib.sha256()
     with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
+        carry = b""
+        while True:
+            chunk = fh.read(65536)
+            if not chunk:
+                break
+            buf = carry + chunk
+            if buf.endswith(b"\r"):
+                carry = b"\r"
+                buf = buf[:-1]
+            else:
+                carry = b""
+            h.update(buf.replace(b"\r\n", b"\n"))
+        if carry:
+            h.update(carry)
     return h.hexdigest()
+
+
+def byte_size_of(path: Path) -> int:
+    """Return LF-normalized byte size (matches sha256_of's normalization)."""
+    size = 0
+    with path.open("rb") as fh:
+        carry = b""
+        while True:
+            chunk = fh.read(65536)
+            if not chunk:
+                break
+            buf = carry + chunk
+            if buf.endswith(b"\r"):
+                carry = b"\r"
+                buf = buf[:-1]
+            else:
+                carry = b""
+            size += len(buf.replace(b"\r\n", b"\n"))
+        if carry:
+            size += 1
+    return size
 
 
 def read_pyproject_version() -> str | None:
@@ -88,7 +129,7 @@ def build_manifest() -> dict[str, Any]:
             raise SystemExit(
                 f"ERROR: required file {path.relative_to(REPO_ROOT)} not found in submodule"
             )
-        files[name] = {"sha256": sha256_of(path), "byte_size": path.stat().st_size}
+        files[name] = {"sha256": sha256_of(path), "byte_size": byte_size_of(path)}
 
     manifest: dict[str, Any] = {
         "schema_version": 1,

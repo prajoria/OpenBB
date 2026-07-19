@@ -53,12 +53,67 @@ DRIFT_ERROR_MESSAGE = (
 
 
 def sha256_of(path: Path) -> str:
-    """Return hex sha256 of file contents, streaming to bound memory."""
+    """Return hex sha256 of file contents, streaming to bound memory.
+
+    Line endings are canonicalized to LF before hashing so a working-tree
+    checkout on Windows (which converts LF → CRLF at checkout time via
+    ``core.autocrlf``) produces the same hash as CI on Linux. Without
+    this, the manifest — necessarily captured on ONE platform — would
+    always mismatch on the other, and the check would either silently
+    pass on one platform or always fail on the other. The canonicalization
+    happens in-stream so we still bound memory on the LICENSE-sized files.
+    See docs/designs/openbb-pine/D0-pynecore-pin.md for the rationale.
+    """
     h = hashlib.sha256()
     with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
+        # Read one chunk larger than the CRLF window (2 bytes) so a
+        # split-across-chunk-boundary ``\r\n`` doesn't slip through.
+        # 65536 is comfortably larger; we carry over a trailing ``\r`` to
+        # the next chunk just in case one lands at the very end.
+        carry = b""
+        while True:
+            chunk = fh.read(65536)
+            if not chunk:
+                break
+            buf = carry + chunk
+            # If the buffer ends with ``\r``, hold it for the next chunk
+            # in case the next chunk starts with ``\n`` (which would form
+            # a CRLF that should collapse to LF).
+            if buf.endswith(b"\r"):
+                carry = b"\r"
+                buf = buf[:-1]
+            else:
+                carry = b""
+            h.update(buf.replace(b"\r\n", b"\n"))
+        if carry:
+            # Trailing lone ``\r`` (unusual — typically classic Mac line
+            # ending); hash as-is, no normalization applies.
+            h.update(carry)
     return h.hexdigest()
+
+
+def byte_size_of(path: Path) -> int:
+    """Return LF-normalized byte size of the file (mirror of :func:`sha256_of`).
+
+    See :func:`sha256_of` for the CRLF-vs-LF rationale.
+    """
+    size = 0
+    with path.open("rb") as fh:
+        carry = b""
+        while True:
+            chunk = fh.read(65536)
+            if not chunk:
+                break
+            buf = carry + chunk
+            if buf.endswith(b"\r"):
+                carry = b"\r"
+                buf = buf[:-1]
+            else:
+                carry = b""
+            size += len(buf.replace(b"\r\n", b"\n"))
+        if carry:
+            size += 1
+    return size
 
 
 def current_submodule_commit() -> str | None:
@@ -129,7 +184,7 @@ def main() -> int:
             file_results[filename] = result
             continue
 
-        actual_size = target.stat().st_size
+        actual_size = byte_size_of(target)
         actual_sha = sha256_of(target)
         expected_size = expected.get("byte_size")
         expected_sha = expected.get("sha256")
