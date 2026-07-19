@@ -86,6 +86,63 @@ scratch `MEMORY.md` files in random locations.
 comments, or old docs is historical only — treat it as a permanent
 identifier of past work, but never file new `bd-XX` items.
 
+## Sensitive data — brokerage exports & credentials
+
+Rules for **any** brokerage-account data (Fidelity Positions/Balances/
+Activity CSVs, Schwab/Vanguard/etc. exports, account statements, tax
+lots, cost bases). These override any general "look at the data to
+understand it" instinct.
+
+### 1. Downloaded data NEVER lives on the repo path
+
+- All exports MUST be written under `H:\masterswork\browser_exports\`
+  (or any other path OUTSIDE `H:\masterswork\git\OpenBB-Portfolio\`).
+- The `portfolio_export` config layer enforces this at every CLI
+  invocation via `Config._validate_outside_repo()` — raises `ConfigError`
+  if `download_dir`, `profile_dir`, or `user_recordings_dir` resolves
+  inside the repo root. Do NOT weaken or bypass this check.
+- `.gitignore` is defense-in-depth, not primary defense. The path
+  boundary is primary.
+
+### 2. Never read exported data directly
+
+- Do NOT open portfolio exports with `read_file`, `Get-Content`, `cat`,
+  `grep_search`, notebook cell previews, Excel-viewer tools, or any
+  inline preview that surfaces row content to the model.
+- OK: metadata-only checks — `Get-Item` (path/size/mtime),
+  `Measure-Object -Line` (row count), header-row inspection to confirm
+  schema shape.
+- All row-level inspection, transformation, and aggregation happens
+  through Python tools we build (loaders, validators, aggregators).
+  The tool's OUTPUT (aggregates, validation reports, summary stats) is
+  what the model sees — not the raw rows.
+- If a Python tool prints raw row data to stdout in a way the model
+  will read, that's a bug in the tool — fix it to print aggregates or
+  redact identifiers.
+
+### 3. Credentials never appear in code, recordings, or chat
+
+- Recording scaffolds (`portfolio_export/record.py` template) MUST NOT
+  contain literal usernames or passwords. Login is manual-in-browser
+  via `require_login()` + persistent Chrome profile.
+- If a user pastes credentials in chat: warn immediately, do not echo
+  the literal string in responses (each echo re-writes it to the local
+  VS Code transcript at `AppData\Roaming\Code\User\workspaceStorage\
+  <ws-id>\GitHub.copilot-chat\transcripts\`), instruct to rotate.
+- The persistent Chrome profile at
+  `C:\Users\daaji\.portfolio_export\chrome_profile\` holds session
+  cookies — do NOT commit, back up, or copy this directory anywhere
+  under the repo path.
+
+### 4. Where things live
+
+| Purpose | Location | Enforced by |
+|---|---|---|
+| Recordings (Playwright scaffolds) | `H:\masterswork\browser_recordings\` | `config._validate_outside_repo` |
+| Downloaded exports | `H:\masterswork\browser_exports\<YYYY-MM-DD>\` | `config._validate_outside_repo` |
+| Chromium profile | `C:\Users\daaji\.portfolio_export\chrome_profile\` | `config._validate_outside_repo` |
+| Env overrides | `OpenBB\openbb_platform\tools\portfolio_export\.env` (gitignored) | `.gitignore` |
+
 ## Overview
 
 OpenBB is an open-source financial data platform that provides the "connect once, consume everywhere" infrastructure for integrating financial data sources. The project consists of multiple components:
