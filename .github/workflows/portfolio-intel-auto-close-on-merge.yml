@@ -1,0 +1,140 @@
+name: Portfolio-Intel Auto-Close On Portfolio Merge
+
+# Issue: #847
+# The tracker-sync auto-close story: #837 shipped the grammar check
+# (Closes clause must cite a real #NN); #851/#857 tightened the heuristic;
+# but GitHub's built-in "Closes #NN" auto-close only fires when the closing
+# PR merges into the repo's DEFAULT branch (develop) — NOT when it merges
+# into portfolio (long-lived integration branch). So every feat/pi-* PR
+# that merges into portfolio requires a manual `gh issue close` afterwards.
+# This workflow automates that step.
+#
+# Trigger: push to portfolio (fires on every merge — PR merges push a
+#          merge commit).
+# Action:  parse the pushed commit(s) for Closes|Fixes|Resolves #NN;
+#          for each cited issue, verify it's open + comment + close.
+#
+# Companion workflows:
+#   .github/workflows/portfolio-intel-base-guard.yml     — reject feat/pi-* → develop
+#   .github/workflows/portfolio-intel-closes-syntax.yml  — enforce grammar
+
+on:
+  push:
+    branches:
+      - portfolio
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # queue rather than cancel — each merge is its own auto-close
+
+jobs:
+  auto-close-cited-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write        # gh issue close + comment
+      pull-requests: read  # gh pr view (source PR context)
+    steps:
+      - name: Checkout (deep enough to inspect merge commits)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 20   # HEAD + a bit of context; PR merges add 1 commit typically
+
+      - name: Extract cited issues from HEAD commit
+        id: extract
+        env:
+          # SHAs pushed in this event.
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          set -euo pipefail
+          # Get all commit messages in the pushed range.
+          # For a PR merge, this is typically the single merge commit;
+          # for a direct push (rare, e.g. absorb-from-develop), could be many.
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            # Initial push of a new branch — shouldn't happen on portfolio.
+            RANGE="$AFTER"
+          else
+            RANGE="${BEFORE}..${AFTER}"
+          fi
+          echo "Range: $RANGE"
+
+          # Grep for closing-verb clauses. Case-insensitive via -i (portable).
+          # Grammar mirrors .github/scripts/closes-syntax-check.sh:
+          #   Closes|Fixes|Resolves  #NN                    (same-repo, single)
+          #   Closes|Fixes|Resolves  #NN, #MM, #PP          (comma-separated multi)
+          #   Closes|Fixes|Resolves  owner/repo#NN          (cross-repo — we only
+          #                                                  auto-close same-repo here)
+          # Two-stage: first extract the whole clause (verb + possibly-comma-sep
+          # issue list), then extract every #NN from the clause. Necessary
+          # because a single grep can't capture repeated #NN groups.
+          # Output one issue number per line, deduplicated.
+          git log --pretty=format:'%B%n---%n' "$RANGE" \
+            | grep -oiE '(Closes|Fixes|Resolves)[[:space:]]+#[0-9]+([[:space:]]*,[[:space:]]*#[0-9]+)*' \
+            | grep -oE '#[0-9]+' \
+            | tr -d '#' \
+            | sort -u > cited_issues.txt || true
+          echo "Cited issues:"
+          cat cited_issues.txt || echo "(none)"
+          # Emit count for logs.
+          COUNT=$(wc -l < cited_issues.txt || echo 0)
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Close cited issues (idempotent)
+        if: steps.extract.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGE_SHA: ${{ github.event.after }}
+        run: |
+          set -euo pipefail
+          MERGE_SHORT="${MERGE_SHA:0:12}"
+          # Find the source PR (if this push was a PR merge) — used in the
+          # linking comment. `gh pr list --search "merged:<date>"` is unreliable;
+          # instead parse the merge commit's message for "Merge pull request #NNN".
+          SOURCE_PR=$(git log -1 --format=%B "$MERGE_SHA" \
+            | grep -oE 'Merge pull request #[0-9]+' \
+            | grep -oE '#[0-9]+' \
+            | tr -d '#' \
+            | head -1 || true)
+          if [ -n "$SOURCE_PR" ]; then
+            PR_REF="#$SOURCE_PR"
+          else
+            PR_REF="direct commit"
+          fi
+          echo "Source PR ref: $PR_REF"
+
+          while read -r ISSUE; do
+            [ -z "$ISSUE" ] && continue
+            STATE=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json state --jq .state 2>/dev/null || echo "MISSING")
+            if [ "$STATE" = "MISSING" ]; then
+              echo "  #$ISSUE: not found in this repo — skip"
+              continue
+            fi
+            if [ "$STATE" = "CLOSED" ]; then
+              echo "  #$ISSUE: already closed — skip (idempotent)"
+              continue
+            fi
+            echo "  #$ISSUE: closing (was $STATE)"
+            # Build the comment body in a temp file so the multi-line
+            # content doesn't fight YAML's line-continuation parsing.
+            cat > /tmp/close-comment.md <<COMMENT
+          Auto-closed by merge \`${MERGE_SHORT}\` (source ${PR_REF}) into \`portfolio\`.
+
+          GitHub's built-in "Closes #NN" auto-close only fires when the closing PR merges into the repo's default branch (\`develop\`). Portfolio-intel feat/pi-* PRs merge into the long-lived \`portfolio\` integration branch, so this workflow (see #847) automates the close.
+
+          If you believe this was closed in error, reopen with \`gh issue reopen $ISSUE\` — no work was lost, only the tracker state changed.
+          COMMENT
+            gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file /tmp/close-comment.md
+            gh issue close "$ISSUE" --repo "$GITHUB_REPOSITORY" --reason completed
+          done < cited_issues.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Auto-close summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Merge SHA: \`${{ github.event.after }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cited issues: **${{ steps.extract.outputs.count }}**" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.extract.outputs.count }}" != "0" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "See \`Close cited issues\` step logs for per-issue outcome (already-closed = skip)." >> "$GITHUB_STEP_SUMMARY"
+          fi
