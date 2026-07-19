@@ -236,23 +236,35 @@ def test_include_subrouters_only_swallows_own_missing_modules() -> None:
 def test_include_subrouters_silent_when_all_missing_including_parent() -> None:
     """Reproduces issue #802 root cause and asserts the fix.
 
-    Repro: with no ``openbb_portfolio_intel.routers`` package on disk,
-    calling ``_include_subrouters()`` must complete silently (all
-    sub-routers are "not yet implemented"). Before the #802 fix, this
-    raised ``ModuleNotFoundError: No module named
-    'openbb_portfolio_intel.routers'`` at the FIRST iteration of the
-    loop because the guard checked ``exc.name == module_path`` (leaf)
-    but the actual missing name was the parent package.
+    Pre-#802 the guard raised on the *first* iteration because the
+    ``routers`` parent package wasn't yet on disk and the check only
+    matched on the leaf module name, not on ancestor packages.
+
+    NOTE (updated 2026-07-19, #541): once real subrouters started
+    landing (xray_router first), the original fixture ("no ``routers``
+    package on disk") became impossible to satisfy on the live tree.
+    We now simulate the pre-#802 world by pointing the
+    ``_PLANNED_SUBROUTERS`` tuple at a fake `not_yet_implemented`
+    sub-router path and asserting the call completes silently — the
+    invariant is unchanged (parent-missing ancestors are swallowed),
+    only the fixture shape.
     """
     import openbb_portfolio_intel.portfolio_intel_router as pim_router
 
-    # Confirm the fixture: parent package does NOT exist on disk.
-    with pytest.raises(ModuleNotFoundError):
-        __import__("openbb_portfolio_intel.routers")
+    orig = pim_router._PLANNED_SUBROUTERS
+    try:
+        pim_router._PLANNED_SUBROUTERS = (
+            "openbb_portfolio_intel.definitely_not_yet.some_leaf",
+        )
+        # Confirm the fixture: neither the parent nor the leaf exists.
+        with pytest.raises(ModuleNotFoundError):
+            __import__("openbb_portfolio_intel.definitely_not_yet")
 
-    # Post-#802-fix: the call must return None cleanly, not raise.
-    result = pim_router._include_subrouters()
-    assert result is None
+        # Post-#802-fix: the call must return None cleanly, not raise.
+        result = pim_router._include_subrouters()
+        assert result is None
+    finally:
+        pim_router._PLANNED_SUBROUTERS = orig
 
 
 def test_include_subrouters_reraises_unrelated_missing_dep(monkeypatch) -> None:
@@ -264,27 +276,30 @@ def test_include_subrouters_reraises_unrelated_missing_dep(monkeypatch) -> None:
     is neither the leaf nor an ancestor of the sub-router's module_path.
     The guard MUST re-raise so CI surfaces the real bug.
 
-    This is the invariant the PR #466 review demanded and #802's fix
-    preserves.
+    NOTE (updated 2026-07-19, #541): originally targeted ``xray_router``
+    when only the parent-package fixture was needed. Now that
+    xray_router is real, this test uses a distinct fake leaf path so
+    the meta-path finder gets the first shot at resolution.
     """
     import sys
-    import types
 
     import openbb_portfolio_intel.portfolio_intel_router as pim_router
 
-    # Inject a fake `openbb_portfolio_intel.routers` parent package so
-    # the leaf-import can proceed to the sub-router module body.
-    fake_parent = types.ModuleType("openbb_portfolio_intel.routers")
-    fake_parent.__path__ = []  # mark as package
-    monkeypatch.setitem(sys.modules, "openbb_portfolio_intel.routers", fake_parent)
+    fake_leaf_path = "openbb_portfolio_intel.routers.some_fake_leaf"
 
-    # Inject a fake xray_router whose module-body raises on import.
+    # Redirect the guard onto our fake leaf.
+    orig = pim_router._PLANNED_SUBROUTERS
+    monkeypatch.setattr(pim_router, "_PLANNED_SUBROUTERS", (fake_leaf_path,))
+
+    # Ensure the real `routers` parent package resolves — we don't need
+    # to fake it since it's on disk now.
+    __import__("openbb_portfolio_intel.routers")
+
+    # Meta-path finder that raises for our fake leaf ONLY, naming an
+    # unrelated missing package.
     class _BadFinder:
-        """Meta-path finder that makes the xray_router raise on import."""
-
         def find_spec(self, fullname, path=None, target=None):  # noqa: ARG002
-            if fullname == "openbb_portfolio_intel.routers.xray_router":
-                # Raise a ModuleNotFoundError naming an *unrelated* package.
+            if fullname == fake_leaf_path:
                 raise ModuleNotFoundError(
                     "No module named 'some_missing_pkg'",
                     name="some_missing_pkg",
@@ -298,6 +313,9 @@ def test_include_subrouters_reraises_unrelated_missing_dep(monkeypatch) -> None:
         "the transitive-dep miss must propagate; the guard must not "
         "swallow it just because it happened during a sub-router import"
     )
+
+    # Reset (monkeypatch handles this automatically but keep intent clear).
+    pim_router._PLANNED_SUBROUTERS = orig
 
 
 def test_include_subrouters_reraises_when_exc_name_is_none(monkeypatch) -> None:
