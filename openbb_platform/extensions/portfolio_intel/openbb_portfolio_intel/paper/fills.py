@@ -81,17 +81,22 @@ QUOTE_FRESHNESS_SECONDS: int = 60  # PRD §16.4
 
 
 class OrderType(str, Enum):
-    """Supported order types in v0 (#563)."""
+    """Supported order types (#563 v0 + #544 v1 wire types)."""
 
     MARKET = "market"
     LIMIT = "limit"
+    STOP = "stop"  # #544 wire type; evaluator lands with the scheduler
+    STOP_LIMIT = "stop_limit"  # #544 wire type
+    TRAILING_STOP = "trailing_stop"  # #544 wire type; needs peak tracker
 
 
 class TimeInForce(str, Enum):
-    """Supported TIF in v0 (#563). IOC/FOK land in #544."""
+    """Supported TIF (#563 v0 + #544 v1)."""
 
     DAY = "day"
     GTC = "gtc"
+    IOC = "ioc"  # #544 — immediate-or-cancel
+    FOK = "fok"  # #544 — fill-or-kill
 
 
 class OrderStatus(str, Enum):
@@ -121,13 +126,33 @@ class Quote:
 
 @dataclass(frozen=True)
 class OrderRequest:
-    """Caller-supplied order intent."""
+    """Caller-supplied order intent.
+
+    v0 fields (#563): market/limit + day/gtc.
+    v1 additions (#544):
+    - ``stop_price`` — stop / stop_limit trigger price
+    - ``trail_amount`` — trailing-stop distance in price (>0) OR
+      ``trail_percent`` — as fraction (0.01 = 1%)
+    - TIF ``ioc`` / ``fok`` — immediate-or-cancel / fill-or-kill
+
+    The v1 order types (stop, stop_limit, trailing_stop) are ACCEPTED
+    at the OrderRequest level but the evaluator that decides
+    ``triggered vs pending`` for a stop is deferred (needs a bar-close
+    scheduler + peak tracker for trailing). ``submit_order`` returns
+    REJECTED with a documented "pending scheduler" reason today; the
+    scheduler follow-up flips the same rows to FILLED without an
+    API change.
+    """
 
     symbol: str
     qty: Decimal  # signed: > 0 = buy, < 0 = sell
     order_type: OrderType = OrderType.MARKET
     limit_price: Decimal | None = None
     time_in_force: TimeInForce = TimeInForce.DAY
+    # v1 fields (#544)
+    stop_price: Decimal | None = None
+    trail_amount: Decimal | None = None
+    trail_percent: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -252,6 +277,35 @@ def _validate_request(req: OrderRequest) -> None:
         not req.limit_price.is_finite() or req.limit_price <= 0
     ):
         raise OrderRejected(f"limit_price {req.limit_price} must be finite and > 0")
+    # #544 stop / stop_limit / trailing_stop validation
+    if req.order_type == OrderType.STOP and req.stop_price is None:
+        raise OrderRejected("stop_price required for STOP order")
+    if req.order_type == OrderType.STOP_LIMIT and (
+        req.stop_price is None or req.limit_price is None
+    ):
+        raise OrderRejected("stop_price AND limit_price required for STOP_LIMIT order")
+    if req.order_type == OrderType.TRAILING_STOP and (
+        req.trail_amount is None and req.trail_percent is None
+    ):
+        raise OrderRejected(
+            "trail_amount OR trail_percent required for TRAILING_STOP order"
+        )
+    if req.stop_price is not None and (
+        not req.stop_price.is_finite() or req.stop_price <= 0
+    ):
+        raise OrderRejected(f"stop_price {req.stop_price} must be finite and > 0")
+    if req.trail_amount is not None and (
+        not req.trail_amount.is_finite() or req.trail_amount <= 0
+    ):
+        raise OrderRejected(f"trail_amount {req.trail_amount} must be finite and > 0")
+    if req.trail_percent is not None and (
+        not req.trail_percent.is_finite()
+        or req.trail_percent <= 0
+        or req.trail_percent >= 1
+    ):
+        raise OrderRejected(
+            f"trail_percent {req.trail_percent} must be finite and in (0, 1)"
+        )
 
 
 def _quote_is_fresh(quote: Quote, *, now: datetime) -> bool:
@@ -406,6 +460,35 @@ def _submit_order_locked(  # noqa: PLR0911  # 10+ terminal REJECTED branches (se
 
     reference_price = quote.last
     is_buy = req.qty > 0
+
+    # #544 v1 order types — accept the shape at the OrderRequest level,
+    # defer the evaluator to a follow-up (needs a bar-close scheduler
+    # for stops + a peak tracker for trailing_stop). Return a
+    # documented REJECTED reason today; the scheduler follow-up flips
+    # the same rows to FILLED without any API change.
+    if req.order_type in (
+        OrderType.STOP,
+        OrderType.STOP_LIMIT,
+        OrderType.TRAILING_STOP,
+    ):
+        return SubmitResult(
+            status=OrderStatus.REJECTED,
+            reason=(
+                f"{req.order_type.value} order accepted at wire level (#544) "
+                "but the stop-trigger evaluator + peak tracker are not yet "
+                "shipped; follow-up wires them into a bar-close scheduler. "
+                "Use LIMIT with a marketable price today."
+            ),
+        )
+
+    # #544 v1 TIF — FOK / IOC on market/limit. On the fill path here,
+    # both immediate variants behave identically to DAY (we don't
+    # queue; we fill-or-reject now). This is correct semantics: FOK
+    # rejects on non-marketable, IOC would fill-partial-then-cancel,
+    # but v0 has no partials so IOC == FOK == DAY at fill time.
+    # Documented so the field carries through the audit trail even
+    # if the fill behavior collapses. When partials land (#544 follow-
+    # up), IOC diverges from DAY/GTC/FOK.
 
     # Limit marketability check
     if req.order_type == OrderType.LIMIT:
