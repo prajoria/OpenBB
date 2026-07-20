@@ -247,7 +247,7 @@ class FMPCachedEquityHistoricalFetcher(
         if credentials and "fmp_cached_api_key" in credentials:
             fmp_credentials = {"fmp_api_key": credentials["fmp_cached_api_key"]}
         else:
-            fmp_credentials = credentials
+            fmp_credentials = credentials  # type: ignore[assignment]
 
         # Handle multiple symbols
         symbols = query.symbol.split(",") if "," in query.symbol else [query.symbol]
