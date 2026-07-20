@@ -293,7 +293,7 @@ def _commission_for(account: PaperAccount, qty: Decimal, price: Decimal) -> Deci
     return Decimal("0")
 
 
-def submit_order(
+def submit_order(  # noqa: PLR0911  # 10+ terminal REJECTED branches (see docstring)
     req: OrderRequest,
     *,
     user_id: str,
