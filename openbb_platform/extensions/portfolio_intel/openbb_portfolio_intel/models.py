@@ -101,3 +101,34 @@ class RiskMetricsResult(BaseModel):
         description="Portfolio beta vs benchmark_returns (cov / benchmark var).",
     )
     warnings: list[str] = Field(default_factory=list)
+
+
+class CalendarEventItem(BaseModel):
+    """One event in the merged /events/timeline (#542).
+
+    ``date`` is serialized as an ISO ``YYYY-MM-DD`` string (not
+    ``datetime.date``) to keep the response boundary trivially
+    JSON-serializable — matches the /xray + /risk generator-quirk
+    posture (extension-local types have to stay simple).
+    """
+
+    symbol: str = Field(description="Ticker the event pertains to.")
+    date: str = Field(description="ISO date (YYYY-MM-DD) of the event.")
+    event_type: str = Field(description="One of: earnings | dividend | split | ipo.")
+    source: str = Field(description="Provider tag (e.g. 'fmp_cached').")
+    details: dict = Field(
+        default_factory=dict,
+        description="Optional per-event-type payload (EPS estimate, div amount, etc.).",
+    )
+
+
+class EventTimelineResult(BaseModel):
+    """Nested response shape for the /events/timeline route (#542)."""
+
+    timeline: list[CalendarEventItem] = Field(
+        description="Chronologically-sorted event list, portfolio-scoped."
+    )
+    by_symbol: dict[str, list[CalendarEventItem]] = Field(
+        description="Same events grouped by symbol for per-holding widgets."
+    )
+    warnings: list[str] = Field(default_factory=list)
