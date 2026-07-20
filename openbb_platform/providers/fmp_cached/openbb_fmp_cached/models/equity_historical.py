@@ -374,7 +374,7 @@ class FMPCachedEquityHistoricalFetcher(
 
                     # Update database with dividend data
                     # Group by symbol to update each symbol's data
-                    symbol_data_map: dict[str, list] = {}
+                    symbol_data_map: dict = {}
                     for item in all_results:
                         sym = item.get("symbol")
                         if sym not in symbol_data_map:
