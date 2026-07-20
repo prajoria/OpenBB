@@ -67,7 +67,7 @@ class ConstituentRow:
     sector: str | None
     date_added: date | None
     removed_symbol: str | None
-    date: date | None
+    event_date: date | None
     reason: str | None
 
 
@@ -122,7 +122,7 @@ def _row_from_dict(raw: dict[str, Any]) -> ConstituentRow:
             raw.get("date_added") if isinstance(raw.get("date_added"), date) else None
         ),
         removed_symbol=raw.get("removed_symbol"),
-        date=raw.get("date") if isinstance(raw.get("date"), date) else None,
+        event_date=raw.get("date") if isinstance(raw.get("date"), date) else None,
         reason=raw.get("reason"),
     )
 
@@ -248,9 +248,9 @@ def point_in_time(snapshot: IndexHistorySnapshot, as_of: date) -> set[str]:
         )
     members = {row.symbol for row in snapshot.current if row.symbol}
     for event in snapshot.historical:
-        # An event applies at event.date. If event.date > as_of, the event
-        # hadn't happened yet at as_of — undo it.
-        event_date = event.date
+        # An event applies at event.event_date. If event.event_date > as_of,
+        # the event hadn't happened yet at as_of — undo it.
+        event_date = event.event_date
         if event_date is None or event_date <= as_of:
             continue
         if event.symbol:
