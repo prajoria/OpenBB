@@ -63,6 +63,7 @@ from typing import Protocol
 from uuid import uuid4
 
 from openbb_portfolio_intel.paper.accounts import (
+    AccountConfigError,
     AccountStore,
     PaperAccount,
 )
@@ -405,18 +406,12 @@ def submit_order(  # noqa: PLR0911  # 10+ terminal REJECTED branches (see docstr
     # apply_fill downstream.
     lot = position_store.get(account_id, req.symbol, user_id=user_id)
 
-    # Cash check (margin disabled in v0 unless account.config.margin_enabled)
+    # Signed cash delta. Buys negative, sells positive. Sufficient-cash
+    # check happens ATOMICALLY inside apply_cash_delta (post-refactor of
+    # #563 security review) — passing min_balance=0 on non-margin accounts
+    # so concurrent submit_orders cannot race the balance below zero.
     trade_value = fill_price * req.qty  # signed
-    if is_buy and not account.config.margin_enabled:
-        required_cash = trade_value + commission
-        if account.cash_balance < required_cash:
-            return SubmitResult(
-                status=OrderStatus.REJECTED,
-                reason=(
-                    f"insufficient cash: need {required_cash}, "
-                    f"have {account.cash_balance} (margin disabled)"
-                ),
-            )
+    cash_delta = -(trade_value + commission)
 
     # Security: sell-oversell guard for cash-only accounts. Without this
     # a caller could sell more shares than they own, opening an implicit
@@ -446,21 +441,23 @@ def submit_order(  # noqa: PLR0911  # 10+ terminal REJECTED branches (see docstr
     )
     new_lot, _realized_pnl_from_fill = apply_fill(lot, fill_event)
 
-    # Cash arithmetic:
-    #   buy: cash -= (price * qty + commission) → but qty is positive, so
-    #        cash -= trade_value + commission
-    #   sell: cash += (price * |qty| - commission) → qty negative, so
-    #        cash -= trade_value + commission  (trade_value already negative)
-    # Unified: cash_delta = -(trade_value + commission)
-    cash_delta = -(trade_value + commission)
-    updated_account_cash = account.cash_balance + cash_delta
-
-    # Delegate cash write to the AccountStore's own primitive — enforces
-    # user_id ownership under the store's lock, replaces the earlier
-    # private-dict access (see #563 security review).
-    updated_account = account_store.update_cash(
-        account_id, updated_account_cash, user_id=user_id, now=now
-    )
+    # Atomic cash mutation via the store's own primitive. Includes the
+    # sufficiency check (min_balance=0 for non-margin accounts) under
+    # the same lock as the write — cannot race a concurrent submit_order.
+    min_balance = None if account.config.margin_enabled else Decimal("0")
+    try:
+        updated_account = account_store.apply_cash_delta(
+            account_id,
+            cash_delta,
+            user_id=user_id,
+            now=now,
+            min_balance=min_balance,
+        )
+    except AccountConfigError as exc:
+        return SubmitResult(
+            status=OrderStatus.REJECTED,
+            reason=f"insufficient cash: {exc}",
+        )
     position_store.put(account_id, new_lot, user_id=user_id)
 
     fill = Fill(
