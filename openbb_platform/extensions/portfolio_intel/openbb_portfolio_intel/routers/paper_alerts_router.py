@@ -1,7 +1,7 @@
 """Paper-trading alert wiring (#574).
 
 One command:
-- ``obb.portfolio_intel.paper.alerts(user_id, account_id, since_seconds, ...)``
+- ``obb.portfolio_intel.paper.alerts(account_id, since_seconds, ...)``
   Reads paper-trading ledger events since ``since_seconds`` ago, maps
   fills / rejections / low-buying-power / GTC-expiring-soon into
   :class:`analytics.alerts.PaperTradingEvent` records, feeds them
@@ -12,10 +12,22 @@ Composes:
   for the event source.
 - ``analytics.alerts.evaluate_paper_trading_events`` for the mapper.
 
-Design: the alert engine is source-agnostic; this route just adapts
-the paper ledger's :class:`paper.LedgerEntry` shape into the alert
-engine's :class:`PaperTradingEvent` shape and applies the two extra
-policy triggers (GTC-expiring-soon, low buying-power < 10%).
+## Authorization model (post-security-review of PR #950)
+
+``user_id`` MUST come from the authenticated session, NOT from the
+request body — otherwise any caller could enumerate ``user_id`` values
+and read other people's paper accounts (classic IDOR).
+
+This module resolves the principal via :func:`_resolve_principal`, a
+seam that returns the current OpenBB user context. The seam raises
+``PermissionError`` when no session is authenticated; tests inject a
+stub principal that returns a fixed ``user_id``.
+
+Before every store call we call ``_verify_account_ownership`` which
+looks up the account and rejects when its ``user_id`` does not match
+the resolved principal. On rejection the route returns an alert-free
+response with an ``ACL denied`` warning — no cash balance, no ledger
+row, no metadata leaks about whether the account actually exists.
 """
 
 from __future__ import annotations
@@ -48,6 +60,41 @@ router = Router(
         "events."
     ),
 )
+
+
+# ---------------------------------------------------------------------------
+# Auth seams
+# ---------------------------------------------------------------------------
+
+
+def _resolve_principal() -> str:
+    """Return the authenticated ``user_id`` from the current session.
+
+    Production wiring will read from ``openbb_core.app.service.user_service``
+    — deferred to the platform-auth integration follow-up. Until then this
+    raises so no route can be called unauthenticated, and tests override
+    the seam explicitly.
+    """
+    raise PermissionError(
+        "no authenticated principal — set _resolve_principal in test / wire "
+        "platform user service in production"
+    )
+
+
+def _verify_account_ownership(account_store, *, principal: str, account_id: str) -> bool:
+    """Return True iff the account exists and belongs to ``principal``.
+
+    Returns False on any mismatch or fetch error — never raises. The
+    caller decides how to fail closed (typically returning an empty
+    alert list with an ``ACL denied`` warning).
+    """
+    try:
+        account = account_store.get(user_id=principal, account_id=account_id)
+    except Exception:  # noqa: BLE001
+        return False
+    if account is None:
+        return False
+    return getattr(account, "user_id", None) == principal
 
 
 # ---------------------------------------------------------------------------
@@ -216,13 +263,12 @@ def _alert_to_item(a: Alert) -> PaperAlertItem:
             description="Paper-trading alert stream for the last hour.",
             code=[
                 'obb.portfolio_intel.paper.alerts('
-                'user_id="daisy", account_id="acc-1", since_seconds=3600)',
+                'account_id="acc-1", since_seconds=3600)',
             ],
         )
     ],
 )
 def alerts(
-    user_id: str,
     account_id: str,
     since_seconds: int = 3600,
     low_buying_power_pct: float = 0.10,
@@ -230,10 +276,16 @@ def alerts(
 ) -> OBBject[PaperAlertsResult]:
     """Aggregate paper-trading alerts for a specific account.
 
+    Authorization: ``user_id`` is resolved from the authenticated
+    session (not the request), then ``account_id`` is verified to
+    belong to that principal. On any auth failure the route returns
+    an empty alert list plus an ``ACL denied`` warning — never leaks
+    account existence, balance, or ledger contents.
+
     Parameters
     ----------
-    user_id, account_id : str
-        Scope the ledger read + account fetch.
+    account_id : str
+        Account to fetch alerts for. MUST belong to the caller.
     since_seconds : int
         Lookback in seconds. Default 3600 (1 hour).
     low_buying_power_pct : float
@@ -250,6 +302,26 @@ def alerts(
 
     warnings: list[str] = []
     combined: list[Alert] = []
+
+    # ---- authorize -------------------------------------------------------
+    try:
+        principal = _resolve_principal()
+    except PermissionError as exc:
+        return OBBject(
+            results=PaperAlertsResult(
+                alerts=[], warnings=[f"ACL denied: {exc}"]
+            )
+        )
+    if not _verify_account_ownership(
+        account_store, principal=principal, account_id=account_id
+    ):
+        # Deliberately vague error — no oracle for account existence.
+        return OBBject(
+            results=PaperAlertsResult(
+                alerts=[], warnings=["ACL denied: account not accessible"]
+            )
+        )
+    user_id = principal
 
     try:
         entries = ledger_store.list_for_account(

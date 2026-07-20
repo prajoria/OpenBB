@@ -315,6 +315,7 @@ class _StubAccount:
     account_id: str
     cash_balance: Decimal
     starting_cash: Decimal
+    user_id: str = "daisy"
     open_orders: list = None
 
 
@@ -344,6 +345,7 @@ def test_paper_alerts_fills_produce_info_alerts(monkeypatch) -> None:
     acct = _StubAccount(
         account_id="a1", cash_balance=D("50000"), starting_cash=D("100000")
     )
+    monkeypatch.setattr(paper_alerts_router, "_resolve_principal", lambda: "daisy")
     monkeypatch.setattr(
         paper_alerts_router, "_default_ledger_store", lambda: ledger
     )
@@ -353,7 +355,7 @@ def test_paper_alerts_fills_produce_info_alerts(monkeypatch) -> None:
         lambda: _StubAccountStore(account=acct),
     )
     result = paper_alerts_router.alerts(
-        user_id="daisy", account_id="a1", since_seconds=3600
+        account_id="a1", since_seconds=3600
     ).results
     fill_alerts = [a for a in result.alerts if "filled" in a.message.lower()]
     assert len(fill_alerts) == 1
@@ -365,6 +367,7 @@ def test_paper_alerts_low_buying_power_fires_below_threshold(monkeypatch) -> Non
     acct = _StubAccount(
         account_id="a1", cash_balance=D("5000"), starting_cash=D("100000")
     )
+    monkeypatch.setattr(paper_alerts_router, "_resolve_principal", lambda: "daisy")
     monkeypatch.setattr(paper_alerts_router, "_default_ledger_store", lambda: ledger)
     monkeypatch.setattr(
         paper_alerts_router,
@@ -372,7 +375,7 @@ def test_paper_alerts_low_buying_power_fires_below_threshold(monkeypatch) -> Non
         lambda: _StubAccountStore(account=acct),
     )
     result = paper_alerts_router.alerts(
-        user_id="daisy", account_id="a1", low_buying_power_pct=0.10
+        account_id="a1", low_buying_power_pct=0.10
     ).results
     bp = [a for a in result.alerts if "Buying power low" in a.message]
     assert len(bp) == 1
@@ -384,15 +387,14 @@ def test_paper_alerts_low_buying_power_silent_above_threshold(monkeypatch) -> No
     acct = _StubAccount(
         account_id="a1", cash_balance=D("60000"), starting_cash=D("100000")
     )
+    monkeypatch.setattr(paper_alerts_router, "_resolve_principal", lambda: "daisy")
     monkeypatch.setattr(paper_alerts_router, "_default_ledger_store", lambda: ledger)
     monkeypatch.setattr(
         paper_alerts_router,
         "_default_account_store",
         lambda: _StubAccountStore(account=acct),
     )
-    result = paper_alerts_router.alerts(
-        user_id="daisy", account_id="a1"
-    ).results
+    result = paper_alerts_router.alerts(account_id="a1").results
     assert not any("Buying power" in a.message for a in result.alerts)
 
 
@@ -425,6 +427,7 @@ def test_paper_alerts_gtc_expiring_within_horizon(monkeypatch) -> None:
         starting_cash=D("100000"),
         open_orders=orders,
     )
+    monkeypatch.setattr(paper_alerts_router, "_resolve_principal", lambda: "daisy")
     monkeypatch.setattr(paper_alerts_router, "_default_ledger_store", lambda: ledger)
     monkeypatch.setattr(
         paper_alerts_router,
@@ -432,11 +435,102 @@ def test_paper_alerts_gtc_expiring_within_horizon(monkeypatch) -> None:
         lambda: _StubAccountStore(account=acct),
     )
     result = paper_alerts_router.alerts(
-        user_id="daisy", account_id="a1", gtc_horizon_days=3
+        account_id="a1", gtc_horizon_days=3
     ).results
     expiring = [a for a in result.alerts if "expires" in a.message]
     assert len(expiring) == 1
     assert expiring[0].symbol == "AAPL"
+
+
+# ---------------------------------------------------------------------------
+# IDOR guard — verify authorization surface
+# ---------------------------------------------------------------------------
+
+
+def test_paper_alerts_rejects_when_no_authenticated_principal(monkeypatch) -> None:
+    """No auth session → empty alert list + ACL denied warning. No leak."""
+    ledger = _StubLedgerStore(
+        entries=[
+            _StubLedgerEntry(
+                entry_type="TRADE",
+                symbol="AAPL",
+                quantity=D("10"),
+                price=D("100"),
+                at=datetime.now(tz=timezone.utc),
+            )
+        ]
+    )
+    acct = _StubAccount(
+        account_id="a1", cash_balance=D("50000"), starting_cash=D("100000")
+    )
+    # No _resolve_principal override — production seam raises PermissionError.
+    monkeypatch.setattr(paper_alerts_router, "_default_ledger_store", lambda: ledger)
+    monkeypatch.setattr(
+        paper_alerts_router,
+        "_default_account_store",
+        lambda: _StubAccountStore(account=acct),
+    )
+    result = paper_alerts_router.alerts(account_id="a1").results
+    assert result.alerts == []
+    assert any("ACL denied" in w for w in result.warnings)
+
+
+def test_paper_alerts_rejects_account_owned_by_different_user(monkeypatch) -> None:
+    """Authenticated as 'mallory' but account.user_id='daisy' → ACL denied.
+
+    Critical IDOR guard: the caller cannot enumerate someone else's
+    account by guessing the id. No cash / no ledger row is echoed.
+    """
+    ledger = _StubLedgerStore(
+        entries=[
+            _StubLedgerEntry(
+                entry_type="TRADE",
+                symbol="AAPL",
+                quantity=D("10"),
+                price=D("100"),
+                at=datetime.now(tz=timezone.utc),
+            )
+        ]
+    )
+    acct = _StubAccount(
+        account_id="a1",
+        cash_balance=D("50000"),
+        starting_cash=D("100000"),
+        user_id="daisy",  # owned by daisy
+    )
+    monkeypatch.setattr(paper_alerts_router, "_resolve_principal", lambda: "mallory")
+    monkeypatch.setattr(paper_alerts_router, "_default_ledger_store", lambda: ledger)
+    monkeypatch.setattr(
+        paper_alerts_router,
+        "_default_account_store",
+        lambda: _StubAccountStore(account=acct),
+    )
+    result = paper_alerts_router.alerts(account_id="a1").results
+    assert result.alerts == []
+    assert any("ACL denied" in w for w in result.warnings)
+    # No cash or ledger leaks in any warning.
+    joined = " ".join(result.warnings)
+    assert "50000" not in joined
+    assert "AAPL" not in joined
+
+
+def test_paper_alerts_rejects_missing_account_without_oracle(monkeypatch) -> None:
+    """Missing account and forbidden account produce identical ACL denial —
+    no existence oracle for account IDs."""
+    ledger = _StubLedgerStore(entries=[])
+
+    class _MissingAccountStore:
+        def get(self, *, user_id, account_id):
+            return None
+
+    monkeypatch.setattr(paper_alerts_router, "_resolve_principal", lambda: "daisy")
+    monkeypatch.setattr(paper_alerts_router, "_default_ledger_store", lambda: ledger)
+    monkeypatch.setattr(
+        paper_alerts_router, "_default_account_store", _MissingAccountStore
+    )
+    result = paper_alerts_router.alerts(account_id="never-existed").results
+    assert result.alerts == []
+    assert any("ACL denied" in w for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------
