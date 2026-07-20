@@ -132,3 +132,29 @@ class EventTimelineResult(BaseModel):
         description="Same events grouped by symbol for per-holding widgets."
     )
     warnings: list[str] = Field(default_factory=list)
+
+
+class SmartMoneyScoreItem(BaseModel):
+    """One symbol's aggregated smart-money score (#527)."""
+
+    symbol: str = Field(description="Ticker.")
+    composite: float = Field(
+        description="Signed composite (positive = net-buy conviction, negative = net-sell)."
+    )
+    by_source: dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-source contribution (e.g. {'insider': 0.4, 'form_13f': -0.2}).",
+    )
+    signal_count: int = Field(description="Total signals contributing.")
+
+
+class SmartMoneyRollupResult(BaseModel):
+    """Nested response for /smart_money/rollup (#527)."""
+
+    by_symbol: dict[str, SmartMoneyScoreItem] = Field(
+        description="Every basket symbol with at least one signal in the window."
+    )
+    top_conviction: list[SmartMoneyScoreItem] = Field(
+        description="Top-N symbols by |composite| — highest conviction either direction."
+    )
+    warnings: list[str] = Field(default_factory=list)
