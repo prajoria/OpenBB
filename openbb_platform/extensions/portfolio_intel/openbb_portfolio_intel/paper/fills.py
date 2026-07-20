@@ -51,6 +51,7 @@ identity — verified in ``test_fill_conservation``.
 
 # pylint: disable=import-outside-toplevel  # dataclasses.replace kept local in _write_cash
 # pylint: disable=unused-argument  # commission signatures accept unused args for API uniformity
+# pylint: disable=too-many-return-statements  # submit_order fans out 10+ terminal branches
 
 from __future__ import annotations
 
