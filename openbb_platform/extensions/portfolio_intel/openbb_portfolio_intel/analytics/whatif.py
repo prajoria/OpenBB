@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Literal
 
 import numpy as np
 from scipy.stats import norm
@@ -94,6 +95,14 @@ class MarketData:
 
     The router (a separate issue) builds this from ``fmp_cached``; What-If
     is agnostic to the source and never fetches.
+
+    ``cash`` (#903) is the book's idle cash line, in the book's base
+    currency. Default ``Decimal("0")`` preserves the initial-ship
+    (self-financing) behavior — callers that never populate ``cash``
+    see the identical WhatIfDiff shape as before. When
+    ``funding_mode="cash_funded"`` the buys debit this line; when
+    ``funding_mode="named_sell_funded"`` this line is left unchanged
+    and deltas must net through.
     """
 
     prices: dict[str, Decimal]
@@ -103,6 +112,7 @@ class MarketData:
     returns_symbols: list[str]  # len N
     cov: np.ndarray  # (N, N)
     benchmark_returns: np.ndarray  # (T,)
+    cash: Decimal = Decimal("0")  # #903 — idle cash in base currency
 
 
 @dataclass(frozen=True)
@@ -127,6 +137,13 @@ class WhatIfDiff:
     Each category maps to a widget section. Flat inside categories so
     downstream rendering is a for-loop; categorized across categories so
     the widget doesn't have to parse metric-name prefixes.
+
+    ``cash_diff`` (#903) is populated when the book has cash on it
+    (``market_data.cash > 0``) OR when ``funding_mode="cash_funded"``.
+    It exposes the projected cash line as ``MetricDiff(metric="cash",
+    current=..., projected=..., delta=...)``. ``None`` under the
+    original self-financing default when no cash is on the book —
+    preserves the initial-ship WhatIfDiff shape for existing callers.
     """
 
     exposure_diffs: list[MetricDiff] = field(default_factory=list)
@@ -136,6 +153,7 @@ class WhatIfDiff:
     risk_diffs: list[MetricDiff] = field(default_factory=list)
     contribution_diffs: list[MetricDiff] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    cash_diff: MetricDiff | None = None  # #903 — cash line, or None
 
 
 # ---------------------------------------------------------------------------
@@ -148,16 +166,68 @@ _SELF_FINANCING_WARNING = (
     "self-financing assumption: buys are implicitly funded by proportionally "
     "trimming other holdings (see #903 for cash-line follow-up)"
 )
+# #903 — new warning sentinels for cash-line + funding-mode support.
+_CASH_FUNDED_WARNING = (
+    "cash-funded diff: buys debit market_data.cash; verify cash line "
+    "reflects actual idle cash (see #903)"
+)
+_NAMED_SELL_FUNDED_WARNING = (
+    "named-sell-funded diff: caller-supplied deltas net through — cash "
+    "line unchanged (see #903)"
+)
+_NEGATIVE_CASH_WARNING = (
+    "cash-funded diff drives projected cash negative ({cash}) — implicit "
+    "margin assumption, results still computed"
+)
+_UNBALANCED_NAMED_SELL_WARNING = (
+    "named-sell-funded diff: sum(delta_qty * price) = {net} != 0 — book "
+    "value shifts by {net}; consider explicit funding_mode"
+)
+_ZERO_CASH_CASH_FUNDED_WARNING = (
+    "cash-funded diff on a book with zero starting cash — every buy is "
+    "implicit margin (see #903)"
+)
+
+# #903 — funding-mode type alias, exposed for callers.
+FundingMode = Literal["self_financing", "cash_funded", "named_sell_funded"]
+_VALID_FUNDING_MODES: tuple[str, ...] = (
+    "self_financing",
+    "cash_funded",
+    "named_sell_funded",
+)
 
 
 def run_whatif(
     positions: list[PositionQty],
     deltas: list[Delta],
     market_data: MarketData,
+    funding_mode: FundingMode = "self_financing",
 ) -> WhatIfDiff:
     """Compute the What-If diff for ``deltas`` applied to ``positions``.
 
     Pure function. No I/O. Deterministic up to floating-point tolerance.
+
+    Parameters
+    ----------
+    positions
+        Current book, as signed shares per symbol.
+    deltas
+        Candidate trades. Signed and additive.
+    market_data
+        Read-only bundle of prices, holdings, cov, returns, benchmark,
+        and (optionally) cash. See :class:`MarketData`.
+    funding_mode
+        How to model the funding of net-buy activity (#903):
+
+        - ``"self_financing"`` (default, initial-ship behavior):
+          projected weights renormalize to 1.0 — buys are implicitly
+          funded by trimming every other holding pro-rata.
+        - ``"cash_funded"``: buys debit ``market_data.cash``; cash
+          contributes to the projected market-value denominator as a
+          zero-vol book line. Warns if projected cash goes negative.
+        - ``"named_sell_funded"``: caller-supplied deltas are trusted
+          to net; the cash line is unchanged. Warns if
+          ``sum(delta_qty * price)`` doesn't net to ~0.
 
     Raises
     ------
@@ -170,9 +240,32 @@ def run_whatif(
         - If ``market_data`` shape invariants don't hold (cov not
           ``(N, N)`` for ``N = len(returns_symbols)``, ``returns.shape[1]
           != N``, or ``benchmark_returns`` length mismatches ``returns``).
+        - If ``market_data.cash`` is negative (a negative cash line
+          means the book is already in margin — outside this cut's
+          scope).
+        - If ``funding_mode`` is not one of the supported values.
     """
+    if funding_mode not in _VALID_FUNDING_MODES:
+        raise ValueError(
+            f"funding_mode={funding_mode!r} is not one of {_VALID_FUNDING_MODES}"
+        )
+    if market_data.cash < 0:
+        raise ValueError(
+            f"market_data.cash is negative ({market_data.cash}) — a "
+            "book already in margin is outside this cut's scope (see #903)."
+        )
     _validate_market_data_shapes(market_data)
-    warnings: list[str] = [_SELF_FINANCING_WARNING]
+
+    # Mode-specific setup + warnings.
+    warnings: list[str] = []
+    if funding_mode == "self_financing":
+        warnings.append(_SELF_FINANCING_WARNING)
+    elif funding_mode == "cash_funded":
+        warnings.append(_CASH_FUNDED_WARNING)
+        if market_data.cash == 0:
+            warnings.append(_ZERO_CASH_CASH_FUNDED_WARNING)
+    elif funding_mode == "named_sell_funded":
+        warnings.append(_NAMED_SELL_FUNDED_WARNING)
 
     current_qty = {p.symbol: p.qty for p in positions}
     delta_qty = {d.symbol: d.delta_qty for d in deltas}
@@ -201,24 +294,61 @@ def run_whatif(
         s: projected_qty[s] * market_data.prices[s] for s in all_symbols
     }
 
-    current_total = sum(current_values.values(), Decimal("0"))
-    projected_total = sum(projected_values.values(), Decimal("0"))
+    # Signed net trade value (positive = net buy, negative = net sell).
+    # Used by cash_funded to debit cash and by named_sell_funded to sanity-check
+    # netting. Under self_financing it's not consumed.
+    net_trade_value: Decimal = sum(
+        (delta_qty[s] * market_data.prices[s] for s in delta_qty), Decimal("0")
+    )
 
-    if projected_total == 0:
+    # #903 — cash-line arithmetic + funding-mode dispatch.
+    # current_cash / projected_cash feed both the WhatIfDiff.cash_diff
+    # field and the market-value denominators (under cash_funded, cash
+    # contributes to the denominator; under self_financing/named_sell_funded
+    # it does not shift buy/sell renormalization).
+    current_cash: Decimal = market_data.cash
+    projected_cash: Decimal = current_cash
+    if funding_mode == "cash_funded":
+        # Buys DEBIT cash; sells CREDIT cash. delta_qty is signed, prices
+        # positive, so debit = subtract net trade value.
+        projected_cash = current_cash - net_trade_value
+        if projected_cash < 0:
+            warnings.append(_NEGATIVE_CASH_WARNING.format(cash=projected_cash))
+    elif funding_mode == "named_sell_funded":
+        # Deltas expected to net to ~0. Warn if they don't. Cash unchanged.
+        if net_trade_value != 0:
+            warnings.append(_UNBALANCED_NAMED_SELL_WARNING.format(net=net_trade_value))
+    # self_financing: cash is a passive book line (current == projected).
+
+    # Under cash_funded, cash participates in the market-value denominator
+    # for BOTH sides. Under self_financing / named_sell_funded, cash sits
+    # alongside the risky book — it enters the projected_total denominator
+    # only when there IS cash on the book (current_cash > 0), preserving
+    # backward-compat for the fixture-heavy self-financing tests.
+    include_cash_in_denominator = funding_mode == "cash_funded" or current_cash > 0
+    # Risky-book totals — used for computing weight vectors that feed
+    # look_through / risk / concentration. These MUST NOT include cash
+    # (cash is zero-vol and doesn't rollup to a sector/country), and the
+    # resulting weights must sum to 1.0 for the xray substrate's
+    # weights-normalized invariants.
+    current_risky_total = sum(current_values.values(), Decimal("0"))
+    projected_risky_total = sum(projected_values.values(), Decimal("0"))
+
+    if projected_risky_total <= 0:
         raise ValueError(
             "projected book is empty (fully liquidated); analytics have no "
             "meaning — call this only on a non-empty projected book."
         )
     # Current book may be empty (all-new-positions delta scenario). Guard.
-    if current_total == 0:
+    if current_risky_total == 0:
         current_weights: dict[str, Decimal] = {}
     else:
         current_weights = {
-            s: v / current_total for s, v in current_values.items() if v > 0
+            s: v / current_risky_total for s, v in current_values.items() if v > 0
         }
 
     projected_weights = {
-        s: v / projected_total for s, v in projected_values.items() if v > 0
+        s: v / projected_risky_total for s, v in projected_values.items() if v > 0
     }
 
     # Look-through both sides.
@@ -230,7 +360,19 @@ def run_whatif(
     )
 
     # Build the six diff categories.
-    diff = WhatIfDiff(warnings=warnings)
+    # #903 — cash_diff is populated whenever cash is on the book OR when
+    # cash_funded mode is engaged; None under self_financing default
+    # with zero cash preserves the initial-ship WhatIfDiff shape.
+    cash_diff: MetricDiff | None = None
+    if include_cash_in_denominator:
+        cash_diff = MetricDiff(
+            metric="cash",
+            current=float(current_cash),
+            projected=float(projected_cash),
+            delta=float(projected_cash - current_cash),
+        )
+
+    diff = WhatIfDiff(warnings=warnings, cash_diff=cash_diff)
 
     _fill_exposure_diffs(diff, current_effective, projected_effective)
     _fill_rollup_diffs(

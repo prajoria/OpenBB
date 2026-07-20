@@ -554,3 +554,257 @@ def _isclose_or_both_none(a, b) -> bool:
     if a is None or b is None:
         return False
     return math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# #903 — cash line + funding-mode tests
+# ---------------------------------------------------------------------------
+#
+# The tests below extend the What-If engine with a cash line and three
+# funding modes: "self_financing" (initial-ship default), "cash_funded",
+# and "named_sell_funded". Backward-compat is load-bearing: every one of
+# the pre-existing tests above must continue to pass unmodified. That is
+# the primary regression guard (R7.11).
+
+
+def _md_with_cash(prices: dict[str, Decimal], cash: Decimal) -> MarketData:
+    md = _md(prices)
+    md.cash = cash
+    return md
+
+
+# --- self_financing default preserves initial-ship cash_diff = None -------
+
+
+def test_self_financing_zero_cash_gives_no_cash_diff() -> None:
+    """Backward-compat: default mode + zero cash → cash_diff is None.
+
+    Existing callers that never populated cash see the same WhatIfDiff
+    shape as PR #905 shipped.
+    """
+    md = _md({"AAPL": Decimal("100"), "MSFT": Decimal("200")})
+    diff = run_whatif(
+        [
+            PositionQty("AAPL", Decimal("10")),
+            PositionQty("MSFT", Decimal("5")),
+        ],
+        [Delta("AAPL", Decimal("2"))],
+        md,
+    )
+    assert diff.cash_diff is None
+
+
+def test_self_financing_positive_cash_populates_cash_diff() -> None:
+    """cash > 0 on the book: cash_diff populated but delta = 0 (self-financing doesn't touch cash)."""
+    md = _md_with_cash(
+        {"AAPL": Decimal("100"), "MSFT": Decimal("200")},
+        cash=Decimal("5000"),
+    )
+    diff = run_whatif(
+        [
+            PositionQty("AAPL", Decimal("10")),
+            PositionQty("MSFT", Decimal("5")),
+        ],
+        [Delta("AAPL", Decimal("2"))],
+        md,
+    )
+    assert diff.cash_diff is not None
+    assert diff.cash_diff.metric == "cash"
+    assert math.isclose(diff.cash_diff.current, 5000.0, rel_tol=1e-9)
+    assert math.isclose(diff.cash_diff.projected, 5000.0, rel_tol=1e-9)
+    assert math.isclose(diff.cash_diff.delta, 0.0, abs_tol=1e-12)
+
+
+# --- cash_funded happy path ------------------------------------------------
+
+
+def test_cash_funded_buy_debits_cash() -> None:
+    """Buy $200 of AAPL with $5k idle cash → projected cash = $4800."""
+    md = _md_with_cash(
+        {"AAPL": Decimal("100"), "MSFT": Decimal("200")},
+        cash=Decimal("5000"),
+    )
+    diff = run_whatif(
+        [
+            PositionQty("AAPL", Decimal("10")),
+            PositionQty("MSFT", Decimal("5")),
+        ],
+        [Delta("AAPL", Decimal("2"))],  # +2 @ $100 = $200 debit
+        md,
+        funding_mode="cash_funded",
+    )
+    assert diff.cash_diff is not None
+    assert math.isclose(diff.cash_diff.current, 5000.0, rel_tol=1e-9)
+    assert math.isclose(diff.cash_diff.projected, 4800.0, rel_tol=1e-9)
+    assert math.isclose(diff.cash_diff.delta, -200.0, rel_tol=1e-9)
+    assert any("cash-funded" in w.lower() for w in diff.warnings)
+
+
+def test_cash_funded_sell_credits_cash() -> None:
+    """Sell $100 of AAPL under cash_funded → projected cash = current + $100."""
+    md = _md_with_cash(
+        {"AAPL": Decimal("100"), "MSFT": Decimal("200")},
+        cash=Decimal("5000"),
+    )
+    diff = run_whatif(
+        [
+            PositionQty("AAPL", Decimal("10")),
+            PositionQty("MSFT", Decimal("5")),
+        ],
+        [Delta("AAPL", Decimal("-1"))],  # -1 @ $100 = $100 credit
+        md,
+        funding_mode="cash_funded",
+    )
+    assert diff.cash_diff is not None
+    assert math.isclose(diff.cash_diff.projected, 5100.0, rel_tol=1e-9)
+
+
+def test_cash_funded_full_deploy_reaches_zero_no_negative_warning() -> None:
+    """Deploy all $5k exactly → projected cash = 0, NO negative-cash warning."""
+    md = _md_with_cash({"AAPL": Decimal("100")}, cash=Decimal("5000"))
+    diff = run_whatif(
+        [PositionQty("AAPL", Decimal("10"))],
+        [Delta("AAPL", Decimal("50"))],  # +50 @ $100 = $5000
+        md,
+        funding_mode="cash_funded",
+    )
+    assert diff.cash_diff is not None
+    assert math.isclose(diff.cash_diff.projected, 0.0, abs_tol=1e-9)
+    assert not any("negative" in w.lower() for w in diff.warnings)
+
+
+def test_cash_funded_over_deploy_warns_but_still_computes() -> None:
+    """Buy > cash: projected cash < 0 → implicit-margin WARNING, diff still returned."""
+    md = _md_with_cash({"AAPL": Decimal("100")}, cash=Decimal("5000"))
+    diff = run_whatif(
+        [PositionQty("AAPL", Decimal("10"))],
+        [Delta("AAPL", Decimal("100"))],  # +100 @ $100 = $10_000 > $5k cash
+        md,
+        funding_mode="cash_funded",
+    )
+    assert diff.cash_diff is not None
+    assert diff.cash_diff.projected < 0
+    assert any("negative" in w.lower() for w in diff.warnings)
+
+
+def test_cash_funded_zero_starting_cash_warns() -> None:
+    """cash_funded on a book with zero cash: ZERO_CASH warning fires."""
+    md = _md_with_cash({"AAPL": Decimal("100")}, cash=Decimal("0"))
+    diff = run_whatif(
+        [PositionQty("AAPL", Decimal("10"))],
+        [Delta("AAPL", Decimal("1"))],
+        md,
+        funding_mode="cash_funded",
+    )
+    # Both warnings should be present (zero-starting + implied negative)
+    joined = " ".join(diff.warnings).lower()
+    assert "zero starting cash" in joined
+    assert "negative" in joined
+
+
+# --- named_sell_funded -----------------------------------------------------
+
+
+def test_named_sell_funded_balanced_leaves_cash_alone() -> None:
+    """Sell $200 MSFT + buy $200 NVDA: cash unchanged, no unbalance warning."""
+    md = _md_with_cash(
+        {
+            "MSFT": Decimal("200"),
+            "NVDA": Decimal("100"),
+        },
+        cash=Decimal("1000"),
+    )
+    diff = run_whatif(
+        [PositionQty("MSFT", Decimal("5"))],
+        [
+            Delta("MSFT", Decimal("-1")),  # -1 @ $200 = -$200
+            Delta("NVDA", Decimal("2")),  # +2 @ $100 = +$200
+        ],
+        md,
+        funding_mode="named_sell_funded",
+    )
+    assert diff.cash_diff is not None
+    assert math.isclose(diff.cash_diff.projected, 1000.0, rel_tol=1e-9)
+    assert not any("unbalanced" in w.lower() or "!= 0" in w for w in diff.warnings)
+
+
+def test_named_sell_funded_unbalanced_warns() -> None:
+    """Deltas that don't net → unbalance warning fires."""
+    md = _md_with_cash(
+        {"MSFT": Decimal("200"), "NVDA": Decimal("100")},
+        cash=Decimal("1000"),
+    )
+    diff = run_whatif(
+        [PositionQty("MSFT", Decimal("5"))],
+        [
+            Delta("MSFT", Decimal("-2")),  # -2 @ $200 = -$400
+            Delta("NVDA", Decimal("1")),  # +1 @ $100 = +$100  (net = -$300)
+        ],
+        md,
+        funding_mode="named_sell_funded",
+    )
+    assert any("!= 0" in w or "unbalanced" in w.lower() for w in diff.warnings)
+
+
+# --- guard rails -----------------------------------------------------------
+
+
+def test_invalid_funding_mode_raises() -> None:
+    md = _md({"AAPL": Decimal("100")})
+    with pytest.raises(ValueError, match="funding_mode"):
+        run_whatif(
+            [PositionQty("AAPL", Decimal("10"))],
+            [Delta("AAPL", Decimal("1"))],
+            md,
+            funding_mode="nonsense",  # type: ignore[arg-type]
+        )
+
+
+def test_negative_cash_in_market_data_raises() -> None:
+    """A book with negative cash is already in margin — outside scope."""
+    md = _md_with_cash({"AAPL": Decimal("100")}, cash=Decimal("-100"))
+    with pytest.raises(ValueError, match="cash is negative"):
+        run_whatif(
+            [PositionQty("AAPL", Decimal("10"))],
+            [Delta("AAPL", Decimal("1"))],
+            md,
+            funding_mode="self_financing",
+        )
+
+
+def test_cash_funded_hhi_measures_risky_book_only() -> None:
+    """HHI is computed on risky-book weights (excludes cash).
+
+    Two identical books (same holdings, same trade) — one with cash,
+    one without. HHI on the projected side is IDENTICAL because HHI
+    lives on the risky-book weights; cash is a zero-vol/zero-concentration
+    line that shifts the market-value denominator for the cash line
+    itself and for risk aggregation, but not for concentration math.
+    Documents the load-bearing invariant that ``weights`` sums to 1.0.
+    """
+    prices = {"AAPL": Decimal("100"), "MSFT": Decimal("200")}
+    positions = [
+        PositionQty("AAPL", Decimal("10")),
+        PositionQty("MSFT", Decimal("5")),
+    ]
+    deltas = [Delta("AAPL", Decimal("1"))]
+
+    md_no_cash = _md_with_cash(prices, cash=Decimal("0"))
+    md_with_cash = _md_with_cash(prices, cash=Decimal("100000"))  # dominates book
+
+    diff_no_cash = run_whatif(positions, deltas, md_no_cash, funding_mode="cash_funded")
+    diff_with_cash = run_whatif(
+        positions, deltas, md_with_cash, funding_mode="cash_funded"
+    )
+
+    hhi_no = _by_metric(diff_no_cash.concentration_diffs, "hhi")
+    hhi_yes = _by_metric(diff_with_cash.concentration_diffs, "hhi")
+    assert hhi_no is not None and hhi_yes is not None
+    # Cash does NOT enter the HHI calculation — the two projections are
+    # identical on the risky-weight vector.
+    assert math.isclose(hhi_yes.projected, hhi_no.projected, rel_tol=1e-9)
+    # But cash_diff IS different: no-cash side gets cash_diff.current=0,
+    # with-cash side gets $100k current + reflects the $100 debit.
+    assert diff_no_cash.cash_diff is not None
+    assert diff_with_cash.cash_diff is not None
+    assert diff_with_cash.cash_diff.current > diff_no_cash.cash_diff.current
