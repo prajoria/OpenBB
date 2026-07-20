@@ -24,6 +24,8 @@ Database Schema:
 # pylint: disable=broad-exception-caught  # per-source failure isolation
 # pylint: disable=redefined-outer-name,reimported  # per-function re-import guards
 # pylint: disable=too-many-lines,too-many-locals,too-many-branches  # legacy
+# pylint: disable=logging-not-lazy  # legacy 'str' + var log calls
+# pylint: disable=unused-import  # Optional/ForceInt kept for typing/docstring hints
 # pylint: disable=too-many-statements,too-many-return-statements
 # pylint: disable=too-many-nested-blocks,too-many-arguments,too-many-positional-arguments
 

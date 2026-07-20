@@ -28,6 +28,7 @@ Database Schema:
 # pylint: disable=too-many-lines,too-many-locals,too-many-branches  # legacy
 # pylint: disable=too-many-statements,too-many-return-statements
 # pylint: disable=too-many-nested-blocks,too-many-arguments,too-many-positional-arguments
+# pylint: disable=unused-variable  # pre-existing unused-result patterns
 
 import logging
 from datetime import date, datetime, timedelta
