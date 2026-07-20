@@ -114,9 +114,12 @@ _UNIT_TESTS_DIR = (
 
 # Ground-truth counts from the manifest header.
 _EXPECTED_MOVE = 24
-_EXPECTED_STAY = 67
-_EXPECTED_TOTAL = 91  # 91 test_*.py files (excludes E0.7 infra); +1 vs
-# post-#590 baseline for test_analytics.py (#589 —
+_EXPECTED_STAY = 68
+_EXPECTED_TOTAL = 92  # 92 test_*.py files (excludes E0.7 infra); +1 vs
+# post-#589 baseline for test_backtest_bridge_integration.py (#585 —
+# end-to-end #590+#589 chain integration test with pytest.importorskip
+# guard; STAYS with the fork-side bridge tests),
+# +1 vs post-#590 baseline for test_analytics.py (#589 —
 # openbb-backtest shape adapter; STAYS with the fork-side analytics),
 # +1 vs pre-#590 baseline for test_backtest_bridge.py (#590 —
 # openbb-backtest soft-dep bridge; STAYS with the fork-side runtime),
