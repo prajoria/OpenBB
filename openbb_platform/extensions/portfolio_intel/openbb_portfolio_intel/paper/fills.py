@@ -72,6 +72,10 @@ from openbb_portfolio_intel.paper.cost_basis import (
     Lot,
     apply_fill,
 )
+from openbb_portfolio_intel.paper.locking import (
+    AccountLockManager,
+    default_lock_manager,
+)
 
 QUOTE_FRESHNESS_SECONDS: int = 60  # PRD §16.4
 
@@ -310,8 +314,40 @@ def submit_order(  # noqa: PLR0911  # 10+ terminal REJECTED branches (see docstr
     position_store: PositionStore,
     quote_fetcher: QuoteFetcher,
     now: datetime,
+    lock_manager: AccountLockManager | None = None,
 ) -> SubmitResult:
     """Execute one order end-to-end. Deterministic given (req, now, quote).
+
+    Serialization: the entire (load lot, apply_fill, put lot, apply
+    cash delta) sequence runs under a per-account_id lock via
+    ``lock_manager`` (#547). Callers that don't pass one get the
+    process-wide default. Different account_ids run concurrently;
+    same account serializes.
+    """
+    mgr = lock_manager or default_lock_manager()
+    with mgr.lock(account_id):
+        return _submit_order_locked(
+            req,
+            user_id=user_id,
+            account_id=account_id,
+            account_store=account_store,
+            position_store=position_store,
+            quote_fetcher=quote_fetcher,
+            now=now,
+        )
+
+
+def _submit_order_locked(  # noqa: PLR0911  # 10+ terminal REJECTED branches (see docstring)
+    req: OrderRequest,
+    *,
+    user_id: str,
+    account_id: str,
+    account_store: AccountStore,
+    position_store: PositionStore,
+    quote_fetcher: QuoteFetcher,
+    now: datetime,
+) -> SubmitResult:
+    """Locked body of submit_order — assumed serialized on account_id.
 
     Fill algorithm (v0):
       1. Validate req (raises OrderRejected on structural bugs).

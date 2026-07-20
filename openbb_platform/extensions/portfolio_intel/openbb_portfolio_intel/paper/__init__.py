@@ -47,12 +47,17 @@ from openbb_portfolio_intel.paper.ledger import (
     trade_entry,
     withdraw_entry,
 )
+from openbb_portfolio_intel.paper.locking import (
+    AccountLockManager,
+    default_lock_manager,
+)
 
 __all__ = [
     "QUOTE_FRESHNESS_SECONDS",
     "SUPPORTED_COMMISSION_MODELS",
     "AccountConfig",
     "AccountConfigError",
+    "AccountLockManager",
     "AccountNotFoundError",
     "AccountState",
     "AccountStore",
@@ -78,6 +83,7 @@ __all__ = [
     "SubmitResult",
     "TimeInForce",
     "apply_fill",
+    "default_lock_manager",
     "deposit_entry",
     "dividend_entry",
     "fee_entry",
