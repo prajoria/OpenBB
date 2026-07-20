@@ -128,15 +128,12 @@ class AccountStore(Protocol):
         account_id: str | None = None,
     ) -> PaperAccount:
         """Create a new account. Returns the persisted record."""
-        ...
 
     def get(self, account_id: str, *, user_id: str) -> PaperAccount | None:
         """Return the account IF it belongs to ``user_id``, else None."""
-        ...
 
     def list(self, *, user_id: str, active_only: bool = True) -> list[PaperAccount]:
         """Return all accounts owned by ``user_id``."""
-        ...
 
     def reset(self, account_id: str, *, user_id: str, now: datetime) -> PaperAccount:
         """Zero cash back to starting_cash + bump updated_at.
@@ -146,14 +143,12 @@ class AccountStore(Protocol):
         so they can drop positions / clear journal on reset — that
         wiring lives in the follow-up router.
         """
-        ...
 
     def delete(self, account_id: str, *, user_id: str, now: datetime) -> PaperAccount:
         """Soft-delete (is_active=False). Preserves history for audit.
 
         Raises :class:`AccountNotFoundError` if not owned by ``user_id``.
         """
-        ...
 
 
 # ---------------------------------------------------------------------------
