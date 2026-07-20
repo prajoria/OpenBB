@@ -49,6 +49,9 @@ identity — verified in ``test_fill_conservation``.
 - **Corporate actions** — #545 ledger + follow-up on cost-basis adjust.
 """
 
+# pylint: disable=import-outside-toplevel  # dataclasses.replace kept local in _write_cash
+# pylint: disable=unused-argument  # commission signatures accept unused args for API uniformity
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
