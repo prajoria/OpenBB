@@ -54,6 +54,9 @@ _PLANNED_SUBROUTERS: tuple[str, ...] = (
     "openbb_portfolio_intel.routers.whatif_router",
     "openbb_portfolio_intel.routers.paper_router",
     "openbb_portfolio_intel.routers.alerts_router",
+    "openbb_portfolio_intel.routers.news_sentiment_router",
+    "openbb_portfolio_intel.routers.backtest_router",
+    "openbb_portfolio_intel.routers.paper_alerts_router",
 )
 
 
