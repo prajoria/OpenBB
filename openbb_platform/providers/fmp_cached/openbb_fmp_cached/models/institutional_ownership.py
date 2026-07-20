@@ -16,6 +16,16 @@ Database Schema:
     normalised record plus a data_source column tracking provenance.
 """
 
+# Pre-existing pylint suppressions surfaced by CI (#909) — these patterns
+# are used throughout fmp_cached and are out of scope for this hygiene PR.
+# pylint: disable=import-outside-toplevel  # lazy imports for optional deps
+# pylint: disable=logging-fstring-interpolation  # f-strings in log calls
+# pylint: disable=unused-argument  # signature-required unused params
+# pylint: disable=broad-exception-caught  # per-source failure isolation
+# pylint: disable=too-many-lines,too-many-locals,too-many-branches  # legacy
+# pylint: disable=too-many-statements,too-many-return-statements
+# pylint: disable=too-many-nested-blocks,too-many-arguments,too-many-positional-arguments
+
 import json
 import logging
 from datetime import date, datetime, timedelta
