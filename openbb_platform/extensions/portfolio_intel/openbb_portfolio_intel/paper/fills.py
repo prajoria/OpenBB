@@ -367,8 +367,12 @@ def submit_order(  # noqa: PLR0911  # 10+ terminal REJECTED branches (see docstr
     if req.order_type == OrderType.LIMIT:
         # A buy limit is marketable if last <= limit_price; sell limit if last >= limit_price.
         # _validate_request ensured limit_price is not None on LIMIT orders;
-        # assert here to narrow the type for mypy.
-        assert req.limit_price is not None
+        # explicit runtime check to narrow the type for mypy.
+        if req.limit_price is None:  # pragma: no cover  # unreachable
+            return SubmitResult(
+                status=OrderStatus.REJECTED,
+                reason="internal: LIMIT order missing limit_price after validation",
+            )
         limit = req.limit_price
         if is_buy and reference_price > limit:
             return SubmitResult(
