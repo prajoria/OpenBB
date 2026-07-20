@@ -78,13 +78,23 @@ awk '
 ' "${DUMP_PATH}" | docker compose exec -T mysql sh -c '
   set -eu
   # The mysql:8.4 official image sets $MYSQL_ROOT_PASSWORD in the
-  # container env from the MYSQL_ROOT_PASSWORD compose env we pass at
-  # up-time. Reading it via the env prevents the literal from ever
-  # appearing in the container process argv (visible to any co-tenant
-  # process running `ps` / `docker top`). Fallback to `rootpw` matches
-  # the compose default and keeps standalone use of this script working.
+  # container env from the compose environment. Feed it to the mysql
+  # client via MYSQL_PWD (mysql-cli-standard env var) so the literal
+  # never appears in argv where `ps` / `docker top` would show it.
+  #
+  # NOTE: `mysql -p"$X"` was the earlier attempt and is WRONG —
+  # shell expansion places the password in argv before exec, defeating
+  # the point. MYSQL_PWD keeps it in environ (which requires
+  # /proc/<pid>/environ access to read — meaningfully harder for a
+  # co-tenant than `ps`).
+  #
+  # The mysql client itself does emit a "WARNING: Using a password
+  # on the command line interface can be insecure" — that warning
+  # comes from MYSQL_PWD usage too but is spurious in a container
+  # where the env is not shared with any other process.
   : "${MYSQL_ROOT_PASSWORD:=rootpw}"
-  mysql -uroot -p"${MYSQL_ROOT_PASSWORD}"
+  export MYSQL_PWD="${MYSQL_ROOT_PASSWORD}"
+  mysql -uroot
 '
 
 echo "==> Restore complete — verifying"

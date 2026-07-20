@@ -85,26 +85,66 @@ echo >> "${SUMMARY}"
 # better than a leaked key in a bug file that ends up in a GH issue.
 # ---------------------------------------------------------------
 scrub() {
-  # Use env-var values from the running process so we redact THIS
-  # session's actual token/password rather than generic patterns.
-  awk -v gh_token="${GH_TOKEN:-__UNSET_GH__}" \
-      -v mysql_pw="${MYSQL_PASSWORD:-__UNSET_MYPW__}" \
-      -v mysql_root_pw="${MYSQL_ROOT_PASSWORD:-__UNSET_MYRPW__}" '
+  # NOTE on portability:
+  #   * `\s` is a gawk extension; use POSIX `[[:space:]]` so this works
+  #     under mawk (the default awk in most slim base images).
+  #   * env-var values (GH_TOKEN, MYSQL_*) are matched as LITERAL
+  #     strings via index()/substr() — NOT via gsub() — because gsub
+  #     interprets its 1st arg as a regex, so any metacharacter in the
+  #     env value would cause misbehavior (a token with `.` matches
+  #     anything, a value with unbalanced `[` throws).
+  #
+  #   Deliberately conservative: over-redaction (false positive) is
+  #   always safer than a leaked key in a bug file that ends up on GH.
+  awk -v gh_token="${GH_TOKEN:-}" \
+      -v mysql_pw="${MYSQL_PASSWORD:-}" \
+      -v mysql_root_pw="${MYSQL_ROOT_PASSWORD:-}" \
+      -v fmp_api_key="${FMP_API_KEY:-}" \
+  '
+    # Literal-string replace all occurrences of `needle` in `s` with
+    # `marker`. Uses index() which does substring (not regex) match.
+    # Empty/short needles are skipped so we do not redact every
+    # occurrence of a common word — needles must be ≥8 chars for
+    # redaction to fire. This means passwords <8 chars ARE at risk
+    # of leaking through the scrubber. Mitigation: enforce ≥8-char
+    # passwords in .env for any shared/CI use of the harness.
+    function litreplace(s, needle, marker,   out, i, nlen) {
+      nlen = length(needle)
+      if (nlen < 8) return s
+      out = ""
+      while ((i = index(s, needle)) > 0) {
+        out = out substr(s, 1, i - 1) marker
+        s = substr(s, i + nlen)
+      }
+      return out s
+    }
+
     {
-      # 1. GitHub tokens: gho_/ghp_/ghs_/ghu_/ghr_ followed by base62
-      gsub(/gh[opsur]_[A-Za-z0-9_]{20,}/, "<REDACTED_GH_TOKEN>")
-      # 2. Any pypi-published FMP key style (32+ alnum)
-      gsub(/[""'\'']?(fmp_api_key|fmp_cached_api_key|openai_api_key|api_key|apikey)[""'\'']?\s*[:=]\s*[""'\'']?[A-Za-z0-9_-]{16,}[""'\'']?/, "<REDACTED_KEY_ASSIGNMENT>")
-      # 3. Session-live values (only if actually set)
-      if (gh_token != "__UNSET_GH__" && length(gh_token) > 8)         { gsub(gh_token, "<REDACTED_GH_TOKEN>") }
-      if (mysql_pw != "__UNSET_MYPW__" && length(mysql_pw) > 4)       { gsub(mysql_pw, "<REDACTED_MYSQL_PW>") }
-      if (mysql_root_pw != "__UNSET_MYRPW__" && length(mysql_root_pw) > 4) { gsub(mysql_root_pw, "<REDACTED_MYSQL_ROOT_PW>") }
-      # 4. Bearer/Basic auth headers
-      gsub(/[Aa]uthorization:\s*[Bb]earer\s+[A-Za-z0-9._-]+/, "Authorization: Bearer <REDACTED>")
-      gsub(/[Aa]uthorization:\s*[Bb]asic\s+[A-Za-z0-9+\/=]+/, "Authorization: Basic <REDACTED>")
-      # 5. URL-embedded credentials: scheme://user:PASSWORD@host
-      gsub(/:\/\/[^:@\/\s]+:[^@\/\s]+@/, "://<REDACTED_URL_CREDS>@")
-      print
+      line = $0
+
+      # 1. GitHub tokens: gho_/ghp_/ghs_/ghu_/ghr_ + 20+ base62
+      gsub(/gh[opsur]_[A-Za-z0-9_]{20,}/, "<REDACTED_GH_TOKEN>", line)
+
+      # 2. Bearer / Basic auth (POSIX-safe: [[:space:]] instead of \s)
+      gsub(/[Aa]uthorization:[[:space:]]+[Bb]earer[[:space:]]+[A-Za-z0-9._-]+/, "Authorization: Bearer <REDACTED>", line)
+      gsub(/[Aa]uthorization:[[:space:]]+[Bb]asic[[:space:]]+[A-Za-z0-9+\/=]+/, "Authorization: Basic <REDACTED>", line)
+
+      # 3. api_key / apikey / *_api_key assignments (POSIX-safe)
+      gsub(/["'\'']?(fmp_api_key|fmp_cached_api_key|openai_api_key|api_key|apikey)["'\'']?[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_-]{16,}["'\'']?/, "<REDACTED_KEY_ASSIGNMENT>", line)
+
+      # 4. URL-embedded credentials: scheme://user:PASSWORD@host
+      #    Use character classes explicitly (no \s).
+      gsub(/:\/\/[^:@\/[:space:]]+:[^@\/[:space:]]+@/, "://<REDACTED_URL_CREDS>@", line)
+
+      # 5. Session-live values — LITERAL match, not regex.
+      #    Must run AFTER the pattern-based passes so we do not double-
+      #    redact something already turned into `<REDACTED_...>`.
+      if (length(gh_token) >= 8)      line = litreplace(line, gh_token,      "<REDACTED_GH_TOKEN>")
+      if (length(mysql_pw) >= 8)      line = litreplace(line, mysql_pw,      "<REDACTED_MYSQL_PW>")
+      if (length(mysql_root_pw) >= 8) line = litreplace(line, mysql_root_pw, "<REDACTED_MYSQL_ROOT_PW>")
+      if (length(fmp_api_key) >= 8)   line = litreplace(line, fmp_api_key,   "<REDACTED_FMP_API_KEY>")
+
+      print line
     }
   '
 }
