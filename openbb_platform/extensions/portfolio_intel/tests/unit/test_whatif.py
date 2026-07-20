@@ -170,13 +170,15 @@ def test_close_position_removes_symbol_and_warns() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_flip_to_short_raises_valueerror() -> None:
-    """Initial ship rejects negative projected qty — deferred to #904."""
+def test_flip_to_short_computes_diff_with_warning() -> None:
+    """#904: flip-to-short now computes; SHORTS_ENABLED warning fires."""
     positions, md = _base_book()
     deltas = [Delta(symbol="AAPL", delta_qty=Decimal("-150"))]  # closes + shorts 50
 
-    with pytest.raises(ValueError, match=r"short"):
-        run_whatif(positions, deltas, md)
+    diff = run_whatif(positions, deltas, md)
+    assert any("signed-book" in w.lower() for w in diff.warnings)
+    aapl = _by_metric(diff.exposure_diffs, "AAPL")
+    assert aapl.projected < 0, "AAPL should be a short in the projected book"
 
 
 # ---------------------------------------------------------------------------
@@ -808,3 +810,97 @@ def test_cash_funded_hhi_measures_risky_book_only() -> None:
     assert diff_no_cash.cash_diff is not None
     assert diff_with_cash.cash_diff is not None
     assert diff_with_cash.cash_diff.current > diff_no_cash.cash_diff.current
+
+
+# ---------------------------------------------------------------------------
+# #904 — Short-position support + signed rollups
+# ---------------------------------------------------------------------------
+#
+# Signed-book support lives behind an implicit switch: any projected qty < 0
+# flips the engine into signed-book mode. Concentration goes to GROSS
+# weights, rollups stay on SIGNED weights, look_through is bypassed
+# (undefined on short ETFs), and _SHORTS_ENABLED_WARNING attaches.
+
+
+def test_shorts_sector_rollup_uses_signed_weights() -> None:
+    """A short in a sector REDUCES that sector's projected rollup."""
+    positions, md = _base_book()
+    deltas = [Delta("AAPL", Decimal("-200"))]  # closes 100, shorts 100
+    diff = run_whatif(positions, deltas, md)
+    tech = _by_metric(diff.sector_diffs, "Tech")
+    assert tech is not None
+    assert (
+        tech.delta < 0
+    ), f"Shorting a Tech name should REDUCE net Tech exposure; got {tech.delta}"
+
+
+def test_shorts_hhi_uses_gross_weights_and_stays_bounded() -> None:
+    """On a signed book, HHI is on gross weights and stays in (0, 1]."""
+    positions, md = _base_book()
+    deltas = [Delta("MSFT", Decimal("-200"))]
+    diff = run_whatif(positions, deltas, md)
+    hhi = _by_metric(diff.concentration_diffs, "hhi")
+    assert hhi is not None
+    assert 0 < hhi.projected <= 1.0
+    # Three equal-magnitude positions → HHI ≈ 1/3
+    assert math.isclose(hhi.projected, 1 / 3, abs_tol=0.05)
+
+
+def test_shorts_reverse_verify_gross_hhi_bounded_vs_net_unbounded() -> None:
+    """R7.11: gross HHI on absolute values stays bounded; net w² can blow up.
+
+    Prove the gross=True path actually differs by feeding unnormalized
+    signed values. Under gross, the (|w|/Σ|w|)² formula stays in [0,1].
+    Under gross=False (naive w²), no normalization → sum of squares is
+    unbounded and does NOT satisfy the HHI [0,1] contract.
+    """
+    from openbb_portfolio_intel.analytics.xray import herfindahl_hirschman
+
+    signed_raw = {"A": Decimal("1000000"), "B": Decimal("-500000")}
+    net_raw = herfindahl_hirschman(signed_raw, gross=False)
+    gross_raw = herfindahl_hirschman(signed_raw, gross=True)
+    assert net_raw > 1  # blows past the [0,1] bound → unusable on signed books
+    assert 0 < gross_raw <= 1  # gross keeps it sane
+
+
+def test_shorts_component_var_computes_finite_projected_vol() -> None:
+    """Signed weights flow through the risk math without producing NaN."""
+    positions, md = _base_book()
+    deltas = [Delta("NVDA", Decimal("-150"))]  # closes 100 + shorts 50
+    diff = run_whatif(positions, deltas, md)
+    vol = _by_metric(diff.risk_diffs, "volatility")
+    assert vol is not None
+    assert vol.current is not None and vol.projected is not None
+    # Not NaN, not exploding, in a sensible range for daily vols.
+    assert 0 < vol.projected < 1
+    assert 0 < vol.current < 1
+
+
+def test_shorts_long_only_no_warning() -> None:
+    """Backward-compat: a long-only book gets no SHORTS_ENABLED warning."""
+    positions, md = _base_book()
+    diff = run_whatif(positions, [Delta("NVDA", Decimal("50"))], md)
+    assert not any("signed-book" in w.lower() for w in diff.warnings)
+
+
+def test_shorts_cash_funded_short_credits_cash() -> None:
+    """Under cash_funded, opening a short CREDITS cash (proceeds of sale)."""
+    md = _md_with_cash({"AAPL": Decimal("100")}, cash=Decimal("5000"))
+    diff = run_whatif(
+        [],
+        [Delta("AAPL", Decimal("-10"))],
+        md,
+        funding_mode="cash_funded",
+    )
+    assert diff.cash_diff is not None
+    assert math.isclose(diff.cash_diff.projected, 6000.0, rel_tol=1e-9)
+    assert any("signed-book" in w.lower() for w in diff.warnings)
+
+
+def test_shorts_flip_position_warning_fires() -> None:
+    """SHORTS_ENABLED warning attaches when any projected qty < 0."""
+    positions, md = _base_book()
+    diff = run_whatif(positions, [Delta("AAPL", Decimal("-150"))], md)
+    assert any("signed-book" in w.lower() for w in diff.warnings)
+    aapl = _by_metric(diff.exposure_diffs, "AAPL")
+    assert aapl.projected < 0
