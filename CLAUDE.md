@@ -178,13 +178,51 @@ explicit per-merge authorization — this rule does not apply to them.
 
 **After merging:**
 
-- Verify referenced issues auto-closed (`gh issue view <NN>`)
+- **Verify referenced issues auto-closed AND force-close if OPEN.**
+  Empirically confirmed 5-for-5 broken on this fork: `Closes #NN`
+  markers in PR bodies + squash-commit messages do NOT reliably trigger
+  GitHub's auto-close on squash-merge (observed on PRs #848, #906, #910,
+  #917, #919 during 2026-07-19 session). Always run
+  `gh issue view <NN> --json state` after merge; if `state == OPEN`,
+  run `gh issue close <NN> --reason completed --comment "Shipped via
+  PR #NNN (squash-merged as <sha>)."` The auto-close never firing is
+  the norm here, not the exception.
 - `git fetch origin openbb_pine_support && git pull` to sync local
 - Delete the local feature branch if `--delete-branch` was used remotely
 - Comment or notify in-chat: "Merged #NNN — issues #A, #B now closed."
 
 **Escape hatch:** if the user says *"stop / cancel / don't merge that"*
 mid-flow, abort immediately. Even under this rule, the last word is theirs.
+
+### Issue-scoping caveat: beads-migration stubs
+
+Every open Pine issue on Project #5 whose body reads
+*"(No description in beads.) --- ## Origin Migrated from beads
+`bd-OpenBBTechnical-<key>` on 2026-07-13"* is a title-only stub —
+the actual scope is whatever the title says AND whatever the referenced
+in-repo code / design docs actually support today. Empirically observed
+divergence during the 2026-07-19 session:
+
+- **#589** was titled `TradeSummary→TradeList, equity_df→EquityCurve,
+  stats→BacktestResult.summary`. **None of the target types existed
+  upstream** — `openbb-backtest` has `Trade`/`EquityPoint`/`PerformanceMetrics`,
+  not the ones the title named. D5 §6.2 (the source doc the title was
+  scoped against) was stale.
+- **#591** was titled `SecondarySeriesCache disk storage + TTL policy`.
+  The feature was **already fully implemented and tested** on
+  `openbb_pine_support` — audit closed the issue with zero code.
+- **#592** was titled `strategy.exit positional-vs-keyword differences`.
+  Actual v5→v6 delta was a single `when=` removal across 7 functions;
+  positional-vs-keyword was not the change.
+
+**Discipline:** for any beads-migration stub, run a research pass BEFORE
+scoping (`superpowers:brainstorming` or an ad-hoc research agent). Verify:
+(a) does the referenced target already exist? (audit-close-without-code
+is a valid outcome); (b) does the referenced upstream API actually
+exist? (rescope Pine-side if it doesn't); (c) does the title match the
+TradingView-documented v5→v6 delta? (some titles paraphrase what
+someone thought the delta was; check the actual migration guide). The
+title is a starting hypothesis, not a spec.
 
 ## Overview
 
