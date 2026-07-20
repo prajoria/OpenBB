@@ -54,6 +54,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
+from threading import Lock
 from typing import Protocol
 from uuid import uuid4
 
@@ -151,6 +152,53 @@ class AccountStore(Protocol):
         Raises :class:`AccountNotFoundError` if not owned by ``user_id``.
         """
 
+    def update_cash(
+        self,
+        account_id: str,
+        new_cash: Decimal,
+        *,
+        user_id: str,
+        now: datetime,
+    ) -> PaperAccount:
+        """Set cash_balance to ``new_cash`` under the store's own lock.
+
+        DEPRECATED for external callers — kept for the transition. Prefer
+        :meth:`apply_cash_delta` for atomic buy/sell posting; a lost
+        update between an unlocked read and a locked write here would
+        silently overwrite concurrent activity. Implementations MUST
+        still enforce user_id ownership.
+        """
+
+    def apply_cash_delta(
+        self,
+        account_id: str,
+        delta: Decimal,
+        *,
+        user_id: str,
+        now: datetime,
+        min_balance: Decimal | None = None,
+    ) -> PaperAccount:
+        """Atomically add ``delta`` (signed) to cash_balance under a per-store lock.
+
+        This is the load-bearing primitive for the fill engine (#563 →
+        #547 hardening). All of (load current, sufficiency check,
+        arithmetic, write) happen in one critical section so concurrent
+        submit_orders cannot race the cash balance below the floor.
+
+        Parameters
+        ----------
+        account_id, user_id
+            Ownership pair; foreign users raise ``AccountNotFoundError``.
+        delta
+            Signed cash delta. Negative on buys, positive on sells /
+            dividends / deposits.
+        min_balance
+            Optional floor. If the post-delta balance would fall below
+            ``min_balance``, raise ``AccountConfigError`` and DO NOT
+            apply the delta. Fill engine passes ``Decimal(0)`` on
+            non-margin accounts for the cash-check.
+        """
+
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -197,9 +245,14 @@ class InMemoryAccountStore:
 
     A MySQL-backed implementation lives in a follow-up, wired to
     ``portfolio_app/migrations/001_paper_trading.sql``.
+
+    Concurrency: all mutations happen under ``self._lock``. Callers
+    can share one store instance across threads safely; the lock
+    serializes create/reset/delete/update_cash/apply_cash_delta.
     """
 
     _accounts: dict[str, PaperAccount] = field(default_factory=dict)
+    _lock: Lock = field(default_factory=Lock)
 
     def create(
         self,
@@ -274,3 +327,58 @@ class InMemoryAccountStore:
         deleted_acc = replace(acc, is_active=False, updated_at=now)
         self._accounts[account_id] = deleted_acc
         return deleted_acc
+
+    def update_cash(
+        self,
+        account_id: str,
+        new_cash: Decimal,
+        *,
+        user_id: str,
+        now: datetime,
+    ) -> PaperAccount:
+        """Set cash_balance under the store's lock + ownership check.
+
+        Kept for the transition; prefer apply_cash_delta for atomic
+        buy/sell posting (which combines the check + arithmetic under
+        one lock so concurrent submit_orders cannot race the balance).
+        """
+        with self._lock:
+            acc = self._accounts.get(account_id)
+            if acc is None or acc.user_id != user_id:
+                raise AccountNotFoundError(
+                    f"account {account_id!r} not found for user {user_id!r}"
+                )
+            updated = replace(acc, cash_balance=new_cash, updated_at=now)
+            self._accounts[account_id] = updated
+            return updated
+
+    def apply_cash_delta(
+        self,
+        account_id: str,
+        delta: Decimal,
+        *,
+        user_id: str,
+        now: datetime,
+        min_balance: Decimal | None = None,
+    ) -> PaperAccount:
+        """Atomic (load + check + write) cash-balance mutation.
+
+        Load → optional floor check → apply delta → write, all under
+        ``self._lock`` so concurrent submit_orders cannot race the
+        cash balance below the floor.
+        """
+        with self._lock:
+            acc = self._accounts.get(account_id)
+            if acc is None or acc.user_id != user_id:
+                raise AccountNotFoundError(
+                    f"account {account_id!r} not found for user {user_id!r}"
+                )
+            new_cash = acc.cash_balance + delta
+            if min_balance is not None and new_cash < min_balance:
+                raise AccountConfigError(
+                    f"cash delta {delta} would drive {account_id!r} balance "
+                    f"to {new_cash}, below min_balance={min_balance}"
+                )
+            updated = replace(acc, cash_balance=new_cash, updated_at=now)
+            self._accounts[account_id] = updated
+            return updated
