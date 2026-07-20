@@ -132,9 +132,7 @@ def metrics(
     basket: list[dict],
     returns_source: dict,
     benchmark_returns: list[float],
-    provider: (
-        str | None
-    ) = None,  # noqa: ARG001  # pylint: disable=unused-argument
+    provider: str | None = None,  # noqa: ARG001  # pylint: disable=unused-argument
 ) -> OBBject:
     """Parametric portfolio-level risk metrics: volatility, VaR(95%), CVaR(95%), beta.
 
