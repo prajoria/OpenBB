@@ -209,6 +209,7 @@ class InMemoryAccountStore:
         now: datetime,
         account_id: str | None = None,
     ) -> PaperAccount:
+        """Create a new account (auto-generate account_id if not supplied)."""
         if not user_id:
             raise AccountConfigError("user_id is required")
         _validate_config(config)
