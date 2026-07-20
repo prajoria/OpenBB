@@ -102,6 +102,7 @@ class PaperAccount:
 
     @property
     def display_name(self) -> str:
+        """Return the human-readable name (falls back to a truncated account_id)."""
         return self.config.display_name or f"Paper Account {self.account_id[:8]}"
 
 
@@ -229,6 +230,7 @@ class InMemoryAccountStore:
         return account
 
     def get(self, account_id: str, *, user_id: str) -> PaperAccount | None:
+        """Return the account if it belongs to ``user_id``, else None (no info leak)."""
         acc = self._accounts.get(account_id)
         if acc is None or acc.user_id != user_id:
             # Foreign-owned accounts return None — never raise (info leak).
@@ -236,6 +238,7 @@ class InMemoryAccountStore:
         return acc
 
     def list(self, *, user_id: str, active_only: bool = True) -> list[PaperAccount]:
+        """Return all accounts owned by ``user_id``, sorted by created_at."""
         return sorted(
             (
                 acc
@@ -246,6 +249,7 @@ class InMemoryAccountStore:
         )
 
     def reset(self, account_id: str, *, user_id: str, now: datetime) -> PaperAccount:
+        """Zero cash back to starting_cash + bump updated_at."""
         acc = self.get(account_id, user_id=user_id)
         if acc is None:
             raise AccountNotFoundError(
@@ -260,6 +264,7 @@ class InMemoryAccountStore:
         return reset_acc
 
     def delete(self, account_id: str, *, user_id: str, now: datetime) -> PaperAccount:
+        """Soft-delete (is_active=False); preserves history for audit."""
         acc = self.get(account_id, user_id=user_id)
         if acc is None:
             raise AccountNotFoundError(
