@@ -104,9 +104,7 @@ class AccountLockManager:
             acquired.release()
 
     @contextmanager
-    def acquire_both(
-        self, account_id_a: str, account_id_b: str
-    ) -> Iterator[None]:
+    def acquire_both(self, account_id_a: str, account_id_b: str) -> Iterator[None]:
         """Hold locks for TWO accounts in a canonical order.
 
         For multi-account operations (e.g. transferring cash between
