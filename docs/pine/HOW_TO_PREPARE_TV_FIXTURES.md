@@ -9,11 +9,22 @@ corpus), and **#586** (v5 roundtrip fixtures).
 CSV format). ~10 min per fixture after that.
 
 **What you need:**
+
 - TradingView account with **Essential tier or higher** (Free tier cannot
   export the Strategy Tester CSVs — this is a hard TV paywall).
 - Local checkout of `H:\masterswork\git\OpenBB-Pine` on `openbb_pine_support`.
 - The `.venv_pine_support` venv already set up (see CLAUDE.md §"Python
   environment isolation").
+
+> **Design in flux — see brainstorm:**
+> [`docs/superpowers/brainstorms/2026-07-20-pine-hybrid-fixture-suite.md`](../superpowers/brainstorms/2026-07-20-pine-hybrid-fixture-suite.md)
+> proposes reducing this 4-CSV workflow to a 1-CSV workflow (TV trades
+> only, bars from fmp_cached at test time, equity/stats derived by our
+> runtime). If that proposal is approved, this guide will be updated to
+> describe the hybrid workflow as the default, keeping the 4-CSV path
+> only for one "full-parity canary" fixture. Read the brainstorm if
+> you're about to invest in generating fixtures under the current
+> design — you may want to wait or scope your work accordingly.
 
 ---
 
