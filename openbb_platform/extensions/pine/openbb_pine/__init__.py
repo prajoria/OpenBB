@@ -44,7 +44,10 @@ def _install_pynecore_path() -> None:
     logic now lives in :mod:`openbb_pine.runtime.pynecore_bridge`, which
     will migrate to ``pyne_compiler`` in E2 (see Pine Extraction Design §6.E0.5).
     """
-    # pylint: disable-next=import-outside-toplevel  # intentional deferred import (pre-existing, predates #588)
+    # Deferred to break the import cycle: openbb_pine (this module)
+    # -> runtime.pynecore_bridge -> ... -> openbb_pine at bridge init
+    # time. Top-level import would deadlock module import.
+    # pylint: disable-next=import-outside-toplevel
     from openbb_pine.runtime.pynecore_bridge import install_pynecore_path
 
     install_pynecore_path()

@@ -24,16 +24,28 @@ attribution/telemetry envelope (D5 §8.1).
 """
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments,unused-argument
-# ^ Pre-existing warnings on ``async def run`` / ``async def run_byo`` (both
-# predate #588). ``run`` takes 10 kwargs (source, provider, symbol, interval,
-# start, end, params, data, strategy_params, timeout_s) because that IS the
-# HTTP contract exposed at ``POST /pine/strategies/run`` — the parameter list
-# IS the endpoint spec. Bundling into a Pydantic request object would break the
-# public API surface and diverge from the sibling ``/pine/run`` endpoint. The
-# ``data`` param is ARG001 by design ("reserved for BYO follow-up") and has an
-# in-line ``noqa`` marker already. Follow-up refactor tracked in the pine
-# lint-cleanup backlog; disabling here to unblock #588 CI without pretending
-# these are #588's issues.
+# ^ Permanent suppression, NOT deferred cleanup — the R0913/R0917/W0613
+# warnings on ``async def run`` and ``async def run_byo`` reflect the HTTP
+# contract these endpoints expose, not code smell.
+#
+# * R0913/R0917 (10 kwargs on ``run``, 7 on ``run_byo``): each kwarg IS
+#   the endpoint's public parameter (source, provider, symbol, interval,
+#   start, end, params, data, strategy_params, timeout_s). Callers write
+#   ``obb.pine.strategies.run(source=..., provider=..., symbol=...)`` —
+#   the individual kwargs are the OpenBB Platform's static-facade contract.
+#   Bundling into a Pydantic ``PineStrategyRunRequest`` (as an earlier
+#   version of #875 proposed) would break every user script AND diverge
+#   from ``/pine/run`` in run_router.py:186 which uses the same
+#   individual-kwarg style. See #875 comment thread for the sibling audit.
+#
+# * W0613 on ``data``: reserved for BYO follow-up per D3 §4.8.2 (already
+#   carries an in-line ``# noqa: ARG001`` for ruff's equivalent rule).
+#   Deleting the param would break the endpoint's advertised signature;
+#   keeping it as a documented placeholder is the intentional choice.
+#
+# When BYO support lands (removing the ``data`` placeholder purpose),
+# ``unused-argument`` can be dropped from this disable list. Until then,
+# all three warnings are permanent architectural facts of this file.
 
 from __future__ import annotations
 
