@@ -253,8 +253,13 @@ class PineHealth(BaseModel):
         description='e.g. "PyneCore 6.5.2 (Apache-2.0)".',
     )
     powered_by: str = Field(
-        # noqa comment on its own line (below) keeps the field line <140 chars for pylint C0301.
-        # pylint: disable-next=unnecessary-lambda  # pre-existing, predates #588 (see #875)
+        # The lambda is load-bearing, NOT cosmetic — `_powered_by_short_default`
+        # is defined AFTER this class (below), so a direct
+        # `default_factory=_powered_by_short_default` triggers NameError at
+        # class-definition time. The lambda defers name resolution to call
+        # time (when Pydantic instantiates a PineHealth) by which point the
+        # module body has finished executing and the callable exists.
+        # pylint: disable-next=unnecessary-lambda  # deferred name resolution — see comment above
         default_factory=lambda: _powered_by_short_default(),  # noqa: PLW0108
         description=(
             "PyneSys §4(d) attribution — §2.6 surface #3. MUST equal "
@@ -288,7 +293,11 @@ def _powered_by_short_default() -> str:
     "single source of truth" guarantee — a future move of the literal only
     touches ``attribution.py``.
     """
-    # pylint: disable-next=import-outside-toplevel  # intentional deferred import (pre-existing, predates #588)
+    # Deferred to preserve the "single source of truth" invariant checked
+    # by test_attribution_surfaces.py — a top-level import here would
+    # shape-couple _models.py to attribution.py and any future move of
+    # POWERED_BY_SHORT would silently break the 4-of-4 attribution test.
+    # pylint: disable-next=import-outside-toplevel
     from openbb_pine.attribution import POWERED_BY_SHORT
 
     return POWERED_BY_SHORT
