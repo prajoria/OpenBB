@@ -16,6 +16,19 @@ Database Schema:
     analyst_estimates table with all FMP API response fields
 """
 
+# Pre-existing pylint suppressions surfaced by CI (#909) — these patterns
+# are used throughout fmp_cached and are out of scope for this hygiene PR.
+# pylint: disable=import-outside-toplevel  # lazy imports for optional deps
+# pylint: disable=logging-fstring-interpolation  # f-strings in log calls
+# pylint: disable=unused-argument  # signature-required unused params
+# pylint: disable=broad-exception-caught  # per-source failure isolation
+# pylint: disable=redefined-outer-name,reimported  # per-function re-import guards
+# pylint: disable=too-many-lines,too-many-locals,too-many-branches  # legacy
+# pylint: disable=logging-not-lazy  # legacy 'str' + var log calls
+# pylint: disable=unused-import  # Optional/ForceInt kept for typing/docstring hints
+# pylint: disable=too-many-statements,too-many-return-statements
+# pylint: disable=too-many-nested-blocks,too-many-arguments,too-many-positional-arguments
+
 import logging
 from datetime import datetime, date
 from typing import Any, Dict, List, Literal, Optional
@@ -35,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 class FMPCachedAnalystEstimatesQueryParams(AnalystEstimatesQueryParams):
     """FMP Cached Analyst Estimates Query Parameters.
-    
+
     Independent query parameters for the cached provider.
     """
 
@@ -54,7 +67,7 @@ class FMPCachedAnalystEstimatesQueryParams(AnalystEstimatesQueryParams):
 
 class FMPCachedAnalystEstimatesData(AnalystEstimatesData):
     """FMP Cached Analyst Estimates Data.
-    
+
     Independent data model for the cached provider.
     """
 
@@ -102,98 +115,112 @@ class FMPCachedAnalystEstimatesFetcher(
         **kwargs: Any,
     ) -> list[dict]:
         """Extract analyst estimates data with intelligent caching."""
-        
+
         # Get credentials from user settings if not provided
         if credentials is None or not credentials.get("fmp_api_key"):
             try:
                 from openbb_core.app.service.user_service import UserService
-                
+
                 user_service = UserService()
                 user_settings = user_service.default_user_settings
                 fmp_api_key = getattr(user_settings.credentials, "fmp_api_key", None)
-                
+
                 if fmp_api_key:
-                    api_key_value = fmp_api_key.get_secret_value() if hasattr(fmp_api_key, 'get_secret_value') else str(fmp_api_key)
+                    api_key_value = (
+                        fmp_api_key.get_secret_value()
+                        if hasattr(fmp_api_key, "get_secret_value")
+                        else str(fmp_api_key)
+                    )
                     credentials = {"fmp_api_key": api_key_value}
                     logger.info("Using FMP API key from user settings")
                 else:
                     logger.warning("No FMP API key found in user settings")
             except Exception as e:
                 logger.warning(f"Could not load user settings: {e}")
-        
+
         # Initialize database
         try:
             init_database()
             _create_analyst_estimates_table()
         except Exception as e:
-            logger.warning(f"Database initialization failed, falling back to direct FMP: {e}")
+            logger.warning(
+                f"Database initialization failed, falling back to direct FMP: {e}"
+            )
             return await _fetch_from_fmp_direct(query, credentials, **kwargs)
-        
+
         # Fix credential mapping
-        if credentials and 'fmp_cached_api_key' in credentials:
-            fmp_credentials = {'fmp_api_key': credentials['fmp_cached_api_key']}
+        if credentials and "fmp_cached_api_key" in credentials:
+            fmp_credentials = {"fmp_api_key": credentials["fmp_cached_api_key"]}
         else:
-            fmp_credentials = credentials
-        
+            fmp_credentials = credentials  # type: ignore[assignment]
+
         # Handle multiple symbols
         symbols = query.symbol.split(",") if "," in query.symbol else [query.symbol]
         all_results = []
-        
+
         for symbol in symbols:
             # Create individual query for each symbol
             single_query = FMPCachedAnalystEstimatesQueryParams(
                 symbol=symbol.strip(),
                 period=query.period,
                 limit=query.limit,
-                page=query.page
+                page=query.page,
             )
-            
+
             # Check cache first
             try:
                 cached_data = _get_from_cache(single_query)
-                
+
                 if cached_data:
-                    logger.info(f"Cache HIT: Found {len(cached_data)} records for {symbol}")
+                    logger.info(
+                        f"Cache HIT: Found {len(cached_data)} records for {symbol}"
+                    )
                     all_results.extend(cached_data)
                     continue
-                
+
                 # Cache miss - fetch from FMP
                 logger.info(f"Cache MISS: Fetching data for {symbol}")
-                fmp_data = await _fetch_from_fmp_direct(single_query, fmp_credentials, **kwargs)
-                
+                fmp_data = await _fetch_from_fmp_direct(
+                    single_query, fmp_credentials, **kwargs
+                )
+
                 # Store in cache
                 if fmp_data:
                     _store_in_cache(single_query, fmp_data)
                     logger.info(f"Cached {len(fmp_data)} records for {symbol}")
                     all_results.extend(fmp_data)
-                
+
             except Exception as e:
                 logger.warning(f"Cache operation failed for {symbol}: {e}")
                 # Fallback to direct API call
-                fallback_data = await _fetch_from_fmp_direct(single_query, fmp_credentials, **kwargs)
+                fallback_data = await _fetch_from_fmp_direct(
+                    single_query, fmp_credentials, **kwargs
+                )
                 if fallback_data:
                     _store_in_cache(single_query, fallback_data)
                 all_results.extend(fallback_data)
-        
+
         logger.info(f"Returning {len(all_results)} total records")
-        
+
         # Ensure we return dictionaries
         clean_results = []
         for item in all_results:
             if isinstance(item, dict):
                 clean_results.append(item)
-            elif hasattr(item, 'model_dump'):
+            elif hasattr(item, "model_dump"):
                 clean_results.append(item.model_dump())
-            elif hasattr(item, '__dict__'):
+            elif hasattr(item, "__dict__"):
                 clean_results.append(item.__dict__)
-        
-        return sorted(clean_results, key=lambda x: (x.get("date", ""), x.get("symbol", "")), reverse=False)
+
+        return sorted(
+            clean_results,
+            key=lambda x: (x.get("date", ""), x.get("symbol", "")),
+            reverse=False,
+        )
 
     @staticmethod
     def transform_data(
-        query: FMPCachedAnalystEstimatesQueryParams, 
-        data: list[dict], 
-        **kwargs: Any
+        query: FMPCachedAnalystEstimatesQueryParams, data: list[dict], **kwargs: Any
     ) -> list[FMPCachedAnalystEstimatesData]:
         """Return the transformed data."""
         if not data:
@@ -239,7 +266,7 @@ def _create_analyst_estimates_table() -> None:
         INDEX idx_symbol_period (symbol, period)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """
-    
+
     try:
         execute_query(create_table_query)
         logger.info("Analyst estimates table ready")
@@ -248,9 +275,11 @@ def _create_analyst_estimates_table() -> None:
         raise
 
 
-def _get_from_cache(query: FMPCachedAnalystEstimatesQueryParams) -> List[Dict[str, Any]]:
+def _get_from_cache(
+    query: FMPCachedAnalystEstimatesQueryParams,
+) -> List[Dict[str, Any]]:
     """Get analyst estimates from cache."""
-    
+
     cache_query = """
     SELECT symbol, date, period,
            estimated_revenue_low, estimated_revenue_high, estimated_revenue_avg,
@@ -266,54 +295,140 @@ def _get_from_cache(query: FMPCachedAnalystEstimatesQueryParams) -> List[Dict[st
     AND is_valid = TRUE
     ORDER BY date DESC
     """
-    
+
     if query.limit:
         cache_query += f" LIMIT {query.limit}"
     if query.page and query.limit:
         offset = query.page * query.limit
         cache_query += f" OFFSET {offset}"
-    
+
     try:
         results = execute_query(cache_query, (query.symbol, query.period))
-        
+
         cached_data = []
         for row in results:
             data_dict = {
-                'symbol': row['symbol'],
-                'date': row['date'].strftime('%Y-%m-%d') if isinstance(row['date'], date) else row['date'],
-                'revenueLow': int(row['estimated_revenue_low']) if row['estimated_revenue_low'] is not None else None,
-                'revenueHigh': int(row['estimated_revenue_high']) if row['estimated_revenue_high'] is not None else None,
-                'revenueAvg': int(row['estimated_revenue_avg']) if row['estimated_revenue_avg'] is not None else None,
-                'sgaExpenseLow': int(row['estimated_sga_expense_low']) if row['estimated_sga_expense_low'] is not None else None,
-                'sgaExpenseHigh': int(row['estimated_sga_expense_high']) if row['estimated_sga_expense_high'] is not None else None,
-                'sgaExpenseAvg': int(row['estimated_sga_expense_avg']) if row['estimated_sga_expense_avg'] is not None else None,
-                'ebitdaLow': int(row['estimated_ebitda_low']) if row['estimated_ebitda_low'] is not None else None,
-                'ebitdaHigh': int(row['estimated_ebitda_high']) if row['estimated_ebitda_high'] is not None else None,
-                'ebitdaAvg': int(row['estimated_ebitda_avg']) if row['estimated_ebitda_avg'] is not None else None,
-                'ebitLow': int(row['estimated_ebit_low']) if row['estimated_ebit_low'] is not None else None,
-                'ebitHigh': int(row['estimated_ebit_high']) if row['estimated_ebit_high'] is not None else None,
-                'ebitAvg': int(row['estimated_ebit_avg']) if row['estimated_ebit_avg'] is not None else None,
-                'netIncomeLow': int(row['estimated_net_income_low']) if row['estimated_net_income_low'] is not None else None,
-                'netIncomeHigh': int(row['estimated_net_income_high']) if row['estimated_net_income_high'] is not None else None,
-                'netIncomeAvg': int(row['estimated_net_income_avg']) if row['estimated_net_income_avg'] is not None else None,
-                'epsAvg': float(row['estimated_eps_avg']) if row['estimated_eps_avg'] is not None else None,
-                'epsHigh': float(row['estimated_eps_high']) if row['estimated_eps_high'] is not None else None,
-                'epsLow': float(row['estimated_eps_low']) if row['estimated_eps_low'] is not None else None,
-                'numAnalystsRevenue': int(row['number_analysts_estimated_revenue']) if row['number_analysts_estimated_revenue'] is not None else None,
-                'numAnalystsEps': int(row['number_analysts_estimated_eps']) if row['number_analysts_estimated_eps'] is not None else None,
+                "symbol": row["symbol"],
+                "date": (
+                    row["date"].strftime("%Y-%m-%d")
+                    if isinstance(row["date"], date)
+                    else row["date"]
+                ),
+                "revenueLow": (
+                    int(row["estimated_revenue_low"])
+                    if row["estimated_revenue_low"] is not None
+                    else None
+                ),
+                "revenueHigh": (
+                    int(row["estimated_revenue_high"])
+                    if row["estimated_revenue_high"] is not None
+                    else None
+                ),
+                "revenueAvg": (
+                    int(row["estimated_revenue_avg"])
+                    if row["estimated_revenue_avg"] is not None
+                    else None
+                ),
+                "sgaExpenseLow": (
+                    int(row["estimated_sga_expense_low"])
+                    if row["estimated_sga_expense_low"] is not None
+                    else None
+                ),
+                "sgaExpenseHigh": (
+                    int(row["estimated_sga_expense_high"])
+                    if row["estimated_sga_expense_high"] is not None
+                    else None
+                ),
+                "sgaExpenseAvg": (
+                    int(row["estimated_sga_expense_avg"])
+                    if row["estimated_sga_expense_avg"] is not None
+                    else None
+                ),
+                "ebitdaLow": (
+                    int(row["estimated_ebitda_low"])
+                    if row["estimated_ebitda_low"] is not None
+                    else None
+                ),
+                "ebitdaHigh": (
+                    int(row["estimated_ebitda_high"])
+                    if row["estimated_ebitda_high"] is not None
+                    else None
+                ),
+                "ebitdaAvg": (
+                    int(row["estimated_ebitda_avg"])
+                    if row["estimated_ebitda_avg"] is not None
+                    else None
+                ),
+                "ebitLow": (
+                    int(row["estimated_ebit_low"])
+                    if row["estimated_ebit_low"] is not None
+                    else None
+                ),
+                "ebitHigh": (
+                    int(row["estimated_ebit_high"])
+                    if row["estimated_ebit_high"] is not None
+                    else None
+                ),
+                "ebitAvg": (
+                    int(row["estimated_ebit_avg"])
+                    if row["estimated_ebit_avg"] is not None
+                    else None
+                ),
+                "netIncomeLow": (
+                    int(row["estimated_net_income_low"])
+                    if row["estimated_net_income_low"] is not None
+                    else None
+                ),
+                "netIncomeHigh": (
+                    int(row["estimated_net_income_high"])
+                    if row["estimated_net_income_high"] is not None
+                    else None
+                ),
+                "netIncomeAvg": (
+                    int(row["estimated_net_income_avg"])
+                    if row["estimated_net_income_avg"] is not None
+                    else None
+                ),
+                "epsAvg": (
+                    float(row["estimated_eps_avg"])
+                    if row["estimated_eps_avg"] is not None
+                    else None
+                ),
+                "epsHigh": (
+                    float(row["estimated_eps_high"])
+                    if row["estimated_eps_high"] is not None
+                    else None
+                ),
+                "epsLow": (
+                    float(row["estimated_eps_low"])
+                    if row["estimated_eps_low"] is not None
+                    else None
+                ),
+                "numAnalystsRevenue": (
+                    int(row["number_analysts_estimated_revenue"])
+                    if row["number_analysts_estimated_revenue"] is not None
+                    else None
+                ),
+                "numAnalystsEps": (
+                    int(row["number_analysts_estimated_eps"])
+                    if row["number_analysts_estimated_eps"] is not None
+                    else None
+                ),
             }
             cached_data.append(data_dict)
-        
+
         return cached_data
-        
+
     except Exception as e:
         logger.error(f"Cache retrieval error: {e}")
         return []
 
 
-def _store_in_cache(query: FMPCachedAnalystEstimatesQueryParams, fmp_data: List[Dict[str, Any]]) -> None:
+def _store_in_cache(
+    query: FMPCachedAnalystEstimatesQueryParams, fmp_data: List[Dict[str, Any]]
+) -> None:
     """Store analyst estimates in database cache."""
-    
+
     if not fmp_data:
         return
 
@@ -353,14 +468,14 @@ def _store_in_cache(query: FMPCachedAnalystEstimatesQueryParams, fmp_data: List[
     updated_at = CURRENT_TIMESTAMP,
     is_valid = new_values.is_valid
     """
-    
+
     batch_data = []
     for row in fmp_data:
-        date_str = row.get('date')
+        date_str = row.get("date")
         if date_str:
             try:
                 if isinstance(date_str, str):
-                    date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
                 else:
                     date_obj = date_str
             except (ValueError, TypeError):
@@ -368,51 +483,53 @@ def _store_in_cache(query: FMPCachedAnalystEstimatesQueryParams, fmp_data: List[
                 continue
         else:
             continue
-        
+
         row_data = (
             query.symbol,
             date_obj,
             query.period,
-            row.get('revenueLow'),
-            row.get('revenueHigh'),
-            row.get('revenueAvg'),
-            row.get('sgaExpenseLow'),
-            row.get('sgaExpenseHigh'),
-            row.get('sgaExpenseAvg'),
-            row.get('ebitdaLow'),
-            row.get('ebitdaHigh'),
-            row.get('ebitdaAvg'),
-            row.get('ebitLow'),
-            row.get('ebitHigh'),
-            row.get('ebitAvg'),
-            row.get('netIncomeLow'),
-            row.get('netIncomeHigh'),
-            row.get('netIncomeAvg'),
-            row.get('epsAvg'),
-            row.get('epsHigh'),
-            row.get('epsLow'),
-            row.get('numAnalystsRevenue'),
-            row.get('numAnalystsEps'),
+            row.get("revenueLow"),
+            row.get("revenueHigh"),
+            row.get("revenueAvg"),
+            row.get("sgaExpenseLow"),
+            row.get("sgaExpenseHigh"),
+            row.get("sgaExpenseAvg"),
+            row.get("ebitdaLow"),
+            row.get("ebitdaHigh"),
+            row.get("ebitdaAvg"),
+            row.get("ebitLow"),
+            row.get("ebitHigh"),
+            row.get("ebitAvg"),
+            row.get("netIncomeLow"),
+            row.get("netIncomeHigh"),
+            row.get("netIncomeAvg"),
+            row.get("epsAvg"),
+            row.get("epsHigh"),
+            row.get("epsLow"),
+            row.get("numAnalystsRevenue"),
+            row.get("numAnalystsEps"),
             datetime.now(),
-            True
+            True,
         )
         batch_data.append(row_data)
-    
+
     if not batch_data:
         return
-    
+
     try:
         execute_many(insert_query, batch_data)
-        logger.debug(f"Successfully stored {len(batch_data)} analyst estimates for {query.symbol}")
+        logger.debug(
+            f"Successfully stored {len(batch_data)} analyst estimates for {query.symbol}"
+        )
     except Exception as e:
         logger.warning(f"Failed to store analyst estimates: {e}")
         raise
 
 
 async def _fetch_from_fmp_direct(
-    query: FMPCachedAnalystEstimatesQueryParams, 
+    query: FMPCachedAnalystEstimatesQueryParams,
     credentials: dict[str, str] | None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> list[dict]:
     """Fetch data directly from FMP API - completely independent implementation."""
     import asyncio
@@ -445,7 +562,9 @@ async def _fetch_from_fmp_direct(
                 )
 
                 if conditions:
-                    raise UnauthorizedError(f"Unauthorized FMP request -> {error_message}")
+                    raise UnauthorizedError(
+                        f"Unauthorized FMP request -> {error_message}"
+                    )
 
                 raise OpenBBError(
                     f"FMP Error Message -> Status code: {response.status} -> {error_message}"
@@ -465,9 +584,7 @@ async def _fetch_from_fmp_direct(
             + f"&page={query.page if query.page else 0}&limit={query.limit if query.limit else 1000}"
             + f"&apikey={api_key}"
         )
-        result = await amake_request(
-            url, response_callback=response_callback, **kwargs
-        )
+        result = await amake_request(url, response_callback=response_callback, **kwargs)
         if not result or len(result) == 0:
             warnings.warn(f"Symbol Error: No data found for {symbol}")
         if result:
@@ -481,7 +598,9 @@ async def _fetch_from_fmp_direct(
     return results
 
 
-def get_cache_statistics(symbol: str = None, period: str = None) -> Dict[str, Any]:
+def get_cache_statistics(
+    symbol: str | None = None, period: str | None = None
+) -> Dict[str, Any]:
     """Get cache statistics for analyst estimates."""
     try:
         if symbol and period:
@@ -521,24 +640,29 @@ def get_cache_statistics(symbol: str = None, period: str = None) -> Dict[str, An
             WHERE is_valid = TRUE
             """
             results = execute_query(stats_query)
-        
+
         return {"statistics": results}
     except Exception as e:
         logger.error(f"Failed to get cache statistics: {e}")
         return {"error": str(e)}
 
 
-def clear_cache_for_symbol(symbol: str, period: str = None) -> bool:
+def clear_cache_for_symbol(symbol: str, period: str | None = None) -> bool:
     """Clear cached analyst estimates for a specific symbol."""
     try:
         if period:
-            delete_query = "DELETE FROM analyst_estimates WHERE symbol = %s AND period = %s"
+            delete_query = (
+                "DELETE FROM analyst_estimates WHERE symbol = %s AND period = %s"
+            )
             execute_query(delete_query, (symbol, period))
         else:
             delete_query = "DELETE FROM analyst_estimates WHERE symbol = %s"
             execute_query(delete_query, (symbol,))
-        
-        logger.info(f"Cleared cache for symbol {symbol}" + (f" period {period}" if period else ""))
+
+        logger.info(
+            f"Cleared cache for symbol {symbol}"
+            + (f" period {period}" if period else "")
+        )
         return True
     except Exception as e:
         logger.error(f"Failed to clear cache: {e}")

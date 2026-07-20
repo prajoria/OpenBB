@@ -26,6 +26,16 @@ Usage (standalone):
     stats = get_cache_stats()             # get row counts / sector breakdown
 """
 
+# Pre-existing pylint suppressions surfaced by CI (#909) — these patterns
+# are used throughout fmp_cached and are out of scope for this hygiene PR.
+# pylint: disable=import-outside-toplevel  # lazy imports for optional deps
+# pylint: disable=logging-fstring-interpolation  # f-strings in log calls
+# pylint: disable=unused-argument  # signature-required unused params
+# pylint: disable=broad-exception-caught  # per-source failure isolation
+# pylint: disable=too-many-lines,too-many-locals,too-many-branches  # legacy
+# pylint: disable=too-many-statements,too-many-return-statements
+# pylint: disable=too-many-nested-blocks,too-many-arguments,too-many-positional-arguments
+
 import json
 import logging
 import os
@@ -36,8 +46,8 @@ from datetime import (
 )
 from typing import Any, Literal
 
-import pymysql
-import pymysql.cursors
+import pymysql  # type: ignore[import-untyped]
+import pymysql.cursors  # type: ignore[import-untyped]
 import requests
 from dateutil import parser
 from openbb_core.provider.abstract.fetcher import Fetcher
@@ -704,7 +714,7 @@ class FMPCachedIndexConstituentsFetcher(
         if credentials and "fmp_cached_api_key" in credentials:
             fmp_credentials = {"fmp_api_key": credentials["fmp_cached_api_key"]}
         else:
-            fmp_credentials = credentials
+            fmp_credentials = credentials  # type: ignore[assignment]
 
         # Historical queries always go to API (not cached)
         if query.historical:

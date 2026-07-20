@@ -18,6 +18,18 @@ Database Schema:
     Includes interval_type and adjustment_type for proper cache differentiation.
 """
 
+# Pre-existing pylint suppressions surfaced by CI (#909) — these patterns
+# are used throughout fmp_cached and are out of scope for this hygiene PR.
+# pylint: disable=import-outside-toplevel  # lazy imports for optional deps
+# pylint: disable=redefined-outer-name,reimported  # per-function error re-import guards
+# pylint: disable=logging-fstring-interpolation  # f-strings in log calls
+# pylint: disable=unused-argument  # signature-required unused params
+# pylint: disable=broad-exception-caught  # per-source failure isolation
+# pylint: disable=too-many-lines,too-many-locals,too-many-branches  # legacy
+# pylint: disable=too-many-statements,too-many-return-statements
+# pylint: disable=too-many-nested-blocks,too-many-arguments,too-many-positional-arguments
+# pylint: disable=unused-variable  # pre-existing unused-result patterns
+
 import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
@@ -247,7 +259,7 @@ class FMPCachedEquityHistoricalFetcher(
         if credentials and "fmp_cached_api_key" in credentials:
             fmp_credentials = {"fmp_api_key": credentials["fmp_cached_api_key"]}
         else:
-            fmp_credentials = credentials
+            fmp_credentials = credentials  # type: ignore[assignment]
 
         # Handle multiple symbols
         symbols = query.symbol.split(",") if "," in query.symbol else [query.symbol]
@@ -374,7 +386,7 @@ class FMPCachedEquityHistoricalFetcher(
 
                     # Update database with dividend data
                     # Group by symbol to update each symbol's data
-                    symbol_data_map = {}
+                    symbol_data_map: dict = {}
                     for item in all_results:
                         sym = item.get("symbol")
                         if sym not in symbol_data_map:
@@ -810,7 +822,12 @@ def _detect_missing_ranges(
         min_cached = min(cached_dates) if cached_dates else None
         max_cached = max(cached_dates) if cached_dates else None
 
-        if not min_cached or min_cached > start_date or max_cached < end_date:
+        if (
+            not min_cached
+            or max_cached is None
+            or min_cached > start_date
+            or max_cached < end_date
+        ):
             return [(start_date, end_date)]
 
         # For intraday, also check for significant gaps (more than 7 days)
@@ -958,7 +975,7 @@ def _get_basic_market_holidays(start_year: int, end_year: int) -> set[date]:
     # ------------------------------------------------------------------
     # 2. Compute holidays (comprehensive fallback)
     # ------------------------------------------------------------------
-    holidays: set[date] = set()
+    holidays: set[date] = set()  # type: ignore[no-redef]
 
     def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
         """Return the *n*-th occurrence of *weekday* in *month/year*."""
@@ -1356,7 +1373,11 @@ async def _fetch_from_fmp_direct(
     # non-str/int/float query params, and query.model_dump() emits real
     # `datetime.date` objects that would otherwise raise TypeError from
     # get_str_query_from_sequence_iterable. #785.
-    from datetime import date as _date, datetime as _datetime
+    from datetime import (
+        date as _date,
+        datetime as _datetime,
+    )
+
     query_params = {
         key: (value.isoformat() if isinstance(value, (_date, _datetime)) else value)
         for key, value in query.model_dump().items()
@@ -1632,7 +1653,7 @@ async def _fetch_dividends_from_fmp(
     return dividend_map
 
 
-def get_cache_statistics(symbol: str = None) -> dict[str, Any]:
+def get_cache_statistics(symbol: str | None = None) -> dict[str, Any]:
     """Get cache statistics for equity historical data."""
     try:
         if symbol:
