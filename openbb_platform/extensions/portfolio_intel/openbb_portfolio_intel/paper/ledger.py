@@ -157,16 +157,23 @@ class InMemoryLedgerStore:
     """
 
     _entries: dict[tuple[str, str], list[LedgerEntry]] = field(default_factory=dict)
-    _seen_ids: set[str] = field(default_factory=set)
+    # Per-tenant idempotency: (user_id, account_id) → set of seen entry_ids.
+    # Scoping the dedup by tenant prevents cross-tenant collision, matches
+    # the isolation posture of _entries, and preserves retry-safety within
+    # a single account.
+    _seen_ids: dict[tuple[str, str], set[str]] = field(default_factory=dict)
     _lock: Lock = field(default_factory=Lock)
 
     def append(self, entry: LedgerEntry) -> None:
-        """Idempotent append. Duplicate entry_id is silently ignored."""
+        """Idempotent append. Duplicate entry_id (per tenant) is silently ignored."""
+        if not entry.entry_id:
+            raise LedgerError("entry_id must be non-empty")
         with self._lock:
-            if entry.entry_id in self._seen_ids:
-                return
-            self._seen_ids.add(entry.entry_id)
             key = (entry.user_id, entry.account_id)
+            seen = self._seen_ids.setdefault(key, set())
+            if entry.entry_id in seen:
+                return
+            seen.add(entry.entry_id)
             bucket = self._entries.setdefault(key, [])
             bucket.append(entry)
 
