@@ -1,0 +1,226 @@
+[
+  {
+    "cluster": 513,
+    "endpoint": "obb.economy.calendar",
+    "label": "Economic calendar",
+    "status": "OK",
+    "row_count": 567,
+    "reason": ""
+  },
+  {
+    "cluster": 513,
+    "endpoint": "obb.fixedincome.government.treasury_rates",
+    "label": "Treasury rates",
+    "status": "OK",
+    "row_count": 248,
+    "reason": ""
+  },
+  {
+    "cluster": 513,
+    "endpoint": "obb.economy.indicators",
+    "label": "Economic indicators (FRED)",
+    "status": "ERROR",
+    "row_count": null,
+    "reason": "OpenBBError: \n[Error] -> 1 validations error(s)\n[Arg] provider -> input: fred -> Input should be 'econdb' or 'imf'"
+  },
+  {
+    "cluster": 514,
+    "endpoint": "obb.equity.discovery.gainers",
+    "label": "Gainers",
+    "status": "OK",
+    "row_count": 50,
+    "reason": ""
+  },
+  {
+    "cluster": 514,
+    "endpoint": "obb.equity.discovery.losers",
+    "label": "Losers",
+    "status": "OK",
+    "row_count": 50,
+    "reason": ""
+  },
+  {
+    "cluster": 514,
+    "endpoint": "obb.equity.discovery.active",
+    "label": "Most active",
+    "status": "OK",
+    "row_count": 50,
+    "reason": ""
+  },
+  {
+    "cluster": 514,
+    "endpoint": "obb.equity.compare.groups",
+    "label": "Sector rollup",
+    "status": "UNAVAILABLE",
+    "row_count": null,
+    "reason": "AttributeError on obb.*: 'ROUTER_equity_compare' object has no attribute 'groups'"
+  },
+  {
+    "cluster": 515,
+    "endpoint": "obb.equity.price.historical",
+    "label": "OHLCV for TA (per-holding strip)",
+    "status": "OK",
+    "row_count": 251,
+    "reason": ""
+  },
+  {
+    "cluster": 516,
+    "endpoint": "(no upstream)",
+    "label": "portfolio_intel_cache table",
+    "status": "SKIPPED",
+    "row_count": null,
+    "reason": "Cache infrastructure \u2014 no upstream endpoint to probe"
+  },
+  {
+    "cluster": 517,
+    "endpoint": "obb.index.constituents",
+    "label": "SP500 constituents (warmer)",
+    "status": "OK",
+    "row_count": 525,
+    "reason": ""
+  },
+  {
+    "cluster": 517,
+    "endpoint": "obb.etf.holdings",
+    "label": "ETF holdings warmer",
+    "status": "OK",
+    "row_count": 504,
+    "reason": ""
+  },
+  {
+    "cluster": 517,
+    "endpoint": "obb.equity.price.historical",
+    "label": "OHLCV warmer",
+    "status": "OK",
+    "row_count": 251,
+    "reason": ""
+  },
+  {
+    "cluster": 518,
+    "endpoint": "obb.etf.info",
+    "label": "ETF info",
+    "status": "OK",
+    "row_count": 1,
+    "reason": ""
+  },
+  {
+    "cluster": 518,
+    "endpoint": "obb.etf.sectors",
+    "label": "ETF sector weightings",
+    "status": "OK",
+    "row_count": 12,
+    "reason": ""
+  },
+  {
+    "cluster": 518,
+    "endpoint": "obb.etf.countries",
+    "label": "ETF country weightings",
+    "status": "OK",
+    "row_count": 9,
+    "reason": ""
+  },
+  {
+    "cluster": 519,
+    "endpoint": "obb.equity.calendar.earnings",
+    "label": "Earnings calendar",
+    "status": "OK",
+    "row_count": 9932,
+    "reason": ""
+  },
+  {
+    "cluster": 519,
+    "endpoint": "obb.equity.calendar.dividend",
+    "label": "Dividend calendar",
+    "status": "OK",
+    "row_count": 1008,
+    "reason": ""
+  },
+  {
+    "cluster": 519,
+    "endpoint": "obb.equity.calendar.splits",
+    "label": "Splits calendar",
+    "status": "OK",
+    "row_count": 49,
+    "reason": ""
+  },
+  {
+    "cluster": 519,
+    "endpoint": "obb.equity.calendar.ipo",
+    "label": "IPO calendar",
+    "status": "OK",
+    "row_count": 2,
+    "reason": ""
+  },
+  {
+    "cluster": 520,
+    "endpoint": "obb.equity.estimates.analyst_search",
+    "label": "Analyst estimates",
+    "status": "ERROR",
+    "row_count": null,
+    "reason": "OpenBBError: \n[Error] -> 1 validations error(s)\n[Arg] provider -> input: fmp_cached -> Input should be 'benzinga'"
+  },
+  {
+    "cluster": 520,
+    "endpoint": "obb.equity.estimates.price_target",
+    "label": "Price target",
+    "status": "OK",
+    "row_count": 100,
+    "reason": ""
+  },
+  {
+    "cluster": 520,
+    "endpoint": "obb.equity.estimates.consensus",
+    "label": "Price-target consensus",
+    "status": "OK",
+    "row_count": 1,
+    "reason": ""
+  },
+  {
+    "cluster": 521,
+    "endpoint": "obb.equity.ownership.insider_trading",
+    "label": "Insider trading",
+    "status": "OK",
+    "row_count": 1000,
+    "reason": ""
+  },
+  {
+    "cluster": 522,
+    "endpoint": "obb.equity.ownership.institutional",
+    "label": "Institutional ownership",
+    "status": "ERROR",
+    "row_count": null,
+    "reason": "OpenBBError: \n[Unexpected Error] -> ValueError -> All 1 institutional-ownership record(s) failed FMP schema validation for query symbol='AAPL'; see WARNING logs for per-record details. This indicates "
+  },
+  {
+    "cluster": 523,
+    "endpoint": "obb.regulators.sec.senate_trades",
+    "label": "Senate trades",
+    "status": "UNAVAILABLE",
+    "row_count": null,
+    "reason": "AttributeError on obb.*: 'ROUTER_regulators_sec' object has no attribute 'senate_trades'"
+  },
+  {
+    "cluster": 524,
+    "endpoint": "obb.equity.fundamental.filings",
+    "label": "Company filings",
+    "status": "OK",
+    "row_count": 80,
+    "reason": ""
+  },
+  {
+    "cluster": 525,
+    "endpoint": "obb.news.company",
+    "label": "Company news",
+    "status": "OK",
+    "row_count": 250,
+    "reason": ""
+  },
+  {
+    "cluster": 525,
+    "endpoint": "obb.news.world",
+    "label": "World / general news",
+    "status": "OK",
+    "row_count": 250,
+    "reason": ""
+  }
+]
