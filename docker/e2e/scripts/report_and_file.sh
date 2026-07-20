@@ -72,15 +72,58 @@ fi
 echo "## Bug files written" >> "${SUMMARY}"
 echo >> "${SUMMARY}"
 
+# ---------------------------------------------------------------
+# Secret-scrubbing helper. The stderr/stdout excerpts we embed in
+# bug files can contain provider API keys, GH tokens, MySQL creds,
+# etc. — either because a stage crashed while printing config, or
+# because the underlying library (pymysql, requests, aiohttp) put
+# the connection string / URL in its traceback. Redact before write.
+#
+# Anything matching the known patterns is replaced with a fixed
+# marker. New secret shapes should be added here as we encounter them.
+# Deliberately conservative: false-positives (over-redaction) are
+# better than a leaked key in a bug file that ends up in a GH issue.
+# ---------------------------------------------------------------
+scrub() {
+  # Use env-var values from the running process so we redact THIS
+  # session's actual token/password rather than generic patterns.
+  awk -v gh_token="${GH_TOKEN:-__UNSET_GH__}" \
+      -v mysql_pw="${MYSQL_PASSWORD:-__UNSET_MYPW__}" \
+      -v mysql_root_pw="${MYSQL_ROOT_PASSWORD:-__UNSET_MYRPW__}" '
+    {
+      # 1. GitHub tokens: gho_/ghp_/ghs_/ghu_/ghr_ followed by base62
+      gsub(/gh[opsur]_[A-Za-z0-9_]{20,}/, "<REDACTED_GH_TOKEN>")
+      # 2. Any pypi-published FMP key style (32+ alnum)
+      gsub(/[""'\'']?(fmp_api_key|fmp_cached_api_key|openai_api_key|api_key|apikey)[""'\'']?\s*[:=]\s*[""'\'']?[A-Za-z0-9_-]{16,}[""'\'']?/, "<REDACTED_KEY_ASSIGNMENT>")
+      # 3. Session-live values (only if actually set)
+      if (gh_token != "__UNSET_GH__" && length(gh_token) > 8)         { gsub(gh_token, "<REDACTED_GH_TOKEN>") }
+      if (mysql_pw != "__UNSET_MYPW__" && length(mysql_pw) > 4)       { gsub(mysql_pw, "<REDACTED_MYSQL_PW>") }
+      if (mysql_root_pw != "__UNSET_MYRPW__" && length(mysql_root_pw) > 4) { gsub(mysql_root_pw, "<REDACTED_MYSQL_ROOT_PW>") }
+      # 4. Bearer/Basic auth headers
+      gsub(/[Aa]uthorization:\s*[Bb]earer\s+[A-Za-z0-9._-]+/, "Authorization: Bearer <REDACTED>")
+      gsub(/[Aa]uthorization:\s*[Bb]asic\s+[A-Za-z0-9+\/=]+/, "Authorization: Basic <REDACTED>")
+      # 5. URL-embedded credentials: scheme://user:PASSWORD@host
+      gsub(/:\/\/[^:@\/\s]+:[^@\/\s]+@/, "://<REDACTED_URL_CREDS>@")
+      print
+    }
+  '
+}
+
 write_bug_file() {
   local stage="$1"
   local stage_dir="${ARTIFACTS}/${stage}"
   local bug_file="${BUGS_DIR}/${stage}.md"
 
   local stderr_head="" stdout_tail="" summary_json=""
-  [[ -f "${stage_dir}/stderr.log" ]] && stderr_head="$(head -c 6000 "${stage_dir}/stderr.log" 2>/dev/null || true)"
-  [[ -f "${stage_dir}/stdout.log" ]] && stdout_tail="$(tail -c 4000 "${stage_dir}/stdout.log" 2>/dev/null || true)"
-  [[ -f "${stage_dir}/summary.json" ]] && summary_json="$(cat "${stage_dir}/summary.json" 2>/dev/null || true)"
+  if [[ -f "${stage_dir}/stderr.log" ]]; then
+    stderr_head="$(head -c 6000 "${stage_dir}/stderr.log" 2>/dev/null | scrub || true)"
+  fi
+  if [[ -f "${stage_dir}/stdout.log" ]]; then
+    stdout_tail="$(tail -c 4000 "${stage_dir}/stdout.log" 2>/dev/null | scrub || true)"
+  fi
+  if [[ -f "${stage_dir}/summary.json" ]]; then
+    summary_json="$(scrub < "${stage_dir}/summary.json" 2>/dev/null || true)"
+  fi
 
   # Grep the junit XML for failing test names, if any.
   local junit_failures=""
@@ -92,9 +135,18 @@ write_bug_file() {
   {
     echo "# Bug candidate: stage \`${stage}\`"
     echo
-    echo "> **This file was written by the docker/e2e harness.** It is"
-    echo "> raw evidence, not a validated issue. Review the claims against"
-    echo "> the actual repo tree before filing to any tracker."
+    echo "> **⚠ SECURITY: raw evidence, review before sharing.** This file was"
+    echo "> written by the docker/e2e harness. The stderr/stdout excerpts below"
+    echo "> have passed through the scrubber in \`scripts/report_and_file.sh\`"
+    echo "> (redacts GH tokens, api_key assignments, URL-embedded creds, and"
+    echo "> the session's live MYSQL/GH env vars) but no scrubber is complete."
+    echo "> Before copying this into a tracker issue, do a final visual pass"
+    echo "> for anything key-shaped, path-with-username, or IP address you"
+    echo "> don't want public."
+    echo ">"
+    echo "> The claim below is unvalidated raw output. Cross-check against"
+    echo "> the actual repo tree before filing (see the two-phase rule in"
+    echo "> \`~/.claude/CLAUDE.md\`)."
     echo
     echo "## Metadata"
     echo

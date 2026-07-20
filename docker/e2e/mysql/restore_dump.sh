@@ -75,9 +75,16 @@ awk '
   /^-- Current Database: `openbb_fmp_cache`/         { skip = 0 }
   /^-- Current Database: `openbb_fmp_cache_test`/    { skip = 0 }
   skip == 0 { print }
-' "${DUMP_PATH}" | docker compose exec -T mysql bash -c '
-  set -euo pipefail
-  mysql --defaults-extra-file=<(printf "[client]\nuser=root\npassword=rootpw\n")
+' "${DUMP_PATH}" | docker compose exec -T mysql sh -c '
+  set -eu
+  # The mysql:8.4 official image sets $MYSQL_ROOT_PASSWORD in the
+  # container env from the MYSQL_ROOT_PASSWORD compose env we pass at
+  # up-time. Reading it via the env prevents the literal from ever
+  # appearing in the container process argv (visible to any co-tenant
+  # process running `ps` / `docker top`). Fallback to `rootpw` matches
+  # the compose default and keeps standalone use of this script working.
+  : "${MYSQL_ROOT_PASSWORD:=rootpw}"
+  mysql -uroot -p"${MYSQL_ROOT_PASSWORD}"
 '
 
 echo "==> Restore complete — verifying"

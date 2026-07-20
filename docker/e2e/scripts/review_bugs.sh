@@ -115,14 +115,19 @@ cat <<EOF
 
 Review workflow:
   1. cat each bug file above.
-  2. Cross-check the claimed root cause in the current develop tree.
-  3. Search the tracker for existing open issues on the same failure:
+  2. **SCRUB PASS**: bug files were scrubbed by report_and_file.sh
+     (GH tokens, api_key=..., MySQL passwords, URL-embedded creds).
+     No scrubber is complete — do a final visual pass for anything
+     key-shaped, path-with-username, or IP you don't want public
+     BEFORE you copy the excerpt into a tracker issue body.
+  3. Cross-check the claimed root cause in the current develop tree.
+  4. Search the tracker for existing open issues on the same failure:
        gh issue list --repo prajoria/OpenBB --state open --search "<keyword>"
-  4. Draft a fix (or note that investigation is required).
-  5. File the issue with a validated body:
+  5. Draft a fix (or note that investigation is required).
+  6. File the issue with a validated body:
        gh issue create --repo prajoria/OpenBB --title "..." --body-file <path> \\
          --label develop_test_issues
-  6. Cross-reference the harness run ID in the issue body so future runs
+  7. Cross-reference the harness run ID in the issue body so future runs
      can be linked back.
 
 The harness itself does NOT file issues. That's deliberate — see the

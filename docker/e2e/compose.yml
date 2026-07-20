@@ -53,6 +53,10 @@ services:
     image: mysql:8.4
     restart: unless-stopped
     environment:
+      # Root password kept for one-shot restore access via
+      # docker/e2e/mysql/restore_dump.sh — which reads it from the
+      # container env (`$MYSQL_ROOT_PASSWORD`) rather than the argv,
+      # so the literal never appears in `docker top` or host `ps`.
       MYSQL_ROOT_PASSWORD: rootpw
       # These create empty DBs + a user on FIRST boot. When we later
       # restore from the dump, that dump's DATA is loaded into these
@@ -65,7 +69,15 @@ services:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.d:/docker-entrypoint-initdb.d:ro
     ports:
-      - "13306:3306"   # host:container — 13306 avoids clashing with host MySQL
+      # Loopback-bound only — the compose-network peers (platform, api,
+      # pytest, analysis, doctor) all reach mysql via the internal DNS
+      # name `mysql:3306` without any host port mapping. This mapping
+      # exists only so the *developer* can point mysqldump / an IDE at
+      # localhost:13306 during interactive debugging. Binding to
+      # 0.0.0.0 would expose the DB (default creds fmp_user/fmp_user)
+      # to anything reachable on the host's LAN — not what we want on
+      # a dev laptop, definitely not what we want on a shared runner.
+      - "127.0.0.1:13306:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ufmp_user", "-pfmp_user"]
       interval: 5s
@@ -122,7 +134,11 @@ services:
       - ${HOME}/.openbb_platform/user_settings.json:/env/host_user_settings.json:ro
       - ${REPO_ROOT}/.env:/env/host.env:ro
     ports:
-      - "18000:8000"
+      # Loopback-bound only — same reasoning as the mysql port above:
+      # api_smoke reaches this service via the compose network at
+      # http://api:8000; the 18000 host mapping is only for developer
+      # curl / browser access. Never exposed on the LAN.
+      - "127.0.0.1:18000:8000"
     command:
       - /bin/bash
       - -c
