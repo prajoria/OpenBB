@@ -69,9 +69,19 @@ build/conda/tmp
 .venv_win/
 .venv_openbb/
 .venv_openbb_master/
+.venv_docker_openbb/
 
 # Database backups
 *.sql
+
+# docker/e2e/ end-to-end stability harness — explicitly re-include the
+# shell scripts, env template, and init SQL that would otherwise match
+# the *.sh / env/ / *.sql broad rules above.
+!docker/e2e/**/*.sh
+!docker/e2e/run.sh
+!docker/e2e/env/
+!docker/e2e/env/stack.env.example
+!docker/e2e/mysql/init.d/*.sql
 
 # Local session logs (fetch history, portfolio app runtime)
 logs/

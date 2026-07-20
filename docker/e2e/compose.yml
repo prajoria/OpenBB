@@ -1,0 +1,237 @@
+# docker/e2e/compose.yml
+#
+# End-to-end stability harness for OpenBB `develop`.
+# See ./README.md and plans/luminous-petting-tome.md for the full design.
+#
+# Design invariants:
+# - Every run starts from a fresh clone of origin/develop (not the host
+#   working copy) — the `checkout` service populates the openbb_src volume.
+# - Secrets (user_settings.json, .env) are BIND-MOUNTED read-only; never
+#   baked into images.
+# - Each stage writes to artifacts/<run-id>/<stage>/ using a fixed file
+#   contract (status, stdout.log, stderr.log, junit*.xml, summary.json).
+#   The reporter reads only that contract.
+# - `reporter` runs unconditionally (invoked separately by run.sh) so
+#   issue-filing survives runner failures.
+#
+# Repetition note: docker compose YAML merge keys (`<<: *anchor`) only
+# work with mappings, not sequences — so the volumes lists on the
+# platform / api / pytest / analysis / doctor services are inlined
+# deliberately rather than DRY'd via an anchor.
+
+name: openbb-e2e
+
+x-platform-env: &platform-env
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  # These override the user_settings.json values (which point at
+  # `localhost:3306`) so the platform containers reach the mysql
+  # service by its compose DNS name.
+  OPENBB_MYSQL_HOST: mysql
+  OPENBB_MYSQL_PORT: "3306"
+  OPENBB_MYSQL_USER: fmp_user
+  OPENBB_MYSQL_PASSWORD: fmp_user
+  OPENBB_MYSQL_DB: openbb_fmp_cache
+  # openbb_fmp_cached reads these too — belt-and-suspenders.
+  MYSQL_HOST: mysql
+  MYSQL_PORT: "3306"
+  MYSQL_USER: fmp_user
+  MYSQL_PASSWORD: fmp_user
+  MYSQL_DATABASE: openbb_fmp_cache
+  RUN_ID: "${RUN_ID:?RUN_ID must be exported by run.sh}"
+  SKIP_INTEGRATION: "${SKIP_INTEGRATION:-0}"
+  ANALYSIS_SYMBOLS: "${ANALYSIS_SYMBOLS:-MSFT,AAPL}"
+
+services:
+  # ------------------------------------------------------------------
+  # Infrastructure
+  # ------------------------------------------------------------------
+  mysql:
+    # Pinned to 8.4 to match the source of docker/e2e/mysql/dump/*.sql
+    # (mysqldump 10.13 / Distrib 8.4.9). Restoring an 8.4 dump into an
+    # 8.0 server errors out on features like the mysql.component table.
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpw
+      # These create empty DBs + a user on FIRST boot. When we later
+      # restore from the dump, that dump's DATA is loaded into these
+      # already-created schemas, and our user retains access via the
+      # grants in mysql/init.d/00-bootstrap.sql.
+      MYSQL_DATABASE: openbb_fmp_cache
+      MYSQL_USER: fmp_user
+      MYSQL_PASSWORD: fmp_user
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.d:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "13306:3306"   # host:container — 13306 avoids clashing with host MySQL
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ufmp_user", "-pfmp_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  # Fresh checkout of origin/develop — MUST run before any build/test.
+  checkout:
+    image: alpine/git:latest
+    environment:
+      RUN_ID: "${RUN_ID:?RUN_ID must be exported by run.sh}"
+      DEVELOP_REMOTE: "${DEVELOP_REMOTE:-https://github.com/prajoria/OpenBB.git}"
+      DEVELOP_BRANCH: "${DEVELOP_BRANCH:-develop}"
+    volumes:
+      - openbb_src:/src
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+      - ${REPO_ROOT}/docker/e2e/scripts/fetch_develop.sh:/fetch_develop.sh:ro
+    entrypoint: ["/bin/sh", "/fetch_develop.sh"]
+
+  # Editable installs of openbb_platform + Analysis + CLI. This is a
+  # build-and-verify service; api / pytest / analysis / doctor all
+  # reuse the built image via `image: openbb-e2e-platform:latest`.
+  platform:
+    build:
+      context: ../..
+      dockerfile: docker/e2e/Dockerfile.platform
+    image: openbb-e2e-platform:latest
+    depends_on:
+      checkout:
+        condition: service_completed_successfully
+    environment: *platform-env
+    volumes:
+      - openbb_src:/workspace
+      - openbb_venv:/opt/venv
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+      - ${HOME}/.openbb_platform/user_settings.json:/env/host_user_settings.json:ro
+      - ${REPO_ROOT}/.env:/env/host.env:ro
+    command: ["/scripts/run_platform_install.sh"]
+
+  # Long-running REST API — probed by api_smoke.
+  api:
+    image: openbb-e2e-platform:latest
+    depends_on:
+      platform:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    environment: *platform-env
+    volumes:
+      - openbb_src:/workspace
+      - openbb_venv:/opt/venv
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+      - ${HOME}/.openbb_platform/user_settings.json:/env/host_user_settings.json:ro
+      - ${REPO_ROOT}/.env:/env/host.env:ro
+    ports:
+      - "18000:8000"
+    command:
+      - /bin/bash
+      - -c
+      - |
+        /scripts/patch_user_settings.sh && \
+        cd /workspace/openbb_platform && \
+        exec /opt/venv/bin/uvicorn openbb_core.api.rest_api:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(\"http://localhost:8000/docs\",timeout=3).status==200 else 1)'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  pytest:
+    image: openbb-e2e-platform:latest
+    depends_on:
+      platform:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    environment: *platform-env
+    volumes:
+      - openbb_src:/workspace
+      - openbb_venv:/opt/venv
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+      - ${HOME}/.openbb_platform/user_settings.json:/env/host_user_settings.json:ro
+      - ${REPO_ROOT}/.env:/env/host.env:ro
+    command: ["/scripts/run_pytest.sh"]
+
+  analysis:
+    image: openbb-e2e-platform:latest
+    depends_on:
+      platform:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    environment: *platform-env
+    volumes:
+      - openbb_src:/workspace
+      - openbb_venv:/opt/venv
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+      - ${HOME}/.openbb_platform/user_settings.json:/env/host_user_settings.json:ro
+      - ${REPO_ROOT}/.env:/env/host.env:ro
+    command: ["/scripts/run_analysis.sh"]
+
+  doctor:
+    image: openbb-e2e-platform:latest
+    depends_on:
+      platform:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
+    environment: *platform-env
+    volumes:
+      - openbb_src:/workspace
+      - openbb_venv:/opt/venv
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+      - ${HOME}/.openbb_platform/user_settings.json:/env/host_user_settings.json:ro
+      - ${REPO_ROOT}/.env:/env/host.env:ro
+    command: ["/scripts/run_doctor.sh"]
+
+  api_smoke:
+    build:
+      context: ../..
+      dockerfile: docker/e2e/Dockerfile.runner
+    image: openbb-e2e-runner:latest
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      RUN_ID: "${RUN_ID:?RUN_ID must be exported by run.sh}"
+      API_BASE: "http://api:8000"
+    volumes:
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+    command: ["/scripts/run_api_smoke.sh"]
+
+  desktop:
+    build:
+      context: ../..
+      dockerfile: docker/e2e/Dockerfile.desktop
+    image: openbb-e2e-desktop:latest
+    depends_on:
+      checkout:
+        condition: service_completed_successfully
+    environment:
+      RUN_ID: "${RUN_ID:?RUN_ID must be exported by run.sh}"
+    volumes:
+      - openbb_src:/workspace
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+    command: ["/scripts/build_desktop.sh"]
+
+  # Reporter — MUST run last, MUST run unconditionally. Invoked
+  # separately by run.sh with `docker compose run --rm reporter`.
+  # This service ONLY writes local bug files under artifacts/<run>/bugs/*.md;
+  # it never touches any tracker. Filing is a manual reviewer step
+  # (see docker/e2e/scripts/review_bugs.sh + the two-phase rule in
+  # ~/.claude/CLAUDE.md).
+  reporter:
+    image: openbb-e2e-runner:latest
+    environment:
+      RUN_ID: "${RUN_ID:?RUN_ID must be exported by run.sh}"
+      GH_REPO: "${GH_REPO:-prajoria/OpenBB}"
+      DEVELOP_SHA: "${DEVELOP_SHA:-unknown}"
+    volumes:
+      - ${REPO_ROOT}/docker/e2e/artifacts:/artifacts
+    command: ["/scripts/report_and_file.sh"]
+
+volumes:
+  openbb_src:
+  openbb_venv:
+  mysql_data:

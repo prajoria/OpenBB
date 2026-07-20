@@ -1,0 +1,4 @@
+# docker/e2e/artifacts/.gitignore
+# Per-run outputs are ephemeral. Keep the directory but ignore contents.
+*
+!.gitignore

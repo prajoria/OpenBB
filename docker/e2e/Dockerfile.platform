@@ -1,0 +1,42 @@
+# docker/e2e/Dockerfile.platform
+#
+# Builds an image containing openbb_platform + Analysis + CLI installed
+# in editable mode against the source tree at /workspace (which is
+# mounted read-only from the `openbb_src` volume at run-time).
+#
+# We install poetry + build tools here so runtime containers don't need
+# a second install pass. Source is NOT copied into the image — it lives
+# on the openbb_src volume, so a single image works for every commit.
+
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+# System toolchain — mysql client libs for pymysql wheels + git for
+# any provider that clones sub-repos at install time.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+        default-libmysqlclient-dev \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Isolated venv on a volume that the platform service persists across runs.
+RUN python -m venv "$VIRTUAL_ENV" && \
+    pip install --upgrade pip poetry
+
+# Copy the harness scripts into the image so runtime containers can exec
+# them without a bind mount. (Scripts are tiny; source stays external.)
+COPY docker/e2e/scripts/ /scripts/
+RUN chmod +x /scripts/*.sh
+
+WORKDIR /workspace
+
+# Default command overridden by compose service definitions.
+CMD ["/bin/bash"]
