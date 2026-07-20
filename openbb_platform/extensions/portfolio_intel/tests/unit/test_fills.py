@@ -224,6 +224,25 @@ def test_stale_quote_returns_rejected() -> None:
     assert "stale" in r.reason
 
 
+def test_unstamped_quote_rejected() -> None:
+    """Security: a quote missing quoted_at MUST NOT bypass the freshness check."""
+    astore, pstore, acc = _mk_env()
+    unstamped = Quote(
+        symbol="AAPL", last=D("100"), quoted_at=None, snapshot_id="unstamped"
+    )
+    r = submit_order(
+        OrderRequest(symbol="AAPL", qty=D("10")),
+        user_id="daisy",
+        account_id=acc.account_id,
+        account_store=astore,
+        position_store=pstore,
+        quote_fetcher=StubQuoteFetcher({"AAPL": unstamped}),
+        now=NOW,
+    )
+    assert r.status is OrderStatus.REJECTED
+    assert "stale" in r.reason
+
+
 def test_quote_fetch_failure_returns_rejected() -> None:
     astore, pstore, acc = _mk_env()
     r = submit_order(

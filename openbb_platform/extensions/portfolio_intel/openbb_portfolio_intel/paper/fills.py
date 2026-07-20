@@ -49,7 +49,6 @@ identity — verified in ``test_fill_conservation``.
 - **Corporate actions** — #545 ledger + follow-up on cost-basis adjust.
 """
 
-# pylint: disable=import-outside-toplevel  # dataclasses.replace kept local in _write_cash
 # pylint: disable=unused-argument  # commission signatures accept unused args for API uniformity
 # pylint: disable=too-many-return-statements  # submit_order fans out 10+ terminal branches
 
@@ -64,7 +63,6 @@ from typing import Protocol
 from uuid import uuid4
 
 from openbb_portfolio_intel.paper.accounts import (
-    AccountNotFoundError,
     AccountStore,
     PaperAccount,
 )
@@ -252,8 +250,17 @@ def _validate_request(req: OrderRequest) -> None:
 
 
 def _quote_is_fresh(quote: Quote, *, now: datetime) -> bool:
+    """Return True iff the quote is stamped AND within the freshness window.
+
+    Security: reject unstamped (quoted_at is None) quotes. Under the
+    prior "trust the caller" default a buggy fetcher returning a Quote
+    without quoted_at silently bypassed the staleness check, allowing
+    arbitrary-old data to fill orders. If an offline/backtest mode
+    needs unstamped quotes, gate that behind an explicit config flag
+    (not a silent fallback).
+    """
     if quote.quoted_at is None:
-        return True  # producer didn't stamp — trust it (caller's problem)
+        return False
     age = now - quote.quoted_at
     return age <= timedelta(seconds=QUOTE_FRESHNESS_SECONDS)
 
@@ -448,12 +455,12 @@ def submit_order(  # noqa: PLR0911  # 10+ terminal REJECTED branches (see docstr
     cash_delta = -(trade_value + commission)
     updated_account_cash = account.cash_balance + cash_delta
 
-    # Persist. Rather than mutating the frozen PaperAccount, we go through
-    # a small helper on the store — but the AccountStore Protocol from #562
-    # doesn't expose a raw update_cash yet. Use an internal write via the
-    # in-memory store's dict when possible; production MySQL binding will
-    # add an update_cash primitive to the store surface in a follow-up.
-    updated_account = _write_cash(account_store, account, updated_account_cash, now)
+    # Delegate cash write to the AccountStore's own primitive — enforces
+    # user_id ownership under the store's lock, replaces the earlier
+    # private-dict access (see #563 security review).
+    updated_account = account_store.update_cash(
+        account_id, updated_account_cash, user_id=user_id, now=now
+    )
     position_store.put(account_id, new_lot, user_id=user_id)
 
     fill = Fill(
@@ -473,41 +480,4 @@ def submit_order(  # noqa: PLR0911  # 10+ terminal REJECTED branches (see docstr
         fill=fill,
         account=updated_account,
         lot=new_lot,
-    )
-
-
-def _write_cash(
-    account_store: AccountStore,
-    account: PaperAccount,
-    new_cash: Decimal,
-    now: datetime,
-) -> PaperAccount:
-    """Persist a cash update through the account store.
-
-    v0 leans on the InMemoryAccountStore's internal dict via a controlled
-    private access. A follow-up will add ``AccountStore.update_cash``
-    to the Protocol so a MySQL binding can implement it without this
-    private-access dance.
-
-    **Concurrency caveat (#547):** the cash-write here plus the
-    ``position_store.put`` in the caller are NOT atomic — a crash between
-    the two would leave a lot without its corresponding cash debit
-    (or vice versa). v0 is single-writer per test / demo; #547 wires a
-    per-account_id lock spanning both writes AND replaces this
-    private-access dance with an ``update_cash`` primitive.
-    """
-    from dataclasses import (
-        replace as dc_replace,
-    )  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
-    updated = dc_replace(account, cash_balance=new_cash, updated_at=now)
-    # Best-effort private write. If a store doesn't expose ``_accounts``,
-    # the follow-up ``update_cash`` primitive is needed.
-    private_dict = getattr(account_store, "_accounts", None)
-    if isinstance(private_dict, dict):
-        private_dict[account.account_id] = updated
-        return updated
-    raise AccountNotFoundError(
-        f"account_store {type(account_store).__name__} does not expose a "
-        "cash-write primitive; MySQL binding needs update_cash follow-up"
     )

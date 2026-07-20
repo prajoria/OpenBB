@@ -151,6 +151,22 @@ class AccountStore(Protocol):
         Raises :class:`AccountNotFoundError` if not owned by ``user_id``.
         """
 
+    def update_cash(
+        self,
+        account_id: str,
+        new_cash: Decimal,
+        *,
+        user_id: str,
+        now: datetime,
+    ) -> PaperAccount:
+        """Persist a new cash_balance on the account under the store's own lock.
+
+        Replaces the earlier ``_write_cash`` private-dict access pattern in
+        the fill engine (#563). Implementations MUST perform the check-and-set
+        atomically and MUST enforce user_id ownership (foreign users raise
+        ``AccountNotFoundError``, never leak the account row).
+        """
+
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -274,3 +290,26 @@ class InMemoryAccountStore:
         deleted_acc = replace(acc, is_active=False, updated_at=now)
         self._accounts[account_id] = deleted_acc
         return deleted_acc
+
+    def update_cash(
+        self,
+        account_id: str,
+        new_cash: Decimal,
+        *,
+        user_id: str,
+        now: datetime,
+    ) -> PaperAccount:
+        """Set cash_balance under the store's ownership check.
+
+        Enforces user_id → account_id ownership (foreign users raise
+        AccountNotFoundError). Replaces the earlier private-dict access
+        in the fill engine (#563 security-review finding).
+        """
+        acc = self.get(account_id, user_id=user_id)
+        if acc is None:
+            raise AccountNotFoundError(
+                f"account {account_id!r} not found for user {user_id!r}"
+            )
+        updated = replace(acc, cash_balance=new_cash, updated_at=now)
+        self._accounts[account_id] = updated
+        return updated
