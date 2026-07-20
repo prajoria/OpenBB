@@ -53,6 +53,7 @@ takes user_id and returns only that user's entries — mirror of the
 from __future__ import annotations
 
 # pylint: disable=too-many-arguments,too-many-positional-arguments  # entry constructors need every field
+# pylint: disable=too-many-instance-attributes  # LedgerEntry is intentionally wide — matches SQL row
 
 from dataclasses import dataclass, field
 from datetime import datetime
