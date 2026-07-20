@@ -209,3 +209,193 @@ def verify_aggregates_match_rows(
                 f"{name} = {stored} does not match Σ row = {computed} "
                 f"(drift {abs(computed - stored)}, tolerance {tolerance})"
             )
+
+
+# ---------------------------------------------------------------------------
+# Brinson-Fachler compute (#559)
+# ---------------------------------------------------------------------------
+#
+# Standard two-factor decomposition:
+#
+#   allocation_i = (w_p_i - w_b_i) * (r_b_i - R_b)
+#   selection_i  = w_b_i * (r_p_i - r_b_i)
+#   interaction_i = (w_p_i - w_b_i) * (r_p_i - r_b_i)
+#
+# where for sector i:
+#   w_p_i = portfolio weight    r_p_i = portfolio return in sector i
+#   w_b_i = benchmark weight    r_b_i = benchmark return in sector i
+#   R_b   = total benchmark return = Σ w_b_i * r_b_i
+#
+# Sum of (allocation + selection + interaction) across sectors ==
+# portfolio_return - benchmark_return by construction (algebraically —
+# see any Brinson-Fachler reference). The #560 sum-invariant verifier
+# is the load-bearing correctness check.
+#
+# Ships:
+# 1. compute_brinson_fachler(portfolio, benchmark, *, window, benchmark_symbol)
+#    → AttributionWaterfall
+# 2. SectorReturns helper dataclass — the per-sector input shape
+#
+# Acceptance criterion in #559 body ("MUST match Brinson reference fixtures
+# to ±1bp") requires Bloomberg reference values (blocked by #557). Ship
+# the compute function + internal sum-invariant + one @pytest.mark.integration
+# placeholder that skips today and turns green once #557 lands.
+
+
+@dataclass(frozen=True)
+class SectorReturns:
+    """One sector's per-side inputs for Brinson-Fachler.
+
+    Weights are fractions in [0, 1] (they sum to 1.0 across sectors on
+    each side within tolerance). Returns are period-fractional (e.g.
+    0.05 for +5% over the window).
+
+    NaN / Inf on any field raises during compute_brinson_fachler.
+    """
+
+    sector: str
+    portfolio_weight: float
+    portfolio_return: float
+    benchmark_weight: float
+    benchmark_return: float
+
+
+# Weight-sum tolerance — same as _560 sum-invariant tolerance but named
+# separately so it can be tuned independently if a caller feeds slightly
+# imprecise weight vectors.
+WEIGHT_SUM_TOLERANCE: float = 1e-6
+
+
+def _validate_sector_inputs(sectors: list[SectorReturns]) -> None:
+    if not sectors:
+        raise ValueError(
+            "compute_brinson_fachler: sector list is empty — nothing to "
+            "attribute. Provide at least one sector."
+        )
+    for s in sectors:
+        for name, value in (
+            ("portfolio_weight", s.portfolio_weight),
+            ("portfolio_return", s.portfolio_return),
+            ("benchmark_weight", s.benchmark_weight),
+            ("benchmark_return", s.benchmark_return),
+        ):
+            if not isfinite(value):
+                raise ValueError(
+                    f"{s.sector}: {name}={value} is not finite (NaN/Inf). "
+                    "Reject at the boundary to prevent silent-nan propagation."
+                )
+        for name, value in (
+            ("portfolio_weight", s.portfolio_weight),
+            ("benchmark_weight", s.benchmark_weight),
+        ):
+            if value < 0:
+                raise ValueError(
+                    f"{s.sector}: {name}={value} is negative; short-benchmark "
+                    "attribution is out of scope for this cut."
+                )
+
+    pw_sum = sum(s.portfolio_weight for s in sectors)
+    bw_sum = sum(s.benchmark_weight for s in sectors)
+    if abs(pw_sum - 1.0) > WEIGHT_SUM_TOLERANCE:
+        raise ValueError(
+            f"portfolio weights sum to {pw_sum}, expected 1.0 within "
+            f"{WEIGHT_SUM_TOLERANCE}. Normalize before calling."
+        )
+    if abs(bw_sum - 1.0) > WEIGHT_SUM_TOLERANCE:
+        raise ValueError(
+            f"benchmark weights sum to {bw_sum}, expected 1.0 within "
+            f"{WEIGHT_SUM_TOLERANCE}. Normalize before calling."
+        )
+
+
+def compute_brinson_fachler(
+    sectors: list[SectorReturns],
+    *,
+    window: str,
+    benchmark_symbol: str,
+) -> AttributionWaterfall:
+    """Compute a Brinson-Fachler attribution waterfall over sectors.
+
+    Two-factor decomposition per sector (allocation + selection) plus an
+    interaction residual that captures the non-additive cross-term. Sum
+    over sectors reconstructs the active return exactly (up to float
+    epsilon) — verified via :func:`verify_sums_to_active_return` before
+    returning.
+
+    Parameters
+    ----------
+    sectors
+        Per-sector input rows. Portfolio and benchmark weights each sum
+        to 1.0 within :data:`WEIGHT_SUM_TOLERANCE`.
+    window
+        Free-form window label (``"1M"``, ``"3M"``, ``"6M"``, ``"1Y"``,
+        etc.) attached to the response envelope. Router owns the
+        vocabulary.
+    benchmark_symbol
+        The benchmark used (e.g. ``"SPY"``). Attached to the response
+        envelope for provenance.
+
+    Returns
+    -------
+    AttributionWaterfall
+        Populated with per-sector rows, aggregate totals, and a
+        ``brinson-fachler`` provenance warning documenting the algorithm.
+
+    Raises
+    ------
+    ValueError
+        - Empty sector list.
+        - NaN / Inf on any input field.
+        - Negative weight on either side.
+        - Weights don't sum to 1.0 within :data:`WEIGHT_SUM_TOLERANCE`.
+        - Post-compute sum-invariant violation (implementation bug —
+          should never fire in practice).
+    """
+    _validate_sector_inputs(sectors)
+
+    portfolio_return = sum(s.portfolio_weight * s.portfolio_return for s in sectors)
+    benchmark_return = sum(s.benchmark_weight * s.benchmark_return for s in sectors)
+
+    rows: list[AttributionRow] = []
+    for s in sectors:
+        allocation = (s.portfolio_weight - s.benchmark_weight) * (
+            s.benchmark_return - benchmark_return
+        )
+        selection = s.benchmark_weight * (s.portfolio_return - s.benchmark_return)
+        interaction = (s.portfolio_weight - s.benchmark_weight) * (
+            s.portfolio_return - s.benchmark_return
+        )
+        rows.append(
+            AttributionRow(
+                sector=s.sector,
+                allocation=allocation,
+                selection=selection,
+                interaction=interaction,
+            )
+        )
+
+    total_allocation = sum(r.allocation for r in rows)
+    total_selection = sum(r.selection for r in rows)
+    total_interaction = sum(r.interaction for r in rows)
+
+    result = AttributionWaterfall(
+        window=window,
+        benchmark_symbol=benchmark_symbol,
+        portfolio_return=portfolio_return,
+        benchmark_return=benchmark_return,
+        rows=rows,
+        total_allocation=total_allocation,
+        total_selection=total_selection,
+        total_interaction=total_interaction,
+        warnings=[
+            "brinson-fachler: allocation + selection + interaction "
+            "decomposition (#559). ±1bp Bloomberg acceptance blocked "
+            "by #557 (reference fixtures)."
+        ],
+    )
+    # Load-bearing correctness check — if the algebra above is right,
+    # this always passes; if a maintainer breaks the arithmetic, this
+    # catches it before results leave the function.
+    verify_sums_to_active_return(result)
+    verify_aggregates_match_rows(result)
+    return result
