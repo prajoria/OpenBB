@@ -179,7 +179,7 @@ def mark_to_market(lot: Lot, mark_price: Decimal) -> tuple[Decimal, Decimal]:
 
 
 def _open(lot: Lot, fill: FillEvent) -> tuple[Lot, Decimal]:
-    """Opening a position from flat.
+    """Open a position from flat.
 
     Long open: new_avg = (price * qty + commission) / qty  (commission
     added to cost basis)
@@ -236,7 +236,7 @@ def _add(lot: Lot, fill: FillEvent) -> tuple[Lot, Decimal]:
 
 
 def _close_or_flip(lot: Lot, fill: FillEvent) -> tuple[Lot, Decimal]:
-    """Closing (partial/full) or flipping through zero.
+    """Close (partial or full) or flip through zero.
 
     Realized P&L is booked against the portion being closed at the
     weighted-average cost basis. If the fill quantity exceeds the
