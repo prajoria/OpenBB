@@ -158,3 +158,114 @@ class SmartMoneyRollupResult(BaseModel):
         description="Top-N symbols by |composite| — highest conviction either direction."
     )
     warnings: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# P3 app routes (#572, #573, #574)
+# ---------------------------------------------------------------------------
+
+
+class NewsItem(BaseModel):
+    """One news / press-release / 8-K item merged into the timeline (#572)."""
+
+    symbol: str = Field(description="Ticker the item pertains to.")
+    published_at: str = Field(description="ISO 8601 timestamp (UTC).")
+    source: str = Field(description="'news' | 'press_release' | '8k'.")
+    severity: str = Field(description="'info' | 'warning' | 'critical'.")
+    title: str = Field(description="Headline / form type.")
+    url: str = Field(default="", description="Optional link to source.")
+
+
+class NewsTimelineResult(BaseModel):
+    """Response shape for /news/timeline (#572)."""
+
+    items: list[NewsItem] = Field(
+        description=(
+            "Merged news + press-release + 8-K stream, chronologically "
+            "descending (newest first), filtered by severity threshold."
+        )
+    )
+    warnings: list[str] = Field(default_factory=list)
+
+
+class SentimentHoldingItem(BaseModel):
+    """Per-holding sentiment view surfaced on the sentiment route (#572)."""
+
+    symbol: str
+    weight: float
+    rating: float | None = Field(
+        default=None,
+        description="Consensus rating on 1-5 (5=Strong Buy, 1=Strong Sell).",
+    )
+    analyst_count: int = 0
+    upside_pct: float | None = Field(
+        default=None,
+        description="(pt_median - price) / price. None if price/target missing.",
+    )
+    net_updowngrades: int = 0
+
+
+class SentimentRollupResult(BaseModel):
+    """Response shape for /sentiment/rollup (#572)."""
+
+    rating: float | None = Field(
+        default=None,
+        description="Weighted rollup rating; None if no holding has coverage.",
+    )
+    upside_pct: float | None = Field(default=None)
+    net_updowngrades: int = 0
+    coverage_pct: float = Field(
+        description=(
+            "Fraction of portfolio weight with a non-null rating. "
+            "UI MUST warn when < 0.7."
+        )
+    )
+    weighting: str
+    holding_count: int
+    holdings: list[SentimentHoldingItem] = Field(
+        default_factory=list,
+        description="Per-holding sentiment scores (same order as input basket).",
+    )
+    warnings: list[str] = Field(default_factory=list)
+
+
+class BacktestHandoffResult(BaseModel):
+    """Response shape for /backtest/run (#573).
+
+    When ``openbb-backtest`` is available and enabled, ``payload`` carries
+    the backtest results dict. When disabled (default) or the extension
+    isn't installed, ``payload`` carries the deterministic JSON dump the
+    caller can persist and re-run once backtest is wired.
+    """
+
+    mode: str = Field(description="'live' when handed off to obb.backtest, else 'stub'.")
+    payload: dict = Field(
+        default_factory=dict,
+        description="Backtest results (mode='live') or portable JSON dump (mode='stub').",
+    )
+    warnings: list[str] = Field(default_factory=list)
+
+
+class PaperAlertItem(BaseModel):
+    """One paper-trading alert (#574) — flat projection of Alert."""
+
+    trigger: str = Field(description="Trigger type (e.g. 'paper_trading_event').")
+    severity: str
+    symbol: str
+    when: str = Field(description="ISO 8601 timestamp.")
+    message: str
+    key: str
+    payload: dict = Field(default_factory=dict)
+
+
+class PaperAlertsResult(BaseModel):
+    """Response shape for /paper/alerts (#574)."""
+
+    alerts: list[PaperAlertItem] = Field(
+        description=(
+            "Alerts sourced from paper-trading events (fills, rejections, "
+            "GTC-expiring-soon, low buying-power). Sorted severity DESC, "
+            "when ASC — same order as the aggregated /alerts route."
+        )
+    )
+    warnings: list[str] = Field(default_factory=list)
