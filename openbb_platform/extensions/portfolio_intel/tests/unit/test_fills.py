@@ -475,3 +475,159 @@ def test_r711_quote_freshness_is_load_bearing() -> None:
         now=NOW,
     )
     assert r_stale.status is OrderStatus.REJECTED
+
+
+# ---------------------------------------------------------------------------
+# Security guards (background review findings)
+# ---------------------------------------------------------------------------
+
+
+def test_sell_more_than_owned_rejected_when_margin_disabled() -> None:
+    """Selling more than owned WITHOUT margin must reject (no implicit short)."""
+    astore, pstore, acc = _mk_env()
+    # Open a 10-share long
+    submit_order(
+        OrderRequest(symbol="AAPL", qty=D("10")),
+        user_id="daisy",
+        account_id=acc.account_id,
+        account_store=astore,
+        position_store=pstore,
+        quote_fetcher=StubQuoteFetcher({"AAPL": _mk_quote("AAPL", D("100"))}),
+        now=NOW,
+    )
+    # Try to sell 15 → projected qty = -5 → REJECT (no margin)
+    r = submit_order(
+        OrderRequest(symbol="AAPL", qty=D("-15")),
+        user_id="daisy",
+        account_id=acc.account_id,
+        account_store=astore,
+        position_store=pstore,
+        quote_fetcher=StubQuoteFetcher({"AAPL": _mk_quote("AAPL", D("100"))}),
+        now=NOW,
+    )
+    assert r.status is OrderStatus.REJECTED
+    assert "short" in r.reason
+
+
+def test_sell_when_flat_rejected_when_margin_disabled() -> None:
+    """Selling with no position at all is also rejected (would open a short)."""
+    astore, pstore, acc = _mk_env()
+    r = submit_order(
+        OrderRequest(symbol="AAPL", qty=D("-10")),
+        user_id="daisy",
+        account_id=acc.account_id,
+        account_store=astore,
+        position_store=pstore,
+        quote_fetcher=StubQuoteFetcher({"AAPL": _mk_quote("AAPL", D("100"))}),
+        now=NOW,
+    )
+    assert r.status is OrderStatus.REJECTED
+
+
+def test_sell_more_than_owned_allowed_with_margin_enabled() -> None:
+    """Margin=True permits shorts; the guard only trips when margin=False."""
+    astore = InMemoryAccountStore()
+    pstore = InMemoryPositionStore()
+    acc = astore.create(
+        user_id="daisy",
+        config=AccountConfig(
+            starting_cash=D("100000"),
+            slippage_bps=0,
+            commission_model="zero",
+            margin_enabled=True,
+        ),
+        now=NOW,
+    )
+    r = submit_order(
+        OrderRequest(symbol="AAPL", qty=D("-10")),
+        user_id="daisy",
+        account_id=acc.account_id,
+        account_store=astore,
+        position_store=pstore,
+        quote_fetcher=StubQuoteFetcher({"AAPL": _mk_quote("AAPL", D("100"))}),
+        now=NOW,
+    )
+    assert r.status is OrderStatus.FILLED
+    assert r.lot.qty == D("-10")
+
+
+def test_quote_symbol_mismatch_rejected() -> None:
+    """A fetcher returning a quote for a different symbol → REJECT.
+
+    Prevents silent mis-execution if a fetcher bug returns MSFT's quote
+    for an AAPL request.
+    """
+
+    class MismatchedFetcher:
+        def fetch(self, symbol: str, *, now: datetime) -> Quote:
+            # Requested symbol is ignored; always return MSFT
+            return Quote(symbol="MSFT", last=D("300"), quoted_at=now, snapshot_id="s")
+
+    astore, pstore, acc = _mk_env()
+    r = submit_order(
+        OrderRequest(symbol="AAPL", qty=D("10")),
+        user_id="daisy",
+        account_id=acc.account_id,
+        account_store=astore,
+        position_store=pstore,
+        quote_fetcher=MismatchedFetcher(),
+        now=NOW,
+    )
+    assert r.status is OrderStatus.REJECTED
+    assert "symbol mismatch" in r.reason
+
+
+def test_quote_symbol_case_normalized() -> None:
+    """Fetcher may return 'aapl' vs request 'AAPL' — case-normalized comparison."""
+
+    class LowercaseFetcher:
+        def fetch(self, symbol: str, *, now: datetime) -> Quote:
+            return Quote(
+                symbol=symbol.lower(),
+                last=D("100"),
+                quoted_at=now,
+                snapshot_id="s",
+            )
+
+    astore, pstore, acc = _mk_env()
+    r = submit_order(
+        OrderRequest(symbol="AAPL", qty=D("10")),
+        user_id="daisy",
+        account_id=acc.account_id,
+        account_store=astore,
+        position_store=pstore,
+        quote_fetcher=LowercaseFetcher(),
+        now=NOW,
+    )
+    assert r.status is OrderStatus.FILLED
+
+
+def test_position_store_isolates_foreign_user_reads() -> None:
+    """PositionStore is keyed by user_id — foreign users can't see others' lots."""
+    pstore = InMemoryPositionStore()
+    # daisy owns 10 AAPL in account acc-1
+    from openbb_portfolio_intel.paper import Lot
+
+    daisy_lot = Lot(symbol="AAPL", qty=D("10"), avg_cost=D("100"), realized_pnl=D("0"))
+    pstore.put("acc-1", daisy_lot, user_id="daisy")
+    # mallory tries to read acc-1 as her own → gets flat, not daisy's 10
+    mallory_view = pstore.get("acc-1", "AAPL", user_id="mallory")
+    assert mallory_view.qty == D("0")
+    assert mallory_view.avg_cost == D("0")
+    # daisy still sees her position
+    daisy_view = pstore.get("acc-1", "AAPL", user_id="daisy")
+    assert daisy_view == daisy_lot
+
+
+def test_position_store_isolates_foreign_user_writes() -> None:
+    """Foreign write can't clobber the owner's lot."""
+    pstore = InMemoryPositionStore()
+    from openbb_portfolio_intel.paper import Lot
+
+    daisy_lot = Lot(symbol="AAPL", qty=D("10"), avg_cost=D("100"), realized_pnl=D("0"))
+    pstore.put("acc-1", daisy_lot, user_id="daisy")
+    # mallory writes her own lot under acc-1 — daisy's stays intact
+    mallory_lot = Lot(symbol="AAPL", qty=D("999"), avg_cost=D("1"), realized_pnl=D("0"))
+    pstore.put("acc-1", mallory_lot, user_id="mallory")
+    assert pstore.get("acc-1", "AAPL", user_id="daisy") == daisy_lot
+    assert pstore.get("acc-1", "AAPL", user_id="mallory") == mallory_lot

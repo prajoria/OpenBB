@@ -197,15 +197,21 @@ class PositionStore(Protocol):
 
 @dataclass
 class InMemoryPositionStore:
-    """Non-persistent PositionStore. Fine for unit tests + demo."""
+    """Non-persistent PositionStore. Fine for unit tests + demo.
 
-    _positions: dict[tuple[str, str], Lot] = field(default_factory=dict)
+    Cross-account isolation: keyed on ``(user_id, account_id, symbol)``.
+    Foreign users querying an account they don't own get a fresh flat
+    ``Lot`` (never see another user's position). Mirrors the
+    ``AccountStore`` posture from #562.
+    """
+
+    _positions: dict[tuple[str, str, str], Lot] = field(default_factory=dict)
     _lock: Lock = field(default_factory=Lock)
 
     def get(self, account_id: str, symbol: str, *, user_id: str) -> Lot:
-        """Return the lot for (account_id, symbol) or a flat Lot if none exists."""
+        """Return the lot for (user_id, account_id, symbol) or a flat Lot."""
         with self._lock:
-            lot = self._positions.get((account_id, symbol))
+            lot = self._positions.get((user_id, account_id, symbol))
             if lot is None:
                 return Lot(
                     symbol=symbol,
@@ -216,9 +222,9 @@ class InMemoryPositionStore:
             return lot
 
     def put(self, account_id: str, lot: Lot, *, user_id: str) -> None:
-        """Write the lot back under (account_id, lot.symbol)."""
+        """Write the lot back under (user_id, account_id, lot.symbol)."""
         with self._lock:
-            self._positions[(account_id, lot.symbol)] = lot
+            self._positions[(user_id, account_id, lot.symbol)] = lot
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +335,18 @@ def submit_order(
             status=OrderStatus.REJECTED,
             reason=f"quote fetch failed: {type(exc).__name__}: {exc}",
         )
+    # Security: fetcher must return a quote for the SAME symbol we asked
+    # for. A rogue / buggy fetcher returning a different symbol's price
+    # would fill an AAPL order at MSFT's price — silent mis-execution.
+    # Case-normalize to be tolerant of upstream capitalization drift.
+    if quote.symbol.upper() != req.symbol.upper():
+        return SubmitResult(
+            status=OrderStatus.REJECTED,
+            reason=(
+                f"quote symbol mismatch: requested {req.symbol!r}, fetcher "
+                f"returned {quote.symbol!r}. Refuse to fill on a foreign quote."
+            ),
+        )
     if not _quote_is_fresh(quote, now=now):
         return SubmitResult(
             status=OrderStatus.REJECTED,
@@ -344,7 +362,10 @@ def submit_order(
     # Limit marketability check
     if req.order_type == OrderType.LIMIT:
         # A buy limit is marketable if last <= limit_price; sell limit if last >= limit_price.
-        limit = req.limit_price  # type: ignore[assignment]  # validated above
+        # _validate_request ensured limit_price is not None on LIMIT orders;
+        # assert here to narrow the type for mypy.
+        assert req.limit_price is not None
+        limit = req.limit_price
         if is_buy and reference_price > limit:
             return SubmitResult(
                 status=OrderStatus.REJECTED,
@@ -365,6 +386,10 @@ def submit_order(
     fill_price = _apply_slippage(reference_price, is_buy, account.config.slippage_bps)
     commission = _commission_for(account, req.qty, fill_price)
 
+    # Load lot early — needed for the sell-oversell guard below AND for
+    # apply_fill downstream.
+    lot = position_store.get(account_id, req.symbol, user_id=user_id)
+
     # Cash check (margin disabled in v0 unless account.config.margin_enabled)
     trade_value = fill_price * req.qty  # signed
     if is_buy and not account.config.margin_enabled:
@@ -378,8 +403,26 @@ def submit_order(
                 ),
             )
 
+    # Security: sell-oversell guard for cash-only accounts. Without this
+    # a caller could sell more shares than they own, opening an implicit
+    # short — that's ONLY legal when margin is enabled. Enforce
+    # projected_qty >= 0 on non-margin sells. Same guard trips on any
+    # sell against a flat or short lot.
+    if not is_buy and not account.config.margin_enabled:
+        # req.qty is negative on a sell; projected_qty = lot.qty + req.qty
+        projected_qty = lot.qty + req.qty
+        if projected_qty < 0:
+            return SubmitResult(
+                status=OrderStatus.REJECTED,
+                reason=(
+                    f"sell of {abs(req.qty)} would drive {req.symbol} qty "
+                    f"from {lot.qty} to {projected_qty} (short); short "
+                    "sales require margin_enabled=True (v0 rejects; "
+                    "explicit short-sell API lands in a follow-up)"
+                ),
+            )
+
     # Apply to cost basis / P&L (#548)
-    lot = position_store.get(account_id, req.symbol, user_id=user_id)
     fill_event = FillEvent(
         symbol=req.symbol,
         qty=req.qty,
@@ -437,6 +480,13 @@ def _write_cash(
     private access. A follow-up will add ``AccountStore.update_cash``
     to the Protocol so a MySQL binding can implement it without this
     private-access dance.
+
+    **Concurrency caveat (#547):** the cash-write here plus the
+    ``position_store.put`` in the caller are NOT atomic — a crash between
+    the two would leave a lot without its corresponding cash debit
+    (or vice versa). v0 is single-writer per test / demo; #547 wires a
+    per-account_id lock spanning both writes AND replaces this
+    private-access dance with an ``update_cash`` primitive.
     """
     from dataclasses import (
         replace as dc_replace,
