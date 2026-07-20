@@ -51,19 +51,30 @@ ship `bars.csv` for real-symbol fixtures.**
 ## Part 2 — The 5 pilot fixtures waiting for you
 
 These `.pine` sources already exist in the repo; you only need to produce
-the CSV outputs from TradingView:
+the CSV outputs from TradingView. Each fixture directory also ships a
+short `HOW_TO_EXPORT_FROM_TV.md` stub — the fixture-specific quick-
+reference for the steps you'll take. **`rsi_reversal` additionally has a
+`GUIDE.md`** — a deep-dive visual walkthrough of the TradingView UI (~325
+lines with screenshot placeholders, pre-flight checklist, and per-click
+navigation). If you've never used TV's Strategy Tester before, read
+`rsi_reversal/GUIDE.md` first — this document (`HOW_TO_PREPARE_TV_FIXTURES.md`)
+gives you the workflow overview and CSV-schema details, but `GUIDE.md`
+gives you the exact TradingView clicks.
 
-| Fixture | Symbol suggestion | Timeframe | What the strategy does |
-|---|---|---|---|
-| `rsi_reversal` | AAPL / SPY / BTCUSDT | 1D | Buys on RSI(14) crossover of 30; closes on RSI crossunder of 70 |
-| `sma_crossover` | (check the .pine) | 1D | Fast/slow SMA crossover |
-| `bb_squeeze` | (check the .pine) | 1D | Bollinger Bands squeeze breakout |
-| `breakout_atr_trail` | (check the .pine) | 1D | Breakout entry + ATR trailing stop |
-| `macd_histogram_signal` | (check the .pine) | 1D | MACD histogram signal |
+| Fixture | Fixture-specific docs | Symbol suggestion | Timeframe | What the strategy does |
+|---|---|---|---|---|
+| `rsi_reversal` | [`GUIDE.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/rsi_reversal/GUIDE.md) (deep-dive) · [`HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/rsi_reversal/HOW_TO_EXPORT_FROM_TV.md) (quick ref) | SPY / AAPL / MSFT / QQQ | 1D | Buys on RSI(14) crossover of 30; closes on RSI crossunder of 70 |
+| `sma_crossover` | [`HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/sma_crossover/HOW_TO_EXPORT_FROM_TV.md) | (check the .pine) | 1D | Fast/slow SMA crossover |
+| `bb_squeeze` | [`HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/bb_squeeze/HOW_TO_EXPORT_FROM_TV.md) | (check the .pine) | 1D | Bollinger Bands squeeze breakout |
+| `breakout_atr_trail` | [`HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/breakout_atr_trail/HOW_TO_EXPORT_FROM_TV.md) | (check the .pine) | 1D | Breakout entry + ATR trailing stop |
+| `macd_histogram_signal` | [`HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/macd_histogram_signal/HOW_TO_EXPORT_FROM_TV.md) | (check the .pine) | 1D | MACD histogram signal |
 
-**Recommendation:** start with `rsi_reversal` (simplest, has a dedicated
-`GUIDE.md`). Once you have the workflow down, the other 4 take ~10 min
-each.
+**Recommendation:** start with `rsi_reversal`. It has the most complete
+per-fixture documentation, its Pine source is the simplest of the five
+(~15 lines), and every step in that fixture's `GUIDE.md` transfers
+directly to the other four. Once you have the workflow down, the other
+4 take ~10 min each — you'll only need each one's `HOW_TO_EXPORT_FROM_TV.md`
+stub as a quick reference.
 
 ---
 
@@ -71,6 +82,23 @@ each.
 
 Using `rsi_reversal` as the working example. Same steps apply to any
 fixture; only the .pine source you paste and the output filenames change.
+
+**Complementary reads for this section:**
+
+- **[`fixtures/rsi_reversal/GUIDE.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/rsi_reversal/GUIDE.md)**
+  — the visual walkthrough. If any TradingView UI step in §3 below is
+  unclear, that document has the exact clicks + screenshot placeholders
+  for `rsi_reversal` specifically. Especially useful if you've never
+  used TV's Strategy Tester before.
+- **[`fixtures/rsi_reversal/HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/rsi_reversal/HOW_TO_EXPORT_FROM_TV.md)**
+  — the quick reference; ~30 lines summarizing the export step per
+  fixture. Every fixture directory has one of these.
+
+The three docs (this one, `GUIDE.md`, `HOW_TO_EXPORT_FROM_TV.md`) are
+layered: **this doc** = workflow overview + CSV schema + PowerShell
+massaging + troubleshooting; **`GUIDE.md`** = visual TV UI walkthrough
+(single fixture); **`HOW_TO_EXPORT_FROM_TV.md`** = per-fixture quick
+reference. Read whichever depth matches what you need.
 
 ### 3.1 — Open the Pine source
 
@@ -478,6 +506,16 @@ until the last one and close manually with a summary comment.
 
 **Fixture location:**
 `openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/<name>/`
+
+**Per-fixture docs:**
+
+- [`rsi_reversal/GUIDE.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/rsi_reversal/GUIDE.md) — deep-dive visual walkthrough (start here if new to TV)
+- [`rsi_reversal/HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/rsi_reversal/HOW_TO_EXPORT_FROM_TV.md)
+- [`sma_crossover/HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/sma_crossover/HOW_TO_EXPORT_FROM_TV.md)
+- [`bb_squeeze/HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/bb_squeeze/HOW_TO_EXPORT_FROM_TV.md)
+- [`breakout_atr_trail/HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/breakout_atr_trail/HOW_TO_EXPORT_FROM_TV.md)
+- [`macd_histogram_signal/HOW_TO_EXPORT_FROM_TV.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/macd_histogram_signal/HOW_TO_EXPORT_FROM_TV.md)
+- [`fixtures/README.md`](../../openbb_platform/extensions/pine/openbb_pine/tests/conformance_strategy/fixtures/README.md) — the parity-test intent doc (why we need these fixtures at all)
 
 **Required files (all four):**
 - `<name>.pine`

@@ -1,5 +1,16 @@
 # How to export `rsi_reversal` reference CSVs from TradingView
 
+> **See also:**
+> - [`GUIDE.md`](./GUIDE.md) (same directory) — deep-dive visual walkthrough
+>   of the TradingView UI for this fixture (~325 lines with screenshot
+>   placeholders and pre-flight checklist).
+> - [`docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md`](../../../../../../../../docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md)
+>   — the meta-guide covering the fixture concept, CSV schema, PowerShell
+>   massaging snippets, commit + PR flow, and cross-fixture troubleshooting.
+>
+> This stub below is the quick reference. Read the meta-guide first if
+> you're new to the workflow; read `GUIDE.md` if you're new to TradingView.
+
 This fixture ships the Pine v6 strategy source (`rsi_reversal.pine`)
 but AWAITS the expected `equity.csv`, `trades.csv`, and `stats.csv`
 files sourced from TradingView's Strategy Tester UI. Until those land,

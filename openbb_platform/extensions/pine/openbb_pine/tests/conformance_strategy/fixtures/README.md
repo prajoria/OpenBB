@@ -1,5 +1,14 @@
 # conformance_strategy fixtures
 
+> **Producing new fixtures?** See
+> [`docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md`](../../../../../../../docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md)
+> for the end-to-end workflow (fixture concept → TradingView export →
+> CSV massaging → PR). Per-fixture guides live in each subdirectory's
+> `HOW_TO_EXPORT_FROM_TV.md` (all five fixtures) and
+> [`rsi_reversal/GUIDE.md`](./rsi_reversal/GUIDE.md) (deep-dive visual
+> walkthrough of the TradingView UI). This README below is the *intent*
+> doc — why we need these fixtures at all and what a "triple" is.
+
 This directory holds the reference fixtures the `conformance_strategy`
 parity suite runs against. Each subdirectory is one **fixture triple**
 (actually four required files plus one optional bars file — see below)
