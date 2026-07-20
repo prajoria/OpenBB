@@ -116,7 +116,7 @@ def _backtest_trade_available() -> bool:
     reloading the module.
     """
     try:
-        import openbb_backtest.models  # noqa: F401,PLC0415  # pylint: disable=import-outside-toplevel
+        import openbb_backtest.models  # noqa: F401,PLC0415  # pylint: disable=import-outside-toplevel,unused-import
 
         return True
     except ImportError:
@@ -130,9 +130,9 @@ def _paper_fill_to_backtest_trade(fill: PaperFill) -> Any:
     is lazy to keep this module import-safe when openbb-backtest is
     absent.
     """
-    from openbb_backtest.models import (
+    from openbb_backtest.models import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
         Trade,
-    )  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+    )
 
     # openbb_backtest.Side is `Literal["buy","sell"]`, not an enum.
     side: str = "buy" if fill.quantity > 0 else "sell"
