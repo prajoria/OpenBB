@@ -1,4 +1,4 @@
-"""Paper-trading subsystem (#544-#548, #562-#563)."""
+"""Paper-trading subsystem — v0 fill engine (#563)."""
 
 from openbb_portfolio_intel.paper.accounts import (
     SUPPORTED_COMMISSION_MODELS,
@@ -17,19 +17,47 @@ from openbb_portfolio_intel.paper.cost_basis import (
     mark_to_market,
     unrealized_pnl,
 )
+from openbb_portfolio_intel.paper.fills import (
+    QUOTE_FRESHNESS_SECONDS,
+    Fill,
+    InMemoryPositionStore,
+    OrderRejected,
+    OrderRequest,
+    OrderStatus,
+    OrderType,
+    PositionStore,
+    Quote,
+    QuoteFetcher,
+    SubmitResult,
+    TimeInForce,
+    submit_order,
+)
 
 __all__ = [
+    "QUOTE_FRESHNESS_SECONDS",
     "SUPPORTED_COMMISSION_MODELS",
     "AccountConfig",
     "AccountConfigError",
     "AccountNotFoundError",
     "AccountStore",
     "CostBasisError",
+    "Fill",
     "FillEvent",
     "InMemoryAccountStore",
+    "InMemoryPositionStore",
     "Lot",
+    "OrderRejected",
+    "OrderRequest",
+    "OrderStatus",
+    "OrderType",
     "PaperAccount",
+    "PositionStore",
+    "Quote",
+    "QuoteFetcher",
+    "SubmitResult",
+    "TimeInForce",
     "apply_fill",
     "mark_to_market",
+    "submit_order",
     "unrealized_pnl",
 ]
