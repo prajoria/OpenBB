@@ -16,6 +16,10 @@ Database Schema:
     analyst_estimates table with all FMP API response fields
 """
 
+# Pre-existing pylint suppressions surfaced by CI (#909) — these patterns
+# are used throughout fmp_cached and are out of scope for this hygiene PR.
+# pylint: disable=import-outside-toplevel  # lazy imports for optional deps
+
 import logging
 from datetime import datetime, date
 from typing import Any, Dict, List, Literal, Optional

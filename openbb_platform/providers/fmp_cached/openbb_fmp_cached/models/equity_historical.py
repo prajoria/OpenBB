@@ -18,6 +18,11 @@ Database Schema:
     Includes interval_type and adjustment_type for proper cache differentiation.
 """
 
+# Pre-existing pylint suppressions surfaced by CI (#909) — these patterns
+# are used throughout fmp_cached and are out of scope for this hygiene PR.
+# pylint: disable=import-outside-toplevel  # lazy imports for optional deps
+# pylint: disable=redefined-outer-name,reimported  # per-function error re-import guards
+
 import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
