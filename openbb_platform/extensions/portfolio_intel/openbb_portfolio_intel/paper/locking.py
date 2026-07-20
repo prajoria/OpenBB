@@ -125,14 +125,14 @@ class AccountLockManager:
                 yield
 
 
-# Module-level default manager. Callers that want isolated locks
-# (e.g. fresh per-test instances) construct their own AccountLockManager.
-_DEFAULT_MANAGER: AccountLockManager | None = None
+# Process-wide default manager. Constructed EAGERLY at module import so
+# concurrent first-time default_lock_manager() calls cannot race to
+# create two managers (the earlier lazy `if _DEFAULT_MANAGER is None:`
+# had exactly that race window and could hand different threads
+# different manager instances — silently defeating serialization).
+_DEFAULT_MANAGER: AccountLockManager = AccountLockManager()
 
 
 def default_lock_manager() -> AccountLockManager:
-    """Return the process-wide default manager (lazily constructed)."""
-    global _DEFAULT_MANAGER  # noqa: PLW0603
-    if _DEFAULT_MANAGER is None:
-        _DEFAULT_MANAGER = AccountLockManager()
+    """Return the process-wide default manager (constructed at import)."""
     return _DEFAULT_MANAGER
