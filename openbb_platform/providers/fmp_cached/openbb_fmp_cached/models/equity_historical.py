@@ -1356,7 +1356,11 @@ async def _fetch_from_fmp_direct(
     # non-str/int/float query params, and query.model_dump() emits real
     # `datetime.date` objects that would otherwise raise TypeError from
     # get_str_query_from_sequence_iterable. #785.
-    from datetime import date as _date, datetime as _datetime
+    from datetime import (
+        date as _date,
+        datetime as _datetime,
+    )
+
     query_params = {
         key: (value.isoformat() if isinstance(value, (_date, _datetime)) else value)
         for key, value in query.model_dump().items()
