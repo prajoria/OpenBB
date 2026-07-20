@@ -187,6 +187,14 @@ _ZERO_CASH_CASH_FUNDED_WARNING = (
     "cash-funded diff on a book with zero starting cash — every buy is "
     "implicit margin (see #903)"
 )
+# #904 — signed-book warning: shows up whenever the projected book carries
+# a short. Downstream consumers key on this to render short-position
+# indicators in the widget.
+_SHORTS_ENABLED_WARNING = (
+    "signed-book diff: at least one projected qty is short (< 0). "
+    "Concentration reported on GROSS weights; sector/country rollups on "
+    "SIGNED weights (see #904)"
+)
 
 # #903 — funding-mode type alias, exposed for callers.
 FundingMode = Literal["self_financing", "cash_funded", "named_sell_funded"]
@@ -275,16 +283,17 @@ def run_whatif(
     _validate_prices_present(all_symbols, market_data.prices)
 
     projected_qty: dict[str, Decimal] = {}
+    any_short = False  # #904 — set True when any projected qty ends up negative
     for sym in all_symbols:
         pq = current_qty.get(sym, Decimal("0")) + delta_qty.get(sym, Decimal("0"))
         if pq < 0:
-            raise ValueError(
-                f"{sym}: projected qty is negative ({pq}) — short positions "
-                "are not supported in this cut (see #904)."
-            )
+            any_short = True
         if pq == 0 and sym in current_qty and current_qty[sym] > 0:
             warnings.append(f"{sym} delta closes position (qty → 0)")
         projected_qty[sym] = pq
+
+    if any_short:
+        warnings.append(_SHORTS_ENABLED_WARNING)
 
     # Compute market values, then weights.
     current_values = {
@@ -331,8 +340,22 @@ def run_whatif(
     # (cash is zero-vol and doesn't rollup to a sector/country), and the
     # resulting weights must sum to 1.0 for the xray substrate's
     # weights-normalized invariants.
-    current_risky_total = sum(current_values.values(), Decimal("0"))
-    projected_risky_total = sum(projected_values.values(), Decimal("0"))
+    #
+    # #904 — on a signed book (any short present), signed sum can be
+    # negative or zero for a well-hedged book, which is nonsense as a
+    # weight-vector denominator (weights would flip sign, exceed 1.0, or
+    # divide by zero). Use gross book value on signed books, signed
+    # book value on long-only books (backward-compat).
+    if any_short:
+        current_risky_total = sum(
+            (abs(v) for v in current_values.values()), Decimal("0")
+        )
+        projected_risky_total = sum(
+            (abs(v) for v in projected_values.values()), Decimal("0")
+        )
+    else:
+        current_risky_total = sum(current_values.values(), Decimal("0"))
+        projected_risky_total = sum(projected_values.values(), Decimal("0"))
 
     if projected_risky_total <= 0:
         raise ValueError(
@@ -340,24 +363,36 @@ def run_whatif(
             "meaning — call this only on a non-empty projected book."
         )
     # Current book may be empty (all-new-positions delta scenario). Guard.
+    # On signed books, keep negative-weight rows (shorts) in the weight
+    # dict — the `!= 0` filter replaces the long-only `> 0` filter so
+    # rollups and risk see the full signed book.
+    keep = (lambda v: v != 0) if any_short else (lambda v: v > 0)
     if current_risky_total == 0:
         current_weights: dict[str, Decimal] = {}
     else:
         current_weights = {
-            s: v / current_risky_total for s, v in current_values.items() if v > 0
+            s: v / current_risky_total for s, v in current_values.items() if keep(v)
         }
 
     projected_weights = {
-        s: v / projected_risky_total for s, v in projected_values.items() if v > 0
+        s: v / projected_risky_total for s, v in projected_values.items() if keep(v)
     }
 
     # Look-through both sides.
-    current_effective = _look_through_or_empty(
-        current_weights, market_data.holdings_provider
-    )
-    projected_effective = _look_through_or_empty(
-        projected_weights, market_data.holdings_provider
-    )
+    # #904 — look_through is undefined on signed books (a short ETF is not
+    # a negative bundle of its underlyings; it's a directional bet against
+    # the ETF price). Skip look-through when shorts are present; the
+    # projected_effective dict then equals projected_weights directly.
+    if any_short:
+        current_effective = current_weights
+        projected_effective = projected_weights
+    else:
+        current_effective = _look_through_or_empty(
+            current_weights, market_data.holdings_provider
+        )
+        projected_effective = _look_through_or_empty(
+            projected_weights, market_data.holdings_provider
+        )
 
     # Build the six diff categories.
     # #903 — cash_diff is populated whenever cash is on the book OR when
@@ -389,7 +424,9 @@ def run_whatif(
         market_data.attribute_provider,
         "country",
     )
-    _fill_concentration_diffs(diff, current_effective, projected_effective)
+    _fill_concentration_diffs(
+        diff, current_effective, projected_effective, use_gross=any_short
+    )
     _fill_risk_and_contrib_diffs(
         diff,
         current_weights,
@@ -508,18 +545,33 @@ def _fill_concentration_diffs(
     diff: WhatIfDiff,
     current: dict[str, Decimal],
     projected: dict[str, Decimal],
+    use_gross: bool = False,
 ) -> None:
+    """Populate HHI, effective_n, top-K rows in the concentration section.
+
+    Parameters
+    ----------
+    use_gross : bool
+        When True (signed book, #904), HHI/effective_n are computed on
+        gross weights (``|w_i| / Σ|w_j|``). top-K stays on signed
+        weights to preserve the widget's "top N by concentration"
+        reading. On long-only books, ``|w| == w`` so gross and signed
+        collapse to identical output.
+    """
+
     def _hhi_en(exp: dict[str, Decimal]) -> tuple[float, float]:
         if not exp:
             return 0.0, 0.0
-        h = float(herfindahl_hirschman(exp))
+        h = float(herfindahl_hirschman(exp, gross=use_gross))
         en = float(effective_n(Decimal(str(h)))) if h > 0 else 0.0
         return h, en
 
     def _topk(exp: dict[str, Decimal], k: int) -> float:
         if not exp:
             return 0.0
-        sorted_w = sorted((float(w) for w in exp.values()), reverse=True)
+        # Top-K by absolute magnitude — a $1M short is a top-1 position
+        # in the same sense as a $1M long.
+        sorted_w = sorted((float(abs(w)) for w in exp.values()), reverse=True)
         return float(sum(sorted_w[:k]))
 
     c_hhi, c_en = _hhi_en(current)

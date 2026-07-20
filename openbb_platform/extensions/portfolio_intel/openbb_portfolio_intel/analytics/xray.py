@@ -222,7 +222,10 @@ def overlap_count(portfolios: list[dict[str, Decimal]]) -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-def herfindahl_hirschman(exposures: dict[str, Decimal]) -> Decimal:
+def herfindahl_hirschman(
+    exposures: dict[str, Decimal],
+    gross: bool = False,
+) -> Decimal:
     """Compute HHI — the sum of squared weights.
 
     Interpretation:
@@ -238,10 +241,27 @@ def herfindahl_hirschman(exposures: dict[str, Decimal]) -> Decimal:
     Parameters
     ----------
     exposures : dict[str, Decimal]
-        Symbol → weight. Sum SHOULD be ~1.0; we don't enforce that
-        (rollups may drop unresolved). Callers who need the classic
-        interpretation should normalize.
+        Symbol → weight. On a long-only book these are signed and
+        already sum to ~1.0; the caller is responsible for normalization.
+    gross : bool, default False
+        If True, compute HHI on **gross weights** — each weight is
+        first normalized by ``Σ|w_j|`` before squaring. Use this on
+        signed books where a long+short pair should count as *two*
+        concentrated positions rather than netting to zero (#904).
+
+        The default ``gross=False`` preserves the initial-ship
+        behavior — HHI is computed on the raw weights as-supplied.
+        For long-only books, ``gross=False`` and ``gross=True``
+        produce identical output because ``|w_i| == w_i``.
     """
+    if gross:
+        total_abs = sum((abs(w) for w in exposures.values()), Decimal("0"))
+        if total_abs == 0:
+            return Decimal("0")
+        return sum(
+            ((abs(w) / total_abs) * (abs(w) / total_abs) for w in exposures.values()),
+            Decimal("0"),
+        )
     return sum((w * w for w in exposures.values()), Decimal("0"))
 
 
