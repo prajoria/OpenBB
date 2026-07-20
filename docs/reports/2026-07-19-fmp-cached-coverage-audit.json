@@ -1,0 +1,266 @@
+[
+  {
+    "cluster": "#512",
+    "cluster_name": "EtfHoldings",
+    "endpoint": "obb.etf.holdings",
+    "module_stem": "etf_holdings",
+    "status": "OK",
+    "evidence": "models/etf_holdings.py"
+  },
+  {
+    "cluster": "#513",
+    "cluster_name": "Economics",
+    "endpoint": "obb.economy.calendar",
+    "module_stem": "economic_calendar",
+    "status": "OK",
+    "evidence": "models/economic_calendar.py"
+  },
+  {
+    "cluster": "#513",
+    "cluster_name": "Economics",
+    "endpoint": "obb.fixedincome.government.treasury_rates",
+    "module_stem": "treasury_rates",
+    "status": "OK",
+    "evidence": "models/treasury_rates.py"
+  },
+  {
+    "cluster": "#513",
+    "cluster_name": "Economics",
+    "endpoint": "obb.fixedincome.government.yield_curve",
+    "module_stem": "yield_curve",
+    "status": "OK",
+    "evidence": "models/yield_curve.py"
+  },
+  {
+    "cluster": "#513",
+    "cluster_name": "Economics",
+    "endpoint": "obb.economy.indicators (FRED)",
+    "module_stem": null,
+    "status": "-",
+    "evidence": "n/a (no upstream call)"
+  },
+  {
+    "cluster": "#514",
+    "cluster_name": "Market Performance",
+    "endpoint": "obb.equity.discovery.gainers",
+    "module_stem": "equity_gainers",
+    "status": "OK",
+    "evidence": "models/equity_gainers.py"
+  },
+  {
+    "cluster": "#514",
+    "cluster_name": "Market Performance",
+    "endpoint": "obb.equity.discovery.losers",
+    "module_stem": "equity_losers",
+    "status": "OK",
+    "evidence": "models/equity_losers.py"
+  },
+  {
+    "cluster": "#514",
+    "cluster_name": "Market Performance",
+    "endpoint": "obb.equity.discovery.active",
+    "module_stem": "equity_most_active",
+    "status": "OK",
+    "evidence": "models/equity_most_active.py"
+  },
+  {
+    "cluster": "#514",
+    "cluster_name": "Market Performance",
+    "endpoint": "obb.equity.compare.groups (sector rollup)",
+    "module_stem": "price_performance",
+    "status": "OK",
+    "evidence": "models/price_performance.py"
+  },
+  {
+    "cluster": "#515",
+    "cluster_name": "Technical Indicators (per-holding strip)",
+    "endpoint": "obb.equity.price.historical (OHLCV feed)",
+    "module_stem": "equity_historical",
+    "status": "OK",
+    "evidence": "models/equity_historical.py"
+  },
+  {
+    "cluster": "#516",
+    "cluster_name": "Derived-analytics cache table",
+    "endpoint": "(no upstream call)",
+    "module_stem": null,
+    "status": "-",
+    "evidence": "n/a (no upstream call)"
+  },
+  {
+    "cluster": "#517",
+    "cluster_name": "Cache warmers for common ETFs + S&P500 constituents",
+    "endpoint": "obb.index.constituents (SP500)",
+    "module_stem": "index_constituents",
+    "status": "OK",
+    "evidence": "models/index_constituents.py"
+  },
+  {
+    "cluster": "#517",
+    "cluster_name": "Cache warmers for common ETFs + S&P500 constituents",
+    "endpoint": "obb.etf.holdings (warmer)",
+    "module_stem": "etf_holdings",
+    "status": "OK",
+    "evidence": "models/etf_holdings.py"
+  },
+  {
+    "cluster": "#517",
+    "cluster_name": "Cache warmers for common ETFs + S&P500 constituents",
+    "endpoint": "obb.equity.price.historical (warmer)",
+    "module_stem": "equity_historical",
+    "status": "OK",
+    "evidence": "models/equity_historical.py"
+  },
+  {
+    "cluster": "#518",
+    "cluster_name": "EtfInfo + EtfSectorWeightings + EtfCountryWeightings",
+    "endpoint": "obb.etf.info",
+    "module_stem": "etf_info",
+    "status": "OK",
+    "evidence": "models/etf_info.py"
+  },
+  {
+    "cluster": "#518",
+    "cluster_name": "EtfInfo + EtfSectorWeightings + EtfCountryWeightings",
+    "endpoint": "obb.etf.sectors",
+    "module_stem": "etf_sectors",
+    "status": "OK",
+    "evidence": "models/etf_sectors.py"
+  },
+  {
+    "cluster": "#518",
+    "cluster_name": "EtfInfo + EtfSectorWeightings + EtfCountryWeightings",
+    "endpoint": "obb.etf.countries",
+    "module_stem": "etf_countries",
+    "status": "OK",
+    "evidence": "models/etf_countries.py"
+  },
+  {
+    "cluster": "#519",
+    "cluster_name": "Calendars: Earnings + Dividends + Splits + IPOs",
+    "endpoint": "obb.equity.calendar.earnings",
+    "module_stem": "calendar_earnings",
+    "status": "OK",
+    "evidence": "models/calendar_earnings.py"
+  },
+  {
+    "cluster": "#519",
+    "cluster_name": "Calendars: Earnings + Dividends + Splits + IPOs",
+    "endpoint": "obb.equity.calendar.dividend",
+    "module_stem": "calendar_dividend",
+    "status": "OK",
+    "evidence": "models/calendar_dividend.py"
+  },
+  {
+    "cluster": "#519",
+    "cluster_name": "Calendars: Earnings + Dividends + Splits + IPOs",
+    "endpoint": "obb.equity.calendar.splits",
+    "module_stem": "calendar_splits",
+    "status": "OK",
+    "evidence": "models/calendar_splits.py"
+  },
+  {
+    "cluster": "#519",
+    "cluster_name": "Calendars: Earnings + Dividends + Splits + IPOs",
+    "endpoint": "obb.equity.calendar.ipo",
+    "module_stem": "calendar_ipo",
+    "status": "OK",
+    "evidence": "models/calendar_ipo.py"
+  },
+  {
+    "cluster": "#520",
+    "cluster_name": "Analyst: Estimates + Ratings + PriceTarget + UpgradesDowngrades",
+    "endpoint": "obb.equity.estimates.analyst_search",
+    "module_stem": "analyst_estimates",
+    "status": "OK",
+    "evidence": "models/analyst_estimates.py"
+  },
+  {
+    "cluster": "#520",
+    "cluster_name": "Analyst: Estimates + Ratings + PriceTarget + UpgradesDowngrades",
+    "endpoint": "obb.equity.estimates.price_target",
+    "module_stem": "price_target",
+    "status": "OK",
+    "evidence": "models/price_target.py"
+  },
+  {
+    "cluster": "#520",
+    "cluster_name": "Analyst: Estimates + Ratings + PriceTarget + UpgradesDowngrades",
+    "endpoint": "obb.equity.estimates.consensus (price_target_consensus)",
+    "module_stem": "price_target_consensus",
+    "status": "OK",
+    "evidence": "models/price_target_consensus.py"
+  },
+  {
+    "cluster": "#520",
+    "cluster_name": "Analyst: Estimates + Ratings + PriceTarget + UpgradesDowngrades",
+    "endpoint": "obb.equity.estimates.historical (upgrades/downgrades)",
+    "module_stem": null,
+    "status": "-",
+    "evidence": "n/a (no upstream call)"
+  },
+  {
+    "cluster": "#521",
+    "cluster_name": "InsiderTrades",
+    "endpoint": "obb.equity.ownership.insider_trading",
+    "module_stem": "insider_trading",
+    "status": "OK",
+    "evidence": "models/insider_trading.py"
+  },
+  {
+    "cluster": "#522",
+    "cluster_name": "Form 13F",
+    "endpoint": "obb.equity.ownership.institutional (13F extract)",
+    "module_stem": "institutional_ownership",
+    "status": "OK",
+    "evidence": "models/institutional_ownership.py"
+  },
+  {
+    "cluster": "#522",
+    "cluster_name": "Form 13F",
+    "endpoint": "(holder performance = derived, no upstream)",
+    "module_stem": null,
+    "status": "-",
+    "evidence": "n/a (no upstream call)"
+  },
+  {
+    "cluster": "#523",
+    "cluster_name": "Senate Disclosures",
+    "endpoint": "obb.regulators.sec.senate_trades / house_trades",
+    "module_stem": "government_trades",
+    "status": "OK",
+    "evidence": "models/government_trades.py"
+  },
+  {
+    "cluster": "#524",
+    "cluster_name": "SEC Filings",
+    "endpoint": "obb.equity.fundamental.filings",
+    "module_stem": "company_filings",
+    "status": "OK",
+    "evidence": "models/company_filings.py"
+  },
+  {
+    "cluster": "#524",
+    "cluster_name": "SEC Filings",
+    "endpoint": "obb.regulators.sec.filings",
+    "module_stem": "discovery_filings",
+    "status": "OK",
+    "evidence": "models/discovery_filings.py"
+  },
+  {
+    "cluster": "#525",
+    "cluster_name": "News",
+    "endpoint": "obb.news.company",
+    "module_stem": "company_news",
+    "status": "OK",
+    "evidence": "models/company_news.py"
+  },
+  {
+    "cluster": "#525",
+    "cluster_name": "News",
+    "endpoint": "obb.news.world",
+    "module_stem": "world_news",
+    "status": "OK",
+    "evidence": "models/world_news.py"
+  }
+]
