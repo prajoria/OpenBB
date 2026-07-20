@@ -56,6 +56,7 @@ class PaperSide(str, Enum):
 
     @classmethod
     def from_signed_quantity(cls, qty: Decimal) -> "PaperSide":
+        """Infer BUY / SELL from a signed paper quantity; reject qty == 0."""
         if qty > 0:
             return cls.BUY
         if qty < 0:
