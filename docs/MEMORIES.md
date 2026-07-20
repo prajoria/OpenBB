@@ -563,3 +563,123 @@ this session. All deterministic, all pure-function tests (no live API).
   linter pre-flight (black + ruff + pylint + mypy) in .venv_portfolio pays off
 - Pre-flight vs post-hoc lint ratio dramatically improved after
   .venv_portfolio was set up mid-session with the CI linters installed
+
+---
+
+## portfolio-intel-router-cadence-2026-07-20
+
+Shipped 5 portfolio-intel routes in one autonomous session (PRs #905 #908
+#913 #916 #918 #920 — What-If engine + EtfHoldings unblock + xray/risk/
+events/smart_money routes). Every future portfolio-intel route PR needs
+these 5 non-obvious lessons from the OpenBB static-package generator.
+Miss any of them and Phase 6 verify fails with a NameError in
+`openbb_platform/core/openbb/package/<route>.py`.
+
+### 1. Public models MUST live at the extension package top level
+
+Extension-local Pydantic/Data classes referenced in a route's signature
+or return annotation must live in `openbb_portfolio_intel/models.py`, NOT
+inside `routers/<name>_router.py`. The generator only imports models it
+can resolve at the package's top level; sub-module classes leak into
+generated code as unimported identifiers.
+
+**Verified live during PR #913 phase-6:** `BasketPosition` +
+`XRayLookThroughResult` defined inside `routers/xray_router.py` produced
+`NameError: name 'BasketPosition' is not defined` at runtime. Moving to
+`openbb_portfolio_intel/models.py` (top-level) fixed it.
+
+Pattern to mirror: `openbb_backtest/models.py` holds `BacktestConfig` +
+`BundleInfo`; sub-routers import from there.
+
+### 2. Route input surface: `basket: list[dict]`, not `list[BasketPosition]`
+
+Even with the Data class in `models.py`, the generator flakes on typed
+container inputs. Use `list[dict]` and coerce inside:
+
+```python
+def look_through(basket: list[dict], ...) -> OBBject:
+    positions = [
+        BasketPosition(symbol=str(r["symbol"]), weight=Decimal(str(r["weight"])))
+        for r in basket
+    ]
+    _validate_basket(positions)
+```
+
+### 3. Return type: bare `OBBject`, NOT parameterized
+
+Route signature should say `-> OBBject:` (unparameterized). Runtime
+`.results` is still typed — construct `OBBject(results=X(...))` where X
+is the top-level response model. Parameterized `-> OBBject[X]` at the
+signature level leaks the type-arg into generated code unimported.
+
+Docstring can still say `Returns: OBBject[X]` — that's just prose.
+
+### 4. Cross-module test patching: patch at the SOURCE module
+
+If `risk_router` imports `_fetch_holdings` from `xray_router`, patching
+`risk_router._fetch_holdings` in a test has NO effect — `_build_holdings_provider`
+(also imported from xray_router) calls the *xray-module-local* symbol.
+Must patch at `openbb_portfolio_intel.routers.xray_router._fetch_holdings`.
+
+**Verified live during PR #916:** a mocked concentration test still hit
+real fmp_cached and returned an unexpected HHI (0.02 vs 0.25 expected),
+taking 187s and producing 500+ WARN log lines. Caught pre-push.
+
+### 5. Lint pragma stacking (both ruff AND pylint)
+
+CI runs black + ruff + pylint + codespell + mypy. Different pragmas needed:
+
+- Lazy import inside function: `# noqa: PLC0415  # pylint: disable=import-outside-toplevel`
+- Unused function argument: `# noqa: ARG001  # pylint: disable=unused-argument`
+- Unused import (from-import inside a block): pylint per-line disables DON'T
+  work — must be **module-level** `# pylint: disable=unused-import`
+- Unused variable: `# noqa: F401  # pylint: disable=unused-variable`
+
+Add codespell allowlist entries in `.codespell.ignore` for domain
+acronyms (session added: `sme`, `fof`; future may need: `hhi`, `var`,
+`cvar` if they hit the checker).
+
+### Pre-flight commands (run all four locally BEFORE push)
+
+```bash
+cd H:/masterswork/git/OpenBB-Portfolio/OpenBB
+.venv_win/Scripts/python.exe -m black --check <files>
+.venv_win/Scripts/python.exe -m ruff check <files>
+.venv_win/Scripts/python.exe -m pylint <files>
+.venv_win/Scripts/python.exe -m pytest openbb_platform/extensions/portfolio_intel/tests/ -m "not integration"
+```
+
+Passing all four locally = CI green on first push (verified iter-3-final of
+PR #918 and iter-1 of #920). Iterations happen when even one is skipped.
+
+### Phase-6 real-path verify is the ONLY thing that catches these
+
+Unit tests pass because they operate at the Python-import layer.
+Generator quirks + `obb.<extension>.*` runtime dispatch only surface
+after `openbb.build()` regenerates the static package. Every route PR
+MUST call `.venv_win/Scripts/python.exe -c "import openbb; openbb.build()"`
+followed by a live `obb.<route>(...)` invocation. #558/#512/#541 all had
+green pytest AND broken runtime paths.
+
+### Cross-team code (fmp_cached) — admin-override precedent
+
+Per project CLAUDE.md, `providers/fmp_cached/` is owned by a separate team.
+PR #908 (EtfHoldings runtime unblock) required 4 in-scope edits to
+fmp_cached files (SPY/DIA registry + parser fix + cache guard); user
+authorized admin-override merge when pre-existing mypy debt in unrelated
+fmp_cached files blocked CI. Followed with #909 as a tracker for the
+fmp_cached team's cleanup. Pattern: portfolio-intel PRs may touch
+fmp_cached files only when the portfolio-intel work legitimately requires
+it, then file a follow-up rather than expanding scope.
+
+### Follow-ups filed for known scope-cuts
+
+Every route PR filed 1-2 follow-ups when a scope-cut was deliberate:
+- #558 → #903 (What-If cash) + #904 (shorts)
+- #541 → #911 (SSGA sector column drop) + #912 (fmp_cached WARN log noise)
+- #528 → follow-up for auto-fetch returns_source
+- Every one has `deferred-from-review` label + explicit justification in body
+
+**Session totals:** 6 route PRs merged in ~4 hours (P1/App queue exhausted).
+Pattern is fully mature; the next portfolio-intel route (news/sentiment
+#572, alerts #571) should ship in one cycle each if substrate exists.
