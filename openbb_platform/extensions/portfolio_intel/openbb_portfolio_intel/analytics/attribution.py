@@ -82,7 +82,7 @@ class AttributionRow:
     interaction: float = 0.0
 
     def total(self) -> float:
-        """Combined effect for this sector."""
+        """Return the combined effect for this sector."""
         return self.allocation + self.selection + self.interaction
 
 
