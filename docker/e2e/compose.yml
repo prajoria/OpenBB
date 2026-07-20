@@ -30,13 +30,13 @@ x-platform-env: &platform-env
   OPENBB_MYSQL_HOST: mysql
   OPENBB_MYSQL_PORT: "3306"
   OPENBB_MYSQL_USER: fmp_user
-  OPENBB_MYSQL_PASSWORD: fmp_user
+  OPENBB_MYSQL_PASSWORD: "${MYSQL_PASSWORD:-e2e_fmppw_change_me}"
   OPENBB_MYSQL_DB: openbb_fmp_cache
   # openbb_fmp_cached reads these too — belt-and-suspenders.
   MYSQL_HOST: mysql
   MYSQL_PORT: "3306"
   MYSQL_USER: fmp_user
-  MYSQL_PASSWORD: fmp_user
+  MYSQL_PASSWORD: "${MYSQL_PASSWORD:-e2e_fmppw_change_me}"
   MYSQL_DATABASE: openbb_fmp_cache
   RUN_ID: "${RUN_ID:?RUN_ID must be exported by run.sh}"
   SKIP_INTEGRATION: "${SKIP_INTEGRATION:-0}"
@@ -53,18 +53,22 @@ services:
     image: mysql:8.4
     restart: unless-stopped
     environment:
-      # Root password kept for one-shot restore access via
-      # docker/e2e/mysql/restore_dump.sh — which reads it from the
-      # container env (`$MYSQL_ROOT_PASSWORD`) rather than the argv,
-      # so the literal never appears in `docker top` or host `ps`.
-      MYSQL_ROOT_PASSWORD: rootpw
+      # Passwords ≥8 chars so the run.sh scrubber preflight doesn't
+      # trip on the compose defaults. These are for a loopback-bound
+      # local MySQL — the ≥8 threshold isn't about crypto strength,
+      # it's so litreplace() in the bug-file scrubber doesn't
+      # over-redact common English words.
+      # Root password is only read by mysql/restore_dump.sh via
+      # MYSQL_PWD (env-var, never argv). Both can be overridden per-run
+      # by setting them in the repo-root .env.
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-e2e_rootpw_change_me}"
       # These create empty DBs + a user on FIRST boot. When we later
       # restore from the dump, that dump's DATA is loaded into these
       # already-created schemas, and our user retains access via the
       # grants in mysql/init.d/00-bootstrap.sql.
       MYSQL_DATABASE: openbb_fmp_cache
       MYSQL_USER: fmp_user
-      MYSQL_PASSWORD: fmp_user
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-e2e_fmppw_change_me}"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.d:/docker-entrypoint-initdb.d:ro

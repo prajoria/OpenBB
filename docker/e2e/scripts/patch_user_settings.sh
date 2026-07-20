@@ -26,7 +26,7 @@ mkdir -p "${DEST_DIR}"
 
 # Rewrite mysql_host + mysql_port using Python (jq isn't in Dockerfile.platform).
 python - "${SRC}" "${DEST}" <<'PY'
-import json, sys
+import json, os, sys
 src, dest = sys.argv[1], sys.argv[2]
 with open(src) as f:
     data = json.load(f)
@@ -34,13 +34,13 @@ creds = data.setdefault("credentials", {})
 creds["mysql_host"] = "mysql"
 # UserSettings model requires str for mysql_port — writing int trips pydantic.
 creds["mysql_port"] = "3306"
-# Compose creates `fmp_user`/`fmp_user` on the mysql service; align the
-# rewritten settings so the container reaches it. Host settings may
-# carry a different password for the same user against the developer's
-# host-native MySQL instance.
-creds["mysql_user"] = "fmp_user"
-creds["mysql_password"] = "fmp_user"
-creds["mysql_database"] = "openbb_fmp_cache_test"
+# Compose creates fmp_user on the mysql service; align the rewritten
+# settings so the container reaches it. Values come from env vars set
+# by run.sh (from .env or compose defaults) so scrubber-preflight and
+# compose stay consistent.
+creds["mysql_user"] = os.environ.get("MYSQL_USER", "fmp_user")
+creds["mysql_password"] = os.environ.get("MYSQL_PASSWORD", "e2e_fmppw_change_me")
+creds["mysql_database"] = os.environ.get("MYSQL_DATABASE", "openbb_fmp_cache_test")
 # Password/user/db already correct per user_settings; leave them.
 with open(dest, "w") as f:
     json.dump(data, f, indent=2)

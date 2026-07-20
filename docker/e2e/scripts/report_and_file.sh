@@ -94,23 +94,45 @@ scrub() {
   #     env value would cause misbehavior (a token with `.` matches
   #     anything, a value with unbalanced `[` throws).
   #
-  #   Deliberately conservative: over-redaction (false positive) is
-  #   always safer than a leaked key in a bug file that ends up on GH.
+  # FAIL-CLOSED policy: if any known secret env var is set but shorter
+  # than the redaction threshold (SCRUB_MIN_LEN), refuse to write bug
+  # files at all. Rationale: a weak secret + a scrubber that silently
+  # skips too-short needles = the exact leak the scrubber exists to
+  # prevent. Better to fail loudly and force the operator to either
+  # strengthen the secret or explicitly acknowledge the risk.
+  SCRUB_MIN_LEN=4
+  local weak=""
+  local v
+  for name in GH_TOKEN MYSQL_PASSWORD MYSQL_ROOT_PASSWORD FMP_API_KEY; do
+    v="${!name:-}"
+    if [[ -n "${v}" && ${#v} -lt ${SCRUB_MIN_LEN} ]]; then
+      weak+="  - ${name} is set but only ${#v} chars long (min ${SCRUB_MIN_LEN})\n"
+    fi
+  done
+  if [[ -n "${weak}" ]]; then
+    echo "ERROR: scrubber refuses to run — one or more secret env vars are too short" >&2
+    printf "%b" "${weak}" >&2
+    echo "Fix by strengthening the secret in .env, or set SCRUB_ALLOW_WEAK=1 to override" >&2
+    if [[ "${SCRUB_ALLOW_WEAK:-0}" != "1" ]]; then
+      return 5
+    fi
+    echo "SCRUB_ALLOW_WEAK=1 set — proceeding despite weak secrets" >&2
+  fi
+
   awk -v gh_token="${GH_TOKEN:-}" \
       -v mysql_pw="${MYSQL_PASSWORD:-}" \
       -v mysql_root_pw="${MYSQL_ROOT_PASSWORD:-}" \
       -v fmp_api_key="${FMP_API_KEY:-}" \
+      -v min_len="${SCRUB_MIN_LEN}" \
   '
     # Literal-string replace all occurrences of `needle` in `s` with
     # `marker`. Uses index() which does substring (not regex) match.
-    # Empty/short needles are skipped so we do not redact every
-    # occurrence of a common word — needles must be ≥8 chars for
-    # redaction to fire. This means passwords <8 chars ARE at risk
-    # of leaking through the scrubber. Mitigation: enforce ≥8-char
-    # passwords in .env for any shared/CI use of the harness.
+    # Needles shorter than min_len are silently skipped — the shell
+    # preflight above guarantees no known-secret var falls in that
+    # range (unless SCRUB_ALLOW_WEAK=1 was passed).
     function litreplace(s, needle, marker,   out, i, nlen) {
       nlen = length(needle)
-      if (nlen < 8) return s
+      if (nlen < min_len) return s
       out = ""
       while ((i = index(s, needle)) > 0) {
         out = out substr(s, 1, i - 1) marker

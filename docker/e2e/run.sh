@@ -102,6 +102,42 @@ set +a
 export GH_REPO="${GH_REPO:-prajoria/OpenBB}"
 
 # ---------------------------------------------------------------
+# Secret-strength preflight — fail-closed on weak secrets.
+#
+# The bug-file scrubber in scripts/report_and_file.sh redacts each
+# live secret env var (GH_TOKEN, MYSQL_*, FMP_API_KEY) by literal
+# substring match. Very short secrets are dangerous because:
+#   (a) they collide with common English words → over-redaction if
+#       we lower the threshold, OR
+#   (b) they silently pass through the scrubber → real leak into
+#       bug files if we keep the threshold high.
+# Neither trade is acceptable. Better: refuse to run when a secret
+# is present-but-too-short, forcing the operator to either
+# strengthen it or explicitly acknowledge with SCRUB_ALLOW_WEAK=1.
+# ---------------------------------------------------------------
+SCRUB_MIN_LEN=8
+weak_secrets=""
+for name in GH_TOKEN MYSQL_PASSWORD MYSQL_ROOT_PASSWORD FMP_API_KEY; do
+  v="${!name:-}"
+  if [[ -n "${v}" && ${#v} -lt ${SCRUB_MIN_LEN} ]]; then
+    weak_secrets+="  - ${name} is set but only ${#v} chars (min ${SCRUB_MIN_LEN})"$'\n'
+  fi
+done
+if [[ -n "${weak_secrets}" ]]; then
+  echo "ERROR: refusing to run — weak secret(s) detected:" >&2
+  printf "%s" "${weak_secrets}" >&2
+  echo "" >&2
+  echo "  Weak secrets can leak through the bug-file scrubber into" >&2
+  echo "  artifacts that end up on GitHub. Fix by strengthening the" >&2
+  echo "  value in ${REPO_ROOT}/.env, or set SCRUB_ALLOW_WEAK=1 to" >&2
+  echo "  proceed anyway (NOT recommended for shared runners)." >&2
+  if [[ "${SCRUB_ALLOW_WEAK:-0}" != "1" ]]; then
+    exit 4
+  fi
+  echo "==> SCRUB_ALLOW_WEAK=1 — proceeding despite weak secrets" >&2
+fi
+
+# ---------------------------------------------------------------
 # Optional volume reset — always fresh source unless --keep-volumes.
 # ---------------------------------------------------------------
 if [[ ${KEEP_VOLUMES} -eq 0 ]]; then
