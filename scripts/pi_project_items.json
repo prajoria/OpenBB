@@ -1,0 +1,618 @@
+{
+  "491": {
+    "bead_id": "OpenBBTechnical-qy83",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoWk",
+    "lane": null,
+    "phase": null,
+    "type": "Epic"
+  },
+  "492": {
+    "bead_id": "OpenBBTechnical-qy83.1",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoXU",
+    "lane": null,
+    "phase": "M0",
+    "type": "Feature"
+  },
+  "493": {
+    "bead_id": "OpenBBTechnical-qy83.2",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoXg",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Feature"
+  },
+  "494": {
+    "bead_id": "OpenBBTechnical-qy83.3",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoXk",
+    "lane": null,
+    "phase": "P1",
+    "type": "Feature"
+  },
+  "495": {
+    "bead_id": "OpenBBTechnical-qy83.4",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoXs",
+    "lane": null,
+    "phase": "P2",
+    "type": "Feature"
+  },
+  "496": {
+    "bead_id": "OpenBBTechnical-qy83.5",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoX0",
+    "lane": null,
+    "phase": "P3",
+    "type": "Feature"
+  },
+  "497": {
+    "bead_id": "OpenBBTechnical-qy83.1.1",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobU",
+    "lane": "PM",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "498": {
+    "bead_id": "OpenBBTechnical-qy83.1.10",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobg",
+    "lane": "PM",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "499": {
+    "bead_id": "OpenBBTechnical-qy83.1.11",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqob4",
+    "lane": "PM",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "500": {
+    "bead_id": "OpenBBTechnical-qy83.1.12",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqocM",
+    "lane": "PM",
+    "phase": "M0",
+    "type": "Bug"
+  },
+  "501": {
+    "bead_id": "OpenBBTechnical-qy83.1.13",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqocY",
+    "lane": "A-Data",
+    "phase": "M0",
+    "type": "Bug"
+  },
+  "502": {
+    "bead_id": "OpenBBTechnical-qy83.1.14",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqock",
+    "lane": "A-Data",
+    "phase": "M0",
+    "type": "Bug"
+  },
+  "503": {
+    "bead_id": "OpenBBTechnical-qy83.1.15",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqocw",
+    "lane": "A-Data",
+    "phase": "M0",
+    "type": "Bug"
+  },
+  "504": {
+    "bead_id": "OpenBBTechnical-qy83.1.2",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoc4",
+    "lane": "PM",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "505": {
+    "bead_id": "OpenBBTechnical-qy83.1.3",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqodA",
+    "lane": "PM",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "506": {
+    "bead_id": "OpenBBTechnical-qy83.1.4",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqodU",
+    "lane": "B-Analytics",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "507": {
+    "bead_id": "OpenBBTechnical-qy83.1.5",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqodY",
+    "lane": "C-App+Paper",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "508": {
+    "bead_id": "OpenBBTechnical-qy83.1.6",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqodc",
+    "lane": "A-Data",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "509": {
+    "bead_id": "OpenBBTechnical-qy83.1.7",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqodg",
+    "lane": "D-Widgets+QA",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "510": {
+    "bead_id": "OpenBBTechnical-qy83.1.8",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqodk",
+    "lane": "QA",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "511": {
+    "bead_id": "OpenBBTechnical-qy83.1.9",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqodo",
+    "lane": "PM",
+    "phase": "M0",
+    "type": "Task"
+  },
+  "512": {
+    "bead_id": "OpenBBTechnical-qy83.2.1",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoYc",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "513": {
+    "bead_id": "OpenBBTechnical-qy83.2.10",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoYk",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "514": {
+    "bead_id": "OpenBBTechnical-qy83.2.11",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoYw",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "515": {
+    "bead_id": "OpenBBTechnical-qy83.2.12",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZE",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "516": {
+    "bead_id": "OpenBBTechnical-qy83.2.13",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZQ",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "517": {
+    "bead_id": "OpenBBTechnical-qy83.2.14",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZg",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "518": {
+    "bead_id": "OpenBBTechnical-qy83.2.2",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZs",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "519": {
+    "bead_id": "OpenBBTechnical-qy83.2.3",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZ0",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "520": {
+    "bead_id": "OpenBBTechnical-qy83.2.4",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobA",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "521": {
+    "bead_id": "OpenBBTechnical-qy83.2.5",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobQ",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "522": {
+    "bead_id": "OpenBBTechnical-qy83.2.6",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobY",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "523": {
+    "bead_id": "OpenBBTechnical-qy83.2.7",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobs",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "524": {
+    "bead_id": "OpenBBTechnical-qy83.2.8",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqogY",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "525": {
+    "bead_id": "OpenBBTechnical-qy83.2.9",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqogc",
+    "lane": "A-Data",
+    "phase": "P0",
+    "type": "Task"
+  },
+  "526": {
+    "bead_id": "OpenBBTechnical-qy83.3.1",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoeQ",
+    "lane": "B-Analytics",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "527": {
+    "bead_id": "OpenBBTechnical-qy83.3.10",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoec",
+    "lane": "C-App+Paper",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "528": {
+    "bead_id": "OpenBBTechnical-qy83.3.11",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoeg",
+    "lane": "C-App+Paper",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "529": {
+    "bead_id": "OpenBBTechnical-qy83.3.12",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoeo",
+    "lane": "D-Widgets+QA",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "530": {
+    "bead_id": "OpenBBTechnical-qy83.3.13",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoew",
+    "lane": "D-Widgets+QA",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "531": {
+    "bead_id": "OpenBBTechnical-qy83.3.14",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoe0",
+    "lane": "D-Widgets+QA",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "532": {
+    "bead_id": "OpenBBTechnical-qy83.3.15",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoe8",
+    "lane": "D-Widgets+QA",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "533": {
+    "bead_id": "OpenBBTechnical-qy83.3.16",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqofI",
+    "lane": "D-Widgets+QA",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "534": {
+    "bead_id": "OpenBBTechnical-qy83.3.17",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqofQ",
+    "lane": "D-Widgets+QA",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "535": {
+    "bead_id": "OpenBBTechnical-qy83.3.2",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqofU",
+    "lane": "B-Analytics",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "536": {
+    "bead_id": "OpenBBTechnical-qy83.3.3",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqofc",
+    "lane": "B-Analytics",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "537": {
+    "bead_id": "OpenBBTechnical-qy83.3.4",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqofk",
+    "lane": "B-Analytics",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "538": {
+    "bead_id": "OpenBBTechnical-qy83.3.5",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqofo",
+    "lane": "B-Analytics",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "539": {
+    "bead_id": "OpenBBTechnical-qy83.3.6",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqofw",
+    "lane": "B-Analytics",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "540": {
+    "bead_id": "OpenBBTechnical-qy83.3.7",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqof0",
+    "lane": "B-Analytics",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "541": {
+    "bead_id": "OpenBBTechnical-qy83.3.8",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqogA",
+    "lane": "C-App+Paper",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "542": {
+    "bead_id": "OpenBBTechnical-qy83.3.9",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqogI",
+    "lane": "C-App+Paper",
+    "phase": "P1",
+    "type": "Task"
+  },
+  "543": {
+    "bead_id": "OpenBBTechnical-qy83.4.1",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoYY",
+    "lane": "A-Data",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "544": {
+    "bead_id": "OpenBBTechnical-qy83.4.10",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoYg",
+    "lane": "C-App+Paper",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "545": {
+    "bead_id": "OpenBBTechnical-qy83.4.11",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoYo",
+    "lane": "C-App+Paper",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "546": {
+    "bead_id": "OpenBBTechnical-qy83.4.12",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoY4",
+    "lane": "C-App+Paper",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "547": {
+    "bead_id": "OpenBBTechnical-qy83.4.13",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZc",
+    "lane": "C-App+Paper",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "548": {
+    "bead_id": "OpenBBTechnical-qy83.4.14",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZk",
+    "lane": "C-App+Paper",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "549": {
+    "bead_id": "OpenBBTechnical-qy83.4.15",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoaA",
+    "lane": "D-Widgets+QA",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "550": {
+    "bead_id": "OpenBBTechnical-qy83.4.16",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoaM",
+    "lane": "D-Widgets+QA",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "551": {
+    "bead_id": "OpenBBTechnical-qy83.4.17",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoaY",
+    "lane": "D-Widgets+QA",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "552": {
+    "bead_id": "OpenBBTechnical-qy83.4.18",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoag",
+    "lane": "D-Widgets+QA",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "553": {
+    "bead_id": "OpenBBTechnical-qy83.4.19",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoao",
+    "lane": "D-Widgets+QA",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "554": {
+    "bead_id": "OpenBBTechnical-qy83.4.2",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoa0",
+    "lane": "A-Data",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "555": {
+    "bead_id": "OpenBBTechnical-qy83.4.20",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobc",
+    "lane": "D-Widgets+QA",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "556": {
+    "bead_id": "OpenBBTechnical-qy83.4.21",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobo",
+    "lane": "D-Widgets+QA",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "557": {
+    "bead_id": "OpenBBTechnical-qy83.4.3",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqob0",
+    "lane": "A-Data",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "558": {
+    "bead_id": "OpenBBTechnical-qy83.4.4",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqocE",
+    "lane": "B-Analytics",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "559": {
+    "bead_id": "OpenBBTechnical-qy83.4.5",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqocQ",
+    "lane": "B-Analytics",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "560": {
+    "bead_id": "OpenBBTechnical-qy83.4.6",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqocg",
+    "lane": "B-Analytics",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "561": {
+    "bead_id": "OpenBBTechnical-qy83.4.7",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqocs",
+    "lane": "B-Analytics",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "562": {
+    "bead_id": "OpenBBTechnical-qy83.4.8",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoc8",
+    "lane": "C-App+Paper",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "563": {
+    "bead_id": "OpenBBTechnical-qy83.4.9",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqodI",
+    "lane": "C-App+Paper",
+    "phase": "P2",
+    "type": "Task"
+  },
+  "564": {
+    "bead_id": "OpenBBTechnical-qy83.5.1",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoY0",
+    "lane": "A-Data",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "565": {
+    "bead_id": "OpenBBTechnical-qy83.5.10",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZI",
+    "lane": "PM",
+    "phase": "M4",
+    "type": "Task"
+  },
+  "566": {
+    "bead_id": "OpenBBTechnical-qy83.5.11",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZo",
+    "lane": "B-Analytics",
+    "phase": "M4",
+    "type": "Task"
+  },
+  "567": {
+    "bead_id": "OpenBBTechnical-qy83.5.12",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoZw",
+    "lane": "PM",
+    "phase": "M4",
+    "type": "Task"
+  },
+  "568": {
+    "bead_id": "OpenBBTechnical-qy83.5.13",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoaI",
+    "lane": "PM",
+    "phase": "M4",
+    "type": "Task"
+  },
+  "569": {
+    "bead_id": "OpenBBTechnical-qy83.5.14",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoaQ",
+    "lane": "PM",
+    "phase": "M4",
+    "type": "Task"
+  },
+  "570": {
+    "bead_id": "OpenBBTechnical-qy83.5.2",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoac",
+    "lane": "B-Analytics",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "571": {
+    "bead_id": "OpenBBTechnical-qy83.5.3",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoak",
+    "lane": "B-Analytics",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "572": {
+    "bead_id": "OpenBBTechnical-qy83.5.4",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoas",
+    "lane": "C-App+Paper",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "573": {
+    "bead_id": "OpenBBTechnical-qy83.5.5",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqoa4",
+    "lane": "C-App+Paper",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "574": {
+    "bead_id": "OpenBBTechnical-qy83.5.6",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobM",
+    "lane": "C-App+Paper",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "575": {
+    "bead_id": "OpenBBTechnical-qy83.5.7",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobk",
+    "lane": "D-Widgets+QA",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "576": {
+    "bead_id": "OpenBBTechnical-qy83.5.8",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqobw",
+    "lane": "D-Widgets+QA",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "577": {
+    "bead_id": "OpenBBTechnical-qy83.5.9",
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgyqocI",
+    "lane": "D-Widgets+QA",
+    "phase": "P3",
+    "type": "Task"
+  },
+  "953": {
+    "bead_id": null,
+    "item_id": "PVTI_lAHOAOc7384BdSTgzgzgHls",
+    "lane": "PM",
+    "phase": null,
+    "type": "Task"
+  }
+}

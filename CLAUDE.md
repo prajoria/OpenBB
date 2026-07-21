@@ -71,12 +71,25 @@ cite `bd-XX` identifiers in new work.
 **Workflow:**
 
 1. Every unit of work has a GitHub Issue. Find work with `gh issue list`.
-2. Claim by self-assigning: `gh issue edit <NN> --add-assignee @me`.
+2. Claim by self-assigning **AND** setting the Project #4 Status to
+   `In Progress`:
+   ```bash
+   gh issue edit <NN> --add-assignee @me
+   python scripts/pi_claim.py <NN> in-progress    # sets Project #4 Status
+   ```
+   The Project Status update is **mandatory, not optional**. Without it,
+   the board's "In Progress" column stays empty and there is no way to
+   see at a glance which agent has claimed what. `pi_claim.py` is a
+   one-line wrapper around the GraphQL mutation — no excuse to skip it.
 3. Branch names embed the issue number: `feat/topic-gh-<NN>`,
    `fix/topic-gh-<NN>`, `docs/topic-gh-<NN>`.
 4. Every commit body cites its issue: `Refs #NN` (or `Closes #NN` on the
    final commit / PR body for auto-close on merge).
 5. PR title cites the issue: `<type>(<scope>): <what> (#NN)`.
+6. When the PR merges, the auto-close workflow closes the issue AND the
+   Project #4 Status auto-transitions to `Done` (via the "closes an
+   issue" workflow rule). No manual Status update needed on completion —
+   just at claim time.
 
 **Cross-session memory:** durable knowledge lives in `docs/MEMORIES.md`
 (a plain checked-in markdown file). Append new entries; do NOT create
