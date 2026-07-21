@@ -71,12 +71,63 @@ cite `bd-XX` identifiers in new work.
 **Workflow:**
 
 1. Every unit of work has a GitHub Issue. Find work with `gh issue list`.
-2. Claim by self-assigning: `gh issue edit <NN> --add-assignee @me`.
-3. Branch names embed the issue number: `feat/topic-gh-<NN>`,
+2. Claim by self-assigning **AND** setting the Project #4 Status to
+   `In Progress`:
+
+   ```bash
+   gh issue edit <NN> --add-assignee @me
+   python scripts/pi_claim.py <NN> in-progress    # sets Project #4 Status
+   ```
+
+   The Project Status update is **mandatory, not optional**. Without it,
+   the board's "In Progress" column stays empty and there is no way to
+   see at a glance which agent has claimed what. `pi_claim.py` is a
+   one-line wrapper around the GraphQL mutation — no excuse to skip it.
+3. **Heartbeat every ≤10 minutes** while the task is claimed:
+
+   ```bash
+   python scripts/pi_claim.py <NN> heartbeat   # updates last-touch timestamp
+   ```
+
+   Any agent working on a claimed issue MUST run a heartbeat at least
+   once every 10 minutes. If a claimed issue's last heartbeat is older
+   than **2 hours**, the task is considered abandoned (agent crashed,
+   session died, or context was lost) — another agent may forcibly
+   reclaim it with `pi_claim.py <NN> reclaim`, which resets the
+   heartbeat and posts an audit comment on the issue naming the old
+   owner and the reclaim reason.
+   - Run heartbeats at natural pause points (after a test run, after a
+     commit, before/after a review round). Set a `ScheduleWakeup` or
+     `CronCreate` reminder if the work runs for a stretch without
+     natural pauses.
+   - Anti-pattern: fire-and-forget heartbeats every 10 min with no work
+     between them. If you're not making progress, don't fake it — post
+     a comment on the issue explaining why you're blocked, then release
+     with `pi_claim.py <NN> release` (moves back to `Todo`).
+4. Branch names embed the issue number: `feat/topic-gh-<NN>`,
    `fix/topic-gh-<NN>`, `docs/topic-gh-<NN>`.
-4. Every commit body cites its issue: `Refs #NN` (or `Closes #NN` on the
+5. Every commit body cites its issue: `Refs #NN` (or `Closes #NN` on the
    final commit / PR body for auto-close on merge).
-5. PR title cites the issue: `<type>(<scope>): <what> (#NN)`.
+6. PR title cites the issue: `<type>(<scope>): <what> (#NN)`.
+7. When the PR merges, the auto-close workflow closes the issue AND the
+   Project #4 Status auto-transitions to `Done` (via the "closes an
+   issue" workflow rule). No manual Status update needed on completion —
+   just at claim time.
+
+**Stale-claim reclaim protocol** (when picking up work from a
+crashed/idle agent):
+
+```bash
+# Check every In Progress item's last heartbeat:
+python scripts/pi_claim.py --list-stale        # prints issues with heartbeat > 2h
+
+# Reclaim a specific one (posts an audit comment on the issue):
+python scripts/pi_claim.py <NN> reclaim
+```
+
+The reclaim comment names the previous owner (from `--add-assignee`),
+the last-heartbeat timestamp, and the reclaiming agent. This is the
+audit trail — never quietly steal a claim; always leave the comment.
 
 **Cross-session memory:** durable knowledge lives in `docs/MEMORIES.md`
 (a plain checked-in markdown file). Append new entries; do NOT create
@@ -85,6 +136,88 @@ scratch `MEMORY.md` files in random locations.
 **Legacy references:** any `bd-XX` identifier in old commit history, old
 comments, or old docs is historical only — treat it as a permanent
 identifier of past work, but never file new `bd-XX` items.
+
+## General agent development rules
+
+These rules apply to **any** agent doing development work in this
+repository, regardless of program (portfolio-intel, techtrade, upstream
+sync, docs, ops, etc.). The heartbeat rules above describe the
+mechanism for the Portfolio Intelligence Engine specifically; the
+principles below generalize.
+
+### 1. Heartbeat every ≤10 minutes on any claimed task
+
+If you have taken ownership of a task (via `pi_claim.py in-progress`,
+via an `--add-assignee`, or by simply working on a branch named after
+an issue), you MUST leave a visible signal at least every 10 minutes
+that you are still alive:
+
+- Portfolio Intelligence Engine tasks: `python scripts/pi_claim.py <NN> heartbeat`
+- Other programs (no equivalent tool): post a lightweight comment on
+  the issue every ≤10 min with the marker
+  `<!-- pi-claim: owner=<login> hb=<ISO8601Z> action=heartbeat -->`
+  so the same reclaim logic can be added later without breaking
+  history.
+
+A heartbeat is not a status update — it's an "I'm still here" signal.
+Post it after a natural pause (finished a test run, finished a commit,
+finished a review round). Set a `ScheduleWakeup` or `CronCreate`
+reminder if the work runs long without natural pauses.
+
+### 2. 2-hour staleness = abandoned = reclaimable
+
+Any claimed task with no heartbeat in the last **2 hours** is
+considered abandoned (agent crashed, session died, context was lost,
+machine went to sleep, etc.). Any other agent may forcibly reclaim it
+by:
+
+- Running `pi_claim.py <NN> reclaim` for Portfolio Intelligence Engine
+- For other programs: post a `reclaim` marker comment naming the
+  previous owner, then take the branch/PR over
+
+The reclaim MUST leave an audit comment on the issue naming the old
+owner and reason. Never silently steal a claim.
+
+### 3. Faked heartbeats are worse than missed ones
+
+If you can't make progress, do NOT keep pinging heartbeats to hide
+that fact. Instead:
+
+- Post a comment explaining what's blocked
+- Release the claim: `pi_claim.py <NN> release` (moves back to Todo)
+- File a follow-up issue if the blocker needs someone else's attention
+
+An empty heartbeat every 10 min for 2 hours reads exactly like real
+progress to every other agent — but wastes 2 hours before anyone else
+can pick it up.
+
+### 4. Check the board before claiming
+
+Before running `pi_claim.py <NN> in-progress`, always check:
+
+```bash
+python scripts/pi_claim.py --status <NN>       # is anyone on it?
+python scripts/pi_claim.py --list-stale        # any orphans to reclaim first?
+```
+
+If someone else has a fresh (<2h) claim, pick a different task or
+coordinate directly on the issue. If they have a stale (≥2h) claim,
+reclaim it with the audit comment.
+
+### 5. Session-start protocol for agents
+
+Every agent starting a new session should:
+
+1. `python scripts/pi_claim.py --list-stale` — see what's abandoned
+2. `gh issue list --assignee @me --state open` — see what you still
+   own (from a previous session that maybe crashed)
+3. For each thing you still own but aren't actively working on:
+   `pi_claim.py <NN> release` — free it up
+
+This 30-second protocol prevents the "40 open claims none of which are
+active" state that stalls parallel autopilot.
+
+---
 
 ## Sensitive data — brokerage exports & credentials
 
