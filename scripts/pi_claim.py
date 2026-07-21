@@ -75,19 +75,66 @@ def gh_json(*args: str) -> object:
 
 
 def whoami() -> str:
-    """Return the authenticated GH login."""
-    try:
-        return json.loads(gh("api", "user"))["login"]
-    except Exception:
-        return "unknown-agent"
+    """Return the authenticated GH login. Hard-fails on auth error.
+
+    Returning a shared 'unknown-agent' sentinel on auth error would let
+    two different crashing agents both post as 'unknown-agent' and blur
+    each other's claims. Better to abort so the caller sees a clear
+    error and fixes their gh auth.
+    """
+    return json.loads(gh("api", "user"))["login"]
 
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def parse_iso(s: str) -> datetime:
-    return datetime.strptime(s.rstrip("Z"), "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+def parse_iso(s: str) -> datetime | None:
+    """Parse an ISO8601Z timestamp; return None on malformed input.
+
+    Never raises. A malformed hb marker (planted by a hostile comment
+    author, or corrupted by a client) MUST not abort the whole scan.
+    Callers treat None as 'unparseable marker, skip'.
+    """
+    try:
+        return datetime.strptime(s.rstrip("Z"), "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+# Comments from these association buckets are the ONLY ones trusted to
+# carry claim/heartbeat markers. Anyone with issue-comment permission
+# (i.e. FIRST_TIME_CONTRIBUTOR, NONE, MANNEQUIN, etc.) can plant a
+# marker that impersonates any owner and would otherwise steal or block
+# a claim. Restrict to actual repo collaborators.
+_TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+
+
+def _hb_marker_from_comment(comment: dict) -> dict | None:
+    """Extract a claim marker from a comment IF the author is trusted.
+
+    Returns None when either (a) the comment carries no marker, or
+    (b) the marker exists but the comment author isn't a trusted
+    collaborator. This is the anti-impersonation guard: without it,
+    any account that can post a repo issue comment can spoof `owner=`
+    and hijack claim state.
+    """
+    body = comment.get("body") or ""
+    m = HB_MARKER_RE.search(body)
+    if not m:
+        return None
+    assoc = comment.get("author_association")
+    if assoc not in _TRUSTED_ASSOCIATIONS:
+        # Silently ignore untrusted markers; they don't count for
+        # anything. (Do not warn — a hostile comment could otherwise
+        # spam the operator via warning noise.)
+        return None
+    d = m.groupdict()
+    # Also validate the timestamp is parseable — a malformed hb=... in
+    # an otherwise trusted comment shouldn't abort the scan.
+    if parse_iso(d.get("hb", "")) is None:
+        return None
+    return d
 
 
 # ---------------------------------------------------------------------------
@@ -136,42 +183,60 @@ def set_status(issue: str, status: str) -> None:
 
 
 def latest_heartbeat(issue: str) -> tuple[dict | None, str | None]:
-    """Return (parsed hb dict, comment id) for the most recent hb comment.
+    """Return (parsed hb dict, comment id) for the most recent TRUSTED hb comment.
 
-    A hb dict has keys: owner, hb (datetime str, ISO), action.
+    A hb dict has keys: owner, hb (ISO8601Z str), action.
+
+    Only comments from OWNER/MEMBER/COLLABORATOR authors are trusted
+    (see `_hb_marker_from_comment`). Untrusted or malformed markers
+    are silently skipped, so a hostile impersonation attempt returns
+    the same result as no marker at all.
     """
-    # Fetch comments in reverse-chron
     data = gh_json(
         "api",
         f"/repos/{REPO}/issues/{issue}/comments?per_page=100",
     )
-    latest_hb: dict | None = None
-    latest_id: str | None = None
     for c in reversed(data):
-        body = c.get("body") or ""
-        m = HB_MARKER_RE.search(body)
-        if m:
-            latest_hb = m.groupdict()
-            latest_id = str(c["id"])
-            break
-    return latest_hb, latest_id
+        hb = _hb_marker_from_comment(c)
+        if hb is not None:
+            return hb, str(c["id"])
+    return None, None
+
+
+def _sanitize_note(note: str | None) -> str:
+    """Strip markdown/HTML sequences that could inject/end a claim marker.
+
+    Notes end up embedded in the rendered portion of a claim comment
+    (below the HTML-comment marker). Left raw, a hostile note like
+    `--> <!-- pi-claim: owner=attacker hb=... -->` could break out of
+    an HTML comment on a future edit and plant a spoof marker.
+    Belt-and-suspenders on top of the trusted-author filter.
+    """
+    if not note:
+        return ""
+    # Reject any marker-shaped content.
+    for bad in ("-->", "<!--", "pi-claim:"):
+        note = note.replace(bad, "[stripped]")
+    # Collapse whitespace and cap length so a long note doesn't hide
+    # the marker in comment previews.
+    note = " ".join(note.split())[:280]
+    return note
 
 
 def post_heartbeat_comment(issue: str, action: str, note: str | None = None) -> None:
     """Post a hb comment. `action` in {claim, heartbeat, release, reclaim, done}."""
     owner = whoami()
+    note = _sanitize_note(note)
     body = f"<!-- pi-claim: owner={owner} hb={now_iso()} action={action} -->\n"
     if action == "claim":
         body += f"🟢 **Claimed** by `{owner}` at {now_iso()}. Will heartbeat every ≤{HEARTBEAT_INTERVAL_MIN} min."
     elif action == "heartbeat":
         # Silent heartbeat — no rendered content. Marker only.
-        # This keeps the timeline uncluttered; the rendered comment is empty.
         body += ""
     elif action == "release":
         reason = f" ({note})" if note else ""
         body += f"🟡 **Released** by `{owner}` at {now_iso()}.{reason} Back to Todo."
     elif action == "reclaim":
-        # Named in caller
         body += f"🔄 **Reclaimed** by `{owner}` at {now_iso()}.{f' Reason: {note}' if note else ''}"
     elif action == "done":
         body += f"✅ **Marked done** by `{owner}` at {now_iso()}."
@@ -190,12 +255,23 @@ def post_heartbeat_comment(issue: str, action: str, note: str | None = None) -> 
 # ---------------------------------------------------------------------------
 
 
+def _age(hb: dict) -> timedelta:
+    """Compute age of a hb marker. Guaranteed non-None thanks to the
+    filter in `_hb_marker_from_comment`, but we defend anyway."""
+    ts = parse_iso(hb.get("hb", ""))
+    if ts is None:
+        # Should be unreachable — the marker filter already validated.
+        # Treat as infinitely-stale so a bad marker doesn't hold a claim.
+        return timedelta(days=365)
+    return datetime.now(timezone.utc) - ts
+
+
 def cmd_status(issue: str) -> int:
     hb, _ = latest_heartbeat(issue)
     if not hb:
         print(f"#{issue}: no heartbeat comment yet")
         return 0
-    age = datetime.now(timezone.utc) - parse_iso(hb["hb"])
+    age = _age(hb)
     stale = age > timedelta(hours=STALE_HOURS)
     print(
         f"#{issue}: owner={hb['owner']}  last={hb['hb']}  "
@@ -237,7 +313,7 @@ def cmd_list_stale() -> int:
             print(f"  #{num:>4}  NO-HEARTBEAT  {title}")
             printed += 1
             continue
-        age = now - parse_iso(hb["hb"])
+        age = _age(hb)
         if age > timedelta(hours=STALE_HOURS):
             print(
                 f"  #{num:>4}  owner={hb['owner']:<20}  "
@@ -261,7 +337,7 @@ def cmd_transition(issue: str, action: str, note: str | None = None) -> int:
         hb, _ = latest_heartbeat(issue)
         me = whoami()
         if hb and hb["owner"] != me and hb["action"] in ("claim", "heartbeat", "reclaim"):
-            age = datetime.now(timezone.utc) - parse_iso(hb["hb"])
+            age = _age(hb)
             if age < timedelta(hours=STALE_HOURS):
                 print(
                     f"WARNING: #{issue} is claimed by {hb['owner']} "
@@ -280,7 +356,7 @@ def cmd_transition(issue: str, action: str, note: str | None = None) -> int:
     elif action == "reclaim":
         hb, _ = latest_heartbeat(issue)
         if hb:
-            age = datetime.now(timezone.utc) - parse_iso(hb["hb"])
+            age = _age(hb)
             if age < timedelta(hours=STALE_HOURS):
                 print(
                     f"REFUSED: #{issue} last heartbeat only "
