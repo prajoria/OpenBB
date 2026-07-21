@@ -220,5 +220,5 @@ def _wrap_root_addHandler_with_scrub() -> None:
         if not any(isinstance(f, ApikeyScrubFilter) for f in handler.filters):
             handler.addFilter(ApikeyScrubFilter())
 
-    root.addHandler = wrapped  # type: ignore[method-assign]
+    root.addHandler = wrapped  # type: ignore[method-assign,assignment]
     root._apikey_scrub_wrapped = True  # type: ignore[attr-defined]
