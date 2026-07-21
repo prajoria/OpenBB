@@ -379,3 +379,134 @@ def test_fmp_cached_financial_ratios_fetcher(credentials=test_credentials):
     fetcher = cached_fetcher_class()
     result = fetcher.test(params, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# #955 drain batch 1 — 15 single-symbol endpoints
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_cached_analyst_estimates_fetcher(credentials=test_credentials):
+    """Test FMP cached analyst estimates fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["AnalystEstimates"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_balance_sheet_growth_fetcher(credentials=test_credentials):
+    """Test FMP cached balance sheet growth fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["BalanceSheetGrowth"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL", "limit": 1}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP cached cash flow statement fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["CashFlowStatement"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL", "limit": 1}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_cash_flow_growth_fetcher(credentials=test_credentials):
+    """Test FMP cached cash flow statement growth fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["CashFlowStatementGrowth"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL", "limit": 1}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_income_statement_growth_fetcher(credentials=test_credentials):
+    """Test FMP cached income statement growth fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["IncomeStatementGrowth"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL", "limit": 1}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_key_metrics_fetcher(credentials=test_credentials):
+    """Test FMP cached key metrics fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["KeyMetrics"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL", "limit": 1}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_key_executives_fetcher(credentials=test_credentials):
+    """Test FMP cached key executives fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["KeyExecutives"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_executive_compensation_fetcher(credentials=test_credentials):
+    """Test FMP cached executive compensation fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["ExecutiveCompensation"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_dividends_fetcher(credentials=test_credentials):
+    """Test FMP cached historical dividends fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["HistoricalDividends"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_splits_fetcher(credentials=test_credentials):
+    """Test FMP cached historical splits fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["HistoricalSplits"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_market_cap_fetcher(credentials=test_credentials):
+    """Test FMP cached historical market cap fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["HistoricalMarketCap"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_eps_fetcher(credentials=test_credentials):
+    """Test FMP cached historical EPS fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["HistoricalEps"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_price_target_fetcher(credentials=test_credentials):
+    """Test FMP cached price target fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["PriceTarget"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_share_statistics_fetcher(credentials=test_credentials):
+    """Test FMP cached share statistics fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["ShareStatistics"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None

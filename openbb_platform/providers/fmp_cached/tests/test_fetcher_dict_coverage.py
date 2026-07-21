@@ -34,28 +34,20 @@ FIXTURES_DIR = Path(__file__).parent / "record" / "http" / "test_fmp_cached_fetc
 # Every entry MUST have a follow-up issue cited; empty follow-up = merge
 # blocker (the coverage-gate is meant to *surface* debt, not hide it).
 _KNOWN_UNCOVERED: dict[str, str] = {
-    # First-cut ships 10 cassettes covering the portfolio_intel critical
-    # path (balance_sheet / equity_historical / equity_quote /
-    # income_statement / equity_profile / etf_holdings / etf_info /
-    # etf_sectors / etf_countries / financial_ratios).
-    #
-    # The other 65 endpoints are tracked in follow-up #955 for phased
-    # draining. Each has "drain to zero via #955" as its citation. When
-    # a cassette lands for one of these, remove the entry — the
+    # First-cut (#508) shipped 10 cassettes; batch 1 (#955) added 14 more.
+    # 51 endpoints remaining — tracked in #955 for phased draining.
+    # Each has "drain to zero via #955" as its citation. When a cassette
+    # lands for one of these, remove the entry — the
     # test_kicked_out_of_allowlist_when_cassette_lands test will fail
     # loudly if you forget.
     "AftermarketQuote": "drain to zero via #955",
     "AftermarketTrade": "drain to zero via #955",
-    "AnalystEstimates": "drain to zero via #955",
     "AvailableIndices": "drain to zero via #955",
-    "BalanceSheetGrowth": "drain to zero via #955",
     "CalendarDividend": "drain to zero via #955",
     "CalendarEarnings": "drain to zero via #955",
     "CalendarEvents": "drain to zero via #955",
     "CalendarIpo": "drain to zero via #955",
     "CalendarSplits": "drain to zero via #955",
-    "CashFlowStatement": "drain to zero via #955",
-    "CashFlowStatementGrowth": "drain to zero via #955",
     "CompanyFilings": "drain to zero via #955",
     "CompanyNews": "drain to zero via #955",
     "CryptoHistorical": "drain to zero via #955",
@@ -80,31 +72,25 @@ _KNOWN_UNCOVERED: dict[str, str] = {
     "EtfPricePerformance": "drain to zero via #955",
     "EtfSearch": "drain to zero via #955",
     "ExchangeMarketHours": "drain to zero via #955",
-    "ExecutiveCompensation": "drain to zero via #955",
     "ForwardEbitdaEstimates": "drain to zero via #955",
     "ForwardEpsEstimates": "drain to zero via #955",
     "GovernmentTrades": "drain to zero via #955",
-    "HistoricalDividends": "drain to zero via #955",
     "HistoricalEmployees": "drain to zero via #955",
-    "HistoricalEps": "drain to zero via #955",
-    "HistoricalMarketCap": "drain to zero via #955",
-    "HistoricalSplits": "drain to zero via #955",
-    "IncomeStatementGrowth": "drain to zero via #955",
     "IndexConstituents": "drain to zero via #955",
     "IndexHistorical": "drain to zero via #955",
     "InsiderTrading": "drain to zero via #955",
     "InstitutionalOwnership": "drain to zero via #955",
-    "KeyExecutives": "drain to zero via #955",
-    "KeyMetrics": "drain to zero via #955",
     "MarketSnapshots": "drain to zero via #955",
     "NportDisclosure": "drain to zero via #955",
-    "PricePerformance": "drain to zero via #955",
-    "PriceTarget": "drain to zero via #955",
+    # PricePerformance: fetcher chunks HTTP calls (multi-symbol batching)
+    # in a way pytest-recorder can't cleanly capture — batch 1 recording
+    # SKIPPED. Needs a bespoke cassette approach OR the batch shim needs
+    # reshaping to single-request. Follow-up in #955.
+    "PricePerformance": "drain to zero via #955 (chunk-batching not captured by pytest-recorder — needs special handling)",
     "PriceTargetConsensus": "drain to zero via #955",
     "RevenueBusinessLine": "drain to zero via #955",
     "RevenueGeographic": "drain to zero via #955",
     "RiskPremium": "drain to zero via #955",
-    "ShareStatistics": "drain to zero via #955",
     "TechnicalIndicatorIntraday": "drain to zero via #955",
     "TreasuryRates": "drain to zero via #955",
     "WorldNews": "drain to zero via #955",
