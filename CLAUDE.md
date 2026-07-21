@@ -117,7 +117,7 @@ cite `bd-XX` identifiers in new work.
    twice (PRs #958 and #969) with `Closes #NN. Refs #MM.` inline —
    both had to be reopened.
 
-   ```
+   ```text
    ✅  Closes #NN.
        Refs #MM (parent tracker).
 
