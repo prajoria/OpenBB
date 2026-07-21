@@ -1,0 +1,63 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/income-statement-growth?apikey=MOCK_API_KEY&limit=1&period=annual&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA41UTW/TQBS891dEOZNovz+4uU2LKkFbNUGoQhyMvUkMzm60XpcWxH/nrR3TbBpo
+        D5Fiv5k3s/Pe+vPJaPQLfqPRuHncfHX1+O1onGU378dv+rdlHkx8RxDhE6QnRA6VZdUUeX1ncj/U
+        h8rW+MqV8e3F3fDOm63zwZRnrffGFo+x+nE+G8or736E9a25N7aNemiKBCOcYywVUZRIlgDPXBOu
+        lwmcI0a05FxRqSiVRCSEd941zY13yyr0cIUoR0JohhgjgtN/oW/zULmegjkmVEosNeZKaUQPvDcQ
+        RbHObDkDX7XbbowN5w9bYxvTdB0wwlQiSQXYoxQCS0WNNT6vgZ+Vm8pWTfCgfW/2WpCpREhxhanS
+        GMykZ5ybuq7sChp8yP13E+D/HneCE/B1WBu/7y6twgjzgwYxNMyRFEwqIRnkkMrHmYB2yuASaUUE
+        w0RgxpROKZc2GG+acGkLtzHPXAzlXctn9ZnZelNUcUI2xraBDat+do+9OiEYHBCImmLOCE4DPz+9
+        XMyyHikRVUwwCnNlhGF2PI0nn8DQCmMkKIPzMaH1gfMIPDVL580if9gxmOKaaCbiVhNyhADQp7NO
+        0JTCklINyUkptJDpwl2ZvdymWDPNsZSxvaSUHxz1Zt6hCOHRAwyPcsWIeoaaVXULt3QHFhqWFXCQ
+        IhGp+idTrdaAzO4hm5WZr5vrNvSuYbGlgO3QjGEE4RD2MhN0B7LACmlMKWPQhqbcOLKXw7xy9mBk
+        5w9F3ZbdY79S3WXCGm6h4hxhuFMHX5gu3f9u58KFvO6u0aDRLz4w41Fe0T6yLrzbnDkLVluwt7Pt
+        bPOKoXbaWfmtbUL81DQLl6zEcb2ZKdvirwJAfp98+QP4rtOmBQYAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:03:48 GMT
+      Etag:
+      - W/"605-O9bhlAKIyiVmLj1TWd9RueZ6JrM"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

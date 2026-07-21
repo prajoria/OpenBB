@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/shares-float?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA02PPwuDMBDFdz9FyFyNSTRGN5dOHQodS4dUUxXUSBKVUvrdG/9BDw6O937cvbt7
+        AHxcAwDNu3uqFmYA5vn1Ak+bWgorF42EhPlh4mMOMM1IlEXxgby0lOdWCeu4NA04DdfClOEEH8zi
+        32qhpXEUjhgjlCdRGu++Gq2xoi+bvvqneEJj5nbtlFGjLtY4tbWDyRCa5zkwsggqNaFcF3UzSYNk
+        WQmNXHKBKAlxStGSZxsJ27IhIYbWX75yBg9q20F34+s9fopkULESAQAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:03:51 GMT
+      Etag:
+      - W/"112-kVit1MgZizngimO53bvvzx2akig"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

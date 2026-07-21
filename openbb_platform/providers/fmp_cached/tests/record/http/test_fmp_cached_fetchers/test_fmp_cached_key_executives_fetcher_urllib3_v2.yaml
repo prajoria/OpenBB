@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/key-executives?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA7XVS2/aQBAH8Hs+xYhDe4kiTCBAbzxa2qRt3LiPQ9XDdj3GI+xdNF5DrarfvWMS
+        N+Wp0JoDEuwD5sd/dv31DOCnvAAajlyCjRfQCNCQZfhMGsFnzChE48BG8MVyEi7lI7xTPENHZto4
+        v99sVLraO2GcwrXNlqRm1dxcFTJl8iR5GNA5Mxpd+KuJxqdgXC2dogmRy8FUSTEPowUqHlo269+y
+        qjcgo3F9XGlHi3LMcY4y9Ot8h/EQbmTTNDeklSNrsk3hDVMmcnidT3N08CFXxWOl/0SN8MTYMTFq
+        J5EK841ZYFa+v8NkNzDIY5WRIRjFyoSsUpsn9D/Av1afALe7W59J9YQRvCKjjCaVwG0UyRLeihMX
+        yoCvGGfxOrLdvGx73fbTnft61ut3W6eUTtAgi3Bkc5Nhsim8RmMoQobJBbzHZeZQhevSTrPV8nqt
+        I6R7W1aszTqsPstGmotqoLW4yrtmX4RDNCA/L6Vl667j2nR/fD2vDlIVn18ew4ldIJu0DHAQRYo4
+        kyAD1IxOcbHVpMrFKP8IwtsLGIQq3YCWAbbrCvCqXYf2/vi9/IE6L1dX2Ymyuo02kR8ptS4uYHwh
+        nWw3nh7eVbfT73i9I4j7gTXHWd01t3M5hocaNVDfKYYbuVa34vP6zU4ttm6dtq2H5J20JyUi9tHO
+        H0uogGMkDlnCfj5kwi3lZbf3p76nKA816dHOs2+/AQPYjqrsCAAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:03:49 GMT
+      Etag:
+      - W/"8ec-J8ElnTyCJhdpCSlKHaVKJdE38/Q"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

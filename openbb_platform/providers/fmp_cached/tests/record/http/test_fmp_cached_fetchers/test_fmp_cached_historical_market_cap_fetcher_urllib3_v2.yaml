@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/historical-market-capitalization?apikey=MOCK_API_KEY&limit=5000&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA52YO2tVURCFe3/FJbWBeT/sxNbCXiwiplJR1EbE/+46BrvZhUMSAvfAx2bO2mut
+        uW+f3W6/8He73X3/+fn9l093L253L1++eX33/OnTDw8/Hq/PhCTuKe+F/j35/PDt4+OPVw9f8diK
+        TFO1OYTw+Pfz/+VyjtymdncS1y03Dlyx1iqKWnJ9ngNnBrE50ZJrIzeUiyOibXtenbmR5dlSvuXO
+        eggFUb0b01hxqWeuc4mKeW+5NXOZuPFjtNQZzfr1JFIOv6S24876xWTNlarXXJm5RhxVHWpLLo9c
+        VXJjDqsVN+511pk47oRq0O5exL3MOmPDiDOqd74D7vzeOC0oHWPW3nFn3yHLANQzesmdfUeZcWZR
+        zGM5h9l3VFrDlNJWPgnurF+NFiV12OWOy7M/aGkbU/KaO/sDTho4cwsv53DIt8vH1MVtq99DvuGm
+        uTNJ+8p/wZ3fm5SksuJ3qTM++I5VX4eVNffgO3AGZ3bb3otDvkkad+PS9VIPh3yD0Aoyg0Es9UCz
+        HlyYWyiJt9zZdzzLOBK1Zzvf2Xc8YO2paFLLe3zITVzi4oJ8Y/veZv06IdpQIWjXz/yUb94UEoF/
+        W+6sM4SmGFJedj4J7qlHwSEQ9ZjEknvoUepIY4ihVzrzUw65CToU2sOu/4I768EqArMtTGPJnf3M
+        rg3DnLFr7bg860wbK9bffracwzGPr0aCHQ72s+POfgbTcXRqrBlLPRz2Ny20ahV4Ty7Pe+hRjfOK
+        4MTb+R56lEZywyZ3/cyPeYz6gO5nJsv5HvIN4m3LIt3et8P+htHizmVdIbfjzr4jch0Xo9j65CGP
+        gcOdQHau5zvrl7ADxHWVtz55yDdG8UWlxOaymq8d9kJFh0rXa8tY6dcOuamdzkrCufv+wQ65CZsU
+        1bLonT/YITeRQJHYA/768I476gG4xLUQvL0td/YzEkGvDkEPXnJnPyMulygE0fa9jfrVRmI6F7a3
+        J+6zd38Ae4GvL1IVAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:03:50 GMT
+      Etag:
+      - W/"1552-mOzWTOP1gqFHjmEg/Hop4TMTMd8"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
