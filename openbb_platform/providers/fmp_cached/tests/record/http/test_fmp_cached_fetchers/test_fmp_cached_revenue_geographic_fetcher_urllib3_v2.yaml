@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/revenue-geographic-segmentation?apikey=MOCK_API_KEY&period=annual&structure=flat&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA63YS2sbMRAA4Ht+xeJzApqXHr2Z9AGl0NDQQyg9bJ1NY0hss3YOoeS/V3bs1Ei1
+        x2IVSCAr7Xr5NBrN+MdZ0/yJv00zWj4//po/jN41o/H46svo/PXq3XQ5aR9uuraPI2hQttcXXT+d
+        365nf7zZze27xbxfdbeXT33fzSbP69Hv1+93w7ftqltfWj/lwoQLdHsjbRx5fZH4//gxPn3SLpvr
+        7vdjN1vFMXCehMzm53w378NTP190+7MADGEy61PfxU/um8v76azdm2yZnEvmfm4X7WxvDnpn0k/9
+        1i1XzfyuGS+nbXPVTqZ308neLUQ22NdbNne8xL8v56XOXMWZN86+xNk6w6I6GyD0pzrbIOmaZM5i
+        sjmas7HiBztTFWdaO5MpckbZRskR58AY+ERmhyJBY2aUNOQVZgwWZDAzVmHGTThzEXN4i5IjzAKQ
+        TjrIzNs4PRrNIcssKjO54cxQhRk2zFLCLBS3o8bsA5mU5WDS8GTTB+bJmX1h0kBLMjw5myrMZsNs
+        S5iRRVRm6+02Z+jMHE83rzEDZ7tDYYYggYYyQ6jBDKH8DIxZA9K0mzMb9CnLQWayTmeWbAtpzM7t
+        XmEAs6/C7DfMoYgZTVBLOotvCVdlFgisVhrgqLCiA8e7vDWA2VVhdsWVRtjl0WPKwoH8icrMzqa7
+        I1WOkVmsHFcvDFa2VZRtcaHhrQU1ljnklfBBZc9Bi+WYp7IqXFMmKzxYuUoXCFJ8AMYgzUIvj2VD
+        dGqZId5B2u1kyrFkLk3MYiqcf1V6QODiXtsKZk10HssmYNpuHFLG4Fkr5oBDaTEXe31Oo+Hr6n79
+        AvOn2aqfdsvRpnyxOHgtqvSJQMW1iEVHKXO2FhTLgDT5HFwLYdC+9QB6Izt5LWIHBfpaxB7OD14L
+        rLIWWFywiBNQ9wVZwnQtMl8jLsXSvu0gdHqsg/cVfKt0kQDFZyh5ypJx5ovOqaW0cHYAaH1hbNnT
+        pf0PLwMOLwRNFV5T3KQjxxSr8YK3atlBIdvqCq/HrG3NdYPbvd4/3LOffwGkF2IvohYAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:35:28 GMT
+      Etag:
+      - W/"16a2-ehhgskHOVC/+QdwtaDWU26ueJK0"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

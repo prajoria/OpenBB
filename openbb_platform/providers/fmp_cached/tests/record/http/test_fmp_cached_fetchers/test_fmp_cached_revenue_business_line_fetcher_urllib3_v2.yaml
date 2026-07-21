@@ -1,0 +1,66 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/revenue-product-segmentation?apikey=MOCK_API_KEY&period=annual&structure=flat&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA62YXWvbMBSG7/srTK5T0NG3dhdWRi82FtaOMcYuVFulZmkcbGejjP73ybLdZFZk
+        J1gJCdiyTnQevTof+XGVJH/tJ0kW1cvzQ7FZvEsWq9X642LZ3n3Mq1Rvvhtd2hGMMOvu70yZF1nz
+        9Ifv/bOl2RVlbbL3+7I02/SlGf16d9MPZ7o2za3GyjVS11gcjWg70i7EXn/Sqb0kRCCJ3GvZj9yZ
+        8neeNmYAKWDD4W92nfphY6plcls8m0Rvs2SVpqaqijI3VWOUcckHs/K1bjzBEmHiDT0VW+NcV6yf
+        6AZf7ffr8lJ8NAo+6vDJcXxYKUmD+BQHri6nJxBiAXqcq+HPHdEDkGQ2PRKFHmnoETRFjzARpCcZ
+        RuhyenZDQvR6OqfpIRaBHo5CDzvt0XF6FIEI0xMS8OXao4ApBOgp+w7TY1Sq2fQgCj1w9NhE4GOg
+        hmI40OOS4qGKpukRSfhwRzp6BCQP0gMFSszXHopCDzl6fOLkWm+G7hzoMSK4vJwe6gn52iMCB+Me
+        EGHFPpceqBj0QJ2VNZigQ08P9CjHangGp+lhSqUvsJYeYOmD7elRTCLQk1HoSUdPTdGjIzmXCP9c
+        dxxAyhOJtefAbW6dHcFAROEgzsqeTLKhpwcOTWUS4qCwd3iP9AAE5nPgUTjwc/Igtnk9lLNsSJFB
+        T9+C9WmAlFA5m0OUUh7YWTGZURHiQDD2E1PPgTHkJf2jHsCeivl6iFKTAz2npbGZQlxe+XCk/L6k
+        Td3orXA8Ac+GfC9a52vnohWm1wXd77fNIu6Kx/qPLk2ysgs5Yi0Rn10HQJQKHsh4Jpsmakv7QBNo
+        A4xEIaIKsLd93cYCPbERzkNKwduECdQcsflpD0dBjcfTXk8N03ARJBH1moGODeMwzHodTxsV5iOI
+        UrMDjEf6G1P9qoudO6iUDOXxuX4yZfK8r/I0Kc3GWs2SXVlk+7SunDCrdtvddAJDiGu78p21oDft
+        0625W11mjW4cqL5xPMyxfjn5N1JihHoFSae6Zf/bznLhLG9NnVS6nYsVG069L2q9SewW/f8giBPi
+        15mzO+U0RsT7G6eVzlnTqUBen96JS1A2P2ChKBJC423fF1PrvFmKEn30OSz56uc/N9zI9KUTAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:35:28 GMT
+      Etag:
+      - W/"13a5-2RdRjz0Jg7u6idiGNPOiPlrWRKk"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

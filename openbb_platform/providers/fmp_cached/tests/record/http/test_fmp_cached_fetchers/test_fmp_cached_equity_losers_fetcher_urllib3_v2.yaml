@@ -1,0 +1,85 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/biggest-losers?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        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
+        PwAKFoMiAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:35:26 GMT
+      Etag:
+      - W/"2283-qqrOW8W38vdNrEe14e8QR74sM4o"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
