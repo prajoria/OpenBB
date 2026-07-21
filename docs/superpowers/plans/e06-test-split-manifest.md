@@ -21,7 +21,7 @@ the `/pine/strategies/run_byo` BYO facade, STAY via the same import; the
 **Ground truth for all counts below:** the E2 filter-repo list at
 lines 148–171 is authoritative. Every other bucket in this document
 (header total, MOVE/STAY tables, Counts section, Surprises notes) is
-derived from it: `MOVE = |E2 list| = 24`; `STAY = |disk test_*.py| − MOVE = 85 − 24 = 61`.
+derived from it: `MOVE = |E2 list| = 24`; `STAY = |disk test_*.py| − MOVE = 86 − 24 = 62`.
 
 ## Decision rule (spec §6.E0.6)
 
@@ -155,10 +155,10 @@ here get updated — do not adjust ad-hoc.
 | Bucket | Count |
 |---|---:|
 | MOVE (pyne_compiler-side, per E2 list) | **24** |
-| STAY (openbb-fork-side integration) | **61** |
-| **Total unit test files (excludes `__init__.py`)** | **85** = 81 pre-existing + 1 new `test_telemetry_module_globals.py` + 1 new `test_fmp_provider_conformance.py` (E3.2 bd-3ch) + 1 new `test_byo_provider_conformance.py` (E3.3 bd-tzm) + 1 new `test_deprecation_shims.py` (E3.5 bd-ijq) + 1 new `test_executor_strategy_branch.py` (bd-liz) |
+| STAY (openbb-fork-side integration) | **62** (was 61 pre-#967; +1 for `test_canonical_bars.py` under fork-side `openbb_pine.testing`) |
+| **Total unit test files (excludes `__init__.py`)** | **86** = 81 pre-existing + 1 new `test_telemetry_module_globals.py` + 1 new `test_fmp_provider_conformance.py` (E3.2 bd-3ch) + 1 new `test_byo_provider_conformance.py` (E3.3 bd-tzm) + 1 new `test_deprecation_shims.py` (E3.5 bd-ijq) + 1 new `test_executor_strategy_branch.py` (bd-liz) + 1 new `test_canonical_bars.py` (#967 — hybrid-fixture-suite Session 1) |
 
-MOVE + STAY = 24 + 61 = 85. On disk: `ls .../tests/unit/*.py | wc -l` = 86, minus `__init__.py` = 85. ✅
+MOVE + STAY = 24 + 62 = 86. On disk: `ls .../tests/unit/*.py | wc -l` = 87, minus `__init__.py` = 86. ✅
 
 ---
 
