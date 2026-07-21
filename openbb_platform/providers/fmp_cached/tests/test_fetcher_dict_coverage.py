@@ -40,8 +40,6 @@ _KNOWN_UNCOVERED: dict[str, str] = {
     # lands for one of these, remove the entry — the
     # test_kicked_out_of_allowlist_when_cassette_lands test will fail
     # loudly if you forget.
-    "AftermarketQuote": "drain to zero via #955",
-    "AftermarketTrade": "drain to zero via #955",
     # Calendar endpoints (Dividend/Earnings/Splits/Ipo): Fetcher.test()
     # asserts query params round-trip as strings, but the pydantic model
     # coerces str→date. Assertion fails even when HTTP round-trips fine.
@@ -50,28 +48,23 @@ _KNOWN_UNCOVERED: dict[str, str] = {
     "CalendarEarnings": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "CalendarIpo": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "CalendarSplits": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "CryptoHistorical": "drain to zero via #955",
+    "CryptoHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "CryptoSearch": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "CurrencyHistorical": "drain to zero via #955",
+    "CurrencyHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "CurrencySnapshots": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "DiscoveryFilings": "drain to zero via #955",
     "EarningsCallTranscript": "drain to zero via #955 (FMP 402 — paid subscription tier)",
     "EconomicCalendar": "drain to zero via #955",
     "EquityActive": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "EquityIntradayHistorical": "drain to zero via #955",
+    "EquityIntradayHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "EquityOwnership": "drain to zero via #955 (FMP 402 — endpoint requires paid subscription tier)",
-    "EquityQuoteBatchShort": "drain to zero via #955",
     "EquityScreener": "drain to zero via #955",
     "EsgScore": "drain to zero via #955 (FMP 402 — endpoint requires paid subscription tier)",
-    "EtfEquityExposure": "drain to zero via #955",
-    "EtfHistorical": "drain to zero via #955",
+    "EtfEquityExposure": "drain to zero via #955 (FMP 402 — paid subscription tier)",
+    "EtfHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "EtfPricePerformance": "drain to zero via #955 (recording failed silently — cassette not produced; likely paid tier or 402)",
-    "ExchangeMarketHours": "drain to zero via #955",
-    "GovernmentTrades": "drain to zero via #955",
-    "IndexConstituents": "drain to zero via #955",
-    "IndexHistorical": "drain to zero via #955",
-    "InsiderTrading": "drain to zero via #955",
-    "InstitutionalOwnership": "drain to zero via #955",
+    "IndexConstituents": "drain to zero via #955 (Fetcher.test date-coercion or 402)",
+    "IndexHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
+    "InstitutionalOwnership": "drain to zero via #955 (FMP 402 — paid subscription tier)",
     "MarketSnapshots": "drain to zero via #955 (FMP 402 — paid subscription tier)",
     "NportDisclosure": "drain to zero via #955",
     # PricePerformance: fetcher chunks HTTP calls (multi-symbol batching)

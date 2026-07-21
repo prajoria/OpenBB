@@ -1,0 +1,90 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/all-exchange-market-hours?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        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
+        3/8F6BjrdElDAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:45:04 GMT
+      Etag:
+      - W/"4349-4SHUbPdjnWt5lZju/zctFm6waus"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

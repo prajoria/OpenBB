@@ -673,3 +673,71 @@ def test_fmp_cached_treasury_rates_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["TreasuryRates"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+# ---------------------------------------------------------------------------
+# #955 drain batch 4 — 15 more (aftermarket, insider, institutional, index)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_cached_aftermarket_quote_fetcher(credentials=test_credentials):
+    """Test FMP cached aftermarket quote fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["AftermarketQuote"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_aftermarket_trade_fetcher(credentials=test_credentials):
+    """Test FMP cached aftermarket trade fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["AftermarketTrade"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_equity_quote_batch_short_fetcher(credentials=test_credentials):
+    """Test FMP cached equity quote batch short fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["EquityQuoteBatchShort"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_insider_trading_fetcher(credentials=test_credentials):
+    """Test FMP cached insider trading fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["InsiderTrading"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL", "limit": 5}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_government_trades_fetcher(credentials=test_credentials):
+    """Test FMP cached government trades fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["GovernmentTrades"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_discovery_filings_fetcher(credentials=test_credentials):
+    """Test FMP cached discovery filings fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["DiscoveryFilings"]
+    fetcher = cls()
+    assert fetcher.test({"limit": 5}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_exchange_market_hours_fetcher(credentials=test_credentials):
+    """Test FMP cached exchange market hours fetcher (#955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+    cls = fmp_cached_provider.fetcher_dict["ExchangeMarketHours"]
+    fetcher = cls()
+    assert fetcher.test({"exchange": "NYSE"}, credentials) is None

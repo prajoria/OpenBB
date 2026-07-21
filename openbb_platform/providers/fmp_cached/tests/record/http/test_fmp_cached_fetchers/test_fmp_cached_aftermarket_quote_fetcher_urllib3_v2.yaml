@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/aftermarket-quote?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: "[\n  {\n    \"symbol\": \"AAPL\",\n    \"bidSize\": 22,\n    \"bidPrice\":
+        325.71,\n    \"askSize\": 20,\n    \"askPrice\": 326.75,\n    \"volume\":
+        53468008,\n    \"timestamp\": 1784592000000\n  }\n]"
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '174'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:44:59 GMT
+      Etag:
+      - W/"ae-1ClzszL89eBaRSgi2rvC3G6AwwQ"
+      Server:
+      - nginx
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
