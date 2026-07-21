@@ -1,0 +1,63 @@
+name: PI Desktop Frontend (lint + typecheck + vitest)
+
+# Fast frontend CI for portfolio-intel desktop widget code.
+# Runs on portfolio-targeted PRs that touch desktop/ paths — separate
+# from the existing per-OS desktop test workflows which only target
+# develop. Filed as #983.
+
+on:
+  pull_request:
+    branches:
+      - portfolio
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/pi-desktop-frontend.yml'
+  push:
+    branches:
+      - portfolio
+    paths:
+      - 'desktop/**'
+
+concurrency:
+  group: pi-desktop-frontend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pi-desktop-frontend:
+    name: PI Desktop Frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Regenerate route tree
+        # Router codegen writes routeTree.gen.ts; regen so tsc sees
+        # any newly-added routes. Not verified against the committed
+        # copy — the codegen output can reorder benignly across
+        # runs. Real staleness (a route file not picked up) will
+        # manifest as a type error in the Typecheck step below.
+        run: npx @tanstack/router-cli generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npx vitest run
