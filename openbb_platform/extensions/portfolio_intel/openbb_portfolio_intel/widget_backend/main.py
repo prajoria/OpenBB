@@ -33,6 +33,7 @@ Design notes:
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
@@ -52,11 +53,39 @@ _MANIFEST_DIR = Path(__file__).parent.resolve()
 _ALLOWED_ORIGINS = ["https://pro.openbb.co"]
 
 # Bearer token gate for /pi/* routes. Read at import time from
-# PI_WIDGET_BACKEND_TOKEN. When unset AND the process appears to bind
-# to a non-loopback address, we refuse to start (see _startup_guard
-# below). When bound to loopback only (dev), auth is optional but a
-# WARN is logged so users know they're running unauthenticated.
+# PI_WIDGET_BACKEND_TOKEN. Auth policy is set by
+# PI_WIDGET_BACKEND_AUTH_MODE:
+#
+#   "required" (default) — /pi/* routes require Authorization: Bearer <token>
+#                          from every client. Startup fails fast if no token is
+#                          configured.
+#   "loopback-dev"       — token is optional; unauthenticated requests are
+#                          served ONLY when the process was started with
+#                          PI_WIDGET_BACKEND_AUTH_MODE=loopback-dev explicitly.
+#                          The per-request client-host check is NOT the auth
+#                          decision — the operator's explicit env-var opt-in
+#                          is (a spoofable Host header cannot bypass auth).
+#
+# There is intentionally no automatic "we detected loopback so we'll
+# skip auth" path — that shape is the classic bind-address-vs-request-
+# origin confusion (Docker/proxy/X-Forwarded-For all break it). Auth
+# is either on for everyone or off because the operator said so.
 _AUTH_TOKEN = os.environ.get("PI_WIDGET_BACKEND_TOKEN", "").strip()
+_AUTH_MODE = os.environ.get("PI_WIDGET_BACKEND_AUTH_MODE", "required").strip().lower()
+
+_VALID_AUTH_MODES = {"required", "loopback-dev"}
+if _AUTH_MODE not in _VALID_AUTH_MODES:
+    raise RuntimeError(
+        f"PI_WIDGET_BACKEND_AUTH_MODE={_AUTH_MODE!r} is invalid; "
+        f"must be one of {sorted(_VALID_AUTH_MODES)}"
+    )
+
+if _AUTH_MODE == "required" and not _AUTH_TOKEN:
+    raise RuntimeError(
+        "PI_WIDGET_BACKEND_TOKEN is required in the default 'required' "
+        "auth mode. Either set the token, or explicitly opt into "
+        "PI_WIDGET_BACKEND_AUTH_MODE=loopback-dev (dev-only, insecure)."
+    )
 
 # Symbol validator — Workspace params echo through into markdown/JSON
 # response bodies, so we reject anything that isn't a plausible
@@ -68,55 +97,41 @@ _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
 
 
 def _require_auth(request: Request) -> None:
-    """Authenticate /pi/* calls via bearer token when a token is configured.
+    """Authenticate /pi/* calls via bearer token.
 
-    Skip if no token is set AND the request came from loopback (dev).
-    Enforce otherwise — any non-loopback request without a valid
-    ``Authorization: Bearer <token>`` header is rejected 401.
+    Policy is set by the ``PI_WIDGET_BACKEND_AUTH_MODE`` env var, read
+    at import time:
+
+    - ``required`` (default) — every request must present
+      ``Authorization: Bearer <token>`` matching ``_AUTH_TOKEN``.
+      Startup already fails fast if no token was configured, so this
+      branch only rejects wrong / missing headers.
+    - ``loopback-dev`` — no authentication required. The operator must
+      set this explicitly; there is no "we noticed a loopback client"
+      auto-bypass because request.client.host is unreliable behind
+      proxies and Docker networking.
+
+    Uses ``hmac.compare_digest`` for the token comparison so no timing
+    signal leaks the correct token even to an attacker with tight
+    timing measurements.
     """
-    client_host = (request.client.host if request.client else "") or ""
-    # "testclient" is what starlette's TestClient reports — treat as
-    # loopback so dev tests don't need a token dance. Real deployments
-    # will see 127.0.0.1 / ::1 / localhost.
-    is_loopback = client_host in ("127.0.0.1", "::1", "localhost", "testclient")
-
-    if not _AUTH_TOKEN:
-        if is_loopback:
-            return
-        raise HTTPException(
-            status_code=401,
-            detail=(
-                "PI_WIDGET_BACKEND_TOKEN not set and request originated from "
-                "a non-loopback address. Set PI_WIDGET_BACKEND_TOKEN in the "
-                "backend environment before exposing this service."
-            ),
-        )
+    if _AUTH_MODE == "loopback-dev":
+        # Operator explicitly opted out of auth. Do NOT check headers.
+        return
 
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="missing bearer token")
     supplied = header.split(" ", 1)[1].strip()
-    # Constant-time compare avoids leaking token length via timing.
-    if not _constant_time_eq(supplied, _AUTH_TOKEN):
+    if not hmac.compare_digest(supplied.encode("utf-8"), _AUTH_TOKEN.encode("utf-8")):
         raise HTTPException(status_code=401, detail="invalid bearer token")
 
 
-def _constant_time_eq(a: str, b: str) -> bool:
-    """Length-safe constant-time string compare."""
-    if len(a) != len(b):
-        return False
-    result = 0
-    for x, y in zip(a.encode(), b.encode()):
-        result |= x ^ y
-    return result == 0
-
-
-if not _AUTH_TOKEN:
+if _AUTH_MODE == "loopback-dev":
     logger.warning(
-        "PI_WIDGET_BACKEND_TOKEN is not set. /pi/* routes accept "
-        "unauthenticated requests from loopback only; requests from "
-        "any non-loopback client will be rejected 401. Set the env "
-        "var before exposing this backend to the network."
+        "PI_WIDGET_BACKEND_AUTH_MODE=loopback-dev — /pi/* routes are "
+        "UNAUTHENTICATED. This is for local dev only. NEVER expose this "
+        "backend off-host in this mode."
     )
 
 

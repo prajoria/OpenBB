@@ -59,15 +59,35 @@ Locked to `https://pro.openbb.co` on purpose. This backend is a Workspace data s
 
 ## Authentication
 
-`/pi/*` routes are gated by a bearer token when `PI_WIDGET_BACKEND_TOKEN` is set in the environment.
+`/pi/*` routes are gated by a bearer token. Policy is set at import time by two env vars:
 
-- **Unset + loopback client** → allowed (dev ergonomics).
-- **Unset + non-loopback client** → **401** (server refuses to serve unauthenticated requests once it's reachable off-box).
-- **Set** → every `/pi/*` request must include `Authorization: Bearer <token>`. Wrong or missing token → 401. Comparison is constant-time.
+| `PI_WIDGET_BACKEND_AUTH_MODE` | `PI_WIDGET_BACKEND_TOKEN` | Behavior |
+|---|---|---|
+| **`required`** (default) | set | Every `/pi/*` request needs `Authorization: Bearer <token>`. Compared constant-time via `hmac.compare_digest`. |
+| `required` | unset | **Startup fails fast** with a clear error. This is by design — running the default mode without a token is a config bug. |
+| `loopback-dev` | any | No auth. Operator explicitly opted out. Logs a WARN on startup. **Never bind off-host in this mode.** |
+| anything else | any | Startup fails with `invalid auth mode`. Typos are loud, not silent auth-disables. |
 
-Discovery endpoints (`/widgets.json`, `/apps.json`, `/`) are unauthenticated by design — Workspace fetches them anonymously on connect.
+The auth decision is made **only** from these env vars — never from `request.client.host`, `X-Forwarded-For`, or bind address. A proxy claiming loopback origin cannot bypass auth.
 
-**Deployment rule**: never bind this backend to `0.0.0.0` without setting `PI_WIDGET_BACKEND_TOKEN` first, and route Workspace through a proxy (Cloudflare Access, Tailscale, etc.) that adds the header. Local dev on `127.0.0.1` is the only mode where the unauthenticated path is expected.
+Discovery endpoints (`/widgets.json`, `/apps.json`, `/`) are unauthenticated by design — Workspace fetches them anonymously on connect. That's the contract, not an oversight.
+
+### Running locally
+
+```bash
+# Dev (no auth, loopback only):
+PI_WIDGET_BACKEND_AUTH_MODE=loopback-dev \
+  .venv_portfolio/Scripts/python.exe -m uvicorn \
+  openbb_portfolio_intel.widget_backend.main:app --port 6120
+
+# Production shape (auth required):
+export PI_WIDGET_BACKEND_TOKEN=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
+.venv_portfolio/Scripts/python.exe -m uvicorn \
+  openbb_portfolio_intel.widget_backend.main:app --port 6120
+# Configure Workspace's custom-backend to send Authorization: Bearer $PI_WIDGET_BACKEND_TOKEN
+```
+
+Reverse-proxy the backend behind Cloudflare Access / Tailscale / IAP if it's reachable off-host. The bearer token is a floor, not a moat.
 
 ## Input validation
 
