@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/etf/country-weightings?apikey=MOCK_API_KEY&symbol=SPY
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4XRsQrCQAwG4L1PcRy4laPXilVHnURQoTiJQ+iF9sBe5UwpKr67V+wo6ZApyUfC
+        f4mEeIcSQpZt58g/5VrIs7OERhQEhA8Z//o92qqmE/oSHUGFw+AqV1k6k2HgE/+Vdh5v4AxnaKVZ
+        Yjxmb11l2oaTEjVfcFIRCLi3Hnkk0yzSW3qhn/oqMJxypBo9v5/mHHDAQRiuYANKlGa/2aBvOgM8
+        kSw5YgsOJoUx4ej6BcqyWNRxAgAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 03:39:04 GMT
+      Etag:
+      - W/"271-pc2asFFbQpvZQJag1jmg/lc66TE"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

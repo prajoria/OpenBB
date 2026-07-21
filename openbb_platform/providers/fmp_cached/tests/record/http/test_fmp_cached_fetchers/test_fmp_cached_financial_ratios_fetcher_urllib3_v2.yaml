@@ -1,0 +1,143 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/ratios-ttm?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA5VWXU/kRhB8v1+BeD5ZPR89H3kDwkWRQIfCKlIU5cG7OywWxkPG3gUU5b+nvKyN
+        7TWXOyFeoMrTU11dPX9+Ojn5B78nJ6f16+Mylqc/nZyend1cnX5+++smxbq+SfGuaK7ztCmqxeIa
+        GMq0dUZqYsXOSeuVORDCcopU0gqywAnvnHJ6AFznEyizYJbsSHnrJR+g8SmkvCmqzVwhShqtlDfE
+        5KzxpivkKYUmf5lnzBa0ihXO2MZt/fXtvFjN3hxsFri08OS0kfJAr0LzA+hlbJr4eFVU4QdIKaxC
+        scuXZagX21TFXUhvDJdp1apgFGnjmESnQf46g9aZIC2cMdoYK4U6gItqF6omptcxWunMOZZOKm2h
+        G/lO4LviJazP6jo0Y4LPiKzXgi2z1rZ3Rn4MFZkUhpk9eQ206rGrbUoo5re2Cx2ULCm22nghBfsD
+        8O9tsXoYwyRJ3YrR9pio066OJa63eh1gKWNBXpKRTmthYKTu9Ly+H+Gk8U4oR0Jolsbad48Vq7CI
+        l3mq4M56wFE+U54N6hWOrenrnTB+SfG5uR/Vrwy6jm6SM9a/ix3Tc57WN/9DV5l16Ba3vXUK7rHj
+        c89jHKqlOROCpfeOMHOw3ORitznMM6yOMiNZOWGNhTGFnnz+SwrhAuJ9KePzsCqbCYyoFZKE19pM
+        TvnajfccVUN8/KBLjsjobljXYdks4t59wwLRKjjVCXJovtBO8phwCb80Yw9Yz/CesZrwfSTCCH+R
+        PxVNXo4IWmPK4APMp4R7uvEpY7VZhPT488dEIWBKLZ0lYZWiTry7osqrVZGXVwGTkW/CqKEaQivJ
+        mFgko6NOu+eYHvaS7c/pxmrYK6sy6ZHNEjzrlOgmIX5DboyPhscx5N4I1r39jjhTZyBVBRnymBAE
+        d0vtLjewxLcaTRloEt9ggU77/p5tH25D2sEpF/FIHqEymAqWtwIT0+rUh1kTUqibGQ51iXAfU9N2
+        7Kis+YMMacYZhBxEUNmPlJkjZwg59KLlolL0sg+affcuX55CtS6abZq9o8wMfGbRFHgG4dYpU+yK
+        NXg3ebE+q9ZwQniZoXO7TTyRgPEwtY6P6K9xO0xagqTGGSEI8c1Go/QJ5Y8ilOsOTKTk4EqhFR6D
+        XYff83IbDjnjNOOjjC2tO/kTzF5tw01It/d5OgAVAsZZbxg6Izb9YLn+Wq3i4wTuMqWkMgQPkGDn
+        p91vZ3HM4MwyitEay98oLXvDtJk/hmp0zbRx5ZAj5LlLhiUydH+3MdxmEoFLFj7EK8b0udDk1abA
+        Ej6fp3Gb2BZDCn2wjfsr1C3kPpbrkOq31Pq+4478OKb5jBVuLgwiVTllbX99uGcMRTRiPwpLiEes
+        Xu37vBqM9LQfFrOr281gMMWyYwzbd3m+6L7vsJ8NYbkyctfy+8uwbdol3od9KNF+S3tB6Hf/uDns
+        nLxIQ6t9tNLeAh3vrIfQYFZ6+2KXwUDEXupWTN01INzdhVVT7MIif8F09KII4z12GXYA3gN4acz7
+        /npbNsVT+W5rvOWQGoKkUwbyTIdwJCMuzPj/v5/++g9abqb+oAsAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 03:39:05 GMT
+      Etag:
+      - W/"ba0-Qa3Df63PA/QEXK9pQAc18CKGeNM"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/ratios?apikey=MOCK_API_KEY&limit=1&period=annual&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA51W204rNxR9P1+BeC4j3y99Aw5UlTg66JBWQlUfnIwTLIYx9UwCqOq/dznBk8kF
+        iVZRlGhmbW977bXX9h9fTk7+xvfk5LR7e5rG5vTnk9Pz89ub0582T2vX+/yMESbPiD1juryZh27m
+        mnvvUnlf3jz7FGKdn17fl2fJP8fU+/pymZJvZ2/57W93X8vrRYpdd5viPPTfXFqEFu9JJZQlkipB
+        iaaKCPkO9tMdFKfGcqUUlZwJLs0IVbsxTmisYbWwVjIpWFkuYr+uD+3iID+nVhNtrVZMWmqMKAdM
+        vnevR+BHNzKLLVZfxmX3fZMptodHZcpSSXBURg01rGRqff9Z6DT2fXy6Ca3/bETyMx9Wbtr4brJM
+        bVz5XEpZgSZqpWKMaKOlLYd2b/tQXlHFjNWMcUK1UFy/Y0O78m0f09sYbColmDGMMlCkC3QeXn19
+        3nW+H2FNxSWxQlKujdTKFLDbw9GKSiOAU4pzZbYSma1l1v/IbK8pQGWYxYeBApSoLPjXMsweRyhp
+        tCbcWqYoIaWAXWxWWbNbnOBYjRguLb6G0CGt6x62KEYVlEYFUQT/jFWDfMLMT+KVSy1U15UALipK
+        cAibaddUH0f/kuJLPyShlcRGLcV2JGGgq1RrHtOLS/Xt/wp+T3kR48CNpJWGiKgUSueCm13onYMy
+        CtZWVCtojRmBGFC+i71O3l+CqOsmvgxnhzigT6WZQasJvreT76VFD+JEhVbmaDgJZTFSClH7aT+J
+        a1kN28oNygxdK0pYg98d8BW00L+NuGHZd5ikRlBKGN8BX7rn0Ltmu7Qi3DDCwSK6X1L6jm5iu5j4
+        9PT1eBT4pKg3iq4pnKNEzUPr2llwzY2Hzt3ClwhRGQ0Ba4EfI9lW7y8xPa7pWScoHVLCzlj2ACos
+        vmgYAgb2vW+fWJxIc6KFMPlj5NAMBxE7pc95tDHUEiq0VJwMJM9HVf+wnOhAg/JLsMGIzflHrN/5
+        tIIaLuMuJ6pCEmYV2loKCKFIJ7S9T77r9/GkdPUDBlKuzcFu9iNkJQw3lqBXuMAoEB9RcZCqgpMQ
+        LjW8SRICdQ8+sa7T1euzb+vQL9PBqUylldboNmga9j04ax1WoUbQrQv1eVuj4P51P5ZXFuYtRR5b
+        JvvyQexbXI68EZ2vNNSkJaYdsu3B74Nv6jWQEJFlDi5kblX03THorU8zeC82tPHK4yEJ0m6XHuC7
+        B5cylOnKcIvWxCChUpnRDPy1ncWnMVZXAvKQ8C3BLCxzr+a53XbQMjsSycXLNjFy6xGKV0pawizn
+        Akhjh+aawgd/d83OZkWFgQJUdneq6DABetcuAsbkxX+I6fL7h9jUPnUbF/pE0IH4dtmRWmfahSLQ
+        gR0ODLWMcHngEYw8DDBMfLVtt3GzjvAKNqdhWYziNoS44lfjCl1dTDYrC9Q8X52UEJTb7d0tF+YK
+        d7P3/tBYh2sOcVizPyhcSGsOTz+ePxs7xl3n0fdoho1MUWUOfUhICbTZcio/n/tZH1Z+4l5/bO61
+        EL/Mox7+zqU0uGQWn/dZSthI59db+LZs+vDcrHWq0F8WyxPJlUWOg97cMkYrgqNlg8pjjQnCAP3n
+        y5//AtQ9r/J4CwAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 03:39:05 GMT
+      Etag:
+      - W/"b78-9KTq5rStHBYLXODT5bSL4nIQZCQ"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

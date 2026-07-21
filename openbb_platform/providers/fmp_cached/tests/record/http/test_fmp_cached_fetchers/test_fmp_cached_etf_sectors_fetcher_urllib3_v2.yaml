@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/etf/sector-weightings?apikey=MOCK_API_KEY&symbol=SPY
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA52TP28UMRDF+3wK6wqqyPLY4xk7JfkjKBARgSJCFI4xt5b2vNKuL+iE+O44EbQm
+        TuHCo9H8NO+9+XomxK/2hNhtp8PDMu8uxO7u9n53/reYYl3Wp+LbsOUoPoSa1hzm7V/Dz5T3U71N
+        a0ylhn1qrSCtIkVOoQWvALRtrb/PX0y6DNsk3oiPdUprj6OkUdqaxnBMgO3Dg6DlcDiWHEPNSxF3
+        aX3MMXU3a0gCj0AA1oKiUV7Zjoe0istTnBt27qC8BAuoLaNBdoCvRV2lH6ls+TF1WCjRMrPyjaY9
+        gx9jXZe07k+d+UZqbS0TWmOAneLBQNzkEkpsqXuRR1oCt9ihd94YRzQIe5fCXKcY1p5iTrJ1pIC0
+        ZnBu1J335ftxq/+7I5ZEHj17QkQmb8Ygn9oi4nqr7WL7xwoaFTGQUYh61JvPKU5lmZd+ALxU3rEB
+        oxwC86BcX2qec81922Ubi0ZT8x7RgHtW6+zbH6Py0fbhBAAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 03:39:04 GMT
+      Etag:
+      - W/"4e1-NqAfQiEsqkrucfD6Eb/FUM1Tipk"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
