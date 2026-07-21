@@ -1,0 +1,43 @@
+{
+  "case_id": "bf-textbook-bhb1986-3sector",
+  "expected": {
+    "active_return": 0.014999999999999986,
+    "allocation": 0.006,
+    "interaction": 0.002999999999999999,
+    "selection": 0.005999999999999994,
+    "tolerance_bps": 1.0
+  },
+  "inputs": {
+    "group": [
+      "Equities",
+      "Bonds",
+      "Cash"
+    ],
+    "r_b": [
+      0.1,
+      0.04,
+      0.005
+    ],
+    "r_p": [
+      0.12,
+      0.03,
+      0.005
+    ],
+    "w_b": [
+      0.5,
+      0.4,
+      0.1
+    ],
+    "w_p": [
+      0.6,
+      0.3,
+      0.1
+    ]
+  },
+  "reference": {
+    "citation": "Brinson, G. P., Hood, L. R., & Beebower, G. L. (1986). Determinants of portfolio performance. Financial Analysts Journal, 42(4), 39-44.",
+    "provenance": "portfolio-team; expected values regenerated from #935 oracle on 2026-07-21",
+    "reproduction_note": "3-asset-class single-period case (equities / bonds / cash). Uses BHB (plain-Brinson) allocation ((w_p-w_b) * r_b) \u00e2\u20ac\u201d differs from BF ((w_p-w_b) * (r_b - R_b)) at the per-group level but AGGREGATES to the SAME total allocation because sum(w_p-w_b) == 0. So the same golden JSON here matches both variants' aggregate; the #935 oracle uses BF (as does #559's engine).",
+    "source": "textbook"
+  }
+}

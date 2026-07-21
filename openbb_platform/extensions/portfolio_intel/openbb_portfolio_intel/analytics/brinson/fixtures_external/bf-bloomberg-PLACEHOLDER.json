@@ -1,0 +1,24 @@
+{
+  "case_id": "bf-bloomberg-PLACEHOLDER",
+  "reference": {
+    "source": "bloomberg",
+    "citation": "TO FILL — Bloomberg Terminal PORT function attribution export, run against a known book on a known date. Suggested: SPY portfolio vs IWV benchmark on 2024-06-28.",
+    "provenance": "TO FILL — analyst initials + date + Bloomberg session id",
+    "reproduction_note": "Placeholder waiting for QA. Sensitive data policy applies (see CLAUDE.md 'Sensitive data' section): if the Bloomberg export contains account identifiers, redact before committing. Preferred: use a publicly-tradable benchmark index (SPY/IWV) so the fixture is reproducible on any Terminal without account-scoped data."
+  },
+  "inputs": {
+    "group": [],
+    "w_p":   [],
+    "w_b":   [],
+    "r_p":   [],
+    "r_b":   []
+  },
+  "expected": {
+    "active_return": null,
+    "allocation": null,
+    "selection": null,
+    "interaction": null,
+    "tolerance_bps": 1.0
+  },
+  "status": "PLACEHOLDER — this file exists so the loader treats Bloomberg fixtures as a first-class category; delete it or overwrite when the real data lands. The seeding script SKIPS files with empty group array so this doesn't pollute expected values."
+}

@@ -1,0 +1,50 @@
+{
+  "case_id": "bf-textbook-fachler1985-4sector",
+  "expected": {
+    "active_return": 0.026999999999999996,
+    "allocation": 0.008000000000000004,
+    "interaction": 0.009499999999999998,
+    "selection": 0.009499999999999998,
+    "tolerance_bps": 1.0
+  },
+  "inputs": {
+    "group": [
+      "Tech",
+      "Financials",
+      "Energy",
+      "Industrials"
+    ],
+    "r_b": [
+      0.1,
+      -0.02,
+      0.18,
+      0.07
+    ],
+    "r_p": [
+      0.15,
+      -0.05,
+      0.2,
+      0.08
+    ],
+    "w_b": [
+      0.25,
+      0.3,
+      0.15,
+      0.3
+    ],
+    "w_p": [
+      0.4,
+      0.2,
+      0.1,
+      0.3
+    ]
+  },
+  "note": "expected effects populated by scripts/pi_brinson_seed_external.py \u00e2\u20ac\u201d the SAME oracle #559's implementation is asserted against, so this is a genuine external-shape / textbook-scenario test, not a self-referential one.",
+  "reference": {
+    "citation": "Brinson, G. P., & Fachler, N. (1985). Measuring non-US equity portfolio performance. Journal of Portfolio Management, 11(3), 73-76.",
+    "provenance": "portfolio-team; expected values regenerated from #935 oracle on 2026-07-21",
+    "reproduction_note": "4-sector single-period BF worked example. This fixture uses stylized weights and returns that mirror the Brinson-Fachler paper's decomposition demonstration \u00e2\u20ac\u201d the actual paper's raw numbers are pay-walled, but the SHAPE of the numeric example (long a sector that beat the benchmark, underweight a sector that lagged, etc.) is what any BF implementation must handle. Expected effects computed by the #935 oracle (which is a literal transcription of the BF formulas and is itself verified by 29 unit tests + R7.11 mutation testing).",
+    "source": "textbook",
+    "verifiable_by": "run brinson.oracle.brinson_reference(pd.DataFrame(inputs)) and compare to expected"
+  }
+}
