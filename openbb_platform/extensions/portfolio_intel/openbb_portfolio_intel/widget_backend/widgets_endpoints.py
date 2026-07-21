@@ -595,3 +595,218 @@ def pi_backtest_oneclick(request: Request, account_id: str = "demo") -> str:
         "> Preview stub: real button hands off the paper book's rules to "
         "`openbb-backtest` for a walk-forward run."
     )
+
+
+# ---------------------------------------------------------------------------
+# Equity Profile section widgets 990 through 996
+# ---------------------------------------------------------------------------
+
+
+def _validate_symbol(symbol: str) -> str:
+    """Return uppercased ticker or raise 400."""
+    sym = symbol.strip().upper()
+    if not _SYMBOL_RE.match(sym):
+        raise HTTPException(status_code=400, detail="symbol invalid")
+    return sym
+
+
+@app.get("/pi/equity/header")
+def equity_header(request: Request, symbol: str = "AAPL") -> str:
+    """Equity Profile section 1 — header + live price ticker (markdown)."""
+    _require_auth(request)
+    sym = _validate_symbol(symbol)
+    return (
+        f"## {sym}\n\n"
+        f"- **Exchange:** NASDAQ (stub)\n"
+        f"- **Sector / Industry:** Technology / Consumer Electronics (stub)\n"
+        f"- **Live Price:** $228.14 (+1.23, +0.54%) — last update stub\n"
+        f"- **Overnight (BOATS):** $228.20 (+0.06)\n\n"
+        "> Preview stub — real wiring calls obb.equity.profile(symbol) plus "
+        "obb.equity.price.quote(symbol) plus obb.equity.price.aftermarket_quote(symbol)."
+    )
+
+
+@app.get("/pi/equity/key-stats")
+def equity_key_stats(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Equity Profile section 2 — key stats grid (table)."""
+    _require_auth(request)
+    sym = _validate_symbol(symbol)
+    return [
+        {"metric": "Market Cap", "value": "$3.47T"},
+        {"metric": "P/E (TTM)", "value": 32.1},
+        {"metric": "EPS (TTM)", "value": 6.51},
+        {"metric": "Revenue (FY)", "value": "$391B"},
+        {"metric": "Net Income (FY)", "value": "$93B"},
+        {"metric": "Shares Float", "value": "15.2B"},
+        {"metric": "Beta (1Y)", "value": 1.20},
+        {"metric": "Dividend Yield", "value": "0.42%"},
+        {"metric": "Volume (today)", "value": "48M"},
+        {"metric": "Volume (30d avg)", "value": "52M"},
+        {"metric": "Next Earnings", "value": "2026-07-25 (Q3 2026)"},
+        {"metric": "Symbol", "value": sym},
+    ]
+
+
+@app.get("/pi/equity/financials")
+def equity_financials(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, float | str]]:
+    """Equity Profile section 3 — 5-yr financials (chart raw)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    years = [2021, 2022, 2023, 2024, 2025]
+    revs = [365.8, 394.3, 383.3, 391.0, 400.5]
+    nis = [94.7, 99.8, 97.0, 93.0, 102.3]
+    return [
+        {
+            "year": y,
+            "revenue_b": r,
+            "net_income_b": n,
+            "net_margin_pct": round(n / r * 100, 2),
+        }
+        for y, r, n in zip(years, revs, nis)
+    ]
+
+
+@app.get("/pi/equity/technicals")
+def equity_technicals(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Equity Profile section 4 — consensus + pivot matrix (table). IV blocked on gap 999."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    high, low, close = 230.5, 226.2, 228.14
+    p = (high + low + close) / 3
+    r1, s1 = 2 * p - low, 2 * p - high
+    r2, s2 = p + (high - low), p - (high - low)
+    r3, s3 = high + 2 * (p - low), low - 2 * (high - p)
+    return [
+        {"metric": "Consensus", "value": "BUY", "note": "24 analysts"},
+        {"metric": "R3 (Classic)", "value": round(r3, 2), "note": ""},
+        {"metric": "R2 (Classic)", "value": round(r2, 2), "note": ""},
+        {"metric": "R1 (Classic)", "value": round(r1, 2), "note": ""},
+        {"metric": "P (Classic)", "value": round(p, 2), "note": "pivot"},
+        {"metric": "S1 (Classic)", "value": round(s1, 2), "note": ""},
+        {"metric": "S2 (Classic)", "value": round(s2, 2), "note": ""},
+        {"metric": "S3 (Classic)", "value": round(s3, 2), "note": ""},
+        {"metric": "ATM IV term structure", "value": "BLOCKED", "note": "gap 999"},
+    ]
+
+
+@app.get("/pi/equity/analyst-forecasts")
+def equity_analyst_forecasts(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Equity Profile section 5 — analyst forecasts + surprise (table). Sub-gaps 997, 998."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    return [
+        {"metric": "1Y target (consensus)", "value": 245.0, "note": "sample n=32"},
+        {"metric": "Target range", "value": "215..280", "note": ""},
+        {"metric": "Upside vs current", "value": "7.4%", "note": ""},
+        {
+            "metric": "Rating: Strong Buy / Buy",
+            "value": "12 / 14",
+            "note": "gap 997 partial",
+        },
+        {
+            "metric": "Rating: Hold / Sell / Strong Sell",
+            "value": "5 / 1 / 0",
+            "note": "gap 997",
+        },
+        {
+            "metric": "Q3 2025 EPS Surprise",
+            "value": "+3.2%",
+            "note": "actual 1.55 vs est 1.50",
+        },
+        {
+            "metric": "Q2 2025 EPS Surprise",
+            "value": "+1.9%",
+            "note": "actual 1.52 vs est 1.49",
+        },
+        {"metric": "Historical rev estimate", "value": "BLOCKED", "note": "gap 998"},
+    ]
+
+
+@app.get("/pi/equity/complementary")
+def equity_complementary(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Equity Profile section 6 — ETF exposure + bond ladder (table). Bonds blocked on gap 1000."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    return [
+        {
+            "kind": "ETF",
+            "id": "SPY",
+            "name": "SPDR S&P 500",
+            "weight_pct": 7.0,
+            "value_usd": "$62B",
+        },
+        {
+            "kind": "ETF",
+            "id": "QQQ",
+            "name": "Invesco QQQ Trust",
+            "weight_pct": 8.9,
+            "value_usd": "$25B",
+        },
+        {
+            "kind": "ETF",
+            "id": "VOO",
+            "name": "Vanguard S&P 500",
+            "weight_pct": 7.0,
+            "value_usd": "$52B",
+        },
+        {
+            "kind": "ETF",
+            "id": "XLK",
+            "name": "SPDR Technology",
+            "weight_pct": 22.1,
+            "value_usd": "$14B",
+        },
+        {
+            "kind": "Bond",
+            "id": "BLOCKED",
+            "name": "corporate bond ladder",
+            "weight_pct": 0.0,
+            "value_usd": "gap 1000",
+        },
+    ]
+
+
+@app.get("/pi/equity/competitors")
+def equity_competitors(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Equity Profile section 7 — competitor strip (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    return [
+        {
+            "symbol": "MSFT",
+            "name": "Microsoft Corp.",
+            "price": 428.10,
+            "change_pct": 0.85,
+        },
+        {
+            "symbol": "GOOGL",
+            "name": "Alphabet Inc. Class A",
+            "price": 178.40,
+            "change_pct": -0.42,
+        },
+        {
+            "symbol": "META",
+            "name": "Meta Platforms Inc.",
+            "price": 512.75,
+            "change_pct": 1.20,
+        },
+        {
+            "symbol": "AMZN",
+            "name": "Amazon.com Inc.",
+            "price": 194.30,
+            "change_pct": 0.33,
+        },
+        {"symbol": "NVDA", "name": "NVIDIA Corp.", "price": 118.20, "change_pct": 2.10},
+    ]

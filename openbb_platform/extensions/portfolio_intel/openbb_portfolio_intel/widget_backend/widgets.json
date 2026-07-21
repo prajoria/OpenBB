@@ -240,5 +240,90 @@
     "params": [
       { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
     ]
+  },
+  "pi_equity_profile_header": {
+    "name": "Equity Profile — Header + Live Price",
+    "description": "Ticker, name, exchange, sector/industry, live price + overnight (BOATS) price.",
+    "category": "Equity Profile",
+    "type": "markdown",
+    "endpoint": "pi/equity/header",
+    "gridData": { "w": 40, "h": 4 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_equity_key_stats": {
+    "name": "Equity Profile — Key Stats",
+    "description": "Market cap, P/E TTM, EPS TTM, revenue, shares float, beta, dividend yield, volume.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/key-stats",
+    "gridData": { "w": 20, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_equity_financial_charts": {
+    "name": "Equity Profile — Financial Statement Charts",
+    "description": "5-yr revenue / net income + net margin; funnel; debt vs FCF vs cash.",
+    "category": "Equity Profile",
+    "type": "chart",
+    "endpoint": "pi/equity/financials",
+    "raw": true,
+    "gridData": { "w": 40, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_equity_technicals": {
+    "name": "Equity Profile — Technicals + Pivots (IV blocked on #999)",
+    "description": "Consensus speedometer, pivot matrix. ATM IV term structure blocked on #999.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/technicals",
+    "gridData": { "w": 30, "h": 12 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_equity_analyst_forecasts": {
+    "name": "Equity Profile — Analyst Forecasts",
+    "description": "1-yr price target, rating distribution, historical EPS + revenue surprise.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/analyst-forecasts",
+    "gridData": { "w": 30, "h": 12 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_equity_complementary": {
+    "name": "Equity Profile — Complementary Assets (bonds blocked on #1000)",
+    "description": "Top ETFs holding this ticker + bond ladder. Bond ladder blocked on #1000.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/complementary",
+    "gridData": { "w": 30, "h": 12 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_equity_competitors": {
+    "name": "Equity Profile — Competitor Strip",
+    "description": "Regional industry competitors with live price and % change.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/competitors",
+    "gridData": { "w": 40, "h": 6 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
   }
 }
