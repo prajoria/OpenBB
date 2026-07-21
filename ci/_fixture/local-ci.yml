@@ -1,0 +1,30 @@
+# Fixture local-ci.yml — used by unit tests to exercise the CLI's discovery,
+# schema validation, and dry-run pipeline without any real Docker calls.
+# The `_fixture` directory prefix hides it from --list discovery.
+version: 1
+project: fixture
+description: Fixture project for local-ci unit tests
+compose:
+  file: docker-compose.ci.yml
+  runner_service: runner
+tiers:
+  lint:
+    description: Fake lint tier
+    command: "echo lint-ok"
+  unit:
+    description: Fake unit tier
+    command: "echo unit-ok"
+  mysql:
+    description: Fake mysql-backed tier
+    command: "echo mysql-ok"
+    requires_services: [mysql]
+default_tiers: [lint, unit]
+sidecars:
+  mysql:
+    service: mysql-svc
+    healthcheck_timeout_s: 5
+    init:
+      kind: mysql_restore
+      source_env: FIXTURE_BACKUP_DIR
+      source_file: fixture_dump.sql
+      volume: fixture-mysql-data

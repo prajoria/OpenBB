@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openbb.local/local-ci/schema/report.schema.json",
+  "title": "local-ci run report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "project", "tiers", "overall_status", "overall_exit_code"],
+  "properties": {
+    "schema": {"const": "local-ci/v1"},
+    "project": {"type": "string"},
+    "tiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "duration_s", "exit_code"],
+        "properties": {
+          "name": {"type": "string"},
+          "status": {"enum": ["pass", "fail", "skipped"]},
+          "duration_s": {"type": "number", "minimum": 0},
+          "exit_code": {"type": "integer"},
+          "first_failure_excerpt": {"type": "string"}
+        }
+      }
+    },
+    "sidecars": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "brought_up"],
+        "properties": {
+          "name": {"type": "string"},
+          "brought_up": {"type": "boolean"},
+          "healthy": {"type": "boolean"},
+          "init_ran": {"type": "boolean"},
+          "error": {"type": "string"}
+        }
+      }
+    },
+    "overall_status": {"enum": ["pass", "fail"]},
+    "overall_exit_code": {"type": "integer"}
+  }
+}
