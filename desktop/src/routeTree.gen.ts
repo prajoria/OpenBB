@@ -9,49 +9,21 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UninstallRouteImport } from './routes/uninstall'
-import { Route as SetupRouteImport } from './routes/setup'
-import { Route as JupyterLogsRouteImport } from './routes/jupyter-logs'
-import { Route as InstallationProgressRouteImport } from './routes/installation-progress'
-import { Route as EnvironmentsRouteImport } from './routes/environments'
-import { Route as BackendsRouteImport } from './routes/backends'
-import { Route as BackendLogsRouteImport } from './routes/backend-logs'
-import { Route as ApiKeysRouteImport } from './routes/api-keys'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiKeysRouteImport } from './routes/api-keys'
+import { Route as BackendLogsRouteImport } from './routes/backend-logs'
+import { Route as BackendsRouteImport } from './routes/backends'
+import { Route as EnvironmentsRouteImport } from './routes/environments'
+import { Route as InstallationProgressRouteImport } from './routes/installation-progress'
+import { Route as JupyterLogsRouteImport } from './routes/jupyter-logs'
+import { Route as SetupRouteImport } from './routes/setup'
+import { Route as UninstallRouteImport } from './routes/uninstall'
+import { Route as PiIndexRouteImport } from './routes/pi/index'
+import { Route as PiPreviewWidgetIdRouteImport } from './routes/pi/preview/$widgetId'
 
-const UninstallRoute = UninstallRouteImport.update({
-  id: '/uninstall',
-  path: '/uninstall',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SetupRoute = SetupRouteImport.update({
-  id: '/setup',
-  path: '/setup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const JupyterLogsRoute = JupyterLogsRouteImport.update({
-  id: '/jupyter-logs',
-  path: '/jupyter-logs',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InstallationProgressRoute = InstallationProgressRouteImport.update({
-  id: '/installation-progress',
-  path: '/installation-progress',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EnvironmentsRoute = EnvironmentsRouteImport.update({
-  id: '/environments',
-  path: '/environments',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BackendsRoute = BackendsRouteImport.update({
-  id: '/backends',
-  path: '/backends',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BackendLogsRoute = BackendLogsRouteImport.update({
-  id: '/backend-logs',
-  path: '/backend-logs',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiKeysRoute = ApiKeysRouteImport.update({
@@ -59,9 +31,49 @@ const ApiKeysRoute = ApiKeysRouteImport.update({
   path: '/api-keys',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const BackendLogsRoute = BackendLogsRouteImport.update({
+  id: '/backend-logs',
+  path: '/backend-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BackendsRoute = BackendsRouteImport.update({
+  id: '/backends',
+  path: '/backends',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnvironmentsRoute = EnvironmentsRouteImport.update({
+  id: '/environments',
+  path: '/environments',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstallationProgressRoute = InstallationProgressRouteImport.update({
+  id: '/installation-progress',
+  path: '/installation-progress',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JupyterLogsRoute = JupyterLogsRouteImport.update({
+  id: '/jupyter-logs',
+  path: '/jupyter-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UninstallRoute = UninstallRouteImport.update({
+  id: '/uninstall',
+  path: '/uninstall',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PiIndexRoute = PiIndexRouteImport.update({
+  id: '/pi/',
+  path: '/pi/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PiPreviewWidgetIdRoute = PiPreviewWidgetIdRouteImport.update({
+  id: '/pi/preview/$widgetId',
+  path: '/pi/preview/$widgetId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -75,6 +87,8 @@ export interface FileRoutesByFullPath {
   '/jupyter-logs': typeof JupyterLogsRoute
   '/setup': typeof SetupRoute
   '/uninstall': typeof UninstallRoute
+  '/pi/': typeof PiIndexRoute
+  '/pi/preview/$widgetId': typeof PiPreviewWidgetIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +100,8 @@ export interface FileRoutesByTo {
   '/jupyter-logs': typeof JupyterLogsRoute
   '/setup': typeof SetupRoute
   '/uninstall': typeof UninstallRoute
+  '/pi': typeof PiIndexRoute
+  '/pi/preview/$widgetId': typeof PiPreviewWidgetIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +114,8 @@ export interface FileRoutesById {
   '/jupyter-logs': typeof JupyterLogsRoute
   '/setup': typeof SetupRoute
   '/uninstall': typeof UninstallRoute
+  '/pi/': typeof PiIndexRoute
+  '/pi/preview/$widgetId': typeof PiPreviewWidgetIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +129,8 @@ export interface FileRouteTypes {
     | '/jupyter-logs'
     | '/setup'
     | '/uninstall'
+    | '/pi/'
+    | '/pi/preview/$widgetId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +142,8 @@ export interface FileRouteTypes {
     | '/jupyter-logs'
     | '/setup'
     | '/uninstall'
+    | '/pi'
+    | '/pi/preview/$widgetId'
   id:
     | '__root__'
     | '/'
@@ -133,6 +155,8 @@ export interface FileRouteTypes {
     | '/jupyter-logs'
     | '/setup'
     | '/uninstall'
+    | '/pi/'
+    | '/pi/preview/$widgetId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,57 +169,17 @@ export interface RootRouteChildren {
   JupyterLogsRoute: typeof JupyterLogsRoute
   SetupRoute: typeof SetupRoute
   UninstallRoute: typeof UninstallRoute
+  PiIndexRoute: typeof PiIndexRoute
+  PiPreviewWidgetIdRoute: typeof PiPreviewWidgetIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/uninstall': {
-      id: '/uninstall'
-      path: '/uninstall'
-      fullPath: '/uninstall'
-      preLoaderRoute: typeof UninstallRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup': {
-      id: '/setup'
-      path: '/setup'
-      fullPath: '/setup'
-      preLoaderRoute: typeof SetupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/jupyter-logs': {
-      id: '/jupyter-logs'
-      path: '/jupyter-logs'
-      fullPath: '/jupyter-logs'
-      preLoaderRoute: typeof JupyterLogsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/installation-progress': {
-      id: '/installation-progress'
-      path: '/installation-progress'
-      fullPath: '/installation-progress'
-      preLoaderRoute: typeof InstallationProgressRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/environments': {
-      id: '/environments'
-      path: '/environments'
-      fullPath: '/environments'
-      preLoaderRoute: typeof EnvironmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/backends': {
-      id: '/backends'
-      path: '/backends'
-      fullPath: '/backends'
-      preLoaderRoute: typeof BackendsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/backend-logs': {
-      id: '/backend-logs'
-      path: '/backend-logs'
-      fullPath: '/backend-logs'
-      preLoaderRoute: typeof BackendLogsRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api-keys': {
@@ -205,11 +189,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiKeysRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/backend-logs': {
+      id: '/backend-logs'
+      path: '/backend-logs'
+      fullPath: '/backend-logs'
+      preLoaderRoute: typeof BackendLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/backends': {
+      id: '/backends'
+      path: '/backends'
+      fullPath: '/backends'
+      preLoaderRoute: typeof BackendsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/environments': {
+      id: '/environments'
+      path: '/environments'
+      fullPath: '/environments'
+      preLoaderRoute: typeof EnvironmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/installation-progress': {
+      id: '/installation-progress'
+      path: '/installation-progress'
+      fullPath: '/installation-progress'
+      preLoaderRoute: typeof InstallationProgressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jupyter-logs': {
+      id: '/jupyter-logs'
+      path: '/jupyter-logs'
+      fullPath: '/jupyter-logs'
+      preLoaderRoute: typeof JupyterLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/uninstall': {
+      id: '/uninstall'
+      path: '/uninstall'
+      fullPath: '/uninstall'
+      preLoaderRoute: typeof UninstallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pi/': {
+      id: '/pi/'
+      path: '/pi'
+      fullPath: '/pi/'
+      preLoaderRoute: typeof PiIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pi/preview/$widgetId': {
+      id: '/pi/preview/$widgetId'
+      path: '/pi/preview/$widgetId'
+      fullPath: '/pi/preview/$widgetId'
+      preLoaderRoute: typeof PiPreviewWidgetIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -225,6 +265,8 @@ const rootRouteChildren: RootRouteChildren = {
   JupyterLogsRoute: JupyterLogsRoute,
   SetupRoute: SetupRoute,
   UninstallRoute: UninstallRoute,
+  PiIndexRoute: PiIndexRoute,
+  PiPreviewWidgetIdRoute: PiPreviewWidgetIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
