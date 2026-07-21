@@ -36,10 +36,8 @@ cassettes under ``tests/record/http/test_fmp_cached_fetchers/``.
 
 import re
 from datetime import date
-from unittest.mock import patch
 
 import pytest
-
 from openbb_core.app.service.user_service import UserService
 from openbb_fmp.models.equity_historical import FMPEquityHistoricalFetcher
 from openbb_fmp_cached.models.base_cached import create_cached_fetcher_class
@@ -197,6 +195,7 @@ class TestDatabaseOperations:
         """Test database schema creation."""
         try:
             from openbb_fmp_cached.utils.database import init_database
+
             await init_database()
             assert True
         except Exception as e:
@@ -229,8 +228,11 @@ class TestProviderRegistration:
         from openbb_fmp_cached import fmp_cached_provider
 
         key_fetchers = [
-            "EquityHistorical", "BalanceSheet", "IncomeStatement",
-            "EquityQuote", "CompanyNews"
+            "EquityHistorical",
+            "BalanceSheet",
+            "IncomeStatement",
+            "EquityQuote",
+            "CompanyNews",
         ]
 
         for fetcher_name in key_fetchers:
@@ -286,10 +288,94 @@ class TestConfiguration:
         from openbb_fmp_cached.utils.database import DatabaseConfig
 
         config = DatabaseConfig()
-        assert hasattr(config, 'config')
-        assert 'host' in config.config
-        assert 'database' in config.config
+        assert hasattr(config, "config")
+        assert "host" in config.config
+        assert "database" in config.config
 
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+@pytest.mark.record_http
+def test_fmp_cached_equity_profile_fetcher(credentials=test_credentials):
+    """Test FMP cached equity profile fetcher (#508)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cached_fetcher_class = fmp_cached_provider.fetcher_dict["EquityInfo"]
+
+    params = {"symbol": "AAPL"}
+
+    fetcher = cached_fetcher_class()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_etf_holdings_fetcher(credentials=test_credentials):
+    """Test FMP cached ETF holdings fetcher (#508)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cached_fetcher_class = fmp_cached_provider.fetcher_dict["EtfHoldings"]
+
+    params = {"symbol": "SPY"}
+
+    fetcher = cached_fetcher_class()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_etf_info_fetcher(credentials=test_credentials):
+    """Test FMP cached ETF info fetcher (#508)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cached_fetcher_class = fmp_cached_provider.fetcher_dict["EtfInfo"]
+
+    params = {"symbol": "SPY"}
+
+    fetcher = cached_fetcher_class()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_etf_sectors_fetcher(credentials=test_credentials):
+    """Test FMP cached ETF sectors fetcher (#508)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cached_fetcher_class = fmp_cached_provider.fetcher_dict["EtfSectors"]
+
+    params = {"symbol": "SPY"}
+
+    fetcher = cached_fetcher_class()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_etf_countries_fetcher(credentials=test_credentials):
+    """Test FMP cached ETF countries fetcher (#508)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cached_fetcher_class = fmp_cached_provider.fetcher_dict["EtfCountries"]
+
+    params = {"symbol": "SPY"}
+
+    fetcher = cached_fetcher_class()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_financial_ratios_fetcher(credentials=test_credentials):
+    """Test FMP cached financial ratios fetcher (#508)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cached_fetcher_class = fmp_cached_provider.fetcher_dict["FinancialRatios"]
+
+    params = {"symbol": "AAPL", "limit": 1}
+
+    fetcher = cached_fetcher_class()
+    result = fetcher.test(params, credentials)
+    assert result is None
