@@ -1,5 +1,11 @@
 """FMP Cached Provider for OpenBB Platform."""
 
+# The apikey-scrub install block below MUST run before any fetcher
+# import so log filters are in place before any HTTP call fires.
+# That pushes the fetcher imports below module-level statements —
+# suppress the wrong-import-position warning for the whole file.
+# pylint: disable=wrong-import-position,ungrouped-imports
+
 import logging as _logging
 
 from openbb_core.provider.abstract.provider import Provider
@@ -30,8 +36,6 @@ install_apikey_scrub_filter(_logging.getLogger("aiohttp"))
 # install_apikey_scrub_filter_on_root_handlers docstring for details.
 install_apikey_scrub_filter_on_root_handlers()
 _wrap_root_addHandler_with_scrub()
-
-# Import original FMP fetchers
 
 # Import original FMP fetchers
 from openbb_fmp.models.aftermarket_trade import FMPAftermarketTradeFetcher

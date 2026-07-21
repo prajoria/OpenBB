@@ -226,7 +226,8 @@ def fetch_issuer_holdings(symbol: str, *, http=requests) -> list[dict]:
         # carry the FMP apikey, wrap raise_for_status so the exception
         # message can't leak any credential a future issuer URL might
         # eventually embed (e.g. subscription-based CSVs).
-        from openbb_fmp_cached.utils.security import (  # noqa: PLC0415
+        # pylint: disable=import-outside-toplevel
+        from openbb_fmp_cached.utils.security import (
             raise_for_status_redacted,
         )
 
