@@ -197,6 +197,91 @@ def test_xray_sector_rejects_empty_account_id() -> None:
     assert resp.status_code == 400
 
 
+# ---------------------------------------------------------------------------
+# 6. Input-validation guards (reflected-content-injection prevention)
+# ---------------------------------------------------------------------------
+
+
+def test_xray_sector_rejects_account_id_with_metacharacters() -> None:
+    """Reflected-injection guard — account_id echoes into log + marker row."""
+    resp = _client.get("/pi/xray/sector?account_id=demo;rm%20-rf")
+    assert resp.status_code == 400
+    resp = _client.get("/pi/xray/sector?account_id=" + "A" * 200)
+    assert resp.status_code == 400
+
+
+def test_whatif_rejects_symbol_with_backticks_or_html() -> None:
+    """Symbol echoes into markdown body; reject markdown/HTML metacharacters."""
+    for bad in ("A`B", "<script>", "AAA BBB", "A" * 20, "sym[bol"):
+        resp = _client.get(f"/pi/whatif?symbol={bad}&delta_shares=1")
+        assert resp.status_code == 400, f"{bad!r} accepted; should be rejected"
+
+
+def test_whatif_accepts_clean_ticker() -> None:
+    """Allowlist covers real-world tickers (dots, dashes, digits)."""
+    for good in ("BRK.B", "BF-A", "AAPL", "GOOG", "1234"):
+        resp = _client.get(f"/pi/whatif?symbol={good}&delta_shares=1")
+        assert resp.status_code == 200, f"{good!r} rejected; should be accepted"
+
+
+def test_attribution_rejects_unknown_window() -> None:
+    """Window is a fixed enum; arbitrary strings must be rejected."""
+    resp = _client.get("/pi/attribution?window=' OR 1=1&benchmark_symbol=SPY")
+    assert resp.status_code == 400
+
+
+def test_attribution_rejects_benchmark_with_metacharacters() -> None:
+    """benchmark_symbol echoes into engine kwargs + response rows."""
+    resp = _client.get("/pi/attribution?window=1Y&benchmark_symbol=<script>")
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# 7. Authentication — bearer token gate on /pi/*
+# ---------------------------------------------------------------------------
+
+
+def test_pi_routes_allow_loopback_without_token_by_default() -> None:
+    """Dev ergonomics: TestClient (loopback) works without a token."""
+    # This is the mode every other test in this file already covers;
+    # we assert it explicitly so a future auth tightening documents
+    # the intended default rather than accidentally breaking it.
+    resp = _client.get("/pi/xray/sector?account_id=demo")
+    assert resp.status_code == 200
+
+
+def test_pi_routes_require_bearer_token_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When PI_WIDGET_BACKEND_TOKEN is set, missing/wrong token → 401."""
+    from openbb_portfolio_intel.widget_backend import main as backend_main
+
+    monkeypatch.setattr(backend_main, "_AUTH_TOKEN", "s3cret")
+
+    # No header → 401
+    resp = _client.get("/pi/xray/sector?account_id=demo")
+    assert resp.status_code == 401
+    # Wrong token → 401
+    resp = _client.get(
+        "/pi/xray/sector?account_id=demo",
+        headers={"Authorization": "Bearer wrong"},
+    )
+    assert resp.status_code == 401
+    # Right token → 200
+    resp = _client.get(
+        "/pi/xray/sector?account_id=demo",
+        headers={"Authorization": "Bearer s3cret"},
+    )
+    assert resp.status_code == 200
+
+
+def test_discovery_endpoints_are_NOT_gated_by_auth() -> None:
+    """Workspace fetches widgets.json/apps.json anonymously on connect."""
+    assert _client.get("/widgets.json").status_code == 200
+    assert _client.get("/apps.json").status_code == 200
+    assert _client.get("/").status_code == 200
+
+
 def test_whatif_markdown_returns_string() -> None:
     """Markdown widget contract: response body must be a str."""
     resp = _client.get("/pi/whatif?symbol=AAPL&delta_shares=100")
@@ -214,10 +299,13 @@ def test_whatif_sell_side_labeled_correctly() -> None:
 
 
 def test_whatif_invalid_delta_shares_handled_gracefully() -> None:
-    """Bad input returns a markdown error, not a 500."""
+    """Bad input returns a markdown error, not a 500. Does NOT echo user value."""
     resp = _client.get("/pi/whatif?symbol=AAPL&delta_shares=abc")
     assert resp.status_code == 200
-    assert "invalid input" in resp.json().lower()
+    body = resp.json()
+    assert "invalid input" in body.lower()
+    # Guard: never reflect the bad user value back into the markdown body.
+    assert "abc" not in body
 
 
 def test_attribution_returns_waterfall_rows() -> None:

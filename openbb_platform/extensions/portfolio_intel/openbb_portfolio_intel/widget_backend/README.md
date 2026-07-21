@@ -57,6 +57,29 @@ Widget → HTTP endpoint → analytics.<module> → JSON response
 
 Locked to `https://pro.openbb.co` on purpose. This backend is a Workspace data source, not a public API. If you're running a self-hosted Workspace, add its origin to `_ALLOWED_ORIGINS` in `main.py` — do NOT open to `"*"`.
 
+## Authentication
+
+`/pi/*` routes are gated by a bearer token when `PI_WIDGET_BACKEND_TOKEN` is set in the environment.
+
+- **Unset + loopback client** → allowed (dev ergonomics).
+- **Unset + non-loopback client** → **401** (server refuses to serve unauthenticated requests once it's reachable off-box).
+- **Set** → every `/pi/*` request must include `Authorization: Bearer <token>`. Wrong or missing token → 401. Comparison is constant-time.
+
+Discovery endpoints (`/widgets.json`, `/apps.json`, `/`) are unauthenticated by design — Workspace fetches them anonymously on connect.
+
+**Deployment rule**: never bind this backend to `0.0.0.0` without setting `PI_WIDGET_BACKEND_TOKEN` first, and route Workspace through a proxy (Cloudflare Access, Tailscale, etc.) that adds the header. Local dev on `127.0.0.1` is the only mode where the unauthenticated path is expected.
+
+## Input validation
+
+All user-supplied params are validated against strict allowlists before echoing into response bodies or engine kwargs:
+
+- `symbol` / `benchmark_symbol` → `^[A-Z0-9.\-]{1,10}$` (ticker allowlist, covers `BRK.B`, `BF-A`, `AAPL`, etc.).
+- `account_id` → `^[A-Za-z0-9_.\-]{1,64}$`.
+- `window` → fixed enum `{1M, 3M, 6M, 1Y, YTD, MTD}`.
+- `delta_shares` → parsed as int; bad input returns a generic markdown error that does NOT reflect the user value.
+
+Reject-and-400 rather than silently coerce; the widget shows a Workspace-side error indicator rather than a corrupted render.
+
 ## Follow-ups tracked separately
 
 - Account resolver — `xray_sector` currently returns demo data for any non-`demo` `account_id`; wire to `PositionStore` in a follow-up PR against the paper program.

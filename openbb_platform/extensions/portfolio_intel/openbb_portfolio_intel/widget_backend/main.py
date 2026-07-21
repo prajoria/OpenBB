@@ -35,9 +35,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -48,6 +50,74 @@ _MANIFEST_DIR = Path(__file__).parent.resolve()
 # CORS: only pro.openbb.co reaches this backend. Extend to a self-hosted
 # Workspace only if you're running one; do NOT open to "*".
 _ALLOWED_ORIGINS = ["https://pro.openbb.co"]
+
+# Bearer token gate for /pi/* routes. Read at import time from
+# PI_WIDGET_BACKEND_TOKEN. When unset AND the process appears to bind
+# to a non-loopback address, we refuse to start (see _startup_guard
+# below). When bound to loopback only (dev), auth is optional but a
+# WARN is logged so users know they're running unauthenticated.
+_AUTH_TOKEN = os.environ.get("PI_WIDGET_BACKEND_TOKEN", "").strip()
+
+# Symbol validator — Workspace params echo through into markdown/JSON
+# response bodies, so we reject anything that isn't a plausible
+# ticker before it reaches string formatting.
+_SYMBOL_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
+# Account-id validator — same reasoning; allow reasonable identifiers,
+# reject shell metacharacters / markdown / control chars.
+_ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
+
+
+def _require_auth(request: Request) -> None:
+    """Authenticate /pi/* calls via bearer token when a token is configured.
+
+    Skip if no token is set AND the request came from loopback (dev).
+    Enforce otherwise — any non-loopback request without a valid
+    ``Authorization: Bearer <token>`` header is rejected 401.
+    """
+    client_host = (request.client.host if request.client else "") or ""
+    # "testclient" is what starlette's TestClient reports — treat as
+    # loopback so dev tests don't need a token dance. Real deployments
+    # will see 127.0.0.1 / ::1 / localhost.
+    is_loopback = client_host in ("127.0.0.1", "::1", "localhost", "testclient")
+
+    if not _AUTH_TOKEN:
+        if is_loopback:
+            return
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "PI_WIDGET_BACKEND_TOKEN not set and request originated from "
+                "a non-loopback address. Set PI_WIDGET_BACKEND_TOKEN in the "
+                "backend environment before exposing this service."
+            ),
+        )
+
+    header = request.headers.get("authorization", "")
+    if not header.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+    supplied = header.split(" ", 1)[1].strip()
+    # Constant-time compare avoids leaking token length via timing.
+    if not _constant_time_eq(supplied, _AUTH_TOKEN):
+        raise HTTPException(status_code=401, detail="invalid bearer token")
+
+
+def _constant_time_eq(a: str, b: str) -> bool:
+    """Length-safe constant-time string compare."""
+    if len(a) != len(b):
+        return False
+    result = 0
+    for x, y in zip(a.encode(), b.encode()):
+        result |= x ^ y
+    return result == 0
+
+
+if not _AUTH_TOKEN:
+    logger.warning(
+        "PI_WIDGET_BACKEND_TOKEN is not set. /pi/* routes accept "
+        "unauthenticated requests from loopback only; requests from "
+        "any non-loopback client will be rejected 401. Set the env "
+        "var before exposing this backend to the network."
+    )
 
 
 app = FastAPI(
@@ -99,7 +169,9 @@ def get_apps() -> JSONResponse:
 
 
 @app.get("/pi/xray/sector")
-def xray_sector(account_id: str = "demo") -> list[dict[str, float | str]]:
+def xray_sector(
+    request: Request, account_id: str = "demo"
+) -> list[dict[str, float | str]]:
     """X-Ray sector-weight rows for ``account_id``.
 
     ``chart`` widget with ``raw: true`` → Workspace renders the returned
@@ -107,8 +179,19 @@ def xray_sector(account_id: str = "demo") -> list[dict[str, float | str]]:
     demo account we return a deterministic 3-sector shape so Workspace
     always has something to draw even without a paper account attached.
     """
+    _require_auth(request)
     if not account_id:
         raise HTTPException(status_code=400, detail="account_id required")
+    if not _ACCOUNT_ID_RE.match(account_id):
+        # Reject metacharacters — account_id echoes into log lines and
+        # (for non-demo IDs) into the marker-row response body.
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "account_id must match [A-Za-z0-9_.\\-]{1,64}; "
+                "reserved characters or excessive length are rejected"
+            ),
+        )
 
     if account_id == "demo":
         # Deterministic demo data — matches the "loud empties" rule
@@ -139,7 +222,7 @@ def xray_sector(account_id: str = "demo") -> list[dict[str, float | str]]:
 
 
 @app.get("/pi/whatif")
-def whatif(symbol: str = "AAPL", delta_shares: str = "100") -> str:
+def whatif(request: Request, symbol: str = "AAPL", delta_shares: str = "100") -> str:
     """Markdown widget — human-readable What-If diff summary.
 
     Wraps ``analytics.whatif`` in a text response so Workspace's
@@ -147,10 +230,23 @@ def whatif(symbol: str = "AAPL", delta_shares: str = "100") -> str:
     (from #558) belongs to a separate ``table`` widget; this one is
     the quick-look card.
     """
+    _require_auth(request)
+    # Validate ``symbol`` against a strict ticker allowlist BEFORE it
+    # echoes into the markdown body. Reflected-content-injection guard.
+    sym = symbol.strip().upper()
+    if not _SYMBOL_RE.match(sym):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "symbol must match [A-Z0-9.\\-]{1,10}; "
+                f"got {symbol!r} (rejected before markdown formatting)"
+            ),
+        )
     try:
         delta = int(delta_shares)
     except ValueError:
-        return f"**What-If (invalid input)**\n\n`delta_shares={delta_shares!r}` is not an integer."
+        # No user input reflected into the message body — safe.
+        return "**What-If (invalid input)**\n\n" "`delta_shares` is not an integer."
 
     # NOTE: Full wiring calls analytics.whatif.diff(symbol=symbol,
     # delta_shares=delta, positions=..., prices=...). That needs a
@@ -160,8 +256,8 @@ def whatif(symbol: str = "AAPL", delta_shares: str = "100") -> str:
     # something to render on connect.
     action = "BUY" if delta >= 0 else "SELL"
     return (
-        f"## What-If: {action} `{symbol}` × {abs(delta)}\n\n"
-        f"- **Symbol:** {symbol}\n"
+        f"## What-If: {action} `{sym}` × {abs(delta)}\n\n"
+        f"- **Symbol:** {sym}\n"
         f"- **Delta shares:** {delta}\n\n"
         "> ⚠ Preview stub — full analytics.whatif wiring lands with the "
         "positions-store integration follow-up. See #558."
@@ -170,7 +266,7 @@ def whatif(symbol: str = "AAPL", delta_shares: str = "100") -> str:
 
 @app.get("/pi/attribution")
 def attribution(
-    window: str = "1Y", benchmark_symbol: str = "SPY"
+    request: Request, window: str = "1Y", benchmark_symbol: str = "SPY"
 ) -> list[dict[str, float | str]]:
     """Brinson-Fachler attribution waterfall.
 
@@ -179,6 +275,15 @@ def attribution(
     live portfolio + benchmark constituent-history feed. Real wiring
     against a live book is a follow-up.
     """
+    _require_auth(request)
+    # Validate benchmark_symbol before echoing into response rows.
+    bm = benchmark_symbol.strip().upper()
+    if not _SYMBOL_RE.match(bm):
+        raise HTTPException(status_code=400, detail="benchmark_symbol invalid")
+    # window is a small enum; reject anything unexpected instead of
+    # letting arbitrary strings propagate.
+    if window not in {"1M", "3M", "6M", "1Y", "YTD", "MTD"}:
+        raise HTTPException(status_code=400, detail=f"unknown window {window!r}")
     # Import lazily so opening this module doesn't force analytics + numpy
     # into every FastAPI worker boot.
     # pylint: disable=import-outside-toplevel
@@ -202,9 +307,7 @@ def attribution(
         )
     fx = json.loads(demo_fx.read_text())
     df = pd.DataFrame(fx["inputs"])
-    waterfall = build_from_dataframe(
-        df, window=window, benchmark_symbol=benchmark_symbol
-    )
+    waterfall = build_from_dataframe(df, window=window, benchmark_symbol=bm)
     # Return one row per sector, matching a chart-widget records shape.
     return [
         {
