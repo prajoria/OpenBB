@@ -1,0 +1,43 @@
+[
+  {
+    "name": "Portfolio Intelligence — Overview",
+    "img": "",
+    "img_dark": "",
+    "img_light": "",
+    "description": "Default portfolio-intel dashboard: X-Ray, What-If, and Brinson attribution.",
+    "allowCustomization": true,
+    "tabs": {
+      "overview": {
+        "id": "overview",
+        "name": "Overview",
+        "layout": [
+          {
+            "i": "pi_xray_sector",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 9,
+            "state": { "params": { "account_id": "demo" } }
+          },
+          {
+            "i": "pi_whatif_diff",
+            "x": 20,
+            "y": 0,
+            "w": 20,
+            "h": 9,
+            "state": { "params": { "symbol": "AAPL", "delta_shares": "100" } }
+          },
+          {
+            "i": "pi_brinson_attribution",
+            "x": 0,
+            "y": 9,
+            "w": 40,
+            "h": 9,
+            "state": { "params": { "window": "1Y", "benchmark_symbol": "SPY" } }
+          }
+        ]
+      }
+    },
+    "groups": []
+  }
+]

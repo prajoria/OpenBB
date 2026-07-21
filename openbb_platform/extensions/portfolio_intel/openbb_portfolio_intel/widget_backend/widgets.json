@@ -1,0 +1,72 @@
+{
+  "pi_xray_sector": {
+    "name": "X-Ray — Sector Weights",
+    "description": "Portfolio sector weights vs benchmark, computed by the X-Ray analytics module.",
+    "category": "Portfolio Intelligence",
+    "type": "chart",
+    "endpoint": "pi/xray/sector",
+    "raw": true,
+    "gridData": { "w": 20, "h": 9 },
+    "source": "portfolio-intel",
+    "params": [
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id to load positions for"
+      }
+    ]
+  },
+  "pi_whatif_diff": {
+    "name": "What-If — Trade Impact",
+    "description": "Preview a hypothetical trade's impact on portfolio metrics (composes X-Ray + risk substrate).",
+    "category": "Portfolio Intelligence",
+    "type": "markdown",
+    "endpoint": "pi/whatif",
+    "gridData": { "w": 12, "h": 6 },
+    "source": "portfolio-intel",
+    "params": [
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker to trade"
+      },
+      {
+        "paramName": "delta_shares",
+        "value": "100",
+        "label": "Delta shares",
+        "type": "text",
+        "description": "Signed share delta (positive = buy, negative = sell)"
+      }
+    ]
+  },
+  "pi_brinson_attribution": {
+    "name": "Brinson-Fachler Attribution",
+    "description": "Sector-level allocation vs selection waterfall (matches Brinson reference fixtures to +/-1bp).",
+    "category": "Portfolio Intelligence",
+    "type": "chart",
+    "endpoint": "pi/attribution",
+    "raw": true,
+    "gridData": { "w": 40, "h": 9 },
+    "source": "portfolio-intel",
+    "params": [
+      {
+        "paramName": "window",
+        "value": "1Y",
+        "label": "Window",
+        "type": "text",
+        "description": "Attribution window: 1M, 3M, 6M, 1Y"
+      },
+      {
+        "paramName": "benchmark_symbol",
+        "value": "SPY",
+        "label": "Benchmark",
+        "type": "text",
+        "description": "Benchmark ticker (SPY, ACWI, IWV, ...)"
+      }
+    ]
+  }
+}
