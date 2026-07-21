@@ -40,6 +40,112 @@ scratch `MEMORY.md` files in random locations.
 comments, or old docs is historical only — treat it as a permanent
 identifier of past work, but never file new `bd-XX` items.
 
+## Claim + heartbeat protocol (Project #5)
+
+When executing the `openbb-dev-cycle` skill (or otherwise working
+through Project #5 issues autonomously), every agent MUST follow the
+claim + heartbeat discipline below. This is the Pine-program equivalent
+of the Portfolio program's `pi_claim.py` — the goal is identical: no
+two agents race on the same issue, and abandoned claims can be safely
+reclaimed by a fresh agent after 2 hours of heartbeat silence.
+
+### Session-start (BEFORE Phase 1 of openbb-dev-cycle)
+
+```bash
+# What issues do I already own from prior sessions?
+gh issue list --repo prajoria/OpenBB --assignee @me --state open --limit 20
+
+# What open Pine PRs do I own?
+gh pr list --repo prajoria/OpenBB --author @me --state open \
+  --base openbb_pine_support
+
+# What issues on Project #5 are In Progress (potentially stale)?
+gh project item-list 5 --owner prajoria --format json --limit 200 \
+  | jq '.items[] | select(.status=="In Progress") | {n:.content.number,t:.content.title}'
+```
+
+Release any assignee claim on an issue you are NOT resuming this session:
+
+```bash
+gh issue edit <NN> --remove-assignee @me --repo prajoria/OpenBB
+gh issue comment <NN> --repo prajoria/OpenBB \
+  --body "Releasing claim — not resuming this session."
+```
+
+Reclaim a stale In-Progress issue (no heartbeat comment from its
+assignee in the last 2h) only after posting an audit comment naming
+the prior owner and reason.
+
+### Claim protocol (Phase 3 of openbb-dev-cycle)
+
+1. **Self-assign the issue** — this is the durable claim signal:
+   ```bash
+   gh issue edit <NN> --add-assignee @me --repo prajoria/OpenBB
+   ```
+2. **Move to In Progress on the project board.** Requires the project
+   item ID + status field IDs (cached in `scripts/pine_script_project.json`).
+   Use the helper below (define once, reuse):
+   ```bash
+   python scripts/pine_claim.py <NN> in-progress
+   ```
+   Until `scripts/pine_claim.py` is authored (tracked as a follow-up
+   issue), fall back to a `gh issue comment` claim marker naming the
+   branch:
+   ```bash
+   gh issue comment <NN> --repo prajoria/OpenBB \
+     --body "🚧 Claimed for work on branch \`<branch-name>\` — heartbeat every ≤10 min until PR merged or claim released."
+   ```
+3. **Post the initial heartbeat immediately** — this makes
+   `--list-stale` see you from minute 1:
+   ```bash
+   gh issue comment <NN> --repo prajoria/OpenBB --body "💓 heartbeat"
+   ```
+
+### Heartbeat rule (Phases 4–9 of openbb-dev-cycle)
+
+While ANY Project #5 issue is `In Progress` under this cycle, you MUST
+post a heartbeat comment at least every **10 minutes** until the issue
+closes (via PR merge) or you release the claim.
+
+- **Heartbeat at natural pause points**: after every test run, after
+  every commit, after every review-tool invocation, before + after
+  `/verify`, before + after opening the PR. Rough target: never let
+  >10 min pass without one.
+- **A heartbeat is not a status update.** It's an "I'm still alive"
+  signal — a one-line `💓 heartbeat` comment is enough. If real progress
+  is worth documenting, add a second sentence, but the minimum viable
+  heartbeat is the emoji + word.
+- **Faked heartbeats are worse than missed ones.** An empty ping every
+  10 min for 2h reads as real progress to every other agent but wastes
+  2h before anyone else can pick up the work. If you're actually
+  blocked, post a comment explaining what's blocked, then release the
+  claim and pick a different task.
+- **Long-running steps (test suites, `/verify` end-to-end, CI waits):**
+  set a `ScheduleWakeup delaySeconds=540 reason="heartbeat #NN"`
+  reminder BEFORE starting the step so a 9-minute wakeup fires before
+  the 10-minute threshold expires.
+- **Stale = 2h without heartbeat.** Any other agent may reclaim your
+  issue after 2h of comment silence. Don't treat reclaim as adversarial
+  — it's the design.
+
+### Release protocol (any time you stop working on an issue mid-cycle)
+
+```bash
+gh issue edit <NN> --remove-assignee @me --repo prajoria/OpenBB
+gh issue comment <NN> --repo prajoria/OpenBB \
+  --body "🔓 Releasing claim — <one-sentence reason>. Next agent is free to reclaim."
+```
+
+Then also comment on the project item if it had been moved to
+In Progress on the board, or leave a note that the next claimant should
+flip the board status themselves.
+
+### Auto-close via PR merge (Phase 8/9)
+
+The self-assignment is durable through PR merge — GitHub keeps the
+assignee even after `Closes #NN` auto-closes the issue. There is no
+"unclaim on merge" step; a closed issue is the terminal state.
+
 ## Pine Support Branch Workflow (long-running feature branch)
 
 **`openbb_pine_support` is a LONG-RUNNING integration branch for all Pine
