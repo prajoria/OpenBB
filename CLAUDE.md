@@ -109,7 +109,30 @@ cite `bd-XX` identifiers in new work.
 5. Every commit body cites its issue: `Refs #NN` (or `Closes #NN` on the
    final commit / PR body for auto-close on merge).
 6. PR title cites the issue: `<type>(<scope>): <what> (#NN)`.
-7. When the PR merges, the auto-close workflow closes the issue AND the
+7. **PR body `Closes` clause grammar** — the CI check
+   (`.github/scripts/closes-syntax-check.sh`) requires each `Closes|
+   Fixes|Resolves` clause on **its own line**, with nothing after the
+   issue number except an optional trailing period. Anything else on
+   the same line is a validation failure. This session hit the trap
+   twice (PRs #958 and #969) with `Closes #NN. Refs #MM.` inline —
+   both had to be reopened.
+
+   ```
+   ✅  Closes #NN.
+       Refs #MM (parent tracker).
+
+   ❌  Closes #NN. Refs #MM.       ← rejected: extra tokens on the line
+   ❌  See #NN — Closes.            ← rejected: verb after issue number
+   ❌  Closes #NN, #MM              ← accepted (comma-separated) but avoid — one per line reads better
+   ```
+
+   If the PR is a partial drain of a larger backlog and there's nothing
+   to close permanently, file a small "closes-syntax tracker" issue for
+   that batch (`[program] batch N — closes-syntax tracker`), `Closes
+   #<tracker>` in the body, `Refs #<parent-backlog>` on a separate
+   line. Auto-close then satisfies the check without prematurely
+   closing the backlog.
+8. When the PR merges, the auto-close workflow closes the issue AND the
    Project #4 Status auto-transitions to `Done` (via the "closes an
    issue" workflow rule). No manual Status update needed on completion —
    just at claim time.
