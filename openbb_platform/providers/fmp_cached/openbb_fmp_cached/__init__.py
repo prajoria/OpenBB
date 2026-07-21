@@ -268,7 +268,7 @@ database with configurable TTL settings.""",
         "fmp_api_key": "your_fmp_api_key_here",
         "mysql_host": "localhost",
         "mysql_port": 3306,
-        "mysql_user": "openbb_user", 
+        "mysql_user": "openbb_user",
         "mysql_password": "your_password",
         "mysql_database": "openbb_cache"
     }

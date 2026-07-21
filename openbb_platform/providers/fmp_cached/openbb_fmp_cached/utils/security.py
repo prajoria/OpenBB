@@ -68,7 +68,7 @@ def raise_for_status_redacted(resp: Any) -> None:
     """
     if getattr(resp, "status_code", 200) >= 400:
         redacted_url = redact_apikey_qs(getattr(resp, "url", ""))
-        try:
+        try:  # noqa: SIM105  (older/stubbed Response objects don't allow url mutation)
             resp.url = redacted_url
         except (AttributeError, TypeError):
             # Older/stubbed Response objects may not allow attribute
@@ -77,7 +77,7 @@ def raise_for_status_redacted(resp: Any) -> None:
             pass
         req = getattr(resp, "request", None)
         if req is not None:
-            try:
+            try:  # noqa: SIM105  (mirror of the resp.url branch above)
                 req.url = redacted_url
             except (AttributeError, TypeError):
                 pass
@@ -120,6 +120,7 @@ class ApikeyScrubFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        """Scrub apikey= from the record's formatted message; always return True."""
         try:
             formatted = record.getMessage()
         except Exception:  # noqa: BLE001
