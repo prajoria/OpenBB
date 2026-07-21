@@ -39,10 +39,19 @@ os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
 import pytest
 from fastapi.testclient import TestClient
-from openbb_portfolio_intel.widget_backend import main as backend_main
+from openbb_portfolio_intel.widget_backend import (
+    _shared as backend_shared,
+    main as backend_main,
+)
 from openbb_portfolio_intel.widget_backend.main import app
 
 _client = TestClient(app)
+
+
+def _reload_backend() -> object:
+    """Reload _shared FIRST (owns auth config) then main."""
+    importlib.reload(backend_shared)
+    return importlib.reload(backend_main)
 
 
 def _manifest() -> dict:
@@ -265,7 +274,7 @@ def test_pi_routes_require_bearer_token_when_mode_required(
     """PI_WIDGET_BACKEND_AUTH_MODE=required + token set gates every request."""
     monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", "required")
     monkeypatch.setenv("PI_WIDGET_BACKEND_TOKEN", "s3cret")
-    reloaded = importlib.reload(backend_main)
+    reloaded = _reload_backend()
     client = TestClient(reloaded.app)
 
     assert client.get("/pi/xray/sector?account_id=demo").status_code == 401
@@ -287,7 +296,7 @@ def test_pi_routes_require_bearer_token_when_mode_required(
     # Restore for subsequent tests.
     monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
     monkeypatch.delenv("PI_WIDGET_BACKEND_TOKEN", raising=False)
-    importlib.reload(backend_main)
+    _reload_backend()
 
 
 def test_startup_fails_fast_when_required_mode_missing_token(
@@ -297,18 +306,18 @@ def test_startup_fails_fast_when_required_mode_missing_token(
     monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", "required")
     monkeypatch.delenv("PI_WIDGET_BACKEND_TOKEN", raising=False)
     with pytest.raises(RuntimeError, match="required"):
-        importlib.reload(backend_main)
+        _reload_backend()
     monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
-    importlib.reload(backend_main)
+    _reload_backend()
 
 
 def test_startup_rejects_invalid_auth_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Typo in mode env var is loud rather than a silent auth-disable."""
     monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", "on")
     with pytest.raises(RuntimeError, match="invalid"):
-        importlib.reload(backend_main)
+        _reload_backend()
     monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
-    importlib.reload(backend_main)
+    _reload_backend()
 
 
 def test_auth_does_not_depend_on_request_client_host(
@@ -323,7 +332,7 @@ def test_auth_does_not_depend_on_request_client_host(
     """
     monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", "required")
     monkeypatch.setenv("PI_WIDGET_BACKEND_TOKEN", "tok")
-    reloaded = importlib.reload(backend_main)
+    reloaded = _reload_backend()
     client = TestClient(reloaded.app)
     resp = client.get(
         "/pi/xray/sector?account_id=demo",
@@ -332,7 +341,7 @@ def test_auth_does_not_depend_on_request_client_host(
     assert resp.status_code == 401
     monkeypatch.setenv("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
     monkeypatch.delenv("PI_WIDGET_BACKEND_TOKEN", raising=False)
-    importlib.reload(backend_main)
+    _reload_backend()
 
 
 def test_discovery_endpoints_are_NOT_gated_by_auth() -> None:

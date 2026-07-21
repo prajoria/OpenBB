@@ -1,7 +1,7 @@
 {
   "pi_xray_sector": {
     "name": "X-Ray — Sector Weights",
-    "description": "Portfolio sector weights vs benchmark, computed by the X-Ray analytics module.",
+    "description": "Portfolio sector weights (pie).",
     "category": "Portfolio Intelligence",
     "type": "chart",
     "endpoint": "pi/xray/sector",
@@ -9,38 +9,173 @@
     "gridData": { "w": 20, "h": 9 },
     "source": "portfolio-intel",
     "params": [
-      {
-        "paramName": "account_id",
-        "value": "demo",
-        "label": "Account",
-        "type": "text",
-        "description": "Paper account id to load positions for"
-      }
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_xray_country": {
+    "name": "X-Ray — Country Weights",
+    "description": "Portfolio country weights (pie), look-through into ETF holdings.",
+    "category": "Portfolio Intelligence",
+    "type": "chart",
+    "endpoint": "pi/xray/country",
+    "raw": true,
+    "gridData": { "w": 20, "h": 9 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_lookthrough_top25": {
+    "name": "Look-Through — Top 25 Holdings",
+    "description": "Effective top-25 positions after ETF look-through.",
+    "category": "Portfolio Intelligence",
+    "type": "table",
+    "endpoint": "pi/lookthrough/top25",
+    "gridData": { "w": 24, "h": 12 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_concentration_gauge": {
+    "name": "Concentration Gauge",
+    "description": "Herfindahl-Hirschman concentration index (0..1) for the effective book.",
+    "category": "Portfolio Intelligence",
+    "type": "metric",
+    "endpoint": "pi/concentration",
+    "gridData": { "w": 8, "h": 6 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_event_calendar": {
+    "name": "Event Calendar",
+    "description": "Upcoming earnings, ex-dividends, and 8-K filings for held symbols.",
+    "category": "Portfolio Intelligence",
+    "type": "table",
+    "endpoint": "pi/events/calendar",
+    "gridData": { "w": 30, "h": 12 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" },
+      { "paramName": "horizon_days", "value": "14", "label": "Horizon (days)", "type": "text", "description": "Look-ahead window in days" }
+    ]
+  },
+  "pi_smart_money_ribbon": {
+    "name": "Smart-Money Ribbon (PAPER)",
+    "description": "Recent notable insider + institutional moves in held names.",
+    "category": "Portfolio Intelligence",
+    "type": "table",
+    "endpoint": "pi/smart-money/ribbon",
+    "gridData": { "w": 40, "h": 8 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_risk_dashboard": {
+    "name": "Risk Dashboard",
+    "description": "Portfolio volatility, VaR, and beta metrics.",
+    "category": "Portfolio Intelligence",
+    "type": "metric",
+    "endpoint": "pi/risk/dashboard",
+    "gridData": { "w": 12, "h": 6 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_risk_vol_chart": {
+    "name": "Risk — Rolling Volatility",
+    "description": "Rolling 20/60d realized volatility of the effective book.",
+    "category": "Portfolio Intelligence",
+    "type": "chart",
+    "endpoint": "pi/risk/vol",
+    "raw": true,
+    "gridData": { "w": 24, "h": 8 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_paper_ticket": {
+    "name": "Paper Order Ticket (PAPER)",
+    "description": "Two-step paper-order ticket. Emits an intended-order preview; commit requires a second call.",
+    "category": "Portfolio Intelligence",
+    "type": "markdown",
+    "endpoint": "pi/paper/ticket",
+    "gridData": { "w": 16, "h": 8 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" },
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
+      { "paramName": "side", "value": "buy", "label": "Side", "type": "text", "description": "buy or sell" },
+      { "paramName": "quantity", "value": "100", "label": "Quantity", "type": "text", "description": "Share count" },
+      { "paramName": "confirm", "value": "false", "label": "Confirm", "type": "text", "description": "true to commit (two-step)" }
+    ]
+  },
+  "pi_paper_blotter": {
+    "name": "Paper Blotter (PAPER)",
+    "description": "Recent paper orders and their status.",
+    "category": "Portfolio Intelligence",
+    "type": "table",
+    "endpoint": "pi/paper/blotter",
+    "gridData": { "w": 32, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_paper_performance": {
+    "name": "Paper Performance (PAPER)",
+    "description": "Paper account equity curve + KPI summary.",
+    "category": "Portfolio Intelligence",
+    "type": "chart",
+    "endpoint": "pi/paper/performance",
+    "raw": true,
+    "gridData": { "w": 32, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_paper_perf_kpis": {
+    "name": "Paper Performance KPIs (PAPER)",
+    "description": "Total return, Sharpe, max drawdown for the paper account.",
+    "category": "Portfolio Intelligence",
+    "type": "metric",
+    "endpoint": "pi/paper/perf-kpis",
+    "gridData": { "w": 12, "h": 6 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
     ]
   },
   "pi_whatif_diff": {
     "name": "What-If — Trade Impact",
-    "description": "Preview a hypothetical trade's impact on portfolio metrics (composes X-Ray + risk substrate).",
+    "description": "Preview a hypothetical trade's impact on portfolio metrics.",
     "category": "Portfolio Intelligence",
     "type": "markdown",
     "endpoint": "pi/whatif",
     "gridData": { "w": 12, "h": 6 },
     "source": "portfolio-intel",
     "params": [
-      {
-        "paramName": "symbol",
-        "value": "AAPL",
-        "label": "Symbol",
-        "type": "text",
-        "description": "Ticker to trade"
-      },
-      {
-        "paramName": "delta_shares",
-        "value": "100",
-        "label": "Delta shares",
-        "type": "text",
-        "description": "Signed share delta (positive = buy, negative = sell)"
-      }
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
+      { "paramName": "delta_shares", "value": "100", "label": "Delta shares", "type": "text", "description": "Signed share delta" }
+    ]
+  },
+  "pi_whatif_card": {
+    "name": "What-If — Structured Diff Card",
+    "description": "Structured before/after diff of exposure metrics for the What-If.",
+    "category": "Portfolio Intelligence",
+    "type": "table",
+    "endpoint": "pi/whatif/card",
+    "gridData": { "w": 20, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
+      { "paramName": "delta_shares", "value": "100", "label": "Delta shares", "type": "text", "description": "Signed share delta" }
     ]
   },
   "pi_brinson_attribution": {
@@ -53,20 +188,57 @@
     "gridData": { "w": 40, "h": 9 },
     "source": "portfolio-intel",
     "params": [
-      {
-        "paramName": "window",
-        "value": "1Y",
-        "label": "Window",
-        "type": "text",
-        "description": "Attribution window: 1M, 3M, 6M, 1Y"
-      },
-      {
-        "paramName": "benchmark_symbol",
-        "value": "SPY",
-        "label": "Benchmark",
-        "type": "text",
-        "description": "Benchmark ticker (SPY, ACWI, IWV, ...)"
-      }
+      { "paramName": "window", "value": "1Y", "label": "Window", "type": "text", "description": "Attribution window: 1M, 3M, 6M, 1Y" },
+      { "paramName": "benchmark_symbol", "value": "SPY", "label": "Benchmark", "type": "text", "description": "Benchmark ticker" }
+    ]
+  },
+  "pi_news_ribbon": {
+    "name": "News — Held Symbols",
+    "description": "Recent news items for held symbols (material only).",
+    "category": "Portfolio Intelligence",
+    "type": "table",
+    "endpoint": "pi/news",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" },
+      { "paramName": "horizon_days", "value": "7", "label": "Horizon (days)", "type": "text", "description": "Look-back days" }
+    ]
+  },
+  "pi_sentiment_gauge": {
+    "name": "Sentiment Gauge",
+    "description": "Aggregate sentiment score across recent news for held symbols.",
+    "category": "Portfolio Intelligence",
+    "type": "metric",
+    "endpoint": "pi/sentiment",
+    "gridData": { "w": 8, "h": 6 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_alerts_panel": {
+    "name": "Alerts Panel",
+    "description": "Active alerts (earnings, ex-div, 8-K, smart-money, news-severity) for held symbols.",
+    "category": "Portfolio Intelligence",
+    "type": "table",
+    "endpoint": "pi/alerts",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+    ]
+  },
+  "pi_backtest_button": {
+    "name": "Backtest — One Click",
+    "description": "Kick off a walk-forward backtest of the current portfolio's rules.",
+    "category": "Portfolio Intelligence",
+    "type": "markdown",
+    "endpoint": "pi/backtest/oneclick",
+    "gridData": { "w": 16, "h": 6 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
     ]
   }
 }
