@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/insider-trading/search?apikey=MOCK_API_KEY&limit=5&page=0&statistics=False&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+2VXW/TMBSG7/crrFw3jeN8tnddC2h8LBUd3CAujOO01ho72O6yCPHfcZK50G5T
+        BxoUTbuIlJzzHh+f+NHrTycAfDMPAI5qyi9i7YyBM5nM3zqDPlqwNePLGda0zSCIYhfGrp/YvJaY
+        K0w0E/yWKLIiSSshtVlnyi5bBYTQT1IYoa2CiLLCvPmZhwGC/ii4o81FU3Vt3rkvrmlZaStRlGwk
+        04yqrOY0NxLkwwSl+3s4x2VXf05rpSnOwWvKOSuo3PYyDbKiXUS2OlEUjFA5BouP8wF4NQWY52BB
+        iaQay8YWYfJ1wxRrN5jJGVOV6D/aFWZWlDNJic7kGe/fdpKFkKWdLbw91MXNH+gmC6APwxtJJc32
+        TAzuljR2zvdUaSMxhWChBbkEHzjb/rSN7E58pXWlxp5X1/XQ1A+X4sqbSLJiV1R5NF9i6eVYY68/
+        FK89Pz+EQeyjGKIoRuiXkNuefhd0Gc/p9XClS8d0+z54yqxFSZKG+1v496hNjoraVJSl4D1mz4T9
+        FmEv3TP+xkxzP2GhH4Xx8Ql7fDPzYxRYl7aEoVE8DNEzZruYmQvNYLbF6A8wO2xkQTqKgvswOxUy
+        p1KBU8oPATaXjBNW4TWYECI2vF0GZH32IZw9vpOh0PrWEX0M3gUYfDqAHfaxIE3R6D8A7C8YGdq/
+        KI9lYw+i7OTzDyJOo7r+CwAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:45:00 GMT
+      Etag:
+      - W/"bfe-o/l2rF8NIB8/HHPGe8Lyx43wWUE"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,89 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/sec-filings-financials/?apikey=MOCK_API_KEY&from=2026-07-18&limit=1000&page=0&to=2026-07-20
+  response:
+    body:
+      string: !!binary |
+        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
+        Ywy2MRz3apNjwRSVD0h++O1vjAxDVtNfAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:45:03 GMT
+      Etag:
+      - W/"5fd3-sczybRpYvmnuAS67oOLgTOAanQs"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
