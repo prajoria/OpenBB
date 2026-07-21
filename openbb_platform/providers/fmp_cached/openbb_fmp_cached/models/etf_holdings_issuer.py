@@ -222,7 +222,16 @@ def fetch_issuer_holdings(symbol: str, *, http=requests) -> list[dict]:
             headers={"User-Agent": DEFAULT_USER_AGENT},
             timeout=DEFAULT_TIMEOUT_SECS,
         )
-        r.raise_for_status()
+        # Defense-in-depth (#963): even though SSGA/Invesco URLs don't
+        # carry the FMP apikey, wrap raise_for_status so the exception
+        # message can't leak any credential a future issuer URL might
+        # eventually embed (e.g. subscription-based CSVs).
+        # pylint: disable=import-outside-toplevel
+        from openbb_fmp_cached.utils.security import (
+            raise_for_status_redacted,
+        )
+
+        raise_for_status_redacted(r)
     except Exception as exc:  # noqa: BLE001
         logger.warning("issuer-tier %s fetch failed: %s", key, exc)
         return []
