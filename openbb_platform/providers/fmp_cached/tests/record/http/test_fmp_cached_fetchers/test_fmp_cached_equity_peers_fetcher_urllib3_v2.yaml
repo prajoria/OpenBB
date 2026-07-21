@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/stock-peers?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA33SsW7bMBAG4D1PQXg2iOORlMhujpM6BiK5qIygRZCBkelYqCQKNIXUKPrulZN0
+        iUwNXO4kfLzj/3hFyJ/hEDI7nppnV8++kNlqs1ndz+bv5dI1nWlPuWnsubeou4N5toGs25L+/6bz
+        VXnucsmo1h/F5ldYmm6oCpQpppxrITgfen/nl9DsdruImJkNhnyrTdg73xznF+lESKrkZ5olZxVS
+        rhLF4nTxdRujq9K7o9sHsnS+c96EyrWfbQFIcTQ2aqW44gxEChC184eb2Nj5w/pmvZiCEThFNdq3
+        Rp4IoRTAFPwjNnNuf4fOvVp/cdEMgCIfLVoiAEKCMi5+X2e30VS9OH84hUND7ly9q9qXyDMDFYkU
+        I51JpmUalYtN/jMiF649kZV3fTe5aEbZOFwoEN6yPZGt7fXyLkJvex9qS66tKQ9TOEOqR488uAnT
+        KDEuF1kMNtWraUlhm6p07a4vg/MkM22/N2Xo/bD94Tpvf5D7qqmC3V1K/CgDCCoZYqBBfOTu6ukf
+        wvDJy18EAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:25:25 GMT
+      Etag:
+      - W/"45f-A95Um3K5hR5Bv/nSLCnfhlrrt9w"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

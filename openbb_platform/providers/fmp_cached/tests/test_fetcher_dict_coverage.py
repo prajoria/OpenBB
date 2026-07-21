@@ -43,13 +43,15 @@ _KNOWN_UNCOVERED: dict[str, str] = {
     "AftermarketQuote": "drain to zero via #955",
     "AftermarketTrade": "drain to zero via #955",
     "AvailableIndices": "drain to zero via #955",
-    "CalendarDividend": "drain to zero via #955",
-    "CalendarEarnings": "drain to zero via #955",
-    "CalendarEvents": "drain to zero via #955",
-    "CalendarIpo": "drain to zero via #955",
-    "CalendarSplits": "drain to zero via #955",
+    # Calendar endpoints (Dividend/Earnings/Splits/Ipo): Fetcher.test()
+    # asserts query params round-trip as strings, but the pydantic model
+    # coerces str→date. Assertion fails even when HTTP round-trips fine.
+    # Needs test-time param workaround. Follow-up via #955.
+    "CalendarDividend": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
+    "CalendarEarnings": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
+    "CalendarIpo": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
+    "CalendarSplits": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "CompanyFilings": "drain to zero via #955",
-    "CompanyNews": "drain to zero via #955",
     "CryptoHistorical": "drain to zero via #955",
     "CryptoSearch": "drain to zero via #955",
     "CurrencyHistorical": "drain to zero via #955",
@@ -62,20 +64,16 @@ _KNOWN_UNCOVERED: dict[str, str] = {
     "EquityGainers": "drain to zero via #955",
     "EquityIntradayHistorical": "drain to zero via #955",
     "EquityLosers": "drain to zero via #955",
-    "EquityOwnership": "drain to zero via #955",
-    "EquityPeers": "drain to zero via #955",
+    "EquityOwnership": "drain to zero via #955 (FMP 402 — endpoint requires paid subscription tier)",
     "EquityQuoteBatchShort": "drain to zero via #955",
     "EquityScreener": "drain to zero via #955",
-    "EsgScore": "drain to zero via #955",
+    "EsgScore": "drain to zero via #955 (FMP 402 — endpoint requires paid subscription tier)",
     "EtfEquityExposure": "drain to zero via #955",
     "EtfHistorical": "drain to zero via #955",
     "EtfPricePerformance": "drain to zero via #955",
     "EtfSearch": "drain to zero via #955",
     "ExchangeMarketHours": "drain to zero via #955",
-    "ForwardEbitdaEstimates": "drain to zero via #955",
-    "ForwardEpsEstimates": "drain to zero via #955",
     "GovernmentTrades": "drain to zero via #955",
-    "HistoricalEmployees": "drain to zero via #955",
     "IndexConstituents": "drain to zero via #955",
     "IndexHistorical": "drain to zero via #955",
     "InsiderTrading": "drain to zero via #955",
@@ -87,13 +85,11 @@ _KNOWN_UNCOVERED: dict[str, str] = {
     # SKIPPED. Needs a bespoke cassette approach OR the batch shim needs
     # reshaping to single-request. Follow-up in #955.
     "PricePerformance": "drain to zero via #955 (chunk-batching not captured by pytest-recorder — needs special handling)",
-    "PriceTargetConsensus": "drain to zero via #955",
     "RevenueBusinessLine": "drain to zero via #955",
     "RevenueGeographic": "drain to zero via #955",
     "RiskPremium": "drain to zero via #955",
     "TechnicalIndicatorIntraday": "drain to zero via #955",
     "TreasuryRates": "drain to zero via #955",
-    "WorldNews": "drain to zero via #955",
     "YieldCurve": "drain to zero via #955",
 }
 

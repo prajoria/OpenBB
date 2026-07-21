@@ -1,0 +1,75 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/historical-employee-count?apikey=MOCK_API_KEY&limit=10000&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA7XazW4bNxAA4HueQvA5a81wSC65N6O9FC3aosit6EGRN7ZQ6we2Etco+u4lh7te
+        sTFXKsIxYsQYra2ZD9zhUNLv7xaLv8P3YnH19LL9uH+46hZXNze//nT1PkXXmz9jCMIXKUBP4wOr
+        9bo/HFe7df9hs+3jNQqUaRAawgXYDrBTdrz40D9u9re/fPqtP+wfj68Xg29U+/pM++1htXv5eZX+
+        2s3h8NAvftitr8cLPu0ftx9eDvxoeJofX+Obh83u7vvV8T9ZjI/328PD/qXvv9t/3sXnRmtDNcOD
+        T/vPj2v+xfvj8fDULZfPz8/XT/36+m7/ZXnzuL7ffOmflv3t3epxebs6rpaJYTmJKBN/bv1JqInF
+        cbDZ7G77v67vj9ur8IT/vK/rrRvEBkZvmvfW7O3qew9ZlL11Xe/451BR5q2bFJT1Jq5ULdB14Lpp
+        7b7pTdGboL53yoLK3ljXmyIt2MybmhSU9VbxTlYte2OHetZb8frW9b1TFq7sXXl9K6Z1mbdK3k7W
+        G1Ol7K27qeQ3vZG9TX3vlIUvepvK3si0JvPG5G1kvSFVyt62myzf9Ab2tvW9OYupUX3lrdu63vFH
+        8Hk/gSYFRb3Rp0qjN6oz+2W4WGa/HLIo75dU1xt9XMqYzSexOA7KejveqcwCuH9rmPV27O3rew9Z
+        lL1VXW8XaXXWT2JxHJT1btNkMHjT7HwSLpaZT8Ysit48UFT0jrcLtJB5t2n+Bllvy/3bhhGg06rD
+        +X5iheaTMYuiN1Y676BVTrnwX9gyCPxJqInFcVDW24zzie0IO/Cz3kZovxyzKHtDJe+4uJVBQ8aS
+        wZNQE3JIQVlvPc7fbYfYmdn5BLXQeX7MouTtla3KrcmRpjbj1k0KynLTMA4q6MidGb+RpMYTmh8H
+        XbjNa3KTRmtIZ9zUpKAstxperQqrG8ICn+8mSmo6UfPTYBvaa01upbUG6zJu1aSgLDdOmyWZM4cd
+        RKnNEuc3Swu6KjeG/RGRMm5sUlCWG8beHbjD2RJnuUHoLD9mUeLWtm7vBkUOdN5MwvNzUJQb/MQd
+        TpdqtpmAFxpNxixK3GELq8kNXqF2xp9yx8I4KMv9erIM3GF10yy3E5pM4MzJkiodLEdup5T2Juvd
+        IYUUlOXmIx0aPuj4MwdLaIW2yjGLErfCSs0EdKutD6dH8KThJNTE2jgoy23jnhwGwfi+junM7CAI
+        VugcP2ZR4sa2dW0N7oBrjQcLTivnTkJNrI2Dsty8JxOEBdQp1el5biM0mQAPYjNvo+lag2DiNmAC
+        LWbcoTYOynJrLjS9i2ZCP5nl1kKTyZBF+VUqtN7U4B6aiQYyvjVZMwm1cVCWm2Kh6OMxRwXu2bkb
+        SGqrHLIocoNHVZGbIJwgQWfcoTYOynKrE244M3eDEjrEj1mUucMBpCJ33Jxtm3PHtyxjUJYbeZPC
+        BUDH/2a58RsnEz3Nel+JD4mUxL0FqgAebxMwLaAJR3ayJ6GwdTQpKAsOvLL0ZeAgNZsMWZS0nbGu
+        onbYnMkqyrRDaRwU1EbvPa8qdYE2XyyxV05ZlLRtWNz1tL0PPUSlQ/yoHUvjoKy24zrpMm33jdrF
+        ZjIlUgS3psbyHlq1j6+OeIen3TtWx0FZ8JaHMHMZeCvyqsmURbGZaKpyzhm0QzuJN0ymHftJDMpq
+        22E0uUjbikyCUxYlbQTnbQXuAcTHNz8h/7RgrI2Dstzm/3CbbxxNitzmDDehrzEJjtz8YVjMPtzj
+        04dhUXIwCYXygQ4vbN5aZDCZsihyo6ryosnIrd/g1m9zv/vjX/5m5HbuLQAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:25:24 GMT
+      Etag:
+      - W/"2dee-wZy17e0mmLuwcRu+el3k8R+MYEM"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
