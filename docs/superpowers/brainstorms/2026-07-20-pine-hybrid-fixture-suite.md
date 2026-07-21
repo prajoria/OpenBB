@@ -8,6 +8,7 @@
 | **Related PRs / docs** | [PR #946](https://github.com/prajoria/OpenBB/pull/946) (fixture prep guide), [`docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md`](../../pine/HOW_TO_PREPARE_TV_FIXTURES.md) |
 | **Author** | Claude (2026-07-20 session, drafted from Prashant's question mid-workflow on rsi_reversal fixture) |
 | **Reviewer** | @prashant (approval required before promoting to a `docs/superpowers/specs/` design doc) |
+| **HARD CONSTRAINT (2026-07-20)** | @prashant's TV plan is **Essential**, which allows exporting **List of Trades only** — bars, equity curve, and Performance Summary CSVs are **not exportable** from this tier. This kills the 4-CSV canary path unless someone with TV Premium provides those CSVs, or canaries are re-designed to use synthetic/deterministic bars. See open question **Q7** below. |
 
 ---
 
@@ -165,6 +166,15 @@ computation.
    Essential required" win vanishes. Prashant would know from his own
    account.
 
+   > **Recommendation (Claude):** Empirical — Prashant to confirm from
+   > his account. But treat the answer as **non-blocking**: even if
+   > free-tier exports trades, the export omits the *adjustment* and
+   > *strategy settings* used, which we must capture separately in
+   > `provenance.json` regardless (see A4/B4). So the design proceeds
+   > either way; a NO only removes the "no paid TV" bullet from the
+   > Wins list, it does not change the architecture. Don't gate
+   > implementation on this.
+[PR] I agree for now
 2. **How wide a tolerance is acceptable on trade price parity?**
    TradingView uses its own split-adjustment; FMP uses its own. On
    AAPL 1981-2026 the raw prices are pennies (post-adjustment for the
@@ -172,12 +182,37 @@ computation.
    delta of $0.01 is 10% of a $0.10 pre-split price but 0.003% of a
    $300 post-2020 price. Absolute vs relative tolerance choice.
 
+   > **Recommendation (Claude):** This is the wrong question to lead
+   > with — tolerance is *downstream* of window selection. Fix the
+   > window first (**start 2025-01-01**, per R1) so both series are
+   > post-last-split and congruent; that largely dissolves the problem.
+   > For the residual, use **relative** tolerance, never absolute:
+   > structural gate = trade count/ordering/direction must match
+   > **exactly** (zero tolerance); numeric gate = per-row price/PnL
+   > within `abs(a-b)/max(|a|,|b|) < 1e-3` (~10 bps) with a loud
+   > warning at half that. Never let the numeric tolerance paper over
+   > a count mismatch — a differing trade *set* is a structural fail,
+   > not a rounding issue.
+
+   [PR]accet
+
 3. **Should the hybrid suite REPLACE `conformance_strategy/` or run
    PARALLEL?** Proposal: parallel — keep one full-parity canary
    fixture in the old suite (`rsi_reversal`, since it's the one being
    built now), migrate the other 4 pilots to the hybrid design when
    they land. New fixtures default to hybrid unless there's a specific
    reason to lock in full parity.
+
+   > **Recommendation (Claude):** Agree with **parallel**, but bump the
+   > canary count above 1. A single canary is too thin for the exact
+   > surface (max-drawdown / intrabar equity) that trades-only parity
+   > cannot cover (see A1). Keep **~20–25% of fixtures as full 4-CSV
+   > canaries**, chosen to span distinct KPI surfaces (one
+   > drawdown-heavy, one short-selling, one pyramiding). New fixtures
+   > default to hybrid; canaries are deliberately curated, not
+   > incidental.
+
+   [PR] Parallel accepted.
 
 4. **Where does the hybrid suite live?**
    - Option A: `tests/conformance_strategy_hybrid/` (parallel to
@@ -188,17 +223,120 @@ computation.
      Option B avoids code duplication. Recommendation: **B** — one
      suite, one discovery walker, mode flag on the provenance file.
 
+   > **Recommendation (Claude):** **B is fine, but only if the
+   > completeness-rewrite is done properly** (see B3). Today
+   > `_discover_strategy_triples` treats any dir lacking
+   > equity/trades/stats as *incomplete and skips it* — so hybrid
+   > fixtures would be silently dropped. Option B must make
+   > completeness *mode-dependent*: provenance.json present ⟹ hybrid
+   > completeness (`pine + trades + provenance`); absent ⟹ legacy
+   > completeness (the current four). Preserve the loud WARNING skip in
+   > *both* modes. **If time-boxed, prefer A** — it doesn't touch the
+   > harness's loudest safety property and can't silently swallow a
+   > half-authored fixture.
+
+   [PR] Option B
+
 5. **Does the hybrid suite gate CI merge?** Or is it a
    nightly/scheduled-only test since it needs MySQL+FMP? Current
    `conformance_strategy/` gates CI merge. Recommendation: **hybrid
    suite runs on every PR but SKIPS when fmp_cached isn't configured**;
    the current 4-CSV canary always runs (no deps).
 
+   > **Recommendation (Claude):** Agree, with one honesty caveat: on
+   > PR CI (no MySQL, no FMP key) `pytest.importorskip` means the
+   > hybrid tests **skip**, i.e. they provide **zero PR-gate coverage**
+   > in exactly the environment where you'd want them (see B2). So the
+   > deterministic **4-CSV canaries are what actually gate merge**;
+   > the hybrid suite is best run as a **nightly/scheduled job** on a
+   > runner that *does* have MySQL+FMP, where a skip is treated as a
+   > failure (not a pass). Decide this deliberately rather than letting
+   > "skips silently" become the default posture.
+
+   [PR] agree
+
 6. **What happens when TV renames columns in a future update?**
    `reshape_tv_trades.py` is currently coded against today's TV column
    names. When TV changes them (they do, periodically), the reshape
    breaks and human intervention updates the column map. This is
    already true of the current design — not new.
+
+   > **Recommendation (Claude):** Correctly a pre-existing risk, not a
+   > hybrid-specific one — don't let it block this design. Make the
+   > failure *loud and self-explaining*: have `reshape_tv_trades.py`
+   > validate the input header against its expected `_SHARED_COLUMN_MAP`
+   > keys and raise a clear `ValueError` naming the missing/renamed
+   > columns (fail at reshape time, not silently downstream). Record
+   > the TV `export_schema_version` (or a header fingerprint) in
+   > `provenance.json` so a future break is diagnosable at a glance.
+   > Low priority — implement opportunistically, not as a blocker.
+
+   [PR] agree with cluade recommendation.
+
+7. **TV Essential tier exports trades only — how do we source canaries
+   (equity.csv + stats.csv) and PR-gate bars?** @prashant's TV plan
+   allows Strategy Tester → List of Trades export, but NOT the equity
+   curve or Performance Summary. This invalidates two things we just
+   accepted:
+   - **D1.3's canary count (2-3 full-parity canaries):** canaries by
+     definition ship `.equity.csv` and `.stats.csv` sourced from TV.
+     Without Premium, they cannot be produced.
+   - **D1.6's PR gate:** the plan was "4-CSV canaries gate PR
+     deterministically, hybrid runs nightly." If canaries don't exist,
+     the PR gate has no parity coverage; either hybrid must gate PR
+     (re-introducing the CI-skip paradox from B2) or PR gate loses
+     parity entirely and only unit tests protect the merge.
+
+   > **Recommendation (Claude):** Three options, ordered by preference:
+   >
+   > **Option 7-A — Synthetic-bars canaries.** Canaries stop using
+   > *TV-recorded* equity/stats. Instead, canary fixtures use the
+   > existing deterministic 500-bar synthetic walk (`_deterministic_500_bars`
+   > in `conftest.py`, seed 20260711), run through **our runtime**, and
+   > record the runtime's OWN trades/equity/stats as the "golden"
+   > snapshot. Parity is then a **round-trip stability** check (does
+   > this runtime + these bars produce the same output today as when
+   > the snapshot was taken?) — NOT a cross-engine parity check against
+   > TV. This detects engine regressions but does NOT catch cases where
+   > our engine diverges from TV. Cheap, no external deps, gates PR
+   > cleanly. Best fit for the Essential-tier constraint.
+   >
+   > **Option 7-B — Drop canaries; accept the A1 gap.** Accept that
+   > equity/max_drawdown parity vs TV is out of reach with this TV plan.
+   > PR gate becomes: unit tests + hybrid suite skipped-when-unconfigured.
+   > On nightly runner (with FMP+MySQL), hybrid runs and covers
+   > trades-parity. Cheapest but explicitly loses the intrabar-drawdown
+   > coverage A1 flagged as the missing 20%.
+   >
+   > **Option 7-C — Ask a Premium-tier collaborator to seed canaries once.**
+   > A one-time export from someone with TV Premium produces the
+   > equity.csv + stats.csv for 2-3 chosen fixtures; those become
+   > checked-in reference data and never need re-export unless the
+   > `.pine` source changes. Delegates the constraint rather than
+   > engineering around it. Realistic only if such a collaborator exists.
+   >
+   > **My recommendation: 7-A.** It preserves a PR-gating deterministic
+   > canary (which was the load-bearing property of D1.6), doesn't
+   > require anyone to have a paid TV account, and the "round-trip
+   > stability" check is a real regression guard even if it doesn't
+   > catch TV-parity drift. Combine with the hybrid suite's TV-trades
+   > cross-check running nightly, and the combined coverage is:
+   > (engine-vs-itself) on PR + (engine-vs-TV) on nightly.
+
+   [PR] **7-C, non-blocking.** @prashant will find a Premium-tier
+   collaborator to seed the canary CSVs. Until then, canaries are a
+   **deferred additive layer**, not a prerequisite. Ship the design in
+   two waves:
+   - **Wave 1 (unblocked, ship now):** trades-only hybrid suite,
+     nightly. All 5 pilots migrate to hybrid mode with Essential-tier
+     trades + fmp_cached bars. Spec promotes with Q7 open but tracked.
+   - **Wave 2 (when Premium CSVs arrive):** drop `.equity.csv` +
+     `.stats.csv` into 2-3 chosen fixture dirs, flip
+     `canary_mode: true` in their provenance.json. D1.7's mode-dependent
+     completeness rule picks them up automatically — zero rework.
+   - **Risk accepted during the wait:** A1's max-drawdown / intrabar-
+     equity gap ships uncovered on PR AND nightly. Document explicitly
+     in the spec as an eyes-open call, not a silent hole.
 
 ---
 
