@@ -42,7 +42,6 @@ _KNOWN_UNCOVERED: dict[str, str] = {
     # loudly if you forget.
     "AftermarketQuote": "drain to zero via #955",
     "AftermarketTrade": "drain to zero via #955",
-    "AvailableIndices": "drain to zero via #955",
     # Calendar endpoints (Dividend/Earnings/Splits/Ipo): Fetcher.test()
     # asserts query params round-trip as strings, but the pydantic model
     # coerces str→date. Assertion fails even when HTTP round-trips fine.
@@ -51,45 +50,37 @@ _KNOWN_UNCOVERED: dict[str, str] = {
     "CalendarEarnings": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "CalendarIpo": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
     "CalendarSplits": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "CompanyFilings": "drain to zero via #955",
     "CryptoHistorical": "drain to zero via #955",
-    "CryptoSearch": "drain to zero via #955",
+    "CryptoSearch": "drain to zero via #955 (FMP 402 — paid subscription tier)",
     "CurrencyHistorical": "drain to zero via #955",
-    "CurrencyPairs": "drain to zero via #955",
-    "CurrencySnapshots": "drain to zero via #955",
+    "CurrencySnapshots": "drain to zero via #955 (FMP 402 — paid subscription tier)",
     "DiscoveryFilings": "drain to zero via #955",
-    "EarningsCallTranscript": "drain to zero via #955",
+    "EarningsCallTranscript": "drain to zero via #955 (FMP 402 — paid subscription tier)",
     "EconomicCalendar": "drain to zero via #955",
-    "EquityActive": "drain to zero via #955",
-    "EquityGainers": "drain to zero via #955",
+    "EquityActive": "drain to zero via #955 (FMP 402 — paid subscription tier)",
     "EquityIntradayHistorical": "drain to zero via #955",
-    "EquityLosers": "drain to zero via #955",
     "EquityOwnership": "drain to zero via #955 (FMP 402 — endpoint requires paid subscription tier)",
     "EquityQuoteBatchShort": "drain to zero via #955",
     "EquityScreener": "drain to zero via #955",
     "EsgScore": "drain to zero via #955 (FMP 402 — endpoint requires paid subscription tier)",
     "EtfEquityExposure": "drain to zero via #955",
     "EtfHistorical": "drain to zero via #955",
-    "EtfPricePerformance": "drain to zero via #955",
-    "EtfSearch": "drain to zero via #955",
+    "EtfPricePerformance": "drain to zero via #955 (recording failed silently — cassette not produced; likely paid tier or 402)",
     "ExchangeMarketHours": "drain to zero via #955",
     "GovernmentTrades": "drain to zero via #955",
     "IndexConstituents": "drain to zero via #955",
     "IndexHistorical": "drain to zero via #955",
     "InsiderTrading": "drain to zero via #955",
     "InstitutionalOwnership": "drain to zero via #955",
-    "MarketSnapshots": "drain to zero via #955",
+    "MarketSnapshots": "drain to zero via #955 (FMP 402 — paid subscription tier)",
     "NportDisclosure": "drain to zero via #955",
     # PricePerformance: fetcher chunks HTTP calls (multi-symbol batching)
     # in a way pytest-recorder can't cleanly capture — batch 1 recording
     # SKIPPED. Needs a bespoke cassette approach OR the batch shim needs
     # reshaping to single-request. Follow-up in #955.
     "PricePerformance": "drain to zero via #955 (chunk-batching not captured by pytest-recorder — needs special handling)",
-    "RevenueBusinessLine": "drain to zero via #955",
-    "RevenueGeographic": "drain to zero via #955",
     "RiskPremium": "drain to zero via #955",
     "TechnicalIndicatorIntraday": "drain to zero via #955",
-    "TreasuryRates": "drain to zero via #955",
     "YieldCurve": "drain to zero via #955",
 }
 

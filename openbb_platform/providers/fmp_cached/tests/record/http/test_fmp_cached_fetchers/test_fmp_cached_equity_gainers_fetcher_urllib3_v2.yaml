@@ -1,0 +1,84 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/biggest-gainers?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        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
+        yuzTH/8C/gqWZA4iAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 04:35:25 GMT
+      Etag:
+      - W/"220e-R55HSB2jlN+jyf6PCyHXbwbliMI"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
