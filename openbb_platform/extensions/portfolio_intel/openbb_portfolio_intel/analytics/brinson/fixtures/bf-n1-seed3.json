@@ -1,0 +1,32 @@
+{
+  "case_id": "bf-n1-seed3",
+  "expected": {
+    "active_return": 0.0675140841057381,
+    "allocation": 0.0,
+    "interaction": 0.0,
+    "selection": 0.0675140841057381,
+    "tolerance_bps": 1.0
+  },
+  "generator": {
+    "flags": {},
+    "n_groups": 1,
+    "seed": 3
+  },
+  "inputs": {
+    "group": [
+      "S0"
+    ],
+    "r_b": [
+      -0.03406617636767579
+    ],
+    "r_p": [
+      0.03344790773806231
+    ],
+    "w_b": [
+      1.0
+    ],
+    "w_p": [
+      1.0
+    ]
+  }
+}
