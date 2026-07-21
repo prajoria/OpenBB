@@ -88,6 +88,7 @@ cite `bd-XX` identifiers in new work.
    ```bash
    python scripts/pi_claim.py <NN> heartbeat   # updates last-touch timestamp
    ```
+
    Any agent working on a claimed issue MUST run a heartbeat at least
    once every 10 minutes. If a claimed issue's last heartbeat is older
    than **2 hours**, the task is considered abandoned (agent crashed,
