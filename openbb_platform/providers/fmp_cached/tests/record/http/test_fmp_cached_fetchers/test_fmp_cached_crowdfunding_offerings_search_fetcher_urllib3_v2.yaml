@@ -1,0 +1,51 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/crowdfunding-offerings-search?apikey=MOCK_API_KEY&name=Kara
+  response:
+    body:
+      string: "[\n  {\n    \"cik\": \"0002003387\",\n    \"name\": \"Kara Water, Inc.\",\n
+        \   \"date\": \"07-28-2020\"\n  },\n  {\n    \"cik\": \"0002003387\",\n    \"name\":
+        \"Kara Water, Inc.\",\n    \"date\": \"06-17-2026\"\n  }\n]"
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-length:
+      - '184'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 16:19:39 GMT
+      etag:
+      - W/"b8-NxP/bUENdS6JPeX7x8oRmKBt3tQ"
+      server:
+      - nginx
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

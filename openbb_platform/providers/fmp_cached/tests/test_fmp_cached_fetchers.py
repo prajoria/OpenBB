@@ -1806,3 +1806,311 @@ def test_fmp_cached_economic_indicators_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["EconomicIndicators"]
     fetcher = cls()
     assert fetcher.test({"name": "GDP"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_delisted_companies_fetcher(credentials=test_credentials):
+    """Test FMP cached delisted-companies (#1087)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["DelistedCompanies"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_mergers_acquisitions_latest_fetcher(credentials=test_credentials):
+    """Test FMP cached mergers-acquisitions-latest (#1095)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["MergersAcquisitionsLatest"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_mergers_acquisitions_search_fetcher(credentials=test_credentials):
+    """Test FMP cached mergers-acquisitions-search (#1096)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["MergersAcquisitionsSearch"]
+    fetcher = cls()
+    assert fetcher.test({"name": "Microsoft"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_acquisition_of_beneficial_ownership_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP cached acquisition-of-beneficial-ownership (#1211)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["AcquisitionOfBeneficialOwnership"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_sec_filings_8k_fetcher(credentials=test_credentials):
+    """Test FMP cached sec-filings-8k (#1261)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SecFilings8K"]
+    fetcher = cls()
+    assert fetcher.test({"page": 0}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_sec_profile_fetcher(credentials=test_credentials):
+    """Test FMP cached sec-profile (#1269)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SecProfile"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_standard_industrial_classification_list_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP cached standard-industrial-classification-list (#1270)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["StandardIndustrialClassificationList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_industry_classification_search_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP cached industry-classification-search (#1271)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["IndustryClassificationSearch"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_all_industry_classification_fetcher(credentials=test_credentials):
+    """Test FMP cached all-industry-classification (#1272)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["AllIndustryClassification"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_senate_latest_fetcher(credentials=test_credentials):
+    """Test FMP cached senate-latest (#1277)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SenateLatest"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_house_latest_fetcher(credentials=test_credentials):
+    """Test FMP cached house-latest (#1278)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HouseLatest"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_senate_profile_fetcher(credentials=test_credentials):
+    """Test FMP cached senate-profile (#1285)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SenateProfile"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_senate_positions_fetcher(credentials=test_credentials):
+    """Test FMP cached senate-positions (#1286)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SenatePositions"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_senate_net_worth_fetcher(credentials=test_credentials):
+    """Test FMP cached senate-net-worth (#1287)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SenateNetWorth"]
+    fetcher = cls()
+    assert fetcher.test({"senateID": "A000360"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_senate_net_worth_aggregated_fetcher(credentials=test_credentials):
+    """Test FMP cached senate-net-worth-aggregated (#1288)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SenateNetWorthAggregated"]
+    fetcher = cls()
+    assert fetcher.test({"senateID": "A000360"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_ipos_disclosure_fetcher(credentials=test_credentials):
+    """Test FMP cached ipos-disclosure (#1069)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["IposDisclosure"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_ipos_prospectus_fetcher(credentials=test_credentials):
+    """Test FMP cached ipos-prospectus (#1070)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["IposProspectus"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_crowdfunding_offerings_latest_fetcher(credentials=test_credentials):
+    """Test FMP cached crowdfunding-offerings-latest (#1191)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CrowdfundingOfferingsLatest"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_crowdfunding_offerings_search_fetcher(credentials=test_credentials):
+    """Test FMP cached crowdfunding-offerings-search (#1192)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CrowdfundingOfferingsSearch"]
+    fetcher = cls()
+    assert fetcher.test({"name": "Kara"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_crowdfunding_offerings_fetcher(credentials=test_credentials):
+    """Test FMP cached crowdfunding-offerings (#1193)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CrowdfundingOfferings"]
+    fetcher = cls()
+    assert fetcher.test({"cik": "0002003387"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_fundraising_latest_fetcher(credentials=test_credentials):
+    """Test FMP cached fundraising-latest (#1194)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FundraisingLatest"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_fundraising_search_fetcher(credentials=test_credentials):
+    """Test FMP cached fundraising-search (#1195)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FundraisingSearch"]
+    fetcher = cls()
+    assert fetcher.test({"name": "Fresh"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_fundraising_fetcher(credentials=test_credentials):
+    """Test FMP cached fundraising (#1196)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["Fundraising"]
+    fetcher = cls()
+    assert fetcher.test({"cik": "0002143341"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_fmp_articles_fetcher(credentials=test_credentials):
+    """Test FMP cached fmp-articles (#1235)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FmpArticles"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_news_crypto_latest_fetcher(credentials=test_credentials):
+    """Test FMP cached news-crypto-latest (#1239)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["NewsCryptoLatest"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_news_forex_latest_fetcher(credentials=test_credentials):
+    """Test FMP cached news-forex-latest (#1240)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["NewsForexLatest"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_news_crypto_fetcher(credentials=test_credentials):
+    """Test FMP cached news-crypto (#1243)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["NewsCrypto"]
+    fetcher = cls()
+    assert fetcher.test({"symbols": "BTCUSD"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_news_forex_fetcher(credentials=test_credentials):
+    """Test FMP cached news-forex (#1244)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["NewsForex"]
+    fetcher = cls()
+    assert fetcher.test({"symbols": "EURUSD"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_commitment_of_traders_report_fetcher(credentials=test_credentials):
+    """Test FMP cached commitment-of-traders-report (#1100)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CommitmentOfTradersReport"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_commitment_of_traders_analysis_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP cached commitment-of-traders-analysis (#1101)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CommitmentOfTradersAnalysis"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None

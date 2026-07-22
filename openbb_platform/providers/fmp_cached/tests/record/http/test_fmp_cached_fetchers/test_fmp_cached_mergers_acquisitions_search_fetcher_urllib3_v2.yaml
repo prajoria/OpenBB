@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/mergers-acquisitions-search?apikey=MOCK_API_KEY&name=Microsoft
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA8WSX0+DMBTF3/cpGl58GfQWnaN7M8iMidvMIL4YHyqr0Mi/0Lq5GL+7pcicLvqE
+        WdOm5J6Tc7m/9H6A0Js+CFlymz+WmTVB1iycRtawrcZlXrFiO2c5N9K1v1yEi2mE/MXydmcSz40I
+        eo09CoR2gmJ1whVf+d9TroJ5dBPMgvmBzwQVL1n2Qwi7n9vXalZIFitRFpdMmWAXgNjg2kC6ZBbH
+        vNIBhw4EMDG7s2aiMGOkSlVygvFms3Ekj52kXOOLOk7FmkvMVwmr8YophttRsR6awKnrkubWxz3f
+        K9lNN1M0l6NelaW7vQ+Pwv1OSFGeyL6pE0qpTRqsv1H/cvRPnVL9eUZhn7ru1haPDNxPRRWWT+of
+        iI/MK6Z/EP909EgcPErA1XhHzWsG4u3wDh4+AGGKq9dKBAAA
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 16:12:26 GMT
+      etag:
+      - W/"44a-pm6SWzgfUGuluA8vyHteqs+jhGc"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

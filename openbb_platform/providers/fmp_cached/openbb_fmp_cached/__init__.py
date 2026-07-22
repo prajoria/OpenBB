@@ -236,6 +236,38 @@ from openbb_fmp_cached.models.symbol_lists import (
     FMPCachedFinancialStatementSymbolListFetcher,
     FMPCachedStockListFetcher,
 )
+from openbb_fmp_cached.models.w5_w6_w8_extras import (
+    FMPCachedAcquisitionOfBeneficialOwnershipFetcher,
+    FMPCachedAllIndustryClassificationFetcher,
+    FMPCachedCommitmentOfTradersAnalysisFetcher,
+    FMPCachedCommitmentOfTradersReportFetcher,
+    FMPCachedCrowdfundingOfferingsFetcher,
+    FMPCachedCrowdfundingOfferingsLatestFetcher,
+    FMPCachedCrowdfundingOfferingsSearchFetcher,
+    FMPCachedDelistedCompaniesFetcher,
+    FMPCachedFmpArticlesFetcher,
+    FMPCachedFundraisingFetcher,
+    FMPCachedFundraisingLatestFetcher,
+    FMPCachedFundraisingSearchFetcher,
+    FMPCachedHouseLatestFetcher,
+    FMPCachedIndustryClassificationSearchFetcher,
+    FMPCachedIposDisclosureFetcher,
+    FMPCachedIposProspectusFetcher,
+    FMPCachedMergersAcquisitionsLatestFetcher,
+    FMPCachedMergersAcquisitionsSearchFetcher,
+    FMPCachedNewsCryptoFetcher,
+    FMPCachedNewsCryptoLatestFetcher,
+    FMPCachedNewsForexFetcher,
+    FMPCachedNewsForexLatestFetcher,
+    FMPCachedSecFilings8KFetcher,
+    FMPCachedSecProfileFetcher,
+    FMPCachedSenateLatestFetcher,
+    FMPCachedSenateNetWorthAggregatedFetcher,
+    FMPCachedSenateNetWorthFetcher,
+    FMPCachedSenatePositionsFetcher,
+    FMPCachedSenateProfileFetcher,
+    FMPCachedStandardIndustrialClassificationListFetcher,
+)
 
 
 # Create cached versions of all FMP fetchers
@@ -348,6 +380,42 @@ def create_all_cached_fetchers():
         "FinancialReportsJson": FMPCachedFinancialReportsJsonFetcher,
         # W3 Economics (#1108)
         "EconomicIndicators": FMPCachedEconomicIndicatorsFetcher,
+        # W5/W6/W8 free-tier extras batch 15 (30 endpoints)
+        # W5 no-param
+        "DelistedCompanies": FMPCachedDelistedCompaniesFetcher,
+        "MergersAcquisitionsLatest": FMPCachedMergersAcquisitionsLatestFetcher,
+        "StandardIndustrialClassificationList": FMPCachedStandardIndustrialClassificationListFetcher,
+        "AllIndustryClassification": FMPCachedAllIndustryClassificationFetcher,
+        "SenateLatest": FMPCachedSenateLatestFetcher,
+        "HouseLatest": FMPCachedHouseLatestFetcher,
+        "SenateProfile": FMPCachedSenateProfileFetcher,
+        "SenatePositions": FMPCachedSenatePositionsFetcher,
+        # W5 with param
+        "MergersAcquisitionsSearch": FMPCachedMergersAcquisitionsSearchFetcher,
+        "AcquisitionOfBeneficialOwnership": FMPCachedAcquisitionOfBeneficialOwnershipFetcher,
+        "SecFilings8K": FMPCachedSecFilings8KFetcher,
+        "SecProfile": FMPCachedSecProfileFetcher,
+        "IndustryClassificationSearch": FMPCachedIndustryClassificationSearchFetcher,
+        "SenateNetWorth": FMPCachedSenateNetWorthFetcher,
+        "SenateNetWorthAggregated": FMPCachedSenateNetWorthAggregatedFetcher,
+        # W6 no-param
+        "IposDisclosure": FMPCachedIposDisclosureFetcher,
+        "IposProspectus": FMPCachedIposProspectusFetcher,
+        "CrowdfundingOfferingsLatest": FMPCachedCrowdfundingOfferingsLatestFetcher,
+        "FundraisingLatest": FMPCachedFundraisingLatestFetcher,
+        "FmpArticles": FMPCachedFmpArticlesFetcher,
+        "NewsCryptoLatest": FMPCachedNewsCryptoLatestFetcher,
+        "NewsForexLatest": FMPCachedNewsForexLatestFetcher,
+        # W6 with param
+        "CrowdfundingOfferingsSearch": FMPCachedCrowdfundingOfferingsSearchFetcher,
+        "CrowdfundingOfferings": FMPCachedCrowdfundingOfferingsFetcher,
+        "FundraisingSearch": FMPCachedFundraisingSearchFetcher,
+        "Fundraising": FMPCachedFundraisingFetcher,
+        "NewsCrypto": FMPCachedNewsCryptoFetcher,
+        "NewsForex": FMPCachedNewsForexFetcher,
+        # W8 CommitmentOfTraders
+        "CommitmentOfTradersReport": FMPCachedCommitmentOfTradersReportFetcher,
+        "CommitmentOfTradersAnalysis": FMPCachedCommitmentOfTradersAnalysisFetcher,
     }
 
     # Fetchers that need fallback wrapping

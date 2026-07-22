@@ -1,0 +1,67 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/fundraising?apikey=MOCK_API_KEY&cik=0002143341
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA51UyW7bMBC95ysIn1ogKeSlDuKb6iU1qtiC7SJIix5ocmSxoUiVpIIYRf+9Q8mS
+        F9gpUECCbM6bN8sbzvcrQn7jS0iLiefWgLSCIOi0e91ur9263hl0llO1ndEMPGBiwKZkUihOOiSK
+        CSVLMAIs0QkZ3k866E6iaFh7c+pKNzzv3wS3N52GNxFSqM3o1N4hQTAonxpIGYPcAT8DbXcG7d6g
+        d9twapOttnkJGx0eLsVGiUQw6oRW3jrTTjDwSY9fIcsdmScJ1qE2/mgJrDDCYVU1Bygn3P/2QFhb
+        gFk6A+CqAu66JP48jcLROMJvSOLpl/ExeojhPHYYhU8P89nqlAt7MTdDXShnStxo/BZiBJYZkdfF
+        Y9jwMVycuHwT+VDzssD23W3QPbbGqVYwK7I1GI941+0H78ldD5XoB70a+hPbZrlgPtA8mSqmTa4N
+        vRS36motWCQygTKTSNA1zobbkmE1ek0iDR/wR+FSoSbiBZ6AGov+zhSwA27x6Ex4Pzg1lwHpaWIw
+        ViONsa4W90C4I1BE95jllgOj5izuVOdUSMpB5qmgJBbPcNapkVvSbaaVu8B8WfU3gP8Q/8jz0gwc
+        gRb+D7LZVOQlozDAnG7aIRQvLAa+N7rIa3VjrSWKO1UvYF2Gypf3Z8//AqqABVWb6vICw+0AxGky
+        EpZJbZu+JcDBUFldW5/F+JXJwvpf5QLrr69Jd+jfD82uETbEkNyHRUxCpa1Hxe+neVIOwJLK4/3S
+        bCBeVEM0T+otMbUP2sAqpcqP3wmnbdZHCQceGowx/lXsh10VUja5fcLsFViL474Wqoy0MlRZynaa
+        HZJnQomsyPZ9DHfrEXHBDuO0o7JONcz8GKC1F3zE7X4IqUxLLfkb5gVkFGOqzUGAlNqZVhgZi/N3
+        tspGl/fwMNmSploaoTRA+bZCltm2azaLjffFZ7hpdjLWpgRnCWduAnB4ujHa2thoBsDtV1vVjqY/
+        Vz/+AsBYpE3SBgAA
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 16:20:08 GMT
+      etag:
+      - W/"6d2-Ceq37JMd8MoUinePkUdPSTtxAK8"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
