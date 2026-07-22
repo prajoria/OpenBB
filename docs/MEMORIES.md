@@ -806,3 +806,83 @@ release/close at PR-merge time). See CLAUDE.md Coordination §2
 sessions: consider a git pre-commit hook that refuses to commit if
 the issue in the branch name doesn't have Status=In Progress and a
 fresh (<10 min) heartbeat marker.
+
+---
+
+## fmp-cached-drain-final-2026-07-21
+
+**Final drain state on 2026-07-21 after full-day session:**
+
+Board went from 281 → 221 open on Project #4 (60 items drained).
+Fetcher count: **76 → 122** (+46 new).
+
+Wave status:
+- **W4 Directory: fully drained** (0 remaining)
+- **W7 Analyst + MarketPerformance: fully drained** (0 remaining)
+- W1 Statements: 31 remaining
+- W2 Quote: 30 remaining
+- W3 TechnicalIndicators: 42 remaining
+- W5 Filings/Governance/Senate/etc: 45 remaining
+- W6 News + EarningsTranscript: 31 remaining
+- W8 Bulk + Partners: 28 remaining
+- Unbucketed (WAVE meta-epics): 14
+
+**11 code PRs shipped**: #1320 #1322 #1323 #1324 #1325 #1326 #1327
+#1329 #1331 (+#1328 doc-only). All squash-merged to `portfolio`.
+
+**Endpoint modules created (all under
+`openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/`):**
+
+1. `available_directories.py` — 4 no-param directories + shared
+   `_ALLOWED_TABLES` + `_TABLE_TO_CREATOR` map (23 aligned entries)
+2. `symbol_lists.py` — 5 no-param + `_SymbolListFetcherBase` mixin
+3. `market_directories.py` — 4 no-param (commodities/crypto/forex/index)
+4. `reference_directories.py` — 5 no-param (S&P/NASDAQ/DJIA/COT/ERP)
+5. `historical_directories.py` — 5 no-param (historical constituents
+   + symbol-change + shares-float-all)
+6. `search_endpoints.py` — 6 query-parameterized + `_SearchFetcherBase`
+   mixin (proven generic enough for symbol/year/exchange/date/sector/
+   industry keys too)
+7. `single_param_endpoints.py` — 3 endpoints, single param each
+8. `analyst_ratings.py` — 6 symbol-parameterized (W7)
+9. `sector_performance.py` — 8 date/sector/industry-keyed (W7)
+
+**Playbook gotchas discovered & documented in commit bodies:**
+
+1. **openbb-dev-cycle Phase 3 mandate**: always `pi_claim.py
+   in-progress` + heartbeat every ≤10 min. Skipped on batch 1-2;
+   corrected batch 3 onward.
+2. **RegistryMap._validate rejects bare `list`**: `Fetcher[..., list]`
+   fails at import time. Must be `list[SpecificDataCls]` (concrete
+   generic). Factories that stamp classes need to bind the specific
+   Data type into the generic — cleaner to write explicit classes.
+3. **conftest.py auto-skips "performance"**: any test node name
+   containing "performance" or "scalability" gets `@pytest.mark.slow`
+   auto-applied, then unconditionally skipped without `--runslow`.
+   Rename test files/functions/cassettes to avoid this trigger.
+4. **Cross-wave already-shipped audit** is the highest-ROI move in
+   any drain — it drained 24 issues for zero code cost across two
+   audit rounds this session. Run it at the start of every drain
+   cycle.
+5. **plan_limited.py may drift**: some entries flagged Premium may
+   have moved to Free tier (#1330 filed for EquityActive). Rerun
+   spike test before assuming an endpoint is still blocked.
+
+**Session-end housekeeping:**
+- CronCreate wakeup jobs: all deleted on merge (no leaks)
+- All in-flight issues closed on GH + Project #4 Status=Done
+- No open branches on origin
+- 3 follow-up issues filed: #1321 (baseline test drift),
+  #1330 (plan_limited.py stale), and this session left docs +
+  memories current.
+
+**Handoff notes for next agent:**
+- Board is 221 items. Bulk of remaining work needs symbol-parameterized
+  fetchers with real cache behaviour (not live pass-through) — the
+  design pattern for per-symbol caching is described in
+  `docs/design/fmp-cached-endpoint-playbook.md` and the batch-2
+  `models/symbol_lists.py` module (TRUNCATE+INSERT of a bounded set).
+- Every session should start with a cross-wave already-shipped audit
+  (see docs/reports/fmp-two-provider-coverage.md).
+- Every session should verify #1321 test-drift still open before
+  assuming test-baseline failures are new.
