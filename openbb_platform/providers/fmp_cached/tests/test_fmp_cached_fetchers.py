@@ -1433,3 +1433,83 @@ def test_fmp_cached_grades_consensus_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["GradesConsensus"]
     fetcher = cls()
     assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_sector_perf_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP cached sector-performance-snapshot (#1212)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SectorPerformanceSnapshot"]
+    fetcher = cls()
+    assert fetcher.test({"date": "2026-07-17"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_industry_perf_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP cached industry-performance-snapshot (#1213)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["IndustryPerformanceSnapshot"]
+    fetcher = cls()
+    assert fetcher.test({"date": "2026-07-17"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_sector_pe_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP cached sector-pe-snapshot (#1216)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SectorPeSnapshot"]
+    fetcher = cls()
+    assert fetcher.test({"date": "2026-07-17"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_industry_pe_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP cached industry-pe-snapshot (#1217)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["IndustryPeSnapshot"]
+    fetcher = cls()
+    assert fetcher.test({"date": "2026-07-17"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_hist_sector_perf_fetcher(credentials=test_credentials):
+    """Test FMP cached historical-sector-performance (#1214)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HistoricalSectorPerformance"]
+    fetcher = cls()
+    assert fetcher.test({"sector": "Technology"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_hist_industry_perf_fetcher(credentials=test_credentials):
+    """Test FMP cached historical-industry-performance (#1215)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HistoricalIndustryPerformance"]
+    fetcher = cls()
+    assert fetcher.test({"industry": "Semiconductors"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_sector_pe_fetcher(credentials=test_credentials):
+    """Test FMP cached historical-sector-pe (#1218)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HistoricalSectorPe"]
+    fetcher = cls()
+    assert fetcher.test({"sector": "Technology"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_industry_pe_fetcher(credentials=test_credentials):
+    """Test FMP cached historical-industry-pe (#1219)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HistoricalIndustryPe"]
+    fetcher = cls()
+    assert fetcher.test({"industry": "Semiconductors"}, credentials) is None

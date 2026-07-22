@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/historical-industry-performance?apikey=MOCK_API_KEY&industry=Semiconductors
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA7WWu2rcQBSGez+F2Noazv2SziR1ILgMKZa1cFzYhvUmJIS8e44StgxTHZAanRH6
+        GP2X+XyzLL/qXpbDw/GyHd4tBwKSFXgFPNz+mzy9PHx7u5x/7tP77fnp9FoPTpfX89t1xfbj9PX4
+        8vj3/Y939x/uPl0nx+/b+fi4vb+OZQQ5EzlaOjKp1rrft//DoJWyAwOHOygKGkQKBccMIzowVhzo
+        7IzIqWQsMeXwFg4YkkSo5B6pyWozDuvgwAEq4galC6vtyKk6uANjlUEMyWboJHVNMagDI4aZkIdx
+        aTRMc0bR4tjSKISoAGeKkYRPtQEtHDTcxBMrQMTrx7hMOLBFo7tXFMslwQqMYDk1C2oTCEfFKEFU
+        mBG65HRHpAOEBgX4/vkSaSWZTDF6XEsDcIcI5yiaabVgi2thlFdAITgLg21qF2hpOBoaEIoeVW6Y
+        ID7DaGk4HKSu4rUdjsoRM21AS8GVNCSYqmVV0DNpRtETHRWliQACwlUrFe4zjJbgKL/anuVBlV4G
+        89iAFqPQYA+SzNzPgoE4o2ipNxx1+ipJkMF+4kDjHePmyx/GCTFrGgsAAA==
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:28:33 GMT
+      etag:
+      - W/"b1a-jHeZ99FegVnE8zGrmphL2f+7dnQ"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

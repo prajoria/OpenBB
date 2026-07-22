@@ -1,0 +1,109 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/industry-performance-snapshot?apikey=MOCK_API_KEY&date=2026-07-17
+  response:
+    body:
+      string: !!binary |
+        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
+        x+nUwHxEaH56wgXibS+VfvnHfwARh8OFAkgAAA==
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:28:14 GMT
+      etag:
+      - W/"4802-Xgik1wHOkam0T8ZPxvAnAUsoOtM"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
