@@ -886,3 +886,93 @@ Wave status:
   (see docs/reports/fmp-two-provider-coverage.md).
 - Every session should verify #1321 test-drift still open before
   assuming test-baseline failures are new.
+
+---
+
+## fmp-cached-drain-day2-2026-07-22
+
+**Continuation of the W4 drain (see `w4-directory-drain-shipped-2026-07-21`
+and `fmp-cached-drain-final-2026-07-21`).**
+
+Session outcome across 2 sessions on 2026-07-22:
+- Board went from 221 → 92 open on Project #4 (**129 items drained today**)
+- **Waves W1, W2, W3, W4, W7 all fully drained** — only W5 (19), W6 (31),
+  W8 (28), no-wave (14) remain.
+- Fetcher count 122 → **151** (+29 new)
+- 6 code PRs merged: #1333 (W2 Quote 11), #1334 (W2 batch-quotes
+  plan_limited 8), #1335 (W1 Statements 12), #1336 (W1 TTM plan_limited 4),
+  #1337 (W1 as-reported 5), #1338 (W3 EconomicIndicators 1)
+- **90 items closed as already-shipped or plan_limit-only** (no code!) —
+  the cross-wave already-shipped audit pattern from day 1 remains the
+  highest-ROI move.
+
+**Big findings from this session's audits:**
+
+1. **`StockQuote`/`StockQuoteShort`** cover Stock/Index/Commodity/Crypto/
+   Forex `quote` and `quote-short` — FMP dispatches on symbol type
+   (^GSPC for indexes, BTCUSD crypto, EURUSD forex, GCUSD gold). Closed
+   6 W2 issues for zero code cost.
+
+2. **`EquityHistorical`** covers all `historical-price-eod/*` (light,
+   full, non-split-adjusted, dividend-adjusted) for ALL symbol families
+   (stock, index, commodity, crypto, forex). Closed 12 W3 Chart issues.
+
+3. **`EquityIntradayHistorical`** covers all `historical-chart/{interval}`
+   (1min/5min/15min/30min/1hour/4hour) for ALL symbol families. Closed
+   18 W3 intraday-chart issues.
+
+4. **`TechnicalIndicatorIntraday`** (in fmp_provider) supports all 9
+   W3 TechnicalIndicators (SMA/EMA/WMA/DEMA/TEMA/RSI/StdDev/WilliamsR/
+   ADX) via an `indicator_type` param — see line 15 of
+   `technical_indicator_intraday.py`.
+
+5. **`InstitutionalOwnership`** covers all 8 W5 Form 13F sub-endpoints
+   (latest, extract, dates, extract-analytics/holder, holder-performance-
+   summary, holder-industry-breakdown, symbol-positions-summary,
+   industry-summary). Note: currently plan_limited=Premium.
+
+6. **`InsiderTrading`** covers all 5 W5 insider-trading sub-endpoints
+   (latest, search, statistics, reporting-name, transaction-type).
+
+7. **`GovernmentTrades`** explicitly dispatches on `chamber` (house/
+   senate/all) and covers 6 W5 senate/house-trades sub-endpoints — see
+   `government_trades.py` lines 129-131.
+
+8. **`CompanyFilings`** hits `/stable/sec-filings-search` — covers 5 W5
+   SEC-search sub-endpoints (symbol/cik/name variants).
+
+9. **`DiscoveryFilings`** hits both `/stable/sec-filings-search/form-type`
+   AND `/stable/sec-filings-financials` — covers 2 W5 sub-endpoints.
+
+**Plan-limited additions today (day 2):**
+- W2 batch-*-quotes: 8 endpoints (batch-index/commodity/crypto/forex/
+  mutualfund/etf/exchange). All Premium.
+- W1 TTM statements: 4 endpoints (income/balance/cash-flow -TTM plus
+  latest-financial-statements). All Premium.
+
+**Design patterns added in day 2 PRs:**
+- **`_SymbolsQueryParams`** (comma-joined batch symbols) in `stock_quotes.py`
+- **`_CikQueryParams`** in `statement_extras.py`
+- **`_SymbolYearPeriodQueryParams`** (3-field) in `as_reported_statements.py`
+- **Multi-param + single-dict-response override pattern**: when FMP takes
+  multiple params AND returns a dict (not a list), override `aextract_data`
+  with an inline httpx GET + wrap-in-list. See
+  `FMPCachedFinancialReportsJsonFetcher` for the template.
+- **Not-planned close reason**: FMP endpoints returning binary blobs
+  (xlsx, pdf) are incompatible with the JSON-blob Data model. Close as
+  `not_planned` with a note pointing to the JSON equivalent if any.
+  Precedent: #1143 (financial-reports-xlsx) closed pointing at #1142
+  (financial-reports-json).
+
+**Handoff for next session** (W5/W6/W8/no-wave):
+- W5 remaining 19: mostly ETF/Mutual-fund disclosures, delisted, M&A,
+  senate profiles/positions/net-worth, sec-profile, industry
+  classifications. Some may be already-shipped via NportDisclosure —
+  audit first.
+- W6 (31): News + EarningsTranscript. Company news likely covered by
+  `CompanyNews`, world news by `WorldNews`. EarningsCallTranscript
+  already plan-limited.
+- W8 (28): Bulk + Partners (TipRanks). Likely Premium tier — spike
+  first to confirm before writing any code.
+- no-wave (14): Wave meta-epics (WAVE 5/6/7/8/9). Should be closable
+  once their child issues drain — audit which ones can be closed now.
