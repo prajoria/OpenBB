@@ -60,12 +60,40 @@ def test_equity_technicals_pivot_rows_math() -> None:
 
 
 def test_equity_analyst_forecasts_gaps_documented() -> None:
-    """Section 5 — sub-gaps #997 + #998 documented in note strings."""
+    """Section 5 — #997 + #998 both LIVE now (#1022 + #1025 shipped).
+
+    Rating rows carry a live 'n=... firms' note (or 'fetch failed' on
+    network error). Historical rev estimate row renders either an
+    actual snapshot value (once opportunistic snapshots accumulate) or
+    the honest 'insufficient history' state, not a BLOCKED sentinel.
+    """
     resp = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL")
     assert resp.status_code == 200
     rows = resp.json()
-    joined = " ".join(str(r.get("note", "")) for r in rows)
-    assert "997" in joined and "998" in joined
+
+    # #997 rating rows must be present
+    rating_rows = [r for r in rows if r["metric"].startswith("Rating:")]
+    assert len(rating_rows) == 2
+    rating_notes = " ".join(str(r["note"]) for r in rating_rows)
+    assert (
+        "firms" in rating_notes
+        or "unknown_count" in rating_notes
+        or "fetch failed" in rating_notes
+    )
+
+    # #998 rev-estimate row must render one of the three honest states:
+    #   "insufficient history" | "snapshot <date>" | "lookup failed"
+    # It must NOT still say "BLOCKED gap 998" (that'd mean the wiring
+    # didn't land).
+    rev_row = next(r for r in rows if "rev estimate" in r["metric"].lower())
+    rev_state = f"{rev_row['value']} {rev_row['note']}".lower()
+    assert (
+        "insufficient history" in rev_state
+        or "snapshot" in rev_state
+        or "lookup failed" in rev_state
+    ), f"rev-estimate row still showing gap sentinel: {rev_row}"
+    # And explicitly, the value must NOT be the old BLOCKED marker
+    assert str(rev_row["value"]).upper() != "BLOCKED"
 
 
 def test_equity_complementary_bond_gap_documented() -> None:

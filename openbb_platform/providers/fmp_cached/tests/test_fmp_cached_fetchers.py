@@ -1027,3 +1027,18 @@ def test_fmp_cached_risk_premium_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["RiskPremium"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_analyst_recommendations_fetcher(credentials=test_credentials):
+    """Test FMP cached analyst recommendations fetcher (#997 / #1022).
+
+    Aggregates /stable/grades into 5-bucket rating counts. This test
+    hits the raw endpoint via VCR cassette + exercises the transform
+    pipeline end-to-end.
+    """
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["AnalystRecommendations"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None

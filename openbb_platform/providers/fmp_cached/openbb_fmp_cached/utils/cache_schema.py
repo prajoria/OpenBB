@@ -9,6 +9,7 @@ Simple database-backed response persistence without TTL/caching complexity.
 import logging
 import os
 import threading
+
 from .database import execute_query, safe_identifier
 
 logger = logging.getLogger(__name__)
@@ -3787,16 +3788,13 @@ def ensure_financial_ratios_unique_index():
         # caplog assertions in tests). See #776.
         try:
             existing = execute_query(
-                "SHOW INDEX FROM financial_ratios "
-                "WHERE Key_name = %s",
+                "SHOW INDEX FROM financial_ratios " "WHERE Key_name = %s",
                 ("uk_symbol_date_period_currency",),
             )
         except Exception as exc:
             # If we can't even query indexes, skip the ADD attempt and
             # keep the flag False so a subsequent call retries.
-            logger.warning(
-                "financial_ratios: SHOW INDEX pre-check failed: %s", exc
-            )
+            logger.warning("financial_ratios: SHOW INDEX pre-check failed: %s", exc)
             return
         if existing:
             logger.debug(
@@ -5451,7 +5449,6 @@ def create_yield_curve_table():
     return execute_query(query)
 
 
-
 def create_equity_intraday_historical_table():
     """Create equity_intraday_historical table (fmp-day-trading PRD §5.2)."""
     query = """
@@ -5578,6 +5575,7 @@ def create_fmp_trading_state_table():
     """
     return execute_query(query)
 
+
 # Complete table configuration for all 67 entities
 FLATTENED_TABLES = {
     "aftermarket_quote": {"schema": create_aftermarket_quote_table},
@@ -5658,6 +5656,81 @@ FLATTENED_TABLES = {
     "world_news": {"schema": create_world_news_table},
     "yield_curve": {"schema": create_yield_curve_table},
 }
+
+
+def create_analyst_grades_table():
+    """Create analyst_grades table (#997 / #1022).
+
+    Stores the raw per-firm grade timeline returned by FMP's
+    ``/stable/grades`` endpoint. Aggregated into rating counts by
+    ``FMPCachedAnalystRecommendationsFetcher.transform_data``.
+
+    Primary key: ``(symbol, date, grading_company)`` — ON DUPLICATE KEY
+    UPDATE on insert so re-fetch is idempotent (upserts the current row
+    if the firm re-issued a grade on the same date; otherwise adds a new
+    row).
+    """
+    query = """
+    CREATE TABLE IF NOT EXISTS analyst_grades (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        symbol VARCHAR(50) NOT NULL,
+        date DATE NOT NULL,
+        grading_company VARCHAR(255) NOT NULL,
+        previous_grade VARCHAR(100) DEFAULT NULL,
+        new_grade VARCHAR(100) DEFAULT NULL,
+        action VARCHAR(50) DEFAULT NULL,
+        data_json JSON DEFAULT NULL,
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_analyst_grades_symbol_date_firm (symbol, date, grading_company),
+        INDEX idx_analyst_grades_symbol (symbol),
+        INDEX idx_analyst_grades_date (date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    from openbb_fmp_cached.utils.database import execute_query
+
+    execute_query(query)
+    return True
+
+
+
+def create_analyst_estimates_history_table():
+    """Create analyst_estimates_history companion table (#998 / #1025).
+
+    Snapshots the CURRENT analyst_estimates row every time we refetch
+    from FMP, keyed by ``(symbol, date, period, snapshot_date)``.
+    Enables surprise% math: ``(actual - estimate_as_of_release_date) /
+    estimate_as_of_release_date`` for the Equity Profile widget.
+
+    Design doc: docs/design/998-analyst-estimates-history.md
+
+    Same-day re-fetches overwrite (ON DUPLICATE KEY UPDATE). Across-day
+    fetches append a new snapshot row.
+    """
+    query = """
+    CREATE TABLE IF NOT EXISTS analyst_estimates_history (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        symbol VARCHAR(50) NOT NULL,
+        date DATE NOT NULL,
+        period VARCHAR(20) NOT NULL,
+        snapshot_date DATE NOT NULL,
+        estimated_revenue_low DECIMAL(20,2) DEFAULT NULL,
+        estimated_revenue_high DECIMAL(20,2) DEFAULT NULL,
+        estimated_revenue_avg DECIMAL(20,2) DEFAULT NULL,
+        estimated_eps_low DECIMAL(10,4) DEFAULT NULL,
+        estimated_eps_high DECIMAL(10,4) DEFAULT NULL,
+        estimated_eps_avg DECIMAL(10,4) DEFAULT NULL,
+        number_analysts_estimated_revenue INT DEFAULT NULL,
+        number_analysts_estimated_eps INT DEFAULT NULL,
+        cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_history_symbol_period_snapshot (symbol, date, period, snapshot_date),
+        INDEX idx_history_symbol_period (symbol, period),
+        INDEX idx_history_snapshot (snapshot_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """
+    from openbb_fmp_cached.utils.database import execute_query
+    execute_query(query)
+    return True
+
 
 
 def create_all_flattened_tables():
