@@ -6,11 +6,11 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **145**
+- `openbb_fmp_cached` registered endpoints: **150**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **70**
-- Registered in EITHER but lacking a VCR cassette: **22**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **75**
+- Registered in EITHER but lacking a VCR cassette: **25**
 - Plan-limited (see `plan_limited.py`): **23**
 
 ## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)
@@ -26,10 +26,12 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `AvailableExchanges` ✅ cassette
 - `AvailableIndustries` ✅ cassette
 - `AvailableSectors` ✅ cassette
+- `BalanceSheetStatementAsReported` ⚠ no cassette
 - `BatchAftermarketQuote` ✅ cassette
 - `BatchAftermarketTrade` ✅ cassette
 - `BatchQuote` ✅ cassette
 - `BatchQuoteShort` ✅ cassette
+- `CashFlowStatementAsReported` ⚠ no cassette
 - `CikList` ✅ cassette
 - `CommitmentOfTradersList` ✅ cassette
 - `CommoditiesList` ✅ cassette
@@ -44,7 +46,9 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `ExecutiveCompensationBenchmark` ✅ cassette
 - `FinancialGrowth` ✅ cassette
 - `FinancialReportsDates` ✅ cassette
+- `FinancialReportsJson` ✅ cassette
 - `FinancialScores` ✅ cassette
+- `FinancialStatementFullAsReported` ⚠ no cassette
 - `FinancialStatementSymbolList` ✅ cassette
 - `ForexList` ✅ cassette
 - `Grades` ✅ cassette
@@ -58,6 +62,7 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `HistoricalSectorPerformance` ⚠ no cassette
 - `HistoricalSp500Constituent` ✅ cassette
 - `HolidaysByExchange` ✅ cassette
+- `IncomeStatementAsReported` ✅ cassette
 - `IndexList` ✅ cassette
 - `IndustryPeSnapshot` ✅ cassette
 - `IndustryPerformanceSnapshot` ⚠ no cassette
@@ -92,6 +97,8 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 
 ## Missing cassettes (registered but no fixture — gaps for the coverage test)
 
+- `BalanceSheetStatementAsReported` — cached-only
+- `CashFlowStatementAsReported` — cached-only
 - `CryptoSearch` — plan-limited, both
 - `CurrencySnapshots` — plan-limited, both
 - `CustomDiscountedCashFlow` — cached-only
@@ -104,6 +111,7 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `EsgScore` — plan-limited, both
 - `EtfEquityExposure` — plan-limited, both
 - `EtfPricePerformance` — plan-limited, both
+- `FinancialStatementFullAsReported` — cached-only
 - `HistoricalIndustryPerformance` — cached-only
 - `HistoricalSectorPerformance` — cached-only
 - `IndexConstituents` — plan-limited, both
