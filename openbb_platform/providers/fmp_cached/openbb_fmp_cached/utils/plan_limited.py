@@ -102,6 +102,41 @@ _PLAN_LIMITED: dict[str, PlanLimitedEntry] = {
         "since": date(2026, 7, 21),
         "notes": "402 on Starter — /stable/earnings-transcript-list is a Premium-tier endpoint (#1051 W4 drain batch 5)",
     },
+    "BatchIndexQuotes": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/batch-index-quotes (#1161 #1260 W2 drain)",
+    },
+    "BatchCommodityQuotes": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/batch-commodity-quotes (#1176 #1257 W2 drain)",
+    },
+    "BatchCryptoQuotes": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/batch-crypto-quotes (#1185 #1258 W2 drain)",
+    },
+    "BatchForexQuotes": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/batch-forex-quotes (#1200 #1259 W2 drain)",
+    },
+    "BatchMutualfundQuotes": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/batch-mutualfund-quotes (#1255 W2 drain)",
+    },
+    "BatchEtfQuotes": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/batch-etf-quotes (#1256 W2 drain)",
+    },
+    "BatchExchangeQuote": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/batch-exchange-quote (#1254 W2 drain)",
+    },
 }
 
 

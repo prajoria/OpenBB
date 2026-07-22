@@ -11,7 +11,7 @@
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
 - Registered in `openbb_fmp_cached` only (native, no upstream wrap): **58**
 - Registered in EITHER but lacking a VCR cassette: **18**
-- Plan-limited (see `plan_limited.py`): **12**
+- Plan-limited (see `plan_limited.py`): **19**
 
 ## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)
 
@@ -101,6 +101,13 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 
 ## Plan-limited endpoints (permanent — do NOT try to record)
 
+- `BatchCommodityQuotes` — tier: `Premium`, since: 2026-07-22, notes: 402 on Starter — /stable/batch-commodity-quotes (#1176 #1257 W2 drain)
+- `BatchCryptoQuotes` — tier: `Premium`, since: 2026-07-22, notes: 402 on Starter — /stable/batch-crypto-quotes (#1185 #1258 W2 drain)
+- `BatchEtfQuotes` — tier: `Premium`, since: 2026-07-22, notes: 402 on Starter — /stable/batch-etf-quotes (#1256 W2 drain)
+- `BatchExchangeQuote` — tier: `Premium`, since: 2026-07-22, notes: 402 on Starter — /stable/batch-exchange-quote (#1254 W2 drain)
+- `BatchForexQuotes` — tier: `Premium`, since: 2026-07-22, notes: 402 on Starter — /stable/batch-forex-quotes (#1200 #1259 W2 drain)
+- `BatchIndexQuotes` — tier: `Premium`, since: 2026-07-22, notes: 402 on Starter — /stable/batch-index-quotes (#1161 #1260 W2 drain)
+- `BatchMutualfundQuotes` — tier: `Premium`, since: 2026-07-22, notes: 402 on Starter — /stable/batch-mutualfund-quotes (#1255 W2 drain)
 - `CryptoSearch` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)
 - `CurrencySnapshots` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)
 - `EarningsCallTranscript` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)
