@@ -1,0 +1,161 @@
+{
+  "name": "yahoo_options_chain",
+  "symbol": "AAPL",
+  "captured_at": "2026-07-22T18:00:00+00:00",
+  "source_url": "https://finance.yahoo.com/quote/AAPL/options",
+  "raw": {
+    "source_url": "https://finance.yahoo.com/quote/AAPL/options",
+    "underlying_symbol": "AAPL",
+    "spot_price": 327.74,
+    "captured_at": "2026-07-22T18:00:00+00:00",
+    "captured_expiries": [1735689600, 1738108800],
+    "chains_by_expiry": {
+      "1735689600": {
+        "expirationDate": 1735689600,
+        "hasMiniOptions": false,
+        "calls": [
+          {
+            "contractSymbol": "AAPL251230C00325000",
+            "strike": 325.0,
+            "lastPrice": 8.15,
+            "bid": 8.10,
+            "ask": 8.20,
+            "volume": 1200,
+            "openInterest": 5400,
+            "impliedVolatility": 0.2812,
+            "inTheMoney": true,
+            "currency": "USD"
+          },
+          {
+            "contractSymbol": "AAPL251230C00330000",
+            "strike": 330.0,
+            "lastPrice": 5.90,
+            "bid": 5.85,
+            "ask": 5.95,
+            "volume": 2100,
+            "openInterest": 7800,
+            "impliedVolatility": 0.2795,
+            "inTheMoney": false,
+            "currency": "USD"
+          }
+        ],
+        "puts": [
+          {
+            "contractSymbol": "AAPL251230P00325000",
+            "strike": 325.0,
+            "lastPrice": 6.25,
+            "bid": 6.20,
+            "ask": 6.30,
+            "volume": 900,
+            "openInterest": 4200,
+            "impliedVolatility": 0.2851,
+            "inTheMoney": false,
+            "currency": "USD"
+          },
+          {
+            "contractSymbol": "AAPL251230P00330000",
+            "strike": 330.0,
+            "lastPrice": 8.40,
+            "bid": 8.35,
+            "ask": 8.45,
+            "volume": 1500,
+            "openInterest": 5100,
+            "impliedVolatility": 0.2903,
+            "inTheMoney": true,
+            "currency": "USD"
+          }
+        ]
+      },
+      "1738108800": {
+        "expirationDate": 1738108800,
+        "hasMiniOptions": false,
+        "calls": [
+          {
+            "contractSymbol": "AAPL260127C00325000",
+            "strike": 325.0,
+            "lastPrice": 12.10,
+            "bid": 12.05,
+            "ask": 12.15,
+            "volume": 800,
+            "openInterest": 3200,
+            "impliedVolatility": 0.3021,
+            "inTheMoney": true,
+            "currency": "USD"
+          },
+          {
+            "contractSymbol": "AAPL260127C00330000",
+            "strike": 330.0,
+            "lastPrice": 9.75,
+            "bid": 9.70,
+            "ask": 9.80,
+            "volume": 1400,
+            "openInterest": 4600,
+            "impliedVolatility": 0.3005,
+            "inTheMoney": false,
+            "currency": "USD"
+          }
+        ],
+        "puts": [
+          {
+            "contractSymbol": "AAPL260127P00325000",
+            "strike": 325.0,
+            "lastPrice": 9.30,
+            "bid": 9.25,
+            "ask": 9.35,
+            "volume": 700,
+            "openInterest": 2900,
+            "impliedVolatility": 0.3067,
+            "inTheMoney": false,
+            "currency": "USD"
+          },
+          {
+            "contractSymbol": "AAPL260127P00330000",
+            "strike": 330.0,
+            "lastPrice": 11.60,
+            "bid": 11.55,
+            "ask": 11.65,
+            "volume": 1100,
+            "openInterest": 3800,
+            "impliedVolatility": 0.3134,
+            "inTheMoney": true,
+            "currency": "USD"
+          }
+        ]
+      }
+    }
+  },
+  "extracted": {
+    "symbol": "AAPL",
+    "spot": 327.74,
+    "captured_at": "2026-07-22T18:00:00+00:00",
+    "chains": [
+      {
+        "expiration_unix": 1735689600,
+        "calls": [
+          {"side": "call", "contract_symbol": "AAPL251230C00325000", "strike": 325.0, "last_price": 8.15, "bid": 8.10, "ask": 8.20, "volume": 1200, "open_interest": 5400, "implied_volatility": 0.2812, "in_the_money": true, "currency": "USD"},
+          {"side": "call", "contract_symbol": "AAPL251230C00330000", "strike": 330.0, "last_price": 5.90, "bid": 5.85, "ask": 5.95, "volume": 2100, "open_interest": 7800, "implied_volatility": 0.2795, "in_the_money": false, "currency": "USD"}
+        ],
+        "puts": [
+          {"side": "put", "contract_symbol": "AAPL251230P00325000", "strike": 325.0, "last_price": 6.25, "bid": 6.20, "ask": 6.30, "volume": 900, "open_interest": 4200, "implied_volatility": 0.2851, "in_the_money": false, "currency": "USD"},
+          {"side": "put", "contract_symbol": "AAPL251230P00330000", "strike": 330.0, "last_price": 8.40, "bid": 8.35, "ask": 8.45, "volume": 1500, "open_interest": 5100, "implied_volatility": 0.2903, "in_the_money": true, "currency": "USD"}
+        ]
+      },
+      {
+        "expiration_unix": 1738108800,
+        "calls": [
+          {"side": "call", "contract_symbol": "AAPL260127C00325000", "strike": 325.0, "last_price": 12.10, "bid": 12.05, "ask": 12.15, "volume": 800, "open_interest": 3200, "implied_volatility": 0.3021, "in_the_money": true, "currency": "USD"},
+          {"side": "call", "contract_symbol": "AAPL260127C00330000", "strike": 330.0, "last_price": 9.75, "bid": 9.70, "ask": 9.80, "volume": 1400, "open_interest": 4600, "implied_volatility": 0.3005, "in_the_money": false, "currency": "USD"}
+        ],
+        "puts": [
+          {"side": "put", "contract_symbol": "AAPL260127P00325000", "strike": 325.0, "last_price": 9.30, "bid": 9.25, "ask": 9.35, "volume": 700, "open_interest": 2900, "implied_volatility": 0.3067, "in_the_money": false, "currency": "USD"},
+          {"side": "put", "contract_symbol": "AAPL260127P00330000", "strike": 330.0, "last_price": 11.60, "bid": 11.55, "ask": 11.65, "volume": 1100, "open_interest": 3800, "implied_volatility": 0.3134, "in_the_money": true, "currency": "USD"}
+        ]
+      }
+    ],
+    "atm_iv_term": [
+      {"expiration_unix": 1735689600, "atm_call": {"strike": 330.0, "impliedVolatility": 0.2795, "lastPrice": 5.90, "bid": 5.85, "ask": 5.95, "volume": 2100, "openInterest": 7800, "contractSymbol": "AAPL251230C00330000"}, "atm_put":  {"strike": 330.0, "impliedVolatility": 0.2903, "lastPrice": 8.40, "bid": 8.35, "ask": 8.45, "volume": 1500, "openInterest": 5100, "contractSymbol": "AAPL251230P00330000"}},
+      {"expiration_unix": 1738108800, "atm_call": {"strike": 330.0, "impliedVolatility": 0.3005, "lastPrice": 9.75, "bid": 9.70, "ask": 9.80, "volume": 1400, "openInterest": 4600, "contractSymbol": "AAPL260127C00330000"}, "atm_put":  {"strike": 330.0, "impliedVolatility": 0.3134, "lastPrice": 11.60, "bid": 11.55, "ask": 11.65, "volume": 1100, "openInterest": 3800, "contractSymbol": "AAPL260127P00330000"}}
+    ]
+  },
+  "extractor_version": "1"
+}

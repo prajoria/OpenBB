@@ -1,0 +1,3 @@
+[console_scripts]
+scrape-record = scrape_record.cli:main
+sr = scrape_record.cli:main
