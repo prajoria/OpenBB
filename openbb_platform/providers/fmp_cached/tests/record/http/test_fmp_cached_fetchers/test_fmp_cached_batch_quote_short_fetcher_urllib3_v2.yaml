@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/batch-quote-short?apikey=MOCK_API_KEY&symbols=AAPL%2CMSFT%2CGOOGL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4vmUlCoBmIFBaXiytyk/BwlKwUlR8cAHyUdiGhBUWZyKlDQ2Mhcz9wEKpickZiX
+        DhI11DM0hYqV5eeU5oLETAwsDAzMjA2BwrU62Iz3DXYLwTDeEmi8KbrxuiZ6pibo5hsZW5qZmOMx
+        393f3x3T/SbmCLciW2CBaYER0LPmRpYgC7hiAR2di5YiAQAA
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 07:15:21 GMT
+      etag:
+      - W/"122-wGC0X3qS/S9vX8nkVwYnvsz61vE"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

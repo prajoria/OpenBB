@@ -192,6 +192,19 @@ from openbb_fmp_cached.models.single_param_endpoints import (
     FMPCachedExecutiveCompensationBenchmarkFetcher,
     FMPCachedHolidaysByExchangeFetcher,
 )
+from openbb_fmp_cached.models.stock_quotes import (
+    FMPCachedAllExchangeMarketHoursFetcher,
+    FMPCachedBatchAftermarketQuoteFetcher,
+    FMPCachedBatchAftermarketTradeFetcher,
+    FMPCachedBatchQuoteFetcher,
+    FMPCachedBatchQuoteShortFetcher,
+    FMPCachedMarketCapBatchFetcher,
+    FMPCachedMarketCapFetcher,
+    FMPCachedSharesFloatFetcher,
+    FMPCachedStockPriceChangeFetcher,
+    FMPCachedStockQuoteFetcher,
+    FMPCachedStockQuoteShortFetcher,
+)
 from openbb_fmp_cached.models.symbol_lists import (
     FMPCachedActivelyTradingListFetcher,
     FMPCachedCikListFetcher,
@@ -278,6 +291,18 @@ def create_all_cached_fetchers():
         "HistoricalIndustryPerformance": FMPCachedHistoricalIndustryPerformanceFetcher,
         "HistoricalSectorPe": FMPCachedHistoricalSectorPeFetcher,
         "HistoricalIndustryPe": FMPCachedHistoricalIndustryPeFetcher,
+        # W2 Quote batch 11: quote family (#1090 #1091 #1093 #1225 #1245 #1246 #1249-#1253)
+        "MarketCap": FMPCachedMarketCapFetcher,
+        "MarketCapBatch": FMPCachedMarketCapBatchFetcher,
+        "SharesFloat": FMPCachedSharesFloatFetcher,
+        "StockPriceChange": FMPCachedStockPriceChangeFetcher,
+        "StockQuote": FMPCachedStockQuoteFetcher,
+        "StockQuoteShort": FMPCachedStockQuoteShortFetcher,
+        "BatchQuote": FMPCachedBatchQuoteFetcher,
+        "BatchQuoteShort": FMPCachedBatchQuoteShortFetcher,
+        "BatchAftermarketTrade": FMPCachedBatchAftermarketTradeFetcher,
+        "BatchAftermarketQuote": FMPCachedBatchAftermarketQuoteFetcher,
+        "AllExchangeMarketHours": FMPCachedAllExchangeMarketHoursFetcher,
     }
 
     # Fetchers that need fallback wrapping

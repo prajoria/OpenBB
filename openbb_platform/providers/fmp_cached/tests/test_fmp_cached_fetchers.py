@@ -1513,3 +1513,113 @@ def test_fmp_cached_historical_industry_pe_fetcher(credentials=test_credentials)
     cls = fmp_cached_provider.fetcher_dict["HistoricalIndustryPe"]
     fetcher = cls()
     assert fetcher.test({"industry": "Semiconductors"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_market_cap_fetcher(credentials=test_credentials):
+    """Test FMP cached market-capitalization (#1090)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["MarketCap"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_market_cap_batch_fetcher(credentials=test_credentials):
+    """Test FMP cached market-capitalization-batch (#1091)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["MarketCapBatch"]
+    fetcher = cls()
+    assert fetcher.test({"symbols": "AAPL,MSFT,GOOGL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_shares_float_fetcher(credentials=test_credentials):
+    """Test FMP cached shares-float (#1093)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SharesFloat"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_stock_price_change_fetcher(credentials=test_credentials):
+    """Test FMP cached stock-price-change (#1249)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["StockPriceChange"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_stock_quote_fetcher(credentials=test_credentials):
+    """Test FMP cached quote (#1245)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["StockQuote"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_stock_quote_short_fetcher(credentials=test_credentials):
+    """Test FMP cached quote-short (#1246)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["StockQuoteShort"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_batch_quote_fetcher(credentials=test_credentials):
+    """Test FMP cached batch-quote (#1250)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["BatchQuote"]
+    fetcher = cls()
+    assert fetcher.test({"symbols": "AAPL,MSFT,GOOGL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_batch_quote_short_fetcher(credentials=test_credentials):
+    """Test FMP cached batch-quote-short (#1251)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["BatchQuoteShort"]
+    fetcher = cls()
+    assert fetcher.test({"symbols": "AAPL,MSFT,GOOGL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_batch_aftermarket_trade_fetcher(credentials=test_credentials):
+    """Test FMP cached batch-aftermarket-trade (#1252)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["BatchAftermarketTrade"]
+    fetcher = cls()
+    assert fetcher.test({"symbols": "AAPL,MSFT,GOOGL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_batch_aftermarket_quote_fetcher(credentials=test_credentials):
+    """Test FMP cached batch-aftermarket-quote (#1253)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["BatchAftermarketQuote"]
+    fetcher = cls()
+    assert fetcher.test({"symbols": "AAPL,MSFT,GOOGL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_all_exchange_market_hours_fetcher(credentials=test_credentials):
+    """Test FMP cached all-exchange-market-hours (#1225)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["AllExchangeMarketHours"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
