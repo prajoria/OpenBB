@@ -110,6 +110,12 @@ from openbb_fmp_cached.models.analyst_estimates import FMPCachedAnalystEstimates
 from openbb_fmp_cached.models.analyst_recommendations import (
     FMPCachedAnalystRecommendationsFetcher,
 )
+from openbb_fmp_cached.models.available_directories import (
+    FMPCachedAvailableCountriesFetcher,
+    FMPCachedAvailableExchangesFetcher,
+    FMPCachedAvailableIndustriesFetcher,
+    FMPCachedAvailableSectorsFetcher,
+)
 from openbb_fmp_cached.models.balance_sheet import FMPCachedBalanceSheetFetcher
 
 # Import cached wrapper utility
@@ -145,6 +151,10 @@ def create_all_cached_fetchers():
         "AftermarketQuote": FMPCachedAftermarketQuoteFetcher,
         "AnalystEstimates": FMPCachedAnalystEstimatesFetcher,
         "AnalystRecommendations": FMPCachedAnalystRecommendationsFetcher,
+        "AvailableCountries": FMPCachedAvailableCountriesFetcher,
+        "AvailableExchanges": FMPCachedAvailableExchangesFetcher,
+        "AvailableIndustries": FMPCachedAvailableIndustriesFetcher,
+        "AvailableSectors": FMPCachedAvailableSectorsFetcher,
         "EquityHistorical": FMPCachedEquityHistoricalFetcher,
         "EquityInfo": FMPCachedEquityProfileFetcher,
         "EquityIntradayHistorical": FMPCachedEquityIntradayHistoricalFetcher,
