@@ -1,0 +1,57 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/search-isin?apikey=MOCK_API_KEY&query=US0378331005
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4vmUlCoBmIFBaXiytyk/BwlKwUlR8cAHyUdiGheYm4qWKygICdVwTMvWQ8mk1mc
+        mQeSCQ02MDa3MDY2NDAwhcnlJhZlp5Y4JxYAFZhYGBqbGZsYmJqamBgApWt1cNmp5xtBPWstjM3N
+        jcwNjUGqLAjY6+JKPXvxWBXgTFWbTIyMjMyMzE0NQACvrW5UtdTEwMLY1MLUDGIpVywAvGlpZkQC
+        AAA=
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:00:08 GMT
+      etag:
+      - W/"244-HPwlTYICR3qzjWR+w8qes/5I6NU"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

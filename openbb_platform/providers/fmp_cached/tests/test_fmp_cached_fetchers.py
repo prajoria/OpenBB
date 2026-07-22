@@ -1281,3 +1281,63 @@ def test_fmp_cached_shares_float_all_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["SharesFloatAll"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_search_symbol_fetcher(credentials=test_credentials):
+    """Test FMP cached search-symbol (#1038)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SearchSymbol"]
+    fetcher = cls()
+    assert fetcher.test({"query": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_search_name_fetcher(credentials=test_credentials):
+    """Test FMP cached search-name (#1039)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SearchName"]
+    fetcher = cls()
+    assert fetcher.test({"query": "Apple"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_search_cik_fetcher(credentials=test_credentials):
+    """Test FMP cached search-cik (#1040)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SearchCik"]
+    fetcher = cls()
+    assert fetcher.test({"cik": "320193"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_search_cusip_fetcher(credentials=test_credentials):
+    """Test FMP cached search-cusip (#1041)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SearchCusip"]
+    fetcher = cls()
+    assert fetcher.test({"query": "037833100"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_search_isin_fetcher(credentials=test_credentials):
+    """Test FMP cached search-isin (#1042)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SearchIsin"]
+    fetcher = cls()
+    assert fetcher.test({"query": "US0378331005"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_search_exchange_variants_fetcher(credentials=test_credentials):
+    """Test FMP cached search-exchange-variants (#1044)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SearchExchangeVariants"]
+    fetcher = cls()
+    assert fetcher.test({"query": "AAPL"}, credentials) is None
