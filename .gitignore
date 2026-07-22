@@ -165,3 +165,6 @@ tmp_bd_gh_migration/
 
 # Test-data-generator output (regeneratable from pe-testdata)
 test_portfolio_output/
+
+# scrape_record local build metadata
+openbb_platform/tools/scrape_record/scrape_record.egg-info/
