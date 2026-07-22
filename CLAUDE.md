@@ -79,24 +79,31 @@ the prior owner and reason.
 ### Claim protocol (Phase 3 of openbb-dev-cycle)
 
 1. **Self-assign the issue** — this is the durable claim signal:
+
    ```bash
    gh issue edit <NN> --add-assignee @me --repo prajoria/OpenBB
    ```
+
 2. **Move to In Progress on the project board.** Requires the project
    item ID + status field IDs (cached in `scripts/pine_script_project.json`).
    Use the helper below (define once, reuse):
+
    ```bash
    python scripts/pine_claim.py <NN> in-progress
    ```
+
    Until `scripts/pine_claim.py` is authored (tracked as a follow-up
    issue), fall back to a `gh issue comment` claim marker naming the
    branch:
+
    ```bash
    gh issue comment <NN> --repo prajoria/OpenBB \
      --body "🚧 Claimed for work on branch \`<branch-name>\` — heartbeat every ≤10 min until PR merged or claim released."
    ```
+
 3. **Post the initial heartbeat immediately** — this makes
    `--list-stale` see you from minute 1:
+
    ```bash
    gh issue comment <NN> --repo prajoria/OpenBB --body "💓 heartbeat"
    ```
