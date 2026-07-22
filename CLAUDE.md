@@ -160,6 +160,62 @@ scratch `MEMORY.md` files in random locations.
 comments, or old docs is historical only — treat it as a permanent
 identifier of past work, but never file new `bd-XX` items.
 
+**Prohibited tracking tools (hard rule, no exceptions without explicit
+per-call user approval):**
+
+- **`TaskCreate` / `TaskUpdate` / `TaskGet` / `TaskList`** — the local
+  agent-task tool is PROHIBITED for any planning, code-work tracking,
+  notebook-authoring tracking, review-cycle tracking, or ANY unit of
+  work that belongs on Project #4. Default is `gh issue create` + add
+  to Project #4. If an agent believes `TaskCreate` genuinely saves
+  time on a specific, isolated purpose (e.g. tracking a five-step
+  in-turn refactor that will never outlive the turn), the agent MUST
+  ask the user for explicit approval BEFORE calling it and MUST cite
+  the specific reason. Approval is per-call, not per-session — a prior
+  "yes" does not extend to the next `TaskCreate`.
+- **`TodoWrite`** — same prohibition, same escalation path.
+- **Ad-hoc markdown TODO lists / scratch task files** — same.
+
+Rationale: local task tools have lower friction than `gh issue create`,
+and low-friction wins over correct unless the correct path is a hard
+reflex. Twice in this project I've reached for local tracking after
+reciting this rule (skipping `pi_claim.py in-progress` on FMP drain
+batches; filing 18 `TaskCreate` items for the notebook-series plan
+2026-07-22). Both were the same failure mode — reading the doctrine
+without letting it change the reflex. Prohibiting the tool by default
+closes the gap structurally.
+
+**PII / private-data leak prevention (hard rule):**
+
+GitHub Issues on `prajoria/OpenBB` are public-repo-fork issues even
+though the fork itself is under a private-facing project. Anything
+posted to an issue body, issue comment, PR body, PR comment, or
+commit message MUST NOT contain:
+
+- **Brokerage-account data** — position sizes in dollars, real account
+  balances, real tax lots, real cost bases, real order fills, buying
+  power, margin balances. Sanitized synthetic examples (round numbers,
+  a hand-crafted 10-position basket with no personal weights) are OK.
+- **Real usernames, passwords, session cookies, API keys, TOTP
+  secrets, security-question answers** — never, in any form. If a
+  user pastes credentials in chat, do not echo them into any GH
+  artifact; warn and instruct to rotate.
+- **Local absolute filesystem paths that leak the operator's home
+  directory or username** — `C:\Users\daaji\...` is a leak of the
+  operator identity. Prefer repo-relative paths (`notebooks/portfolio/…`).
+  If an absolute path is unavoidable in a bug report, replace the user
+  portion with `~` or `$HOME` or `<user>`.
+- **Personal identifiers in bug reports** — email addresses, phone
+  numbers, real names beyond what's already in the GitHub profile,
+  physical addresses, tax IDs, brokerage account numbers.
+- **Screenshots that include any of the above** — inspect every image
+  BEFORE attaching to a GH issue; the browser-tab title, the taskbar,
+  the file explorer path, the stock ticker in a real portfolio, all
+  count.
+
+If in doubt, ask BEFORE posting. A leaked screenshot can't be
+un-leaked from a public issue; a delayed post costs seconds.
+
 ## General agent development rules
 
 These rules apply to **any** agent doing development work in this
