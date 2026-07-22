@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scrape-record"
+version = "0.1.0"
+description = "Record/replay/correct browser scrapes for offline provider snapshots. Sibling of portfolio_export, targets public provider data (Yahoo/CBOE/etc.) instead of authenticated brokerage flows."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "prajoria" }]
+
+dependencies = [
+    "playwright>=1.44",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+scrape-record = "scrape_record.cli:main"
+sr = "scrape_record.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scrape_record*"]
+exclude = ["snapshots*", "recordings*", "tests*"]
+
+[tool.setuptools.package-data]
+scrape_record = ["py.typed"]
