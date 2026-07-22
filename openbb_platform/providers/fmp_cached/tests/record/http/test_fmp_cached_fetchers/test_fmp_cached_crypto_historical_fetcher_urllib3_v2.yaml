@@ -1,0 +1,63 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/historical-price-eod/full?apikey=MOCK_API_KEY&from=2024-01-01&symbol=BTCUSD&to=2024-01-10
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA52Wz27TQBDG7zxFlHMzmr+7OxyBB0ACTohDKVGLlDYVLVQI8e6MQ3Yde1MkHCmX
+        Wdvr3zffN+uPL1arX/FfrdYPP28/73frl6v1q/evP7x7s774W/9y+bgdqoysG6QNYV3Z32/vYkUT
+        MUL2Y/Xm6/XNUM1ZGOxY3O2fhppKXIl0LF7t9g/bwwPiB1TLP/a777dD3ZAoHi7spd5xc3l3fVhS
+        A+FJ9e3229X27jEWCaiw5Pq4p8v7wyaMDsXYovz74v+50TtudwPsuL0BVuqMBKYdNbECVrRGLV6Y
+        2NF9yhdLm5LpRL4Z9oYCT7TJWLlVEJTzYu4y5xY3Batv17hFcModzY6de+5Btq7Z8YahiDNS9UzD
+        FlQEm3pgxE7glC3NqE3y4LTF0LmHdu5NrkYnhq7ciR2q/Rp2qIbAXbvJQzfLUpJ07dYI0LPdjn09
+        xU46N7pihCz5YvQ0R1cqGXJVuKFzQvBZwCXgW+hP0EO7ZoQRPaGzoWjq8r0h/0fAN4Ot4n1n4OLJ
+        QWl5wq0n9wJSeRp5zDFo8+VIzmrV/o07hAs1qmfGhLNIQnZprTvhplHpcy3nlDCSNicv5GB5ecZ1
+        Ts4lnWSukRecZZzTOWwX4B4bh/udmNodFZskzor8nNUFCL2ba5EyA0/LmaXrtmeGUvepzGahbbPi
+        ERuHzUfbVvJQ7ZzRNYlydJ2oNzpTTBCZGuGk5RpJZqsObOw6nDxpudO5Y+fhDJ/322JvKDN2HbJJ
+        bVq1rh/U65oe481itJtMXR1L2RhahvszPCPOh7oWLpBkOTZ1NudSztic48CpxWr0OGQgdaNtqts4
+        2kokw3OJSdF53cPrz2HHuZp8/Cao7Q7rgB4/XV58+gNB2tXmtQkAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 22 Jul 2026 00:20:50 GMT
+      Etag:
+      - W/"9b5-ztwPWwHZhX3gyADutyPCziwW2gg"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

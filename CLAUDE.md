@@ -808,14 +808,16 @@ print(p7.action_label, p7.composite_score)
 
 **`fmp_cached` preferred, `fmp` is fallback, never yfinance.**
 
+**Scope update (2026-07-21):** Project #7 ("FMP Cache") has been merged into Project #4 ("Portfolio Intelligence Engine"); Project #7 is deleted. The prior "portfolio team does NOT PR to `providers/fmp_cached/`" rule is LIFTED — portfolio-team cycles now own the fmp_cached scope too. Rules 1-3 below still apply for the fallback-when-necessary path; rule 4 no longer applies.
+
 - Always use `fmp_cached` when the endpoint exists there. `PRIMARY_PROVIDER = "fmp_cached"` remains the default constant in `stock_analysis.py`.
 - Fall back to raw `fmp` **only** when `fmp_cached` genuinely does not cover the endpoint. In that case:
   1. Use `fmp` for the immediate work so the roadmap isn't blocked. Same escape valve applies to any future provider swap (e.g. if we start pulling FRED, EOD-HD, etc.): use whatever is available, keep moving.
   2. **File a GH issue** in `prajoria/OpenBB`, add it to Project #4, label `area:fmp-cached-gap`. Body must include: missing endpoint, calling context, what needs to be added to `providers/fmp_cached/`.
   3. Reference that issue from the code path with a `# TODO(gh-<NN>): migrate to fmp_cached once endpoint lands` comment so the debt is visible in every future diff.
-  4. **Do NOT implement the `fmp_cached` extension yourself.** A separate team owns `providers/fmp_cached/`. The portfolio team's job is to file the gap issue and unblock via fallback — never to open PRs adding endpoints to `fmp_cached`. If a gap looks trivial and you're tempted to fix it inline, resist: cross-team boundary violations create merge conflicts and duplicated work.
+  4. ~~**Do NOT implement the `fmp_cached` extension yourself.**~~ **LIFTED 2026-07-21.** Portfolio-team cycles may now add endpoints, fetchers, and fixtures directly to `providers/fmp_cached/` under the same PR-review discipline as the rest of the fork. The `area:fmp-cached-gap` label is still the right tracker for surfacing debt; but the fix can now land in the same session that surfaces the gap.
 - **Reviewer discipline** (Mira gate, Zev veto): any PR introducing an `fmp` fallback that does *not* have a paired `area:fmp-cached-gap` GH issue is rejected. Codified rule, no judgment required.
-- Rationale: `fmp_cached` gives reproducible tests, deterministic dev loops, and cost control. The fallback exists so a missing endpoint never blocks the roadmap — but every use of the fallback is tracked debt handed off to the `fmp_cached` team.
+- Rationale: `fmp_cached` gives reproducible tests, deterministic dev loops, and cost control. The fallback exists so a missing endpoint never blocks the roadmap — but every use of the fallback is tracked debt on Project #4.
 
 ### Running Analysis tests
 

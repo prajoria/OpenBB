@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/historical-price-eod/full?apikey=MOCK_API_KEY&from=2024-01-01&symbol=SPY&to=2024-01-10
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA53Uz07CQBAG8DtP0fQMk5nZ/z4FiSdjPCA2YFIoEYQY47s7VLYL3XKwBy5ft83+
+        dj72eVIU3/IrinL/tXlt6vKhKB/nT+X0L3xbHKpzxMh6hjQjjE+aXbWVJ9ppIHvJ1u+rdZs50OaS
+        1c2pjRR4d4mWdbOv2tCCie8em/pzc06tU4QWMS5eL7arc86gb6J59bGstgd5gmDQdps4nha79uMG
+        DEn0M/2nEUNmpLT5zqghqJ6RQEV2MgrcZ0YTFOkhI9JdpGYTMqSSN0YhfR9pPegIukK63iBlWVyV
+        jBqyMTrtXaCcaIHcTZaIcnzc9xEYHuUzmU9KGfo+OdXYquiz6Rg6oLwbuq1FobdEPuRCvPpANkQM
+        FDyarhEXp5wqulFOPTDHbIwIXXMi0wFmXZWQs656zYo5Z84IkG/C5JwhMDkfu3yl1KOQKvtH4kBZ
+        CSgOOJWVsltHQhfXdUpCZbwZmKYw7b2LR5hKe9svrQ1gzSgnZ04euF0V2IiKNw+mbqd/Jcs2Micr
+        y8oNtjbcZNetldNx/crK57md5uTlF1l19t1GBgAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 22 Jul 2026 00:21:15 GMT
+      Etag:
+      - W/"646-mnHDRQTdq21DAP/uoW77PGVEYzk"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
