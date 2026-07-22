@@ -38,11 +38,60 @@ def test_snapshot_path_layout():
     assert p.parent.parent == cfg.snapshots_dir
 
 
-def test_snapshot_path_sanitizes_slash_in_symbol():
-    """Symbols with '/' or '\\' should not create nested dirs."""
+def test_snapshot_path_rejects_slash_in_symbol():
+    """Path-traversal hardening: symbols with `/` or `\\` are rejected outright."""
     cfg = load_config()
-    p = snapshot_path(cfg, "yahoo_options_chain", "BRK/A")
-    assert p.name == "BRK_A.json"
+    with pytest.raises(ConfigError, match="disallowed characters"):
+        snapshot_path(cfg, "yahoo_options_chain", "BRK/A")
+    with pytest.raises(ConfigError, match="disallowed characters"):
+        snapshot_path(cfg, "yahoo_options_chain", "BRK\\A")
+
+
+def test_snapshot_path_rejects_traversal_dotdot():
+    """Explicit '..' and '.' are rejected even if allowlist would let them."""
+    cfg = load_config()
+    with pytest.raises(ConfigError, match="'.'|'..'|disallowed"):
+        snapshot_path(cfg, "yahoo_options_chain", "..")
+    with pytest.raises(ConfigError, match="'.'|'..'|disallowed"):
+        snapshot_path(cfg, "yahoo_options_chain", ".")
+
+
+def test_snapshot_path_rejects_null_byte():
+    """NUL bytes never survive validation (defense against path-terminator tricks)."""
+    cfg = load_config()
+    with pytest.raises(ConfigError, match="NUL"):
+        snapshot_path(cfg, "yahoo_options_chain", "AAPL\x00.txt")
+
+
+def test_snapshot_path_rejects_empty_symbol():
+    """Empty symbol rejected."""
+    cfg = load_config()
+    with pytest.raises(ConfigError, match="non-empty"):
+        snapshot_path(cfg, "yahoo_options_chain", "")
+
+
+def test_snapshot_path_rejects_overlong_symbol():
+    """Symbol > 64 chars rejected."""
+    cfg = load_config()
+    with pytest.raises(ConfigError, match="max length"):
+        snapshot_path(cfg, "yahoo_options_chain", "A" * 65)
+
+
+def test_snapshot_path_accepts_finance_legit_punctuation():
+    """Allowlist includes . - _ ^ = for BRK.B / BRK-B / ^GSPC / CL=F."""
+    cfg = load_config()
+    for sym in ("BRK.B", "BRK-B", "^GSPC", "CL=F", "AAPL251230C00325000"):
+        # Should not raise
+        p = snapshot_path(cfg, "yahoo_options_chain", sym)
+        assert p.name.endswith(".json")
+
+
+def test_snapshot_path_defense_in_depth_asserts_inside_snapshots_dir():
+    """Even if someone widens the allowlist, resolved path is re-checked."""
+    cfg = load_config()
+    # The check runs on every call; the accepted 'AAPL' case must resolve inside
+    p = snapshot_path(cfg, "yahoo_options_chain", "AAPL")
+    assert p.is_relative_to(cfg.snapshots_dir)
 
 
 def test_recording_path_layout():

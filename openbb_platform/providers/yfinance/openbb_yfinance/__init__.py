@@ -5,6 +5,7 @@ from openbb_yfinance.models.active import YFActiveFetcher
 from openbb_yfinance.models.aggressive_small_caps import YFAggressiveSmallCapsFetcher
 from openbb_yfinance.models.available_indices import YFinanceAvailableIndicesFetcher
 from openbb_yfinance.models.balance_sheet import YFinanceBalanceSheetFetcher
+from openbb_yfinance.models.bond_ladder import YFinanceBondLadderFetcher
 from openbb_yfinance.models.cash_flow import YFinanceCashFlowStatementFetcher
 from openbb_yfinance.models.company_news import YFinanceCompanyNewsFetcher
 from openbb_yfinance.models.crypto_historical import YFinanceCryptoHistoricalFetcher
@@ -79,6 +80,8 @@ financial markets and assets.""",
         # Offline snapshot-backed options fetchers (#999, via scrape_record)
         "OptionsChainsRecorded": YFinanceRecordedOptionsChainsFetcher,
         "AtmIvTermStructure": YFinanceAtmIvTermStructureFetcher,
+        # Offline snapshot-backed bond-ETF holdings (#1000, via scrape_record)
+        "BondLadder": YFinanceBondLadderFetcher,
         "PriceTargetConsensus": YFinancePriceTargetConsensusFetcher,
         "ShareStatistics": YFinanceShareStatisticsFetcher,
     },

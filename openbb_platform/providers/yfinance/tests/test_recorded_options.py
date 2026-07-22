@@ -98,3 +98,45 @@ def test_query_params_require_symbol():
 
     with pytest.raises(ValidationError):
         YFinanceRecordedOptionsChainsFetcher.transform_query({})
+
+
+def test_symbol_pattern_rejects_path_traversal():
+    """Symbol pydantic pattern rejects slashes (first-line defense)."""
+    from pydantic import ValidationError
+
+    for bad in ("../etc/passwd", "AAPL/../etc", "AAPL\\..\\etc"):
+        with pytest.raises(ValidationError):
+            YFinanceRecordedOptionsChainsFetcher.transform_query({"symbol": bad})
+
+
+def test_dot_and_dotdot_rejected_at_snapshot_path_layer():
+    """Bare '.' and '..' pass pydantic (dot allowed for BRK.B) but caught by config."""
+    from scrape_record.config import ConfigError
+
+    for bad in ("..", "."):
+        q = YFinanceRecordedOptionsChainsFetcher.transform_query({"symbol": bad})
+        with pytest.raises(ConfigError):
+            _load_extracted(q.symbol)
+
+
+def test_symbol_pattern_rejects_null_byte():
+    """NUL byte in symbol rejected at pydantic layer."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        YFinanceRecordedOptionsChainsFetcher.transform_query({"symbol": "AAPL\x00"})
+
+
+def test_symbol_pattern_rejects_overlong():
+    """Symbol > 32 chars rejected."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        YFinanceRecordedOptionsChainsFetcher.transform_query({"symbol": "A" * 33})
+
+
+def test_symbol_pattern_accepts_finance_legit_forms():
+    """Pattern allows BRK.B, BRK-B, ^GSPC, CL=F, OCC option symbols."""
+    for good in ("AAPL", "BRK.B", "BRK-B", "^GSPC", "CL=F", "AAPL251230C00325000"):
+        q = YFinanceRecordedOptionsChainsFetcher.transform_query({"symbol": good})
+        assert q.symbol == good
