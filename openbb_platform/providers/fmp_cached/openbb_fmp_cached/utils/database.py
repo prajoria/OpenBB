@@ -1,10 +1,13 @@
 """Simple synchronous MySQL database utilities for FMP cached provider."""
 
-import os
-from typing import Any, Dict, Optional
+# pylint: disable=logging-fstring-interpolation,wrong-import-position,wrong-import-order,import-outside-toplevel
+
 import json
 import logging
+import os
 from contextlib import contextmanager
+from typing import Any
+
 import pymysql.cursors
 
 logger = logging.getLogger(__name__)
@@ -37,7 +40,7 @@ class DatabaseConfig:
                 "variables. No default credentials are provided."
             )
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """Load database configuration from OpenBB user settings, with environment variable fallback."""
 
         # Check if we're in test mode
@@ -62,7 +65,7 @@ class DatabaseConfig:
 
         try:
             if os.path.exists(settings_path):
-                with open(settings_path, "r") as f:
+                with open(settings_path) as f:
                     settings = json.load(f)
                     credentials = settings.get("credentials", {})
 
@@ -167,7 +170,7 @@ class DatabaseConfig:
         return default_config
 
     @property
-    def connection_params(self) -> Dict[str, Any]:
+    def connection_params(self) -> dict[str, Any]:
         """Get connection parameters for pymysql."""
         params = self.config.copy()
         # Remove non-pymysql parameters
@@ -200,12 +203,12 @@ class ConnectionPool:
 
 
 # Global connection pool instance
-_connection_pool: Optional[ConnectionPool] = None
+_connection_pool: ConnectionPool | None = None
 
 
 def get_connection_pool() -> ConnectionPool:
     """Get global connection pool instance."""
-    global _connection_pool
+    global _connection_pool  # noqa: PLW0603  # pylint: disable=global-statement
     if _connection_pool is None:
         config = DatabaseConfig()
         _connection_pool = ConnectionPool(config)
@@ -215,21 +218,19 @@ def get_connection_pool() -> ConnectionPool:
 def execute_query(query: str, params: tuple = ()) -> Any:
     """Execute a MySQL query and return results."""
     pool = get_connection_pool()
-    with pool.get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(query, params)
-            if query.strip().upper().startswith("SELECT"):
-                return cursor.fetchall()
-            return cursor.rowcount
+    with pool.get_connection() as conn, conn.cursor() as cursor:
+        cursor.execute(query, params)
+        if query.strip().upper().startswith("SELECT"):
+            return cursor.fetchall()
+        return cursor.rowcount
 
 
 def execute_many(query: str, params_list: list) -> int:
     """Execute a MySQL query with multiple parameter sets."""
     pool = get_connection_pool()
-    with pool.get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.executemany(query, params_list)
-            return cursor.rowcount
+    with pool.get_connection() as conn, conn.cursor() as cursor:
+        cursor.executemany(query, params_list)
+        return cursor.rowcount
 
 
 # ---------------------------------------------------------------------------
@@ -412,7 +413,7 @@ def replace_rows(
     for col in columns:
         safe_identifier(col)
 
-    delete_sql = f"DELETE FROM {safe_table} WHERE {safe_where} = %s"
+    delete_sql = f"DELETE FROM {safe_table} WHERE {safe_where} = %s"  # noqa: S608
     inserted = 0
 
     # PR #414 code-reviewer P1: reuse the pool's config singleton
@@ -435,9 +436,7 @@ def replace_rows(
             if rows and columns:
                 col_list = ", ".join(columns)
                 placeholders = ", ".join(["%s"] * len(columns))
-                insert_sql = (
-                    f"INSERT INTO {safe_table} ({col_list}) " f"VALUES ({placeholders})"
-                )
+                insert_sql = f"INSERT INTO {safe_table} ({col_list}) VALUES ({placeholders})"  # noqa: S608
                 # Build the parameter tuples in the same column order.
                 # PR #414 code-reviewer P2: explicit columns mean the
                 # caller declared a contract — a missing key is a bug,
@@ -546,3 +545,119 @@ def init_database(auto_create: bool = None):
     result = create_all_tables()
     logger.info("Database initialization complete")
     return result
+
+
+# ---------------------------------------------------------------------------
+# Schema-version tracking (Wave 0 A4 / #1317)
+# ---------------------------------------------------------------------------
+#
+# Motivation: `cache_schema.py` uses `CREATE TABLE IF NOT EXISTS` everywhere,
+# so multiple downstream waves adding new tables are already idempotent at
+# the DDL level. But some migrations are NOT idempotent (e.g. "add a column
+# to an existing table" or "backfill a computed value"). For those we need
+# a way to record whether a migration has run.
+#
+# Downstream contract:
+#   if not migration_ran("W1-statements-add-ttm-tables"):
+#       create_income_statement_ttm_table()
+#       ...
+#       record_migration("W1-statements-add-ttm-tables")
+#
+# The table itself is created lazily on first read/write so no init-order
+# dance is needed. Failures degrade gracefully — if the DB is down or the
+# schema_version table can't be created, the helper returns False (so the
+# migration will re-run on next boot) rather than crashing the caller.
+
+
+_SCHEMA_VERSION_DDL = """
+CREATE TABLE IF NOT EXISTS schema_version (
+    version VARCHAR(255) NOT NULL PRIMARY KEY,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+
+def _ensure_schema_version_table() -> bool:
+    """Create the schema_version table if it doesn't exist.
+
+    Returns True on success, False on any DB error (so callers can degrade
+    gracefully without crashing on a missing DB).
+    """
+    try:
+        execute_query(_SCHEMA_VERSION_DDL)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("schema_version table create failed: %s", exc)
+        return False
+
+
+def migration_ran(version: str) -> bool:
+    """Return True if ``version`` has been recorded as applied.
+
+    Downstream waves call this to gate non-idempotent DDL / backfills.
+    If the schema_version table itself can't be created or queried,
+    returns False (so the migration will attempt to run — which is the
+    safe direction, since DDL is idempotent when it uses IF NOT EXISTS).
+    """
+    if not version or not isinstance(version, str):
+        raise ValueError(
+            f"migration_ran: version must be a non-empty str; got {version!r}"
+        )
+    if not _ensure_schema_version_table():
+        return False
+    try:
+        rows = execute_query(
+            "SELECT 1 FROM schema_version WHERE version = %s LIMIT 1",
+            (version,),
+        )
+        return bool(rows)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("migration_ran query failed for %r: %s", version, exc)
+        return False
+
+
+def record_migration(version: str, notes: str | None = None) -> bool:
+    """Record ``version`` as applied. Idempotent via INSERT IGNORE.
+
+    Downstream waves call this AFTER the migration's DDL / backfill has
+    succeeded. Returns True on success, False on DB error (with WARN log).
+    Callers should treat False as a signal to re-run the migration on
+    next boot rather than proceeding as if the recording succeeded.
+    """
+    if not version or not isinstance(version, str):
+        raise ValueError(
+            f"record_migration: version must be a non-empty str; got {version!r}"
+        )
+    if not _ensure_schema_version_table():
+        return False
+    try:
+        # INSERT IGNORE so re-recording is a no-op (idempotent).
+        execute_query(
+            "INSERT IGNORE INTO schema_version (version, notes) VALUES (%s, %s)",
+            (version, notes),
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("record_migration failed for %r: %s", version, exc)
+        return False
+
+
+def list_migrations() -> list[dict]:
+    """List all recorded migrations. Returns [] on DB error.
+
+    Useful for ops-time debugging: which of the expected migrations
+    have run in this deployment?
+    """
+    if not _ensure_schema_version_table():
+        return []
+    try:
+        return (
+            execute_query(
+                "SELECT version, applied_at, notes FROM schema_version ORDER BY applied_at ASC"
+            )
+            or []
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("list_migrations failed: %s", exc)
+        return []
