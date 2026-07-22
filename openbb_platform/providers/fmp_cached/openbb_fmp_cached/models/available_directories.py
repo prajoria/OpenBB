@@ -168,6 +168,12 @@ _ALLOWED_TABLES = {
     "cryptocurrency_list",
     "forex_list",
     "index_list",
+    # W4 reference-directory batch 4 (#1102 #1110 #1167 #1168 #1169)
+    "sp500_constituent",
+    "nasdaq_constituent",
+    "dowjones_constituent",
+    "commitment_of_traders_list",
+    "market_risk_premium",
 }
 
 
@@ -188,6 +194,12 @@ _TABLE_TO_CREATOR: dict[str, Any] = {
     "cryptocurrency_list": _lazy_creator("create_market_directory_tables"),
     "forex_list": _lazy_creator("create_market_directory_tables"),
     "index_list": _lazy_creator("create_market_directory_tables"),
+    # reference-directory batch (#1102 #1110 #1167 #1168 #1169)
+    "sp500_constituent": _lazy_creator("create_reference_directory_tables"),
+    "nasdaq_constituent": _lazy_creator("create_reference_directory_tables"),
+    "dowjones_constituent": _lazy_creator("create_reference_directory_tables"),
+    "commitment_of_traders_list": _lazy_creator("create_reference_directory_tables"),
+    "market_risk_premium": _lazy_creator("create_reference_directory_tables"),
 }
 
 

@@ -147,6 +147,13 @@ from openbb_fmp_cached.models.market_directories import (
     FMPCachedForexListFetcher,
     FMPCachedIndexListFetcher,
 )
+from openbb_fmp_cached.models.reference_directories import (
+    FMPCachedCotListFetcher,
+    FMPCachedDowjonesConstituentFetcher,
+    FMPCachedMarketRiskPremiumFetcher,
+    FMPCachedNasdaqConstituentFetcher,
+    FMPCachedSp500ConstituentFetcher,
+)
 from openbb_fmp_cached.models.symbol_lists import (
     FMPCachedActivelyTradingListFetcher,
     FMPCachedCikListFetcher,
@@ -194,6 +201,12 @@ def create_all_cached_fetchers():
         "CryptocurrencyList": FMPCachedCryptocurrencyListFetcher,
         "ForexList": FMPCachedForexListFetcher,
         "IndexList": FMPCachedIndexListFetcher,
+        # W4 Directory batch 4: reference lists (#1102 #1110 #1167 #1168 #1169)
+        "Sp500Constituent": FMPCachedSp500ConstituentFetcher,
+        "NasdaqConstituent": FMPCachedNasdaqConstituentFetcher,
+        "DowjonesConstituent": FMPCachedDowjonesConstituentFetcher,
+        "CommitmentOfTradersList": FMPCachedCotListFetcher,
+        "MarketRiskPremium": FMPCachedMarketRiskPremiumFetcher,
     }
 
     # Fetchers that need fallback wrapping
