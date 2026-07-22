@@ -21,6 +21,9 @@ Design (from #1021 spike):
 
 # pylint: disable=import-outside-toplevel,broad-exception-caught
 # pylint: disable=too-many-arguments,too-many-positional-arguments
+# Fetcher method signatures include **kwargs by contract (openbb-core
+# Fetcher ABC); the args are unused in this concrete class.
+# pylint: disable=unused-argument
 
 from __future__ import annotations
 

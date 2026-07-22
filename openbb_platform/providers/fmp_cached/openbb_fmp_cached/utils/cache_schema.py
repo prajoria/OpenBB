@@ -5,6 +5,7 @@ Database tables with actual columns mapped from OpenBB model fields.
 This enables proper relational queries and consistent DataFrame mapping.
 Simple database-backed response persistence without TTL/caching complexity.
 """
+# pylint: disable=too-many-lines
 
 import logging
 import os
@@ -3788,7 +3789,7 @@ def ensure_financial_ratios_unique_index():
         # caplog assertions in tests). See #776.
         try:
             existing = execute_query(
-                "SHOW INDEX FROM financial_ratios " "WHERE Key_name = %s",
+                "SHOW INDEX FROM financial_ratios WHERE Key_name = %s",
                 ("uk_symbol_date_period_currency",),
             )
         except Exception as exc:
