@@ -151,11 +151,81 @@ def load_config(
 
 
 def snapshot_path(cfg: Config, name: str, symbol: str) -> Path:
-    """Return the on-disk path for a given (recording name, symbol) snapshot."""
+    """Return the on-disk path for a given (recording name, symbol) snapshot.
+
+    **Path-traversal hardening**: ``symbol`` and ``name`` are user-facing
+    inputs (accepted from fetchers' QueryParams). We enforce strict
+    allowlists and then re-assert the resolved path is inside
+    ``cfg.snapshots_dir`` — a defense-in-depth check so a future refactor
+    that widens the character allowlist can't accidentally re-open a
+    traversal.
+    """
+    _validate_snapshot_component("name", name)
+    _validate_snapshot_component("symbol", symbol)
     safe_symbol = symbol.replace("/", "_").replace("\\", "_")
-    return cfg.snapshots_dir / name / f"{safe_symbol}.json"
+    out = (cfg.snapshots_dir / name / f"{safe_symbol}.json").resolve()
+    # Defense-in-depth: even after sanitizing, confirm the resolved path
+    # is inside the snapshots dir. Blocks `..` escapes, NUL tricks, and
+    # any future validator regression.
+    try:
+        out.relative_to(cfg.snapshots_dir.resolve())
+    except ValueError as exc:
+        raise ConfigError(
+            f"snapshot_path({name!r}, {symbol!r}) resolved to {out}, "
+            f"which is OUTSIDE snapshots_dir ({cfg.snapshots_dir}). "
+            "Refusing — this is a path-traversal attempt."
+        ) from exc
+    return out
 
 
 def recording_path(cfg: Config, name: str) -> Path:
     """Return the on-disk path for a recording script."""
+    _validate_snapshot_component("name", name)
     return cfg.recordings_dir / f"{name}.py"
+
+
+# ---------------------------------------------------------------------------
+# Path-traversal hardening for user-facing components
+# ---------------------------------------------------------------------------
+
+
+# Symbol allowlist: uppercase alnum + a few finance-legit punctuation chars
+# (dot for BRK.B, dash for BRK-B, caret for ^GSPC, equals for CL=F).
+# Deliberately excludes: slashes (dir sep), NUL, dots-only, empty, and
+# anything > 32 chars (real tickers are < 12; leave headroom for OCC option
+# symbols like AAPL251230C00325000).
+_SAFE_COMPONENT_MAX_LEN = 64
+_SAFE_COMPONENT_ALLOWED = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.-_^="
+)
+
+
+def _validate_snapshot_component(field: str, value: str) -> None:
+    """Reject values that could escape the snapshots directory.
+
+    Rules:
+    - non-empty
+    - length ≤ 64
+    - only chars in _SAFE_COMPONENT_ALLOWED
+    - not "." or ".." (even though allowlist would let a bare "." through)
+    - no NUL bytes
+    """
+    if not isinstance(value, str) or not value:
+        raise ConfigError(f"snapshot {field} must be a non-empty string, got {value!r}")
+    if len(value) > _SAFE_COMPONENT_MAX_LEN:
+        raise ConfigError(
+            f"snapshot {field} exceeds max length {_SAFE_COMPONENT_MAX_LEN}: "
+            f"{value!r}"
+        )
+    if "\x00" in value:
+        raise ConfigError(f"snapshot {field} contains NUL byte: {value!r} — rejected.")
+    if value in (".", ".."):
+        raise ConfigError(
+            f"snapshot {field} may not be '.' or '..': {value!r} — rejected."
+        )
+    bad = [c for c in value if c not in _SAFE_COMPONENT_ALLOWED]
+    if bad:
+        raise ConfigError(
+            f"snapshot {field} contains disallowed characters "
+            f"{sorted(set(bad))!r} in {value!r}. Allowed: alnum + . - _ ^ ="
+        )

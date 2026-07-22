@@ -1,0 +1,54 @@
+{
+  "name": "yahoo_bond_etf_holdings",
+  "symbol": "BND",
+  "captured_at": "2026-07-22T18:00:00+00:00",
+  "source_url": "https://finance.yahoo.com/quote/BND/holdings",
+  "raw": {
+    "source_url": "https://finance.yahoo.com/quote/BND/holdings",
+    "etf_symbol": "BND",
+    "etf_name": "Vanguard Total Bond Market Index Fund ETF Shares",
+    "as_of_date": "2025-06-30",
+    "captured_at": "2026-07-22T18:00:00+00:00",
+    "top_holdings": [
+      {"symbol": "T 4.5 02/15/36", "issuer": "United States Treasury Note/Bond", "coupon": 4.5, "maturity": "2036-02-15", "weight": 0.0432, "ytm": 4.32, "rating": "AAA"},
+      {"symbol": "T 4.25 05/15/34", "issuer": "United States Treasury Note/Bond", "coupon": 4.25, "maturity": "2034-05-15", "weight": 0.0398, "ytm": 4.18, "rating": "AAA"},
+      {"symbol": "T 3.875 08/15/33", "issuer": "United States Treasury Note/Bond", "coupon": 3.875, "maturity": "2033-08-15", "weight": 0.0356, "ytm": 4.05, "rating": "AAA"},
+      {"symbol": "FNMA 5.5 2054", "issuer": "Federal National Mortgage Association", "coupon": 5.5, "maturity": "2054-07-01", "weight": 0.0187, "ytm": 5.42, "rating": "AAA"},
+      {"symbol": "GNMA II 5 2054", "issuer": "Government National Mortgage Association II", "coupon": 5.0, "maturity": "2054-08-20", "weight": 0.0163, "ytm": 5.11, "rating": "AAA"}
+    ],
+    "sector_weights": {
+      "Treasury": 0.42,
+      "Government Mortgage": 0.21,
+      "Industrial": 0.15,
+      "Financial": 0.11,
+      "Utility": 0.03,
+      "Other": 0.08
+    },
+    "credit_quality_breakdown": {
+      "AAA": 0.68,
+      "AA": 0.11,
+      "A": 0.13,
+      "BBB": 0.08
+    },
+    "average_ytm": 4.85,
+    "duration_years": 6.2
+  },
+  "extracted": {
+    "etf_symbol": "BND",
+    "etf_name": "Vanguard Total Bond Market Index Fund ETF Shares",
+    "as_of_date": "2025-06-30",
+    "captured_at": "2026-07-22T18:00:00+00:00",
+    "holdings": [
+      {"symbol": "T 4.5 02/15/36", "issuer": "United States Treasury Note/Bond", "coupon": 4.5, "maturity": "2036-02-15", "weight": 0.0432, "ytm": 4.32, "rating": "AAA"},
+      {"symbol": "T 4.25 05/15/34", "issuer": "United States Treasury Note/Bond", "coupon": 4.25, "maturity": "2034-05-15", "weight": 0.0398, "ytm": 4.18, "rating": "AAA"},
+      {"symbol": "T 3.875 08/15/33", "issuer": "United States Treasury Note/Bond", "coupon": 3.875, "maturity": "2033-08-15", "weight": 0.0356, "ytm": 4.05, "rating": "AAA"},
+      {"symbol": "FNMA 5.5 2054", "issuer": "Federal National Mortgage Association", "coupon": 5.5, "maturity": "2054-07-01", "weight": 0.0187, "ytm": 5.42, "rating": "AAA"},
+      {"symbol": "GNMA II 5 2054", "issuer": "Government National Mortgage Association II", "coupon": 5.0, "maturity": "2054-08-20", "weight": 0.0163, "ytm": 5.11, "rating": "AAA"}
+    ],
+    "sector_weights": {"Treasury": 0.42, "Government Mortgage": 0.21, "Industrial": 0.15, "Financial": 0.11, "Utility": 0.03, "Other": 0.08},
+    "credit_quality_breakdown": {"AAA": 0.68, "AA": 0.11, "A": 0.13, "BBB": 0.08},
+    "portfolio_avg_ytm": 4.85,
+    "portfolio_duration_years": 6.2
+  },
+  "extractor_version": "1"
+}

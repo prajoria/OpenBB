@@ -34,9 +34,23 @@ from pydantic import ConfigDict, Field
 
 
 class _SymbolQueryParams(QueryParams):
-    """Symbol-keyed query for recorded options endpoints."""
+    """Symbol-keyed query for recorded options endpoints.
 
-    symbol: str = Field(description="Underlying ticker symbol (e.g. 'AAPL').")
+    Applies a strict allowlist pattern at pydantic-validation time as
+    first-line defense against path-traversal via the ``symbol``
+    string reaching ``scrape_record.config.snapshot_path``. The
+    downstream ``snapshot_path`` validator re-checks the same rule
+    (defense-in-depth); rejecting here just fails faster with a
+    better error message.
+    """
+
+    symbol: str = Field(
+        description="Underlying ticker symbol (e.g. 'AAPL').",
+        # Allowlist: uppercase alnum + finance-legit punctuation
+        # (. - _ ^ =). Length 1-32 covers real tickers with plenty of
+        # headroom.  NO path separators, dots-only, or NUL.
+        pattern=r"^[A-Za-z0-9._\-^=]{1,32}$",
+    )
 
 
 class YFinanceRecordedOptionData(Data):
