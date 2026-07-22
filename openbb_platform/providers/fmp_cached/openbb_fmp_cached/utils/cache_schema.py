@@ -5799,6 +5799,32 @@ def create_symbol_list_tables():
     return True
 
 
+def create_market_directory_tables():
+    """Create the 4 FMP market-directory tables (W4 batch 3 / #1158 #1173 #1182 #1197).
+
+    Companion of :func:`create_symbol_list_tables` for the 4 no-param
+    market-reference endpoints (commodities/crypto/forex/indexes lists).
+    Same schema — small JSON blobs, TRUNCATE + INSERT refresh.
+    """
+    # pylint: disable=import-outside-toplevel,redefined-outer-name
+    from openbb_fmp_cached.utils.database import execute_query
+
+    for table in (
+        "commodities_list",
+        "cryptocurrency_list",
+        "forex_list",
+        "index_list",
+    ):
+        execute_query(f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            data_json JSON NOT NULL,
+            cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    return True
+
+
 def create_all_flattened_tables():
     """Create all flattened database tables.
 

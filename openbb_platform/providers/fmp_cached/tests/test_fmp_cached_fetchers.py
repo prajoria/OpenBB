@@ -1139,3 +1139,43 @@ def test_fmp_cached_cik_list_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["CikList"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_commodities_list_fetcher(credentials=test_credentials):
+    """Test FMP cached commodities-list directory (#1173)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CommoditiesList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_cryptocurrency_list_fetcher(credentials=test_credentials):
+    """Test FMP cached cryptocurrency-list directory (#1182)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CryptocurrencyList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_forex_list_fetcher(credentials=test_credentials):
+    """Test FMP cached forex-list directory (#1197)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["ForexList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_index_list_fetcher(credentials=test_credentials):
+    """Test FMP cached index-list directory (#1158)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["IndexList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
