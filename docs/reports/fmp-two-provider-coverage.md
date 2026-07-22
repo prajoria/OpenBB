@@ -10,7 +10,7 @@
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
 - Registered in `openbb_fmp_cached` only (native, no upstream wrap): **106**
-- Registered in EITHER but lacking a VCR cassette: **26**
+- Registered in EITHER but lacking a VCR cassette: **25**
 - Plan-limited (see `plan_limited.py`): **53**
 
 ## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)
@@ -138,7 +138,6 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `EarningsCallTranscript` — plan-limited, both
 - `EquityActive` — plan-limited, both
 - `EquityOwnership` — plan-limited, both
-- `EquityScreener` — both
 - `EsgScore` — plan-limited, both
 - `EtfEquityExposure` — plan-limited, both
 - `EtfPricePerformance` — plan-limited, both
