@@ -1036,3 +1036,46 @@ follow-up remain).
 - No more fmp-cached drain work exists at this time.
 - Any new FMP endpoints FMP adds → file a new issue, spike, either
   register in fetcher_dict or add to plan_limited.py.
+
+---
+
+## project4-drain-endgame-2026-07-22-end
+
+**Project #4 (Portfolio Intelligence Engine) drain — everything
+drainable via this program is drained.** Board went 221 → **3 open**
+across 2 sessions on 2026-07-21/22.
+
+The 3 remaining items are **out of scope** for this drain program:
+
+- **#102** — Pine Script extension epic (separate program, not
+  `[fmp]` or `[portfolio]` scope).
+- **#999** — provider-gap for options chain + ATM IV term
+  structure. Body says *"No current openbb provider (fmp_cached
+  / fmp) carries options data"*. Fixing this requires adding a
+  new provider (cboe / intrinio / tradier) — a whole new epic.
+- **#1000** — same pattern for corporate-bond issuance/YTM.
+  Body says *"No current openbb provider carries corporate
+  bond ladders"*. Fixing requires a new provider (finra_trace /
+  intrinio_bonds / bondwave).
+
+**Ledger of drain sessions:**
+- Day 1 (2026-07-21): 281 → 92, +59 in 6 code PRs + 24 close-only
+- Day 2 (2026-07-22): 92 → 3, +59 in 4 more code PRs + 100 close-only
+
+**Total across 2 days**: **218 items closed**, **59 new fetchers**,
+**53 plan-limited entries added**, **10 code PRs merged**
+(#1320, #1322-#1329, #1331, #1333, #1335, #1337, #1338, #1341, #1343)
+plus **7 plan-limited/doc PRs** (#1319, #1328, #1332, #1334, #1336,
+#1339, #1340, #1342).
+
+**Handoff to owner (Daisy):**
+- FMP Cached full-API-coverage program (#844) closed as complete.
+- WAVE 9 hardening (#1037) closed as substantively-complete.
+- #955 fixture coverage follow-up closed with 0 uncovered.
+- Next drain-style work: pick a **new provider** (options via cboe,
+  corporate bonds via finra_trace) to unblock #999/#1000, or a new
+  program entirely.
+
+**Portfolio branch state:** 17 PRs merged to `portfolio` this program
+(none reversed). No pending drain work; branch is at rest for the
+FMP Cached scope.
