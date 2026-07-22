@@ -1,5 +1,12 @@
 # `rsi_reversal` — visual walkthrough (pilot)
 
+> **See also:** [`docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md`](../../../../../../../../docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md)
+> — the meta-guide covering the fixture concept, CSV schema, PowerShell
+> massaging snippets, commit + PR flow, and cross-fixture troubleshooting.
+> This document is the depth-first TradingView UI walkthrough for
+> `rsi_reversal` specifically; the meta-guide is the workflow overview
+> that applies to every fixture.
+
 This is the pilot walkthrough for the bd-ph0 phase-2 human-in-loop CSV
 export workflow. Once this fixture's four CSVs are green, clone this
 document into each of the other four fixture directories with strategy-

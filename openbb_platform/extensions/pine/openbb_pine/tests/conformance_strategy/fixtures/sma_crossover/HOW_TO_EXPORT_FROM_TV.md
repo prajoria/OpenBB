@@ -1,5 +1,18 @@
 # How to export `sma_crossover` reference CSVs from TradingView
 
+> **See also:**
+> - [`../rsi_reversal/GUIDE.md`](../rsi_reversal/GUIDE.md) — deep-dive
+>   visual walkthrough of the TradingView UI. Written for the
+>   `rsi_reversal` pilot but every step (except the .pine source name
+>   + output filenames) applies here verbatim.
+> - [`docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md`](../../../../../../../../docs/pine/HOW_TO_PREPARE_TV_FIXTURES.md)
+>   — the meta-guide covering the fixture concept, CSV schema, PowerShell
+>   massaging snippets, commit + PR flow, and cross-fixture troubleshooting.
+>
+> This stub below is the quick reference. Read the meta-guide first if
+> you're new to the workflow; read `rsi_reversal/GUIDE.md` if you're new
+> to TradingView.
+
 This fixture ships the Pine v6 strategy source (`sma_crossover.pine`)
 but AWAITS the expected `equity.csv`, `trades.csv`, and `stats.csv`
 files sourced from TradingView's Strategy Tester UI. Until those land,
