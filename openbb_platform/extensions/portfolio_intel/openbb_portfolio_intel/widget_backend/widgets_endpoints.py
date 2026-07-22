@@ -699,35 +699,147 @@ def equity_technicals(
 def equity_analyst_forecasts(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Equity Profile section 5 — analyst forecasts + surprise (table). Sub-gaps 997, 998."""
+    """Equity Profile section 5 — analyst forecasts + surprise (table).
+
+    Rating distribution (5B) is LIVE via FMPCachedAnalystRecommendationsFetcher
+    (#997 / #1022). Historical revenue estimates (5C) still blocked on #998.
+    """
     _require_auth(request)
-    _validate_symbol(symbol)
-    return [
+    sym = _validate_symbol(symbol)
+
+    rows: list[dict[str, str | float]] = [
         {"metric": "1Y target (consensus)", "value": 245.0, "note": "sample n=32"},
         {"metric": "Target range", "value": "215..280", "note": ""},
         {"metric": "Upside vs current", "value": "7.4%", "note": ""},
-        {
-            "metric": "Rating: Strong Buy / Buy",
-            "value": "12 / 14",
-            "note": "gap 997 partial",
-        },
-        {
-            "metric": "Rating: Hold / Sell / Strong Sell",
-            "value": "5 / 1 / 0",
-            "note": "gap 997",
-        },
-        {
-            "metric": "Q3 2025 EPS Surprise",
-            "value": "+3.2%",
-            "note": "actual 1.55 vs est 1.50",
-        },
-        {
-            "metric": "Q2 2025 EPS Surprise",
-            "value": "+1.9%",
-            "note": "actual 1.52 vs est 1.49",
-        },
-        {"metric": "Historical rev estimate", "value": "BLOCKED", "note": "gap 998"},
     ]
+
+    # Rating distribution — live via #997
+    # pylint: disable=import-outside-toplevel,broad-exception-caught
+    try:
+        import asyncio
+
+        from openbb_fmp_cached import fmp_cached_provider
+
+        cls = fmp_cached_provider.fetcher_dict["AnalystRecommendations"]
+        q = cls.transform_query({"symbol": sym})
+        raw = asyncio.run(cls.aextract_data(q, None))
+        summary = cls.transform_data(q, raw)[0]
+        rows.extend(
+            [
+                {
+                    "metric": "Rating: Strong Buy / Buy",
+                    "value": f"{summary.strong_buy} / {summary.buy}",
+                    "note": f"as of {summary.as_of}; n={summary.total} firms",
+                },
+                {
+                    "metric": "Rating: Hold / Sell / Strong Sell",
+                    "value": f"{summary.hold} / {summary.sell} / {summary.strong_sell}",
+                    "note": (
+                        f"unknown_count={summary.unknown_count}"
+                        if summary.unknown_count
+                        else ""
+                    ),
+                },
+            ]
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("analyst-forecasts: recommendations fetch failed: %s", exc)
+        # Never echo raw exception text to HTTP clients — exception
+        # messages can carry credential fragments (e.g. an httpx error
+        # embedding the request URL with apikey=... in the query
+        # string). Return a static note; operators find the detail in
+        # server logs via the WARN line above.
+        rows.extend(
+            [
+                {
+                    "metric": "Rating: Strong Buy / Buy",
+                    "value": "n/a",
+                    "note": "fetch failed (see server logs)",
+                },
+                {
+                    "metric": "Rating: Hold / Sell / Strong Sell",
+                    "value": "n/a",
+                    "note": "fetch failed",
+                },
+            ]
+        )
+
+    rows.extend(
+        [
+            {
+                "metric": "Q3 2025 EPS Surprise",
+                "value": "+3.2%",
+                "note": "actual 1.55 vs est 1.50",
+            },
+            {
+                "metric": "Q2 2025 EPS Surprise",
+                "value": "+1.9%",
+                "note": "actual 1.52 vs est 1.49",
+            },
+        ]
+    )
+
+    # Revenue surprise (5C) — live via #998 opportunistic history
+    # (#1025 / #1026). Only rendered when a historical snapshot exists;
+    # otherwise render "insufficient history" so the widget documents
+    # the state honestly rather than fabricating a surprise%.
+    # pylint: disable=import-outside-toplevel,broad-exception-caught
+    try:
+        from datetime import (
+            date as _date,
+            timedelta as _td,
+        )
+
+        from openbb_fmp_cached.models.analyst_estimates import (
+            get_estimate_as_of,
+        )
+
+        # Look up an estimate that was captured before the most recent
+        # earnings release. For the demo path we probe the last-completed
+        # quarter end (approximately today - 90 days).
+        today = _date.today()
+        approx_last_qend = today - _td(days=90)
+        snap = get_estimate_as_of(
+            symbol=sym,
+            fiscal_period_end=approx_last_qend,
+            as_of_date=approx_last_qend,
+            period="quarter",
+        )
+        if snap and snap.get("estimated_revenue_avg"):
+            rows.append(
+                {
+                    "metric": "Historical rev estimate (last Q)",
+                    "value": float(snap["estimated_revenue_avg"]),
+                    "note": (
+                        f"snapshot {snap.get('snapshot_date')}; "
+                        "surprise% computed once actual revenue lands"
+                    ),
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "metric": "Historical rev estimate",
+                    "value": "insufficient history",
+                    "note": (
+                        "no snapshot in analyst_estimates_history yet; "
+                        "surprise% available once opportunistic snapshots "
+                        "accumulate (#998 / #1025)"
+                    ),
+                }
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("analyst-forecasts: history lookup failed: %s", exc)
+        # Don't echo raw exception to HTTP client — see rating-fetch
+        # rationale above. Detail is in the WARN log.
+        rows.append(
+            {
+                "metric": "Historical rev estimate",
+                "value": "n/a",
+                "note": "lookup failed (see server logs)",
+            }
+        )
+    return rows
 
 
 @app.get("/pi/equity/complementary")

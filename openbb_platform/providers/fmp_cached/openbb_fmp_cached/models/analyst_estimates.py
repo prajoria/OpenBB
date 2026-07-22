@@ -30,10 +30,10 @@ Database Schema:
 # pylint: disable=too-many-nested-blocks,too-many-arguments,too-many-positional-arguments
 
 import logging
-from datetime import datetime, date
-from typing import Any, Dict, List, Literal, Optional
+from datetime import date, datetime
+from typing import Any, Literal
+
 from openbb_core.provider.abstract.fetcher import Fetcher
-from openbb_core.provider.abstract.data import ForceInt
 from openbb_core.provider.standard_models.analyst_estimates import (
     AnalystEstimatesData,
     AnalystEstimatesQueryParams,
@@ -41,7 +41,8 @@ from openbb_core.provider.standard_models.analyst_estimates import (
 from openbb_core.provider.utils.descriptions import QUERY_DESCRIPTIONS
 from openbb_core.provider.utils.errors import EmptyDataError
 from pydantic import Field
-from openbb_fmp_cached.utils.database import execute_query, execute_many, init_database
+
+from openbb_fmp_cached.utils.database import execute_many, execute_query, init_database
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class FMPCachedAnalystEstimatesData(AnalystEstimatesData):
 class FMPCachedAnalystEstimatesFetcher(
     Fetcher[
         FMPCachedAnalystEstimatesQueryParams,
-        List[FMPCachedAnalystEstimatesData],
+        list[FMPCachedAnalystEstimatesData],
     ]
 ):
     """FMP Cached Analyst Estimates Fetcher with dedicated database caching."""
@@ -187,6 +188,8 @@ class FMPCachedAnalystEstimatesFetcher(
                 # Store in cache
                 if fmp_data:
                     _store_in_cache(single_query, fmp_data)
+                    # #998 / #1025 — opportunistic history snapshot on every wire fetch.
+                    _store_history(single_query, fmp_data)
                     logger.info(f"Cached {len(fmp_data)} records for {symbol}")
                     all_results.extend(fmp_data)
 
@@ -198,6 +201,7 @@ class FMPCachedAnalystEstimatesFetcher(
                 )
                 if fallback_data:
                     _store_in_cache(single_query, fallback_data)
+                    _store_history(single_query, fallback_data)
                 all_results.extend(fallback_data)
 
         logger.info(f"Returning {len(all_results)} total records")
@@ -277,7 +281,7 @@ def _create_analyst_estimates_table() -> None:
 
 def _get_from_cache(
     query: FMPCachedAnalystEstimatesQueryParams,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Get analyst estimates from cache."""
 
     cache_query = """
@@ -289,8 +293,8 @@ def _get_from_cache(
            estimated_net_income_low, estimated_net_income_high, estimated_net_income_avg,
            estimated_eps_avg, estimated_eps_high, estimated_eps_low,
            number_analysts_estimated_revenue, number_analysts_estimated_eps
-    FROM analyst_estimates 
-    WHERE symbol = %s 
+    FROM analyst_estimates
+    WHERE symbol = %s
     AND period = %s
     AND is_valid = TRUE
     ORDER BY date DESC
@@ -425,7 +429,7 @@ def _get_from_cache(
 
 
 def _store_in_cache(
-    query: FMPCachedAnalystEstimatesQueryParams, fmp_data: List[Dict[str, Any]]
+    query: FMPCachedAnalystEstimatesQueryParams, fmp_data: list[dict[str, Any]]
 ) -> None:
     """Store analyst estimates in database cache."""
 
@@ -433,7 +437,7 @@ def _store_in_cache(
         return
 
     insert_query = """
-    INSERT INTO analyst_estimates 
+    INSERT INTO analyst_estimates
     (symbol, date, period,
      estimated_revenue_low, estimated_revenue_high, estimated_revenue_avg,
      estimated_sga_expense_low, estimated_sga_expense_high, estimated_sga_expense_avg,
@@ -443,7 +447,8 @@ def _store_in_cache(
      estimated_eps_avg, estimated_eps_high, estimated_eps_low,
      number_analysts_estimated_revenue, number_analysts_estimated_eps,
      cached_at, is_valid)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
     ON DUPLICATE KEY UPDATE
     estimated_revenue_low = new_values.estimated_revenue_low,
     estimated_revenue_high = new_values.estimated_revenue_high,
@@ -474,10 +479,11 @@ def _store_in_cache(
         date_str = row.get("date")
         if date_str:
             try:
-                if isinstance(date_str, str):
-                    date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
-                else:
-                    date_obj = date_str
+                date_obj = (
+                    datetime.strptime(date_str, "%Y-%m-%d").date()
+                    if isinstance(date_str, str)
+                    else date_str
+                )
             except (ValueError, TypeError):
                 logger.warning(f"Invalid date format: {date_str}")
                 continue
@@ -534,9 +540,10 @@ async def _fetch_from_fmp_direct(
     """Fetch data directly from FMP API - completely independent implementation."""
     import asyncio
     import warnings
-    from openbb_core.provider.utils.helpers import amake_request
-    from openbb_core.provider.utils.errors import UnauthorizedError
+
     from openbb_core.app.model.abstract.error import OpenBBError
+    from openbb_core.provider.utils.errors import UnauthorizedError
+    from openbb_core.provider.utils.helpers import amake_request
 
     async def response_callback(response, _):
         """Handle FMP API response."""
@@ -600,43 +607,43 @@ async def _fetch_from_fmp_direct(
 
 def get_cache_statistics(
     symbol: str | None = None, period: str | None = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get cache statistics for analyst estimates."""
     try:
         if symbol and period:
             stats_query = """
-            SELECT 
+            SELECT
                 symbol,
                 period,
                 COUNT(*) as record_count,
                 MIN(date) as earliest_date,
                 MAX(date) as latest_date
-            FROM analyst_estimates 
+            FROM analyst_estimates
             WHERE symbol = %s AND period = %s AND is_valid = TRUE
             GROUP BY symbol, period
             """
             results = execute_query(stats_query, (symbol, period))
         elif symbol:
             stats_query = """
-            SELECT 
+            SELECT
                 symbol,
                 period,
                 COUNT(*) as record_count,
                 MIN(date) as earliest_date,
                 MAX(date) as latest_date
-            FROM analyst_estimates 
+            FROM analyst_estimates
             WHERE symbol = %s AND is_valid = TRUE
             GROUP BY symbol, period
             """
             results = execute_query(stats_query, (symbol,))
         else:
             stats_query = """
-            SELECT 
+            SELECT
                 COUNT(DISTINCT symbol) as unique_symbols,
                 COUNT(*) as total_records,
                 MIN(date) as earliest_date,
                 MAX(date) as latest_date
-            FROM analyst_estimates 
+            FROM analyst_estimates
             WHERE is_valid = TRUE
             """
             results = execute_query(stats_query)
@@ -667,3 +674,129 @@ def clear_cache_for_symbol(symbol: str, period: str | None = None) -> bool:
     except Exception as e:
         logger.error(f"Failed to clear cache: {e}")
         return False
+
+
+# ---------------------------------------------------------------------------
+# #998 / #1025 — Historical snapshotting into analyst_estimates_history
+# ---------------------------------------------------------------------------
+
+
+def _store_history(
+    query: "FMPCachedAnalystEstimatesQueryParams",  # noqa: F821 forward ref
+    fmp_data: list[dict],
+) -> None:
+    """Snapshot the CURRENT estimate rows into analyst_estimates_history.
+
+    Opportunistic: called from ``aextract_data`` after every wire fetch
+    (not on cache hits). ``snapshot_date`` = today (UTC date). Same-day
+    re-fetches overwrite via ON DUPLICATE KEY UPDATE.
+    """
+    if not fmp_data:
+        return
+    try:
+        from openbb_fmp_cached.utils.cache_schema import (
+            create_analyst_estimates_history_table,
+        )
+
+        create_analyst_estimates_history_table()
+    except Exception as exc:
+        logger.warning(f"history table init failed: {exc}")
+        return
+
+    period = getattr(query, "period", "annual")
+    symbol = getattr(query, "symbol", "")
+    snapshot_date = datetime.utcnow().date()
+
+    insert_sql = """
+    INSERT INTO analyst_estimates_history (
+        symbol, date, period, snapshot_date,
+        estimated_revenue_low, estimated_revenue_high, estimated_revenue_avg,
+        estimated_eps_low, estimated_eps_high, estimated_eps_avg,
+        number_analysts_estimated_revenue, number_analysts_estimated_eps
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+        estimated_revenue_low = VALUES(estimated_revenue_low),
+        estimated_revenue_high = VALUES(estimated_revenue_high),
+        estimated_revenue_avg = VALUES(estimated_revenue_avg),
+        estimated_eps_low = VALUES(estimated_eps_low),
+        estimated_eps_high = VALUES(estimated_eps_high),
+        estimated_eps_avg = VALUES(estimated_eps_avg),
+        number_analysts_estimated_revenue = VALUES(number_analysts_estimated_revenue),
+        number_analysts_estimated_eps = VALUES(number_analysts_estimated_eps),
+        cached_at = CURRENT_TIMESTAMP
+    """
+
+    batch: list[tuple] = []
+    for row in fmp_data:
+        date_str = row.get("date")
+        if not date_str:
+            continue
+        try:
+            date_obj = (
+                datetime.strptime(date_str, "%Y-%m-%d").date()
+                if isinstance(date_str, str)
+                else date_str
+            )
+        except (ValueError, TypeError):
+            continue
+        batch.append(
+            (
+                symbol,
+                date_obj,
+                period,
+                snapshot_date,
+                row.get("estimatedRevenueLow"),
+                row.get("estimatedRevenueHigh"),
+                row.get("estimatedRevenueAvg"),
+                row.get("estimatedEpsLow"),
+                row.get("estimatedEpsHigh"),
+                row.get("estimatedEpsAvg"),
+                row.get("numberAnalystsEstimatedRevenue"),
+                row.get("numberAnalystsEstimatedEps"),
+            )
+        )
+    if batch:
+        try:
+            execute_many(insert_sql, batch)
+        except Exception as exc:
+            logger.warning(f"history write failed: {exc}")
+
+
+def get_estimate_as_of(
+    symbol: str,
+    fiscal_period_end: "date",  # noqa: F821 forward ref
+    as_of_date: "date",  # noqa: F821 forward ref
+    period: str = "quarter",
+) -> dict | None:
+    """Return the estimate row for (symbol, fiscal_period_end, period) as
+    it stood on the LATEST snapshot_date <= as_of_date.
+
+    Returns None if no snapshot exists (e.g. history table empty for
+    quarters that happened before this fetcher shipped, or symbol never
+    fetched). Callers should render an "insufficient history" state
+    rather than fabricating a surprise%.
+    """
+    try:
+        rows = execute_query(
+            """
+            SELECT
+                estimated_revenue_avg, estimated_revenue_low, estimated_revenue_high,
+                estimated_eps_avg, estimated_eps_low, estimated_eps_high,
+                number_analysts_estimated_revenue, number_analysts_estimated_eps,
+                snapshot_date
+            FROM analyst_estimates_history
+            WHERE symbol = %s
+              AND date = %s
+              AND period = %s
+              AND snapshot_date <= %s
+            ORDER BY snapshot_date DESC
+            LIMIT 1
+            """,
+            (symbol, fiscal_period_end, period, as_of_date),
+        )
+    except Exception as exc:
+        logger.warning(f"get_estimate_as_of query failed: {exc}")
+        return None
+    if not rows:
+        return None
+    return rows[0]
