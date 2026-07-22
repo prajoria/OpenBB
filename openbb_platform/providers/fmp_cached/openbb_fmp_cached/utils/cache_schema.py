@@ -3740,9 +3740,9 @@ def ensure_financial_ratios_unique_index():
     - Other errors: logged at WARNING, flag stays False so a retry can
       happen.
     """
-    global _FR_MIGRATION_RAN  # noqa: PLW0603
+    global _FR_MIGRATION_RAN  # noqa: PLW0603  # pylint: disable=global-statement
     with _FR_MIGRATION_LOCK:
-        if _FR_MIGRATION_RAN:
+        if _FR_MIGRATION_RAN:  # pylint: disable=used-before-assignment
             return
 
         # Step 1 (bd-hyzu / PR #427 P1): purge NULL-key rows that would
@@ -3856,7 +3856,7 @@ _FR_MIGRATION_LOCK = threading.Lock()
 
 def _reset_fr_migration_flag_for_tests():
     """Test-only helper to reset the ran-once flag between tests."""
-    global _FR_MIGRATION_RAN  # noqa: PLW0603
+    global _FR_MIGRATION_RAN  # noqa: PLW0603  # pylint: disable=global-statement
     with _FR_MIGRATION_LOCK:
         _FR_MIGRATION_RAN = False
 
@@ -5686,6 +5686,7 @@ def create_analyst_grades_table():
         INDEX idx_analyst_grades_date (date)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
+    # pylint: disable=import-outside-toplevel,redefined-outer-name
     from openbb_fmp_cached.utils.database import execute_query
 
     execute_query(query)
@@ -5726,6 +5727,7 @@ def create_analyst_estimates_history_table():
         INDEX idx_history_snapshot (snapshot_date)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
+    # pylint: disable=import-outside-toplevel,redefined-outer-name
     from openbb_fmp_cached.utils.database import execute_query
 
     execute_query(query)
