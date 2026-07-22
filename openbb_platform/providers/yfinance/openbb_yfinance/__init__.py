@@ -32,6 +32,10 @@ from openbb_yfinance.models.options_chains import YFinanceOptionsChainsFetcher
 from openbb_yfinance.models.price_target_consensus import (
     YFinancePriceTargetConsensusFetcher,
 )
+from openbb_yfinance.models.recorded_options import (
+    YFinanceAtmIvTermStructureFetcher,
+    YFinanceRecordedOptionsChainsFetcher,
+)
 from openbb_yfinance.models.share_statistics import YFinanceShareStatisticsFetcher
 from openbb_yfinance.models.undervalued_growth_equities import (
     YFUndervaluedGrowthEquitiesFetcher,
@@ -72,6 +76,9 @@ financial markets and assets.""",
         "KeyExecutives": YFinanceKeyExecutivesFetcher,
         "KeyMetrics": YFinanceKeyMetricsFetcher,
         "OptionsChains": YFinanceOptionsChainsFetcher,
+        # Offline snapshot-backed options fetchers (#999, via scrape_record)
+        "OptionsChainsRecorded": YFinanceRecordedOptionsChainsFetcher,
+        "AtmIvTermStructure": YFinanceAtmIvTermStructureFetcher,
         "PriceTargetConsensus": YFinancePriceTargetConsensusFetcher,
         "ShareStatistics": YFinanceShareStatisticsFetcher,
     },
