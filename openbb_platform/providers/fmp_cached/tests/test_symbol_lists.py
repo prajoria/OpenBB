@@ -146,11 +146,24 @@ def test_persist_directory_rejects_non_allowlisted_table():
 
 
 def test_persist_directory_dispatches_by_prefix():
-    """_persist_directory picks the right DDL creator based on table name prefix."""
+    """_persist_directory picks the right DDL creator for each table.
+
+    Sanity: the 4 available-* + 5 batch-2 symbol-list tables are all in
+    the allowlist. Additional entries (batch-3 market_directories, etc.)
+    are allowed to exist without breaking this test — we only guard the
+    presence of the tables THIS module owns.
+    """
     from openbb_fmp_cached.models.available_directories import _ALLOWED_TABLES
 
-    # Sanity: both batches represented in the allowlist
     available = {t for t in _ALLOWED_TABLES if t.startswith("available_")}
-    symbol_lists = _ALLOWED_TABLES - available
+    batch2 = {
+        "stock_list",
+        "etf_list",
+        "actively_trading_list",
+        "financial_statement_symbol_list",
+        "cik_list",
+    }
     assert len(available) == 4, f"expected 4 available-* tables, got {available}"
-    assert len(symbol_lists) == 5, f"expected 5 symbol-list tables, got {symbol_lists}"
+    assert batch2.issubset(
+        _ALLOWED_TABLES
+    ), f"batch-2 tables missing from allowlist: {batch2 - _ALLOWED_TABLES}"

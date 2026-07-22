@@ -106,8 +106,10 @@ def _persist_directory(table: str, key_col: str, rows: list[dict]) -> None:
 
     ``table`` must be in :data:`_ALLOWED_TABLES` — it is f-string
     interpolated into DDL. The correct schema-creator is dispatched by
-    table name so both the available-* (#1052-#1055) and symbol-list
-    (#1045-#1050) fetchers can share this helper.
+    an explicit table→creator map so all directory-family fetchers
+    (available-* / symbol-list / market-directory) can share this
+    helper. Adding a new table means (a) add to _ALLOWED_TABLES and
+    (b) add to _TABLE_TO_CREATOR — no prefix guessing.
     """
     if not rows:
         return
@@ -117,16 +119,10 @@ def _persist_directory(table: str, key_col: str, rows: list[dict]) -> None:
             f"(expected one of {sorted(_ALLOWED_TABLES)})"
         )
     try:
-        from openbb_fmp_cached.utils.cache_schema import (
-            create_available_directory_tables,
-            create_symbol_list_tables,
-        )
         from openbb_fmp_cached.utils.database import execute_many, execute_query
 
-        if table.startswith("available_"):
-            create_available_directory_tables()
-        else:
-            create_symbol_list_tables()
+        creator = _TABLE_TO_CREATOR[table]
+        creator()
         # Idempotent overwrite: TRUNCATE (fast on small tables) then INSERT.
         execute_query(
             f"TRUNCATE TABLE {table}"
@@ -137,6 +133,23 @@ def _persist_directory(table: str, key_col: str, rows: list[dict]) -> None:
         execute_many(insert_sql, [(_json.dumps(r),) for r in rows])
     except Exception as exc:
         logger.warning("%s persist failed: %s", table, exc)
+
+
+def _lazy_creator(fn_name: str):
+    """Return a zero-arg thunk that lazy-imports and calls the named creator.
+
+    Avoids a circular import between models/available_directories.py and
+    utils/cache_schema.py at module load — the creators are only
+    resolved when ``_persist_directory`` fires.
+    """
+
+    def _call():
+        # pylint: disable=import-outside-toplevel
+        import openbb_fmp_cached.utils.cache_schema as _cs
+
+        return getattr(_cs, fn_name)()
+
+    return _call
 
 
 _ALLOWED_TABLES = {
@@ -150,6 +163,31 @@ _ALLOWED_TABLES = {
     "actively_trading_list",
     "financial_statement_symbol_list",
     "cik_list",
+    # W4 market-directory batch 3 (#1158 #1173 #1182 #1197)
+    "commodities_list",
+    "cryptocurrency_list",
+    "forex_list",
+    "index_list",
+}
+
+
+_TABLE_TO_CREATOR: dict[str, Any] = {
+    # available-* batch
+    "available_exchanges": _lazy_creator("create_available_directory_tables"),
+    "available_sectors": _lazy_creator("create_available_directory_tables"),
+    "available_industries": _lazy_creator("create_available_directory_tables"),
+    "available_countries": _lazy_creator("create_available_directory_tables"),
+    # symbol-list batch
+    "stock_list": _lazy_creator("create_symbol_list_tables"),
+    "etf_list": _lazy_creator("create_symbol_list_tables"),
+    "actively_trading_list": _lazy_creator("create_symbol_list_tables"),
+    "financial_statement_symbol_list": _lazy_creator("create_symbol_list_tables"),
+    "cik_list": _lazy_creator("create_symbol_list_tables"),
+    # market-directory batch
+    "commodities_list": _lazy_creator("create_market_directory_tables"),
+    "cryptocurrency_list": _lazy_creator("create_market_directory_tables"),
+    "forex_list": _lazy_creator("create_market_directory_tables"),
+    "index_list": _lazy_creator("create_market_directory_tables"),
 }
 
 
