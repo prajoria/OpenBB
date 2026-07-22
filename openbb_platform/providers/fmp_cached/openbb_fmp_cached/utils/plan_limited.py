@@ -157,6 +157,160 @@ _PLAN_LIMITED: dict[str, PlanLimitedEntry] = {
         "since": date(2026, 7, 22),
         "notes": "402 on Starter — /stable/latest-financial-statements (#1126 W1 drain)",
     },
+    # W5 EtfAndMutualFunds - funds/disclosure family (all 4 Premium)
+    "FundsDisclosureHoldersLatest": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/funds/disclosure-holders-latest (#1119 W5 drain)",
+    },
+    "FundsDisclosure": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/funds/disclosure (#1120 W5 drain)",
+    },
+    "FundsDisclosureHoldersSearch": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/funds/disclosure-holders-search (#1121 W5 drain)",
+    },
+    "FundsDisclosureDates": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/funds/disclosure-dates (#1122 W5 drain)",
+    },
+    # W8 ESG benchmark
+    "EsgBenchmark": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/esg-benchmark (#1113 W8 drain)",
+    },
+    # W8 Bulk endpoints — 18 endpoints, all Premium
+    "ProfileBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/profile-bulk (#1289 W8 drain)",
+    },
+    "RatingBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/rating-bulk (#1290 W8 drain)",
+    },
+    "DcfBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/dcf-bulk (#1291 W8 drain)",
+    },
+    "ScoresBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/scores-bulk (#1292 W8 drain)",
+    },
+    "PriceTargetSummaryBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/price-target-summary-bulk (#1293 W8 drain)",
+    },
+    "EtfHolderBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/etf-holder-bulk (#1294 W8 drain)",
+    },
+    "UpgradesDowngradesConsensusBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/upgrades-downgrades-consensus-bulk (#1295 W8 drain)",
+    },
+    "KeyMetricsTtmBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/key-metrics-ttm-bulk (#1296 W8 drain)",
+    },
+    "RatiosTtmBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/ratios-ttm-bulk (#1297 W8 drain)",
+    },
+    "PeersBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/peers-bulk (#1298 W8 drain)",
+    },
+    "EarningsSurprisesBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/earnings-surprises-bulk (#1299 W8 drain)",
+    },
+    "IncomeStatementBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/income-statement-bulk (#1300 W8 drain)",
+    },
+    "IncomeStatementGrowthBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/income-statement-growth-bulk (#1301 W8 drain)",
+    },
+    "BalanceSheetStatementBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/balance-sheet-statement-bulk (#1302 W8 drain)",
+    },
+    "BalanceSheetStatementGrowthBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/balance-sheet-statement-growth-bulk (#1303 W8 drain)",
+    },
+    "CashFlowStatementBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/cash-flow-statement-bulk (#1304 W8 drain)",
+    },
+    "CashFlowStatementGrowthBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/cash-flow-statement-growth-bulk (#1305 W8 drain)",
+    },
+    "EodBulk": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/eod-bulk (#1306 W8 drain)",
+    },
+    # W8 Partners — TipRanks (7 endpoints, all Premium)
+    "TipranksSearch": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/tipranks-search (#1307 W8 drain)",
+    },
+    "TipranksPitSymbol": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/tipranks-pit-symbol (#1308 W8 drain)",
+    },
+    "TipranksPitAnalyst": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/tipranks-pit-analyst (#1309 W8 drain)",
+    },
+    "TipranksSymbolSummary": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/tipranks-symbol-summary (#1310 W8 drain)",
+    },
+    "TipranksAnalystSummary": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/tipranks-analyst-summary (#1311 W8 drain)",
+    },
+    "TipranksFirmSummary": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/tipranks-firm-summary (#1312 W8 drain)",
+    },
+    "TipranksAnalysts": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/tipranks-analysts (#1313 W8 drain)",
+    },
 }
 
 
