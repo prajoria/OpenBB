@@ -136,6 +136,9 @@ from openbb_fmp_cached.models.balance_sheet import FMPCachedBalanceSheetFetcher
 # Import cached wrapper utility
 from openbb_fmp_cached.models.base_cached import create_cached_fetcher_class
 from openbb_fmp_cached.models.cash_flow import FMPCachedCashFlowStatementFetcher
+from openbb_fmp_cached.models.economic_indicators import (
+    FMPCachedEconomicIndicatorsFetcher,
+)
 from openbb_fmp_cached.models.equity_historical import FMPCachedEquityHistoricalFetcher
 from openbb_fmp_cached.models.equity_intraday_historical import (
     FMPCachedEquityIntradayHistoricalFetcher,
@@ -343,6 +346,8 @@ def create_all_cached_fetchers():
         "CashFlowStatementAsReported": FMPCachedCashFlowAsReportedFetcher,
         "FinancialStatementFullAsReported": FMPCachedFinancialStatementFullAsReportedFetcher,
         "FinancialReportsJson": FMPCachedFinancialReportsJsonFetcher,
+        # W3 Economics (#1108)
+        "EconomicIndicators": FMPCachedEconomicIndicatorsFetcher,
     }
 
     # Fetchers that need fallback wrapping

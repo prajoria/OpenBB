@@ -6,10 +6,10 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **150**
+- `openbb_fmp_cached` registered endpoints: **151**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **75**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **76**
 - Registered in EITHER but lacking a VCR cassette: **25**
 - Plan-limited (see `plan_limited.py`): **23**
 
@@ -41,6 +41,7 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `CustomLeveredDiscountedCashFlow` ⚠ no cassette
 - `DiscountedCashFlow` ⚠ no cassette
 - `DowjonesConstituent` ✅ cassette
+- `EconomicIndicators` ✅ cassette
 - `EnterpriseValues` ✅ cassette
 - `EtfList` ✅ cassette
 - `ExecutiveCompensationBenchmark` ✅ cassette

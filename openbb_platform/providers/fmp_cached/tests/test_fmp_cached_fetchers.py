@@ -1796,3 +1796,13 @@ def test_fmp_cached_financial_reports_json_fetcher(credentials=test_credentials)
         fetcher.test({"symbol": "AAPL", "year": "2025", "period": "Q1"}, credentials)
         is None
     )
+
+
+@pytest.mark.record_http
+def test_fmp_cached_economic_indicators_fetcher(credentials=test_credentials):
+    """Test FMP cached economic-indicators (#1108)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["EconomicIndicators"]
+    fetcher = cls()
+    assert fetcher.test({"name": "GDP"}, credentials) is None
