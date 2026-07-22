@@ -1,0 +1,67 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/grades-historical?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA92bP28aMRiH93yKE3OQ/N4BgW7plKFD1Y5VB6pEUSUKUiEDqvrdCwo3VPK9es5/
+        wK+HLPgCfvjZr5/zmW93TfPn9Nc0k/3x14/dZvKhmTw+fv40uX9/9Xl9eDm/1rp2MXUPUyd9y3q7
+        3hz3hy/rw8/t6/7r4fdu+/rx7Xi6eOG94r2t7byNT7vN86lVHvxv/rI5d6xVPrm/5HTF3/txUAsE
+        5e8ZgvJ/H3mh5vFQ83AoyQM1yw3lb+VQEgDVISh1TuVNKgSqLR0qZPhJPNRMhVKrH4DqxkLNp8KS
+        8oeBoGLnVAgUS8oYlENQEcNPhQLrVACUWyEoNSl98b1BUm5ZOtTokj6/gvstI4dfCFQC9/P3DJX0
+        TFAJ3C+v0IZAMffzj6F4KP+/RkMx91OT8s/2Hspf8HlSozVpTt1PTao8KGYUKpS++A6MsHxQM+p+
+        EVAD/cbrVAgUS0r8n14sFZO/ga6VSgXtzxoV0z+dSr/7vQUV879bZuUCqJgAWqNiBigumCp2pyIE
+        ihmgMShmgMagmFcYg4JeYQiqowZoDKrKpKAAmoKi/mcLCuqfLShof7agoPypUP7GXv78rXmp6pO/
+        rkb562qUvw7Ln3+/i0wq9TnBwISLhYJKoW4qqZua6u5zDqgWy58tqCqTgvJnCorKn7/Akep39ULR
+        YvmzlRSUP1tJQfmzlRR0v/CjB6pRZIKC7mcrKeh+tqBqNIoK3U9qdD+p0f2kRvcT7H62oOpzP8Hu
+        ZwuqPvcT7H62oOpzP6nR/SSJ+8lKg1JvEv1v+x/U6AOaksT9CoNySdxv4LTsBcpPfOlxjrOMLon7
+        FQdFNUndSw9/QJCjUDisSepuUvgDApBUCBTUJFtQUJO03aSBsXmBGqiNly6DQ/chVNCTMkWVCQp6
+        krGooCgZo4LrrzEquAAbopIVdiVjVHVmBXfKbFFRBzRGBSXQGBW0QGNUKTRQFaYBncont2cqqIER
+        VNf+5ceZKoUHlkeVwgPLo0rhFuVRQbfQftQ8cO/V18BrnxaRJfbAW1Pdff8HLcWAH9JLAAA=
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:16:05 GMT
+      etag:
+      - W/"4bd2-8UFtETXmPXXmYC0hGhoASJzNzoQ"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

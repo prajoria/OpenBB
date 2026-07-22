@@ -1373,3 +1373,63 @@ def test_fmp_cached_holidays_by_exchange_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["HolidaysByExchange"]
     fetcher = cls()
     assert fetcher.test({"exchange": "NYSE"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_ratings_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP cached ratings-snapshot (#1057)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["RatingsSnapshot"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_ratings_historical_fetcher(credentials=test_credentials):
+    """Test FMP cached ratings-historical (#1058)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["RatingsHistorical"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_price_target_summary_fetcher(credentials=test_credentials):
+    """Test FMP cached price-target-summary (#1059)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["PriceTargetSummary"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_grades_fetcher(credentials=test_credentials):
+    """Test FMP cached grades (#1061)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["Grades"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_grades_historical_fetcher(credentials=test_credentials):
+    """Test FMP cached grades-historical (#1062)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["GradesHistorical"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_grades_consensus_fetcher(credentials=test_credentials):
+    """Test FMP cached grades-consensus (#1063)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["GradesConsensus"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
