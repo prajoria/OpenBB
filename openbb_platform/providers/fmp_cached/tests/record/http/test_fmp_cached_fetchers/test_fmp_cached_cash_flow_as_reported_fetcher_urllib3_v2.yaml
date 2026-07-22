@@ -1,0 +1,83 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/cash-flow-statement-as-reported?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA8WZTW/cNhCG7/kVhs9ZQPwmewta9NRDgaKHoOhBK3FtoVppK2ldu0X+e4daab3m
+        SCK1ayMJEicShxxyhvO8pP74dHf3H/y5u7tvX/bburz/4e7+y5dff7n/fHq6K9osLb/atIE3NKFi
+        eH6wTVHnrvXPX8e2jT3UTWfzH49NY6vsxb39/befxtd52ln3yPWyScyGyos3Kbw5OQL/z9L20f2x
+        fx+Lp7S0Vdc2tu2aIoPe3Yu0yt8+uGgJHTFhGE/6X5/HPivbFVVW721Zt64NITQhidcot4fGZkXa
+        FXUF/y6t+wcMlu5hYsW//fPeVhrtmYJTjd2mLfhT7w+2as+NqZbMa1x3j7ap6sq5fvLKPjsbtz7a
+        eI2hQWNdx/b0s6jSLKuP/aJkFqa9LZ2dlJoGLfuBX836xeIqaFZUT7C0dVP0FhsyLG54qBryBBai
+        ekjb1vaxMcSExxsneEhfhtmZJHJy5xHLIt0WZdGNPpNESa8LyAkXgUNTPxW5zbcvR+gO+jk7nXXF
+        09gDIYSjFQYH9y7pujrNIAXBkae0KJ3Pu7ppISFbmx2bvovcbju3hzhP/AUABzJr83bX1Pt92g0G
+        kIpj95CCsAvLtt7N9w9988Qs9u0MlroYXISMNX580UQP/Up3L4cyrTrwz+3Ag2vSd6CImOkABr10
+        qY+ZS68WLzjXvhczAZuxF8TMedHYEqpR3tVd+vxP0T0+1iX08+BWZG4fy7Fa4N7qXV44h6r8NC6n
+        ZH72sHTHJnuEEeodDLGvK1jU7K8+xxVBhhdrVbTtMa0ysCvr6qGzzX4IGOfat3vNHdSaJIahPL4Y
+        5tLUOWgbqIjlIYVwu41Ek0Xri5n2sd3Bbq4yPzawHX2PZ2I7Z08Tqf39fBM3TkTDVSUrjy417DPE
+        DH5AZbB2t7OZW0phjD+NUzmHtIINnBY5zMoFiDE5bKm+3Tf4+5szWcVePjy/jb28Z6/6KPZSY7iP
+        O5+9hinmxy4avZz7m3oevURqn9NL6KVU+m5FwpcpNFAUfAkT4RHf0pckPGwyA19CFJtI2CB95Ujf
+        +DHf4pcIIfyqsZK+mgpf062nL9cSLfh70VcQuli+Y+lLIClCE12ir+FI0V0BX5b4Cb0KvtTMTuIK
+        9o4xi2AvRco/jr0cfnuGCww1RvjLE49QZsbp3EJQJm8lKDHar9Q3Vf9rCLpRxo/XJEEpzHYoIH27
+        6wjK3oWgrCeo+SiCskQxfwMjgkqDtG00QUEXe6bzBE00W3N4pZTGn+7eEHQC1VEE3bjDRtDQQ6gk
+        kWNhhAqpJxI2SNAN0REH+yWEsgSheyVBE4GU2XqCUiMI6uWdCAqFEWn6KwgqNEXFeQ1A4YAk/Fhd
+        Q9CpXRxPULD+PgRN6MLZfZ6gSgmBhog5vQqKwrV0enX1a2GYwOmVGbUE7kj2CnTeXsneRHNU7m7i
+        xjXsFQrpkEn2Ei0Vrl0QE3DmtRXTyVAX+jbXAZoOz28DNO0BzT8K0JQbFQS0OS/HuU00oOGI55nO
+        7muTMD+PcrtzkMxfY3nC89ZWdle4UGmkHZaYPnFXE8t0Tf01CKF5Q3gEXyd0gBKrj6hnpktuwmye
+        uJPmPCwjsrrqGtj9rk5nRyiWUJFGsLsU5qgehdx+KwuERNdx62QBpRMFdbUsUNKgWL+XLKDGkHe4
+        1maKo5uTlbpAoUMx6mB7bIvKQma1EAZAkCsnpzeunLFkzoMVwmLMmGDEp+03lLLZq5QrpIWkOPLT
+        0gK29lUX4xrOiEt3zvPSgku/0i0d6if0cbSyYEYg2bReWBBE5JXCAnIU3WPcxLtrhMXGKeiJ73UT
+        0sIIhRHhSwuqxzD2ba6TFmR4fpu0IL20EB8lLZgw1A8fkhZcogIQLS0oouvsvgbNhy/pQ9Jiw5Xy
+        R1gSFyTi6/O0tkgIOqeExAWVPPIrsveJ3CAtF4L0WVvoJGJMrC0IZTR8zR8SF0Sib94hxz11oZAy
+        WqcuQMkigbpeXbh6snjheou8gLP+onSJlBdccVS818kLOBUGL/4D8iJ4v3OhK/ZDzSHoXsmfPTg6
+        LPBLvZvogenbPzjI2743wLlBoA+D0xrhrbZw12Izzl+jhQT+vDSjhbhcWLQFLSQMuu+M0kI0YcZP
+        jwUxpNXibc6yGCJwBl8wjhVDUyhcIYYMY+L7f+BgGpWFSSlEBUPbf0IKyXGv9W16KfTpz/8BUIe/
+        dccnAAA=
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 15:22:05 GMT
+      etag:
+      - W/"27c7-W/eXiQGkv1ho9hcwCmT8WS25Xs8"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

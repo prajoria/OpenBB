@@ -1743,3 +1743,56 @@ def test_fmp_cached_profile_cik_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["ProfileCik"]
     fetcher = cls()
     assert fetcher.test({"cik": "320193"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_income_statement_as_reported_fetcher(credentials=test_credentials):
+    """Test FMP cached income-statement-as-reported (#1146)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["IncomeStatementAsReported"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_balance_sheet_as_reported_fetcher(credentials=test_credentials):
+    """Test FMP cached balance-sheet-statement-as-reported (#1147)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["BalanceSheetStatementAsReported"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_cash_flow_as_reported_fetcher(credentials=test_credentials):
+    """Test FMP cached cash-flow-statement-as-reported (#1148)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CashFlowStatementAsReported"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_full_as_reported_fetcher(credentials=test_credentials):
+    """Test FMP cached financial-statement-full-as-reported (#1149)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FinancialStatementFullAsReported"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_financial_reports_json_fetcher(credentials=test_credentials):
+    """Test FMP cached financial-reports-json (#1142)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FinancialReportsJson"]
+    fetcher = cls()
+    assert (
+        fetcher.test({"symbol": "AAPL", "year": "2025", "period": "Q1"}, credentials)
+        is None
+    )

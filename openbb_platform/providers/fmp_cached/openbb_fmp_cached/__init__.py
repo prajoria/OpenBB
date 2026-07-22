@@ -118,6 +118,13 @@ from openbb_fmp_cached.models.analyst_ratings import (
 from openbb_fmp_cached.models.analyst_recommendations import (
     FMPCachedAnalystRecommendationsFetcher,
 )
+from openbb_fmp_cached.models.as_reported_statements import (
+    FMPCachedBalanceSheetAsReportedFetcher,
+    FMPCachedCashFlowAsReportedFetcher,
+    FMPCachedFinancialReportsJsonFetcher,
+    FMPCachedFinancialStatementFullAsReportedFetcher,
+    FMPCachedIncomeStatementAsReportedFetcher,
+)
 from openbb_fmp_cached.models.available_directories import (
     FMPCachedAvailableCountriesFetcher,
     FMPCachedAvailableExchangesFetcher,
@@ -330,6 +337,12 @@ def create_all_cached_fetchers():
         "CustomDiscountedCashFlow": FMPCachedCustomDcfFetcher,
         "CustomLeveredDiscountedCashFlow": FMPCachedCustomLeveredDcfFetcher,
         "ProfileCik": FMPCachedProfileCikFetcher,
+        # W1 Statements batch 14: as-reported + financial-reports-json (#1142 #1146-#1149)
+        "IncomeStatementAsReported": FMPCachedIncomeStatementAsReportedFetcher,
+        "BalanceSheetStatementAsReported": FMPCachedBalanceSheetAsReportedFetcher,
+        "CashFlowStatementAsReported": FMPCachedCashFlowAsReportedFetcher,
+        "FinancialStatementFullAsReported": FMPCachedFinancialStatementFullAsReportedFetcher,
+        "FinancialReportsJson": FMPCachedFinancialReportsJsonFetcher,
     }
 
     # Fetchers that need fallback wrapping

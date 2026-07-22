@@ -1,0 +1,79 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/balance-sheet-statement-as-reported?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 15:21:56 GMT
+      etag:
+      - W/"1fcc-JeesoowkVCgujFuiXnY3ju+121U"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
