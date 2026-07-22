@@ -6,12 +6,12 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **94**
+- `openbb_fmp_cached` registered endpoints: **99**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **19**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **24**
 - Registered in EITHER but lacking a VCR cassette: **14**
-- Plan-limited (see `plan_limited.py`): **11**
+- Plan-limited (see `plan_limited.py`): **12**
 
 ## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)
 
@@ -33,11 +33,16 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `EtfList` ✅ cassette
 - `FinancialStatementSymbolList` ✅ cassette
 - `ForexList` ✅ cassette
+- `HistoricalDowjonesConstituent` ✅ cassette
+- `HistoricalNasdaqConstituent` ✅ cassette
+- `HistoricalSp500Constituent` ✅ cassette
 - `IndexList` ✅ cassette
 - `MarketRiskPremium` ✅ cassette
 - `NasdaqConstituent` ✅ cassette
+- `SharesFloatAll` ✅ cassette
 - `Sp500Constituent` ✅ cassette
 - `StockList` ✅ cassette
+- `SymbolChange` ✅ cassette
 
 ## Missing cassettes (registered but no fixture — gaps for the coverage test)
 
@@ -61,6 +66,7 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `CryptoSearch` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)
 - `CurrencySnapshots` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)
 - `EarningsCallTranscript` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)
+- `EarningsTranscriptList` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter — /stable/earnings-transcript-list is a Premium-tier endpoint (#1051 W4 drain batch 5)
 - `EquityActive` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)
 - `EquityOwnership` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)
 - `EsgScore` — tier: `Premium`, since: 2026-07-21, notes: 402 on Starter (#955 drain batch 2)

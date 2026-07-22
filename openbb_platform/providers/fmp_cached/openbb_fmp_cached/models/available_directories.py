@@ -174,6 +174,12 @@ _ALLOWED_TABLES = {
     "dowjones_constituent",
     "commitment_of_traders_list",
     "market_risk_premium",
+    # W4 historical-directory batch 5 (#1048 #1094 #1170 #1171 #1172)
+    "historical_sp500_constituent",
+    "historical_nasdaq_constituent",
+    "historical_dowjones_constituent",
+    "symbol_change",
+    "shares_float_all",
 }
 
 
@@ -200,6 +206,16 @@ _TABLE_TO_CREATOR: dict[str, Any] = {
     "dowjones_constituent": _lazy_creator("create_reference_directory_tables"),
     "commitment_of_traders_list": _lazy_creator("create_reference_directory_tables"),
     "market_risk_premium": _lazy_creator("create_reference_directory_tables"),
+    # historical-directory batch (#1048 #1094 #1170 #1171 #1172)
+    "historical_sp500_constituent": _lazy_creator("create_historical_directory_tables"),
+    "historical_nasdaq_constituent": _lazy_creator(
+        "create_historical_directory_tables"
+    ),
+    "historical_dowjones_constituent": _lazy_creator(
+        "create_historical_directory_tables"
+    ),
+    "symbol_change": _lazy_creator("create_historical_directory_tables"),
+    "shares_float_all": _lazy_creator("create_historical_directory_tables"),
 }
 
 

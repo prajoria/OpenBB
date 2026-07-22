@@ -133,6 +133,13 @@ from openbb_fmp_cached.models.exchange_market_hours import (
     FMPCachedExchangeMarketHoursFetcher,
 )
 from openbb_fmp_cached.models.financial_ratios import FMPCachedFinancialRatiosFetcher
+from openbb_fmp_cached.models.historical_directories import (
+    FMPCachedHistoricalDowjonesConstituentFetcher,
+    FMPCachedHistoricalNasdaqConstituentFetcher,
+    FMPCachedHistoricalSp500ConstituentFetcher,
+    FMPCachedSharesFloatAllFetcher,
+    FMPCachedSymbolChangeFetcher,
+)
 from openbb_fmp_cached.models.income_statement import FMPCachedIncomeStatementFetcher
 from openbb_fmp_cached.models.index_constituents import (
     FMPCachedIndexConstituentsFetcher,
@@ -207,6 +214,12 @@ def create_all_cached_fetchers():
         "DowjonesConstituent": FMPCachedDowjonesConstituentFetcher,
         "CommitmentOfTradersList": FMPCachedCotListFetcher,
         "MarketRiskPremium": FMPCachedMarketRiskPremiumFetcher,
+        # W4 Directory batch 5: historical + change lists (#1048 #1094 #1170 #1171 #1172)
+        "HistoricalSp500Constituent": FMPCachedHistoricalSp500ConstituentFetcher,
+        "HistoricalNasdaqConstituent": FMPCachedHistoricalNasdaqConstituentFetcher,
+        "HistoricalDowjonesConstituent": FMPCachedHistoricalDowjonesConstituentFetcher,
+        "SymbolChange": FMPCachedSymbolChangeFetcher,
+        "SharesFloatAll": FMPCachedSharesFloatAllFetcher,
     }
 
     # Fetchers that need fallback wrapping

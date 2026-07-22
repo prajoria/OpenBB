@@ -97,6 +97,11 @@ _PLAN_LIMITED: dict[str, PlanLimitedEntry] = {
         "since": date(2026, 7, 21),
         "notes": "402 on Starter (#955 drain batch 2)",
     },
+    "EarningsTranscriptList": {
+        "tier": "Premium",
+        "since": date(2026, 7, 21),
+        "notes": "402 on Starter — /stable/earnings-transcript-list is a Premium-tier endpoint (#1051 W4 drain batch 5)",
+    },
 }
 
 

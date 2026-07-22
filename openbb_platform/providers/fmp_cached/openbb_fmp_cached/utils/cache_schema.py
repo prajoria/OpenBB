@@ -5851,6 +5851,32 @@ def create_reference_directory_tables():
     return True
 
 
+def create_historical_directory_tables():
+    """Create the 5 FMP historical-directory tables (W4 batch 5).
+
+    #1048 #1094 #1170 #1171 #1172 — historical index constituents,
+    symbol-change, shares-float-all. Same JSON-blob schema.
+    """
+    # pylint: disable=import-outside-toplevel,redefined-outer-name
+    from openbb_fmp_cached.utils.database import execute_query
+
+    for table in (
+        "historical_sp500_constituent",
+        "historical_nasdaq_constituent",
+        "historical_dowjones_constituent",
+        "symbol_change",
+        "shares_float_all",
+    ):
+        execute_query(f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            data_json JSON NOT NULL,
+            cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    return True
+
+
 def create_all_flattened_tables():
     """Create all flattened database tables.
 

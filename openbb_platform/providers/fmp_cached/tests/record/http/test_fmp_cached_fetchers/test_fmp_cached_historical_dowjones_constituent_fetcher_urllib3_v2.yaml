@@ -1,0 +1,89 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/historical-dowjones-constituent?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA83cTVPbOBgA4Pv+Cg2H9kKYfFA+9uYk4ITWSZYE0unOHhRbJBpsySPbQNjZ/76y
+        oQVjS7HgddJDZ5jasf1IsvS+kpK//0DoX/kPoT0Px8TyPOLt/Yn2LhJGUPt0H7Wb7aO9/aczcHp0
+        StxE0HidnmX54QovSIyGzD34eZYgAb8j3oy6t0SkZ13/eHPo9SWuiaCPnKEeD4KEURfHlLMod8H0
+        wdJT00dpNI8a7dOfR6J1sOB+eswej+1vL7fBEWfpf884ko8XE4EEufGJG6OYe3j9OUJXB9MDRFzO
+        eLDeR/crIgiyhvvI9XniIZcHYRJTttxHmHnIo0saYx9FRNxRl0Qo9PEaYRQk7gr5WCzTG3CfoHiF
+        GYoF9mjKkJ+IibxrjnawJx/yv31FuY9k+QQLebmTrOgPlUU/lU98T1ljTn2f4iBSln5/PNcUf5/f
+        q8r6sNFqNZrHxbKeDubFknawuJUNwcVhWlL0McMiV5bHksCIR3fUo1jpHI5mPQ10yGRVyFYmQi6y
+        ZzMRj677FiD5nCxEgsUatY82mK0AP748asE871oaMppjfykIka9Tl/M4QlbaVJhLSunNdqP9pUi3
+        nB8jQLqVLJMoRp1WBm8q4Ury5PxMQ57c0EfZlGSLLjE2G82TRqdVNOauuTXigDOyvie+j9K2KRh+
+        7jJePXxBr6GbgAdjwzrVd1pVxUrW97GjkZ09PMgHcfiCPr3AJtLclatIQaBWsCRsGxVpOfbvVZOX
+        s+8a2iVexysin2VG3BXjPl9SOZia1mnuHlXMIOQp9kl0w4VLDmSsso3K7V0att0NdRsK+QK1U2br
+        VMlUovp9DaufhJzFqE/QSB5MRFTeBbdOG810pClaX1+9ClUrfQpes7G1dWIutXUjjE0YEbKXPkuj
+        SUFd2XpLnCdZnHpUdNqQI001pyoKgGvCam4uQKni1TfhKQnjp2Axe1tbx0q0jGv7yUS2yXrb83Gj
+        KZt0ybvbn/cnZnItXH5QZhqtLB9rfVGqrTD0Iev1S6PZabRK0i3LmpRkW++v2Io+JWumcVmzTzNF
+        9Sl9MzNcxUbb7mS+jrlvMPlLIxxMFL5O2jzbnaIvd73fQzjXhYADfh/IR7OI4FGI831XJe/ccCiF
+        8trc9wLM0BS7qwjZgich4Pup9NpTM27VbnejVwnrWrrsvIvZLeI3yAqIHFOxIiRUe3NXrwKG8l7T
+        CG+jQq/NeGD1OaK3kAOK0jf6ahgYVRYeZsK2UnjFaEy8AcF+vAJ/QduZ97DovRoNduRVypz+N91E
+        rcOZR3zyqJ6tqOLO36QKfHMEnE0cNtUpTY9GLkfTdSSLKIKr3DTyO5K5WxHZm/bGZkh97VZSzgS+
+        k/Uj0nw6CDFLM+stWGeXoF1TJarSZOtiiJ+Zm8NjnpWSCdOGjB8+htSNoz0a0+XbPqyKr6bhM5tt
+        aL4jB7eGtob5HCawN31Rofd+JT/JeqSSmYfcnbZp39yhfvCdVZLNO2H9S/trPeMpgXtPfTtjjc3y
+        Y0Hxpuptl2ZyjmFPDATtrcid4CwXyH68OsuJvWvD+VCo2tRF7XVhjSN9KKwSlltMKclcN67yVGEb
+        r9hUmAp+GoF0i4/VetkPVvVhNidcMiYZ98xV5r83odX7EermXoP2ydW0xfXSunTGa6wQPCVqONGw
+        8s19gkNZQqXRohI7hJz7/SD17KuG+nKwCuv1pXbNet+Mr9oGOeP7a0tLa1+OK6fviPFtHc/m3FsT
+        LNCMCoI+octksShtoum9sy0tJQsU9u8FvtK10qtCK9XJriBb6cdlUw1sKt8BFut2JemghnO8ME6H
+        uoJH/CYGi/Z0RGd6bthOK26v28R82S5WNzG/b22LxAEPCOqTkMdQ47+OOTBc4AdCKlm5pKkgK0vf
+        qiiNUzEY5dsBr65KBH0Xx27Mn/d9yntqUumyOa0PCk8arSbEPFilVe3jDKjeq6A0dQfOVLfumzv+
+        SnecLWuX7GN9c8EqQgjgHPsBFpDdjFI4d0DbaEXgBV8xeS8Ziz3/VTfzYnSxA2Z+n0FdNuO9CSA2
+        per8m8Z1zuXo+Y2n55YlHDrmueEGmlqRva4uTJVHX8eoqOfjKEJdE23uBjvnajepzmTyT5MATS0T
+        IOie1AvMniYlM6A6O3ZcL52j8D5HkKGqTJAV0XgPNIirqryYOFwssWx3KxylCe9LpluXVN5yF1L9
+        zFNdWNPZqjqs3SSijMhexcHuKv1rKw162N1JNet2s9VFNd4BB0XduPxRm9h0yQRGvHF2ri6v6Ywe
+        EFe9H742KOhKQlWoItSrC2kaHsIgVV+1qktp/PUsIObb2WZwmOlSCYxL+7WFuqj9nQSFPe7iRo/7
+        eAsdzlfDPSRAQuAtJDqh8bwlEFGfWNamNU1GgbTyQyKkvo+3MoL0rJ0EBF1OKFtu4a2E/WpZZV7J
+        nCw8zXyeFkYHvJCgBO6kZf7az3T2EIo016y/jVrfd5JbqzZM1sU03WQJo+w4W6hBx9lJhDojD9jl
+        ad2pf1cHSGg6cwkDnGNfBqo0YmS9hVrsD3cy4hd2tYDDTDe7wLjU+1bqcu6k+jb/XEVdXOOfuIAB
+        TwR30x/L+oRsHCx8soU3cwK6x7cqVPldoLqYpt8fgmE6RLi32YLJVqKAy3d1Rn/88z+Ok34/hU4A
+        AA==
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 05:49:33 GMT
+      etag:
+      - W/"4e85-ZfXdfXKJ3wuSDaBv7WZeCpfml1w"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
