@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/holidays-by-exchange?apikey=MOCK_API_KEY&exchange=NYSE
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA9WTTU/DMAyG7/sVVi9cGtR0X2xHxoYY2zgwCU2Ig1lMG+hSlKTAhPjvRIUxqAoC
+        hNQiJTn4dZzHHzlvADy6DeDRwzJGFZHXB2+2OB16/otdoM1tYRB2WNBlQXOjKFzlypESdEvuUEuC
+        A1xvdGkGSWpIOB+rM3q1org+cd5zmV9WWZJshdz/neKEJ/+niB3Ge0XEcabIEikbVwzXZmG7CDel
+        VaolJjWoXaukvYdpKmCkpaicLmS8U6Q7QxNLFdlU7RjYl9rG1XPykgmcorZSwSSzMWk4dsg+jPVu
+        DXrO3SrSzugeFoTa1bRiwDbjYcmfGcRaGrvCmvC1Pucbok7WkD9UwvkR51ucHm/2g2Aba+Q8128B
+        rzAx9Ks0OAv3imnM3b0bE8k7N6//KpPul5lUPjNBr+TTTfAy1X/P1rh4BpZ5BITmBwAA
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:05:50 GMT
+      etag:
+      - W/"7e6-9SKexo8sv7NFSutydS0IvKRWCWw"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
