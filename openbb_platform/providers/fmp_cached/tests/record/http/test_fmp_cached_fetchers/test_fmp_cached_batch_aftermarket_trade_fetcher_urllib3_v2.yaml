@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/batch-aftermarket-trade?apikey=MOCK_API_KEY&symbols=AAPL%2CMSFT%2CGOOGL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4vmUlCoBmIFBaXiytyk/BwlKwUlR8cAHyUdiGhBUWZyKlDQ2MhEzxQqVlKUmJIa
+        nFkFEs8rzcmBCWfmphaXJOYWAIUNzS1MzMwtjC0tDQwMgNK1Otgs8g12C8GwyNJMz5AMmyzM8dnk
+        7u/vjuknEws9C0vSrYJ7iisWAFSiFVlAAQAA
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 07:15:39 GMT
+      etag:
+      - W/"140-V3sUJljo3tgZl9DZW7xemSkOquI"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

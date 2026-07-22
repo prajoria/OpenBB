@@ -1,0 +1,62 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/batch-quote?apikey=MOCK_API_KEY&symbols=AAPL%2CMSFT%2CGOOGL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA52UTW/TQBCG7/0Vls9lNLs7+8UtCqIgtbSovSEOrrskFonXst1AhPjvrD/jJEaR
+        asmX97XemZ1nx9+uouhPeKMorvbbZ7+J30fxYvFwG193ap5sXasVxcZFn/MUBqcos7SxBNegqRfT
+        dZKv3IMrU5fXyarxEYTkjB99EGQGTPbazm9e2yqEBlEJ1usvyf7W/2pLcOAc6aB/ylbr1rCgenXv
+        knKQBYG1E72L4chgqLlNyp+uXiZFU9YwoQShlEQ4Pd1it5LY5CEBF+rE4th4XIdaQpnedL/HE8Zf
+        Fo8fFl+HefnC5W3LAgTJMcvtMv9aLTe+6oapQA6d19nWVXWybXpk2pBShMiC9/d6Dtvd48enU2x3
+        WVr6yv+oo6UvC18mdebzM4I2EBw6miH4LrDiRh4zbnSCURwZcmEV6RmGVoHgB7VHRYEJ6XOEUkoY
+        p3RAKMjCEDJFyK0kJQ0KLnEWYZgcmDDEWYYkDDCFNBC+DNEaMPg/iIThur4R4s39/c358m2KdfLs
+        6vn9I31YpXl6Qkuco2fO6fGwznps/kAvFEFxRk/IcDWGkAm9sMig2ETvUpjRMA75aAOZNVoQDw+T
+        gDgZ7XQNVUgly0+8jmHzj9CMDVfpMkIZLoQYo07WMJzLXiZ49f0fh5YHW0AFAAA=
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 07:15:21 GMT
+      etag:
+      - W/"540-iIjkAxWFg5zkbhHn3Dxp0WPLH5M"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

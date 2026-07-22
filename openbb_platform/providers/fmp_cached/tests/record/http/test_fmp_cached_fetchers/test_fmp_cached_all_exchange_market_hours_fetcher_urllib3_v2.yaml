@@ -1,0 +1,92 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/all-exchange-market-hours?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        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
+        SmMjhDVDAAA=
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 07:15:58 GMT
+      etag:
+      - W/"4335-xDbMtkgZZolqWrHjDaX1zPLlNl0"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

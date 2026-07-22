@@ -6,10 +6,10 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **122**
+- `openbb_fmp_cached` registered endpoints: **133**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **47**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **58**
 - Registered in EITHER but lacking a VCR cassette: **18**
 - Plan-limited (see `plan_limited.py`): **12**
 
@@ -20,11 +20,16 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 ## Endpoints in `openbb_fmp_cached` only (native fetchers, no `openbb_fmp` peer)
 
 - `ActivelyTradingList` ✅ cassette
+- `AllExchangeMarketHours` ✅ cassette
 - `AnalystRecommendations` ✅ cassette
 - `AvailableCountries` ✅ cassette
 - `AvailableExchanges` ✅ cassette
 - `AvailableIndustries` ✅ cassette
 - `AvailableSectors` ✅ cassette
+- `BatchAftermarketQuote` ✅ cassette
+- `BatchAftermarketTrade` ✅ cassette
+- `BatchQuote` ✅ cassette
+- `BatchQuoteShort` ✅ cassette
 - `CikList` ✅ cassette
 - `CommitmentOfTradersList` ✅ cassette
 - `CommoditiesList` ✅ cassette
@@ -49,6 +54,8 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `IndexList` ✅ cassette
 - `IndustryPeSnapshot` ✅ cassette
 - `IndustryPerformanceSnapshot` ⚠ no cassette
+- `MarketCap` ✅ cassette
+- `MarketCapBatch` ✅ cassette
 - `MarketRiskPremium` ✅ cassette
 - `NasdaqConstituent` ✅ cassette
 - `PriceTargetSummary` ✅ cassette
@@ -62,9 +69,13 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `SearchSymbol` ✅ cassette
 - `SectorPeSnapshot` ✅ cassette
 - `SectorPerformanceSnapshot` ⚠ no cassette
+- `SharesFloat` ✅ cassette
 - `SharesFloatAll` ✅ cassette
 - `Sp500Constituent` ✅ cassette
 - `StockList` ✅ cassette
+- `StockPriceChange` ✅ cassette
+- `StockQuote` ✅ cassette
+- `StockQuoteShort` ✅ cassette
 - `SymbolChange` ✅ cassette
 
 ## Missing cassettes (registered but no fixture — gaps for the coverage test)
