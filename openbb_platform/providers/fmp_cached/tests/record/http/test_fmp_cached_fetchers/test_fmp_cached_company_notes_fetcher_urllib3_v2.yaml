@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/company-notes?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4vmUlCoBmIFBaXkzGwlKwUlAyAwNjIwtDRW0oFIFFfmJuXngOQcHQN8YKIlmSU5
+        qWANekAdqgp++SWpxQoppakKRgZGpjBVqRXJGYl56WCFfo7BLo6BSkCJWh3KrTXUMzMyRbPWjPbW
+        GmHxrTntrTXUMzZH960l7a011jMwRfctHaw10DNFD2RjQ9pba6xnhm6tiREBa7liASbH1CtDAwAA
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:05:32 GMT
+      etag:
+      - W/"343-IbPPtCHGjzdVCoJJT3XAEScDfZk"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1341,3 +1341,35 @@ def test_fmp_cached_search_exchange_variants_fetcher(credentials=test_credential
     cls = fmp_cached_provider.fetcher_dict["SearchExchangeVariants"]
     fetcher = cls()
     assert fetcher.test({"query": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_company_notes_fetcher(credentials=test_credentials):
+    """Test FMP cached company-notes (#1085)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CompanyNotes"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_executive_compensation_benchmark_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP cached executive-compensation-benchmark (#1099)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["ExecutiveCompensationBenchmark"]
+    fetcher = cls()
+    assert fetcher.test({"year": 2024}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_holidays_by_exchange_fetcher(credentials=test_credentials):
+    """Test FMP cached holidays-by-exchange (#1224)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HolidaysByExchange"]
+    fetcher = cls()
+    assert fetcher.test({"exchange": "NYSE"}, credentials) is None

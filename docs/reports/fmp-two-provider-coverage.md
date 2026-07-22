@@ -6,10 +6,10 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **105**
+- `openbb_fmp_cached` registered endpoints: **108**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **30**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **33**
 - Registered in EITHER but lacking a VCR cassette: **14**
 - Plan-limited (see `plan_limited.py`): **12**
 
@@ -28,14 +28,17 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `CikList` ✅ cassette
 - `CommitmentOfTradersList` ✅ cassette
 - `CommoditiesList` ✅ cassette
+- `CompanyNotes` ✅ cassette
 - `CryptocurrencyList` ✅ cassette
 - `DowjonesConstituent` ✅ cassette
 - `EtfList` ✅ cassette
+- `ExecutiveCompensationBenchmark` ✅ cassette
 - `FinancialStatementSymbolList` ✅ cassette
 - `ForexList` ✅ cassette
 - `HistoricalDowjonesConstituent` ✅ cassette
 - `HistoricalNasdaqConstituent` ✅ cassette
 - `HistoricalSp500Constituent` ✅ cassette
+- `HolidaysByExchange` ✅ cassette
 - `IndexList` ✅ cassette
 - `MarketRiskPremium` ✅ cassette
 - `NasdaqConstituent` ✅ cassette

@@ -169,6 +169,11 @@ from openbb_fmp_cached.models.search_endpoints import (
     FMPCachedSearchNameFetcher,
     FMPCachedSearchSymbolFetcher,
 )
+from openbb_fmp_cached.models.single_param_endpoints import (
+    FMPCachedCompanyNotesFetcher,
+    FMPCachedExecutiveCompensationBenchmarkFetcher,
+    FMPCachedHolidaysByExchangeFetcher,
+)
 from openbb_fmp_cached.models.symbol_lists import (
     FMPCachedActivelyTradingListFetcher,
     FMPCachedCikListFetcher,
@@ -235,6 +240,10 @@ def create_all_cached_fetchers():
         "SearchCusip": FMPCachedSearchCusipFetcher,
         "SearchIsin": FMPCachedSearchIsinFetcher,
         "SearchExchangeVariants": FMPCachedSearchExchangeVariantsFetcher,
+        # W4 finish batch 7: single-param endpoints (#1085 #1099 #1224)
+        "CompanyNotes": FMPCachedCompanyNotesFetcher,
+        "ExecutiveCompensationBenchmark": FMPCachedExecutiveCompensationBenchmarkFetcher,
+        "HolidaysByExchange": FMPCachedHolidaysByExchangeFetcher,
     }
 
     # Fetchers that need fallback wrapping
