@@ -141,6 +141,13 @@ from openbb_fmp_cached.models.institutional_ownership import (
     FMPCachedInstitutionalOwnershipFetcher,
 )
 from openbb_fmp_cached.models.key_metrics import FMPCachedKeyMetricsFetcher
+from openbb_fmp_cached.models.symbol_lists import (
+    FMPCachedActivelyTradingListFetcher,
+    FMPCachedCikListFetcher,
+    FMPCachedEtfListFetcher,
+    FMPCachedFinancialStatementSymbolListFetcher,
+    FMPCachedStockListFetcher,
+)
 
 
 # Create cached versions of all FMP fetchers
@@ -170,6 +177,12 @@ def create_all_cached_fetchers():
         "KeyMetrics": FMPCachedKeyMetricsFetcher,
         "BalanceSheet": FMPCachedBalanceSheetFetcher,
         "CashFlowStatement": FMPCachedCashFlowStatementFetcher,
+        # W4 Directory batch 2: symbol lists (#1045-#1050)
+        "StockList": FMPCachedStockListFetcher,
+        "EtfList": FMPCachedEtfListFetcher,
+        "ActivelyTradingList": FMPCachedActivelyTradingListFetcher,
+        "FinancialStatementSymbolList": FMPCachedFinancialStatementSymbolListFetcher,
+        "CikList": FMPCachedCikListFetcher,
     }
 
     # Fetchers that need fallback wrapping

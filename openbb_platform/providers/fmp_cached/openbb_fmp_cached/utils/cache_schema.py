@@ -5763,6 +5763,42 @@ def create_available_directory_tables():
     return True
 
 
+def create_symbol_list_tables():
+    """Create the 5 FMP symbol-list tables (W4 / #1045-#1050).
+
+    Each holds a bounded but larger directory (10k-50k rows) that FMP
+    publishes without parameters:
+
+    - ``stock_list`` (#1045)
+    - ``etf_list`` (#1049)
+    - ``actively_trading_list`` (#1050)
+    - ``financial_statement_symbol_list`` (#1046)
+    - ``cik_list`` (#1047)
+
+    Same JSON-blob shape as the available-* tables; TRUNCATE + INSERT
+    refresh strategy. Larger row counts are still trivially cheap
+    because they're read-once, keyed by table identity not row PK.
+    """
+    # pylint: disable=import-outside-toplevel,redefined-outer-name
+    from openbb_fmp_cached.utils.database import execute_query
+
+    for table in (
+        "stock_list",
+        "etf_list",
+        "actively_trading_list",
+        "financial_statement_symbol_list",
+        "cik_list",
+    ):
+        execute_query(f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            data_json JSON NOT NULL,
+            cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    return True
+
+
 def create_all_flattened_tables():
     """Create all flattened database tables.
 

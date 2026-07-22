@@ -102,20 +102,35 @@ def _resolve_api_key(credentials: dict[str, str] | None) -> str:
 
 
 def _persist_directory(table: str, key_col: str, rows: list[dict]) -> None:
-    """TRUNCATE + INSERT the directory into ``table``. Fails soft on DB error."""
+    """TRUNCATE + INSERT the directory into ``table``. Fails soft on DB error.
+
+    ``table`` must be in :data:`_ALLOWED_TABLES` — it is f-string
+    interpolated into DDL. The correct schema-creator is dispatched by
+    table name so both the available-* (#1052-#1055) and symbol-list
+    (#1045-#1050) fetchers can share this helper.
+    """
     if not rows:
         return
+    if table not in _ALLOWED_TABLES:
+        raise ValueError(
+            f"_persist_directory: table {table!r} not in allowlist "
+            f"(expected one of {sorted(_ALLOWED_TABLES)})"
+        )
     try:
         from openbb_fmp_cached.utils.cache_schema import (
             create_available_directory_tables,
+            create_symbol_list_tables,
         )
         from openbb_fmp_cached.utils.database import execute_many, execute_query
 
-        create_available_directory_tables()
+        if table.startswith("available_"):
+            create_available_directory_tables()
+        else:
+            create_symbol_list_tables()
         # Idempotent overwrite: TRUNCATE (fast on small tables) then INSERT.
         execute_query(
             f"TRUNCATE TABLE {table}"
-        )  # noqa: S608  (table name from allowlist below)
+        )  # noqa: S608  (table name from allowlist above)
         insert_sql = f"INSERT INTO {table} (data_json) VALUES (%s)"  # noqa: S608
         import json as _json
 
@@ -129,6 +144,12 @@ _ALLOWED_TABLES = {
     "available_sectors",
     "available_industries",
     "available_countries",
+    # W4 symbol-list batch (#1045-#1050)
+    "stock_list",
+    "etf_list",
+    "actively_trading_list",
+    "financial_statement_symbol_list",
+    "cik_list",
 }
 
 

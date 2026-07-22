@@ -1087,3 +1087,55 @@ def test_fmp_cached_available_countries_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["AvailableCountries"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_stock_list_fetcher(credentials=test_credentials):
+    """Test FMP cached stock-list directory (#1045)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["StockList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_etf_list_fetcher(credentials=test_credentials):
+    """Test FMP cached etf-list directory (#1049)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["EtfList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_actively_trading_list_fetcher(credentials=test_credentials):
+    """Test FMP cached actively-trading-list directory (#1050)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["ActivelyTradingList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_financial_statement_symbol_list_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP cached financial-statement-symbol-list directory (#1046)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FinancialStatementSymbolList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_cik_list_fetcher(credentials=test_credentials):
+    """Test FMP cached cik-list directory (#1047)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CikList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
