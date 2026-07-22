@@ -192,6 +192,20 @@ from openbb_fmp_cached.models.single_param_endpoints import (
     FMPCachedExecutiveCompensationBenchmarkFetcher,
     FMPCachedHolidaysByExchangeFetcher,
 )
+from openbb_fmp_cached.models.statement_extras import (
+    FMPCachedCustomDcfFetcher,
+    FMPCachedCustomLeveredDcfFetcher,
+    FMPCachedDcfFetcher,
+    FMPCachedEnterpriseValuesFetcher,
+    FMPCachedFinancialGrowthFetcher,
+    FMPCachedFinancialReportsDatesFetcher,
+    FMPCachedFinancialScoresFetcher,
+    FMPCachedKeyMetricsTtmFetcher,
+    FMPCachedLeveredDcfFetcher,
+    FMPCachedOwnerEarningsFetcher,
+    FMPCachedProfileCikFetcher,
+    FMPCachedRatiosTtmFetcher,
+)
 from openbb_fmp_cached.models.stock_quotes import (
     FMPCachedAllExchangeMarketHoursFetcher,
     FMPCachedBatchAftermarketQuoteFetcher,
@@ -303,6 +317,19 @@ def create_all_cached_fetchers():
         "BatchAftermarketTrade": FMPCachedBatchAftermarketTradeFetcher,
         "BatchAftermarketQuote": FMPCachedBatchAftermarketQuoteFetcher,
         "AllExchangeMarketHours": FMPCachedAllExchangeMarketHoursFetcher,
+        # W1 Statements batch 13: TTM/scores/growth/DCF/profile-cik (#1084 #1103-#1106 #1132-#1136 #1140 #1141)
+        "KeyMetricsTtm": FMPCachedKeyMetricsTtmFetcher,
+        "RatiosTtm": FMPCachedRatiosTtmFetcher,
+        "FinancialScores": FMPCachedFinancialScoresFetcher,
+        "OwnerEarnings": FMPCachedOwnerEarningsFetcher,
+        "EnterpriseValues": FMPCachedEnterpriseValuesFetcher,
+        "FinancialGrowth": FMPCachedFinancialGrowthFetcher,
+        "FinancialReportsDates": FMPCachedFinancialReportsDatesFetcher,
+        "DiscountedCashFlow": FMPCachedDcfFetcher,
+        "LeveredDiscountedCashFlow": FMPCachedLeveredDcfFetcher,
+        "CustomDiscountedCashFlow": FMPCachedCustomDcfFetcher,
+        "CustomLeveredDiscountedCashFlow": FMPCachedCustomLeveredDcfFetcher,
+        "ProfileCik": FMPCachedProfileCikFetcher,
     }
 
     # Fetchers that need fallback wrapping

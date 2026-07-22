@@ -1,0 +1,75 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/custom-levered-discounted-cash-flow?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+2YS28jNwyA7/kVgc/NQKReZG+LdLeXBRJsg/aw6GGSyImxfnU83mRR9L+XM7HG
+        VtbjZ7pogkHgHERSokjqG0qfT05P/5bf6WnvW8iL3s+nPVRa9X56Gpt9G11PhtXou3eXH+NoEb6G
+        8TzIsEW2SB6JlEuFl6G4CeMyv6vUTKZ4Ib7Jp4MyH75/nIbx7aCcF5X8DAwrb4xV2rfqJTOeYUa4
+        UJ0Wg5tqTKPPvFkMXocylzGQleOUt4PhvAy3v93nRZhdzMtZmcvU47tKzSplHHulVFx/Misn/V/C
+        dVn73/hV5o+f8jLUNpmDxWjeL0NxlT+ei9VFtNKZi7suBrMvH4oQFqYr843y4ksoP4n8sgijwXxU
+        iz2uuHHRf//XfFB+Ewln1kZHJhKexUoAqH3l/NL/WtzYGQbvNGs2nhKN86cwV6mUtCtwicqtTP9H
+        GNzdl09hwgz1QhTqqVeFLNGPu3rIb25qd03cyGQairzSPM9n9x+Gk4c6gpqcd6gMUMzl14/9m77I
+        iByAQ4MQV5zNR5dRasROM5BzEBcYTsZ3V6EY/VpMHsr7GOiFsC+xX11YEzsFXtaPGZT8jQbjfPh7
+        PqwrG50j4y2huBg9mErdSAVePVMFrypPldXOxISLWiikMGehmRCItNOih03ZjEO5yKB3xugkgU8B
+        XloDMKrEekVDzkZd1pU3RmXertn3FdRSY4GqbXE8sN9lJjloyJlyovhPpf0dKZB3JoUiry15Twyp
+        8BkpTDsBejUpNKLy5KGdKB0p3hwpZCm03lhspm1IwVqkTFbKK9biCimig/vhQcsenXNWRY0ODwfh
+        gXbFgwCd5Wecoc142NJHaC+cAdLgWvU6Orw9Okj/aBgJfQzkkg7eyldegYIoOpoOKB8xaVqYlzHs
+        6HAIHfzOdHDSB4JjAjapMFnOZrr92PdqPCgnqQME1arX4eHN4UEbIpImwfkYqAYPUN0CrFYg3UUs
+        xqP5AFKnFuVjFpfr+HAQH9zOfJD4ECkmYXIqfMYH2nK5kBBo65Astup1fHhzfEBS4jgKI2LZrvDB
+        Oq+MN7r58hzNB5AKky1adt3t4ig+2J35AE7+kh2u44PLTIx2Gx98dURXptnGB501D6MdH14rHwAM
+        YeL29DkAjoUCk3QnaWSOY4KVpgfBuVh965mA3igl/+Pz635MkGt2Yr2BCeu2fSATXOb5pJUJZlcm
+        aAb51m9lAmaqvRcQ+RkbkyZuGxJwWW0dEv7HSIgRWo8EQmv+WySAkpb2JZmA4Mkzm+YlZD0TJOBM
+        TjXx2osJKK1SYr2BCbxm34cxQasMzUkrE/TOTCAtvf9WJlRdf6zy9X2CYst7QoG6PuEVQGFzn6Ds
+        s/Px4lCQCy6l3DmOCWCcB/bU3Jtb+gTlNBmrYkD2YkKVq8T6x/QJlNEGJuDOTGAjUNjKBL/kWRsT
+        vEqn2c4E3zUKr50JiGDTm+eLM6G6nzw7g0dCwVZtAtvmNtzyoAAM2kGTrv2gIBeexPqHPChIo8B0
+        0goF2BkKzhKk1bgOCu0nvVcRQTq8vV8TltnriPA6iaCM0umH4MWJwMj2RYGgq8dKCdbmF0bFFRSc
+        PeyF0VmbWG8Agl6z7cOAIF2CqbuEkz//BagFUQ0LKQAA
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 07:31:17 GMT
+      etag:
+      - W/"290b-SctpKrNGlH6L5obIaud/CeDgom4"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
