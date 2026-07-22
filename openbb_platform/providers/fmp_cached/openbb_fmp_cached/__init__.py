@@ -107,6 +107,14 @@ from openbb_fmp_cached.models.aftermarket_quote import (
 
 # Import independent cached fetchers (with database persistence)
 from openbb_fmp_cached.models.analyst_estimates import FMPCachedAnalystEstimatesFetcher
+from openbb_fmp_cached.models.analyst_ratings import (
+    FMPCachedGradesConsensusFetcher,
+    FMPCachedGradesFetcher,
+    FMPCachedGradesHistoricalFetcher,
+    FMPCachedPriceTargetSummaryFetcher,
+    FMPCachedRatingsHistoricalFetcher,
+    FMPCachedRatingsSnapshotFetcher,
+)
 from openbb_fmp_cached.models.analyst_recommendations import (
     FMPCachedAnalystRecommendationsFetcher,
 )
@@ -244,6 +252,13 @@ def create_all_cached_fetchers():
         "CompanyNotes": FMPCachedCompanyNotesFetcher,
         "ExecutiveCompensationBenchmark": FMPCachedExecutiveCompensationBenchmarkFetcher,
         "HolidaysByExchange": FMPCachedHolidaysByExchangeFetcher,
+        # W7 Analyst batch 8: 6 symbol-parameterized (#1057 #1058 #1059 #1061 #1062 #1063)
+        "RatingsSnapshot": FMPCachedRatingsSnapshotFetcher,
+        "RatingsHistorical": FMPCachedRatingsHistoricalFetcher,
+        "PriceTargetSummary": FMPCachedPriceTargetSummaryFetcher,
+        "Grades": FMPCachedGradesFetcher,
+        "GradesHistorical": FMPCachedGradesHistoricalFetcher,
+        "GradesConsensus": FMPCachedGradesConsensusFetcher,
     }
 
     # Fetchers that need fallback wrapping

@@ -1,0 +1,57 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/ratings-historical?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA13OsQrCMBAG4L1PETJbaCMquLWik6Cgmzik7WGDMafJVSniu5uiKbTDLf93/3Gn
+        iLG3H8a4a28Far5kPMv2Wz75pZUk6DKRiHmcLGKRBrGSlLl0locIn2Cl1ocSbVeahhvKldgYgmol
+        Xb3R+BpvWKDGmp1ZPxpFbdDZSDPngNxYKyjoiMNm+re7VSV4lNb4X/uqGHKOeO2bXj7R+QtMgmZa
+        GAEAAA==
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:15:45 GMT
+      etag:
+      - W/"118-ujolerwaJeYfJzByVeW0Bn9cNrM"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
