@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/historical-price-eod/full?apikey=MOCK_API_KEY&from=2024-01-01&symbol=EURUSD&to=2024-01-10
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA52UTU/CQBCG7/yKpmcgM/s561nvRsPJeEBswKRQIggxxv9uW/ardGu0h17e2ez2
+        ed+ZeZpk2Vf9ZVl++Ny+VGV+k+V3i4fF420+veivy2PRqAyYmAHOEFyl2he7uoJzMBy0FTdv640V
+        NTNWLKuz1Rgjq63K6lD4k8Kqp6r82LayUpq5S1eb5W7dqDAHENiV74v3VbE7tlVOKNyjp/Nyb+8X
+        Rtfa9/T/tGAStBJ4n1YpxxBoETBBG8wKtKQ4eWcc7azBRaMGcOsyajIJXm7EWF5K8ArOEun6/43T
+        9f8a8Qa7Il5uqMtl0wWNHTlOF5QgAuHdiwKm0QHLFLBwWUbAhnoBk1a+FyNgAT4TB8yUZLoH3AYM
+        XA4HDByNNuQNjJABxyKLBDLDBLJmLviop0Wqp4NjIWMjlOyi2YwZ76hxxAzBuRT3M41F5allZRxB
+        PL6yn65JtnNwKqTLNfEe6mV89dC2asZXoRuiiJYZNRaX9XARuHJveNxaTExvvTwTuMGtaHolqvS2
+        Mr/hEknfUBEvERvLi3/mVde8jdYf3vik5/XrL3TxUANf07X3NXST5x9nAWvcbAcAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 22 Jul 2026 00:20:55 GMT
+      Etag:
+      - W/"76c-Pi/LX8e+c2GhM6LAQyONGqzLXbU"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

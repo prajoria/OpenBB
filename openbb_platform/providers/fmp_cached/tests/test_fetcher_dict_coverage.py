@@ -35,46 +35,38 @@ FIXTURES_DIR = Path(__file__).parent / "record" / "http" / "test_fmp_cached_fetc
 # blocker (the coverage-gate is meant to *surface* debt, not hide it).
 _KNOWN_UNCOVERED: dict[str, str] = {
     # First-cut (#508) shipped 10 cassettes; batch 1 (#955) added 14 more.
-    # 51 endpoints remaining — tracked in #955 for phased draining.
-    # Each has "drain to zero via #955" as its citation. When a cassette
-    # lands for one of these, remove the entry — the
-    # test_kicked_out_of_allowlist_when_cassette_lands test will fail
-    # loudly if you forget.
-    # Calendar endpoints (Dividend/Earnings/Splits/Ipo): Fetcher.test()
-    # asserts query params round-trip as strings, but the pydantic model
-    # coerces str→date. Assertion fails even when HTTP round-trips fine.
-    # Needs test-time param workaround. Follow-up via #955.
-    "CalendarDividend": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "CalendarEarnings": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "CalendarIpo": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "CalendarSplits": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "CryptoHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "CryptoSearch": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "CurrencyHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "CurrencySnapshots": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "EarningsCallTranscript": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "EconomicCalendar": "drain to zero via #955",
-    "EquityActive": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "EquityIntradayHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "EquityOwnership": "drain to zero via #955 (FMP 402 — endpoint requires paid subscription tier)",
-    "EquityScreener": "drain to zero via #955",
-    "EsgScore": "drain to zero via #955 (FMP 402 — endpoint requires paid subscription tier)",
-    "EtfEquityExposure": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "EtfHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "EtfPricePerformance": "drain to zero via #955 (recording failed silently — cassette not produced; likely paid tier or 402)",
-    "IndexConstituents": "drain to zero via #955 (Fetcher.test date-coercion or 402)",
-    "IndexHistorical": "drain to zero via #955 (Fetcher.test date-coercion assertion mismatch)",
-    "InstitutionalOwnership": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "MarketSnapshots": "drain to zero via #955 (FMP 402 — paid subscription tier)",
-    "NportDisclosure": "drain to zero via #955",
+    # 2026-07-21 batch 2 (#955): drained 13 date-coercion-safe endpoints
+    # by writing test functions that pass ``date()`` objects instead of
+    # ``"2024-01-01"`` strings (which sidesteps Fetcher.test line 157's
+    # ``getattr(query, key) == value`` assertion because pydantic
+    # coerces str→date and the assertion compares against the original
+    # string).
+    #
+    # Remaining entries are "402 paid subscription tier" — genuinely
+    # unrecordable without paying FMP. These are tracked here PERMANENTLY
+    # under #955 (renaming to a "permanent gap" issue would just add
+    # bureaucracy). Every entry MUST cite the tracking issue.
+    "CryptoSearch": "permanent — FMP 402 paid subscription tier (#955)",
+    "CurrencySnapshots": "permanent — FMP 402 paid subscription tier (#955)",
+    "EarningsCallTranscript": "permanent — FMP 402 paid subscription tier (#955)",
+    "EquityActive": "permanent — FMP 402 paid subscription tier (#955)",
+    "EquityOwnership": "permanent — FMP 402 paid subscription tier (#955)",
+    "EsgScore": "permanent — FMP 402 paid subscription tier (#955)",
+    "EtfEquityExposure": "permanent — FMP 402 paid subscription tier (#955)",
+    "EtfPricePerformance": "permanent — FMP 402 paid tier or recording anomaly (#955)",
+    "IndexConstituents": "permanent — FMP 402 paid subscription tier (#955)",
+    "InstitutionalOwnership": "permanent — FMP 402 paid subscription tier (#955)",
+    "MarketSnapshots": "permanent — FMP 402 paid subscription tier (#955)",
+    "NportDisclosure": "drain to zero via #955 (needs investigation — separate issue)",
     # PricePerformance: fetcher chunks HTTP calls (multi-symbol batching)
     # in a way pytest-recorder can't cleanly capture — batch 1 recording
     # SKIPPED. Needs a bespoke cassette approach OR the batch shim needs
     # reshaping to single-request. Follow-up in #955.
-    "PricePerformance": "drain to zero via #955 (chunk-batching not captured by pytest-recorder — needs special handling)",
-    "RiskPremium": "drain to zero via #955",
-    "TechnicalIndicatorIntraday": "drain to zero via #955",
-    "YieldCurve": "drain to zero via #955",
+    "PricePerformance": (
+        "drain to zero via #955 (chunk-batching not captured by "
+        "pytest-recorder — needs special handling)"
+    ),
+    "EquityScreener": "drain to zero via #955 (screener needs deterministic param set)",
 }
 
 # Endpoint-name → test-function suffix. Most follow the convention

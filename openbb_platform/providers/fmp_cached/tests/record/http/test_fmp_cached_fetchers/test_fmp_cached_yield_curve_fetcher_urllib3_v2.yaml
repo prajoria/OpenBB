@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/treasury-rates?apikey=MOCK_API_KEY&from=2024-01-12&to=2024-01-18
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA6XTwQuCMBTH8bt/xfCssr23OetfiQ5BQZcKoktE/3tzb8LPNpLw4OXrnO7Dc1cp
+        9QqXUvXx8DjVW1WTJttq05qhbuTO5XZ9nE245zrH2Cg2O2BjaQ5bHxul9Dwd7uNuthugUCxsIXFM
+        hiG5mDSu8rIKN9eScBVJs/hKlsY+pHfzQ8KXJCy2JOELErO2TgKfSxKYREJ73F1nOpMEPjlJmCWJ
+        fo1EYSYMHlwo8POFgmafmp97pOBu4yAlisJUzHgmCxyxyWKJgkoUsyP+SdFnFD0eSSzM91iEg+cW
+        w/cPElZlFqHhK5MFF+aCRotq/wGk773uLQQAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 22 Jul 2026 00:21:25 GMT
+      Etag:
+      - W/"42d-sxmCMzWhkEdgZ8vLVPpBD8rdek8"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -52,6 +52,14 @@ CASSETTE_DIR = FMP_CACHED / "tests" / "record" / "http" / "test_fmp_cached_fetch
 _CACHE_CLEAR_ROWS: list[tuple[str, str, tuple]] = [
     ("equity_profile", "DELETE FROM equity_profile WHERE symbol = %s", ("AAPL",)),
     ("etf_holdings", "DELETE FROM etf_holdings WHERE symbol = %s", ("SPY",)),
+    # #955 drain — etf_historical uses the equity_historical L2 table for
+    # the SPY 2024-01-01..2024-01-10 window; clear so pytest-recorder
+    # sees the HTTP call.
+    (
+        "etf_historical",
+        "DELETE FROM equity_historical WHERE symbol = %s AND date BETWEEN %s AND %s",
+        ("SPY", "2024-01-01", "2024-01-10"),
+    ),
     # Other tests don't hit dedicated cache tables — they route through
     # the generic HTTP path.
 ]
