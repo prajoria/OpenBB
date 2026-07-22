@@ -137,6 +137,26 @@ _PLAN_LIMITED: dict[str, PlanLimitedEntry] = {
         "since": date(2026, 7, 22),
         "notes": "402 on Starter — /stable/batch-exchange-quote (#1254 W2 drain)",
     },
+    "IncomeStatementTtm": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/income-statement-ttm (#1127 W1 drain)",
+    },
+    "BalanceSheetStatementTtm": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/balance-sheet-statement-ttm (#1128 W1 drain)",
+    },
+    "CashFlowStatementTtm": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/cash-flow-statement-ttm (#1129 W1 drain)",
+    },
+    "LatestFinancialStatements": {
+        "tier": "Premium",
+        "since": date(2026, 7, 22),
+        "notes": "402 on Starter — /stable/latest-financial-statements (#1126 W1 drain)",
+    },
 }
 
 
