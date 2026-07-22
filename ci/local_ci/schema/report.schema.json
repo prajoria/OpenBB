@@ -33,7 +33,7 @@
           "name": {"type": "string"},
           "brought_up": {"type": "boolean"},
           "healthy": {"type": "boolean"},
-          "init_ran": {"type": "boolean"},
+          "init_triggered": {"type": "boolean"},
           "error": {"type": "string"}
         }
       }

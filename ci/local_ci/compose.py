@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,7 +46,10 @@ class SidecarResult:
     name: str
     brought_up: bool
     healthy: bool = False
-    init_ran: bool = False
+    # NB: this is TRIGGERED (volume dropped so init hook will re-fire on next
+    # boot), not VERIFIED (we didn't peek inside the container to confirm the
+    # SQL replayed). Overclaiming here would mask restore failures.
+    init_triggered: bool = False
     error: str = ""
 
 
@@ -127,18 +131,58 @@ class ComposeRunner:
         return result
 
     def exec_tier(self, tier: Tier) -> TierResult:
-        """docker compose exec runner sh -c <tier.command>. Streams stdout."""
+        """docker compose exec runner sh -c <tier.command>.
+
+        Streams stdout+stderr live (so devs watch progress) AND tees the
+        combined stream to a bounded ring buffer so we can surface a
+        first-failure excerpt in the JSON report. Without this the report's
+        `first_failure_excerpt` is silently always empty — the schema field
+        implies capture, so the runtime must actually capture (MED finding
+        #3 from PR #1009 review).
+        """
         argv = self.build_tier_argv(tier)
         started = time.monotonic()
-        # Stream to console so devs see progress; capture tail for report.
-        result = subprocess.run(argv, check=False)
+        # Use Popen so we can tee. subprocess.run with capture=True would
+        # buffer everything until exit — bad UX for long tiers.
+        proc = subprocess.Popen(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        tail: list[str] = []
+        max_tail_lines = 200
+        assert proc.stdout is not None  # for type-checkers; PIPE guarantees this
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            tail.append(line.rstrip("\n"))
+            if len(tail) > max_tail_lines:
+                tail.pop(0)
+        proc.wait()
         elapsed = time.monotonic() - started
-        status = "pass" if result.returncode == 0 else "fail"
+        status = "pass" if proc.returncode == 0 else "fail"
+        excerpt = ""
+        if status == "fail":
+            # Prefer the first line matching a common failure marker; fall
+            # back to last ~40 lines so the JSON consumer always gets *some*
+            # signal on failure rather than an empty string.
+            for line in tail:
+                if any(
+                    marker in line
+                    for marker in ("FAILED ", "Traceback", "ERROR ", "error:", "assert ")
+                ):
+                    excerpt = line
+                    break
+            if not excerpt:
+                excerpt = "\n".join(tail[-40:])
         return TierResult(
             name=tier.name,
             status=status,
             duration_s=round(elapsed, 2),
-            exit_code=result.returncode,
+            exit_code=proc.returncode,
+            first_failure_excerpt=excerpt,
         )
 
     def ensure_sidecars(
@@ -188,7 +232,11 @@ class ComposeRunner:
                     name=sc.name,
                     brought_up=True,
                     healthy=healthy,
-                    init_ran=fresh and sc.init is not None,
+                    # We can only report we TRIGGERED init (dropped the volume so
+                    # MySQL will re-run /docker-entrypoint-initdb.d on next boot);
+                    # verifying the SQL actually replayed would require querying
+                    # inside the container. Naming avoids overclaiming (LOW #7).
+                    init_triggered=fresh and sc.init is not None,
                 )
             )
             if not healthy:
@@ -205,7 +253,10 @@ class ComposeRunner:
         self.run(self.build_down_argv(), check=False)
 
     def pull(self) -> None:
-        self.run(self.build_pull_argv(), check=False)
+        # check=True: a --pull request whose purpose is "guarantee fresh"
+        # must NOT silently fall through to stale local images on a
+        # registry/network error. Surfaces as EXIT_DOCKER_ERROR (HIGH #1).
+        self.run(self.build_pull_argv(), check=True)
 
 
 # ----------------------------------------------------------------------
@@ -257,17 +308,34 @@ def _preflight_mysql_restore(sidecar: Sidecar, *, dbbackup_dir: str | None) -> N
 def _wait_healthy(
     compose_argv_base: list[str], service: str, timeout_s: int
 ) -> bool:
-    """Poll `docker compose ps` for a healthy state, up to timeout_s."""
+    """Poll `docker compose ps` for a healthy state, up to timeout_s.
+
+    HIGH #2 hardening: empty `{{.Health}}` (no healthcheck declared) is
+    ONLY treated as healthy when the container's State is also `running`.
+    Without the State cross-check, an exited container reports `Health=""`
+    and would falsely count as healthy — the tier then runs against a
+    dead sidecar and tests that tolerate empty rows produce a false green.
+    """
     deadline = time.monotonic() + timeout_s
-    argv = [*compose_argv_base, "ps", "--format", "{{.Health}}", service]
+    ps_argv = [
+        *compose_argv_base, "ps", "--format",
+        "{{.Health}}|{{.State}}", service,
+    ]
     while time.monotonic() < deadline:
-        result = subprocess.run(argv, check=False, capture_output=True, text=True)
+        result = subprocess.run(ps_argv, check=False, capture_output=True, text=True)
         if result.returncode == 0:
-            health = result.stdout.strip().lower()
-            # Empty means no healthcheck declared → treat as up == healthy.
-            if health in {"healthy", ""}:
+            line = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
+            health, _, state = line.partition("|")
+            health = health.strip().lower()
+            state = state.strip().lower()
+            if health == "healthy":
                 return True
             if health == "unhealthy":
+                return False
+            # Empty health (no healthcheck) → only OK if State is running.
+            if health == "" and state == "running":
+                return True
+            if health == "" and state in {"exited", "dead", "removing"}:
                 return False
         time.sleep(1)
     return False

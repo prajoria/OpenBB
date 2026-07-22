@@ -359,3 +359,176 @@ def test_mysql_restore_preflight_passes_when_dump_present(monkeypatch, tmp_path)
     )
     monkeypatch.setenv("FAKE_BACKUP_DIR", str(tmp_path))
     _preflight_mysql_restore(sc, dbbackup_dir=None)  # no raise
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for PR #1009 review findings.
+# Each is written to fail on the pre-fix code and pass on the fix (CLAUDE.md
+# rule R7: fixtures must discriminate between buggy and fixed).
+# ---------------------------------------------------------------------------
+
+
+def test_report_empty_tiers_is_fail_not_pass():
+    """MED #4: `all([])` is True → old code emitted overall_status=pass
+    with zero tiers actually run. The property MUST return 'fail' when
+    the tier list is empty."""
+    from local_ci.report import RunReport
+
+    r = RunReport(project="fixture")
+    assert r.tiers == []
+    assert r.overall_status == "fail"
+    assert r.overall_exit_code == 1
+    # And the JSON payload must reflect it too.
+    payload = r.to_json_obj()
+    assert payload["overall_status"] == "fail"
+    assert payload["overall_exit_code"] == 1
+
+
+def test_sidecar_result_uses_init_triggered_not_init_ran():
+    """LOW #7: field was overclaiming. Renamed for honesty; schema updated."""
+    from local_ci.compose import SidecarResult
+    from local_ci.report import RunReport
+
+    r = RunReport(project="fixture")
+    r.sidecars.append(
+        SidecarResult(
+            name="mysql", brought_up=True, healthy=True, init_triggered=True
+        )
+    )
+    payload = r.to_json_obj()
+    assert payload["sidecars"][0]["init_triggered"] is True
+    assert "init_ran" not in payload["sidecars"][0]
+    # And the schema must accept the new field (regression against a stale
+    # schema that only knew about init_ran).
+    jsonschema.validate(payload, REPORT_SCHEMA)
+
+
+def test_pull_uses_check_true(monkeypatch):
+    """HIGH #1: `--pull` failing must NOT silently continue with stale
+    images. runner.pull() must raise DockerError on non-zero exit."""
+    from local_ci.compose import ComposeRunner, DockerError
+
+    cfg = config.load_project(FIXTURE_YAML)
+    runner = ComposeRunner(cfg)
+
+    # Simulate `docker compose pull` failing with rc=1.
+    class FakeCompleted:
+        def __init__(self, rc):
+            self.returncode = rc
+            self.stdout = ""
+            self.stderr = "manifest unknown"
+
+    import local_ci.compose as compose_mod
+    monkeypatch.setattr(
+        compose_mod.subprocess,
+        "run",
+        lambda *a, **kw: FakeCompleted(1),
+    )
+    with pytest.raises(DockerError) as ei:
+        runner.pull()
+    assert "1" in str(ei.value) or "failed" in str(ei.value).lower()
+
+
+def test_wait_healthy_rejects_empty_health_when_state_is_exited(monkeypatch):
+    """HIGH #2: empty Health + State=exited must return False. Old code
+    treated any empty Health as healthy → dead sidecar looked alive →
+    false green on tests that tolerate empty DB rows."""
+    from local_ci.compose import _wait_healthy
+
+    import local_ci.compose as compose_mod
+
+    class FakeCompleted:
+        def __init__(self, out):
+            self.returncode = 0
+            self.stdout = out
+            self.stderr = ""
+
+    # Simulate: healthcheck not declared, container exited after boot failure.
+    monkeypatch.setattr(
+        compose_mod.subprocess,
+        "run",
+        lambda *a, **kw: FakeCompleted("|exited\n"),
+    )
+    # Zero timeout is fine — we just need one poll to make the call.
+    assert _wait_healthy(["docker", "compose"], "svc", timeout_s=1) is False
+
+
+def test_wait_healthy_accepts_empty_health_when_state_is_running(monkeypatch):
+    """HIGH #2 counterpart: services with no healthcheck but State=running
+    must still be treated as healthy (backward-compatible with the common
+    case of unimportant sidecars without an explicit HEALTHCHECK)."""
+    from local_ci.compose import _wait_healthy
+
+    import local_ci.compose as compose_mod
+
+    class FakeCompleted:
+        def __init__(self, out):
+            self.returncode = 0
+            self.stdout = out
+            self.stderr = ""
+
+    monkeypatch.setattr(
+        compose_mod.subprocess,
+        "run",
+        lambda *a, **kw: FakeCompleted("|running\n"),
+    )
+    assert _wait_healthy(["docker", "compose"], "svc", timeout_s=1) is True
+
+
+def test_exec_tier_captures_failure_excerpt(monkeypatch):
+    """MED #3: TierResult.first_failure_excerpt was always empty despite
+    the schema field existing. On failure it must contain SOME signal."""
+    import local_ci.compose as compose_mod
+    from local_ci.compose import ComposeRunner
+
+    cfg = config.load_project(FIXTURE_YAML)
+    runner = ComposeRunner(cfg)
+
+    class FakeProc:
+        def __init__(self):
+            self.returncode = 1
+            self._lines = iter([
+                "test_a.py::foo PASSED\n",
+                "FAILED test_b.py::bar - AssertionError: expected 3 got 4\n",
+                "1 failed, 1 passed\n",
+            ])
+            self.stdout = self  # so `for line in proc.stdout` works
+
+        def __iter__(self):
+            return self._lines
+
+        def wait(self):
+            pass
+
+    monkeypatch.setattr(compose_mod.subprocess, "Popen", lambda *a, **kw: FakeProc())
+    result = runner.exec_tier(cfg.tiers["lint"])
+    assert result.status == "fail"
+    assert result.first_failure_excerpt != ""
+    assert "FAILED test_b.py::bar" in result.first_failure_excerpt
+
+
+def test_exec_tier_no_excerpt_on_pass(monkeypatch):
+    """Passing tier must NOT surface a failure excerpt (would confuse
+    JSON consumers into thinking there was a problem)."""
+    import local_ci.compose as compose_mod
+    from local_ci.compose import ComposeRunner
+
+    cfg = config.load_project(FIXTURE_YAML)
+    runner = ComposeRunner(cfg)
+
+    class FakeProc:
+        def __init__(self):
+            self.returncode = 0
+            self._lines = iter(["all good\n"])
+            self.stdout = self
+
+        def __iter__(self):
+            return self._lines
+
+        def wait(self):
+            pass
+
+    monkeypatch.setattr(compose_mod.subprocess, "Popen", lambda *a, **kw: FakeProc())
+    result = runner.exec_tier(cfg.tiers["lint"])
+    assert result.status == "pass"
+    assert result.first_failure_excerpt == ""

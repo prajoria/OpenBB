@@ -28,6 +28,13 @@ class RunReport:
 
     @property
     def overall_status(self) -> str:
+        # Invariant: pass ⇒ at least one tier actually executed.
+        # `all([])` is True — without this guard, a run that filters out every
+        # tier (bug, refactor, empty default_tiers) would emit
+        # `overall_status: pass, overall_exit_code: 0` with zero work done
+        # (MED #4 from PR #1009 review).
+        if not self.tiers:
+            return "fail"
         return "pass" if all(t.status == "pass" for t in self.tiers) else "fail"
 
     @property
