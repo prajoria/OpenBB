@@ -5,6 +5,7 @@ Database tables with actual columns mapped from OpenBB model fields.
 This enables proper relational queries and consistent DataFrame mapping.
 Simple database-backed response persistence without TTL/caching complexity.
 """
+
 # pylint: disable=too-many-lines
 
 import logging
