@@ -683,3 +683,67 @@ Every route PR filed 1-2 follow-ups when a scope-cut was deliberate:
 **Session totals:** 6 route PRs merged in ~4 hours (P1/App queue exhausted).
 Pattern is fully mature; the next portfolio-intel route (news/sentiment
 #572, alerts #571) should ship in one cycle each if substrate exists.
+
+## 2026-07-22 — Wave 0 (fmp_cached full-coverage epic) shipped
+
+**PR #1318 merged to portfolio.** Wave 0 (#1028) ships the tooling
+substrate for downstream waves #1029–#1037 (167 endpoint tasks in the
+`[EPIC] FMP Cached Full API Coverage` #844). Every subsequent wave-task
+PR should land in 1-2h instead of 4-6h.
+
+### Deliverables
+
+- **schema_version + `migration_ran`/`record_migration`/`list_migrations`**
+  in `openbb_platform/providers/fmp_cached/openbb_fmp_cached/utils/database.py`
+  — for non-idempotent migrations (backfills, column drops). DB-failure
+  resilient: returns False on error, never raises. Contract:
+  `if not migration_ran(v): ...; record_migration(v)`.
+- **`_PLAN_LIMITED` structured registry** at
+  `openbb_platform/providers/fmp_cached/openbb_fmp_cached/utils/plan_limited.py`
+  — TypedDict `{endpoint: {tier, since, notes}}`. Seeded from #955
+  findings with 11 permanent-402 endpoints. Downstream contributors call
+  `is_plan_limited(endpoint)` before writing a wrapper; blocked
+  endpoints file plan-block follow-ups instead.
+- **Two-provider coverage audit** at
+  `openbb_platform/providers/fmp_cached/tests/test_two_provider_coverage.py`
+  — regenerates `docs/reports/fmp-two-provider-coverage.md` on every
+  test run. Stale copy in git diff = someone added an endpoint without
+  touching tests.
+- **Endpoint playbook** at
+  `docs/design/fmp-cached-endpoint-playbook.md` — read-this-first
+  walkthrough of the 5-piece unit of work (live fetcher →
+  cached wrapper → DDL → tests → cassette) using
+  `AnalystRecommendations` (#1022) as canonical reference. Includes PR
+  checklist, common failure modes (date coercion, cache-clear rows),
+  and security guardrails (`raise_for_status_redacted` for apikey
+  scrubbing).
+
+### Coverage state at ship time
+
+- `openbb_fmp`: 75 registered fetchers
+- `openbb_fmp_cached`: 76 registered (75 wraps + 1 native
+  `AnalystRecommendations` from #1022)
+- Lacking cassette: 14 total → 11 plan-limited (documented) + 3 real
+  gaps (`EquityScreener`, `NportDisclosure`, `PricePerformance`)
+
+### Next natural pick
+
+Wave 1 (#1029, Fundamentals) is the largest at ~27 statement endpoints.
+Follow the playbook + PR checklist; use `AnalystRecommendations` as the
+canonical reference. Every wave-task PR should:
+
+1. Check `is_plan_limited(endpoint)` — file plan-block follow-up if True.
+2. Follow the 5-piece unit + PR checklist in the playbook.
+3. Run `pytest ... test_two_provider_coverage.py` — the regenerated
+   report shows up in the commit diff, closing the audit loop.
+
+### Correction: bd/beads is retired repo-wide
+
+Earlier in this session I called `bd remember` per the openbb-dev-cycle
+skill's Phase 10 text. That was wrong — CLAUDE.md supersedes: **GitHub
+Issues is the sole tracker, `docs/MEMORIES.md` is the cross-session
+memory home, `bd` is retired**. The `bd remember` call was reverted via
+`bd forget` and the content moved here.
+
+The openbb-dev-cycle skill needs updating to drop its `bd remember`
+step; filed as a follow-up on the skill file itself in `.claude/skills/`.
