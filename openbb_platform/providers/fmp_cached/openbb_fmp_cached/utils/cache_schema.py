@@ -5825,6 +5825,32 @@ def create_market_directory_tables():
     return True
 
 
+def create_reference_directory_tables():
+    """Create the 5 FMP reference-directory tables (W4 batch 4).
+
+    #1102 #1110 #1167 #1168 #1169 — index constituents (S&P/NASDAQ/DJIA),
+    CFTC COT list, market-risk-premium. Same JSON-blob schema.
+    """
+    # pylint: disable=import-outside-toplevel,redefined-outer-name
+    from openbb_fmp_cached.utils.database import execute_query
+
+    for table in (
+        "sp500_constituent",
+        "nasdaq_constituent",
+        "dowjones_constituent",
+        "commitment_of_traders_list",
+        "market_risk_premium",
+    ):
+        execute_query(f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            data_json JSON NOT NULL,
+            cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    return True
+
+
 def create_all_flattened_tables():
     """Create all flattened database tables.
 

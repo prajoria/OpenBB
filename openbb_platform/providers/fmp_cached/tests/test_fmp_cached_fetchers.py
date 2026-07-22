@@ -1179,3 +1179,53 @@ def test_fmp_cached_index_list_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["IndexList"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_sp500_constituent_fetcher(credentials=test_credentials):
+    """Test FMP cached S&P 500 constituent (#1167)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["Sp500Constituent"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_nasdaq_constituent_fetcher(credentials=test_credentials):
+    """Test FMP cached NASDAQ-100 constituent (#1168)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["NasdaqConstituent"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_dowjones_constituent_fetcher(credentials=test_credentials):
+    """Test FMP cached Dow Jones constituent (#1169)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["DowjonesConstituent"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_commitment_of_traders_list_fetcher(credentials=test_credentials):
+    """Test FMP cached CFTC commitment-of-traders list (#1102)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CommitmentOfTradersList"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_market_risk_premium_fetcher(credentials=test_credentials):
+    """Test FMP cached market-risk-premium (#1110)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["MarketRiskPremium"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
