@@ -6,11 +6,11 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **114**
+- `openbb_fmp_cached` registered endpoints: **122**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **39**
-- Registered in EITHER but lacking a VCR cassette: **14**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **47**
+- Registered in EITHER but lacking a VCR cassette: **18**
 - Plan-limited (see `plan_limited.py`): **12**
 
 ## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)
@@ -39,10 +39,16 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `GradesConsensus` ✅ cassette
 - `GradesHistorical` ✅ cassette
 - `HistoricalDowjonesConstituent` ✅ cassette
+- `HistoricalIndustryPe` ✅ cassette
+- `HistoricalIndustryPerformance` ⚠ no cassette
 - `HistoricalNasdaqConstituent` ✅ cassette
+- `HistoricalSectorPe` ✅ cassette
+- `HistoricalSectorPerformance` ⚠ no cassette
 - `HistoricalSp500Constituent` ✅ cassette
 - `HolidaysByExchange` ✅ cassette
 - `IndexList` ✅ cassette
+- `IndustryPeSnapshot` ✅ cassette
+- `IndustryPerformanceSnapshot` ⚠ no cassette
 - `MarketRiskPremium` ✅ cassette
 - `NasdaqConstituent` ✅ cassette
 - `PriceTargetSummary` ✅ cassette
@@ -54,6 +60,8 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `SearchIsin` ✅ cassette
 - `SearchName` ✅ cassette
 - `SearchSymbol` ✅ cassette
+- `SectorPeSnapshot` ✅ cassette
+- `SectorPerformanceSnapshot` ⚠ no cassette
 - `SharesFloatAll` ✅ cassette
 - `Sp500Constituent` ✅ cassette
 - `StockList` ✅ cassette
@@ -70,11 +78,15 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `EsgScore` — plan-limited, both
 - `EtfEquityExposure` — plan-limited, both
 - `EtfPricePerformance` — plan-limited, both
+- `HistoricalIndustryPerformance` — cached-only
+- `HistoricalSectorPerformance` — cached-only
 - `IndexConstituents` — plan-limited, both
+- `IndustryPerformanceSnapshot` — cached-only
 - `InstitutionalOwnership` — plan-limited, both
 - `MarketSnapshots` — plan-limited, both
 - `NportDisclosure` — both
 - `PricePerformance` — both
+- `SectorPerformanceSnapshot` — cached-only
 
 ## Plan-limited endpoints (permanent — do NOT try to record)
 

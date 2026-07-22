@@ -1,0 +1,60 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/sector-performance-snapshot?apikey=MOCK_API_KEY&date=2026-07-17
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA6WUzWrDMBCE73kK4XNsdvW76i1NUtpDC/07lR6EoiYCRwbbCQ2l714lJQ8Q5SAw
+        7Jj5mB3pY8LYTz6MVSs3huqGVRy4rsHUaKrp/2QIfuz64+zWDdGzx6zso2uHsyB8+41L69PvT7PX
+        xez5PHH70Lt1mJ/HNTZCSwmCA3ELmozOwt/pZRjzbrvdpejdGLvEXkO/jz4U0EADQoG1YIiQiCyp
+        Ipo07LahZ/ODbzNUezlInUmsVmQNR25ETkXKa0gW4SukIe5DAQo2BpGr44KylbQCC0iWKfTrw+Xu
+        0EgCi8oI4CZ/ApoC97uYXPK5oVd0I69EAUlpNHF56khJDvfBtePGu75kE9BwVABkrTTSSoSSdj6k
+        1W4YS68rNKSEEppzy0nnOEQBwksOgS2H8Si9GCE/GKAQdfYXaKzmBQBvwW9S13YljcQGpDVGaglK
+        Qw6hwP99jG0cY0kNoRGCFJLmBNwKDSf/yecfp1aPf7kFAAA=
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:28:04 GMT
+      etag:
+      - W/"5b9-ExRu4wE3kuRNgYUFsk10ZCWe4CY"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

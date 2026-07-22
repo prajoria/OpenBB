@@ -177,6 +177,16 @@ from openbb_fmp_cached.models.search_endpoints import (
     FMPCachedSearchNameFetcher,
     FMPCachedSearchSymbolFetcher,
 )
+from openbb_fmp_cached.models.sector_performance import (
+    FMPCachedHistoricalIndustryPeFetcher,
+    FMPCachedHistoricalIndustryPerformanceFetcher,
+    FMPCachedHistoricalSectorPeFetcher,
+    FMPCachedHistoricalSectorPerformanceFetcher,
+    FMPCachedIndustryPerformanceSnapshotFetcher,
+    FMPCachedIndustryPeSnapshotFetcher,
+    FMPCachedSectorPerformanceSnapshotFetcher,
+    FMPCachedSectorPeSnapshotFetcher,
+)
 from openbb_fmp_cached.models.single_param_endpoints import (
     FMPCachedCompanyNotesFetcher,
     FMPCachedExecutiveCompensationBenchmarkFetcher,
@@ -259,6 +269,15 @@ def create_all_cached_fetchers():
         "Grades": FMPCachedGradesFetcher,
         "GradesHistorical": FMPCachedGradesHistoricalFetcher,
         "GradesConsensus": FMPCachedGradesConsensusFetcher,
+        # W7 MarketPerformance batch 10: sector/industry perf + PE (#1212-#1219)
+        "SectorPerformanceSnapshot": FMPCachedSectorPerformanceSnapshotFetcher,
+        "IndustryPerformanceSnapshot": FMPCachedIndustryPerformanceSnapshotFetcher,
+        "SectorPeSnapshot": FMPCachedSectorPeSnapshotFetcher,
+        "IndustryPeSnapshot": FMPCachedIndustryPeSnapshotFetcher,
+        "HistoricalSectorPerformance": FMPCachedHistoricalSectorPerformanceFetcher,
+        "HistoricalIndustryPerformance": FMPCachedHistoricalIndustryPerformanceFetcher,
+        "HistoricalSectorPe": FMPCachedHistoricalSectorPeFetcher,
+        "HistoricalIndustryPe": FMPCachedHistoricalIndustryPeFetcher,
     }
 
     # Fetchers that need fallback wrapping

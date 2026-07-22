@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/historical-sector-performance?apikey=MOCK_API_KEY&sector=Technology
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA62WO4sUURCF8/0Vw8Q7l3o/zBaNBdFMDIaxmQ1kB9ZFFPG/W7MyoVRSNM0Nqpv+
+        qD51Tn2+2+1+173b7b8eX7b9m92egOQAfADc3/+rfN9OL5fna+3Tdnp8uny7nH/datvP0+Px6fz6
+        5vuHj+8ePtwqxx/b8/G8vb2VD7DEiQnQ05nBKevBP/f/I6AD5TABLg0B1CCjkDSRjiBmCVBWGBIR
+        a0IiWgvgwwDLUNQYOIyJDbkDsFkAWMRpGJzEGABBHQDPAhx4YYmQXNkCMFy9I6BZAlkJWgLUpAyx
+        jO7704NISzKdHNlKCaLZqhCGCXAJKYlziLoqozUEOCzDMiMXzmTHLAlwXR2BjhOQJKYLiQqTc2eH
+        KLMEWC0oEy4N1Aka2AkRp0eRFgsyKlo5YblhZ0Y4PIn1DxTo6sNcVljBBF0LYDiSaNUcmIJKBIgQ
+        daMI04m0wBmdoGbB6sDu++OBJBCQ1ftrJghjlwcw7AS1E6iZuBqwXk2x7cCwEdRaFE4GqQLsEW0k
+        w/AUYAVi6Y9dSaE2A+yscHozxMVkUhNYAqSSI7x24O7LX9OBDradCgAA
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 06:28:23 GMT
+      etag:
+      - W/"a9d-zXsWk1GISC2xhfUCo/2qxQH+Pkc"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
