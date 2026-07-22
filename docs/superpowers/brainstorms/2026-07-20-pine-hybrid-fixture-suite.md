@@ -194,7 +194,7 @@ computation.
    > a count mismatch — a differing trade *set* is a structural fail,
    > not a rounding issue.
 
-   [PR]accet
+   [PR] accept
 
 3. **Should the hybrid suite REPLACE `conformance_strategy/` or run
    PARALLEL?** Proposal: parallel — keep one full-parity canary
