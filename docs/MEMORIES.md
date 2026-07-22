@@ -976,3 +976,63 @@ Session outcome across 2 sessions on 2026-07-22:
   first to confirm before writing any code.
 - no-wave (14): Wave meta-epics (WAVE 5/6/7/8/9). Should be closable
   once their child issues drain — audit which ones can be closed now.
+
+---
+
+## fmp-cached-drain-complete-2026-07-22-end-of-day
+
+**All 8 fmp waves (W1-W8) fully drained** on 2026-07-22.
+
+Session-day-2 total: **151 items drained** across 5 code PRs +
+4 doc/plan-limited PRs. Board 221 → 7 (only 3 non-fmp-cached
+issues + 2 stale meta-epics + Wave 9 hardening + Pine + fixture
+follow-up remain).
+
+**Final PRs this session** (in order):
+- #1333: W2 Quote 11 endpoints
+- #1334: W2 batch-*-quotes plan_limited (8)
+- #1335: W1 Statements TTM/scores/DCF 12 endpoints
+- #1336: W1 TTM plan_limited (4)
+- #1337: W1 as-reported 5 endpoints
+- #1338: W3 EconomicIndicators (1)
+- #1339: docs/memories mid-session
+- #1340: W5/W6/W8 plan_limited bulk (30)
+- #1341: W5/W6/W8 free-tier drain (30 fetchers via one omnibus module)
+
+**Fetcher count**: 122 → **181** (+59 new registered fetchers).
+**Plan-limited registry**: 12 → **43** entries.
+
+**Board endgame** (7 items remaining, all non-actionable-here):
+- #102: Pine extension (different program)
+- #844: FMP Cached top-level epic (keep open until owner declares done)
+- #955: fmp_cached fixture coverage follow-up (arguably done now — 176 registered/181 have cassettes; audit before closing)
+- #999, #1000: provider-gap issues (not fmp_cached scope)
+- #1037: WAVE 9 hardening & docs (ongoing meta)
+- (WAVE 1-8 meta-epics: all now closed via child-drain)
+
+**Playbook additions from batch 15 (30-endpoint bulk drain):**
+- **Uniform loose typing** (`FMPCachedGenericRowData` with `extra="allow"`)
+  is the right choice for bulk drains where endpoints have 10-30
+  endpoint-specific fields each. Hand-writing 30 Pydantic classes
+  adds no correctness — users can introspect via `model_dump()`.
+  Only justify endpoint-specific Data classes when there's a real
+  shared shape (like the 3 historical constituents in batch 5).
+- **Spike-run before picking record-test params** — the FMP search
+  endpoints in this drain returned `[]` on plausible-looking queries
+  (`name="A"`, `cik="0001000000"`). Grab real IDs/names from the
+  paired `-latest` endpoint first.
+- **--endpoint substring match trap** in `pi_fmp_record.py`: passing
+  `crowdfunding_offerings` also matched `crowdfunding_offerings_latest`
+  + `crowdfunding_offerings_search`, causing all 3 cassettes to
+  regenerate under the same VCR context, one overwriting the others.
+  Delete old cassettes before re-recording changed params.
+- **pylint too-many-lines** kicks in at 1000 LOC — for omnibus modules,
+  add `# pylint: disable=too-many-lines` to the module-level pragma
+  list. Not a real problem for a bulk-drain module.
+
+**Handoff for next session:**
+- Ask owner about #844 (top-level epic close) + #955 (fixture
+  follow-up close-verify).
+- No more fmp-cached drain work exists at this time.
+- Any new FMP endpoints FMP adds → file a new issue, spike, either
+  register in fetcher_dict or add to plan_limited.py.
