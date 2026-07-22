@@ -1229,3 +1229,55 @@ def test_fmp_cached_market_risk_premium_fetcher(credentials=test_credentials):
     cls = fmp_cached_provider.fetcher_dict["MarketRiskPremium"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_sp500_constituent_fetcher(credentials=test_credentials):
+    """Test FMP cached historical S&P 500 constituent (#1170)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HistoricalSp500Constituent"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_nasdaq_constituent_fetcher(credentials=test_credentials):
+    """Test FMP cached historical NASDAQ-100 constituent (#1171)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HistoricalNasdaqConstituent"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_historical_dowjones_constituent_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP cached historical DJIA constituent (#1172)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["HistoricalDowjonesConstituent"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_symbol_change_fetcher(credentials=test_credentials):
+    """Test FMP cached symbol-change (#1048)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SymbolChange"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_shares_float_all_fetcher(credentials=test_credentials):
+    """Test FMP cached shares-float-all (#1094)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["SharesFloatAll"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
