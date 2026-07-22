@@ -1,4 +1,5 @@
 """Simple synchronous MySQL database utilities for FMP cached provider."""
+
 # pylint: disable=logging-fstring-interpolation,wrong-import-position,wrong-import-order,import-outside-toplevel
 
 import json
@@ -435,9 +436,7 @@ def replace_rows(
             if rows and columns:
                 col_list = ", ".join(columns)
                 placeholders = ", ".join(["%s"] * len(columns))
-                insert_sql = (
-                    f"INSERT INTO {safe_table} ({col_list}) VALUES ({placeholders})"  # noqa: S608
-                )
+                insert_sql = f"INSERT INTO {safe_table} ({col_list}) VALUES ({placeholders})"  # noqa: S608
                 # Build the parameter tuples in the same column order.
                 # PR #414 code-reviewer P2: explicit columns mean the
                 # caller declared a contract — a missing key is a bug,
