@@ -161,6 +161,14 @@ from openbb_fmp_cached.models.reference_directories import (
     FMPCachedNasdaqConstituentFetcher,
     FMPCachedSp500ConstituentFetcher,
 )
+from openbb_fmp_cached.models.search_endpoints import (
+    FMPCachedSearchCikFetcher,
+    FMPCachedSearchCusipFetcher,
+    FMPCachedSearchExchangeVariantsFetcher,
+    FMPCachedSearchIsinFetcher,
+    FMPCachedSearchNameFetcher,
+    FMPCachedSearchSymbolFetcher,
+)
 from openbb_fmp_cached.models.symbol_lists import (
     FMPCachedActivelyTradingListFetcher,
     FMPCachedCikListFetcher,
@@ -220,6 +228,13 @@ def create_all_cached_fetchers():
         "HistoricalDowjonesConstituent": FMPCachedHistoricalDowjonesConstituentFetcher,
         "SymbolChange": FMPCachedSymbolChangeFetcher,
         "SharesFloatAll": FMPCachedSharesFloatAllFetcher,
+        # W4 Search batch 6: query-parameterized (#1038-#1042 #1044)
+        "SearchSymbol": FMPCachedSearchSymbolFetcher,
+        "SearchName": FMPCachedSearchNameFetcher,
+        "SearchCik": FMPCachedSearchCikFetcher,
+        "SearchCusip": FMPCachedSearchCusipFetcher,
+        "SearchIsin": FMPCachedSearchIsinFetcher,
+        "SearchExchangeVariants": FMPCachedSearchExchangeVariantsFetcher,
     }
 
     # Fetchers that need fallback wrapping
