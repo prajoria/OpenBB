@@ -114,8 +114,8 @@ _UNIT_TESTS_DIR = (
 
 # Ground-truth counts from the manifest header.
 _EXPECTED_MOVE = 24
-_EXPECTED_STAY = 68
-_EXPECTED_TOTAL = 92  # 92 test_*.py files (excludes E0.7 infra); +1 vs
+_EXPECTED_STAY = 69
+_EXPECTED_TOTAL = 93  # 93 test_*.py files (excludes E0.7 infra); +1 vs
 # post-#589 baseline for test_backtest_bridge_integration.py (#585 —
 # end-to-end #590+#589 chain integration test with pytest.importorskip
 # guard; STAYS with the fork-side bridge tests),
@@ -125,8 +125,11 @@ _EXPECTED_TOTAL = 92  # 92 test_*.py files (excludes E0.7 infra); +1 vs
 # openbb-backtest soft-dep bridge; STAYS with the fork-side runtime),
 # +1 vs earlier baseline for test_strategies_router_list.py (#588 —
 # /pine/strategies/catalog endpoint; STAYS with the fork-side router),
-# and +1 vs the pre-#588 baseline for test_executor_strategy_branch.py
-# (bd-liz — executor_shell strategy branch; STAYS with the shell)
+# +1 vs the pre-#588 baseline for test_executor_strategy_branch.py
+# (bd-liz — executor_shell strategy branch; STAYS with the shell),
+# and +1 vs the previous baseline for test_canonical_bars.py (#967 —
+# hybrid-fixture-suite canonical bars serialization; STAYS with the
+# fork-side testing helpers under openbb_pine.testing).
 
 # Fork-side surfaces: any test importing these STAYS. Mirrors the
 # classification grep documented in the manifest, but restricted to
@@ -178,6 +181,13 @@ _MANIFEST_STAY_BY_FIAT = frozenset({
     # import surface). Classifier calls it MOVE; by intent it STAYS
     # with the shell.
     "test_executor_strategy_branch.py",
+    # #967 (hybrid-fixture-suite Session 1): canonical_bars lives at
+    # openbb_pine.testing.canonical_bars — a fork-side test-helpers
+    # subpackage shared by the conformance harness (conftest.py) and
+    # the Tools/pine/capture_bars_provenance.py CLI. Not in the
+    # FORK_SIDE regex; STAYS by fiat with the fork-side testing
+    # helpers.
+    "test_canonical_bars.py",
 })
 
 
