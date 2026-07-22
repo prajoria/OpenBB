@@ -5736,6 +5736,33 @@ def create_analyst_estimates_history_table():
     return True
 
 
+def create_available_directory_tables():
+    """Create the 4 FMP available-* directory tables (W4 / #1052-#1055).
+
+    Each holds a small (<200 row) directory that FMP publishes without
+    parameters: exchanges, sectors, industries, countries. Storage
+    strategy is TRUNCATE + INSERT on every refresh (idempotent, cheap
+    on small tables).
+    """
+    # pylint: disable=import-outside-toplevel,redefined-outer-name
+    from openbb_fmp_cached.utils.database import execute_query
+
+    for table in (
+        "available_exchanges",
+        "available_sectors",
+        "available_industries",
+        "available_countries",
+    ):
+        execute_query(f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            data_json JSON NOT NULL,
+            cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    return True
+
+
 def create_all_flattened_tables():
     """Create all flattened database tables.
 

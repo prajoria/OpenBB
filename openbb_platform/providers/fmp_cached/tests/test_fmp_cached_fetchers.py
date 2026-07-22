@@ -1042,3 +1042,48 @@ def test_fmp_cached_analyst_recommendations_fetcher(credentials=test_credentials
     cls = fmp_cached_provider.fetcher_dict["AnalystRecommendations"]
     fetcher = cls()
     assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+# ---------------------------------------------------------------------------
+# W4 Directory drain — available-* directory endpoints (#1052-#1055)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_cached_available_exchanges_fetcher(credentials=test_credentials):
+    """Test FMP cached available-exchanges directory (#1052)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["AvailableExchanges"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_available_sectors_fetcher(credentials=test_credentials):
+    """Test FMP cached available-sectors directory (#1053)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["AvailableSectors"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_available_industries_fetcher(credentials=test_credentials):
+    """Test FMP cached available-industries directory (#1054)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["AvailableIndustries"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_available_countries_fetcher(credentials=test_credentials):
+    """Test FMP cached available-countries directory (#1055)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["AvailableCountries"]
+    fetcher = cls()
+    assert fetcher.test({}, credentials) is None

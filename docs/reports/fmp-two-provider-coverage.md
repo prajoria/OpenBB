@@ -6,10 +6,10 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **76**
+- `openbb_fmp_cached` registered endpoints: **80**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **1**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **5**
 - Registered in EITHER but lacking a VCR cassette: **14**
 - Plan-limited (see `plan_limited.py`): **11**
 
@@ -20,6 +20,10 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 ## Endpoints in `openbb_fmp_cached` only (native fetchers, no `openbb_fmp` peer)
 
 - `AnalystRecommendations` ✅ cassette
+- `AvailableCountries` ✅ cassette
+- `AvailableExchanges` ✅ cassette
+- `AvailableIndustries` ✅ cassette
+- `AvailableSectors` ✅ cassette
 
 ## Missing cassettes (registered but no fixture — gaps for the coverage test)
 
