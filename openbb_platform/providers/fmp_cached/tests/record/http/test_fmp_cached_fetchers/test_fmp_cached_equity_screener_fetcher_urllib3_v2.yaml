@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/company-screener?apikey=MOCK_API_KEY&includeAllShareClasses=false&isActivelyTrading=true&isEtf=false&isFund=false&limit=5&marketCapMoreThan=1000000000
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA9WVPW/bMBCG9/wKwkOnVCApiqK6CXZiGGiSFnK7FB1ombaFUqRAUW6Nov+9J1uy
+        EX8kzVRYgJb3jkfe++DIbzcI/YYfoUG9KWdWDz6gwePXUTq43am5LStpNo+yVLvQZDRJ0dC6yjrp
+        C2v6xFK6H8oPZQVpEYlDQgkRGL4uXqvcW9fWmKp8Zay2y02/tjDzpvZu00YzVRa5BaFNr/uMmfIS
+        ojSAqp1UuSJvz0RJGESiE7WsfWpMI/WoWBdzZeaQgQPax9dWN9tOhIhijHnS6epXvpJmuesxzUbp
+        ZzTWdiY1ypSGkw+O8rKVdX5vynbBwbHGdL18yfYd1nd+AdJC6lrttftme77nYpr7Yq30ZurkvDBL
+        iHvXKIj+uT0HK00/fbwAK60qrdDE5ME5SCyO4lAQJkjC3wppaE0NPjp015rjrCnyY1QkwEl8hCqk
+        YZD0/M6iglXRMSoiuEhoRK8e1fjpaXwJla5WEpy7TIskYYI55yGLeocOtIa2LBuAsJ1I8MGtwfD6
+        HLmJ8coZ2AgQemU8egdbLqwrnw3zniFlJwxZFMT85XETJwwFZ1Sw65+2FuHFcfsHhpgwDl6EuLf1
+        PzHkAWNvZUjCEEeU9MWuF+JDdj+9wPChyJ2t7cK/9sRRESeUY0qwYOEJy1eeOKj/UzqF3rfcHPjv
+        4LVrnDpBR/rSe3IiDjjGL96h8Bz283lgx4SI4cK/JnY33/8CT3tZRJ4IAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 22 Jul 2026 18:18:14 GMT
+      Etag:
+      - W/"89e-Tp4/aebbOJFTdxqs4B+a5CHUnVI"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

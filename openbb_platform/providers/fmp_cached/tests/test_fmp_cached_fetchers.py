@@ -2114,3 +2114,13 @@ def test_fmp_cached_commitment_of_traders_analysis_fetcher(
     cls = fmp_cached_provider.fetcher_dict["CommitmentOfTradersAnalysis"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_equity_screener_fetcher(credentials=test_credentials):
+    """Test FMP cached EquityScreener (fixture-coverage fill for #955)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["EquityScreener"]
+    fetcher = cls()
+    assert fetcher.test({"mktcap_min": 1_000_000_000, "limit": 5}, credentials) is None
