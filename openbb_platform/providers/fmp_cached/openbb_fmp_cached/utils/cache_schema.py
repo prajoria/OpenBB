@@ -1772,11 +1772,11 @@ def create_equity_historical_table():
     query = """
     CREATE TABLE IF NOT EXISTS equity_historical (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        
+
         -- Core identifier fields (REQUIRED)
         symbol VARCHAR(50) NOT NULL,
         date DATE NOT NULL,
-        
+
         -- Standard OHLCV data (from EquityHistoricalData base model)
         open DECIMAL(15,6) DEFAULT NULL,
         high DECIMAL(15,6) DEFAULT NULL,
@@ -1784,28 +1784,28 @@ def create_equity_historical_table():
         close DECIMAL(15,6) DEFAULT NULL,
         volume BIGINT DEFAULT NULL,
         vwap DECIMAL(15,6) DEFAULT NULL,
-        
+
         -- Dividend data (from FMP /dividends endpoint)
         dividend DECIMAL(15,6) DEFAULT NULL,
-        
+
         -- FMP-specific additional fields (from FMPEquityHistoricalData)
         change_amount DECIMAL(15,6) DEFAULT NULL,
         change_percent DECIMAL(12,6) DEFAULT NULL,
-        
+
         -- Query context fields (for multi-interval and adjustment support)
         interval_type VARCHAR(10) DEFAULT '1d',
         adjustment_type VARCHAR(20) DEFAULT 'splits_only',
-        
+
         -- Gap filling metadata (for holiday/weekend fills)
         is_filled BOOLEAN DEFAULT FALSE,
         fill_source_date DATE DEFAULT NULL,
         fill_type ENUM('previous_close', 'next_open') DEFAULT NULL,
-        
+
         -- Caching metadata
         cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         is_valid BOOLEAN DEFAULT TRUE,
-        
+
         -- Performance indexes
         INDEX idx_symbol (symbol),
         INDEX idx_date (date),
@@ -1814,10 +1814,10 @@ def create_equity_historical_table():
         INDEX idx_interval_adjustment (interval_type, adjustment_type),
         INDEX idx_cached_at (cached_at),
         INDEX idx_is_valid (is_valid),
-        
+
         -- Unique constraint to prevent duplicates
         UNIQUE KEY unique_symbol_date_interval_adjustment (symbol, date, interval_type, adjustment_type)
-        
+
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     return execute_query(query)
@@ -3740,7 +3740,7 @@ def ensure_financial_ratios_unique_index():
     - Other errors: logged at WARNING, flag stays False so a retry can
       happen.
     """
-    global _FR_MIGRATION_RAN
+    global _FR_MIGRATION_RAN  # noqa: PLW0603
     with _FR_MIGRATION_LOCK:
         if _FR_MIGRATION_RAN:
             return
@@ -3856,7 +3856,7 @@ _FR_MIGRATION_LOCK = threading.Lock()
 
 def _reset_fr_migration_flag_for_tests():
     """Test-only helper to reset the ran-once flag between tests."""
-    global _FR_MIGRATION_RAN
+    global _FR_MIGRATION_RAN  # noqa: PLW0603
     with _FR_MIGRATION_LOCK:
         _FR_MIGRATION_RAN = False
 
@@ -5692,7 +5692,6 @@ def create_analyst_grades_table():
     return True
 
 
-
 def create_analyst_estimates_history_table():
     """Create analyst_estimates_history companion table (#998 / #1025).
 
@@ -5728,9 +5727,9 @@ def create_analyst_estimates_history_table():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """
     from openbb_fmp_cached.utils.database import execute_query
+
     execute_query(query)
     return True
-
 
 
 def create_all_flattened_tables():

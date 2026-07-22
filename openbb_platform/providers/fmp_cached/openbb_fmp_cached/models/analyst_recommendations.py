@@ -242,8 +242,16 @@ class FMPCachedAnalystRecommendationsFetcher(
 
 
 async def _fetch_grades_live(symbol: str, api_key: str) -> list[dict]:
-    """Hit ``/stable/grades`` and return the raw list."""
+    """Hit ``/stable/grades`` and return the raw list.
+
+    Uses ``raise_for_status_redacted`` (bd-6641 / bd-q4b4 / bd-ygtq)
+    to scrub ``apikey=<value>`` from any HTTPError message before it
+    can propagate to logs or HTTP clients. FMP requires the key in
+    the querystring but it must never appear in an exception.
+    """
     import httpx
+
+    from openbb_fmp_cached.utils.security import raise_for_status_redacted
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
@@ -253,11 +261,11 @@ async def _fetch_grades_live(symbol: str, api_key: str) -> list[dict]:
         # FMP returns 404 with [] body for unknown symbols; return [] so
         # transform_data can build the loud-empty row.
         return []
-    resp.raise_for_status()
+    raise_for_status_redacted(resp)
     payload = resp.json()
     if not isinstance(payload, list):
         raise RuntimeError(
-            f"AnalystRecommendations: unexpected response shape from FMP: "
+            "AnalystRecommendations: unexpected response shape from FMP: "
             f"{type(payload).__name__}"
         )
     return payload

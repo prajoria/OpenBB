@@ -744,12 +744,17 @@ def equity_analyst_forecasts(
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("analyst-forecasts: recommendations fetch failed: %s", exc)
+        # Never echo raw exception text to HTTP clients — exception
+        # messages can carry credential fragments (e.g. an httpx error
+        # embedding the request URL with apikey=... in the query
+        # string). Return a static note; operators find the detail in
+        # server logs via the WARN line above.
         rows.extend(
             [
                 {
                     "metric": "Rating: Strong Buy / Buy",
                     "value": "n/a",
-                    "note": f"fetch failed: {exc}",
+                    "note": "fetch failed (see server logs)",
                 },
                 {
                     "metric": "Rating: Hold / Sell / Strong Sell",
@@ -825,11 +830,13 @@ def equity_analyst_forecasts(
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning("analyst-forecasts: history lookup failed: %s", exc)
+        # Don't echo raw exception to HTTP client — see rating-fetch
+        # rationale above. Detail is in the WARN log.
         rows.append(
             {
                 "metric": "Historical rev estimate",
                 "value": "n/a",
-                "note": f"lookup failed: {exc}",
+                "note": "lookup failed (see server logs)",
             }
         )
     return rows
