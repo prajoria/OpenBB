@@ -1623,3 +1623,123 @@ def test_fmp_cached_all_exchange_market_hours_fetcher(credentials=test_credentia
     cls = fmp_cached_provider.fetcher_dict["AllExchangeMarketHours"]
     fetcher = cls()
     assert fetcher.test({}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_key_metrics_ttm_fetcher(credentials=test_credentials):
+    """Test FMP cached key-metrics-ttm (#1132)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["KeyMetricsTtm"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_ratios_ttm_fetcher(credentials=test_credentials):
+    """Test FMP cached ratios-ttm (#1133)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["RatiosTtm"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_financial_scores_fetcher(credentials=test_credentials):
+    """Test FMP cached financial-scores (#1134)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FinancialScores"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_owner_earnings_fetcher(credentials=test_credentials):
+    """Test FMP cached owner-earnings (#1135)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["OwnerEarnings"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_enterprise_values_fetcher(credentials=test_credentials):
+    """Test FMP cached enterprise-values (#1136)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["EnterpriseValues"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_financial_growth_fetcher(credentials=test_credentials):
+    """Test FMP cached financial-growth (#1140)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FinancialGrowth"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_financial_reports_dates_fetcher(credentials=test_credentials):
+    """Test FMP cached financial-reports-dates (#1141)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["FinancialReportsDates"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_dcf_fetcher(credentials=test_credentials):
+    """Test FMP cached discounted-cash-flow (#1103)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["DiscountedCashFlow"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_levered_dcf_fetcher(credentials=test_credentials):
+    """Test FMP cached levered-discounted-cash-flow (#1104)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["LeveredDiscountedCashFlow"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_custom_dcf_fetcher(credentials=test_credentials):
+    """Test FMP cached custom-discounted-cash-flow (#1105)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CustomDiscountedCashFlow"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_custom_levered_dcf_fetcher(credentials=test_credentials):
+    """Test FMP cached custom-levered-discounted-cash-flow (#1106)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["CustomLeveredDiscountedCashFlow"]
+    fetcher = cls()
+    assert fetcher.test({"symbol": "AAPL"}, credentials) is None
+
+
+@pytest.mark.record_http
+def test_fmp_cached_profile_cik_fetcher(credentials=test_credentials):
+    """Test FMP cached profile-cik (#1084)."""
+    from openbb_fmp_cached import fmp_cached_provider
+
+    cls = fmp_cached_provider.fetcher_dict["ProfileCik"]
+    fetcher = cls()
+    assert fetcher.test({"cik": "320193"}, credentials) is None

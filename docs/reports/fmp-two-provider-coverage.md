@@ -6,11 +6,11 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **133**
+- `openbb_fmp_cached` registered endpoints: **145**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **58**
-- Registered in EITHER but lacking a VCR cassette: **18**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **70**
+- Registered in EITHER but lacking a VCR cassette: **22**
 - Plan-limited (see `plan_limited.py`): **19**
 
 ## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)
@@ -35,9 +35,16 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `CommoditiesList` ✅ cassette
 - `CompanyNotes` ✅ cassette
 - `CryptocurrencyList` ✅ cassette
+- `CustomDiscountedCashFlow` ⚠ no cassette
+- `CustomLeveredDiscountedCashFlow` ⚠ no cassette
+- `DiscountedCashFlow` ⚠ no cassette
 - `DowjonesConstituent` ✅ cassette
+- `EnterpriseValues` ✅ cassette
 - `EtfList` ✅ cassette
 - `ExecutiveCompensationBenchmark` ✅ cassette
+- `FinancialGrowth` ✅ cassette
+- `FinancialReportsDates` ✅ cassette
+- `FinancialScores` ✅ cassette
 - `FinancialStatementSymbolList` ✅ cassette
 - `ForexList` ✅ cassette
 - `Grades` ✅ cassette
@@ -54,13 +61,18 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `IndexList` ✅ cassette
 - `IndustryPeSnapshot` ✅ cassette
 - `IndustryPerformanceSnapshot` ⚠ no cassette
+- `KeyMetricsTtm` ✅ cassette
+- `LeveredDiscountedCashFlow` ⚠ no cassette
 - `MarketCap` ✅ cassette
 - `MarketCapBatch` ✅ cassette
 - `MarketRiskPremium` ✅ cassette
 - `NasdaqConstituent` ✅ cassette
+- `OwnerEarnings` ✅ cassette
 - `PriceTargetSummary` ✅ cassette
+- `ProfileCik` ✅ cassette
 - `RatingsHistorical` ✅ cassette
 - `RatingsSnapshot` ✅ cassette
+- `RatiosTtm` ✅ cassette
 - `SearchCik` ✅ cassette
 - `SearchCusip` ✅ cassette
 - `SearchExchangeVariants` ✅ cassette
@@ -82,6 +94,9 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 
 - `CryptoSearch` — plan-limited, both
 - `CurrencySnapshots` — plan-limited, both
+- `CustomDiscountedCashFlow` — cached-only
+- `CustomLeveredDiscountedCashFlow` — cached-only
+- `DiscountedCashFlow` — cached-only
 - `EarningsCallTranscript` — plan-limited, both
 - `EquityActive` — plan-limited, both
 - `EquityOwnership` — plan-limited, both
@@ -94,6 +109,7 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `IndexConstituents` — plan-limited, both
 - `IndustryPerformanceSnapshot` — cached-only
 - `InstitutionalOwnership` — plan-limited, both
+- `LeveredDiscountedCashFlow` — cached-only
 - `MarketSnapshots` — plan-limited, both
 - `NportDisclosure` — both
 - `PricePerformance` — both
