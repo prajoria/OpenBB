@@ -6,11 +6,11 @@
 ## Summary
 
 - `openbb_fmp` registered endpoints: **75**
-- `openbb_fmp_cached` registered endpoints: **151**
+- `openbb_fmp_cached` registered endpoints: **181**
 - Registered in both: **75**
 - Registered in `openbb_fmp` only (downstream wave candidates): **0**
-- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **76**
-- Registered in EITHER but lacking a VCR cassette: **25**
+- Registered in `openbb_fmp_cached` only (native, no upstream wrap): **106**
+- Registered in EITHER but lacking a VCR cassette: **26**
 - Plan-limited (see `plan_limited.py`): **53**
 
 ## Endpoints in `openbb_fmp` only (candidates for downstream wave wrappers)
@@ -19,8 +19,10 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 
 ## Endpoints in `openbb_fmp_cached` only (native fetchers, no `openbb_fmp` peer)
 
+- `AcquisitionOfBeneficialOwnership` ✅ cassette
 - `ActivelyTradingList` ✅ cassette
 - `AllExchangeMarketHours` ✅ cassette
+- `AllIndustryClassification` ✅ cassette
 - `AnalystRecommendations` ✅ cassette
 - `AvailableCountries` ✅ cassette
 - `AvailableExchanges` ✅ cassette
@@ -33,12 +35,18 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `BatchQuoteShort` ✅ cassette
 - `CashFlowStatementAsReported` ⚠ no cassette
 - `CikList` ✅ cassette
+- `CommitmentOfTradersAnalysis` ✅ cassette
 - `CommitmentOfTradersList` ✅ cassette
+- `CommitmentOfTradersReport` ✅ cassette
 - `CommoditiesList` ✅ cassette
 - `CompanyNotes` ✅ cassette
+- `CrowdfundingOfferings` ✅ cassette
+- `CrowdfundingOfferingsLatest` ✅ cassette
+- `CrowdfundingOfferingsSearch` ✅ cassette
 - `CryptocurrencyList` ✅ cassette
 - `CustomDiscountedCashFlow` ⚠ no cassette
 - `CustomLeveredDiscountedCashFlow` ⚠ no cassette
+- `DelistedCompanies` ✅ cassette
 - `DiscountedCashFlow` ⚠ no cassette
 - `DowjonesConstituent` ✅ cassette
 - `EconomicIndicators` ✅ cassette
@@ -51,7 +59,11 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `FinancialScores` ✅ cassette
 - `FinancialStatementFullAsReported` ⚠ no cassette
 - `FinancialStatementSymbolList` ✅ cassette
+- `FmpArticles` ✅ cassette
 - `ForexList` ✅ cassette
+- `Fundraising` ✅ cassette
+- `FundraisingLatest` ✅ cassette
+- `FundraisingSearch` ✅ cassette
 - `Grades` ✅ cassette
 - `GradesConsensus` ✅ cassette
 - `GradesHistorical` ✅ cassette
@@ -63,16 +75,26 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `HistoricalSectorPerformance` ⚠ no cassette
 - `HistoricalSp500Constituent` ✅ cassette
 - `HolidaysByExchange` ✅ cassette
+- `HouseLatest` ✅ cassette
 - `IncomeStatementAsReported` ✅ cassette
 - `IndexList` ✅ cassette
+- `IndustryClassificationSearch` ✅ cassette
 - `IndustryPeSnapshot` ✅ cassette
 - `IndustryPerformanceSnapshot` ⚠ no cassette
+- `IposDisclosure` ✅ cassette
+- `IposProspectus` ✅ cassette
 - `KeyMetricsTtm` ✅ cassette
 - `LeveredDiscountedCashFlow` ⚠ no cassette
 - `MarketCap` ✅ cassette
 - `MarketCapBatch` ✅ cassette
 - `MarketRiskPremium` ✅ cassette
+- `MergersAcquisitionsLatest` ✅ cassette
+- `MergersAcquisitionsSearch` ✅ cassette
 - `NasdaqConstituent` ✅ cassette
+- `NewsCrypto` ✅ cassette
+- `NewsCryptoLatest` ✅ cassette
+- `NewsForex` ✅ cassette
+- `NewsForexLatest` ✅ cassette
 - `OwnerEarnings` ✅ cassette
 - `PriceTargetSummary` ✅ cassette
 - `ProfileCik` ✅ cassette
@@ -85,11 +107,19 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `SearchIsin` ✅ cassette
 - `SearchName` ✅ cassette
 - `SearchSymbol` ✅ cassette
+- `SecFilings8K` ⚠ no cassette
+- `SecProfile` ✅ cassette
 - `SectorPeSnapshot` ✅ cassette
 - `SectorPerformanceSnapshot` ⚠ no cassette
+- `SenateLatest` ✅ cassette
+- `SenateNetWorth` ✅ cassette
+- `SenateNetWorthAggregated` ✅ cassette
+- `SenatePositions` ✅ cassette
+- `SenateProfile` ✅ cassette
 - `SharesFloat` ✅ cassette
 - `SharesFloatAll` ✅ cassette
 - `Sp500Constituent` ✅ cassette
+- `StandardIndustrialClassificationList` ✅ cassette
 - `StockList` ✅ cassette
 - `StockPriceChange` ✅ cassette
 - `StockQuote` ✅ cassette
@@ -122,6 +152,7 @@ _(none — every fmp fetcher has an fmp_cached wrapper)_
 - `MarketSnapshots` — plan-limited, both
 - `NportDisclosure` — both
 - `PricePerformance` — both
+- `SecFilings8K` — cached-only
 - `SectorPerformanceSnapshot` — cached-only
 
 ## Plan-limited endpoints (permanent — do NOT try to record)

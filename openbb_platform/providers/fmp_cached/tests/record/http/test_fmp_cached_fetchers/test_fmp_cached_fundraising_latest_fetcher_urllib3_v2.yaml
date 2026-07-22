@@ -1,0 +1,94 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/fundraising-latest?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 16:15:28 GMT
+      etag:
+      - W/"435a-nwg78iWwUhuNGGeJeg04xQh/J0Q"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

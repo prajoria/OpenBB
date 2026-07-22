@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      host:
+      - financialmodelingprep.com
+    method: GET
+    uri: https://financialmodelingprep.com/stable/senate-net-worth-aggregated?apikey=MOCK_API_KEY&senateID=A000360
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA72W32vbMBDH3/tXhDyXoZNsSe5b2VIoFPbQvY09uInWmDl25x8ZZex/350S2bEt
+        u8xJVwgF6Xz66j76nvT1arH4jb/FYlmaLK7M/aflzWJ5yxgTki2vD1OvJi5wmDPOjiNVXsUpDoHg
+        oEMIP4THibzamuIhiZ+SNKkSU2KMCjEbHOcLs8/TfZI932abj4XZJNVDktkwUDxkvAmL01VZoaBu
+        LsHsX7PcU13S5yVmezTp99XuJc1fdyarMNZpXcflllbDf6ufdbKPU5ynZFKHqE045b8yU5Tb5OU+
+        q0xhSkqhpETpzWq7uqrj9K7ONrTg6ssdZeEcdTdZyipf/8DRyOpsP/1MdaE1D9Voxp/zvSkyUvxo
+        1nXh9hkJDNNNVFsOnAuAkWyc+XP9b/gg6uNjmsl22ANPWL0nQsbwCaqCR/A78hMacE3enr3ZBEmT
+        aIIuxNBiAjaoyHkIdQ8hJ4Rh4PzlQUhFYifOGiM4VNrNIw/luAQ5pQnLFDfQGqkEU9iEoCK6ejho
+        ENntui8dMxB22Nl0BBk2M9k2uQ4yhVVmTM5Bpvqu0wEKD9oDNL9pvsnM5nHsz2Om6CBNes0ym7Ra
+        wAS0nmiYSQun7zPgVv1bzITCiwkGhbDGDq1P50CTfZ+BjhQT7rh5kEUXstnlkGl5WlYfMg1kRLdX
+        f3fUlKRvMwLtRcZOqzDWGZWG9tbpILPNCuYAc1IcMBmKMGwwvp/FcCe8cw2dhUz1kvmgBUyL1hZe
+        aGB74+BCi7rJmwut09lHoGlqrGpQDFfIeS5zbdpBC9BmbcM85z3yf7EB0FMSJrEJDGpfuH6vETUm
+        By8RdbjCB+CcrjFkCr9S/lckI1xX3/4CFvbIYQEMAAA=
+    headers:
+      access-control-allow-credentials:
+      - 'true'
+      access-control-allow-headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      access-control-allow-methods:
+      - GET, POST, DELETE, OPTIONS
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - Mcp-Session-Id
+      access-control-max-age:
+      - '3600'
+      connection:
+      - keep-alive
+      content-encoding:
+      - gzip
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 22 Jul 2026 16:14:17 GMT
+      etag:
+      - W/"c01-vu+ZUE8R9CTC7c+NjgzQOpcXxZk"
+      server:
+      - nginx
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
