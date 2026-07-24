@@ -1,0 +1,137 @@
+name: 🔍 scrape_record drift check
+
+# Nightly runs `scrape-record verify` against every checked-in snapshot
+# under openbb_platform/tools/scrape_record/snapshots/. Detects
+# extractor drift — e.g. a fetcher change or upstream provider schema
+# change that breaks round-trip on old snapshots.
+#
+# Non-blocking by design: drift is a signal (posts a comment on
+# sub-epic #1374), not a regression. Snapshots are refreshed by
+# operators running `scripts/record_universe_snapshots.py`, not by CI.
+
+on:
+  schedule:
+    # Nightly at 03:07 UTC (off the :00 tick to avoid GitHub Actions rush)
+    - cron: "7 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "openbb_platform/tools/scrape_record/**"
+      - ".github/workflows/scrape-record-drift-check.yml"
+
+env:
+  PIP_DEFAULT_TIMEOUT: 100
+  SUB_EPIC_ISSUE: 1374
+
+jobs:
+  drift-check:
+    name: verify every snapshot
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write  # only used to post drift comment on sub-epic #1374
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install scrape_record (+ deps needed for extractors)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e openbb_platform/tools/scrape_record
+
+      - name: Discover snapshots
+        id: discover
+        run: |
+          # List every (recording_name, symbol) pair from the snapshots dir
+          SNAPSHOT_ROOT=openbb_platform/tools/scrape_record/snapshots
+          if [ ! -d "$SNAPSHOT_ROOT" ]; then
+            echo "No snapshots directory — nothing to verify."
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          count=0
+          for f in $(find "$SNAPSHOT_ROOT" -name '*.json' -type f | sort); do
+            count=$((count + 1))
+          done
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Found $count snapshot(s) to verify."
+
+      - name: Verify every snapshot
+        id: verify
+        run: |
+          SNAPSHOT_ROOT=openbb_platform/tools/scrape_record/snapshots
+          drift_report=""
+          drift_count=0
+          ok_count=0
+          for f in $(find "$SNAPSHOT_ROOT" -name '*.json' -type f | sort); do
+            # Path: .../<recording_name>/<SYMBOL>.json
+            recording=$(basename "$(dirname "$f")")
+            symbol=$(basename "$f" .json)
+            if python -m scrape_record.cli verify "$recording" --symbol "$symbol" >/dev/null 2>&1; then
+              ok_count=$((ok_count + 1))
+            else
+              drift_count=$((drift_count + 1))
+              # Capture stderr for the report
+              err=$(python -m scrape_record.cli verify "$recording" --symbol "$symbol" 2>&1 | tail -3 | tr '\n' ' ')
+              drift_report="${drift_report}- \`${recording}/${symbol}\`: ${err}\n"
+              echo "DRIFT: $recording/$symbol"
+            fi
+          done
+          echo "ok_count=$ok_count" >> "$GITHUB_OUTPUT"
+          echo "drift_count=$drift_count" >> "$GITHUB_OUTPUT"
+          {
+            echo "drift_report<<EOF"
+            printf "%b" "$drift_report"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "Summary: $ok_count ok, $drift_count drift"
+
+      - name: Post drift comment on sub-epic
+        if: steps.verify.outputs.drift_count != '0' && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > /tmp/drift-comment.md <<'EOF'
+          ## Drift check — ${{ steps.verify.outputs.drift_count }} snapshot(s) failed verify
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Extractor round-trip failed on:
+
+          ${{ steps.verify.outputs.drift_report }}
+
+          **This is a signal, not a regression.** Snapshots may have
+          drifted from their extractor because:
+          - Upstream provider schema changed
+          - Extractor was updated but old snapshots weren't re-recorded
+          - Snapshot file was hand-edited
+
+          To refresh: `python scripts/record_universe_snapshots.py --only <TICKER1>,<TICKER2>`
+          EOF
+          gh issue comment "$SUB_EPIC_ISSUE" \
+            --repo "${{ github.repository }}" \
+            --body-file /tmp/drift-comment.md
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Drift check summary"
+            echo ""
+            echo "- snapshots verified: ${{ steps.verify.outputs.ok_count }}"
+            echo "- drift detected: ${{ steps.verify.outputs.drift_count }}"
+            echo ""
+            if [ "${{ steps.verify.outputs.drift_count }}" != "0" ]; then
+              echo "### Drift details"
+              echo ""
+              printf "%b" "${{ steps.verify.outputs.drift_report }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
