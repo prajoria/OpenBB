@@ -33,6 +33,15 @@ from openbb_yfinance.models.options_chains import YFinanceOptionsChainsFetcher
 from openbb_yfinance.models.price_target_consensus import (
     YFinancePriceTargetConsensusFetcher,
 )
+from openbb_yfinance.models.recorded_equity_info import (
+    YFinanceEquityInfoRecordedFetcher,
+)
+from openbb_yfinance.models.recorded_equity_quote import (
+    YFinanceEquityQuoteRecordedFetcher,
+)
+from openbb_yfinance.models.recorded_etf_holdings import (
+    YFinanceEtfHoldingsRecordedFetcher,
+)
 from openbb_yfinance.models.recorded_options import (
     YFinanceAtmIvTermStructureFetcher,
     YFinanceRecordedOptionsChainsFetcher,
@@ -82,6 +91,10 @@ financial markets and assets.""",
         "AtmIvTermStructure": YFinanceAtmIvTermStructureFetcher,
         # Offline snapshot-backed bond-ETF holdings (#1000, via scrape_record)
         "BondLadder": YFinanceBondLadderFetcher,
+        # Offline snapshot-backed equity/ETF endpoints (sub-epic #1374, unblocks #1373)
+        "EquityQuoteRecorded": YFinanceEquityQuoteRecordedFetcher,
+        "EquityInfoRecorded": YFinanceEquityInfoRecordedFetcher,
+        "EtfHoldingsRecorded": YFinanceEtfHoldingsRecordedFetcher,
         "PriceTargetConsensus": YFinancePriceTargetConsensusFetcher,
         "ShareStatistics": YFinanceShareStatisticsFetcher,
     },

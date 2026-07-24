@@ -1,0 +1,60 @@
+{
+  "name": "yahoo_etf_holdings",
+  "symbol": "QQQ",
+  "captured_at": "2026-07-24T12:00:00+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/QQQ?modules=topHoldings,fundOwnership,sectorWeightings",
+  "raw": {
+    "captured_at": "2026-07-24T12:00:00+00:00",
+    "symbol": "QQQ",
+    "quoteSummary": {
+      "result": [
+        {
+          "price": {
+            "symbol": "QQQ",
+            "longName": "Invesco QQQ Trust",
+            "shortName": "Invesco QQQ Trust, Series 1"
+          },
+          "topHoldings": {
+            "holdings": [
+              {"symbol": "AAPL",  "holdingName": "Apple Inc",           "holdingPercent": {"raw": 0.089, "fmt": "8.90%"}},
+              {"symbol": "MSFT",  "holdingName": "Microsoft Corp",       "holdingPercent": {"raw": 0.083, "fmt": "8.30%"}},
+              {"symbol": "NVDA",  "holdingName": "NVIDIA Corp",          "holdingPercent": {"raw": 0.078, "fmt": "7.80%"}},
+              {"symbol": "AMZN",  "holdingName": "Amazon.com Inc",       "holdingPercent": {"raw": 0.052, "fmt": "5.20%"}},
+              {"symbol": "GOOGL", "holdingName": "Alphabet Inc Class A", "holdingPercent": {"raw": 0.028, "fmt": "2.80%"}}
+            ],
+            "sectorWeightings": [
+              {"technology":         {"raw": 0.51, "fmt": "51.00%"}},
+              {"consumer_cyclical":  {"raw": 0.18, "fmt": "18.00%"}},
+              {"communication":      {"raw": 0.14, "fmt": "14.00%"}},
+              {"healthcare":         {"raw": 0.06, "fmt": "6.00%"}},
+              {"industrials":        {"raw": 0.04, "fmt": "4.00%"}},
+              {"other":              {"raw": 0.07, "fmt": "7.00%"}}
+            ]
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "etf_symbol": "QQQ",
+    "etf_name": "Invesco QQQ Trust",
+    "holdings": [
+      {"symbol": "AAPL",  "name": "Apple Inc",           "weight": 0.089},
+      {"symbol": "MSFT",  "name": "Microsoft Corp",       "weight": 0.083},
+      {"symbol": "NVDA",  "name": "NVIDIA Corp",          "weight": 0.078},
+      {"symbol": "AMZN",  "name": "Amazon.com Inc",       "weight": 0.052},
+      {"symbol": "GOOGL", "name": "Alphabet Inc Class A", "weight": 0.028}
+    ],
+    "sector_weights": {
+      "technology": 0.51,
+      "consumer_cyclical": 0.18,
+      "communication": 0.14,
+      "healthcare": 0.06,
+      "industrials": 0.04,
+      "other": 0.07
+    },
+    "captured_at": "2026-07-24T12:00:00+00:00"
+  },
+  "extractor_version": "1"
+}
