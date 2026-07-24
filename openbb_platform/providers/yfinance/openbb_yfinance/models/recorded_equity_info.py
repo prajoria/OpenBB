@@ -93,6 +93,7 @@ class YFinanceEquityInfoRecordedFetcher(
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> _SymbolQueryParams:
+        """Coerce raw params dict into typed symbol query object."""
         return _SymbolQueryParams(**params)
 
     @staticmethod
@@ -101,12 +102,14 @@ class YFinanceEquityInfoRecordedFetcher(
         credentials: dict[str, str] | None,
         **kwargs: Any,
     ) -> dict:
+        """Load extracted company-profile snapshot (offline)."""
         return _load_extracted(query.symbol.upper())
 
     @staticmethod
     def transform_data(
         query: _SymbolQueryParams, data: dict, **kwargs: Any
     ) -> YFinanceEquityInfoRecordedData:
+        """Coerce extracted dict into typed company-profile row."""
         return YFinanceEquityInfoRecordedData(
             symbol=data.get("symbol") or query.symbol.upper(),
             name=data.get("name"),

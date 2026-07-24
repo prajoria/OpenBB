@@ -67,6 +67,7 @@ class YFinanceEtfHoldingsRecordedFetcher(
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> _EtfSymbolQueryParams:
+        """Coerce raw params dict into typed ETF-symbol query object."""
         return _EtfSymbolQueryParams(**params)
 
     @staticmethod
@@ -75,6 +76,7 @@ class YFinanceEtfHoldingsRecordedFetcher(
         credentials: dict[str, str] | None,
         **kwargs: Any,
     ) -> dict:
+        """Load extracted ETF-holdings snapshot (offline)."""
         try:
             from scrape_record.config import load_config
             from scrape_record.record import load_snapshot
@@ -104,6 +106,7 @@ class YFinanceEtfHoldingsRecordedFetcher(
     def transform_data(
         query: _EtfSymbolQueryParams, data: dict, **kwargs: Any
     ) -> list[YFinanceEtfHoldingRecordedData]:
+        """Coerce extracted dict into a typed list of ETF-holding rows."""
         holdings = data.get("holdings") or []
         return [
             YFinanceEtfHoldingRecordedData(

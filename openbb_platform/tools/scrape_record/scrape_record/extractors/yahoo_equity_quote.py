@@ -59,7 +59,6 @@ def extract(raw: dict) -> dict:
     node = result[0]
     price = node.get("price") or {}
     summary = node.get("summaryDetail") or {}
-    stats = node.get("defaultKeyStatistics") or {}
 
     symbol = price.get("symbol") or raw.get("symbol")
     return {
