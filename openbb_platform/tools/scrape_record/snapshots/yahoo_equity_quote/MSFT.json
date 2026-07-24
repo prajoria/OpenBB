@@ -1,0 +1,49 @@
+{
+  "name": "yahoo_equity_quote",
+  "symbol": "MSFT",
+  "captured_at": "2026-07-24T12:00:00+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/MSFT?modules=summaryDetail,price,defaultKeyStatistics",
+  "raw": {
+    "captured_at": "2026-07-24T12:00:00+00:00",
+    "symbol": "MSFT",
+    "quoteSummary": {
+      "result": [
+        {
+          "price": {
+            "symbol": "MSFT",
+            "longName": "Microsoft Corporation",
+            "shortName": "Microsoft",
+            "exchangeName": "NMS",
+            "currency": "USD",
+            "regularMarketPrice": {"raw": 450.12, "fmt": "450.12"},
+            "marketCap": {"raw": 3350000000000, "fmt": "3.35T"}
+          },
+          "summaryDetail": {
+            "previousClose": {"raw": 448.20, "fmt": "448.20"},
+            "open": {"raw": 449.00, "fmt": "449.00"},
+            "dayHigh": {"raw": 451.50, "fmt": "451.50"},
+            "dayLow": {"raw": 447.80, "fmt": "447.80"},
+            "volume": {"raw": 12345678, "fmt": "12.35M"}
+          },
+          "defaultKeyStatistics": {}
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "symbol": "MSFT",
+    "name": "Microsoft Corporation",
+    "exchange": "NMS",
+    "currency": "USD",
+    "last_price": 450.12,
+    "previous_close": 448.20,
+    "open": 449.00,
+    "high": 451.50,
+    "low": 447.80,
+    "volume": 12345678,
+    "market_cap": 3350000000000,
+    "captured_at": "2026-07-24T12:00:00+00:00"
+  },
+  "extractor_version": "1"
+}

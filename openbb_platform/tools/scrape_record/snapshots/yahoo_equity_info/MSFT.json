@@ -1,0 +1,43 @@
+{
+  "name": "yahoo_equity_info",
+  "symbol": "MSFT",
+  "captured_at": "2026-07-24T12:00:00+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/MSFT?modules=summaryProfile,assetProfile,secFilings",
+  "raw": {
+    "captured_at": "2026-07-24T12:00:00+00:00",
+    "symbol": "MSFT",
+    "quoteSummary": {
+      "result": [
+        {
+          "price": {
+            "symbol": "MSFT",
+            "longName": "Microsoft Corporation",
+            "shortName": "Microsoft"
+          },
+          "summaryProfile": {
+            "sector": "Technology",
+            "industry": "Software - Infrastructure",
+            "country": "United States",
+            "website": "https://www.microsoft.com",
+            "longBusinessSummary": "Microsoft Corporation develops, manufactures, licenses, supports, and sells computer software, consumer electronics, personal computers, and services.",
+            "fullTimeEmployees": {"raw": 221000, "fmt": "221k"}
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "symbol": "MSFT",
+    "name": "Microsoft Corporation",
+    "short_name": "Microsoft",
+    "sector": "Technology",
+    "industry": "Software - Infrastructure",
+    "country": "United States",
+    "website": "https://www.microsoft.com",
+    "long_business_summary": "Microsoft Corporation develops, manufactures, licenses, supports, and sells computer software, consumer electronics, personal computers, and services.",
+    "full_time_employees": 221000,
+    "captured_at": "2026-07-24T12:00:00+00:00"
+  },
+  "extractor_version": "1"
+}
