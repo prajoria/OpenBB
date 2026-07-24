@@ -1,0 +1,161 @@
+name: 🔍 scrape_record drift check
+
+# Nightly runs `scrape-record verify` against every checked-in snapshot
+# under openbb_platform/tools/scrape_record/snapshots/. Detects
+# extractor drift — e.g. a fetcher change or upstream provider schema
+# change that breaks round-trip on old snapshots.
+#
+# Non-blocking by design: drift is a signal (posts a comment on
+# sub-epic #1374 on scheduled runs), not a regression. Snapshots are
+# refreshed by operators running `scripts/record_universe_snapshots.py`,
+# not by CI.
+#
+# Security posture (per PR #1383 security review):
+#
+# - No `pull_request` trigger. Untrusted PR code cannot run under this
+#   workflow. Nightly `schedule` + operator-run `workflow_dispatch` only.
+# - Step outputs derived from repo content (snapshot filenames, extractor
+#   stderr) are passed to `run:` scripts via `env:` mapping — never
+#   `${{ }}` interpolated into shell — to defuse Actions script-injection
+#   even if a snapshot filename contained shell metacharacters.
+# - Snapshot filenames are validated against `^[A-Za-z0-9._\-^=]+$`
+#   (same allowlist as scrape_record.config._validate_snapshot_component)
+#   before being written to the drift report.
+
+on:
+  schedule:
+    # Nightly at 03:07 UTC (off the :00 tick to avoid Actions rush)
+    - cron: "7 3 * * *"
+  workflow_dispatch:
+
+env:
+  PIP_DEFAULT_TIMEOUT: 100
+  SUB_EPIC_ISSUE: 1374
+
+jobs:
+  drift-check:
+    name: verify every snapshot
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write  # only used to post drift comment on sub-epic #1374
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install scrape_record (+ deps needed for extractors)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e openbb_platform/tools/scrape_record
+
+      - name: Verify every snapshot
+        id: verify
+        env:
+          SNAPSHOT_ROOT: openbb_platform/tools/scrape_record/snapshots
+        run: |
+          set -euo pipefail
+          if [ ! -d "$SNAPSHOT_ROOT" ]; then
+            echo "No snapshots directory — nothing to verify."
+            {
+              echo "ok_count=0"
+              echo "drift_count=0"
+              echo "drift_report="
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          drift_report=""
+          drift_count=0
+          ok_count=0
+          # Allowlist: same as scrape_record.config._validate_snapshot_component.
+          # Anything else in a filename would be rejected by the CLI too,
+          # but we defense-in-depth against putting shell-unsafe strings
+          # into GITHUB_OUTPUT (script-injection defense).
+          SAFE_RE='^[A-Za-z0-9._^=-]+$'
+          while IFS= read -r -d '' f; do
+            recording=$(basename "$(dirname "$f")")
+            symbol=$(basename "$f" .json)
+            if ! [[ "$recording" =~ $SAFE_RE ]] || ! [[ "$symbol" =~ $SAFE_RE ]]; then
+              echo "SKIP (unsafe filename): $f"
+              continue
+            fi
+            if python -m scrape_record.cli verify "$recording" --symbol "$symbol" >/dev/null 2>&1; then
+              ok_count=$((ok_count + 1))
+            else
+              drift_count=$((drift_count + 1))
+              # Capture stderr, strip ANSI + control chars, cap length —
+              # the string reaches an issue comment / job summary.
+              err=$(python -m scrape_record.cli verify "$recording" --symbol "$symbol" 2>&1 \
+                    | tail -3 | tr '\n' ' ' | tr -d '\r' \
+                    | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/[^[:print:] ]//g' \
+                    | cut -c1-300)
+              drift_report="${drift_report}- \`${recording}/${symbol}\`: ${err}"$'\n'
+              echo "DRIFT: $recording/$symbol"
+            fi
+          done < <(find "$SNAPSHOT_ROOT" -name '*.json' -type f -print0 | sort -z)
+          echo "ok_count=$ok_count" >> "$GITHUB_OUTPUT"
+          echo "drift_count=$drift_count" >> "$GITHUB_OUTPUT"
+          {
+            echo "drift_report<<EOF_DRIFT"
+            printf '%s' "$drift_report"
+            echo ""
+            echo "EOF_DRIFT"
+          } >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "Summary: $ok_count ok, $drift_count drift"
+
+      - name: Post drift comment on sub-epic
+        if: steps.verify.outputs.drift_count != '0' && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Interpolate outputs via ENV (never inline ${{ }} in run: scripts)
+          # to defuse Actions script-injection.
+          DRIFT_REPORT: ${{ steps.verify.outputs.drift_report }}
+          DRIFT_COUNT: ${{ steps.verify.outputs.drift_count }}
+          REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          run_url="${SERVER_URL}/${REPO}/actions/runs/${RUN_ID}"
+          {
+            printf '## Drift check — %s snapshot(s) failed verify\n\n' "$DRIFT_COUNT"
+            printf 'Run: %s\n\n' "$run_url"
+            printf 'Extractor round-trip failed on:\n\n'
+            printf '%s\n' "$DRIFT_REPORT"
+            printf '\n**This is a signal, not a regression.**\n\n'
+            printf 'Snapshots may drift because upstream provider schema changed,\n'
+            printf 'the extractor was updated but old snapshots were not re-recorded,\n'
+            printf 'or a snapshot was hand-edited.\n\n'
+            printf 'To refresh: `python scripts/record_universe_snapshots.py --only <TICKER1>,<TICKER2>`\n'
+          } > /tmp/drift-comment.md
+          gh issue comment "$SUB_EPIC_ISSUE" \
+            --repo "$REPO" \
+            --body-file /tmp/drift-comment.md
+
+      - name: Job summary
+        if: always()
+        env:
+          DRIFT_REPORT: ${{ steps.verify.outputs.drift_report }}
+          OK_COUNT: ${{ steps.verify.outputs.ok_count }}
+          DRIFT_COUNT: ${{ steps.verify.outputs.drift_count }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Drift check summary"
+            echo ""
+            echo "- snapshots verified: ${OK_COUNT}"
+            echo "- drift detected: ${DRIFT_COUNT}"
+            echo ""
+            if [ "${DRIFT_COUNT}" != "0" ]; then
+              echo "### Drift details"
+              echo ""
+              printf '%s\n' "$DRIFT_REPORT"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

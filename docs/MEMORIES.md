@@ -1079,3 +1079,65 @@ plus **7 plan-limited/doc PRs** (#1319, #1328, #1332, #1334, #1336,
 **Portfolio branch state:** 17 PRs merged to `portfolio` this program
 (none reversed). No pending drain work; branch is at rest for the
 FMP Cached scope.
+
+## scrape-record-3-endpoints-sub-epic-2026-07-24
+
+Sub-epic #1374 (extends `scrape_record` framework for 3 yfinance
+endpoints — quote/info/etf-holdings) unblocks blocker #1373 (Yahoo
+public JSON returning 401 Invalid Crumb). Shipped as 5 PRs:
+
+- **PR #1380** (closes #1375) — 3 fetchers + extractors + 38 tests
+  - `YFinanceEquityQuoteRecordedFetcher`, `...EquityInfoRecordedFetcher`,
+    `...EtfHoldingsRecordedFetcher`
+  - 3 canonical fixtures (MSFT/MSFT/QQQ) hand-authored for test
+  - Path-traversal defense mirrors PR #1351 (pydantic pattern +
+    scrape_record.config._validate_snapshot_component)
+  - R7.11-style tests: `extracted` on disk round-trips from `raw`
+    through the extractor (mutation-defensible)
+
+- **PR #1381** (closes #1376) — 3 Playwright recording scripts
+  - `page.expect_response` pattern (deterministic wait; no
+    networkidle+sleep anti-pattern)
+  - Raises `RecordingCaptureError` on missed XHR or empty result
+    — enforces CLAUDE.md Testing Rule #3 (loud empties). Fixes the
+    class of bug where a sweep would silently produce hollow
+    snapshots that report as OK.
+
+- **PR #1382** (closes #1377) — sweep script + universe list
+  - `scripts/record_universe_snapshots.py` — operator-run
+  - `notebooks/portfolio/UNIVERSE.md` — 55 tickers (basket 10 +
+    benchmarks 5 + top-40 S&P) → 119 captures via per-ticker
+    endpoint classification (equity ETFs get holdings; bond ETFs
+    get bond-holdings via DOM-scrape; commodity trusts skip
+    holdings)
+  - `is_fresh` reads envelope's `captured_at` (not file mtime)
+  - `sys.exit(1)` on any failed row
+
+- **PR #1383 (this one)** (closes #1379) — nightly drift-check CI
+  + doc updates
+  - `.github/workflows/scrape-record-drift-check.yml` — nightly
+    `scrape-record verify` on every snapshot; posts on sub-epic
+    #1374 if drift
+  - NB01 §4 updated to list all 6 fetchers using the pattern
+  - NB07 §2 gets a cross-link to the sweep script
+  - README.md updated: "handful for two endpoints" → "set for
+    endpoints where free live coverage is unreliable"
+
+- **PR #1378 — PR-4** (still open, closes eventually):
+  ingest ~119 snapshots after Daisy runs
+  `python scripts/record_universe_snapshots.py`, register
+  round-trip tests per snapshot. **Waiting on operator sweep.**
+
+**Rule violation (self-reported):** committed `.codespell.ignore`
+whitelist for `ACN` (Accenture) directly to portfolio (commit
+1fd7efe45) instead of a PR. 1-line lint-fix, but portfolio should
+never be a worktop per CLAUDE.md branch-protection. Won't repeat.
+
+**Blocker #1373 stays open until PR-4 ships snapshots.** PR-5 (this
+PR) intentionally does NOT close #1373 — closing without the
+snapshots would violate "loud empties" (blocker gone but nothing
+actually unblocked yet).
+
+**Board state at time of memory**: 12 open on Project #4 (was 15
+before this drain iteration); the remainder are the 7 Phase B code
+issues + gate + parent epic + PR-4 + #1373.

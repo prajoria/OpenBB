@@ -16,8 +16,9 @@ pretending to be a tutorial, or (b) a shill for a paid service.
 This is neither.
 
 Everything in these seven notebooks runs on the free tier of the
-providers we ship with, plus a handful of checked-in offline snapshots
-for the two endpoints we couldn't get free live coverage for. No paid
+providers we ship with, plus a set of checked-in offline snapshots
+for endpoints where free live coverage is unreliable (Yahoo Finance
+quote/info/etf-holdings/options/bond-holdings). No paid
 subscription, no API key hunt. If a cell requires internet, it
 degrades to a canned fallback and prints a note.
 
