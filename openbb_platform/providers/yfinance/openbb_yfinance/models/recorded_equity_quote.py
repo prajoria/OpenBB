@@ -62,16 +62,17 @@ class YFinanceEquityQuoteRecordedData(Data):
     last_price: float | None = Field(
         default=None, description="Last-trade price at capture time."
     )
-    previous_close: float | None = Field(
-        default=None, description="Previous close."
-    )
+    previous_close: float | None = Field(default=None, description="Previous close.")
     open: float | None = Field(default=None, description="Session open.")
     high: float | None = Field(default=None, description="Session high.")
     low: float | None = Field(default=None, description="Session low.")
     volume: int | None = Field(default=None, description="Session volume.")
-    market_cap: float | None = Field(default=None, description="Market cap at capture time.")
+    market_cap: float | None = Field(
+        default=None, description="Market cap at capture time."
+    )
     captured_at: str | None = Field(
-        default=None, description="ISO-8601 UTC timestamp when the snapshot was recorded."
+        default=None,
+        description="ISO-8601 UTC timestamp when the snapshot was recorded.",
     )
 
 
