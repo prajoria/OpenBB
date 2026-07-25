@@ -1,0 +1,138 @@
+{
+  "name": "yahoo_equity_info",
+  "symbol": "QQQ",
+  "captured_at": "2026-07-25T02:09:21.586767+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/QQQ?modules=summaryProfile,assetProfile,secFilings,price",
+  "raw": {
+    "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/QQQ?modules=summaryProfile,assetProfile,secFilings,price",
+    "symbol": "QQQ",
+    "captured_at": "2026-07-25T02:09:21.474064+00:00",
+    "capture_layer": "query1",
+    "quoteSummary": {
+      "result": [
+        {
+          "assetProfile": {
+            "longBusinessSummary": "To maintain the correspondence between the composition and weights of the securities in the trust (the \"securities\") and the stocks in the NASDAQ-100 Index\u00ae, the adviser adjusts the securities from time to time to conform to periodic changes in the identity and/or relative weights of index securities. The composition and weighting of the securities portion of a portfolio deposit are also adjusted to conform to changes in the index.",
+            "companyOfficers": [],
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "summaryProfile": {
+            "longBusinessSummary": "To maintain the correspondence between the composition and weights of the securities in the trust (the \"securities\") and the stocks in the NASDAQ-100 Index\u00ae, the adviser adjusts the securities from time to time to conform to periodic changes in the identity and/or relative weights of index securities. The composition and weighting of the securities portion of a portfolio deposit are also adjusted to conform to changes in the index.",
+            "companyOfficers": [],
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "price": {
+            "maxAge": 1,
+            "preMarketChangePercent": {
+              "raw": -0.002182221,
+              "fmt": "-0.22%"
+            },
+            "preMarketChange": {
+              "raw": -1.5100098,
+              "fmt": "-1.51"
+            },
+            "preMarketTime": 1784899799,
+            "preMarketPrice": {
+              "raw": 690.45,
+              "fmt": "690.45"
+            },
+            "preMarketSource": "FREE_REALTIME",
+            "postMarketChangePercent": {
+              "raw": -0.00038874533,
+              "fmt": "-0.04%"
+            },
+            "postMarketChange": {
+              "raw": -0.2659912,
+              "fmt": "-0.27"
+            },
+            "postMarketTime": 1784937599,
+            "postMarketPrice": {
+              "raw": 683.964,
+              "fmt": "683.96"
+            },
+            "postMarketSource": "FREE_REALTIME",
+            "regularMarketChangePercent": {
+              "raw": -0.0111712,
+              "fmt": "-1.12%"
+            },
+            "regularMarketChange": {
+              "raw": -7.73004,
+              "fmt": "-7.73"
+            },
+            "regularMarketTime": 1784923200,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "regularMarketPrice": {
+              "raw": 684.23,
+              "fmt": "684.23"
+            },
+            "regularMarketDayHigh": {
+              "raw": 692.63,
+              "fmt": "692.63"
+            },
+            "regularMarketDayLow": {
+              "raw": 682.48,
+              "fmt": "682.48"
+            },
+            "regularMarketVolume": {
+              "raw": 39636030,
+              "fmt": "39.64M",
+              "longFmt": "39,636,030.00"
+            },
+            "averageDailyVolume10Day": {},
+            "averageDailyVolume3Month": {},
+            "regularMarketPreviousClose": {
+              "raw": 691.96,
+              "fmt": "691.96"
+            },
+            "regularMarketSource": "FREE_REALTIME",
+            "regularMarketOpen": {
+              "raw": 690.25,
+              "fmt": "690.25"
+            },
+            "strikePrice": {},
+            "openInterest": {},
+            "exchange": "NGM",
+            "exchangeName": "NasdaqGM",
+            "exchangeDataDelayedBy": 0,
+            "marketState": "POSTPOST",
+            "quoteType": "ETF",
+            "symbol": "QQQ",
+            "underlyingSymbol": null,
+            "shortName": "Invesco QQQ Trust, Series 1",
+            "longName": "Invesco QQQ Trust",
+            "currency": "USD",
+            "quoteSourceName": "Nasdaq Real Time Price",
+            "currencySymbol": "$",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "marketCap": {}
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "symbol": "QQQ",
+    "name": "Invesco QQQ Trust",
+    "short_name": "Invesco QQQ Trust, Series 1",
+    "sector": null,
+    "industry": null,
+    "country": null,
+    "website": null,
+    "long_business_summary": "To maintain the correspondence between the composition and weights of the securities in the trust (the \"securities\") and the stocks in the NASDAQ-100 Index\u00ae, the adviser adjusts the securities from time to time to conform to periodic changes in the identity and/or relative weights of index securities. The composition and weighting of the securities portion of a portfolio deposit are also adjusted to conform to changes in the index.",
+    "full_time_employees": null,
+    "captured_at": "2026-07-25T02:09:21.474064+00:00"
+  },
+  "extractor_version": "1"
+}

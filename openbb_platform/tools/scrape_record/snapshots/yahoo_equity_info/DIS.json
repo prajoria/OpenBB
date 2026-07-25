@@ -1,0 +1,3503 @@
+{
+  "name": "yahoo_equity_info",
+  "symbol": "DIS",
+  "captured_at": "2026-07-25T02:10:58.453596+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/DIS?modules=summaryProfile,assetProfile,secFilings,price",
+  "raw": {
+    "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/DIS?modules=summaryProfile,assetProfile,secFilings,price",
+    "symbol": "DIS",
+    "captured_at": "2026-07-25T02:10:58.325328+00:00",
+    "capture_layer": "query1",
+    "quoteSummary": {
+      "result": [
+        {
+          "assetProfile": {
+            "address1": "500 South Buena Vista Street",
+            "city": "Burbank",
+            "state": "CA",
+            "zip": "91521",
+            "country": "United States",
+            "phone": "818 560 1000",
+            "website": "https://thewaltdisneycompany.com",
+            "industry": "Entertainment",
+            "industryKey": "entertainment",
+            "industryDisp": "Entertainment",
+            "sector": "Communication Services",
+            "sectorKey": "communication-services",
+            "sectorDisp": "Communication Services",
+            "longBusinessSummary": "The Walt Disney Company operates as an entertainment company in Americas, Europe, and the Asia Pacific. It operates in three segments: Entertainment, Sports, and Experiences. The company produces and distributes film and television content under the ABC Television Network, Disney, Freeform, FX, Fox, National Geographic, and Star brand television channels, as well as ABC television stations and A+E television networks; and produces original content under the Disney Branded Television, FX Productions, Lucasfilm, Marvel, National Geographic Studios, Pixar, Searchlight Pictures, Twentieth Century Studios, 20th Television, and Walt Disney Pictures banners. It also provides direct-to-consumer streaming services through Disney+, Disney+ Hotstar, and Hulu; sports-related video streaming content through ESPN, ESPN on ABC, ESPN+ DTC, and Star; sale/licensing of film and episodic content to television and video-on-demand services; theatrical, home entertainment, and music distribution services; DVD and Blu-ray discs, electronic home video licenses, and VOD rental services; staging and licensing of live entertainment events; and post-production services. In addition, the company operates theme parks and resorts, such as Walt Disney World Resort, Disneyland Resort, Disneyland Paris, Hong Kong Disneyland Resort, Shanghai Disney Resort, Disney Cruise Line, Disney Vacation Club, National Geographic Expeditions, and Adventures by Disney, as well as Aulani, a Disney resort and spa in Hawaii. Further, it licenses its intellectual property (IP) to a third party that owns and operates Tokyo Disney Resort; licenses trade names, characters, visual, literary, and other IP for use on merchandise, published materials, and games; operates a direct-to-home satellite distribution platform; sells branded merchandise through retail, online, and wholesale businesses; and develops and publishes books, comic books, and magazines. The company was founded in 1923 and is based in Burbank, California.",
+            "fullTimeEmployees": 175560,
+            "companyOfficers": [
+              {
+                "maxAge": 1,
+                "name": "Mr. Hugh F. Johnston",
+                "age": 63,
+                "title": "Senior Executive VP & CFO",
+                "yearBorn": 1962,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 7918292,
+                  "fmt": "7.92M",
+                  "longFmt": "7,918,292"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 729132,
+                  "fmt": "729.13k",
+                  "longFmt": "729,132"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Horacio E. Gutierrez J.D.",
+                "age": 59,
+                "title": "Senior EVP and Chief Legal & Global Affairs Officer",
+                "yearBorn": 1966,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 6140978,
+                  "fmt": "6.14M",
+                  "longFmt": "6,140,978"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 1193034,
+                  "fmt": "1.19M",
+                  "longFmt": "1,193,034"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Ms. Sonia L. Coleman",
+                "age": 52,
+                "title": "Senior EVP & Chief People Officer",
+                "yearBorn": 1973,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 3530136,
+                  "fmt": "3.53M",
+                  "longFmt": "3,530,136"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 338780,
+                  "fmt": "338.78k",
+                  "longFmt": "338,780"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Robert Alan Iger",
+                "age": 74,
+                "title": "Senior Advisor & Director",
+                "yearBorn": 1951,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 10842511,
+                  "fmt": "10.84M",
+                  "longFmt": "10,842,511"
+                },
+                "exercisedValue": {
+                  "raw": 8317704,
+                  "fmt": "8.32M",
+                  "longFmt": "8,317,704"
+                },
+                "unexercisedValue": {
+                  "raw": 12804975,
+                  "fmt": "12.8M",
+                  "longFmt": "12,804,975"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Josh  D'Amaro",
+                "age": 53,
+                "title": "CEO & Director",
+                "yearBorn": 1972,
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Ms. Dana  Walden",
+                "age": 59,
+                "title": "President & Chief Creative Officer",
+                "yearBorn": 1966,
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Paul  Roeder",
+                "title": "Senior Executive VP & Chief Communications Officer",
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Asad  Ayaz",
+                "title": "Chief Marketing & Brand Officer",
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Ronald L. Iden",
+                "age": 78,
+                "title": "Senior VP & Chief Security Officer",
+                "yearBorn": 1947,
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Joe  Schott",
+                "title": "President of Disney Signature Experiences",
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              }
+            ],
+            "auditRisk": 5,
+            "boardRisk": 1,
+            "compensationRisk": 7,
+            "shareHolderRightsRisk": 4,
+            "overallRisk": 2,
+            "governanceEpochDate": 1782864000,
+            "compensationAsOfEpochDate": 1767139200,
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "summaryProfile": {
+            "address1": "500 South Buena Vista Street",
+            "city": "Burbank",
+            "state": "CA",
+            "zip": "91521",
+            "country": "United States",
+            "phone": "818 560 1000",
+            "website": "https://thewaltdisneycompany.com",
+            "industry": "Entertainment",
+            "industryKey": "entertainment",
+            "industryDisp": "Entertainment",
+            "sector": "Communication Services",
+            "sectorKey": "communication-services",
+            "sectorDisp": "Communication Services",
+            "longBusinessSummary": "The Walt Disney Company operates as an entertainment company in Americas, Europe, and the Asia Pacific. It operates in three segments: Entertainment, Sports, and Experiences. The company produces and distributes film and television content under the ABC Television Network, Disney, Freeform, FX, Fox, National Geographic, and Star brand television channels, as well as ABC television stations and A+E television networks; and produces original content under the Disney Branded Television, FX Productions, Lucasfilm, Marvel, National Geographic Studios, Pixar, Searchlight Pictures, Twentieth Century Studios, 20th Television, and Walt Disney Pictures banners. It also provides direct-to-consumer streaming services through Disney+, Disney+ Hotstar, and Hulu; sports-related video streaming content through ESPN, ESPN on ABC, ESPN+ DTC, and Star; sale/licensing of film and episodic content to television and video-on-demand services; theatrical, home entertainment, and music distribution services; DVD and Blu-ray discs, electronic home video licenses, and VOD rental services; staging and licensing of live entertainment events; and post-production services. In addition, the company operates theme parks and resorts, such as Walt Disney World Resort, Disneyland Resort, Disneyland Paris, Hong Kong Disneyland Resort, Shanghai Disney Resort, Disney Cruise Line, Disney Vacation Club, National Geographic Expeditions, and Adventures by Disney, as well as Aulani, a Disney resort and spa in Hawaii. Further, it licenses its intellectual property (IP) to a third party that owns and operates Tokyo Disney Resort; licenses trade names, characters, visual, literary, and other IP for use on merchandise, published materials, and games; operates a direct-to-home satellite distribution platform; sells branded merchandise through retail, online, and wholesale businesses; and develops and publishes books, comic books, and magazines. The company was founded in 1923 and is based in Burbank, California.",
+            "fullTimeEmployees": 175560,
+            "companyOfficers": [],
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "price": {
+            "maxAge": 1,
+            "preMarketChangePercent": {
+              "raw": 0.005168469,
+              "fmt": "0.52%"
+            },
+            "preMarketChange": {
+              "raw": 0.47999573,
+              "fmt": "0.48"
+            },
+            "preMarketTime": 1784899765,
+            "preMarketPrice": {
+              "raw": 93.35,
+              "fmt": "93.35"
+            },
+            "preMarketSource": "FREE_REALTIME",
+            "postMarketChangePercent": {
+              "raw": 0.0014760083,
+              "fmt": "0.15%"
+            },
+            "postMarketChange": {
+              "raw": 0.13999939,
+              "fmt": "0.14"
+            },
+            "postMarketTime": 1784937537,
+            "postMarketPrice": {
+              "raw": 94.99,
+              "fmt": "94.99"
+            },
+            "postMarketSource": "FREE_REALTIME",
+            "regularMarketChangePercent": {
+              "raw": 0.0217602,
+              "fmt": "2.18%"
+            },
+            "regularMarketChange": {
+              "raw": 2.02,
+              "fmt": "2.02"
+            },
+            "regularMarketTime": 1784923331,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "regularMarketPrice": {
+              "raw": 94.85,
+              "fmt": "94.85"
+            },
+            "regularMarketDayHigh": {
+              "raw": 96.2899,
+              "fmt": "96.29"
+            },
+            "regularMarketDayLow": {
+              "raw": 93.0,
+              "fmt": "93.00"
+            },
+            "regularMarketVolume": {
+              "raw": 9944679,
+              "fmt": "9.94M",
+              "longFmt": "9,944,679.00"
+            },
+            "averageDailyVolume10Day": {},
+            "averageDailyVolume3Month": {},
+            "regularMarketPreviousClose": {
+              "raw": 92.83,
+              "fmt": "92.83"
+            },
+            "regularMarketSource": "FREE_REALTIME",
+            "regularMarketOpen": {
+              "raw": 93.26,
+              "fmt": "93.26"
+            },
+            "strikePrice": {},
+            "openInterest": {},
+            "exchange": "NYQ",
+            "exchangeName": "NYSE",
+            "exchangeDataDelayedBy": 0,
+            "marketState": "POSTPOST",
+            "quoteType": "EQUITY",
+            "symbol": "DIS",
+            "underlyingSymbol": null,
+            "shortName": "Walt Disney Company (The)",
+            "longName": "The Walt Disney Company",
+            "currency": "USD",
+            "quoteSourceName": "Nasdaq Real Time Price",
+            "currencySymbol": "$",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "marketCap": {
+              "raw": 164708106240,
+              "fmt": "164.71B",
+              "longFmt": "164,708,106,240.00"
+            }
+          },
+          "secFilings": {
+            "filings": [
+              {
+                "date": "2026-06-25",
+                "epochDate": 1782345600,
+                "type": "11-K",
+                "title": "Annual report of employee stock purchase",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-26-000049_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-23.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000049/a11k_ex231xhourly2025conse.htm"
+                  },
+                  {
+                    "type": "EX-23.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000049/a11k_ex232xhourly2025conse.htm"
+                  },
+                  {
+                    "type": "11-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000049/dis-20251231.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-05-21",
+                "epochDate": 1779321600,
+                "type": "SD",
+                "title": "Specialized Disclosure Report filed pursuant to Section 1502 of the Dodd-Frank Wall Street Reform and Consumer Protection Act relating to the use of conflict minerals (Rule 13p-1)",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-26-000041_1744489",
+                "exhibits": [
+                  {
+                    "type": "SD",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000041/fy2026_q3xsdxcover.htm"
+                  },
+                  {
+                    "type": "EX-1.01",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000041/fy2026_q3xsdxex101xconflic.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-05-06",
+                "epochDate": 1778025600,
+                "type": "10-Q",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-26-000037_1744489",
+                "exhibits": [
+                  {
+                    "type": "10-Q",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/dis-20260328.htm"
+                  },
+                  {
+                    "type": "EX-10.5",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/fy2026_q2x10qxex105.htm"
+                  },
+                  {
+                    "type": "EX-10.6",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/fy2026_q2x10qxex106.htm"
+                  },
+                  {
+                    "type": "EX-10.7",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/fy2026_q2x10qxex107.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/fy2026_q2x10qxex22.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/fy2026_q2x10qxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/fy2026_q2x10qxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/fy2026_q2x10qxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000037/fy2026_q2x10qxex32b.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-03-20",
+                "epochDate": 1773964800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001628280-26-020172_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000162828026020172/dis-20260318.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-03-05",
+                "epochDate": 1772668800,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-26-000028_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000028/dis-20260305.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-03-03",
+                "epochDate": 1772496000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-26-088356_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526088356/d116769dex101.htm"
+                  },
+                  {
+                    "type": "EX-10.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526088356/d116769dex102.htm"
+                  },
+                  {
+                    "type": "EX-10.3",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526088356/d116769dex103.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526088356/d116769d8k.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-02-24",
+                "epochDate": 1771891200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-26-000025_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000025/fy2026_q2xxneodeparturepre.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000025/dis-20260220.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-02-12",
+                "epochDate": 1770854400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-26-048674_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-1.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526048674/d80474dex11.htm"
+                  },
+                  {
+                    "type": "EX-4.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526048674/d80474dex42.htm"
+                  },
+                  {
+                    "type": "EX-4.3",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526048674/d80474dex43.htm"
+                  },
+                  {
+                    "type": "EX-4.4",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526048674/d80474dex44.htm"
+                  },
+                  {
+                    "type": "EX-4.5",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526048674/d80474dex45.htm"
+                  },
+                  {
+                    "type": "EX-5.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526048674/d80474dex51.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312526048674/d80474d8k.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-02-03",
+                "epochDate": 1770076800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-26-000022_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000022/dis-20260202.htm"
+                  },
+                  {
+                    "type": "EX-10.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000022/fy2026_q2x8kxneoxex102.htm"
+                  },
+                  {
+                    "type": "EX-10.3",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000022/fy2026_q2x8kxneoxex103.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000022/fy2026_q2x8kxneoxex991.htm"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000022/fy2026_q2x8kxxneoxex101.htm"
+                  },
+                  {
+                    "type": "EX-10.4",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000022/fy2026_q2x8kxxneoxex104.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-02-02",
+                "epochDate": 1769990400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-26-000018_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000018/fy2026_q1xprxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000018/dis-20260202.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2026-01-22",
+                "epochDate": 1769040000,
+                "type": "DEF 14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-26-000013_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEF 14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448926000013/dis-20260122.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-12-09",
+                "epochDate": 1765238400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000159_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000159/fy2026_q1xxdirectornominata.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000159/dis-20251209.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-11-13",
+                "epochDate": 1762992000,
+                "type": "10-K",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000155_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-10.30",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex1030.htm"
+                  },
+                  {
+                    "type": "EX-21",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex21.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex22.htm"
+                  },
+                  {
+                    "type": "EX-23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex23.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex32b.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/fy2025_q4x10kxex991.htm"
+                  },
+                  {
+                    "type": "10-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000155/dis-20250927.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-11-12",
+                "epochDate": 1762905600,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000149_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000149/dis-20251110.htm"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000149/fy2025_q4x8kxex101xhjamend.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-11-07",
+                "epochDate": 1762473600,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000147_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000147/dis-20251104.htm"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000147/fy2025_q4x8kxex101xhgamend.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-10-16",
+                "epochDate": 1760572800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000144_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000144/fy2025_q4xxex101xschakeame.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000144/dis-20251015.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-10-01",
+                "epochDate": 1759276800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000141_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000141/dis-20250927.htm"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000141/fy2025_q4xxex101xcolemanam.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-08-28",
+                "epochDate": 1756339200,
+                "type": "S-3ASR",
+                "title": "Offering Registrations",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-25-191236_1744489",
+                "exhibits": [
+                  {
+                    "type": "S-3ASR",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312525191236/d88259ds3asr.htm"
+                  },
+                  {
+                    "type": "S-3ASR",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312525191236/d88259ds3asr.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312525191236/d88259dex22.htm"
+                  },
+                  {
+                    "type": "EX-23.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312525191236/d88259dex232.htm"
+                  },
+                  {
+                    "type": "EX-25.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312525191236/d88259dex251.htm"
+                  },
+                  {
+                    "type": "EX-5.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312525191236/d88259dex51.htm"
+                  },
+                  {
+                    "type": "EX-FILING FEES",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312525191236/d88259dexfilingfees.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312525191236/d88259dex22.htm"
+                  },
+                  {
+                    "type": "EX-23.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312525191236/d88259dex232.htm"
+                  },
+                  {
+                    "type": "EX-25.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312525191236/d88259dex251.htm"
+                  },
+                  {
+                    "type": "EX-5.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312525191236/d88259dex51.htm"
+                  },
+                  {
+                    "type": "EX-FILING FEES",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312525191236/d88259dexfilingfees.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-08-06",
+                "epochDate": 1754438400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000135_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000135/fy2025_q3xprxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000135/dis-20250806.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-06-09",
+                "epochDate": 1749427200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000126_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000126/dis-20250609.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-06-02",
+                "epochDate": 1748822400,
+                "type": "11-K",
+                "title": "Annual report of employee stock purchase",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000120_1744489",
+                "exhibits": [
+                  {
+                    "type": "11-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000120/a2024_11kxdsip2024financia.htm"
+                  },
+                  {
+                    "type": "EX-23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000120/a11k_ex23xdsip2024consent.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-05-07",
+                "epochDate": 1746576000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000096_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448925000096/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448925000096/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000096/fy2025_q2xprxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000096/dis-20250507.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-03-27",
+                "epochDate": 1743033600,
+                "type": "S-8 POS",
+                "title": "Offering Registrations",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000082_1744489",
+                "exhibits": [
+                  {
+                    "type": "S-8 POS",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000082/q225forms-8.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-03-24",
+                "epochDate": 1742774400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000079_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000079/dis-20250320.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448925000079/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448925000079/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-03-20",
+                "epochDate": 1742428800,
+                "type": "S-3ASR",
+                "title": "Offering Registrations",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000076_1744489",
+                "exhibits": [
+                  {
+                    "type": "S-3ASR",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000076/fy2025_q2xs3asr.htm"
+                  },
+                  {
+                    "type": "EX-FILING FEES",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000076/exfilingfees.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448925000076/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448925000076/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-23.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000076/fy2025_q2xs3asrxex232.htm"
+                  },
+                  {
+                    "type": "EX-5.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000076/fy2025_q2xs3asrxex51.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-03-10",
+                "epochDate": 1741564800,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000070_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000070/dis-20250310.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448925000070/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448925000070/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-03-04",
+                "epochDate": 1741046400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-25-045574_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312525045574/d917979d8k.htm"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312525045574/d917979dex101.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000119312525045574/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000119312525045574/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-02-05",
+                "epochDate": 1738713600,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000066_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448925000066/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448925000066/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000066/fy2025_q1xprxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000066/dis-20250205.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-01-23",
+                "epochDate": 1737590400,
+                "type": "ARS",
+                "title": "Annual Report to Shareholders",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-25-000058_1744489",
+                "exhibits": [
+                  {
+                    "type": "ARS",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448925000058/ars_2024.pdf"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2025-01-06",
+                "epochDate": 1736121600,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-25-000034_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015725000034/ex99-1.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000095015725000034/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000095015725000034/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015725000034/form8-k.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-11-14",
+                "epochDate": 1731542400,
+                "type": "10-K",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000276_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000276/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000276/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.39",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex1039.htm"
+                  },
+                  {
+                    "type": "EX-19",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex19.htm"
+                  },
+                  {
+                    "type": "EX-21",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex21.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex22.htm"
+                  },
+                  {
+                    "type": "EX-23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex23.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex32b.htm"
+                  },
+                  {
+                    "type": "EX-97",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/fy2024_q4x10kxex97.htm"
+                  },
+                  {
+                    "type": "10-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000276/dis-20240928.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-10-21",
+                "epochDate": 1729468800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000262_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000262/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000262/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000262/fy2024_q4xxchairmanannounc.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000262/dis-20241018.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-08-07",
+                "epochDate": 1722988800,
+                "type": "10-Q",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000232_1744489",
+                "exhibits": [
+                  {
+                    "type": "10-Q",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000232/dis-20240629.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000232/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000232/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000232/fy2024_q3x10qxex22.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000232/fy2024_q3x10qxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000232/fy2024_q3x10qxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000232/fy2024_q3x10qxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000232/fy2024_q3x10qxex32b.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-07-19",
+                "epochDate": 1721347200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000226_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000226/dis-20240718.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000226/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000226/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000226/fy2024_q4xxboardannounceme.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-06-20",
+                "epochDate": 1718841600,
+                "type": "11-K",
+                "title": "Annual report of employee stock purchase",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000175_1744489",
+                "exhibits": [
+                  {
+                    "type": "11-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000175/a2023_11kxdsip2023financia.htm"
+                  },
+                  {
+                    "type": "EX-23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000175/a11k_ex23xdsip2023consent.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-05-24",
+                "epochDate": 1716508800,
+                "type": "SD",
+                "title": "Specialized Disclosure Report filed pursuant to Section 1502 of the Dodd-Frank Wall Street Reform and Consumer Protection Act relating to the use of conflict minerals (Rule 13p-1)",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000161_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-1.01",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000161/fy2024_q3xsdxex101xconflic.htm"
+                  },
+                  {
+                    "type": "SD",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000161/fy2024_q3xsdxcover.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-05-08",
+                "epochDate": 1715126400,
+                "type": "S-8",
+                "title": "Offering Registrations",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-24-134261_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-23.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312524134261/d807919dex232.htm"
+                  },
+                  {
+                    "type": "EX-5.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312524134261/d807919dex51.htm"
+                  },
+                  {
+                    "type": "EX-FILING FEES",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312524134261/d807919dexfilingfees.htm"
+                  },
+                  {
+                    "type": "S-8",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312524134261/d807919ds8.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-05-07",
+                "epochDate": 1715040000,
+                "type": "10-Q",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000152_1744489",
+                "exhibits": [
+                  {
+                    "type": "10-Q",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000152/dis-20240330.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000152/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000152/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000152/fy2024_q2x10qxex22.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000152/fy2024_q2x10qxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000152/fy2024_q2x10qxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000152/fy2024_q2x10qxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000152/fy2024_q2x10qxex32b.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-04-17",
+                "epochDate": 1713312000,
+                "type": "8-K/A",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000623_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K/A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000623/form8-ka.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000095015724000623/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000095015724000623/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-04-09",
+                "epochDate": 1712620800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000595_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000095015724000595/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000095015724000595/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000595/form8-k.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-04-03",
+                "epochDate": 1712102400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000570_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000570/form8-k.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000570/ex99-1.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000095015724000570/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000095015724000570/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-28",
+                "epochDate": 1711584000,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000550_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000550/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-27",
+                "epochDate": 1711497600,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000535_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000535/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-26",
+                "epochDate": 1711411200,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000529_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000529/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-25",
+                "epochDate": 1711324800,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000520_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000520/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-22",
+                "epochDate": 1711065600,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000497_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000497/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-21",
+                "epochDate": 1710979200,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000459_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000459/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-20",
+                "epochDate": 1710892800,
+                "type": "CORRESP",
+                "title": "A correspondence can be sent as a document with another submission type or can be sent as a separate submission",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000452_1744489",
+                "exhibits": [
+                  {
+                    "type": "CORRESP",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000452/filename1.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-15",
+                "epochDate": 1710460800,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000420_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000420/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-13",
+                "epochDate": 1710288000,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000390_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000390/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-12",
+                "epochDate": 1710201600,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000385_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000385/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-11",
+                "epochDate": 1710115200,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000365_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000365/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-08",
+                "epochDate": 1709856000,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000358_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000358/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-06",
+                "epochDate": 1709683200,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000336_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000336/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-04",
+                "epochDate": 1709510400,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000319_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000319/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-03-01",
+                "epochDate": 1709251200,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000305_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000305/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-29",
+                "epochDate": 1709164800,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000290_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000290/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-28",
+                "epochDate": 1709078400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-24-049404_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312524049404/d800554d8k.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312524049404/d800554dex991.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000119312524049404/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000119312524049404/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-26",
+                "epochDate": 1708905600,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000265_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000265/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-22",
+                "epochDate": 1708560000,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000256_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000256/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-21",
+                "epochDate": 1708473600,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000253_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000253/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-20",
+                "epochDate": 1708387200,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000244_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000244/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-16",
+                "epochDate": 1708041600,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000240_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000240/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-15",
+                "epochDate": 1707955200,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000235_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000235/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-14",
+                "epochDate": 1707868800,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000229_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000229/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-13",
+                "epochDate": 1707782400,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000201_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000201/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-12",
+                "epochDate": 1707696000,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000169_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000169/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-09",
+                "epochDate": 1707436800,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000149_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000149/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-08",
+                "epochDate": 1707350400,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000146_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000146/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-07",
+                "epochDate": 1707264000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000079_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000079/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000079/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000079/fy2024_q1xprxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000079/dis-20240207.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-02-01",
+                "epochDate": 1706745600,
+                "type": "PRER14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000071_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000071/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000071/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "PRER14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000071/dis-20240201.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-01-29",
+                "epochDate": 1706486400,
+                "type": "CORRESP",
+                "title": "A correspondence can be sent as a document with another submission type or can be sent as a separate submission",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000082_1744489",
+                "exhibits": [
+                  {
+                    "type": "CORRESP",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000082/filename1.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-01-26",
+                "epochDate": 1706227200,
+                "type": "SC 13G",
+                "title": "Tender Offer/Acquisition Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001086364-24-004870_1744489",
+                "exhibits": [],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-01-24",
+                "epochDate": 1706054400,
+                "type": "10-K/A",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000064_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000064/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000064/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000064/fy2023_q4x10kaxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000064/fy2023_q4x10kaxex31b.htm"
+                  },
+                  {
+                    "type": "10-K/A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000064/dis-20230930.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-01-16",
+                "epochDate": 1705363200,
+                "type": "PREC14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-24-000050_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448924000050/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448924000050/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "PREC14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448924000050/dis-20240116.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2024-01-03",
+                "epochDate": 1704240000,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000950157-24-000010_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000095015724000010/defa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-12-22",
+                "epochDate": 1703203200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000274_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000274/dis-20231221.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000274/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000274/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000274/fy2024_q1xxclcoextensionxe.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-12-15",
+                "epochDate": 1702598400,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-005894_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423005894/p23-2984dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423005894/p23-2984dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-12-14",
+                "epochDate": 1702512000,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-005877_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423005877/p23-2980dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423005877/p23-2980dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-11-30",
+                "epochDate": 1701302400,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-005752_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423005752/p23-2911dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423005752/p23-2911dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-11-29",
+                "epochDate": 1701216000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000221_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000221/dis-20231129.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000221/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000221/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000221/fy2024_q1xxnewdirectorspre.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-11-21",
+                "epochDate": 1700524800,
+                "type": "10-K",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000216_1744489",
+                "exhibits": [
+                  {
+                    "type": "10-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/dis-20230930.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000216/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000216/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-21",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/fy2023_q4x10kxex21.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/fy2023_q4x10kxex22.htm"
+                  },
+                  {
+                    "type": "EX-23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/fy2023_q4x10kxex23.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/fy2023_q4x10kxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/fy2023_q4x10kxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/fy2023_q4x10kxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/fy2023_q4x10kxex32b.htm"
+                  },
+                  {
+                    "type": "EX-97",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000216/fy2023_q4x10kxex97.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-11-08",
+                "epochDate": 1699401600,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000213_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000213/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000213/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000213/fy2023_q4xprxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000213/dis-20231108.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-11-06",
+                "epochDate": 1699228800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000209_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000209/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000209/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000209/fy2024_q1x8kxcfoxex101.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000209/fy2024_q1xxcfoxpressreleas.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000209/dis-20231102.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-11-01",
+                "epochDate": 1698796800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000206_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000206/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000206/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000206/fy2024_q1xxex991xpressrele.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000206/dis-20231101.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-10-18",
+                "epochDate": 1697587200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000203_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000203/dis-20231018.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000203/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000203/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000203/fy2023_q4xreportingxchange.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-09-19",
+                "epochDate": 1695081600,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000174_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000174/dis-20230919.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000174/dpephighlightsandupdates.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000174/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000174/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-09-08",
+                "epochDate": 1694131200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-23-231673_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523231673/d541232d8k.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000119312523231673/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000119312523231673/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-08-09",
+                "epochDate": 1691539200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000169_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000169/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000169/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000169/fy2023_q3xprxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000169/dis-20230809.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-07-12",
+                "epochDate": 1689120000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000158_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000158/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000158/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000158/fy2023_q4x8kxceoxex101.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000158/fy2023_q4x8kxceoxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000158/dis-20230712.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-06-22",
+                "epochDate": 1687392000,
+                "type": "11-K",
+                "title": "Annual report of employee stock purchase",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000123_1744489",
+                "exhibits": [
+                  {
+                    "type": "11-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000123/a2022_11kxhourlyxcover.htm"
+                  },
+                  {
+                    "type": "EX-23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000123/a11k_ex23xhourly2022consent.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000123/a11k_ex991xhourlysip2022fi.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-06-15",
+                "epochDate": 1686787200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000112_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000112/dis-20230615.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000112/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000112/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000112/fy2023_q3x8kxcfoxex101.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000112/fy2023_q3x8kxcfoxex991.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-06-12",
+                "epochDate": 1686528000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-23-164950_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523164950/d444039d8k.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000119312523164950/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000119312523164950/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-06-02",
+                "epochDate": 1685664000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000107_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000107/dis-20230526.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000107/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000107/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-05-24",
+                "epochDate": 1684886400,
+                "type": "SD",
+                "title": "Specialized Disclosure Report filed pursuant to Section 1502 of the Dodd-Frank Wall Street Reform and Consumer Protection Act relating to the use of conflict minerals (Rule 13p-1)",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000104_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-1.01",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000104/fy2023_q3xsdxex101xconflic.htm"
+                  },
+                  {
+                    "type": "SD",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000104/fy2023_q3xsdxcover.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-05-10",
+                "epochDate": 1683676800,
+                "type": "10-Q",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000099_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000099/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000099/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000099/fy2023_q2x10qxex101.htm"
+                  },
+                  {
+                    "type": "EX-10.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000099/fy2023_q2x10qxex102.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000099/fy2023_q2x10qxex22.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000099/fy2023_q2x10qxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000099/fy2023_q2x10qxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000099/fy2023_q2x10qxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000099/fy2023_q2x10qxex32b.htm"
+                  },
+                  {
+                    "type": "10-Q",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000099/dis-20230401.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-04-20",
+                "epochDate": 1681948800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000090_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000090/dis-20230418.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000090/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000090/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000090/fy2023_q3x8kxex101.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-04-04",
+                "epochDate": 1680566400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000071_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000071/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000071/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000071/dis-20230403.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-03-15",
+                "epochDate": 1678838400,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-23-070578_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523070578/d293879ddefa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-03-13",
+                "epochDate": 1678665600,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-23-068592_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523068592/d481576d8k.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523068592/d481576dex991.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000119312523068592/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000119312523068592/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-03-07",
+                "epochDate": 1678147200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-23-063017_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523063017/d357807dex101.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000119312523063017/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000119312523063017/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523063017/d357807d8k.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-02-13",
+                "epochDate": 1676246400,
+                "type": "DEFR14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-23-033959_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFR14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523033959/d354565ddefr14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-02-09",
+                "epochDate": 1675900800,
+                "type": "SC 13G/A",
+                "title": "Tender Offer/Acquisition Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001104659-23-015166_1744489",
+                "exhibits": [
+                  {
+                    "type": "SC 13G/A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0000102909/000110465923015166/tv0128-waltdisneyco.htm"
+                  },
+                  {
+                    "type": "SC 13G/A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000110465923015166/tv0128-waltdisneyco.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-02-08",
+                "epochDate": 1675814400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000047_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000047/dis-20230208.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448923000047/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448923000047/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000047/fy2023_q1xprxex991.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-02-07",
+                "epochDate": 1675728000,
+                "type": "DFRN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-001267_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFRN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423001267/p23-0792dfnr14a.htm"
+                  },
+                  {
+                    "type": "DFRN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423001267/p23-0792dfnr14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-02-06",
+                "epochDate": 1675641600,
+                "type": "ARS",
+                "title": "Annual Report to Shareholders",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-23-025755_1744489",
+                "exhibits": [
+                  {
+                    "type": "ARS",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523025755/d383766dars.pdf"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-02-02",
+                "epochDate": 1675296000,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-001067_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423001067/p23-0682dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423001067/p23-0682dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-31",
+                "epochDate": 1675123200,
+                "type": "DEFC14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-001002_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFC14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423001002/p23-0641defc14a.htm"
+                  },
+                  {
+                    "type": "DEFC14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423001002/p23-0641defc14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-30",
+                "epochDate": 1675036800,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-000906_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423000906/p23-0569dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423000906/p23-0569dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-27",
+                "epochDate": 1674777600,
+                "type": "PRRN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-000796_1744489",
+                "exhibits": [
+                  {
+                    "type": "PRRN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423000796/p23-0404prrn14a.htm"
+                  },
+                  {
+                    "type": "PRRN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423000796/p23-0404prrn14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-24",
+                "epochDate": 1674518400,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-000589_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423000589/p23-0365dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423000589/p23-0365dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-20",
+                "epochDate": 1674172800,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-000473_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423000473/p23-0322dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423000473/p23-0322dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-19",
+                "epochDate": 1674086400,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-000400_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423000400/p23-0249dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423000400/p23-0249dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-18",
+                "epochDate": 1674000000,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-000344_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423000344/p23-0188dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423000344/p23-0188dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-17",
+                "epochDate": 1673913600,
+                "type": "PREC14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-23-008942_1744489",
+                "exhibits": [
+                  {
+                    "type": "PREC14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312523008942/d354565dprec14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-13",
+                "epochDate": 1673568000,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-000223_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423000223/p23-0150dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423000223/p23-0150dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-12",
+                "epochDate": 1673481600,
+                "type": "DFAN14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000902664-23-000178_1744489",
+                "exhibits": [
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001345471/000090266423000178/p23-0113dfan14a.htm"
+                  },
+                  {
+                    "type": "DFAN14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000090266423000178/p23-0113dfan14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2023-01-11",
+                "epochDate": 1673395200,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-23-000036_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448923000036/fy2023_q2xdef14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-11-29",
+                "epochDate": 1669680000,
+                "type": "10-K",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000213_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000213/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000213/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1023.htm"
+                  },
+                  {
+                    "type": "EX-10.26",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1026.htm"
+                  },
+                  {
+                    "type": "EX-10.44",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1044.htm"
+                  },
+                  {
+                    "type": "EX-10.57",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1057.htm"
+                  },
+                  {
+                    "type": "EX-10.58",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1058.htm"
+                  },
+                  {
+                    "type": "EX-10.59",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1059.htm"
+                  },
+                  {
+                    "type": "EX-10.60",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1060.htm"
+                  },
+                  {
+                    "type": "EX-10.61",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1061.htm"
+                  },
+                  {
+                    "type": "EX-10.62",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex1062.htm"
+                  },
+                  {
+                    "type": "EX-21",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex21.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex22.htm"
+                  },
+                  {
+                    "type": "EX-23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex23.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/fy2022_q4x10kxex32b.htm"
+                  },
+                  {
+                    "type": "10-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000213/dis-20221001.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-11-21",
+                "epochDate": 1668988800,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000200_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000200/dis-20221120.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000200/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000200/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000200/fy2023_q1x8kxex101.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000200/fy2023_q1xxpressreleasexex.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-11-08",
+                "epochDate": 1667865600,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000192_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000192/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000192/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000192/fy2022_q4xprxex991.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000192/dis-20221108.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-09-30",
+                "epochDate": 1664496000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000167_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000167/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000167/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000167/fy2022_q4x8kxex101.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000167/fy2022_q4xxpressreleasexex.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000167/dis-20220929.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-09-02",
+                "epochDate": 1662076800,
+                "type": "S-3ASR",
+                "title": "Offering Registrations",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-22-237908_1744489",
+                "exhibits": [
+                  {
+                    "type": "S-3ASR",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312522237908/d305594ds3asr.htm"
+                  },
+                  {
+                    "type": "S-3ASR",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522237908/d305594ds3asr.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312522237908/d305594dex22.htm"
+                  },
+                  {
+                    "type": "EX-23.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312522237908/d305594dex232.htm"
+                  },
+                  {
+                    "type": "EX-25.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312522237908/d305594dex251.htm"
+                  },
+                  {
+                    "type": "EX-5.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312522237908/d305594dex51.htm"
+                  },
+                  {
+                    "type": "EX-FILING FEES",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001001039/000119312522237908/d305594dexfilingfees.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522237908/d305594dex22.htm"
+                  },
+                  {
+                    "type": "EX-23.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522237908/d305594dex232.htm"
+                  },
+                  {
+                    "type": "EX-25.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522237908/d305594dex251.htm"
+                  },
+                  {
+                    "type": "EX-5.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522237908/d305594dex51.htm"
+                  },
+                  {
+                    "type": "EX-FILING FEES",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522237908/d305594dexfilingfees.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-08-10",
+                "epochDate": 1660089600,
+                "type": "10-Q",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000161_1744489",
+                "exhibits": [
+                  {
+                    "type": "10-Q",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/dis-20220702.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000161/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000161/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex101.htm"
+                  },
+                  {
+                    "type": "EX-10.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex102.htm"
+                  },
+                  {
+                    "type": "EX-10.3",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex103.htm"
+                  },
+                  {
+                    "type": "EX-10.4",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex104.htm"
+                  },
+                  {
+                    "type": "EX-10.5",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex105.htm"
+                  },
+                  {
+                    "type": "EX-10.6",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex106.htm"
+                  },
+                  {
+                    "type": "EX-10.7",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex107.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex22.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000161/fy2022_q3x10qxex32b.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-06-28",
+                "epochDate": 1656374400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000121_1744489",
+                "exhibits": [
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000121/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000121/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000121/fy2022_q3xxpressreleasexex.htm"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000121/dis-20220628.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-06-23",
+                "epochDate": 1655942400,
+                "type": "11-K",
+                "title": "Annual report of employee stock purchase",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000115_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-23",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000115/a11k_ex23xhourly2021consent.htm"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000115/a11k_ex991xhourlysip2021fi.htm"
+                  },
+                  {
+                    "type": "11-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000115/a2021_11kxhourlyxcover.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-05-26",
+                "epochDate": 1653523200,
+                "type": "SD",
+                "title": "Specialized Disclosure Report filed pursuant to Section 1502 of the Dodd-Frank Wall Street Reform and Consumer Protection Act relating to the use of conflict minerals (Rule 13p-1)",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000103_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-1.01",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000103/fy2022_q3xsdxex101xconflic.htm"
+                  },
+                  {
+                    "type": "SD",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000103/fy2022_q3xsdxcover.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-05-11",
+                "epochDate": 1652227200,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000099_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000099/dis-20220511.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000099/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000099/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-99.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000099/fy2022_q2xprxex991.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-03-23",
+                "epochDate": 1647993600,
+                "type": "S-3ASR",
+                "title": "Offering Registrations",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-22-082176_1744489",
+                "exhibits": [
+                  {
+                    "type": "S-3ASR",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522082176/d499133ds3asr.htm"
+                  },
+                  {
+                    "type": "EX-23.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522082176/d499133dex232.htm"
+                  },
+                  {
+                    "type": "EX-5.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522082176/d499133dex51.htm"
+                  },
+                  {
+                    "type": "EX-FILING FEES",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522082176/d499133dexfilingfees.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-03-10",
+                "epochDate": 1646870400,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000065_1744489",
+                "exhibits": [
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000065/dis-20220309.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000065/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000065/Financial_Report.xlsx"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-03-09",
+                "epochDate": 1646784000,
+                "type": "8-K",
+                "title": "Corporate Changes & Voting Matters",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-22-070595_1744489",
+                "exhibits": [
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522070595/d251268dex101.htm"
+                  },
+                  {
+                    "type": "EX-10.2",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522070595/d251268dex102.htm"
+                  },
+                  {
+                    "type": "EX-10.3",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522070595/d251268dex103.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000119312522070595/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000119312522070595/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "8-K",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522070595/d251268d8k.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-02-28",
+                "epochDate": 1646006400,
+                "type": "DEFA14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-22-058086_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEFA14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522058086/d323764ddefa14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-02-23",
+                "epochDate": 1645574400,
+                "type": "PX14A6G",
+                "title": "Notice of exempt solicitation",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001214659-22-003076_1744489",
+                "exhibits": [
+                  {
+                    "type": "PX14A6G",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001703208/000121465922003076/d223220px14a6g.htm"
+                  },
+                  {
+                    "type": "PX14A6G",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000121465922003076/d223220px14a6g.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-02-10",
+                "epochDate": 1644451200,
+                "type": "SC 13G/A",
+                "title": "Tender Offer/Acquisition Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001104659-22-018881_1744489",
+                "exhibits": [
+                  {
+                    "type": "SC 13G/A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0000102909/000110465922018881/tv02204-waltdisneyco.htm"
+                  },
+                  {
+                    "type": "SC 13G/A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000110465922018881/tv02204-waltdisneyco.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-02-09",
+                "epochDate": 1644364800,
+                "type": "10-Q",
+                "title": "Periodic Financial Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001744489-22-000059_1744489",
+                "exhibits": [
+                  {
+                    "type": "10-Q",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/dis-20220101.htm"
+                  },
+                  {
+                    "type": "10-Q",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/dis-20220101.htm"
+                  },
+                  {
+                    "type": "EXCEL",
+                    "url": "https://s3.amazonaws.com/finance-pri-uw2/sec-filings/0001744489/000174448922000059/Financial_Report.xlsx",
+                    "downloadUrl": "https://finance.yahoo.com/_getSECFilingReportUrl?reportUrl=/sec-filings/0001744489/000174448922000059/Financial_Report.xlsx"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex101.htm"
+                  },
+                  {
+                    "type": "EX-10.10",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex1010.htm"
+                  },
+                  {
+                    "type": "EX-10.11",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex1011.htm"
+                  },
+                  {
+                    "type": "EX-10.12",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex1012.htm"
+                  },
+                  {
+                    "type": "EX-10.3",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex103.htm"
+                  },
+                  {
+                    "type": "EX-10.4",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex104.htm"
+                  },
+                  {
+                    "type": "EX-10.5",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex105.htm"
+                  },
+                  {
+                    "type": "EX-10.6",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex106.htm"
+                  },
+                  {
+                    "type": "EX-10.7",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex107.htm"
+                  },
+                  {
+                    "type": "EX-10.8",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex108.htm"
+                  },
+                  {
+                    "type": "EX-10.9",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex109.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex22.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000174448922000059/fy2022_q1x10qxex32b.htm"
+                  },
+                  {
+                    "type": "EX-10.1",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex101.htm"
+                  },
+                  {
+                    "type": "EX-10.10",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex1010.htm"
+                  },
+                  {
+                    "type": "EX-10.11",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex1011.htm"
+                  },
+                  {
+                    "type": "EX-10.12",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex1012.htm"
+                  },
+                  {
+                    "type": "EX-10.3",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex103.htm"
+                  },
+                  {
+                    "type": "EX-10.4",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex104.htm"
+                  },
+                  {
+                    "type": "EX-10.5",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex105.htm"
+                  },
+                  {
+                    "type": "EX-10.6",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex106.htm"
+                  },
+                  {
+                    "type": "EX-10.7",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex107.htm"
+                  },
+                  {
+                    "type": "EX-10.8",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex108.htm"
+                  },
+                  {
+                    "type": "EX-10.9",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex109.htm"
+                  },
+                  {
+                    "type": "EX-22",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex22.htm"
+                  },
+                  {
+                    "type": "EX-31.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex31a.htm"
+                  },
+                  {
+                    "type": "EX-31.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex31b.htm"
+                  },
+                  {
+                    "type": "EX-32.A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex32a.htm"
+                  },
+                  {
+                    "type": "EX-32.B",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/1744489/000174448922000059/fy2022_q1x10qxex32b.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-02-04",
+                "epochDate": 1643932800,
+                "type": "PX14A6G",
+                "title": "Notice of exempt solicitation",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001214659-22-001877_1744489",
+                "exhibits": [
+                  {
+                    "type": "PX14A6G",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001699865/000121465922001877/j23223px14a6g.htm"
+                  },
+                  {
+                    "type": "PX14A6G",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000121465922001877/j23223px14a6g.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-02-03",
+                "epochDate": 1643846400,
+                "type": "SC 13G/A",
+                "title": "Tender Offer/Acquisition Reports",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0000834237-22-006180_1744489",
+                "exhibits": [],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-02-01",
+                "epochDate": 1643673600,
+                "type": "PX14A6G",
+                "title": "Notice of exempt solicitation",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001214659-22-001562_1744489",
+                "exhibits": [
+                  {
+                    "type": "PX14A6G",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001703208/000121465922001562/e131223px14a6g.htm"
+                  },
+                  {
+                    "type": "PX14A6G",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000121465922001562/e131223px14a6g.htm"
+                  }
+                ],
+                "maxAge": 1
+              },
+              {
+                "date": "2022-01-19",
+                "epochDate": 1642550400,
+                "type": "DEF 14A",
+                "title": "Proxy Statements",
+                "edgarUrl": "https://finance.yahoo.com/sec-filing/DIS/0001193125-22-012592_1744489",
+                "exhibits": [
+                  {
+                    "type": "DEF 14A",
+                    "url": "https://cdn.yahoofinance.com/prod/sec-filings/0001744489/000119312522012592/d249883ddef14a.htm"
+                  }
+                ],
+                "maxAge": 1
+              }
+            ],
+            "maxAge": 86400
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "symbol": "DIS",
+    "name": "The Walt Disney Company",
+    "short_name": "Walt Disney Company (The)",
+    "sector": "Communication Services",
+    "industry": "Entertainment",
+    "country": "United States",
+    "website": "https://thewaltdisneycompany.com",
+    "long_business_summary": "The Walt Disney Company operates as an entertainment company in Americas, Europe, and the Asia Pacific. It operates in three segments: Entertainment, Sports, and Experiences. The company produces and distributes film and television content under the ABC Television Network, Disney, Freeform, FX, Fox, National Geographic, and Star brand television channels, as well as ABC television stations and A+E television networks; and produces original content under the Disney Branded Television, FX Productions, Lucasfilm, Marvel, National Geographic Studios, Pixar, Searchlight Pictures, Twentieth Century Studios, 20th Television, and Walt Disney Pictures banners. It also provides direct-to-consumer streaming services through Disney+, Disney+ Hotstar, and Hulu; sports-related video streaming content through ESPN, ESPN on ABC, ESPN+ DTC, and Star; sale/licensing of film and episodic content to television and video-on-demand services; theatrical, home entertainment, and music distribution services; DVD and Blu-ray discs, electronic home video licenses, and VOD rental services; staging and licensing of live entertainment events; and post-production services. In addition, the company operates theme parks and resorts, such as Walt Disney World Resort, Disneyland Resort, Disneyland Paris, Hong Kong Disneyland Resort, Shanghai Disney Resort, Disney Cruise Line, Disney Vacation Club, National Geographic Expeditions, and Adventures by Disney, as well as Aulani, a Disney resort and spa in Hawaii. Further, it licenses its intellectual property (IP) to a third party that owns and operates Tokyo Disney Resort; licenses trade names, characters, visual, literary, and other IP for use on merchandise, published materials, and games; operates a direct-to-home satellite distribution platform; sells branded merchandise through retail, online, and wholesale businesses; and develops and publishes books, comic books, and magazines. The company was founded in 1923 and is based in Burbank, California.",
+    "full_time_employees": 175560,
+    "captured_at": "2026-07-25T02:10:58.325328+00:00"
+  },
+  "extractor_version": "1"
+}
