@@ -41,6 +41,34 @@ class _EtfSymbolQueryParams(QueryParams):
     )
 
 
+def _load_extracted_sync(symbol: str) -> dict:
+    """Read the checked-in ETF-holdings snapshot for ``symbol`` (sync)."""
+    try:
+        from scrape_record.config import load_config
+        from scrape_record.record import load_snapshot
+    except ImportError as exc:
+        raise EmptyDataError(
+            "scrape_record package not installed. Install it via "
+            "`pip install -e openbb_platform/tools/scrape_record/`."
+        ) from exc
+
+    cfg = load_config()
+    try:
+        env = load_snapshot(cfg, "yahoo_etf_holdings", symbol)
+    except FileNotFoundError as exc:
+        raise EmptyDataError(
+            f"No recorded holdings snapshot for ETF {symbol}. Run "
+            f"`scrape-record record yahoo_etf_holdings --symbol {symbol}` first."
+        ) from exc
+
+    extracted = env.extracted
+    if not extracted:
+        from scrape_record.extract import apply_extractor
+
+        extracted = apply_extractor("yahoo_etf_holdings", env.raw)
+    return extracted
+
+
 class YFinanceEtfHoldingRecordedData(Data):
     """One holding row inside a recorded ETF-holdings snapshot."""
 
@@ -70,6 +98,21 @@ class YFinanceEtfHoldingsRecordedFetcher(
         """Coerce raw params dict into typed ETF-symbol query object."""
         return _EtfSymbolQueryParams(**params)
 
+    @classmethod
+    def fetch_from_snapshot(
+        cls, symbol: str, **kwargs: Any
+    ) -> list[YFinanceEtfHoldingRecordedData]:
+        """Public sync shortcut for notebooks / scripts.
+
+        Equivalent to ``asyncio.run(cls.fetch_data(...))`` but works
+        inside a Jupyter kernel. Reads the checked-in snapshot via the
+        same sync path ``aextract_data`` uses, then hands off to
+        ``transform_data``. No network, no async.
+        """
+        query = cls.transform_query({"symbol": symbol, **kwargs})
+        raw = _load_extracted_sync(query.symbol.upper())
+        return cls.transform_data(query, raw)
+
     @staticmethod
     async def aextract_data(
         query: _EtfSymbolQueryParams,
@@ -77,30 +120,7 @@ class YFinanceEtfHoldingsRecordedFetcher(
         **kwargs: Any,
     ) -> dict:
         """Load extracted ETF-holdings snapshot (offline)."""
-        try:
-            from scrape_record.config import load_config
-            from scrape_record.record import load_snapshot
-        except ImportError as exc:
-            raise EmptyDataError(
-                "scrape_record package not installed. Install it via "
-                "`pip install -e openbb_platform/tools/scrape_record/`."
-            ) from exc
-
-        cfg = load_config()
-        try:
-            env = load_snapshot(cfg, "yahoo_etf_holdings", query.symbol.upper())
-        except FileNotFoundError as exc:
-            raise EmptyDataError(
-                f"No recorded holdings snapshot for ETF {query.symbol}. Run "
-                f"`scrape-record record yahoo_etf_holdings --symbol {query.symbol}` first."
-            ) from exc
-
-        extracted = env.extracted
-        if not extracted:
-            from scrape_record.extract import apply_extractor
-
-            extracted = apply_extractor("yahoo_etf_holdings", env.raw)
-        return extracted
+        return _load_extracted_sync(query.symbol.upper())
 
     @staticmethod
     def transform_data(

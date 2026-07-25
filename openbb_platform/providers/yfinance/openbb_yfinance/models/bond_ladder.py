@@ -137,6 +137,27 @@ class YFinanceBondLadderFetcher(Fetcher[_EtfSymbolQueryParams, YFinanceBondLadde
         """Coerce raw params dict into typed ETF-symbol query object."""
         return _EtfSymbolQueryParams(**params)
 
+    @classmethod
+    def fetch_from_snapshot(
+        cls, symbol: str, **kwargs: Any
+    ) -> YFinanceBondLadderData:
+        """Public sync shortcut for notebooks / scripts.
+
+        Equivalent to ``asyncio.run(cls.fetch_data(...))`` but works
+        inside a Jupyter kernel (whose event loop is already running,
+        which would otherwise raise ``RuntimeError: This event loop is
+        already running``). Reads the checked-in snapshot via the same
+        ``_load_extracted`` path ``aextract_data`` uses, then hands off
+        to ``transform_data``. No network, no browser, no async.
+
+        Use from notebooks::
+
+            row = YFinanceBondLadderFetcher.fetch_from_snapshot("BND")
+        """
+        query = cls.transform_query({"symbol": symbol, **kwargs})
+        raw = _load_extracted(query.symbol.upper())
+        return cls.transform_data(query, raw)
+
     @staticmethod
     async def aextract_data(
         query: _EtfSymbolQueryParams,

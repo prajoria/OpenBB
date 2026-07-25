@@ -114,6 +114,21 @@ class YFinanceEquityQuoteRecordedFetcher(
         """Coerce raw params dict into typed symbol query object."""
         return _SymbolQueryParams(**params)
 
+    @classmethod
+    def fetch_from_snapshot(
+        cls, symbol: str, **kwargs: Any
+    ) -> YFinanceEquityQuoteRecordedData:
+        """Public sync shortcut for notebooks / scripts.
+
+        Equivalent to ``asyncio.run(cls.fetch_data(...))`` but works
+        inside a Jupyter kernel. Reads the checked-in snapshot via the
+        same ``_load_extracted`` path ``aextract_data`` uses, then
+        hands off to ``transform_data``. No network, no async.
+        """
+        query = cls.transform_query({"symbol": symbol, **kwargs})
+        raw = _load_extracted(query.symbol.upper())
+        return cls.transform_data(query, raw)
+
     @staticmethod
     async def aextract_data(
         query: _SymbolQueryParams,
