@@ -12,6 +12,7 @@ license = { text = "MIT" }
 authors = [{ name = "prajoria" }]
 
 dependencies = [
+    "httpx>=0.27",
     "playwright>=1.44",
     "python-dotenv>=1.0",
 ]
