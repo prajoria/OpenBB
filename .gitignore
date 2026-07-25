@@ -168,3 +168,6 @@ test_portfolio_output/
 
 # scrape_record local build metadata
 openbb_platform/tools/scrape_record/scrape_record.egg-info/
+
+# Notebook per-session state (basket.json, xray.pkl, etc — regenerable)
+notebooks/portfolio/.notebook_state/
