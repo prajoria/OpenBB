@@ -1,0 +1,140 @@
+{
+  "name": "yahoo_equity_info",
+  "symbol": "VTI",
+  "captured_at": "2026-07-25T02:09:24.548796+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/VTI?modules=summaryProfile,assetProfile,secFilings,price",
+  "raw": {
+    "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/VTI?modules=summaryProfile,assetProfile,secFilings,price",
+    "symbol": "VTI",
+    "captured_at": "2026-07-25T02:09:24.442314+00:00",
+    "capture_layer": "query1",
+    "quoteSummary": {
+      "result": [
+        {
+          "assetProfile": {
+            "phone": "800-523-1036",
+            "longBusinessSummary": "The fund manager employs an indexing investment approach designed to track the performance of the CRSP U.S. Total Market Index (the \u201cTarget Index\u201d), which represents 100% of the investable U.S. stock market, as determined by the index provider. Under normal circumstances, the fund invests at least 80% of its net assets, plus the amount of any borrowings for investment purposes, in the stocks that make up the target index.",
+            "companyOfficers": [],
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "summaryProfile": {
+            "phone": "800-523-1036",
+            "longBusinessSummary": "The fund manager employs an indexing investment approach designed to track the performance of the CRSP U.S. Total Market Index (the \u201cTarget Index\u201d), which represents 100% of the investable U.S. stock market, as determined by the index provider. Under normal circumstances, the fund invests at least 80% of its net assets, plus the amount of any borrowings for investment purposes, in the stocks that make up the target index.",
+            "companyOfficers": [],
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "price": {
+            "maxAge": 1,
+            "preMarketChangePercent": {
+              "raw": 0.0023589223,
+              "fmt": "0.24%"
+            },
+            "preMarketChange": {
+              "raw": 0.86001587,
+              "fmt": "0.86"
+            },
+            "preMarketTime": 1784899684,
+            "preMarketPrice": {
+              "raw": 365.44,
+              "fmt": "365.44"
+            },
+            "preMarketSource": "FREE_REALTIME",
+            "postMarketChangePercent": {
+              "raw": -0.0002740559,
+              "fmt": "-0.03%"
+            },
+            "postMarketChange": {
+              "raw": -0.099975586,
+              "fmt": "-0.10"
+            },
+            "postMarketTime": 1784937572,
+            "postMarketPrice": {
+              "raw": 364.7,
+              "fmt": "364.70"
+            },
+            "postMarketSource": "DELAYED",
+            "regularMarketChangePercent": {
+              "raw": 0.000301586,
+              "fmt": "0.03%"
+            },
+            "regularMarketChange": {
+              "raw": 0.109985,
+              "fmt": "0.11"
+            },
+            "regularMarketTime": 1784923200,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "regularMarketPrice": {
+              "raw": 364.8,
+              "fmt": "364.80"
+            },
+            "regularMarketDayHigh": {
+              "raw": 367.3,
+              "fmt": "367.30"
+            },
+            "regularMarketDayLow": {
+              "raw": 364.1014,
+              "fmt": "364.10"
+            },
+            "regularMarketVolume": {
+              "raw": 2598984,
+              "fmt": "2.60M",
+              "longFmt": "2,598,984.00"
+            },
+            "averageDailyVolume10Day": {},
+            "averageDailyVolume3Month": {},
+            "regularMarketPreviousClose": {
+              "raw": 364.69,
+              "fmt": "364.69"
+            },
+            "regularMarketSource": "FREE_REALTIME",
+            "regularMarketOpen": {
+              "raw": 364.9,
+              "fmt": "364.90"
+            },
+            "strikePrice": {},
+            "openInterest": {},
+            "exchange": "PCX",
+            "exchangeName": "NYSEArca",
+            "exchangeDataDelayedBy": 0,
+            "marketState": "POSTPOST",
+            "quoteType": "ETF",
+            "symbol": "VTI",
+            "underlyingSymbol": null,
+            "shortName": "Vanguard Total Stock Market ETF",
+            "longName": "Vanguard Total Stock Market Index Fund ETF Shares",
+            "currency": "USD",
+            "quoteSourceName": "Delayed Quote",
+            "currencySymbol": "$",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "marketCap": {}
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "symbol": "VTI",
+    "name": "Vanguard Total Stock Market Index Fund ETF Shares",
+    "short_name": "Vanguard Total Stock Market ETF",
+    "sector": null,
+    "industry": null,
+    "country": null,
+    "website": null,
+    "long_business_summary": "The fund manager employs an indexing investment approach designed to track the performance of the CRSP U.S. Total Market Index (the \u201cTarget Index\u201d), which represents 100% of the investable U.S. stock market, as determined by the index provider. Under normal circumstances, the fund invests at least 80% of its net assets, plus the amount of any borrowings for investment purposes, in the stocks that make up the target index.",
+    "full_time_employees": null,
+    "captured_at": "2026-07-25T02:09:24.442314+00:00"
+  },
+  "extractor_version": "1"
+}

@@ -1,0 +1,440 @@
+{
+  "name": "yahoo_etf_holdings",
+  "symbol": "VEA",
+  "captured_at": "2026-07-25T02:10:16.853397+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/VEA?modules=topHoldings,fundOwnership,sectorWeightings,price",
+  "raw": {
+    "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/VEA?modules=topHoldings,fundOwnership,sectorWeightings,price",
+    "symbol": "VEA",
+    "captured_at": "2026-07-25T02:10:16.734150+00:00",
+    "capture_layer": "query1",
+    "quoteSummary": {
+      "result": [
+        {
+          "price": {
+            "maxAge": 1,
+            "preMarketChange": {},
+            "preMarketPrice": {},
+            "preMarketSource": "FREE_REALTIME",
+            "postMarketChangePercent": {
+              "raw": 0.01850525,
+              "fmt": "1.85%"
+            },
+            "postMarketChange": {
+              "raw": 1.2900009,
+              "fmt": "1.29"
+            },
+            "postMarketTime": 1784936780,
+            "postMarketPrice": {
+              "raw": 71.0,
+              "fmt": "71.00"
+            },
+            "postMarketSource": "FREE_REALTIME",
+            "regularMarketChangePercent": {
+              "raw": -0.00100315,
+              "fmt": "-0.10%"
+            },
+            "regularMarketChange": {
+              "raw": -0.0699997,
+              "fmt": "-0.07"
+            },
+            "regularMarketTime": 1784923200,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "regularMarketPrice": {
+              "raw": 69.71,
+              "fmt": "69.71"
+            },
+            "regularMarketDayHigh": {
+              "raw": 70.23,
+              "fmt": "70.23"
+            },
+            "regularMarketDayLow": {
+              "raw": 69.6201,
+              "fmt": "69.62"
+            },
+            "regularMarketVolume": {
+              "raw": 8584489,
+              "fmt": "8.58M",
+              "longFmt": "8,584,489.00"
+            },
+            "averageDailyVolume10Day": {},
+            "averageDailyVolume3Month": {},
+            "regularMarketPreviousClose": {
+              "raw": 69.78,
+              "fmt": "69.78"
+            },
+            "regularMarketSource": "FREE_REALTIME",
+            "regularMarketOpen": {
+              "raw": 69.96,
+              "fmt": "69.96"
+            },
+            "strikePrice": {},
+            "openInterest": {},
+            "exchange": "PCX",
+            "exchangeName": "NYSEArca",
+            "exchangeDataDelayedBy": 0,
+            "marketState": "POSTPOST",
+            "quoteType": "ETF",
+            "symbol": "VEA",
+            "underlyingSymbol": null,
+            "shortName": "Vanguard FTSE Developed Markets",
+            "longName": "Vanguard FTSE Developed Markets Index Fund ETF Shares",
+            "currency": "USD",
+            "quoteSourceName": "Nasdaq Real Time Price",
+            "currencySymbol": "$",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "marketCap": {}
+          },
+          "topHoldings": {
+            "maxAge": 1,
+            "cashPosition": {
+              "raw": 0.0143,
+              "fmt": "1.43%"
+            },
+            "stockPosition": {
+              "raw": 0.9845,
+              "fmt": "98.45%"
+            },
+            "bondPosition": {
+              "raw": 0.0,
+              "fmt": "0.00%"
+            },
+            "otherPosition": {
+              "raw": 0.0011999999,
+              "fmt": "0.12%"
+            },
+            "preferredPosition": {
+              "raw": 0.0,
+              "fmt": "0.00%"
+            },
+            "convertiblePosition": {
+              "raw": 0.0,
+              "fmt": "0.00%"
+            },
+            "holdings": [
+              {
+                "symbol": "005930.KS",
+                "holdingName": "Samsung Electronics Co Ltd",
+                "holdingPercent": {
+                  "raw": 0.0313536,
+                  "fmt": "3.14%"
+                }
+              },
+              {
+                "symbol": "000660.KS",
+                "holdingName": "SK Hynix Inc",
+                "holdingPercent": {
+                  "raw": 0.0299436,
+                  "fmt": "2.99%"
+                }
+              },
+              {
+                "symbol": "ASML.AS",
+                "holdingName": "ASML Holding NV",
+                "holdingPercent": {
+                  "raw": 0.0233874,
+                  "fmt": "2.34%"
+                }
+              },
+              {
+                "symbol": "HSBA.L",
+                "holdingName": "HSBC Holdings PLC",
+                "holdingPercent": {
+                  "raw": 0.0099307,
+                  "fmt": "0.99%"
+                }
+              },
+              {
+                "symbol": "NOVN.SW",
+                "holdingName": "Novartis AG Registered Shares",
+                "holdingPercent": {
+                  "raw": 0.0089246,
+                  "fmt": "0.89%"
+                }
+              },
+              {
+                "symbol": "RY",
+                "holdingName": "Royal Bank of Canada",
+                "holdingPercent": {
+                  "raw": 0.0088665,
+                  "fmt": "0.89%"
+                }
+              },
+              {
+                "symbol": "ROP.SW",
+                "holdingName": "Roche Holding AG Ordinary Shares new",
+                "holdingPercent": {
+                  "raw": 0.0088507,
+                  "fmt": "0.89%"
+                }
+              },
+              {
+                "symbol": "AZN.L",
+                "holdingName": "AstraZeneca PLC",
+                "holdingPercent": {
+                  "raw": 0.0085705,
+                  "fmt": "0.86%"
+                }
+              },
+              {
+                "symbol": "NESN.SW",
+                "holdingName": "Nestle SA",
+                "holdingPercent": {
+                  "raw": 0.0080797,
+                  "fmt": "0.81%"
+                }
+              },
+              {
+                "symbol": "SIE.DE",
+                "holdingName": "Siemens AG",
+                "holdingPercent": {
+                  "raw": 0.0072196,
+                  "fmt": "0.72%"
+                }
+              }
+            ],
+            "equityHoldings": {
+              "priceToEarnings": {
+                "raw": 0.05325,
+                "fmt": "0.05"
+              },
+              "priceToBook": {
+                "raw": 0.45469,
+                "fmt": "0.45"
+              },
+              "priceToSales": {
+                "raw": 0.56436,
+                "fmt": "0.56"
+              },
+              "priceToCashflow": {
+                "raw": 0.08573,
+                "fmt": "0.09"
+              },
+              "medianMarketCap": {},
+              "threeYearEarningsGrowth": {},
+              "priceToEarningsCat": {},
+              "priceToBookCat": {},
+              "priceToSalesCat": {},
+              "priceToCashflowCat": {},
+              "medianMarketCapCat": {},
+              "threeYearEarningsGrowthCat": {}
+            },
+            "bondHoldings": {
+              "maturity": {},
+              "duration": {},
+              "creditQuality": {},
+              "maturityCat": {},
+              "durationCat": {},
+              "creditQualityCat": {}
+            },
+            "bondRatings": [
+              {
+                "bb": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "aa": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "aaa": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "a": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "other": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "b": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "bbb": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "below_b": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "us_government": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              }
+            ],
+            "sectorWeightings": [
+              {
+                "realestate": {
+                  "raw": 0.024500001,
+                  "fmt": "2.45%"
+                }
+              },
+              {
+                "consumer_cyclical": {
+                  "raw": 0.073,
+                  "fmt": "7.30%"
+                }
+              },
+              {
+                "basic_materials": {
+                  "raw": 0.0688,
+                  "fmt": "6.88%"
+                }
+              },
+              {
+                "consumer_defensive": {
+                  "raw": 0.053400002,
+                  "fmt": "5.34%"
+                }
+              },
+              {
+                "technology": {
+                  "raw": 0.18360001,
+                  "fmt": "18.36%"
+                }
+              },
+              {
+                "communication_services": {
+                  "raw": 0.032,
+                  "fmt": "3.20%"
+                }
+              },
+              {
+                "financial_services": {
+                  "raw": 0.2313,
+                  "fmt": "23.13%"
+                }
+              },
+              {
+                "utilities": {
+                  "raw": 0.0307,
+                  "fmt": "3.07%"
+                }
+              },
+              {
+                "industrials": {
+                  "raw": 0.17870001,
+                  "fmt": "17.87%"
+                }
+              },
+              {
+                "energy": {
+                  "raw": 0.0446,
+                  "fmt": "4.46%"
+                }
+              },
+              {
+                "healthcare": {
+                  "raw": 0.0793,
+                  "fmt": "7.93%"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "etf_symbol": "VEA",
+    "etf_name": "Vanguard FTSE Developed Markets Index Fund ETF Shares",
+    "holdings": [
+      {
+        "symbol": "005930.KS",
+        "name": "Samsung Electronics Co Ltd",
+        "weight": 0.0313536
+      },
+      {
+        "symbol": "000660.KS",
+        "name": "SK Hynix Inc",
+        "weight": 0.0299436
+      },
+      {
+        "symbol": "ASML.AS",
+        "name": "ASML Holding NV",
+        "weight": 0.0233874
+      },
+      {
+        "symbol": "HSBA.L",
+        "name": "HSBC Holdings PLC",
+        "weight": 0.0099307
+      },
+      {
+        "symbol": "NOVN.SW",
+        "name": "Novartis AG Registered Shares",
+        "weight": 0.0089246
+      },
+      {
+        "symbol": "RY",
+        "name": "Royal Bank of Canada",
+        "weight": 0.0088665
+      },
+      {
+        "symbol": "ROP.SW",
+        "name": "Roche Holding AG Ordinary Shares new",
+        "weight": 0.0088507
+      },
+      {
+        "symbol": "AZN.L",
+        "name": "AstraZeneca PLC",
+        "weight": 0.0085705
+      },
+      {
+        "symbol": "NESN.SW",
+        "name": "Nestle SA",
+        "weight": 0.0080797
+      },
+      {
+        "symbol": "SIE.DE",
+        "name": "Siemens AG",
+        "weight": 0.0072196
+      }
+    ],
+    "sector_weights": {
+      "realestate": 0.024500001,
+      "consumer_cyclical": 0.073,
+      "basic_materials": 0.0688,
+      "consumer_defensive": 0.053400002,
+      "technology": 0.18360001,
+      "communication_services": 0.032,
+      "financial_services": 0.2313,
+      "utilities": 0.0307,
+      "industrials": 0.17870001,
+      "energy": 0.0446,
+      "healthcare": 0.0793
+    },
+    "captured_at": "2026-07-25T02:10:16.734150+00:00"
+  },
+  "extractor_version": "1"
+}

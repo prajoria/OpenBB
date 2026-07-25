@@ -1,0 +1,392 @@
+{
+  "name": "yahoo_etf_holdings",
+  "symbol": "DIA",
+  "captured_at": "2026-07-25T02:10:08.458913+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/DIA?modules=topHoldings,fundOwnership,sectorWeightings,price",
+  "raw": {
+    "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/DIA?modules=topHoldings,fundOwnership,sectorWeightings,price",
+    "symbol": "DIA",
+    "captured_at": "2026-07-25T02:10:08.349204+00:00",
+    "capture_layer": "query1",
+    "quoteSummary": {
+      "result": [
+        {
+          "price": {
+            "maxAge": 1,
+            "preMarketChange": {},
+            "preMarketPrice": {},
+            "preMarketSource": "FREE_REALTIME",
+            "postMarketChangePercent": {
+              "raw": -0.00034696714,
+              "fmt": "-0.03%"
+            },
+            "postMarketChange": {
+              "raw": -0.17999268,
+              "fmt": "-0.18"
+            },
+            "postMarketTime": 1784937582,
+            "postMarketPrice": {
+              "raw": 518.58,
+              "fmt": "518.58"
+            },
+            "postMarketSource": "FREE_REALTIME",
+            "regularMarketChangePercent": {
+              "raw": 0.00484252,
+              "fmt": "0.48%"
+            },
+            "regularMarketChange": {
+              "raw": 2.5,
+              "fmt": "2.50"
+            },
+            "regularMarketTime": 1784923200,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "regularMarketPrice": {
+              "raw": 518.76,
+              "fmt": "518.76"
+            },
+            "regularMarketDayHigh": {
+              "raw": 520.5599,
+              "fmt": "520.56"
+            },
+            "regularMarketDayLow": {
+              "raw": 516.27,
+              "fmt": "516.27"
+            },
+            "regularMarketVolume": {
+              "raw": 3269106,
+              "fmt": "3.27M",
+              "longFmt": "3,269,106.00"
+            },
+            "averageDailyVolume10Day": {},
+            "averageDailyVolume3Month": {},
+            "regularMarketPreviousClose": {
+              "raw": 516.26,
+              "fmt": "516.26"
+            },
+            "regularMarketSource": "FREE_REALTIME",
+            "regularMarketOpen": {
+              "raw": 517.28,
+              "fmt": "517.28"
+            },
+            "strikePrice": {},
+            "openInterest": {},
+            "exchange": "PCX",
+            "exchangeName": "NYSEArca",
+            "exchangeDataDelayedBy": 0,
+            "marketState": "POSTPOST",
+            "quoteType": "ETF",
+            "symbol": "DIA",
+            "underlyingSymbol": null,
+            "shortName": "State Street SPDR Dow Jones Ind",
+            "longName": "State Street SPDR Dow Jones Industrial Average ETF Trust",
+            "currency": "USD",
+            "quoteSourceName": "Nasdaq Real Time Price",
+            "currencySymbol": "$",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "marketCap": {}
+          },
+          "topHoldings": {
+            "maxAge": 1,
+            "cashPosition": {
+              "raw": 0.0036000002,
+              "fmt": "0.36%"
+            },
+            "stockPosition": {
+              "raw": 0.9964,
+              "fmt": "99.64%"
+            },
+            "bondPosition": {
+              "raw": 0.0,
+              "fmt": "0.00%"
+            },
+            "otherPosition": {
+              "raw": 0.0,
+              "fmt": "0.00%"
+            },
+            "preferredPosition": {
+              "raw": 0.0,
+              "fmt": "0.00%"
+            },
+            "convertiblePosition": {
+              "raw": 0.0,
+              "fmt": "0.00%"
+            },
+            "holdings": [
+              {
+                "symbol": "CAT",
+                "holdingName": "Caterpillar Inc",
+                "holdingPercent": {
+                  "raw": 0.1205415,
+                  "fmt": "12.05%"
+                }
+              },
+              {
+                "symbol": "GS",
+                "holdingName": "The Goldman Sachs Group Inc",
+                "holdingPercent": {
+                  "raw": 0.1144821,
+                  "fmt": "11.45%"
+                }
+              },
+              {
+                "symbol": "UNH",
+                "holdingName": "UnitedHealth Group Inc",
+                "holdingPercent": {
+                  "raw": 0.047047302,
+                  "fmt": "4.70%"
+                }
+              },
+              {
+                "symbol": "MSFT",
+                "holdingName": "Microsoft Corp",
+                "holdingPercent": {
+                  "raw": 0.042224,
+                  "fmt": "4.22%"
+                }
+              },
+              {
+                "symbol": "AMGN",
+                "holdingName": "Amgen Inc",
+                "holdingPercent": {
+                  "raw": 0.0409902,
+                  "fmt": "4.10%"
+                }
+              },
+              {
+                "symbol": "GOOGL",
+                "holdingName": "Alphabet Inc Class A",
+                "holdingPercent": {
+                  "raw": 0.0404525,
+                  "fmt": "4.05%"
+                }
+              },
+              {
+                "symbol": "HD",
+                "holdingName": "The Home Depot Inc",
+                "holdingPercent": {
+                  "raw": 0.0399216,
+                  "fmt": "3.99%"
+                }
+              },
+              {
+                "symbol": "SHW",
+                "holdingName": "Sherwin-Williams Co",
+                "holdingPercent": {
+                  "raw": 0.038975302,
+                  "fmt": "3.90%"
+                }
+              },
+              {
+                "symbol": "V",
+                "holdingName": "Visa Inc Class A",
+                "holdingPercent": {
+                  "raw": 0.0388361,
+                  "fmt": "3.88%"
+                }
+              },
+              {
+                "symbol": "AXP",
+                "holdingName": "American Express Co",
+                "holdingPercent": {
+                  "raw": 0.0382882,
+                  "fmt": "3.83%"
+                }
+              }
+            ],
+            "equityHoldings": {
+              "priceToEarnings": {
+                "raw": 0.04051,
+                "fmt": "0.04"
+              },
+              "priceToBook": {
+                "raw": 0.1725,
+                "fmt": "0.17"
+              },
+              "priceToSales": {
+                "raw": 0.2959,
+                "fmt": "0.3"
+              },
+              "priceToCashflow": {
+                "raw": 0.04774,
+                "fmt": "0.05"
+              },
+              "medianMarketCap": {},
+              "threeYearEarningsGrowth": {},
+              "priceToEarningsCat": {},
+              "priceToBookCat": {},
+              "priceToSalesCat": {},
+              "priceToCashflowCat": {},
+              "medianMarketCapCat": {},
+              "threeYearEarningsGrowthCat": {}
+            },
+            "bondHoldings": {
+              "maturity": {},
+              "duration": {},
+              "creditQuality": {},
+              "maturityCat": {},
+              "durationCat": {},
+              "creditQualityCat": {}
+            },
+            "bondRatings": [
+              {
+                "us_government": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              }
+            ],
+            "sectorWeightings": [
+              {
+                "realestate": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "consumer_cyclical": {
+                  "raw": 0.1025,
+                  "fmt": "10.25%"
+                }
+              },
+              {
+                "basic_materials": {
+                  "raw": 0.039100002,
+                  "fmt": "3.91%"
+                }
+              },
+              {
+                "consumer_defensive": {
+                  "raw": 0.0388,
+                  "fmt": "3.88%"
+                }
+              },
+              {
+                "technology": {
+                  "raw": 0.1611,
+                  "fmt": "16.11%"
+                }
+              },
+              {
+                "communication_services": {
+                  "raw": 0.0515,
+                  "fmt": "5.15%"
+                }
+              },
+              {
+                "financial_services": {
+                  "raw": 0.26700002,
+                  "fmt": "26.70%"
+                }
+              },
+              {
+                "utilities": {
+                  "raw": 0.0,
+                  "fmt": "0.00%"
+                }
+              },
+              {
+                "industrials": {
+                  "raw": 0.1894,
+                  "fmt": "18.94%"
+                }
+              },
+              {
+                "energy": {
+                  "raw": 0.0188,
+                  "fmt": "1.88%"
+                }
+              },
+              {
+                "healthcare": {
+                  "raw": 0.1318,
+                  "fmt": "13.18%"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "etf_symbol": "DIA",
+    "etf_name": "State Street SPDR Dow Jones Industrial Average ETF Trust",
+    "holdings": [
+      {
+        "symbol": "CAT",
+        "name": "Caterpillar Inc",
+        "weight": 0.1205415
+      },
+      {
+        "symbol": "GS",
+        "name": "The Goldman Sachs Group Inc",
+        "weight": 0.1144821
+      },
+      {
+        "symbol": "UNH",
+        "name": "UnitedHealth Group Inc",
+        "weight": 0.047047302
+      },
+      {
+        "symbol": "MSFT",
+        "name": "Microsoft Corp",
+        "weight": 0.042224
+      },
+      {
+        "symbol": "AMGN",
+        "name": "Amgen Inc",
+        "weight": 0.0409902
+      },
+      {
+        "symbol": "GOOGL",
+        "name": "Alphabet Inc Class A",
+        "weight": 0.0404525
+      },
+      {
+        "symbol": "HD",
+        "name": "The Home Depot Inc",
+        "weight": 0.0399216
+      },
+      {
+        "symbol": "SHW",
+        "name": "Sherwin-Williams Co",
+        "weight": 0.038975302
+      },
+      {
+        "symbol": "V",
+        "name": "Visa Inc Class A",
+        "weight": 0.0388361
+      },
+      {
+        "symbol": "AXP",
+        "name": "American Express Co",
+        "weight": 0.0382882
+      }
+    ],
+    "sector_weights": {
+      "realestate": 0.0,
+      "consumer_cyclical": 0.1025,
+      "basic_materials": 0.039100002,
+      "consumer_defensive": 0.0388,
+      "technology": 0.1611,
+      "communication_services": 0.0515,
+      "financial_services": 0.26700002,
+      "utilities": 0.0,
+      "industrials": 0.1894,
+      "energy": 0.0188,
+      "healthcare": 0.1318
+    },
+    "captured_at": "2026-07-25T02:10:08.349204+00:00"
+  },
+  "extractor_version": "1"
+}

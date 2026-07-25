@@ -1,0 +1,393 @@
+{
+  "name": "yahoo_equity_info",
+  "symbol": "GOOGL",
+  "captured_at": "2026-07-25T02:09:15.908579+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/GOOGL?modules=summaryProfile,assetProfile,secFilings,price",
+  "raw": {
+    "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/GOOGL?modules=summaryProfile,assetProfile,secFilings,price",
+    "symbol": "GOOGL",
+    "captured_at": "2026-07-25T02:09:15.805945+00:00",
+    "capture_layer": "query1",
+    "quoteSummary": {
+      "result": [
+        {
+          "assetProfile": {
+            "address1": "1600 Amphitheatre Parkway",
+            "city": "Mountain View",
+            "state": "CA",
+            "zip": "94043",
+            "country": "United States",
+            "phone": "650-253-0000",
+            "website": "https://abc.xyz",
+            "industry": "Internet Content & Information",
+            "industryKey": "internet-content-information",
+            "industryDisp": "Internet Content & Information",
+            "sector": "Communication Services",
+            "sectorKey": "communication-services",
+            "sectorDisp": "Communication Services",
+            "longBusinessSummary": "Alphabet Inc. offers various products and platforms in the United States, Europe, the Middle East, Africa, the Asia-Pacific, Canada, and Latin America. It operates through Google Services, Google Cloud, and Other Bets segments. The Google Services segment provides products and services, including ads, Android, Chrome, devices, Gmail, Google Drive, Google Maps, Google Photos, Google Play, Search, and YouTube. It is also involved in the sale of apps and in-app purchases and digital content in Google Play and YouTube; and devices, as well as the provision of YouTube consumer subscription services, such as YouTube TV, YouTube Music and Premium, NFL Sunday Ticket, and Google One. The Google Cloud segment offers consumption-based fees and subscriptions for AI solutions, including AI infrastructure, Vertex AI platform, and Gemini enterprise. It also provides cybersecurity, and data and analytics services; Google Workspace that include cloud-based communication and collaboration tools for enterprises, such as Calendar, Gmail, Docs, Drive, and Meet; and other enterprise services. The Other Bets segment sells transportation and internet services. Alphabet Inc. was incorporated in 1998 and is headquartered in Mountain View, California.",
+            "fullTimeEmployees": 198933,
+            "companyOfficers": [
+              {
+                "maxAge": 1,
+                "name": "Mr. Sundar  Pichai",
+                "age": 52,
+                "title": "CEO & Director",
+                "yearBorn": 1973,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 10906079,
+                  "fmt": "10.91M",
+                  "longFmt": "10,906,079"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Ms. Ruth M. Porat",
+                "age": 67,
+                "title": "President & Chief Investment Officer",
+                "yearBorn": 1958,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 1015596,
+                  "fmt": "1.02M",
+                  "longFmt": "1,015,596"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Dr. Lawrence Edward Page II",
+                "age": 52,
+                "title": "Co-Founder & Director",
+                "yearBorn": 1973,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 1,
+                  "fmt": "1",
+                  "longFmt": "1"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Sergey  Brin",
+                "age": 51,
+                "title": "Co-Founder & Director",
+                "yearBorn": 1974,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 1,
+                  "fmt": "1",
+                  "longFmt": "1"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Ms. Anat  Ashkenazi",
+                "age": 52,
+                "title": "Senior VP & CFO",
+                "yearBorn": 1973,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 1087961,
+                  "fmt": "1.09M",
+                  "longFmt": "1,087,961"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. J. Kent Walker",
+                "age": 64,
+                "title": "President of Global Affairs, Chief Legal Officer & Company Secretary",
+                "yearBorn": 1961,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 1015596,
+                  "fmt": "1.02M",
+                  "longFmt": "1,015,596"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. Philipp  Schindler",
+                "age": 54,
+                "title": "Senior Vice President & Chief Business Officer of Google",
+                "yearBorn": 1971,
+                "fiscalYear": 2025,
+                "totalPay": {
+                  "raw": 1623997,
+                  "fmt": "1.62M",
+                  "longFmt": "1,623,997"
+                },
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Ms. Marsida  Saraci",
+                "age": 46,
+                "title": "Principal Accounting Officer, VP & Controller",
+                "yearBorn": 1979,
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Mr. James H. Friedland",
+                "age": 55,
+                "title": "Head of Investor Relations",
+                "yearBorn": 1970,
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              },
+              {
+                "maxAge": 1,
+                "name": "Ms. Fiona Clare Cicconi",
+                "age": 59,
+                "title": "Chief People Officer",
+                "yearBorn": 1966,
+                "fiscalYear": 2025,
+                "exercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                },
+                "unexercisedValue": {
+                  "raw": 0,
+                  "fmt": null,
+                  "longFmt": "0"
+                }
+              }
+            ],
+            "auditRisk": 8,
+            "boardRisk": 8,
+            "compensationRisk": 10,
+            "shareHolderRightsRisk": 10,
+            "overallRisk": 10,
+            "governanceEpochDate": 1782864000,
+            "compensationAsOfEpochDate": 1767139200,
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "summaryProfile": {
+            "address1": "1600 Amphitheatre Parkway",
+            "city": "Mountain View",
+            "state": "CA",
+            "zip": "94043",
+            "country": "United States",
+            "phone": "650-253-0000",
+            "website": "https://abc.xyz",
+            "industry": "Internet Content & Information",
+            "industryKey": "internet-content-information",
+            "industryDisp": "Internet Content & Information",
+            "sector": "Communication Services",
+            "sectorKey": "communication-services",
+            "sectorDisp": "Communication Services",
+            "longBusinessSummary": "Alphabet Inc. offers various products and platforms in the United States, Europe, the Middle East, Africa, the Asia-Pacific, Canada, and Latin America. It operates through Google Services, Google Cloud, and Other Bets segments. The Google Services segment provides products and services, including ads, Android, Chrome, devices, Gmail, Google Drive, Google Maps, Google Photos, Google Play, Search, and YouTube. It is also involved in the sale of apps and in-app purchases and digital content in Google Play and YouTube; and devices, as well as the provision of YouTube consumer subscription services, such as YouTube TV, YouTube Music and Premium, NFL Sunday Ticket, and Google One. The Google Cloud segment offers consumption-based fees and subscriptions for AI solutions, including AI infrastructure, Vertex AI platform, and Gemini enterprise. It also provides cybersecurity, and data and analytics services; Google Workspace that include cloud-based communication and collaboration tools for enterprises, such as Calendar, Gmail, Docs, Drive, and Meet; and other enterprise services. The Other Bets segment sells transportation and internet services. Alphabet Inc. was incorporated in 1998 and is headquartered in Mountain View, California.",
+            "fullTimeEmployees": 198933,
+            "companyOfficers": [],
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "price": {
+            "maxAge": 1,
+            "preMarketChangePercent": {
+              "raw": 0.00119615,
+              "fmt": "0.12%"
+            },
+            "preMarketChange": {
+              "raw": 0.38000488,
+              "fmt": "0.38"
+            },
+            "preMarketTime": 1784899799,
+            "preMarketPrice": {
+              "raw": 318.07,
+              "fmt": "318.07"
+            },
+            "preMarketSource": "FREE_REALTIME",
+            "postMarketChangePercent": {
+              "raw": -0.0028147679,
+              "fmt": "-0.28%"
+            },
+            "postMarketChange": {
+              "raw": -0.8999939,
+              "fmt": "-0.90"
+            },
+            "postMarketTime": 1784937597,
+            "postMarketPrice": {
+              "raw": 318.84,
+              "fmt": "318.84"
+            },
+            "postMarketSource": "FREE_REALTIME",
+            "regularMarketChangePercent": {
+              "raw": 0.00645279,
+              "fmt": "0.65%"
+            },
+            "regularMarketChange": {
+              "raw": 2.04999,
+              "fmt": "2.05"
+            },
+            "regularMarketTime": 1784923201,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "regularMarketPrice": {
+              "raw": 319.74,
+              "fmt": "319.74"
+            },
+            "regularMarketDayHigh": {
+              "raw": 324.18,
+              "fmt": "324.18"
+            },
+            "regularMarketDayLow": {
+              "raw": 317.33,
+              "fmt": "317.33"
+            },
+            "regularMarketVolume": {
+              "raw": 31306769,
+              "fmt": "31.31M",
+              "longFmt": "31,306,769.00"
+            },
+            "averageDailyVolume10Day": {},
+            "averageDailyVolume3Month": {},
+            "regularMarketPreviousClose": {
+              "raw": 317.69,
+              "fmt": "317.69"
+            },
+            "regularMarketSource": "FREE_REALTIME",
+            "regularMarketOpen": {
+              "raw": 318.315,
+              "fmt": "318.32"
+            },
+            "strikePrice": {},
+            "openInterest": {},
+            "exchange": "NMS",
+            "exchangeName": "NasdaqGS",
+            "exchangeDataDelayedBy": 0,
+            "marketState": "POSTPOST",
+            "quoteType": "EQUITY",
+            "symbol": "GOOGL",
+            "underlyingSymbol": null,
+            "shortName": "Alphabet Inc.",
+            "longName": "Alphabet Inc.",
+            "currency": "USD",
+            "quoteSourceName": "Nasdaq Real Time Price",
+            "currencySymbol": "$",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "marketCap": {
+              "raw": 3910399426560,
+              "fmt": "3.91T",
+              "longFmt": "3,910,399,426,560.00"
+            }
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "symbol": "GOOGL",
+    "name": "Alphabet Inc.",
+    "short_name": "Alphabet Inc.",
+    "sector": "Communication Services",
+    "industry": "Internet Content & Information",
+    "country": "United States",
+    "website": "https://abc.xyz",
+    "long_business_summary": "Alphabet Inc. offers various products and platforms in the United States, Europe, the Middle East, Africa, the Asia-Pacific, Canada, and Latin America. It operates through Google Services, Google Cloud, and Other Bets segments. The Google Services segment provides products and services, including ads, Android, Chrome, devices, Gmail, Google Drive, Google Maps, Google Photos, Google Play, Search, and YouTube. It is also involved in the sale of apps and in-app purchases and digital content in Google Play and YouTube; and devices, as well as the provision of YouTube consumer subscription services, such as YouTube TV, YouTube Music and Premium, NFL Sunday Ticket, and Google One. The Google Cloud segment offers consumption-based fees and subscriptions for AI solutions, including AI infrastructure, Vertex AI platform, and Gemini enterprise. It also provides cybersecurity, and data and analytics services; Google Workspace that include cloud-based communication and collaboration tools for enterprises, such as Calendar, Gmail, Docs, Drive, and Meet; and other enterprise services. The Other Bets segment sells transportation and internet services. Alphabet Inc. was incorporated in 1998 and is headquartered in Mountain View, California.",
+    "full_time_employees": 198933,
+    "captured_at": "2026-07-25T02:09:15.805945+00:00"
+  },
+  "extractor_version": "1"
+}

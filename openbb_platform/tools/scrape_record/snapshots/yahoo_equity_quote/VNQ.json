@@ -1,0 +1,374 @@
+{
+  "name": "yahoo_equity_quote",
+  "symbol": "VNQ",
+  "captured_at": "2026-07-25T02:09:26.529314+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/VNQ?modules=summaryDetail,price,defaultKeyStatistics",
+  "raw": {
+    "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/VNQ?modules=summaryDetail,price,defaultKeyStatistics",
+    "symbol": "VNQ",
+    "captured_at": "2026-07-25T02:09:26.422451+00:00",
+    "capture_layer": "query1",
+    "quoteSummary": {
+      "result": [
+        {
+          "summaryDetail": {
+            "maxAge": 1,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "previousClose": {
+              "raw": 98.69,
+              "fmt": "98.69"
+            },
+            "open": {
+              "raw": 99.47,
+              "fmt": "99.47"
+            },
+            "dayLow": {
+              "raw": 99.47,
+              "fmt": "99.47"
+            },
+            "dayHigh": {
+              "raw": 101.16,
+              "fmt": "101.16"
+            },
+            "regularMarketPreviousClose": {
+              "raw": 98.69,
+              "fmt": "98.69"
+            },
+            "regularMarketOpen": {
+              "raw": 99.47,
+              "fmt": "99.47"
+            },
+            "regularMarketDayLow": {
+              "raw": 99.47,
+              "fmt": "99.47"
+            },
+            "regularMarketDayHigh": {
+              "raw": 101.16,
+              "fmt": "101.16"
+            },
+            "dividendRate": {},
+            "dividendYield": {},
+            "exDividendDate": {},
+            "payoutRatio": {},
+            "fiveYearAvgDividendYield": {},
+            "beta": {},
+            "trailingPE": {
+              "raw": 32.03217,
+              "fmt": "32.03"
+            },
+            "forwardPE": {},
+            "volume": {
+              "raw": 3201299,
+              "fmt": "3.2M",
+              "longFmt": "3,201,299"
+            },
+            "regularMarketVolume": {
+              "raw": 3201299,
+              "fmt": "3.2M",
+              "longFmt": "3,201,299"
+            },
+            "averageVolume": {
+              "raw": 3212127,
+              "fmt": "3.21M",
+              "longFmt": "3,212,127"
+            },
+            "averageVolume10days": {
+              "raw": 2656470,
+              "fmt": "2.66M",
+              "longFmt": "2,656,470"
+            },
+            "averageDailyVolume10Day": {
+              "raw": 2656470,
+              "fmt": "2.66M",
+              "longFmt": "2,656,470"
+            },
+            "bid": {
+              "raw": 100.81,
+              "fmt": "100.81"
+            },
+            "ask": {
+              "raw": 100.82,
+              "fmt": "100.82"
+            },
+            "bidSize": {
+              "raw": 100000,
+              "fmt": "100k",
+              "longFmt": "100,000"
+            },
+            "askSize": {
+              "raw": 80000,
+              "fmt": "80k",
+              "longFmt": "80,000"
+            },
+            "marketCap": {},
+            "nonDilutedMarketCap": {},
+            "yield": {
+              "raw": 0.036,
+              "fmt": "3.60%"
+            },
+            "ytdReturn": {},
+            "qtdReturn": {},
+            "totalAssets": {
+              "raw": 71348019200,
+              "fmt": "71.35B",
+              "longFmt": "71,348,019,200"
+            },
+            "expireDate": {},
+            "strikePrice": {},
+            "openInterest": {},
+            "fiftyTwoWeekLow": {
+              "raw": 86.84,
+              "fmt": "86.84"
+            },
+            "fiftyTwoWeekHigh": {
+              "raw": 101.16,
+              "fmt": "101.16"
+            },
+            "allTimeHigh": {
+              "raw": 116.71,
+              "fmt": "116.71"
+            },
+            "allTimeLow": {
+              "raw": 19.95,
+              "fmt": "19.95"
+            },
+            "priceToSalesTrailing12Months": {},
+            "fiftyDayAverage": {
+              "raw": 97.1218,
+              "fmt": "97.12"
+            },
+            "twoHundredDayAverage": {
+              "raw": 92.8906,
+              "fmt": "92.89"
+            },
+            "trailingAnnualDividendRate": {
+              "raw": 3.334,
+              "fmt": "3.33"
+            },
+            "trailingAnnualDividendYield": {
+              "raw": 0.033782553,
+              "fmt": "3.38%"
+            },
+            "navPrice": {
+              "raw": 98.69,
+              "fmt": "98.69"
+            },
+            "currency": "USD",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "coinMarketCapLink": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "algorithm": null,
+            "maxSupply": {},
+            "totalSupply": {},
+            "startDate": {},
+            "tradeable": false,
+            "fullyDilutedValue": {},
+            "volume24HrMarketCapPercent": {}
+          },
+          "defaultKeyStatistics": {
+            "maxAge": 1,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "enterpriseValue": {},
+            "forwardPE": {},
+            "profitMargins": {},
+            "morningStarOverallRating": {},
+            "morningStarRiskRating": {},
+            "category": "Real Estate",
+            "bookValue": {},
+            "priceToBook": {},
+            "annualReportExpenseRatio": {},
+            "ytdReturn": {
+              "raw": 0.1372047,
+              "fmt": "13.72%"
+            },
+            "qtdReturn": {},
+            "beta3Year": {
+              "raw": 1.0,
+              "fmt": "1.00"
+            },
+            "totalAssets": {
+              "raw": 71348019200,
+              "fmt": "71.35B",
+              "longFmt": "71,348,019,200"
+            },
+            "yield": {
+              "raw": 0.036,
+              "fmt": "3.60%"
+            },
+            "fundFamily": "Vanguard",
+            "fundInceptionDate": {
+              "raw": 1095897600,
+              "fmt": "2004-09-23"
+            },
+            "legalType": "Exchange Traded Fund",
+            "threeYearAverageReturn": {
+              "raw": 0.0884802,
+              "fmt": "8.85%"
+            },
+            "fiveYearAverageReturn": {
+              "raw": 0.0246562,
+              "fmt": "2.47%"
+            },
+            "priceToSalesTrailing12Months": {},
+            "lastFiscalYearEnd": {},
+            "nextFiscalYearEnd": {},
+            "mostRecentQuarter": {},
+            "earningsQuarterlyGrowth": {},
+            "revenueQuarterlyGrowth": {},
+            "netIncomeToCommon": {},
+            "trailingEps": {},
+            "forwardEps": {},
+            "pegRatio": {},
+            "lastSplitFactor": null,
+            "lastSplitDate": {},
+            "enterpriseToRevenue": {},
+            "enterpriseToEbitda": {},
+            "52WeekChange": {},
+            "SandP52WeekChange": {},
+            "lastDividendValue": {},
+            "lastDividendDate": {},
+            "lastCapGain": {},
+            "annualHoldingsTurnover": {},
+            "latestFundingDate": {},
+            "latestAmountRaised": {},
+            "latestImpliedValuation": {},
+            "latestShareClass": null,
+            "leadInvestor": null,
+            "fundingToDate": {},
+            "totalFundingRounds": {}
+          },
+          "price": {
+            "maxAge": 1,
+            "preMarketChangePercent": {
+              "raw": 0.0063729025,
+              "fmt": "0.64%"
+            },
+            "preMarketChange": {
+              "raw": 0.62900543,
+              "fmt": "0.63"
+            },
+            "preMarketTime": 1784899799,
+            "preMarketPrice": {
+              "raw": 99.329,
+              "fmt": "99.33"
+            },
+            "preMarketSource": "FREE_REALTIME",
+            "postMarketChangePercent": {
+              "raw": 0.0030751433,
+              "fmt": "0.31%"
+            },
+            "postMarketChange": {
+              "raw": 0.3100052,
+              "fmt": "0.31"
+            },
+            "postMarketTime": 1784937571,
+            "postMarketPrice": {
+              "raw": 101.12,
+              "fmt": "101.12"
+            },
+            "postMarketSource": "DELAYED",
+            "regularMarketChangePercent": {
+              "raw": 0.0214814,
+              "fmt": "2.15%"
+            },
+            "regularMarketChange": {
+              "raw": 2.12,
+              "fmt": "2.12"
+            },
+            "regularMarketTime": 1784923200,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "regularMarketPrice": {
+              "raw": 100.81,
+              "fmt": "100.81"
+            },
+            "regularMarketDayHigh": {
+              "raw": 101.16,
+              "fmt": "101.16"
+            },
+            "regularMarketDayLow": {
+              "raw": 99.47,
+              "fmt": "99.47"
+            },
+            "regularMarketVolume": {
+              "raw": 3201299,
+              "fmt": "3.20M",
+              "longFmt": "3,201,299.00"
+            },
+            "averageDailyVolume10Day": {
+              "raw": 2656470,
+              "fmt": "2.66M",
+              "longFmt": "2,656,470"
+            },
+            "averageDailyVolume3Month": {
+              "raw": 3212127,
+              "fmt": "3.21M",
+              "longFmt": "3,212,127"
+            },
+            "regularMarketPreviousClose": {
+              "raw": 98.69,
+              "fmt": "98.69"
+            },
+            "regularMarketSource": "FREE_REALTIME",
+            "regularMarketOpen": {
+              "raw": 99.47,
+              "fmt": "99.47"
+            },
+            "strikePrice": {},
+            "openInterest": {},
+            "exchange": "PCX",
+            "exchangeName": "NYSEArca",
+            "exchangeDataDelayedBy": 0,
+            "marketState": "POSTPOST",
+            "quoteType": "ETF",
+            "symbol": "VNQ",
+            "underlyingSymbol": null,
+            "shortName": "Vanguard Real Estate ETF",
+            "longName": "Vanguard Real Estate Index Fund ETF Shares",
+            "currency": "USD",
+            "quoteSourceName": "Delayed Quote",
+            "currencySymbol": "$",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "marketCap": {}
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "symbol": "VNQ",
+    "name": "Vanguard Real Estate Index Fund ETF Shares",
+    "exchange": "NYSEArca",
+    "currency": "USD",
+    "last_price": 100.81,
+    "previous_close": 98.69,
+    "open": 99.47,
+    "high": 101.16,
+    "low": 99.47,
+    "volume": 3201299,
+    "market_cap": null,
+    "captured_at": "2026-07-25T02:09:26.422451+00:00"
+  },
+  "extractor_version": "1"
+}

@@ -1,0 +1,140 @@
+{
+  "name": "yahoo_equity_info",
+  "symbol": "IWM",
+  "captured_at": "2026-07-25T02:10:10.317045+00:00",
+  "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/IWM?modules=summaryProfile,assetProfile,secFilings,price",
+  "raw": {
+    "source_url": "https://query1.finance.yahoo.com/v10/finance/quoteSummary/IWM?modules=summaryProfile,assetProfile,secFilings,price",
+    "symbol": "IWM",
+    "captured_at": "2026-07-25T02:10:10.199932+00:00",
+    "capture_layer": "query1",
+    "quoteSummary": {
+      "result": [
+        {
+          "assetProfile": {
+            "phone": "415-670-2000",
+            "longBusinessSummary": "The fund generally invests at least 80% of its assets in the component securities of its underlying index and in investments that have economic characteristics that are substantially identical to the component securities of its underlying index (i.e., depositary receipts representing securities of the underlying index) and may invest up to 20% of its assets in certain futures, options and swap contracts, cash and cash equivalents.",
+            "companyOfficers": [],
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "summaryProfile": {
+            "phone": "415-670-2000",
+            "longBusinessSummary": "The fund generally invests at least 80% of its assets in the component securities of its underlying index and in investments that have economic characteristics that are substantially identical to the component securities of its underlying index (i.e., depositary receipts representing securities of the underlying index) and may invest up to 20% of its assets in certain futures, options and swap contracts, cash and cash equivalents.",
+            "companyOfficers": [],
+            "executiveTeam": [],
+            "maxAge": 86400
+          },
+          "price": {
+            "maxAge": 1,
+            "preMarketChangePercent": {
+              "raw": 0.0047930223,
+              "fmt": "0.48%"
+            },
+            "preMarketChange": {
+              "raw": 1.3999939,
+              "fmt": "1.40"
+            },
+            "preMarketTime": 1784899795,
+            "preMarketPrice": {
+              "raw": 293.49,
+              "fmt": "293.49"
+            },
+            "preMarketSource": "FREE_REALTIME",
+            "postMarketChangePercent": {
+              "raw": 0.000789535,
+              "fmt": "0.08%"
+            },
+            "postMarketChange": {
+              "raw": 0.22988892,
+              "fmt": "0.23"
+            },
+            "postMarketTime": 1784937595,
+            "postMarketPrice": {
+              "raw": 291.3999,
+              "fmt": "291.40"
+            },
+            "postMarketSource": "FREE_REALTIME",
+            "regularMarketChangePercent": {
+              "raw": -0.0031496598,
+              "fmt": "-0.31%"
+            },
+            "regularMarketChange": {
+              "raw": -0.919983,
+              "fmt": "-0.92"
+            },
+            "regularMarketTime": 1784923200,
+            "priceHint": {
+              "raw": 2,
+              "fmt": "2",
+              "longFmt": "2"
+            },
+            "regularMarketPrice": {
+              "raw": 291.17,
+              "fmt": "291.17"
+            },
+            "regularMarketDayHigh": {
+              "raw": 293.97,
+              "fmt": "293.97"
+            },
+            "regularMarketDayLow": {
+              "raw": 290.48,
+              "fmt": "290.48"
+            },
+            "regularMarketVolume": {
+              "raw": 19674950,
+              "fmt": "19.67M",
+              "longFmt": "19,674,950.00"
+            },
+            "averageDailyVolume10Day": {},
+            "averageDailyVolume3Month": {},
+            "regularMarketPreviousClose": {
+              "raw": 292.09,
+              "fmt": "292.09"
+            },
+            "regularMarketSource": "FREE_REALTIME",
+            "regularMarketOpen": {
+              "raw": 293.41,
+              "fmt": "293.41"
+            },
+            "strikePrice": {},
+            "openInterest": {},
+            "exchange": "PCX",
+            "exchangeName": "NYSEArca",
+            "exchangeDataDelayedBy": 0,
+            "marketState": "POSTPOST",
+            "quoteType": "ETF",
+            "symbol": "IWM",
+            "underlyingSymbol": null,
+            "shortName": "iShares Russell 2000 Index Fund",
+            "longName": "iShares Russell 2000 ETF",
+            "currency": "USD",
+            "quoteSourceName": "Nasdaq Real Time Price",
+            "currencySymbol": "$",
+            "fromCurrency": null,
+            "toCurrency": null,
+            "lastMarket": null,
+            "volume24Hr": {},
+            "volumeAllCurrencies": {},
+            "circulatingSupply": {},
+            "marketCap": {}
+          }
+        }
+      ],
+      "error": null
+    }
+  },
+  "extracted": {
+    "symbol": "IWM",
+    "name": "iShares Russell 2000 ETF",
+    "short_name": "iShares Russell 2000 Index Fund",
+    "sector": null,
+    "industry": null,
+    "country": null,
+    "website": null,
+    "long_business_summary": "The fund generally invests at least 80% of its assets in the component securities of its underlying index and in investments that have economic characteristics that are substantially identical to the component securities of its underlying index (i.e., depositary receipts representing securities of the underlying index) and may invest up to 20% of its assets in certain futures, options and swap contracts, cash and cash equivalents.",
+    "full_time_employees": null,
+    "captured_at": "2026-07-25T02:10:10.199932+00:00"
+  },
+  "extractor_version": "1"
+}
