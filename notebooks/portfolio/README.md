@@ -70,6 +70,25 @@ needs from the prior notebooks.
 | 06 | `06-backtest-and-validation.ipynb` | ~15 min | The base run looked great; the sweep + PBO said "you got lucky" |
 | 07 | `07-offline-recording-and-end-to-end.ipynb` | ~10 min | Monday-morning routine, reproducible from disk, works on a plane |
 
+### 📚 Learning path (for developers new to trading)
+
+If you have never taken a finance class, read the notebooks with these
+Investopedia primers open in a second tab. Each notebook's `📚 Further
+reading` appendix lists every link cited in that notebook; the bullets
+below are the *pre-reading* — the minimum vocabulary each notebook
+assumes you already have.
+
+- **Before NB01:** [What is a stock?](https://www.investopedia.com/terms/s/stock.asp) · [What is an ETF?](https://www.investopedia.com/terms/e/etf.asp) · [OHLCV chart](https://www.investopedia.com/terms/o/ohlcchart.asp)
+- **Before NB02:** [Fundamental analysis](https://www.investopedia.com/terms/f/fundamentalanalysis.asp) · [DCF valuation](https://www.investopedia.com/terms/d/dcf.asp) · [Owner earnings](https://www.investopedia.com/terms/o/ownersearnings.asp)
+- **Before NB03:** [Portfolio diversification](https://www.investopedia.com/terms/d/diversification.asp) · [Herfindahl-Hirschman Index (HHI)](https://www.investopedia.com/terms/h/hhi.asp) · [Sharpe ratio](https://www.investopedia.com/terms/s/sharperatio.asp)
+- **Before NB04:** [SEC 13F filings](https://www.investopedia.com/terms/1/13f.asp) · [Insider trading](https://www.investopedia.com/terms/i/insidertrading.asp) · [STOCK Act](https://www.investopedia.com/terms/s/stock-act.asp)
+- **Before NB05:** [Brinson attribution](https://www.investopedia.com/terms/p/performance-attribution.asp) · [Paper trading](https://www.investopedia.com/terms/p/papertrade.asp)
+- **Before NB06:** [Backtesting](https://www.investopedia.com/terms/b/backtesting.asp) · [Walk-forward analysis](https://www.investopedia.com/terms/w/walkforward-optimization.asp) · [Overfitting](https://www.investopedia.com/terms/o/overfitting.asp)
+- **Before NB07:** [Portfolio review cadence](https://www.investopedia.com/articles/investing/122714/how-often-should-you-review-your-portfolio.asp)
+
+Duplicates between this list and a notebook's `📚 Further reading` are
+intentional — one is a pre-read, the other is a citation index.
+
 ## The arc
 
 ```
