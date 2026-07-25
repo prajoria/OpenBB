@@ -321,3 +321,107 @@ Rules the sample encodes:
 - Not a checklist the reader ever sees.
 - Not an inventory of every feature. Anything not needed for Sam's
   arc stays out, per §5.
+
+---
+
+## 10. Teaching contract (added 2026-07-25)
+
+The reference notebook `notebooks/01-foundations-techtrade-and-analysis.ipynb`
+ships 76 Investopedia links across 82 glossary boxes. The portfolio
+series is targeting ~80 links across all 7 notebooks. The rules below
+codify how those links + glossary boxes get written so future authors
+don't have to re-derive them.
+
+### 10.1 First-occurrence rule
+
+Every finance term gets a glossary box (Type A) or inline link the
+**first time** it appears in the series — never twice. Second and
+later appearances use the bare term. If NB03 introduces HHI and NB05
+uses it again, NB05 writes `HHI (see NB03 §2)`, no link, no
+re-definition. Enforced at review by grepping each notebook for
+`investopedia.com` URLs that are already present in an earlier
+notebook.
+
+Exception: each notebook's own `📚 Further reading` appendix
+(Type C) re-lists every link cited in that notebook. That is a
+reference index, not a re-introduction — allowed. And the reader
+README's `📚 Learning path` block deliberately re-uses the URLs
+because that is the pre-read.
+
+### 10.2 Callout format (Type A — glossary box)
+
+Blockquote (`>`) prefix so it renders as a visually distinct box in
+Jupyter, GitHub, and nbviewer. Anchored by the 📖 emoji, then the
+term in bold, then a one-sentence definition, then the Investopedia
+link:
+
+```markdown
+> **📖 Sharpe ratio** — annualized return per unit of volatility;
+> anything above 1.0 is decent for a long-only equity portfolio;
+> above 2.0 warrants suspicion. [Investopedia →](https://www.investopedia.com/terms/s/sharperatio.asp)
+```
+
+Placed **immediately before** the code cell that first uses the term.
+
+### 10.3 Concept primer (Type B) — 200-300 words per major section
+
+A short primer opens each major numbered section that introduces a
+new cluster of concepts. Structure:
+
+1. The trader's problem in plain English.
+2. The finance concept the platform uses to answer it, with an
+   Investopedia link on first mention.
+3. What "healthy" vs "unhealthy" numbers look like, with 2-3 rules
+   of thumb — always cited to the source, never invented.
+4. What the platform's specific implementation adds beyond textbook.
+
+### 10.4 Voice preservation
+
+Teaching content lives INSIDE Sam's reflections — never becomes a
+lecture. Every glossary box should be readable as something Sam
+looked up while writing the notebook, not a textbook footnote.
+Sample:
+
+> "I typed `obb.equity.price.quote('MSFT')` and got back a dict.
+> Wait — what's the difference between a **quote** and a **bar**?
+> Turns out one's a single snapshot, the other's an aggregated
+> interval. [Investopedia on OHLCV →]…"
+
+### 10.5 Emoji restraint
+
+The only two emoji allowed in teaching content are 📖 (glossary
+boxes) and 📚 (Further reading + Learning path headers). No 🎯 ✅
+⚠️ 💡 🚀 or any other decoration in body text. This matches the
+CLAUDE.md file-hygiene rule ("only use emojis if the user
+explicitly requests it") and keeps the notebooks legible in
+terminal-rendered previews.
+
+### 10.6 Sources hierarchy
+
+Investopedia is the default source. Use canonical academic papers
+or well-known finance blogs (SSRN, Quantpedia, Damodaran's
+website) only when Investopedia does not have a good page — rare
+in practice, but PBO (probability of backtest overfitting) is one
+example. Never cite Wikipedia in a glossary box (its finance
+pages drift); citing it inline in a primer for scope-of-topic is
+OK.
+
+### 10.7 Rules-of-thumb citation rule
+
+Never invent a threshold. If a primer says "Sharpe above 1.0 is
+decent," the accompanying link must land on a page that says the
+same thing. If no such source exists, either drop the threshold
+or attribute it explicitly ("in Sam's book, I'll call above 1.0
+decent").
+
+### 10.8 Coverage targets
+
+- ≥ 80 unique Investopedia links across NB01-NB07 combined
+- ≥ 30 concept-primer blocks (Type B) across the series
+- ≥ 20 further-reading references (Type C entries + external
+  papers/blogs) across the series
+
+Per-notebook per-notebook targets live in
+`docs/superpowers/specs/2026-07-25-portfolio-nb-teaching-depth-spec.md`.
+
+---
