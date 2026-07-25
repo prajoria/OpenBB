@@ -1141,3 +1141,74 @@ actually unblocked yet).
 **Board state at time of memory**: 12 open on Project #4 (was 15
 before this drain iteration); the remainder are the 7 Phase B code
 issues + gate + parent epic + PR-4 + #1373.
+
+
+## 2026-07-25 — Phase B (notebook series) shipped end-to-end
+
+The 7-notebook Portfolio Intelligence Engine user guide (Phase B of
+#1352) is fully code-filled and merged to `portfolio`:
+
+- NB01 #1363 (PR #1391), NB02 #1364 (PR #1392), NB03 #1365 (PR #1393),
+  NB04 #1366 (PR #1396), NB05 #1367 (PR #1397), NB06 #1368 (PR #1398),
+  NB07 #1369 (PR #1399).
+
+Phase B gate #1370 delivers `openbb_platform/tests/test_notebooks_portfolio_smoke.py`
+(36 tests, ~90 ms, no API key needed): parses each notebook, `compile()`
+every code cell, asserts recorded outputs + zero error-outputs. Catches
+structural + recorded-output rot but NOT router-signature drift (that
+still needs a manual kernel-restart+Run-All in `.venv_portfolio` before
+publishing changes — documented in the test docstring).
+
+Product review (per #1370 acceptance criteria (c)/(d)) scored the
+series 8.0 story / 7.6 fulfillment / 8.6 honesty / 8.0 value on
+average, with NB03 as the strongest chapter (10/10 value — the "I own
+47 things, not 10" pivot moment lands) and NB04 as the weakest (thin;
+smart-money Act-4 reveal not landed). 6 follow-up issues filed against
+#1352:
+
+- #1400 (HIGH): NB04 complete smart-money rollup + Act-4 reveal
+- #1401 (MED):  NB05 wire the sanctioned fallback fixture
+- #1402 (MED):  NB07 timed end-to-end run backing the "45-min plane" claim
+- #1403 (LOW):  NB03 fixture-lock the 38%→55% Tech numbers vs actual
+- #1404 (LOW):  NB04 add "What is NOT in this notebook" closer
+- #1405 (LOW):  NB02/06 loud-empty warnings (Testing Rule 3) audit
+
+**API-shape gotchas surfaced during NB05/NB06 fulfillment** (worth
+carrying into the widget backend + any future notebook work):
+
+- `brinson_reference` DataFrame needs `w_p`/`w_b`/`r_p`/`r_b` columns
+  (underscores). No `wp`/`wb`/`rp`/`rb` shorthand.
+- Paper engine: `PaperAccount` isn't constructed directly — use
+  `InMemoryAccountStore.create(user_id=…, config=…, now=…, account_id=…)`
+  factory; the field is `cash_balance` (not `cash`).
+- `QuoteFetcher` is a Protocol requiring a `.fetch(symbol, *, now)`
+  method — a bare callable is silently rejected via AttributeError.
+- `InMemoryPositionStore.get(account_id, symbol, *, user_id)` — first
+  two args positional, `user_id` keyword-only.
+- `submit_order` returns `SubmitResult(status=REJECTED, reason=…)` for
+  over-sized orders rather than raising `OrderRejected`. Handle both.
+- `openbb_backtest`: strategies need `strategy_params={"symbols": …}`
+  (not surfaced in the router signature); `SweepResult` uses
+  `.results`/`.best`/`.best_metrics`/`.rank_by` (not `.rows`/`.best.params`);
+  `PerformanceMetrics` has no `total_return`/`annualized_volatility`
+  fields (use `cagr`/`volatility`); tearsheet exports to `.html_path`
+  (not `.artifact_path`); factors live in
+  `factor_router._factor_registry()` — separate registry from strategies;
+  `factor_eval` needs `alphalens-reloaded`; `tearsheet(export=True)`
+  needs `quantstats`.
+- `scrape-record` CLI ships as a console-script shim only —
+  `python -m scrape_record` errors (no `__main__`); resolve the shim
+  via `sys.executable`'s Scripts dir.
+
+**Provider tier constraints in effect** (unchanged from prior memories,
+codified during Phase B): fmp_cached is primary; fmp is fallback with
+tracked debt (`area:fmp-cached-gap` label); yfinance is fallback ONLY —
+never in aggressive automation (cron / CI / batch loop). 13F sub-plan
+is NOT subscribed, so `smart_money.rollup` returns empty by design; the
+sanctioned fallback is the fixture path per STORY_BIBLE §3, not a
+fabrication.
+
+**Board state at time of memory**: Phase B parent epic #1352 closes
+with this PR. Remaining open in Project #4: the 6 fresh follow-ups
+(#1400-#1405), bug reports #1389/#1390/#1394/#1395 (surfaced during
+notebook execution), and the assorted long-tail non-portfolio issues.
