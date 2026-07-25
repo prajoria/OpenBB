@@ -138,9 +138,7 @@ class YFinanceBondLadderFetcher(Fetcher[_EtfSymbolQueryParams, YFinanceBondLadde
         return _EtfSymbolQueryParams(**params)
 
     @classmethod
-    def fetch_from_snapshot(
-        cls, symbol: str, **kwargs: Any
-    ) -> YFinanceBondLadderData:
+    def fetch_from_snapshot(cls, symbol: str, **kwargs: Any) -> YFinanceBondLadderData:
         """Public sync shortcut for notebooks / scripts.
 
         Equivalent to ``asyncio.run(cls.fetch_data(...))`` but works
