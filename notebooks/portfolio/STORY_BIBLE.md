@@ -150,9 +150,15 @@ only. Round-number synthetic weights (never a real portfolio).
 | GLD | 3% | Tail-hedge tilt — Sam will discover it's too small to matter |
 
 **Guaranteed narrative outcomes on this basket:**
-1. NB03: raw sector view says "38% Tech" — after look-through, closer
-   to 55% Tech. That is the pivot moment.
-2. NB03: HHI more than doubles post-look-through.
+1. NB03: raw sector view says "36% Tech" — after look-through, closer
+   to 60% Tech. That is the pivot moment. (Fixture-locked from the
+   Phase B fulfillment run: 36.0% → 60.3%, per #1403.)
+2. NB03: per-name concentration goes the OTHER direction — HHI drops
+   from 0.1206 to 0.0693 and Effective-N rises from 8.3 to 14.4,
+   because ETFs decompose into many small sub-positions. Both
+   stories are true simultaneously: sector concentration UP,
+   per-name concentration DOWN. Sam has to hold both facts at once
+   to make the trade call.
 3. NB04: at least one of MSFT/NVDA/GOOGL/AAPL/AMD has a live insider
    or 13F signal in any given month. (If none surface on the day
    NB04 runs, the fallback fixture shows a canonical example
@@ -240,10 +246,10 @@ back to a pointer paragraph in NB07 §where-to-go-next.
 Every author matches this tone. When in doubt, read it aloud — Sam
 sounds like this.
 
-> I ran the x-ray on my "diversified 12" and stared at the
-> screen for a while. The raw sector view said 38% Tech, which was
+> I ran the x-ray on my "diversified 10" and stared at the
+> screen for a while. The raw sector view said 36% Tech, which was
 > already more than I thought. Then I clicked the look-through button
-> and it turned into 55%. Fifty-five. Because QQQ is basically MSFT
+> and it turned into 60%. Sixty. Because QQQ is basically MSFT
 > and NVDA in a trench coat, and VTI has more MSFT in it than I do
 > directly. My "diversified" book was one sector with a hat on.
 >
@@ -254,7 +260,7 @@ sounds like this.
 Rules the sample encodes:
 - First person. Present tense for the discovery moment; past tense
   for the setup.
-- Concrete numbers when they matter (38%, 55%, 400ms). Never fake
+- Concrete numbers when they matter (36%, 60%, 400ms). Never fake
   precision.
 - Metaphor OK when it lands ("QQQ is basically MSFT and NVDA in a
   trench coat") — never twice per section, never at the expense of
