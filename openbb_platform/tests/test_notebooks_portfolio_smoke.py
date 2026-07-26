@@ -59,6 +59,7 @@ EXPECTED_NOTEBOOKS_YFINANCE = [
     "05-whatif-attribution-and-paper.ipynb",
     "06-backtest-and-validation.ipynb",
     "07-offline-recording-and-end-to-end.ipynb",
+    "08-analyst-recommendations-basket.ipynb",
 ]
 
 
