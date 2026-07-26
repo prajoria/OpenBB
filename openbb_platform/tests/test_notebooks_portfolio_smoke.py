@@ -56,6 +56,7 @@ EXPECTED_NOTEBOOKS_YFINANCE = [
     "02-single-name-deep-dive.ipynb",
     "03-basket-xray-and-risk.ipynb",
     "04-events-and-smart-money.ipynb",
+    "05-whatif-attribution-and-paper.ipynb",
 ]
 
 
