@@ -138,3 +138,12 @@ Filed under epic [#1352](https://github.com/prajoria/OpenBB/issues/1352)
 on Project #4 (Portfolio Intelligence Engine). Each notebook cites
 its shipping PR. Story bible (author reference) at
 `STORY_BIBLE.md`.
+
+### Optional standalone chapter — NB08: analyst-recommendations basket
+
+`08-analyst-recommendations-basket.ipynb` (filed under
+[#1367](https://github.com/prajoria/OpenBB/issues/1367)) is an
+optional companion to the main NB01→NB07 arc. It builds a 15-ETF
+all-weather basket from the Dalio / Bogleheads / Faber / Fidelity
+frameworks and runs the same review numbers on it. Reads
+standalone — no `.notebook_state/` artifact from NB01-NB07 required.
