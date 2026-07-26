@@ -54,6 +54,7 @@ PORTFOLIO_YFINANCE_NB_DIR = REPO_ROOT / "notebooks" / "portfolio_yfinance"
 EXPECTED_NOTEBOOKS_YFINANCE = [
     "01-getting-started-and-providers.ipynb",
     "02-single-name-deep-dive.ipynb",
+    "03-basket-xray-and-risk.ipynb",
 ]
 
 
