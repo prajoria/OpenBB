@@ -157,3 +157,50 @@ class TestStore:
         with PortfolioStore(tmp_path / "s.db") as s:
             fk = s._conn.execute("PRAGMA foreign_keys").fetchone()[0]
             assert fk == 1
+
+
+# ---------------------------------------------------------------------------
+# basket bridge
+# ---------------------------------------------------------------------------
+from portfolio_snapshot_importer import snapshot_to_basket, write_basket_json
+
+
+class TestBasketBridge:
+    def test_bridge_uses_latest_snapshot(self, synthetic_csv, store):
+        import_file(synthetic_csv, store=store)
+        basket = snapshot_to_basket(store, user_id="alice")
+        # SPAXX is a cash symbol → excluded by default → 2 kept
+        assert basket["metadata"]["n_positions_in_basket"] == 2
+        symbols = {b["symbol"] for b in basket["basket"]}
+        assert symbols == {"XYZ", "ABC"}
+
+    def test_bridge_weights_renormalize_to_one(self, synthetic_csv, store):
+        import_file(synthetic_csv, store=store)
+        basket = snapshot_to_basket(store, user_id="alice")
+        total = sum(b["weight"] for b in basket["basket"])
+        assert total == pytest.approx(1.0)
+
+    def test_include_cash_keeps_spaxx(self, synthetic_csv, store):
+        import_file(synthetic_csv, store=store)
+        basket = snapshot_to_basket(store, user_id="alice", include_cash=True)
+        symbols = {b["symbol"] for b in basket["basket"]}
+        assert "SPAXX**" in symbols
+
+    def test_top_n_truncates(self, synthetic_csv, store):
+        import_file(synthetic_csv, store=store)
+        basket = snapshot_to_basket(store, user_id="alice", top_n=1)
+        assert len(basket["basket"]) == 1
+        # The largest by current_value should be SPAXX ($2000.50) but cash excluded → XYZ
+        assert basket["basket"][0]["symbol"] == "XYZ"
+
+    def test_write_basket_json_roundtrip(self, synthetic_csv, store, tmp_path):
+        import_file(synthetic_csv, store=store)
+        out = tmp_path / "basket.json"
+        basket = write_basket_json(store, out, user_id="alice")
+        import json
+        loaded = json.loads(out.read_text())
+        assert loaded == basket
+
+    def test_missing_user_raises(self, store):
+        with pytest.raises(LookupError):
+            snapshot_to_basket(store, user_id="nobody")
