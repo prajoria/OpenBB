@@ -5,20 +5,18 @@ Runs against the checked-in BND fixture — no Playwright needed.
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from scrape_record.config import load_config, snapshot_path
 from scrape_record.extract import apply_extractor, verify_snapshot
+
+from ._fixtures import fixture_path, load_fixture
 
 
 @pytest.fixture
 def bnd_snapshot():
-    """Read the checked-in BND snapshot from disk."""
-    cfg = load_config()
-    p = snapshot_path(cfg, "yahoo_bond_etf_holdings", "BND")
+    """Read the synthetic BND fixture (post-#1425)."""
+    p = fixture_path("yahoo_bond_etf_holdings", "BND")
     assert p.exists(), f"missing fixture: {p}"
-    return json.loads(p.read_text(encoding="utf-8"))
+    return load_fixture("yahoo_bond_etf_holdings", "BND")
 
 
 def test_extract_returns_etf_symbol_and_name(bnd_snapshot):

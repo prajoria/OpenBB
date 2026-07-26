@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from scrape_record.config import load_config, snapshot_path
 from scrape_record.extract import apply_extractor
+
+from ._fixtures import fixture_path, load_fixture
 
 
 @pytest.fixture
 def qqq_snapshot():
-    cfg = load_config()
-    p = snapshot_path(cfg, "yahoo_etf_holdings", "QQQ")
+    p = fixture_path("yahoo_etf_holdings", "QQQ")
     assert p.exists(), f"missing fixture: {p}"
-    return json.loads(p.read_text(encoding="utf-8"))
+    return load_fixture("yahoo_etf_holdings", "QQQ")
 
 
 def test_extract_returns_etf_symbol(qqq_snapshot):

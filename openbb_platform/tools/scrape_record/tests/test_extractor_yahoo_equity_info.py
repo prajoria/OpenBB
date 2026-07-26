@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from scrape_record.config import load_config, snapshot_path
 from scrape_record.extract import apply_extractor
+
+from ._fixtures import fixture_path, load_fixture
 
 
 @pytest.fixture
 def msft_snapshot():
-    cfg = load_config()
-    p = snapshot_path(cfg, "yahoo_equity_info", "MSFT")
+    p = fixture_path("yahoo_equity_info", "MSFT")
     assert p.exists(), f"missing fixture: {p}"
-    return json.loads(p.read_text(encoding="utf-8"))
+    return load_fixture("yahoo_equity_info", "MSFT")
 
 
 def test_extract_returns_symbol_and_name(msft_snapshot):
