@@ -32,28 +32,50 @@ This tool decouples **scrape** from **serve**:
 | Concern | `portfolio_export` | `scrape_record` |
 |---|---|---|
 | Target sites | Authenticated brokerage (Fidelity, Schwab, ...) | Public provider (Yahoo, CBOE, ...) |
-| Downloads path | OUTSIDE repo (strict rule) | INSIDE repo (`snapshots/` checked in) |
+| Downloads path | OUTSIDE repo (strict rule) | OUTSIDE repo (user-local SQLite DB, see #1425) |
 | Login | Required, persistent Chrome profile | Optional (persistent profile if the site rate-limits anonymous) |
-| Output | CSV / HTML dumps for user consumption | Structured JSON for downstream fetchers |
-| Freshness | On-demand per user run | Snapshot committed; re-record on cadence |
+| Output | CSV / HTML dumps for user consumption | Structured JSON envelopes in a per-operator SQLite store |
+| Freshness | On-demand per user run | Per-operator record cadence; nothing shipped |
+
+## Where snapshots live (post-#1425)
+
+Real Yahoo-shaped provider snapshots live in a **user-local SQLite DB**
+at `~/.scrape_record/snapshots.db` (override via
+`SCRAPE_RECORD_DB_PATH`). One row per `(name, symbol)`, idempotent
+upsert. Nothing Yahoo-shaped is committed to this repo — this aligns
+with Yahoo Finance's ToS and with how `yfinance` is documented
+("personal use only"): every operator records and keeps their own copy
+in a non-abusive, personal-use fashion.
+
+A minimal set of clearly-labeled **synthetic** fixtures lives inside
+the repo under `synthetic_fixtures/` — test-only, see the README there.
+
+During the migration window the reader path is DB-first with a legacy
+`snapshots/` JSON fallback; the writer path emits to both. The JSON
+fallback will be dropped in a follow-up once every operator has
+migrated.
 
 ## CLI
 
 ```bash
-# Record a new scrape (opens Chromium via Playwright)
+# Record a new scrape (opens Chromium via Playwright) — writes to DB + JSON
 scrape-record record yahoo_options_chain --symbol AAPL --url https://finance.yahoo.com/quote/AAPL/options
 
 # Re-record an existing recording (regenerates snapshot)
 scrape-record replay yahoo_options_chain --symbol AAPL
 
-# List all recordings + snapshot coverage
+# List all snapshots on disk (legacy JSON tree; use `sqlite3 ~/.scrape_record/snapshots.db 'SELECT name,symbol FROM snapshot'` for DB)
 scrape-record list
 
-# Print config paths
+# Print config paths (including db_path)
 scrape-record config
 
 # Dry-run: verify a snapshot parses under its extractor without opening a browser
 scrape-record verify yahoo_options_chain --symbol AAPL
+
+# One-time import of any legacy snapshots/*.json into the user-local DB (idempotent)
+scrape-record migrate            # real
+scrape-record migrate --dry-run  # report only
 ```
 
 ## Repo layout
@@ -62,18 +84,18 @@ scrape-record verify yahoo_options_chain --symbol AAPL
 scrape_record/
 ├── scrape_record/
 │   ├── __init__.py
-│   ├── cli.py           # argparse dispatcher
-│   ├── config.py        # snapshots_dir (INSIDE repo), profile_dir (OUTSIDE)
+│   ├── cli.py           # argparse dispatcher (incl. `migrate`)
+│   ├── config.py        # profile_dir + db_path (both OUTSIDE repo)
 │   ├── session.py       # persistent Chrome context (optional login)
-│   ├── record.py        # Playwright record → save snapshot artifact
+│   ├── record.py        # Playwright record → save envelope (DB+JSON)
 │   ├── replay.py        # replay a recording → regenerate snapshot
+│   ├── store.py         # SQLite snapshot store (SnapshotStore)
 │   ├── extract.py       # apply extractor to raw snapshot → structured JSON
 │   └── extractors/
 │       ├── __init__.py
 │       └── yahoo_options_chain.py
-├── snapshots/
-│   └── yahoo_options_chain/
-│       └── AAPL.json    # checked-in canned data
+├── synthetic_fixtures/  # test-only synthetic snapshots (labeled)
+│   └── README.md
 ├── recordings/
 │   └── yahoo_options_chain.py  # per-source recorder script
 ├── tests/

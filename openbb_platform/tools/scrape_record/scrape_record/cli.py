@@ -19,8 +19,14 @@ import sys
 
 from scrape_record.config import ConfigError, load_config, snapshot_path
 from scrape_record.extract import verify_snapshot
-from scrape_record.record import RecordError, load_snapshot, run_recording
+from scrape_record.record import (
+    RecordError,
+    SnapshotEnvelope,
+    load_snapshot,
+    run_recording,
+)
 from scrape_record.replay import run_replay
+from scrape_record.store import SnapshotStore
 
 
 def _cmd_config(args: argparse.Namespace) -> int:
@@ -73,6 +79,59 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     return 0 if result.get("ok") else 1
 
 
+def _cmd_migrate(args: argparse.Namespace) -> int:
+    """Import every legacy ``snapshots/**/*.json`` into the user-local DB.
+
+    Idempotent (upserts on ``(name, symbol)``). Files that fail to parse
+    are kept in place and reported with ``provenance: needs-review``.
+    """
+    cfg = load_config()
+    root = cfg.snapshots_dir
+    if not root.exists():
+        print(f"[migrate] snapshots_dir does not exist: {root} — nothing to do.")
+        return 0
+
+    files = sorted(root.glob("*/*.json"))
+    if not files:
+        print(f"[migrate] no legacy JSON snapshots under {root} — nothing to do.")
+        return 0
+
+    print(
+        f"[migrate] {'DRY RUN — ' if args.dry_run else ''}"
+        f"importing {len(files)} legacy files -> {cfg.db_path}"
+    )
+
+    ok = 0
+    bad: list[tuple[Path, str]] = []
+    store = None
+    if not args.dry_run:
+        store = SnapshotStore(cfg.db_path)
+    try:
+        for path in files:
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                env = SnapshotEnvelope(**data)
+            except Exception as exc:  # pylint: disable=broad-except
+                bad.append((path, str(exc)))
+                continue
+            if store is not None:
+                store.upsert(env)
+            ok += 1
+    finally:
+        if store is not None:
+            store.close()
+
+    print(f"[migrate] imported: {ok} / {len(files)}")
+    if bad:
+        print(
+            f"[migrate] {len(bad)} file(s) failed to parse (kept in place, "
+            "provenance: needs-review):"
+        )
+        for path, err in bad:
+            print(f"  - {path.relative_to(cfg.repo_root)}: {err}")
+    return 1 if bad else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level argparse parser."""
     p = argparse.ArgumentParser(
@@ -111,6 +170,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_verify.add_argument("name")
     p_verify.add_argument("--symbol", required=True)
     p_verify.set_defaults(func=_cmd_verify)
+
+    p_migrate = sub.add_parser(
+        "migrate",
+        help="Import legacy snapshots/**/*.json into the user-local DB.",
+    )
+    p_migrate.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be imported without writing the DB.",
+    )
+    p_migrate.set_defaults(func=_cmd_migrate)
 
     return p
 

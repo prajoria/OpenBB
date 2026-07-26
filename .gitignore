@@ -169,6 +169,13 @@ test_portfolio_output/
 # scrape_record local build metadata
 openbb_platform/tools/scrape_record/scrape_record.egg-info/
 
+# scrape_record — user-local snapshot DB + per-user JSON fallback (#1425).
+# Real Yahoo-shaped provider data is never committed; each operator keeps
+# their own copy in ~/.scrape_record/snapshots.db . The synthetic_fixtures/
+# subtree under the package IS committed (test-only, labeled synthetic).
+openbb_platform/tools/scrape_record/snapshots/
+.scrape_record/
+
 # Notebook per-session state (basket.json, xray.pkl, etc — regenerable)
 notebooks/portfolio/.notebook_state/
 
