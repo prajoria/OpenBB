@@ -171,3 +171,16 @@ openbb_platform/tools/scrape_record/scrape_record.egg-info/
 
 # Notebook per-session state (basket.json, xray.pkl, etc — regenerable)
 notebooks/portfolio/.notebook_state/
+
+# Portfolio snapshot importer — user-local SQLite (never in repo)
+.portfolio_importer/
+positions.db
+
+# Notebook scratch state (broader than the portfolio-specific rule above)
+**/.notebook_state/
+**/.openbb_backtest/
+
+# Notebook helper scratchpads used by the fill/enrich cycles
+_fill_*.py
+_enrich_*.py
+_verify_*.py
