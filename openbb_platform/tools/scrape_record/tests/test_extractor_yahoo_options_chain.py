@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 
 import pytest
-from scrape_record.config import load_config, snapshot_path
 from scrape_record.extract import (
     ExtractorError,
     apply_extractor,
@@ -17,14 +16,15 @@ from scrape_record.extract import (
     verify_snapshot,
 )
 
+from ._fixtures import fixture_path, load_fixture
+
 
 @pytest.fixture
 def aapl_snapshot():
-    """Read the checked-in AAPL snapshot from disk."""
-    cfg = load_config()
-    p = snapshot_path(cfg, "yahoo_options_chain", "AAPL")
+    """Read the synthetic AAPL fixture (post-#1425 — no committed real data)."""
+    p = fixture_path("yahoo_options_chain", "AAPL")
     assert p.exists(), f"missing fixture: {p}"
-    return json.loads(p.read_text(encoding="utf-8"))
+    return load_fixture("yahoo_options_chain", "AAPL")
 
 
 def test_load_extractor_returns_callable():

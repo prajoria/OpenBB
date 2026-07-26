@@ -1,22 +1,44 @@
 """Tests for scrape_record.record — snapshot envelope load path.
 
-Doesn't test the Playwright capture path (that requires a real browser
-+ real Yahoo access). Focuses on the on-disk envelope contract: what
-we save, what we load, how load_snapshot() handles missing files.
+Post-#1425, the primary snapshot store is a user-local SQLite DB. These
+tests seed a temp DB from a synthetic fixture so they never depend on
+the operator's ``~/.scrape_record/snapshots.db``.
 """
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from scrape_record.config import load_config, snapshot_path
+from scrape_record.config import Config
 from scrape_record.record import SnapshotEnvelope, load_snapshot
+from scrape_record.store import SnapshotStore
+
+from ._fixtures import fixture_path, load_fixture
 
 
-def test_load_committed_aapl_snapshot():
-    """The checked-in AAPL fixture round-trips into a SnapshotEnvelope."""
-    cfg = load_config()
+def _cfg_for(tmp_path, seed_db: bool) -> Config:
+    pkg_root = tmp_path / "pkg"
+    (pkg_root / "snapshots").mkdir(parents=True)
+    (pkg_root / "recordings").mkdir()
+    cfg = Config(
+        repo_root=tmp_path,
+        package_root=pkg_root,
+        snapshots_dir=pkg_root / "snapshots",
+        recordings_dir=pkg_root / "recordings",
+        profile_dir=tmp_path / "prof",
+        db_path=tmp_path / "snapshots.db",
+        headless=False,
+    )
+    if seed_db:
+        data = load_fixture("yahoo_options_chain", "AAPL")
+        env = SnapshotEnvelope(**data)
+        with SnapshotStore(cfg.db_path) as store:
+            store.upsert(env)
+    return cfg
+
+
+def test_load_synthetic_aapl_snapshot_via_db(tmp_path):
+    """The synthetic AAPL fixture round-trips through the DB into an envelope."""
+    cfg = _cfg_for(tmp_path, seed_db=True)
     env = load_snapshot(cfg, "yahoo_options_chain", "AAPL")
     assert isinstance(env, SnapshotEnvelope)
     assert env.name == "yahoo_options_chain"
@@ -28,17 +50,16 @@ def test_load_committed_aapl_snapshot():
 
 
 def test_load_snapshot_raises_for_missing_symbol(tmp_path):
-    """Missing (name, symbol) raises FileNotFoundError with a helpful hint."""
-    cfg = load_config()
+    """Missing (name, symbol) raises FileNotFoundError with the record hint."""
+    cfg = _cfg_for(tmp_path, seed_db=False)
     with pytest.raises(FileNotFoundError, match="record"):
         load_snapshot(cfg, "yahoo_options_chain", "NONEXISTENT_XYZ_SYMBOL_")
 
 
-def test_snapshot_envelope_shape_stable_on_disk():
-    """The AAPL fixture's on-disk keys match the envelope dataclass fields."""
-    cfg = load_config()
-    p = snapshot_path(cfg, "yahoo_options_chain", "AAPL")
-    raw = json.loads(p.read_text(encoding="utf-8"))
+def test_synthetic_fixture_envelope_shape_stable_on_disk():
+    """The AAPL fixture's on-disk keys still match the envelope dataclass fields."""
+    p = fixture_path("yahoo_options_chain", "AAPL")
+    data = load_fixture("yahoo_options_chain", "AAPL")
     expected_keys = {
         "name",
         "symbol",
@@ -48,4 +69,4 @@ def test_snapshot_envelope_shape_stable_on_disk():
         "extracted",
         "extractor_version",
     }
-    assert set(raw.keys()) == expected_keys
+    assert set(data.keys()) == expected_keys, f"drift in {p}"
