@@ -29,6 +29,7 @@ except ImportError:  # pragma: no cover - dotenv is a declared dep
 
 
 DEFAULT_PROFILE_DIR = "~/.scrape_record/chrome_profile"
+DEFAULT_DB_PATH = "~/.scrape_record/snapshots.db"
 
 
 class ConfigError(RuntimeError):
@@ -44,6 +45,7 @@ class Config:
     snapshots_dir: Path
     recordings_dir: Path
     profile_dir: Path
+    db_path: Path
     headless: bool
 
     def summary(self) -> str:
@@ -54,6 +56,7 @@ class Config:
             f"snapshots_dir   = {self.snapshots_dir}\n"
             f"recordings_dir  = {self.recordings_dir}\n"
             f"profile_dir     = {self.profile_dir}\n"
+            f"db_path         = {self.db_path}\n"
             f"headless        = {self.headless}"
         )
 
@@ -91,20 +94,49 @@ def _validate_profile_outside_repo(path: Path, repo_root: Path) -> None:
 
 
 def _validate_snapshots_inside_package(path: Path, package_root: Path) -> None:
-    """snapshots_dir SHOULD be inside the package (checked-in canned data)."""
+    """snapshots_dir SHOULD be inside the package (checked-in canned data).
+
+    NOTE post-#1425: `snapshots/` is being retired as a distribution
+    channel — real snapshots live in the user-local SQLite DB. But the
+    dir may still exist for (a) the migration window, (b) explicit
+    synthetic fixtures. Whichever way, its layout constraint is unchanged.
+    """
     if not _is_inside(path, package_root):
         raise ConfigError(
             f"snapshots_dir ({path}) resolves OUTSIDE the scrape_record "
-            f"package ({package_root}). By design, scrape-record commits "
-            "snapshots into the repo for reproducible offline fetching. "
+            f"package ({package_root}). By design, scrape-record's legacy "
+            "snapshots dir sits inside the package. "
             "If you really want external snapshots, subclass Config."
         )
+
+
+def _validate_db_outside_repo(path: Path, repo_root: Path) -> None:
+    """db_path MUST be outside the repo.
+
+    Rationale (#1425): the DB holds Yahoo-shaped provider data. Even
+    though it is per-user, putting it inside the repo makes it trivial
+    to `git add` accidentally. The check is defense-in-depth on top of
+    the ``.gitignore`` entry.
+    """
+    if _is_inside(path, repo_root):
+        raise ConfigError(
+            f"db_path ({path}) resolves inside the repo ({repo_root}). "
+            "scrape-record refuses to write its snapshot DB inside a git "
+            "tree — see GH #1425. Set SCRAPE_RECORD_DB_PATH to a path "
+            f"OUTSIDE the repo (default: {DEFAULT_DB_PATH})."
+        )
+
+
+def _validate_snapshots_inside_package_LEGACY(path: Path, package_root: Path) -> None:
+    """Retained no-op stub — the primary check is above."""
+    return None
 
 
 def load_config(
     *,
     package_root: Path | None = None,
     profile_dir: str | Path | None = None,
+    db_path: str | Path | None = None,
     headless: bool | None = None,
     dotenv_path: str | Path | None = None,
 ) -> Config:
@@ -114,6 +146,7 @@ def load_config(
 
     Env vars:
     - ``SCRAPE_RECORD_PROFILE_DIR``
+    - ``SCRAPE_RECORD_DB_PATH``
     - ``SCRAPE_RECORD_HEADLESS`` (any of ``1/true/yes/on`` = True)
     """
     if _HAS_DOTENV:
@@ -133,12 +166,20 @@ def load_config(
     )
     prof_path = Path(str(prof_str)).expanduser().resolve()
 
+    db_str = db_path or os.environ.get("SCRAPE_RECORD_DB_PATH", DEFAULT_DB_PATH)
+    db_resolved = Path(str(db_str)).expanduser().resolve()
+
     if headless is None:
         raw = os.environ.get("SCRAPE_RECORD_HEADLESS", "false").lower()
         headless = raw in {"1", "true", "yes", "on"}
 
+    # NB: snapshots_dir may or may not exist on disk post-#1425. It is
+    # still a legitimate _fallback_ read location during the migration
+    # window, so we keep the layout check but no longer require the
+    # directory to actually contain any files.
     _validate_snapshots_inside_package(snapshots_dir, pkg_root)
     _validate_profile_outside_repo(prof_path, repo_root)
+    _validate_db_outside_repo(db_resolved, repo_root)
 
     return Config(
         repo_root=repo_root,
@@ -146,6 +187,7 @@ def load_config(
         snapshots_dir=snapshots_dir,
         recordings_dir=recordings_dir,
         profile_dir=prof_path,
+        db_path=db_resolved,
         headless=headless,
     )
 

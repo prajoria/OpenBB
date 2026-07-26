@@ -110,7 +110,16 @@ def run_recording(
     also_extract: bool = True,
     source_url: str | None = None,
 ) -> Path:
-    """End-to-end: record → save → optionally extract. Returns snapshot path."""
+    """End-to-end: record → save → optionally extract. Returns snapshot path.
+
+    Writes to BOTH the user-local SQLite DB (``cfg.db_path``, primary)
+    and the legacy JSON file (``snapshots/<name>/<symbol>.json``,
+    fallback). The JSON write will be dropped in a follow-up once every
+    consumer confirms it's reading from the DB.
+    """
+    # pylint: disable=import-outside-toplevel
+    from scrape_record.store import SnapshotStore
+
     raw = asyncio.run(_run_capture(cfg, name, symbol))
     envelope = SnapshotEnvelope(
         name=name,
@@ -122,6 +131,10 @@ def run_recording(
     if also_extract:
         envelope.extracted = apply_extractor(name, raw)
         envelope.extractor_version = raw.get("extractor_version", "1")
+
+    with SnapshotStore(cfg.db_path) as store:
+        store.upsert(envelope)
+
     out_path = snapshot_path(cfg, name, symbol)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
@@ -132,12 +145,30 @@ def run_recording(
 
 
 def load_snapshot(cfg: Config, name: str, symbol: str) -> SnapshotEnvelope:
-    """Read a snapshot from disk. Raises FileNotFoundError if missing."""
+    """Read a snapshot from the user-local DB, falling back to legacy JSON.
+
+    Raises ``FileNotFoundError`` (with the exact ``scrape-record record``
+    command to run) when neither the DB nor the JSON file has the entry —
+    this preserves the pre-#1425 error UX exactly.
+    """
+    # pylint: disable=import-outside-toplevel
+    from scrape_record.store import SnapshotStore
+
+    # 1. DB first (primary source of truth post-#1425).
+    if cfg.db_path.exists():
+        with SnapshotStore(cfg.db_path) as store:
+            env = store.get(name, symbol)
+            if env is not None:
+                return env
+
+    # 2. Legacy JSON fallback (migration window).
     path = snapshot_path(cfg, name, symbol)
-    if not path.exists():
-        raise FileNotFoundError(
-            f"No snapshot for ({name}, {symbol}) at {path}. Run "
-            f"`scrape-record record {name} --symbol {symbol}` first."
-        )
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return SnapshotEnvelope(**data)
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return SnapshotEnvelope(**data)
+
+    raise FileNotFoundError(
+        f"No snapshot for ({name}, {symbol}) — checked DB at {cfg.db_path} "
+        f"and legacy file at {path}. Run "
+        f"`scrape-record record {name} --symbol {symbol}` first."
+    )
