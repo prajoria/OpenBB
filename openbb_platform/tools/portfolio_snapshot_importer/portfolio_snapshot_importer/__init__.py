@@ -5,6 +5,10 @@ See ``docs/superpowers/specs/2026-07-18-portfolio-snapshot-importer-design.md``
 for the full spec. This v1 implements the Fidelity happy path only.
 """
 
+from portfolio_snapshot_importer.basket_bridge import (
+    snapshot_to_basket,
+    write_basket_json,
+)
 from portfolio_snapshot_importer.filename import (
     FilenameParseError,
     parse_fidelity_filename,
@@ -26,6 +30,8 @@ __all__ = [
     "import_file",
     "import_files",
     "import_folder",
+    "snapshot_to_basket",
+    "write_basket_json",
     "PortfolioStore",
 ]
 

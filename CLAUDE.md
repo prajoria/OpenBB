@@ -355,6 +355,65 @@ understand it" instinct.
 | Chromium profile | `C:\Users\daaji\.portfolio_export\chrome_profile\` | `config._validate_outside_repo` |
 | Env overrides | `OpenBB\openbb_platform\tools\portfolio_export\.env` (gitignored) | `.gitignore` |
 
+## Notebook check-in hygiene (hard rule)
+
+**Every `.ipynb` file committed to this repo MUST be stripped of workspace-local
+state before the commit.** No exceptions. Notebook JSON is line-diffed by
+GitHub / CodeRabbit / reviewers, and reviewer bandwidth is destroyed by
+irrelevant state churn (execution-count renumbering, kernel version drift,
+per-cell timing captured by nbclient, widget-state IDs).
+
+### What "stripped" means
+
+**MUST be removed / reset before every commit:**
+
+- Every code cell's `execution_count` → `null`.
+- Every code cell's `metadata.execution` (timing captured by nbclient).
+- Top-level `metadata.language_info.version` (kernel-specific).
+- Top-level `metadata.widgets` (leaks workspace-local IDs).
+
+**MUST be preserved:**
+
+- Every code cell's `outputs` list. Readers browsing on GitHub see real
+  results without running anything; `openbb_platform/tests/test_notebooks_portfolio_smoke.py`
+  enforces this via `test_code_cells_have_recorded_outputs`. Stripping
+  outputs breaks the smoke test AND the reader value proposition.
+- Markdown cells verbatim.
+- `cell_type`, `source`, `id`, reader-visible metadata.
+
+### Enforcement
+
+Run before every `git commit` that touches a notebook:
+
+```bash
+# Strip state in place (writes changes to disk)
+python scripts/reset_notebooks_for_checkin.py notebooks/portfolio/*.ipynb
+
+# Or verify-only mode (exit 1 if any file needs stripping — pre-commit-friendly)
+python scripts/reset_notebooks_for_checkin.py --check notebooks/portfolio/
+```
+
+The script preserves `outputs`, strips the fields above, and rewrites with
+stable formatting so re-runs are idempotent.
+
+### Also gitignored (never committed under any circumstance)
+
+- `**/.notebook_state/` — cross-notebook pickle / JSON artifacts written by
+  cell code (basket.json, xray.pkl, backtest_result.pkl, tearsheet.html,
+  portfolio_report.html). These regenerate on any kernel-restart + Run All.
+- `**/.ipynb_checkpoints/` — Jupyter autosaves.
+- `**/.openbb_backtest/` — bundle caches created by `obb.backtest.bundle`.
+- `_fill_*.py`, `_enrich_*.py`, `_verify_*.py` — helper scratchpads used by
+  the notebook fill / enrich / verify cycles.
+
+### Why this matters
+
+Before this rule, single-notebook commits produced 500-line diffs where 490
+lines were execution-count renumbering. Reviewers cannot distinguish
+"author changed the narrative" from "author re-ran the kernel" in that
+noise. The reset script removes the noise; the smoke test enforces that
+real outputs stay.
+
 ## Overview
 
 OpenBB is an open-source financial data platform that provides the "connect once, consume everywhere" infrastructure for integrating financial data sources. The project consists of multiple components:

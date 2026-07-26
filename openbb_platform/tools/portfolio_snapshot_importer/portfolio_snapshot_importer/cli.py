@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from portfolio_snapshot_importer.basket_bridge import write_basket_json
 from portfolio_snapshot_importer.ingest import (
     IngestReport,
     import_files,
@@ -142,6 +143,33 @@ def _cmd_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_basket(args: argparse.Namespace) -> int:
+    db = Path(args.db)
+    _validate_db_outside_repo(db)
+    with PortfolioStore(db) as store:
+        try:
+            basket = write_basket_json(
+                store,
+                out_path=args.out,
+                user_id=args.user_id,
+                snapshot_date=args.snapshot_date,
+                include_cash=args.include_cash,
+                account_number=args.account_number,
+                top_n=args.top_n,
+            )
+        except LookupError as exc:
+            print(f"lookup error: {exc}", file=sys.stderr)
+            return 4
+    meta = basket["metadata"]
+    print(
+        f"Wrote basket to {args.out}\n"
+        f"  user_id     : {meta['user_id']}\n"
+        f"  snapshot    : {meta['snapshot_date']} (id {meta['snapshot_id'][:12]}…)\n"
+        f"  positions   : {meta['n_positions_in_basket']} of {meta['n_positions_in_snapshot']} in snapshot"
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="portfolio-snapshot-import")
     p.add_argument("--db", default=str(DEFAULT_DB),
@@ -163,6 +191,18 @@ def build_parser() -> argparse.ArgumentParser:
     sh = sub.add_parser("show", help="Print positions for a snapshot_id")
     sh.add_argument("snapshot_id")
     sh.set_defaults(func=_cmd_show)
+
+    bk = sub.add_parser("basket", help="Emit a basket.json for notebook consumers")
+    bk.add_argument("--user-id", dest="user_id", required=True)
+    bk.add_argument("--snapshot-date", dest="snapshot_date", default=None,
+                    help="YYYY-MM-DD; defaults to latest snapshot for the user")
+    bk.add_argument("--out", type=Path, required=True,
+                    help="Output basket.json path (typically .notebook_state/basket.json)")
+    bk.add_argument("--account-number", dest="account_number", default=None)
+    bk.add_argument("--include-cash", action="store_true",
+                    help="Keep SPAXX/FCASH-style money-market rows in the basket")
+    bk.add_argument("--top-n", dest="top_n", type=int, default=None)
+    bk.set_defaults(func=_cmd_basket)
 
     return p
 
