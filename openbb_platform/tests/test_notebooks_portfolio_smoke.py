@@ -47,6 +47,14 @@ EXPECTED_NOTEBOOKS = [
     "08-analyst-recommendations-basket.ipynb",
 ]
 
+# Track B (free-only) mirror lane. Same guards, separate constants so the
+# parity between the two lanes stays visible in the failure output.
+PORTFOLIO_YFINANCE_NB_DIR = REPO_ROOT / "notebooks" / "portfolio_yfinance"
+
+EXPECTED_NOTEBOOKS_YFINANCE = [
+    "01-getting-started-and-providers.ipynb",
+]
+
 
 def _load_notebook(path: Path) -> dict:
     """Load a .ipynb as a plain dict without importing nbformat.
@@ -157,3 +165,85 @@ def test_series_has_readme_and_story_bible() -> None:
     for name in ("README.md", "STORY_BIBLE.md", "UNIVERSE.md"):
         p = PORTFOLIO_NB_DIR / name
         assert p.is_file(), f"missing: notebooks/portfolio/{name}"
+
+
+# --------------------------------------------------------------------------
+# Track B (free-only) parity guards.
+#
+# Same structural + no-error checks as the Track A block above, applied to
+# ``notebooks/portfolio_yfinance/*.ipynb``. Kept as a parallel parametrized
+# set (not a merged list) so a Track B failure surfaces distinctly from a
+# Track A failure. Additional Track B invariant: no code cell may contain
+# ``fmp`` / ``fmp_cached`` references -- the free-only lane must NEVER
+# route through the paid tiers.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("nb_name", EXPECTED_NOTEBOOKS_YFINANCE)
+def test_yfinance_notebook_exists(nb_name: str) -> None:
+    path = PORTFOLIO_YFINANCE_NB_DIR / nb_name
+    assert path.is_file(), f"missing: {path.relative_to(REPO_ROOT)}"
+
+
+@pytest.mark.parametrize("nb_name", EXPECTED_NOTEBOOKS_YFINANCE)
+def test_yfinance_notebook_parses_and_has_cells(nb_name: str) -> None:
+    path = PORTFOLIO_YFINANCE_NB_DIR / nb_name
+    nb = _load_notebook(path)
+    assert isinstance(nb.get("cells"), list), f"{nb_name}: no cells list"
+    types = {c.get("cell_type") for c in nb["cells"] if isinstance(c, dict)}
+    assert "markdown" in types, f"{nb_name}: has no markdown cells"
+    assert "code" in types, f"{nb_name}: has no code cells"
+
+
+@pytest.mark.parametrize("nb_name", EXPECTED_NOTEBOOKS_YFINANCE)
+def test_yfinance_code_cells_compile(nb_name: str) -> None:
+    path = PORTFOLIO_YFINANCE_NB_DIR / nb_name
+    nb = _load_notebook(path)
+    for idx, cell in enumerate(nb["cells"]):
+        if cell.get("cell_type") != "code":
+            continue
+        src = "".join(cell.get("source") or [])
+        if not src.strip():
+            continue
+        try:
+            compile(src, f"{nb_name}#cell{idx}", "exec")
+        except SyntaxError as exc:  # pragma: no cover - assertion below
+            raise AssertionError(
+                f"{nb_name}: code cell {idx} does not compile: {exc}"
+            ) from exc
+
+
+@pytest.mark.parametrize("nb_name", EXPECTED_NOTEBOOKS_YFINANCE)
+def test_yfinance_no_error_outputs(nb_name: str) -> None:
+    path = PORTFOLIO_YFINANCE_NB_DIR / nb_name
+    nb = _load_notebook(path)
+    errors: list[tuple[int, str]] = []
+    for idx, cell in enumerate(nb["cells"]):
+        if cell.get("cell_type") != "code":
+            continue
+        for out in cell.get("outputs") or []:
+            if out.get("output_type") == "error":
+                errors.append((idx, out.get("ename", "?")))
+    assert not errors, f"{nb_name}: cells with error outputs: {errors}"
+
+
+@pytest.mark.parametrize("nb_name", EXPECTED_NOTEBOOKS_YFINANCE)
+def test_yfinance_no_paid_provider_references(nb_name: str) -> None:
+    """Track B (free-only) invariant: no code cell may call ``fmp`` or
+    ``fmp_cached``. The whole point of the Track B lane is to prove the
+    series runs with no paid keys — a stray ``provider="fmp_cached"``
+    breaks that promise silently."""
+    path = PORTFOLIO_YFINANCE_NB_DIR / nb_name
+    nb = _load_notebook(path)
+    offenders: list[tuple[int, str]] = []
+    for idx, cell in enumerate(nb["cells"]):
+        if cell.get("cell_type") != "code":
+            continue
+        src = "".join(cell.get("source") or [])
+        for needle in ("fmp_cached", "provider=\"fmp\"", "provider='fmp'"):
+            if needle in src:
+                offenders.append((idx, needle))
+    assert not offenders, (
+        f"{nb_name}: paid-provider references in code cells: {offenders}. "
+        "Track B is free-only; route through cboe / sec / yfinance-snapshot instead."
+    )
