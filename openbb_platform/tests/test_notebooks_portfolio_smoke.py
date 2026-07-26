@@ -58,6 +58,7 @@ EXPECTED_NOTEBOOKS_YFINANCE = [
     "04-events-and-smart-money.ipynb",
     "05-whatif-attribution-and-paper.ipynb",
     "06-backtest-and-validation.ipynb",
+    "07-offline-recording-and-end-to-end.ipynb",
 ]
 
 
