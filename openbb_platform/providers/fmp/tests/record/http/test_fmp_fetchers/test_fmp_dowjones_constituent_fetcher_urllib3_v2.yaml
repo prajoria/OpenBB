@@ -1,0 +1,85 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/dowjones-constituent?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 19:18:18 GMT
+      Etag:
+      - W/"1f3c-il/s8hvzc4dlCNtXnpG6qFt82w4"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

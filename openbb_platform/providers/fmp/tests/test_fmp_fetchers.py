@@ -1055,6 +1055,7 @@ def test_fmp_financial_reports_json_fetcher(credentials=test_credentials):
 
 # ---------------------------------------------------------------------------
 # Quotes-extras — Tier-A parity port (#1506-#1514).
+# Indexes-extras — Tier-A parity port (#1515-#1528).
 # ---------------------------------------------------------------------------
 
 
@@ -1065,6 +1066,92 @@ def test_fmp_batch_quote_fetcher(credentials=test_credentials):
 
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPBatchQuoteFetcher()
+def test_fmp_dowjones_constituent_fetcher(credentials=test_credentials):
+    """Test FMP Dow Jones constituent fetcher (#1515)."""
+    from openbb_fmp.models.indexes_extras import FMPDowjonesConstituentFetcher
+
+    fetcher = FMPDowjonesConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_dowjones_constituent_fetcher(credentials=test_credentials):
+    """Test FMP historical Dow Jones constituent fetcher (#1516)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPHistoricalDowjonesConstituentFetcher,
+    )
+
+    fetcher = FMPHistoricalDowjonesConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_sp500_constituent_fetcher(credentials=test_credentials):
+    """Test FMP S&P 500 constituent fetcher (#1517)."""
+    from openbb_fmp.models.indexes_extras import FMPSp500ConstituentFetcher
+
+    fetcher = FMPSp500ConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_sp500_constituent_fetcher(credentials=test_credentials):
+    """Test FMP historical S&P 500 constituent fetcher (#1518)."""
+    from openbb_fmp.models.indexes_extras import FMPHistoricalSp500ConstituentFetcher
+
+    fetcher = FMPHistoricalSp500ConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_nasdaq_constituent_fetcher(credentials=test_credentials):
+    """Test FMP NASDAQ 100 constituent fetcher (#1519)."""
+    from openbb_fmp.models.indexes_extras import FMPNasdaqConstituentFetcher
+
+    fetcher = FMPNasdaqConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_nasdaq_constituent_fetcher(credentials=test_credentials):
+    """Test FMP historical NASDAQ 100 constituent fetcher (#1520)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPHistoricalNasdaqConstituentFetcher,
+    )
+
+    fetcher = FMPHistoricalNasdaqConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_sector_performance_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP sector performance snapshot fetcher (#1521)."""
+    from openbb_fmp.models.indexes_extras import FMPSectorPerformanceSnapshotFetcher
+
+    fetcher = FMPSectorPerformanceSnapshotFetcher()
+    result = fetcher.test({"date": "2026-07-29"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_sector_performance_fetcher(credentials=test_credentials):
+    """Test FMP historical sector performance fetcher (#1522)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPHistoricalSectorPerformanceFetcher,
+    )
+
+    params = {
+        "sector": "Technology",
+        "from_date": "2024-07-29",
+        "to_date": "2026-07-29",
+    }
+    fetcher = FMPHistoricalSectorPerformanceFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
 
@@ -1076,6 +1163,26 @@ def test_fmp_batch_quote_short_fetcher(credentials=test_credentials):
 
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPBatchQuoteShortFetcher()
+def test_fmp_sector_pe_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP sector P/E snapshot fetcher (#1523)."""
+    from openbb_fmp.models.indexes_extras import FMPSectorPeSnapshotFetcher
+
+    fetcher = FMPSectorPeSnapshotFetcher()
+    result = fetcher.test({"date": "2026-07-29"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_sector_pe_fetcher(credentials=test_credentials):
+    """Test FMP historical sector P/E fetcher (#1524)."""
+    from openbb_fmp.models.indexes_extras import FMPHistoricalSectorPeFetcher
+
+    params = {
+        "sector": "Technology",
+        "from_date": "2024-07-29",
+        "to_date": "2026-07-29",
+    }
+    fetcher = FMPHistoricalSectorPeFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
 
@@ -1087,6 +1194,30 @@ def test_fmp_batch_aftermarket_quote_fetcher(credentials=test_credentials):
 
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPBatchAftermarketQuoteFetcher()
+def test_fmp_industry_performance_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP industry performance snapshot fetcher (#1525)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPIndustryPerformanceSnapshotFetcher,
+    )
+
+    fetcher = FMPIndustryPerformanceSnapshotFetcher()
+    result = fetcher.test({"date": "2026-07-29"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_industry_performance_fetcher(credentials=test_credentials):
+    """Test FMP historical industry performance fetcher (#1526)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPHistoricalIndustryPerformanceFetcher,
+    )
+
+    params = {
+        "industry": "Semiconductors",
+        "from_date": "2024-07-29",
+        "to_date": "2026-07-29",
+    }
+    fetcher = FMPHistoricalIndustryPerformanceFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
 
@@ -1099,6 +1230,12 @@ def test_fmp_batch_aftermarket_trade_fetcher(credentials=test_credentials):
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPBatchAftermarketTradeFetcher()
     result = fetcher.test(params, credentials)
+def test_fmp_industry_pe_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP industry P/E snapshot fetcher (#1527)."""
+    from openbb_fmp.models.indexes_extras import FMPIndustryPeSnapshotFetcher
+
+    fetcher = FMPIndustryPeSnapshotFetcher()
+    result = fetcher.test({"date": "2026-07-29"}, credentials)
     assert result is None
 
 
@@ -1153,5 +1290,15 @@ def test_fmp_market_cap_batch_fetcher(credentials=test_credentials):
 
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPMarketCapBatchFetcher()
+def test_fmp_historical_industry_pe_fetcher(credentials=test_credentials):
+    """Test FMP historical industry P/E fetcher (#1528)."""
+    from openbb_fmp.models.indexes_extras import FMPHistoricalIndustryPeFetcher
+
+    params = {
+        "industry": "Semiconductors",
+        "from_date": "2024-07-29",
+        "to_date": "2026-07-29",
+    }
+    fetcher = FMPHistoricalIndustryPeFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
