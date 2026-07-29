@@ -203,3 +203,9 @@ notebooks_local/
 _fill_*.py
 _enrich_*.py
 _verify_*.py
+_build_nb*.py
+_insert_*.py
+_splice_*.py
+_pivot_*.py
+_tmp_*.txt
+_tmp_*.py
