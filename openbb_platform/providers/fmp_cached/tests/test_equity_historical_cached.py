@@ -171,8 +171,8 @@ class TestGapDetectionLogic:
 
         # Insert complete cache data for the query range matching the query's interval and adjustment
         insert_query = """
-        INSERT INTO equity_historical 
-        (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap, 
+        INSERT INTO equity_historical
+        (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap,
          interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
@@ -300,8 +300,8 @@ class TestGapDetectionLogic:
 
         # Insert partial cache data (missing middle day)
         insert_query = """
-        INSERT INTO equity_historical 
-        (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap, 
+        INSERT INTO equity_historical
+        (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap,
          interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
@@ -797,7 +797,7 @@ class TestDatabaseOperations:
         # Insert some old test data
         old_date = date(2020, 1, 1)
         insert_query = """
-        INSERT INTO equity_historical 
+        INSERT INTO equity_historical
         (symbol, date, close, interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, DATE_SUB(NOW(), INTERVAL 100 DAY), 1)
         ON DUPLICATE KEY UPDATE cached_at = DATE_SUB(NOW(), INTERVAL 100 DAY)
@@ -845,7 +845,7 @@ class TestMultiSymbolSupport:
 
         # Insert data for AAPL only
         insert_query = """
-        INSERT INTO equity_historical 
+        INSERT INTO equity_historical
         (symbol, date, close, interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
@@ -939,7 +939,7 @@ class TestPerformanceOptimizations:
 
         # Insert sparse data (lots of gaps)
         insert_query = """
-        INSERT INTO equity_historical 
+        INSERT INTO equity_historical
         (symbol, date, close, interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
