@@ -133,3 +133,94 @@ def write_basket_json(
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(json.dumps(basket, indent=2), encoding="utf-8")
     return basket
+
+
+# ---------------------------------------------------------------------------
+# #1460: PII-safe preview renderer for notebook cells
+# ---------------------------------------------------------------------------
+_WEIGHT_BUCKETS = [
+    (0.05, "<5%"),
+    (0.15, "5-15%"),
+    (0.30, "15-30%"),
+    (float("inf"), ">30%"),
+]
+
+
+def _bucket_weight(w: float) -> str:
+    """Bucket a fraction weight into a coarse label for pedagogy without
+    leaking the precise concentration figure."""
+    for threshold, label in _WEIGHT_BUCKETS:
+        if w < threshold:
+            return label
+    return ">30%"
+
+
+def redact_basket_preview(
+    basket: dict,
+    *,
+    level: str = "aggregate",
+) -> str:
+    """Render a basket dict as human-readable stdout with PII-appropriate
+    redaction. Never returns raw symbol/CUSIP/weight strings unless
+    ``level='raw'`` is explicitly requested.
+
+    Levels:
+    - ``'aggregate'`` (default): counts only. No per-row output. Safe to
+      commit into notebook outputs.
+    - ``'bucketed'``: per-row output with symbol masked to ``SYM_i``,
+      cusips/isins hidden, and weights bucketed into <5% / 5-15% /
+      15-30% / >30%. Pedagogically useful ("you can be surprisingly
+      concentrated") without leaking numbers.
+    - ``'raw'``: pass-through, prints real symbols + weights. **Never
+      run in a notebook that will be committed** — emits a warning to
+      stderr on use. This is what the CLI shows for a live-driven
+      allocation decision.
+
+    All levels emit the same top-line metadata (snapshot count, position
+    counts) since those are aggregate.
+    """
+    meta = basket.get("metadata", {})
+    rows = basket.get("basket") or []
+    lines: list[str] = []
+
+    n_positions = meta.get("n_positions_in_basket", len(rows))
+    n_in_snap = meta.get("n_positions_in_snapshot", "?")
+    lines.append(
+        f"basket contains {n_positions} positions (kept of {n_in_snap} in snapshot)"
+    )
+    lines.append("(cash rows excluded; weights renormalized to sum to 1)")
+
+    if level == "aggregate":
+        return "\n".join(lines)
+
+    if level == "bucketed":
+        lines.append("")
+        lines.append(f"  {'Position':<10}{'Weight bucket':>20}")
+        lines.append(f"  {'-'*10}{'-'*20}")
+        for i, row in enumerate(rows, start=1):
+            label = f"SYM_{i}"
+            bucket = _bucket_weight(float(row.get("weight") or 0))
+            lines.append(f"  {label:<10}{bucket:>20}")
+        return "\n".join(lines)
+
+    if level == "raw":
+        import sys as _sys
+
+        _sys.stderr.write(
+            "WARNING: redact_basket_preview(level='raw') printed real "
+            "portfolio data. Do NOT commit this notebook with executed "
+            "outputs. See CLAUDE.md 'PII / private-data leak prevention'.\n"
+        )
+        lines.append("")
+        lines.append(f"  {'Symbol':<12}{'Weight':>10}")
+        lines.append(f"  {'-'*12}{'-'*10}")
+        for row in rows:
+            sym = str(row.get("symbol") or "?")
+            w = float(row.get("weight") or 0) * 100.0
+            lines.append(f"  {sym:<12}{w:>9.2f}%")
+        return "\n".join(lines)
+
+    raise ValueError(
+        f"redact_basket_preview: unknown level={level!r} "
+        "(expected 'aggregate', 'bucketed', or 'raw')"
+    )
