@@ -1,0 +1,50 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/batch-aftermarket-trade?apikey=MOCK_API_KEY&symbols=AAPL%2CMSFT
+  response:
+    body:
+      string: "[\n  {\n    \"symbol\": \"AAPL\",\n    \"price\": 343.57001,\n    \"tradeSize\":
+        498,\n    \"timestamp\": 1785351266000\n  },\n  {\n    \"symbol\": \"MSFT\",\n
+        \   \"price\": 400.93,\n    \"tradeSize\": 483,\n    \"timestamp\": 1785351265000\n
+        \ }\n]"
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '215'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 18:54:28 GMT
+      Etag:
+      - W/"d7-QzthZt5El1AHc1kZ7iIiMUYgGx4"
+      Server:
+      - nginx
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
