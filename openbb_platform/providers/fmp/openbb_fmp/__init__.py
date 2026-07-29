@@ -109,6 +109,14 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.government_extras import (
+    FMPHouseLatestFetcher,
+    FMPSenateLatestFetcher,
+    FMPSenateNetWorthAggregatedFetcher,
+    FMPSenateNetWorthFetcher,
+    FMPSenatePositionsFetcher,
+    FMPSenateProfileFetcher,
+)
 from openbb_fmp.models.sec_extras import (
     FMPAllIndustryClassificationFetcher,
     FMPIndustryClassificationSearchFetcher,
@@ -317,6 +325,13 @@ stock market information (news, currencies, and stock prices).""",
         "StandardIndustrialClassificationList": FMPStandardIndustrialClassificationListFetcher,
         "AllIndustryClassification": FMPAllIndustryClassificationFetcher,
         "IndustryClassificationSearch": FMPIndustryClassificationSearchFetcher,
+        # Government-extras — Tier-A parity port (#1554-#1559).
+        "HouseLatest": FMPHouseLatestFetcher,
+        "SenateLatest": FMPSenateLatestFetcher,
+        "SenateNetWorth": FMPSenateNetWorthFetcher,
+        "SenateNetWorthAggregated": FMPSenateNetWorthAggregatedFetcher,
+        "SenatePositions": FMPSenatePositionsFetcher,
+        "SenateProfile": FMPSenateProfileFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,

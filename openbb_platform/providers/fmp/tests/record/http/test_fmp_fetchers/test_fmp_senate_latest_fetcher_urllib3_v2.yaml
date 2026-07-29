@@ -1,0 +1,64 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/senate-latest?apikey=MOCK_API_KEY&limit=10&page=0
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+WXS2/aQBDH7/kUI5RjNviBeeRm7JQQnsJRparqYb0ehy32LlqbRCjqd++aBAgN
+        IaoCUlUfkGAeeHZ+/1mNv58BPOkPQCVbpqFMKldQ8QaVixcbCppj1y+sA8MwrZq1dkU8Y4nMFgp9
+        HVIEWIZVJ0aDWLV1TK6oyCjLuRS7QXVibf4o5irLhzRduduoBMe1K6Fbz0AqFHLtkXHM2asM2HXr
+        4nLFWV4EbFIeBarCEGASr400yzD3MWOKz4syV8engkacCuimc1ScJtCmYgYyBk+mKSqGO9l3y/mq
+        EE+quVT6mNCWItq04MUb0GSblsqFWNV2bl7orgKBc9PR34x1BCseJHbKT7iYFb+neT7PrqpVjKMM
+        qWLTy2dIl/fyofpsqT5wfKzOc1UNGYubNkMSRQ2L1GhYJ02nXiOhHYahGVmIjlOt6Af8utgnBP/u
+        uvNtjxbEIkk+loH5oQxsYm+OvCMDN6FinwhclWqwUty/1UGRAm/8B4VwK7nu8QEl+LjIMzZFuMME
+        ZzIFt7MXfZBLNvuT+HihUdBsL3Vnjd0xToE9jqhlO6FNQho1SK1uN0gzpiYxHDu2nVrUslrsAPbO
+        aNTpv3MFGC17M96fYq+vAHsv+1tUavnODbBVxRb8Kh52nK+p94K/vgDcZD6lIebQFew4vE875SyO
+        zVYDLRK2jJDUQkeDbzUigshiy6pTs9U0Dk35ZDwp9ZRPoDvsANyAB19gPJoE3s310Ub9tOg/Oel+
+        4AWlRt8NvBF4o8m4DLCvR2VGzek9Shj3vTKgHrbbpZ7rYRva7rAHbuCWAPce0mXZ1fTr3yybcoVw
+        Q/MpfaTL421tJ97SP7m2TfxgUOYZ70mhu57wnzME3QoYfj0O9X960v2+2ysz9M0beX8R63HXh/jv
+        FvWzH78Bd6TsnJUTAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:53:45 GMT
+      Etag:
+      - W/"1395-CQsiUvrnBYwSVdiR38mcWIPgcIA"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

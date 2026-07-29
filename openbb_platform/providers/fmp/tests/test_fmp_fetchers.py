@@ -1606,3 +1606,68 @@ def test_fmp_industry_classification_search_fetcher(credentials=test_credentials
     fetcher = FMPIndustryClassificationSearchFetcher()
     result = fetcher.test({"symbol": "AAPL"}, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Government-extras — Tier-A parity port (#1554-#1559).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_house_latest_fetcher(credentials=test_credentials):
+    """Test FMP house latest fetcher (#1554)."""
+    from openbb_fmp.models.government_extras import FMPHouseLatestFetcher
+
+    fetcher = FMPHouseLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_latest_fetcher(credentials=test_credentials):
+    """Test FMP senate latest fetcher (#1555)."""
+    from openbb_fmp.models.government_extras import FMPSenateLatestFetcher
+
+    fetcher = FMPSenateLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_net_worth_fetcher(credentials=test_credentials):
+    """Test FMP senate net worth fetcher (#1556)."""
+    from openbb_fmp.models.government_extras import FMPSenateNetWorthFetcher
+
+    fetcher = FMPSenateNetWorthFetcher()
+    result = fetcher.test({"senate_id": "L000397"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_net_worth_aggregated_fetcher(credentials=test_credentials):
+    """Test FMP senate net worth aggregated fetcher (#1557)."""
+    from openbb_fmp.models.government_extras import FMPSenateNetWorthAggregatedFetcher
+
+    fetcher = FMPSenateNetWorthAggregatedFetcher()
+    result = fetcher.test({"senate_id": "L000397"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_positions_fetcher(credentials=test_credentials):
+    """Test FMP senate positions fetcher (#1558)."""
+    from openbb_fmp.models.government_extras import FMPSenatePositionsFetcher
+
+    fetcher = FMPSenatePositionsFetcher()
+    result = fetcher.test({"name": "Warren"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_profile_fetcher(credentials=test_credentials):
+    """Test FMP senate profile fetcher (#1559)."""
+    from openbb_fmp.models.government_extras import FMPSenateProfileFetcher
+
+    fetcher = FMPSenateProfileFetcher()
+    result = fetcher.test({"name": "Warren"}, credentials)
+    assert result is None
