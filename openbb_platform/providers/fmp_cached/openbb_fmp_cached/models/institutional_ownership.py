@@ -50,6 +50,40 @@ logger = logging.getLogger(__name__)
 INSTITUTIONAL_OWNERSHIP_TTL_DAYS = 7
 
 
+class _TolerantInstitutionalOwnershipData(FMPInstitutionalOwnershipData):
+    """FMP institutional-ownership record tolerating null derived-percent fields.
+
+    Fix for #1390. FMP's institutional-ownership endpoint intermittently
+    returns ``null`` for the three derived percentage fields (observed on
+    MSFT, 2026-07):
+
+    - ``ownership_percent``
+    - ``last_ownership_percent``
+    - ``ownership_percent_change``
+
+    Upstream ``FMPInstitutionalOwnershipData`` declares those as required
+    ``float``, so a single ``null`` fails pydantic validation. In
+    ``transform_data`` below, every failing record drops with a WARNING —
+    and when EVERY row has null percents (the observed symptom for MSFT),
+    the "all-dropped ⇒ raise" guard fires, so the entire fetch throws
+    instead of returning any of the valid non-null fields (share counts,
+    invested totals, holder counts, cost bases).
+
+    Relaxing these three fields to ``Optional[float]`` keeps the record
+    with ``None`` percents. That's strictly more useful than losing the
+    share counts alongside them — analytics that need the exact percent
+    can filter for ``is not None``; the rest get their data back.
+
+    The subclass is a strict superset of the parent (relaxes required →
+    optional only), so instances remain valid
+    ``FMPInstitutionalOwnershipData`` for downstream consumers.
+    """
+
+    ownership_percent: float | None = None  # type: ignore[assignment]
+    last_ownership_percent: float | None = None  # type: ignore[assignment]
+    ownership_percent_change: float | None = None  # type: ignore[assignment]
+
+
 class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
     """FMP Cached Institutional Ownership Fetcher with multi-source fallback.
 
@@ -192,7 +226,15 @@ class FMPCachedInstitutionalOwnershipFetcher(FMPInstitutionalOwnershipFetcher):
         drops = 0
         for record in data:
             try:
-                validated.append(FMPInstitutionalOwnershipData.model_validate(record))
+                # #1390: validate against the null-percent-tolerant subclass.
+                # _TolerantInstitutionalOwnershipData IS-A
+                # FMPInstitutionalOwnershipData (relaxes three float fields
+                # to Optional[float]), so downstream consumers see the same
+                # type. Records with a null percent are kept with
+                # None in that field instead of nuking the whole row.
+                validated.append(
+                    _TolerantInstitutionalOwnershipData.model_validate(record)
+                )
             except ValidationError as exc:
                 # bd-0bp1: log at WARNING (not debug) with the specific
                 # exception so operators debugging "why is this empty?"
