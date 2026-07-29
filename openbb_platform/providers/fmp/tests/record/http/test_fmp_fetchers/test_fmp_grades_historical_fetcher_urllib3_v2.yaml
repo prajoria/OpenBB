@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/grades-historical?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA92bsU7DMBRFd74i6kwlPyctlJEBsbBQNsRQBEJIpZVoGSrEv9OIsL1e3aZ27Oeh
+        S5yoPrrPzrGTPJ5V1ff+V1Wjze7jeb0cXVWju/nNw+j87+jLYvvaHvPOT8fuYuzkv2WxWix3m+39
+        Yvu+etvMt5/r1dv1125/stTqKX+NjVcbb9fLl32rfuX8ddl2zIF//j9lf8bP+XFQ0wBQkhvUhIPS
+        w8g1qYaD0v+9g5rkBlWXCOU5KFh+2UFJbCj9yohQk7GESKrJDSpEUlMEpc/3caEcBwXvU7D8EkC5
+        WQAoWH4poC45qP5javDZb0K7n97vDkrvdwelD7i4UKT76cOGcb8UUKT7QSjofimgSPezlRTpfrag
+        SKOAE4XetYRQpFEYgmpo90NQ9SWC0gs3LlSApDDUqUlJDyjO/bw+F3RQs8ygSPczBsW5H4SKO1H0
+        geLczyOhraHQngrVY6Ig3Q9D5SW0Det+Hu0m+YvcoDj3MwbFuZ8xKM4ojEFxRmEJqmbdzxhUkUmR
+        7mcKinU/CAU3M0+FOlqTatr9+kPpMcaFIt0PQsG9dH2xFReKdD9bUCHcLzsozv1EXwfmCsW5nzEo
+        zihE71q3noIr38GfetSs+8HdpAMPr1LdpzzrfsagikyKcz84pjzczBx8THnW/fDsB/f99IzjQnHu
+        Z6v8SPezNKV71v2MJcW53wljKkVSpPvZSop0P1tQJRpFge4nJbqflOh+QrufKSjW/WxBled+Qruf
+        Lajy3E9o97MFVZ77SYnuJ7T76V2DjR3U4F8QCO1+6M1MgQ/dBl9POdr90BsvuPz0FSQPdXT5Odoo
+        +pff4A/dHG0UCOrAi0uptsgcbRS2oEIYBSy/A1/+8VR96o9UChgVfDE9RVQhlCK/qEI4RX5U5K3K
+        GBVpFYaoZEZrhTGqMrMKsamUHRXrgMaoSAk0RkVaoDGq8jSwpSI10BhVeR7YUpXngS1VkW5hxQPP
+        nn4BNyxPnyBKAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 17:11:15 GMT
+      Etag:
+      - W/"4a20-WoI+V4kOYdISdQxcbIdarZv57o4"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

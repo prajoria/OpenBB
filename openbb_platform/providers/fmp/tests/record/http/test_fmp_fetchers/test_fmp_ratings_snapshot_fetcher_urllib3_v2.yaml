@@ -1,0 +1,50 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/ratings-snapshot?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: "[\n  {\n    \"symbol\": \"MSFT\",\n    \"rating\": \"B+\",\n    \"overallScore\":
+        3,\n    \"discountedCashFlowScore\": 3,\n    \"returnOnEquityScore\": 5,\n
+        \   \"returnOnAssetsScore\": 5,\n    \"debtToEquityScore\": 2,\n    \"priceToEarningsScore\":
+        2,\n    \"priceToBookScore\": 2\n  }\n]"
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '255'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 17:11:14 GMT
+      Etag:
+      - W/"ff-PKAAHBkEkp7r6r1B220ZM38mpjo"
+      Server:
+      - nginx
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
