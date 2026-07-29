@@ -166,9 +166,7 @@ async def _fmp_stable_get(
 # ---------------------------------------------------------------------------
 
 
-class FMPStockQuoteFetcher(
-    Fetcher[FMPQuoteSymbolQueryParams, list[FMPStockQuoteData]]
-):
+class FMPStockQuoteFetcher(Fetcher[FMPQuoteSymbolQueryParams, list[FMPStockQuoteData]]):
     """Fetcher for ``/stable/quote`` (#1510)."""
 
     @staticmethod
@@ -251,9 +249,7 @@ class FMPStockPriceChangeFetcher(
         return [FMPStockPriceChangeData.model_validate(r) for r in data]
 
 
-class FMPMarketCapFetcher(
-    Fetcher[FMPQuoteSymbolQueryParams, list[FMPMarketCapData]]
-):
+class FMPMarketCapFetcher(Fetcher[FMPQuoteSymbolQueryParams, list[FMPMarketCapData]]):
     """Fetcher for ``/stable/market-capitalization`` (#1513)."""
 
     @staticmethod
