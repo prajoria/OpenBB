@@ -230,9 +230,108 @@ async def test_try_issuer_returns_empty_on_error():
 
 
 @pytest.mark.asyncio
-async def test_try_nport_is_a_stub_until_t2_t3_land():
-    """N-PORT tier is deferred (T2/T3 follow-up); _try_nport returns [] for v1."""
-    assert await _try_nport("XLK") == []
+async def test_try_nport_calls_sec_and_normalizes_shape():
+    """#1459: N-PORT tier is wired to SecNportDisclosureFetcher.
+
+    When the SEC fetcher returns records with weight-as-fraction (SEC's
+    normalize_percent divided pctVal by 100), _try_nport multiplies back
+    by 100 so the aggregator's downstream FMPEtfHoldingsData.normalize_percent
+    composes cleanly to identity. Rows with a ticker keep it; rows without
+    ticker fall back to cusip/isin (which is how QQQ N-PORT ships — most
+    of the 102 holdings have no symbol, only a cusip). Rows with NO
+    identifier at all (cash pools, some derivatives) are skipped.
+    """
+    import types
+
+    sec_records = [
+        # 1) has ticker → use ticker
+        types.SimpleNamespace(
+            model_dump=lambda: {
+                "symbol": "aapl",
+                "name": "Apple Inc.",
+                "weight": 0.095,
+                "cusip": "037833100",
+                "isin": "US0378331005",
+                "balance": 100.0,
+                "value": 1000.0,
+                "country": "US",
+            }
+        ),
+        # 2) no ticker, has cusip → use cusip as symbol (QQQ pattern)
+        types.SimpleNamespace(
+            model_dump=lambda: {
+                "symbol": None,
+                "name": "NVIDIA Corp.",
+                "weight": 0.087,
+                "cusip": "67066g104",
+            }
+        ),
+        # 3) no ticker/cusip, has isin → use isin
+        types.SimpleNamespace(
+            model_dump=lambda: {
+                "symbol": None,
+                "name": "Some ADR",
+                "weight": 0.01,
+                "cusip": None,
+                "isin": "US1234567890",
+            }
+        ),
+        # 4) no ticker/cusip/isin → skip (cash pool)
+        types.SimpleNamespace(
+            model_dump=lambda: {
+                "symbol": None,
+                "name": "USD CASH POOL",
+                "weight": 0.001,
+            }
+        ),
+    ]
+
+    class _FakeAnnotated:
+        result = sec_records
+
+    with patch(
+        "openbb_sec.models.nport_disclosure.SecNportDisclosureFetcher.transform_query",
+        return_value=object(),
+    ), patch(
+        "openbb_sec.models.nport_disclosure.SecNportDisclosureFetcher.aextract_data",
+        AsyncMock(return_value={"stub": True}),
+    ), patch(
+        "openbb_sec.models.nport_disclosure.SecNportDisclosureFetcher.transform_data",
+        return_value=_FakeAnnotated(),
+    ):
+        rows = await _try_nport("aapl")
+
+    # 3 kept (ticker / cusip / isin), 1 skipped (cash pool)
+    assert len(rows) == 3
+    assert rows[0]["symbol"] == "AAPL"
+    assert rows[0]["weight"] == pytest.approx(9.5)  # 0.095 * 100
+    assert rows[0]["cusip"] == "037833100"
+    assert rows[0]["data_source"] == "sec_nport"
+    # cusip fallback — upper-cased
+    assert rows[1]["symbol"] == "67066G104"
+    assert rows[1]["cusip"] == "67066g104"
+    assert rows[1]["weight"] == pytest.approx(8.7)
+    # isin fallback
+    assert rows[2]["symbol"] == "US1234567890"
+
+
+@pytest.mark.asyncio
+async def test_try_nport_fails_soft_on_sec_error():
+    """Any exception from SEC (network, EmptyDataError, XML parse) → [].
+    Matches the _try_fmp / _try_issuer contract so a real outage still
+    hits the aggregate 'all tiers empty' warning without crashing.
+    """
+    with patch(
+        "openbb_sec.models.nport_disclosure.SecNportDisclosureFetcher.aextract_data",
+        AsyncMock(side_effect=RuntimeError("SEC EDGAR 503")),
+    ):
+        assert await _try_nport("QQQ") == []
+
+
+@pytest.mark.asyncio
+async def test_try_nport_empty_symbol_returns_empty():
+    """Guard: no symbol -> [] before we even import SEC."""
+    assert await _try_nport("") == []
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +557,11 @@ async def test_warning_when_all_tiers_fail(caplog):
     """bd-3ka: when Tier 1 AND Tier 2 AND Tier 3 all return empty, a
     single aggregate WARNING must fire. This is the ONLY situation the
     user should see a WARNING at the etf_holdings level (real failure
-    that ops needs to see, not benign 402-then-rescue)."""
+    that ops needs to see, not benign 402-then-rescue).
+
+    Since #1459 (N-PORT tier wired to SEC live), we mock ``_try_nport``
+    directly here so we don't hit SEC EDGAR from the unit suite.
+    """
     import logging
     fmp_402 = Exception("Unauthorized FMP request -> 402 -> Restricted")
 
@@ -468,7 +571,9 @@ async def test_warning_when_all_tiers_fail(caplog):
          patch.object(FMPEtfHoldingsFetcher, "aextract_data",
                       new=AsyncMock(side_effect=fmp_402)), \
          patch("openbb_fmp_cached.models.etf_holdings_issuer.fetch_issuer_holdings",
-               return_value=[]):
+               return_value=[]), \
+         patch("openbb_fmp_cached.models.etf_holdings._try_nport",
+               new=AsyncMock(return_value=[])):
         with caplog.at_level(logging.WARNING,
                              logger="openbb_fmp_cached.models.etf_holdings"):
             result = await FMPCachedEtfHoldingsFetcher.aextract_data(
