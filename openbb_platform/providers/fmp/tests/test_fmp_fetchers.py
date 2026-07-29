@@ -1939,3 +1939,38 @@ def test_fmp_available_countries_fetcher(credentials=test_credentials):
     fetcher = FMPAvailableCountriesFetcher()
     result = fetcher.test({}, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Available-lists — final Tier-A parity port (#1478-#1480).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_available_exchanges_fetcher(credentials=test_credentials):
+    """Test FMP available exchanges fetcher (#1478)."""
+    from openbb_fmp.models.available_lists_extras import FMPAvailableExchangesFetcher
+
+    fetcher = FMPAvailableExchangesFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_available_industries_fetcher(credentials=test_credentials):
+    """Test FMP available industries fetcher (#1479)."""
+    from openbb_fmp.models.available_lists_extras import FMPAvailableIndustriesFetcher
+
+    fetcher = FMPAvailableIndustriesFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_available_sectors_fetcher(credentials=test_credentials):
+    """Test FMP available sectors fetcher (#1480)."""
+    from openbb_fmp.models.available_lists_extras import FMPAvailableSectorsFetcher
+
+    fetcher = FMPAvailableSectorsFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None

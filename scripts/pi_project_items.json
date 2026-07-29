@@ -3813,5 +3813,26 @@
     "phase": "A-parity",
     "type": "endpoint",
     "bead_id": null
+  },
+  "1478": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0iq8c",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1479": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0iq-U",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1480": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irAs",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
   }
 }
