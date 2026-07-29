@@ -109,6 +109,13 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.sec_extras import (
+    FMPAllIndustryClassificationFetcher,
+    FMPIndustryClassificationSearchFetcher,
+    FMPSecFilings8kFetcher,
+    FMPSecProfileFetcher,
+    FMPStandardIndustrialClassificationListFetcher,
+)
 from openbb_fmp.models.news_extras import (
     FMPFmpArticlesFetcher,
     FMPNewsCryptoFetcher,
@@ -304,6 +311,12 @@ stock market information (news, currencies, and stock prices).""",
         "NewsForex": FMPNewsForexFetcher,
         "NewsForexLatest": FMPNewsForexLatestFetcher,
         "FmpArticles": FMPFmpArticlesFetcher,
+        # SEC-extras — Tier-A parity port (#1549-#1553).
+        "SecFilings8K": FMPSecFilings8kFetcher,
+        "SecProfile": FMPSecProfileFetcher,
+        "StandardIndustrialClassificationList": FMPStandardIndustrialClassificationListFetcher,
+        "AllIndustryClassification": FMPAllIndustryClassificationFetcher,
+        "IndustryClassificationSearch": FMPIndustryClassificationSearchFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,
