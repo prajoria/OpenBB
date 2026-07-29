@@ -185,6 +185,13 @@ positions.db
 
 # Notebook scratch state (broader than the portfolio-specific rule above)
 **/.notebook_state/
+
+# Per-session artifact dirs the notebooks write into during Run All
+# (tearsheets, exports, backtest bundles). These are re-generated on
+# every kernel restart and must never travel with the repo.
+notebooks/portfolio/Analysis/
+notebooks/portfolio_yfinance/Analysis/
+**/Analysis/exports/
 **/.openbb_backtest/
 
 # Notebook helper scratchpads used by the fill/enrich cycles

@@ -1,7 +1,7 @@
 # Portfolio Notebook Series — Snapshot Universe
 
 The list of tickers whose Yahoo Finance snapshots are recorded via the
-sub-epic #1374 sweep. Every ticker is captured for at least the
+sub-epic [#1374](https://github.com/prajoria/OpenBB/issues/1374) sweep. Every ticker is captured for at least the
 following endpoints:
 
 - `yahoo_equity_quote` — price / OHLC / market cap (all tickers)

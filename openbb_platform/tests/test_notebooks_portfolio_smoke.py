@@ -254,3 +254,71 @@ def test_yfinance_no_paid_provider_references(nb_name: str) -> None:
         f"{nb_name}: paid-provider references in code cells: {offenders}. "
         "Track B is free-only; route through cboe / sec / yfinance-snapshot instead."
     )
+
+
+# ---------------------------------------------------------------------------
+# #1461 guard: no bare `#NNNN` issue refs in markdown cells / .md siblings
+# ---------------------------------------------------------------------------
+# Same regex the rewriter (scripts/linkify_notebook_issue_refs.py) uses:
+# - lookbehind rejects `[`, `(`, `/`, word chars (existing links & URL paths)
+# - lookahead rejects `]`, word chars (existing links & multi-digit tokens)
+_BARE_ISSUE_REF = __import__("re").compile(r"(?<![\w/(\[])#(\d{2,5})(?!\w|\])")
+
+
+def _bare_refs_in_markdown(nb: dict) -> list[tuple[int, str]]:
+    """Return [(cell_index, "#NNNN"), ...] for each bare ref in markdown cells."""
+    out: list[tuple[int, str]] = []
+    for idx, cell in enumerate(nb.get("cells") or []):
+        if cell.get("cell_type") != "markdown":
+            continue
+        src = "".join(cell.get("source") or [])
+        for m in _BARE_ISSUE_REF.finditer(src):
+            out.append((idx, f"#{m.group(1)}"))
+    return out
+
+
+@pytest.mark.parametrize(
+    "nb_name",
+    EXPECTED_NOTEBOOKS + EXPECTED_NOTEBOOKS_YFINANCE,
+)
+def test_no_bare_issue_refs_in_markdown(nb_name: str) -> None:
+    """#1461: every ``#NNNN`` in a markdown cell must be a real link
+    (``[#NNNN](https://github.com/prajoria/OpenBB/issues/NNNN)``).
+
+    A bare ``#1234`` renders as inert text in nbviewer / GitHub notebook
+    preview, so readers can't click through to see what shipped. The
+    rewriter script under ``scripts/linkify_notebook_issue_refs.py``
+    keeps the whole series in the linked form; this guard prevents new
+    bare refs from sneaking back in.
+    """
+    if nb_name in EXPECTED_NOTEBOOKS:
+        path = PORTFOLIO_NB_DIR / nb_name
+    else:
+        path = PORTFOLIO_YFINANCE_NB_DIR / nb_name
+    nb = _load_notebook(path)
+    hits = _bare_refs_in_markdown(nb)
+    assert not hits, (
+        f"{nb_name}: bare issue refs in markdown cells: {hits}. "
+        "Run `python scripts/linkify_notebook_issue_refs.py` to fix."
+    )
+
+
+@pytest.mark.parametrize(
+    "md_relpath",
+    [
+        "notebooks/portfolio/README.md",
+        "notebooks/portfolio/STORY_BIBLE.md",
+        "notebooks/portfolio/UNIVERSE.md",
+    ],
+)
+def test_no_bare_issue_refs_in_series_md(md_relpath: str) -> None:
+    """Same guard for the checked-in ``.md`` companions."""
+    path = REPO_ROOT / md_relpath
+    if not path.exists():
+        pytest.skip(f"{md_relpath} not present")
+    text = path.read_text(encoding="utf-8")
+    hits = [f"#{m.group(1)}" for m in _BARE_ISSUE_REF.finditer(text)]
+    assert not hits, (
+        f"{md_relpath}: bare issue refs: {hits}. "
+        "Run `python scripts/linkify_notebook_issue_refs.py` to fix."
+    )
