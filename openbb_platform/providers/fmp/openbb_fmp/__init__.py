@@ -109,6 +109,11 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.available_lists_extras import (
+    FMPAvailableExchangesFetcher,
+    FMPAvailableIndustriesFetcher,
+    FMPAvailableSectorsFetcher,
+)
 from openbb_fmp.models.market_hours_search_extras import (
     FMPAllExchangeMarketHoursFetcher,
     FMPAvailableCountriesFetcher,
@@ -387,6 +392,10 @@ stock market information (news, currencies, and stock prices).""",
         "SymbolChange": FMPSymbolChangeFetcher,
         "FinancialStatementSymbolList": FMPFinancialStatementSymbolListFetcher,
         "AvailableCountries": FMPAvailableCountriesFetcher,
+        # Available-lists extras — final Tier-A parity port (#1478-#1480).
+        "AvailableExchanges": FMPAvailableExchangesFetcher,
+        "AvailableIndustries": FMPAvailableIndustriesFetcher,
+        "AvailableSectors": FMPAvailableSectorsFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,

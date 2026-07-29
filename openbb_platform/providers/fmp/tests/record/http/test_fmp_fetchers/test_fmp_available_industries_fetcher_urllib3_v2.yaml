@@ -1,0 +1,79 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/available-industries?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 21:39:35 GMT
+      Etag:
+      - W/"1ec4-p/DauKMDmdXwkMUOseikGkfx9cA"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
