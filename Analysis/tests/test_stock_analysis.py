@@ -5787,3 +5787,98 @@ class TestFeatureFlags:
                 continue
             assert d[name] is False, f"unexpected {name}={d[name]!r}"
 
+
+class TestReverseDcfBoundaryClamp:
+    """Regression for #1465 — extreme overvaluation used to return NaN
+    because brentq had no sign change in [-0.10, +0.30]. Fix returns
+    the closer-residual bracket edge as a boundary marker instead of
+    a bare NaN. Interior roots (normal valuations) still solve.
+    """
+
+    def _run_reverse_dcf(self, current_price: float, dcf_fn):
+        """Direct copy of the phase4_valuation reverse-DCF block so we
+        can exercise the boundary-clamp logic without staging a full
+        Phase 4 fixture. Mirrors stock_analysis.py:2523-2549 exactly.
+        """
+        import math
+
+        from scipy.optimize import brentq
+
+        # Concrete but reasonable inputs
+        fcf0 = 1_000_000.0
+        g_term = 0.02
+        wacc = 0.09
+        shares_out = 1_000_000.0
+        _lo, _hi = -0.10, 0.30
+        implied_growth = float("nan")
+        try:
+            implied_growth = brentq(
+                lambda g: dcf_fn(fcf0, g, g_term, wacc, shares_out) - current_price,
+                _lo,
+                _hi,
+                xtol=1e-6,
+            )
+        except (ValueError, RuntimeError):
+            try:
+                _r_lo = dcf_fn(fcf0, _lo, g_term, wacc, shares_out) - current_price
+                _r_hi = dcf_fn(fcf0, _hi, g_term, wacc, shares_out) - current_price
+                if not (math.isnan(_r_lo) or math.isnan(_r_hi)):
+                    implied_growth = _lo if abs(_r_lo) < abs(_r_hi) else _hi
+            except Exception:  # noqa: BLE001
+                pass
+        return implied_growth
+
+    def test_extreme_overvaluation_returns_upper_boundary_not_nan(self):
+        """Market price implies growth > +30%. Pre-fix returned NaN.
+        Post-fix returns +0.30 (upper bracket edge) as a marker.
+        """
+        import math
+
+        from stock_analysis import _dcf_single
+
+        # Price WAY above what any growth in [-0.10, +0.30] can produce.
+        # Baseline single-stage DCF at g=+0.30 with our inputs peaks
+        # somewhere; force well past that with 1e12 to guarantee the
+        # upper-edge residual is closer to zero than the lower-edge one.
+        implied = self._run_reverse_dcf(1e12, _dcf_single)
+        assert not math.isnan(implied), (
+            "extreme-overvaluation case must clamp to a bracket edge, "
+            "not return NaN (#1465)"
+        )
+        assert implied == pytest.approx(0.30), (
+            f"expected upper bracket edge 0.30, got {implied}"
+        )
+
+    def test_extreme_undervaluation_returns_lower_boundary_not_nan(self):
+        """Market price implies growth < -10%. Pre-fix NaN, post-fix -0.10."""
+        import math
+
+        from stock_analysis import _dcf_single
+
+        # Price near zero -> implied growth is very negative -> falls
+        # below the -0.10 bracket floor.
+        implied = self._run_reverse_dcf(0.01, _dcf_single)
+        assert not math.isnan(implied)
+        assert implied == pytest.approx(-0.10), (
+            f"expected lower bracket edge -0.10, got {implied}"
+        )
+
+    def test_interior_root_still_solved_unchanged(self):
+        """Normal valuation with true implied growth inside the bracket
+        must still return the interior root, not a boundary edge."""
+        import math
+
+        from stock_analysis import _dcf_single
+
+        # Pick a price that _dcf_single reproduces at g=0.10 exactly
+        # (a natural mid-bracket root).
+        target_price = _dcf_single(1_000_000.0, 0.10, 0.02, 0.09, 1_000_000.0)
+        implied = self._run_reverse_dcf(target_price, _dcf_single)
+        assert not math.isnan(implied)
+        assert implied == pytest.approx(0.10, abs=1e-4), (
+            f"interior root should be ~0.10 (not clamped to boundary); got {implied}"
+        )
+        # Not a boundary edge
+        assert -0.099 < implied < 0.299
+
+

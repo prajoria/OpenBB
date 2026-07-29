@@ -2521,15 +2521,37 @@ def phase4_valuation(
         if not np.isnan(dcf_fair_value) and dcf_fair_value > 0:
             margin_of_safety = (dcf_fair_value - current_price) / dcf_fair_value
         sensitivity_df = _dcf_sensitivity(fcf0, g_short, wacc, g_term, shares_out, dcf_fn=dcf_fn)
-        # Reverse-DCF
+        # Reverse-DCF — solve for the short-term growth that reproduces
+        # today's price. brentq requires a sign change in the bracket;
+        # for extreme over/undervaluation the true implied growth lies
+        # outside [-0.10, +0.30] and brentq raises. Fix (#1465):
+        # return the bracket edge whose residual is closest to zero
+        # rather than NaN — a boundary marker is more honest than a
+        # bare NaN, and P4 downstream summarizers can still read it as
+        # "at or beyond boundary". Interior roots are unchanged.
+        _lo, _hi = -0.10, 0.30
         try:
             implied_growth = brentq(
                 lambda g: dcf_fn(fcf0, g, g_term, wacc, shares_out) - current_price,
-                -0.10, 0.30,
+                _lo,
+                _hi,
                 xtol=1e-6,
             )
-        except Exception:  # noqa: BLE001
-            pass
+        except (ValueError, RuntimeError):
+            # No sign change in bracket -> the true root is outside.
+            # Return the edge whose residual is smallest in magnitude
+            # so the caller sees which side we hit (implied_growth ==
+            # _hi means "at least +30%"; == _lo means "at most -10%").
+            try:
+                _r_lo = dcf_fn(fcf0, _lo, g_term, wacc, shares_out) - current_price
+                _r_hi = dcf_fn(fcf0, _hi, g_term, wacc, shares_out) - current_price
+                if not (np.isnan(_r_lo) or np.isnan(_r_hi)):
+                    implied_growth = _lo if abs(_r_lo) < abs(_r_hi) else _hi
+            except Exception:  # noqa: BLE001
+                # If even the boundary evaluation fails, leave NaN — a
+                # broken dcf_fn is a different failure mode than
+                # "root outside bracket".
+                pass
 
     # --- ROIC - WACC Spread ---
     roic_val = _latest_col(ratios_df, ["roic", "return_on_invested_capital"])
