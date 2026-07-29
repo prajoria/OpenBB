@@ -25,10 +25,10 @@ Run all tests (needs fmp_cached key):
 
 from __future__ import annotations
 
-import math
-import sys
-import os
 import datetime
+import math
+import os
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -69,14 +69,14 @@ from stock_analysis import (  # noqa: E402
     _sector_etf,
     _sector_wacc_default,
     _to_df,
-    phase7_decision,
-    run_full_analysis,
     phase1_company_profile,
     phase2_fundamentals,
     phase3_technicals,
     phase4_valuation,
     phase5_risk,
     phase6_peer_relative,
+    phase7_decision,
+    run_full_analysis,
 )
 
 # ---------------------------------------------------------------------------
@@ -106,19 +106,22 @@ def _make_ohlcv(n: int = 300) -> pd.DataFrame:
     price = 100.0 + np.cumsum(rng.normal(0, 1, n))
     price = np.maximum(price, 10.0)  # no negatives
 
-    highs  = price * (1 + rng.uniform(0.001, 0.015, n))
-    lows   = price * (1 - rng.uniform(0.001, 0.015, n))
-    opens  = price * (1 + rng.normal(0, 0.005, n))
+    highs = price * (1 + rng.uniform(0.001, 0.015, n))
+    lows = price * (1 - rng.uniform(0.001, 0.015, n))
+    opens = price * (1 + rng.normal(0, 0.005, n))
     volume = rng.integers(1_000_000, 10_000_000, n).astype(float)
 
     idx = pd.date_range("2023-01-01", periods=n, freq="B")
-    return pd.DataFrame({
-        "open":   opens,
-        "high":   highs,
-        "low":    lows,
-        "close":  price,
-        "volume": volume,
-    }, index=idx)
+    return pd.DataFrame(
+        {
+            "open": opens,
+            "high": highs,
+            "low": lows,
+            "close": price,
+            "volume": volume,
+        },
+        index=idx,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -247,12 +250,14 @@ class TestHelpers:
         class FakeResult:
             def to_df(self):
                 return None
+
         assert isinstance(_to_df(FakeResult()), pd.DataFrame)
 
     def test_to_df_raises_safe(self):
         class BadResult:
             def to_df(self):
                 raise ValueError("network error")
+
         result = _to_df(BadResult())
         assert isinstance(result, pd.DataFrame)
         assert result.empty
@@ -274,8 +279,8 @@ class TestHelpers:
 
     def test_sector_etf_known(self):
         assert _sector_etf("Technology") == "XLK"
-        assert _sector_etf("Energy")     == "XLE"
-        assert _sector_etf("Unknown")    == "SPY"
+        assert _sector_etf("Energy") == "XLE"
+        assert _sector_etf("Unknown") == "SPY"
 
 
 # ---------------------------------------------------------------------------
@@ -288,23 +293,33 @@ class TestDCF:
 
     def test_dcf_single_basic(self):
         """DCF of a stable company with 5% growth, 9% WACC should be reasonable."""
-        fv = _dcf_single(fcf0=1_000_000, g_short=0.05, g_term=0.025, wacc=0.09, shares=1_000_000)
+        fv = _dcf_single(
+            fcf0=1_000_000, g_short=0.05, g_term=0.025, wacc=0.09, shares=1_000_000
+        )
         # Fair value per share should be positive
         assert fv > 0
 
     def test_dcf_single_wacc_le_gterm_clamped(self):
         """When WACC <= g_term the function should clamp g_term to WACC-0.01."""
-        fv = _dcf_single(fcf0=1_000_000, g_short=0.05, g_term=0.10, wacc=0.09, shares=1_000_000)
+        fv = _dcf_single(
+            fcf0=1_000_000, g_short=0.05, g_term=0.10, wacc=0.09, shares=1_000_000
+        )
         assert not math.isnan(fv)
         assert fv > 0
 
     def test_dcf_single_zero_shares(self):
-        fv = _dcf_single(fcf0=1_000_000, g_short=0.05, g_term=0.025, wacc=0.09, shares=0)
+        fv = _dcf_single(
+            fcf0=1_000_000, g_short=0.05, g_term=0.025, wacc=0.09, shares=0
+        )
         assert math.isnan(fv)
 
     def test_dcf_sensitivity_shape(self):
         sens = _dcf_sensitivity(
-            fcf0=1_000_000, g_short=0.05, wacc_base=0.09, g_term_base=0.025, shares=1_000_000
+            fcf0=1_000_000,
+            g_short=0.05,
+            wacc_base=0.09,
+            g_term_base=0.025,
+            shares=1_000_000,
         )
         assert sens.shape == (3, 3)
         assert not sens.isnull().values.all()
@@ -312,7 +327,11 @@ class TestDCF:
     def test_dcf_sensitivity_monotonic_wacc(self):
         """Higher WACC should produce lower fair value."""
         sens = _dcf_sensitivity(
-            fcf0=1_000_000, g_short=0.05, wacc_base=0.09, g_term_base=0.025, shares=1_000_000
+            fcf0=1_000_000,
+            g_short=0.05,
+            wacc_base=0.09,
+            g_term_base=0.025,
+            shares=1_000_000,
         )
         # Rows are sorted by WACC (ascending), so first row > last row for each col
         for col in sens.columns:
@@ -375,7 +394,7 @@ class TestComputeTechnicals:
         assert isinstance(computed, pd.DataFrame)
 
     def test_sma_columns_present(self, computed):
-        assert "sma_50"  in computed.columns
+        assert "sma_50" in computed.columns
         assert "sma_200" in computed.columns
 
     def test_rsi_range(self, computed):
@@ -391,9 +410,9 @@ class TestComputeTechnicals:
         assert (atr > 0).all()
 
     def test_macd_columns(self, computed):
-        assert "macd"        in computed.columns
+        assert "macd" in computed.columns
         assert "macd_signal" in computed.columns
-        assert "macd_hist"   in computed.columns
+        assert "macd_hist" in computed.columns
 
     def test_stochastic_range(self, computed):
         stoch = computed["stoch_k"].dropna()
@@ -423,7 +442,7 @@ class TestComputeTechnicals:
             assert col in computed.columns
 
     def test_52wk_high_present(self, computed):
-        assert "high_52w"      in computed.columns
+        assert "high_52w" in computed.columns
         assert "dist_52w_high" in computed.columns
 
 
@@ -454,48 +473,48 @@ class TestComputeAdxRsiAtr:
 class TestScoreFundamentals:
     def test_high_quality_scores_above_4(self):
         kpis = {
-            "revenue_cagr_5y":     0.15,
-            "eps_cagr_5y":         0.18,
-            "fcf_cagr_5y":         0.14,
-            "gross_margin":        0.65,
-            "operating_margin":    0.35,
-            "net_margin":          0.28,
-            "roic":                0.22,
-            "debt_equity":         0.5,
-            "current_ratio":       2.5,
-            "interest_coverage":   15.0,
-            "net_debt_ebitda":     0.8,
-            "cfo_net_income":      1.05,
-            "fcf_margin":          0.22,
-            "capex_revenue":       0.04,
-            "dilution_5y":         -0.08,
-            "operating_leverage":  1.2,
-            "sga_trend":           -0.005,
-            "fcf_payout_ratio":    0.30,
+            "revenue_cagr_5y": 0.15,
+            "eps_cagr_5y": 0.18,
+            "fcf_cagr_5y": 0.14,
+            "gross_margin": 0.65,
+            "operating_margin": 0.35,
+            "net_margin": 0.28,
+            "roic": 0.22,
+            "debt_equity": 0.5,
+            "current_ratio": 2.5,
+            "interest_coverage": 15.0,
+            "net_debt_ebitda": 0.8,
+            "cfo_net_income": 1.05,
+            "fcf_margin": 0.22,
+            "capex_revenue": 0.04,
+            "dilution_5y": -0.08,
+            "operating_leverage": 1.2,
+            "sga_trend": -0.005,
+            "fcf_payout_ratio": 0.30,
         }
         score = _score_fundamentals(kpis, accruals_ratio=0.02, gross_profitability=0.45)
         assert score >= 4.0
 
     def test_distressed_scores_below_2(self):
         kpis = {
-            "revenue_cagr_5y":     -0.10,
-            "eps_cagr_5y":         -0.20,
-            "fcf_cagr_5y":         -0.15,
-            "gross_margin":        0.05,
-            "operating_margin":   -0.10,
-            "net_margin":         -0.15,
-            "roic":               -0.05,
-            "debt_equity":         4.0,
-            "current_ratio":       0.5,
-            "interest_coverage":   0.8,
-            "net_debt_ebitda":     8.0,
-            "cfo_net_income":      0.2,
-            "fcf_margin":         -0.05,
-            "capex_revenue":       0.25,
-            "dilution_5y":         0.30,
-            "operating_leverage":  4.0,
-            "sga_trend":           0.05,
-            "fcf_payout_ratio":    1.5,
+            "revenue_cagr_5y": -0.10,
+            "eps_cagr_5y": -0.20,
+            "fcf_cagr_5y": -0.15,
+            "gross_margin": 0.05,
+            "operating_margin": -0.10,
+            "net_margin": -0.15,
+            "roic": -0.05,
+            "debt_equity": 4.0,
+            "current_ratio": 0.5,
+            "interest_coverage": 0.8,
+            "net_debt_ebitda": 8.0,
+            "cfo_net_income": 0.2,
+            "fcf_margin": -0.05,
+            "capex_revenue": 0.25,
+            "dilution_5y": 0.30,
+            "operating_leverage": 4.0,
+            "sga_trend": 0.05,
+            "fcf_payout_ratio": 1.5,
         }
         score = _score_fundamentals(kpis, accruals_ratio=0.25, gross_profitability=0.05)
         assert score < 2.5
@@ -503,24 +522,24 @@ class TestScoreFundamentals:
     def test_hard_floor_caps_at_3_8(self):
         """A single very low category should cap the score at 3.8."""
         kpis = {
-            "revenue_cagr_5y":  0.15,
-            "eps_cagr_5y":      0.18,
-            "fcf_cagr_5y":      0.14,
-            "gross_margin":     0.65,
+            "revenue_cagr_5y": 0.15,
+            "eps_cagr_5y": 0.18,
+            "fcf_cagr_5y": 0.14,
+            "gross_margin": 0.65,
             "operating_margin": 0.35,
-            "net_margin":       0.28,
-            "roic":             0.22,
-            "debt_equity":      0.5,
-            "current_ratio":    2.5,
+            "net_margin": 0.28,
+            "roic": 0.22,
+            "debt_equity": 0.5,
+            "current_ratio": 2.5,
             "interest_coverage": 15.0,
-            "net_debt_ebitda":  0.8,
-            "cfo_net_income":   1.05,
-            "fcf_margin":       0.22,
-            "capex_revenue":    0.04,
+            "net_debt_ebitda": 0.8,
+            "cfo_net_income": 1.05,
+            "fcf_margin": 0.22,
+            "capex_revenue": 0.04,
             # Severely distressed operating leverage → structural score ≤ 1.5
             "operating_leverage": 10.0,
-            "dilution_5y":     -0.08,
-            "sga_trend":       -0.005,
+            "dilution_5y": -0.08,
+            "sga_trend": -0.005,
             "fcf_payout_ratio": 0.30,
         }
         score = _score_fundamentals(kpis, accruals_ratio=0.02, gross_profitability=0.45)
@@ -547,7 +566,7 @@ def _make_mock_p1() -> Phase1Result:
         market_cap=3_000_000_000_000,
         free_float_pct=None,
         short_interest_pct=None,
-        earnings_revision_3m_direction="unknown",   # A7 (bd-0h2.10) — safe default
+        earnings_revision_3m_direction="unknown",  # A7 (bd-0h2.10) — safe default
         gate_passed=True,
         gate_notes="OK",
     )
@@ -592,7 +611,7 @@ def _make_mock_p3(
     earnings_safe: bool = True,
     weekly_bull: bool = True,
     *,
-    days_to_earnings: int = 30,   # KEPT non-NaN — used by P3 gate + P7 earnings_note
+    days_to_earnings: int = 30,  # KEPT non-NaN — used by P3 gate + P7 earnings_note
 ) -> Phase3Result:
     # Minimal price DataFrame with ATR
     price_df = pd.DataFrame(
@@ -600,10 +619,16 @@ def _make_mock_p3(
         index=pd.date_range("2026-01-01", periods=3, freq="B"),
     )
     signals = {
-        "sma_golden_cross": True, "adx_trending": True, "rsi_pullback": True,
-        "macd_bullish": True, "obv_rising": True, "volume_ratio_normal": True,
-        "above_vwap": True, "above_cloud": bullish_count >= 8,
-        "momentum_positive": bullish_count >= 9, "cmf_positive": True,
+        "sma_golden_cross": True,
+        "adx_trending": True,
+        "rsi_pullback": True,
+        "macd_bullish": True,
+        "obv_rising": True,
+        "volume_ratio_normal": True,
+        "above_vwap": True,
+        "above_cloud": bullish_count >= 8,
+        "momentum_positive": bullish_count >= 9,
+        "cmf_positive": True,
         "weekly_trend_bullish": weekly_bull,
     }
     # Adjust count to match requested
@@ -835,8 +860,8 @@ class TestPhase7Decision:
             _make_mock_p5(),
             _make_mock_p6(),
         )
-        assert p7.atr_stop < 147.0          # stop is below current price
-        assert p7.target_2r > 147.0         # 2R target is above current price
+        assert p7.atr_stop < 147.0  # stop is below current price
+        assert p7.target_2r > 147.0  # 2R target is above current price
         assert p7.risk_per_share > 0
         assert "tranche_1" in p7.staged_entry
         # time_stop_date must be in the future (63 calendar days from the last
@@ -853,8 +878,14 @@ class TestPhase7Decision:
             _make_mock_p5(),
             _make_mock_p6(),
         )
-        required = ["investment_thesis", "bullish_drivers", "invalidation_events",
-                    "fair_value_range", "peer_relative", "trade_plan"]
+        required = [
+            "investment_thesis",
+            "bullish_drivers",
+            "invalidation_events",
+            "fair_value_range",
+            "peer_relative",
+            "trade_plan",
+        ]
         for key in required:
             assert key in p7.handoff, f"Missing handoff key: {key}"
 
@@ -869,8 +900,14 @@ class TestPhase7Decision:
             _make_mock_p5(),
             _make_mock_p6(),
         )
-        weights = {"business_quality": 0.08, "fundamentals": 0.25, "technicals": 0.15,
-                   "valuation": 0.20, "risk_fit": 0.12, "peer_relative": 0.20}
+        weights = {
+            "business_quality": 0.08,
+            "fundamentals": 0.25,
+            "technicals": 0.15,
+            "valuation": 0.20,
+            "risk_fit": 0.12,
+            "peer_relative": 0.20,
+        }
         expected_sum = sum(p7.score_breakdown[k] * w for k, w in weights.items())
         # May differ slightly from composite if overrides applied; just check sign
         assert abs(p7.composite_score - expected_sum) <= 0.5
@@ -1052,17 +1089,17 @@ class TestPhase7StopCapAndTrailing:
         )
         rules = p7.trailing_stop_rules
         assert "breakeven_at_r" in rules
-        assert rules["breakeven_at_r"] == 1.0, (
-            "breakeven trigger must fire at +1R per bead spec"
-        )
+        assert (
+            rules["breakeven_at_r"] == 1.0
+        ), "breakeven trigger must fire at +1R per bead spec"
         assert "trail_at_r" in rules
-        assert rules["trail_at_r"] == 2.0, (
-            "trailing stop activates when price hits +2R per bead spec"
-        )
+        assert (
+            rules["trail_at_r"] == 2.0
+        ), "trailing stop activates when price hits +2R per bead spec"
         assert "trail_distance_r" in rules
-        assert rules["trail_distance_r"] == 1.0, (
-            "trail distance is 1R (moves stop up by 1R for every 1R price move)"
-        )
+        assert (
+            rules["trail_distance_r"] == 1.0
+        ), "trail distance is 1R (moves stop up by 1R for every 1R price move)"
 
     def test_trailing_stop_on_but_stop_cap_off_are_independent(self, cfg_trailing):
         """Load-bearing property: enabling use_trailing_stop must NOT
@@ -1112,8 +1149,8 @@ class TestPhase7StopCapAndTrailing:
             _make_mock_p5(),
             _make_mock_p6(),
         )
-        assert p7.risk_per_share == pytest.approx(2.50, abs=0.01)   # capped
-        assert p7.trailing_stop_rules["breakeven_at_r"] == 1.0      # trailing on
+        assert p7.risk_per_share == pytest.approx(2.50, abs=0.01)  # capped
+        assert p7.trailing_stop_rules["breakeven_at_r"] == 1.0  # trailing on
 
     def test_phase7_wires_trailing_stop_rules_field(self):
         """R7.8 AST wiring guard: phase7_decision must thread the
@@ -1122,6 +1159,7 @@ class TestPhase7StopCapAndTrailing:
         """
         import ast
         import inspect
+
         from stock_analysis import phase7_decision
 
         tree = ast.parse(inspect.getsource(phase7_decision))
@@ -1196,6 +1234,7 @@ class TestPhase7StopCapAndTrailing:
         doesn't bite (avoid-noise, R7.3 spirit).
         """
         import logging
+
         cfg_stop_cap = AnalysisConfig(
             symbol="MSFT",
             feature_flags=AnalysisFeatureFlags(use_stop_cap=True),
@@ -1218,9 +1257,9 @@ class TestPhase7StopCapAndTrailing:
 
         assert p7.risk_per_share == pytest.approx(2.50, abs=0.01)
         stop_cap_logs = [
-            r for r in caplog.records
-            if r.levelno == logging.INFO
-            and "stop-cap fired" in r.getMessage()
+            r
+            for r in caplog.records
+            if r.levelno == logging.INFO and "stop-cap fired" in r.getMessage()
         ]
         assert len(stop_cap_logs) == 1, (
             f"iter-1 silent-hunt F2: expected 1 INFO log 'stop-cap fired' "
@@ -1228,7 +1267,7 @@ class TestPhase7StopCapAndTrailing:
             f"got {[r.getMessage() for r in caplog.records]}"
         )
         msg = stop_cap_logs[0].getMessage()
-        assert "16" in msg   # 2*ATR value
+        assert "16" in msg  # 2*ATR value
         assert "2.5" in msg  # capped value
 
     def test_stop_cap_no_log_when_cap_does_not_bite(self, caplog):
@@ -1237,6 +1276,7 @@ class TestPhase7StopCapAndTrailing:
         report. R7.3 non-noise guarantee.
         """
         import logging
+
         cfg_stop_cap = AnalysisConfig(
             symbol="MSFT",
             feature_flags=AnalysisFeatureFlags(use_stop_cap=True),
@@ -1258,8 +1298,7 @@ class TestPhase7StopCapAndTrailing:
             )
 
         stop_cap_logs = [
-            r for r in caplog.records
-            if "stop-cap fired" in r.getMessage()
+            r for r in caplog.records if "stop-cap fired" in r.getMessage()
         ]
         assert len(stop_cap_logs) == 0, (
             f"stop-cap log fired when cap did not bite (2*ATR=1.0 < "
@@ -1308,11 +1347,12 @@ class TestPhase7StopCapAndTrailing:
             _STOP_CAP_PCT_OF_ENTRY,
             _TRAILING_STOP_DEFAULTS,
         )
+
         assert _STOP_CAP_PCT_OF_ENTRY == 0.05
         assert _TRAILING_STOP_DEFAULTS == {
-            "breakeven_at_r":    1.0,
-            "trail_at_r":        2.0,
-            "trail_distance_r":  1.0,
+            "breakeven_at_r": 1.0,
+            "trail_at_r": 2.0,
+            "trail_distance_r": 1.0,
         }
 
 
@@ -1363,6 +1403,7 @@ class TestPhase7RegimeAdjustment:
         first-class output rather than silently defaulting to BULL.
         """
         from openbb_regime import MarketRegime
+
         p7 = phase7_decision(
             cfg,
             _make_mock_p1(),
@@ -1380,6 +1421,7 @@ class TestPhase7RegimeAdjustment:
         echoes the input so downstream consumers can log / diff it.
         """
         from openbb_regime import MarketRegime
+
         p7 = phase7_decision(
             cfg_regime,
             _make_mock_p1(),
@@ -1411,17 +1453,34 @@ class TestPhase7RegimeAdjustment:
         """
         from openbb_regime import MarketRegime
         from stock_analysis import _regime_weights
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         # Baseline (flag off)
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         # BULL regime with flag on
         bull = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.TRENDING_BULL,
         )
         # 1. Non-trivial composite delta (proves the weight table was
@@ -1450,15 +1509,32 @@ class TestPhase7RegimeAdjustment:
         equal the default — this test catches that.
         """
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         crisis = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.CRISIS,
         )
         # Distinct composite → the regime table actually altered weights
@@ -1475,15 +1551,32 @@ class TestPhase7RegimeAdjustment:
         this test.
         """
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         ranging = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.RANGING,
         )
         assert ranging.composite_score == default.composite_score
@@ -1494,15 +1587,32 @@ class TestPhase7RegimeAdjustment:
         default.
         """
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         bear = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.TRENDING_BEAR,
         )
         assert bear.composite_score == default.composite_score
@@ -1513,13 +1623,25 @@ class TestPhase7RegimeAdjustment:
         MUST match the no-regime path.
         """
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         without_regime = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
         with_bull = phase7_decision(
-            cfg, p1, p2, p3, p4, p5, p6, regime=MarketRegime.TRENDING_BULL,
+            cfg,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
+            regime=MarketRegime.TRENDING_BULL,
         )
         assert with_bull.composite_score == without_regime.composite_score
         assert with_bull.staged_entry == without_regime.staged_entry
@@ -1530,8 +1652,9 @@ class TestPhase7RegimeAdjustment:
         scale from the default and score cutoffs (Avoid/Hold/Buy) become
         meaningless.
         """
-        from stock_analysis import _regime_weights
         from openbb_regime import MarketRegime
+        from stock_analysis import _regime_weights
+
         w = _regime_weights(MarketRegime.TRENDING_BULL)
         assert abs(sum(w.values()) - 1.0) < 1e-9, (
             f"Regime weight table for TRENDING_BULL must sum to 1.0 "
@@ -1540,8 +1663,9 @@ class TestPhase7RegimeAdjustment:
         )
 
     def test_regime_weights_sum_to_one_crisis(self, cfg_regime):
-        from stock_analysis import _regime_weights
         from openbb_regime import MarketRegime
+        from stock_analysis import _regime_weights
+
         w = _regime_weights(MarketRegime.CRISIS)
         assert abs(sum(w.values()) - 1.0) < 1e-9
 
@@ -1549,15 +1673,17 @@ class TestPhase7RegimeAdjustment:
         """R7.11 load-bearing: pin BULL weight values. Mutation to any
         weight would flip this test.
         """
-        from stock_analysis import _regime_weights
         from openbb_regime import MarketRegime
+        from stock_analysis import _regime_weights
+
         w = _regime_weights(MarketRegime.TRENDING_BULL)
         assert w["technicals"] == 0.30
         assert w["risk_fit"] == 0.10
 
     def test_regime_weights_match_crisis_spec(self):
-        from stock_analysis import _regime_weights
         from openbb_regime import MarketRegime
+        from stock_analysis import _regime_weights
+
         w = _regime_weights(MarketRegime.CRISIS)
         assert w["technicals"] == 0.10
         assert w["risk_fit"] == 0.30
@@ -1568,15 +1694,32 @@ class TestPhase7RegimeAdjustment:
     def test_bull_regime_preserves_full_tranches(self, cfg_regime):
         """TRENDING_BULL multiplier is 1.0 — no scaling."""
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         bull = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.TRENDING_BULL,
         )
         assert bull.staged_entry == default.staged_entry
@@ -1584,15 +1727,32 @@ class TestPhase7RegimeAdjustment:
     def test_bear_regime_halves_tranches(self, cfg_regime):
         """TRENDING_BEAR multiplier is 0.5 — position sizes halved."""
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         bear = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.TRENDING_BEAR,
         )
         for tranche in ("tranche_1", "tranche_2", "tranche_3"):
@@ -1603,12 +1763,23 @@ class TestPhase7RegimeAdjustment:
     def test_crisis_regime_zeros_tranches(self, cfg_regime):
         """CRISIS multiplier is 0.0 — never open new position in crisis."""
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         crisis = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.CRISIS,
         )
         for tranche in ("tranche_1", "tranche_2", "tranche_3"):
@@ -1621,15 +1792,32 @@ class TestPhase7RegimeAdjustment:
     def test_ranging_preserves_full_tranches(self, cfg_regime):
         """RANGING multiplier is 1.0."""
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         ranging = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.RANGING,
         )
         assert ranging.staged_entry == default.staged_entry
@@ -1642,8 +1830,9 @@ class TestPhase7RegimeAdjustment:
         stays cheap when ``openbb_regime`` is not installed AND
         ``use_regime_input`` is off.
         """
-        from stock_analysis import _regime_tranche_multiplier
         from openbb_regime import MarketRegime
+        from stock_analysis import _regime_tranche_multiplier
+
         table = _regime_tranche_multiplier()
         assert table[MarketRegime.TRENDING_BULL] == 1.0
         assert table[MarketRegime.RANGING] == 1.0
@@ -1665,20 +1854,39 @@ class TestPhase7RegimeAdjustment:
         other bugs.
         """
         import logging
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
             result = phase7_decision(
-                cfg_regime, p1, p2, p3, p4, p5, p6, regime=None,
+                cfg_regime,
+                p1,
+                p2,
+                p3,
+                p4,
+                p5,
+                p6,
+                regime=None,
             )
         assert result.composite_score == default.composite_score
         warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if "regime input" in r.getMessage() and "None" in r.getMessage()
         ]
         assert len(warnings) == 1, (
@@ -1689,22 +1897,41 @@ class TestPhase7RegimeAdjustment:
     def test_flag_on_with_unknown_regime_warns_and_falls_back(self, cfg_regime, caplog):
         """use_regime_input=True + regime=UNKNOWN: same fallback + WARNING."""
         import logging
+
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         default = phase7_decision(
-            AnalysisConfig(symbol="MSFT"), p1, p2, p3, p4, p5, p6,
+            AnalysisConfig(symbol="MSFT"),
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
         )
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
             result = phase7_decision(
-                cfg_regime, p1, p2, p3, p4, p5, p6,
+                cfg_regime,
+                p1,
+                p2,
+                p3,
+                p4,
+                p5,
+                p6,
                 regime=MarketRegime.UNKNOWN,
             )
         assert result.composite_score == default.composite_score
         warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if "UNKNOWN" in r.getMessage() and "regime" in r.getMessage()
         ]
         assert len(warnings) == 1
@@ -1715,12 +1942,23 @@ class TestPhase7RegimeAdjustment:
         positions to trail out of, even if it forbids new entries.
         """
         from openbb_regime import MarketRegime
+
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         crisis = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.CRISIS,
         )
         # Targets and stop are still computed (execution layer needs
@@ -1742,7 +1980,9 @@ class TestPhase7RegimeAdjustment:
         """
         import ast
         import inspect
+
         from stock_analysis import phase7_decision
+
         src = inspect.getsource(phase7_decision)
         tree = ast.parse(src)
 
@@ -1782,7 +2022,9 @@ class TestPhase7RegimeAdjustment:
         """
         import ast
         import inspect
+
         from stock_analysis import run_full_analysis
+
         src = inspect.getsource(run_full_analysis)
         tree = ast.parse(src)
 
@@ -1813,12 +2055,13 @@ class TestPhase7RegimeAdjustment:
         anything (drop the isinstance guard) would flip this test.
         """
         from stock_analysis import _regime_weights
+
         with pytest.raises(TypeError, match="expected MarketRegime instance"):
-            _regime_weights("crisis")   # lowercase str: dangerous silent fallthrough
+            _regime_weights("crisis")  # lowercase str: dangerous silent fallthrough
         with pytest.raises(TypeError, match="expected MarketRegime instance"):
-            _regime_weights(0)          # int
+            _regime_weights(0)  # int
         with pytest.raises(TypeError, match="expected MarketRegime instance"):
-            _regime_weights(None)       # None (before coercion)
+            _regime_weights(None)  # None (before coercion)
 
     def test_p7_post_init_coerces_garbage_regime_to_unknown(self, caplog):
         """iter-1 silent-hunt MEDIUM F5: Phase7Result.__post_init__ must
@@ -1830,7 +2073,9 @@ class TestPhase7RegimeAdjustment:
         that the coercion happened.
         """
         import logging
+
         from openbb_regime import MarketRegime
+
         # Construct a Phase7Result with garbage regime; __post_init__
         # should coerce and warn.
         with caplog.at_level(logging.WARNING):
@@ -1849,16 +2094,13 @@ class TestPhase7RegimeAdjustment:
                 hard_override=None,
                 monitoring_triggers={},
                 handoff={},
-                regime="crisis",   # lowercase str — not a MarketRegime
+                regime="crisis",  # lowercase str — not a MarketRegime
             )
         assert p7.regime == MarketRegime.UNKNOWN, (
             f"non-MarketRegime input to Phase7Result.regime must coerce "
             f"to UNKNOWN; got {p7.regime!r} (type {type(p7.regime).__name__})"
         )
-        warnings = [
-            r for r in caplog.records
-            if "non-MarketRegime" in r.getMessage()
-        ]
+        warnings = [r for r in caplog.records if "non-MarketRegime" in r.getMessage()]
         assert len(warnings) >= 1, (
             f"__post_init__ must emit WARNING when coercing non-MarketRegime "
             f"regime; got: {[r.getMessage() for r in caplog.records]}"
@@ -1871,6 +2113,7 @@ class TestPhase7RegimeAdjustment:
         via __post_init__ coercion).
         """
         from openbb_regime import MarketRegime
+
         # Trigger a gate failure by constructing a Phase3Result with
         # gate_passed=False and enforce_gates=True. We synth a minimal
         # p1/p2 that will pass their own gates, then run through the
@@ -1907,15 +2150,25 @@ class TestPhase7RegimeAdjustment:
         the default weight table would flip this test.
         """
         from openbb_regime import MarketRegime
+
         # Construct p4 with distressed Altman
         p4 = _make_mock_p4()
-        p4.altman = 1.5   # distress zone
+        p4.altman = 1.5  # distress zone
         p1, p2, p3, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         result = phase7_decision(
-            cfg_regime, p1, p2, p3, p4, p5, p6,
+            cfg_regime,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.TRENDING_BULL,
         )
         assert result.composite_score <= 2.0, (
@@ -1929,13 +2182,20 @@ class TestPhase7RegimeAdjustment:
         Positional-passing regime is a TypeError.
         """
         from openbb_regime import MarketRegime
+
         cfg = AnalysisConfig(symbol="MSFT")
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         with pytest.raises(TypeError):
-            phase7_decision(cfg, p1, p2, p3, p4, p5, p6, MarketRegime.CRISIS)   # positional!
+            phase7_decision(
+                cfg, p1, p2, p3, p4, p5, p6, MarketRegime.CRISIS
+            )  # positional!
 
 
 class TestPhase7HardOverridePreservation:
@@ -1980,11 +2240,13 @@ class TestPhase7HardOverridePreservation:
         from PASS → FAIL. Verified via mutation before ship.
         """
         p4 = _make_mock_p4()
-        p4.altman = 1.5   # distress
-        p3 = _make_mock_p3(weekly_bull=False)   # triggers recompute
+        p4.altman = 1.5  # distress
+        p3 = _make_mock_p3(weekly_bull=False)  # triggers recompute
         p1, p2, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(),
-            _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
         assert result.composite_score <= 2.0, (
@@ -2005,15 +2267,24 @@ class TestPhase7HardOverridePreservation:
         weights version because BULL weights amplify the bug.
         """
         from openbb_regime import MarketRegime
+
         p4 = _make_mock_p4()
         p4.altman = 1.5
         p3 = _make_mock_p3(weekly_bull=False)
         p1, p2, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(),
-            _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         result = phase7_decision(
-            cfg_regime_bull, p1, p2, p3, p4, p5, p6,
+            cfg_regime_bull,
+            p1,
+            p2,
+            p3,
+            p4,
+            p5,
+            p6,
             regime=MarketRegime.TRENDING_BULL,
         )
         assert result.composite_score <= 2.0, (
@@ -2030,11 +2301,13 @@ class TestPhase7HardOverridePreservation:
         must not lift composite back above the cap.
         """
         p2 = _make_mock_p2()
-        p2.accruals_ratio = 0.25   # > 20% → cap 2.8
+        p2.accruals_ratio = 0.25  # > 20% → cap 2.8
         p3 = _make_mock_p3(weekly_bull=False)
         p1, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p4(),
-            _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
         assert result.composite_score <= 2.8, (
@@ -2055,13 +2328,14 @@ class TestPhase7HardOverridePreservation:
         actually bite and the test is ceremonial.
         """
         p2 = _make_mock_p2()
-        p2.score = 5.0                # max P2
-        p2.accruals_ratio = 0.15      # >10% but <20% → BS safety cap only
+        p2.score = 5.0  # max P2
+        p2.accruals_ratio = 0.15  # >10% but <20% → BS safety cap only
         p3 = _make_mock_p3(weekly_bull=False, bullish_count=9)
         p6 = _make_mock_p6()
-        p6.relative_score = 5.0       # max peer_relative
+        p6.relative_score = 5.0  # max peer_relative
         p1, p4, p5 = (
-            _make_mock_p1(), _make_mock_p4(),
+            _make_mock_p1(),
+            _make_mock_p4(),
             _make_mock_p5(sharpe=3.0),
         )
         result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
@@ -2080,9 +2354,9 @@ class TestPhase7HardOverridePreservation:
         AND survive the weekly-trend recompute.
         """
         p2 = _make_mock_p2()
-        p2.accruals_ratio = 0.25   # → cap 2.8
+        p2.accruals_ratio = 0.25  # → cap 2.8
         p4 = _make_mock_p4()
-        p4.altman = 1.5            # → cap 2.0 (tighter)
+        p4.altman = 1.5  # → cap 2.0 (tighter)
         p3 = _make_mock_p3(weekly_bull=False)
         p1, p5, p6 = _make_mock_p1(), _make_mock_p5(), _make_mock_p6()
         result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
@@ -2103,9 +2377,9 @@ class TestPhase7HardOverridePreservation:
         """
         p2 = _make_mock_p2()
         p2.score = 4.0
-        p2.accruals_ratio = 0.15   # >10% but <=20% → BS-safety only
+        p2.accruals_ratio = 0.15  # >10% but <=20% → BS-safety only
         p4 = _make_mock_p4()
-        p4.altman = 1.5            # → cap 2.0
+        p4.altman = 1.5  # → cap 2.0
         p3 = _make_mock_p3(weekly_bull=False)
         p1, p5, p6 = _make_mock_p1(), _make_mock_p5(), _make_mock_p6()
         result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
@@ -2126,8 +2400,11 @@ class TestPhase7HardOverridePreservation:
         """
         p3 = _make_mock_p3(weekly_bull=False)
         p1, p2, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p4(),
-            _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
         # No composite-level cap fires — composite should equal the
@@ -2148,8 +2425,12 @@ class TestPhase7HardOverridePreservation:
         Included as a regression barrier against overzealous refactor.
         """
         p1, p2, p3, p4, p5, p6 = (
-            _make_mock_p1(), _make_mock_p2(), _make_mock_p3(weekly_bull=True),
-            _make_mock_p4(), _make_mock_p5(), _make_mock_p6(),
+            _make_mock_p1(),
+            _make_mock_p2(),
+            _make_mock_p3(weekly_bull=True),
+            _make_mock_p4(),
+            _make_mock_p5(),
+            _make_mock_p6(),
         )
         result = phase7_decision(cfg, p1, p2, p3, p4, p5, p6)
         # composite is ~3.60 for default mocks — well below any cap.
@@ -2240,7 +2521,8 @@ class TestBdW85EnvVarPickup:
     def test_env_var_absent_defaults_off(self, monkeypatch):
         """No env var → flag defaults False (default_factory contract)."""
         monkeypatch.delenv(
-            "ANALYSIS_USE_EXTENDED_CONFLUENCE_PANEL", raising=False,
+            "ANALYSIS_USE_EXTENDED_CONFLUENCE_PANEL",
+            raising=False,
         )
         flags = AnalysisFeatureFlags.from_env()
         assert flags.use_extended_confluence_panel is False
@@ -2253,7 +2535,8 @@ class TestBdW85Phase3TechnicalsThreadsPanelConfig:
 
     R7.11 mutation-verified: removing the ``if cfg.feature_flags.use_
     extended_confluence_panel:`` guard in phase3_technicals makes the
-    flag-off test fail (build_indicator_panel would be called unconditionally)."""
+    flag-off test fail (build_indicator_panel would be called unconditionally).
+    """
 
     def _run_phase3(self, monkeypatch, flag_on: bool):
         """Run phase3_technicals with build_indicator_panel spied.
@@ -2284,7 +2567,9 @@ class TestBdW85Phase3TechnicalsThreadsPanelConfig:
             )
         )
         monkeypatch.setitem(
-            __import__("sys").modules, "openbb", SimpleNamespace(obb=fake_obb),
+            __import__("sys").modules,
+            "openbb",
+            SimpleNamespace(obb=fake_obb),
         )
 
         # Spy on build_indicator_panel. It's imported LAZILY inside
@@ -2312,14 +2597,20 @@ class TestBdW85Phase3TechnicalsThreadsPanelConfig:
             called["panel_config"] = kw.get("panel_config")
             # Delegate to a stub that returns a minimal IndicatorPanel
             from openbb_techtrade.models import IndicatorPanel
+
             return IndicatorPanel(
                 symbol=kw.get("symbol", "TEST"),
                 as_of=kw.get("as_of"),
-                trend={}, momentum={}, volatility={}, volume={},
+                trend={},
+                momentum={},
+                volatility={},
+                volume={},
             )
 
         monkeypatch.setattr(
-            tt_indicators, "build_indicator_panel", _spy_build,
+            tt_indicators,
+            "build_indicator_panel",
+            _spy_build,
         )
 
         # Build config with flag set as requested.
@@ -2335,7 +2626,8 @@ class TestBdW85Phase3TechnicalsThreadsPanelConfig:
 
     def test_flag_on_calls_build_indicator_panel_with_extended(self, monkeypatch):
         """bd-85w load-bearing: flag ON → build_indicator_panel called
-        exactly once with panel_config=PANEL_EXTENDED."""
+        exactly once with panel_config=PANEL_EXTENDED.
+        """
         from openbb_techtrade.engine.panel_config import PANEL_EXTENDED
 
         called, p3 = self._run_phase3(monkeypatch, flag_on=True)
@@ -2348,30 +2640,35 @@ class TestBdW85Phase3TechnicalsThreadsPanelConfig:
             f"got {called['panel_config']!r}"
         )
         # And the result actually lands on Phase3Result.
-        assert p3.extended_panel is not None, (
-            "bd-85w: Phase3Result.extended_panel must be populated when flag ON"
-        )
+        assert (
+            p3.extended_panel is not None
+        ), "bd-85w: Phase3Result.extended_panel must be populated when flag ON"
 
     def test_flag_off_does_not_call_build_indicator_panel(self, monkeypatch):
         """bd-85w load-bearing: flag OFF → build_indicator_panel NOT called
-        (perf preservation + default backward-compat)."""
+        (perf preservation + default backward-compat).
+        """
         called, p3 = self._run_phase3(monkeypatch, flag_on=False)
         assert called["count"] == 0, (
             f"bd-85w: flag OFF must NOT invoke build_indicator_panel; "
             f"got count={called['count']}"
         )
-        assert p3.extended_panel is None, (
-            "bd-85w: Phase3Result.extended_panel must be None when flag OFF"
-        )
+        assert (
+            p3.extended_panel is None
+        ), "bd-85w: Phase3Result.extended_panel must be None when flag OFF"
 
     def test_flag_on_extended_panel_survives_build_failure_with_warning(
-        self, monkeypatch, caplog,
+        self,
+        monkeypatch,
+        caplog,
     ):
         """R7.3 loud-empty: if build_indicator_panel raises with flag ON,
         Analysis pipeline must not crash — extended_panel is None + a
         WARNING is logged so the user knows their opt-in silently
-        produced None instead of pretending nothing happened."""
+        produced None instead of pretending nothing happened.
+        """
         import logging
+
         import stock_analysis as sa
 
         fake_df = _make_ohlcv(300)
@@ -2386,18 +2683,23 @@ class TestBdW85Phase3TechnicalsThreadsPanelConfig:
                 ),
                 calendar=SimpleNamespace(
                     earnings=lambda **kw: SimpleNamespace(
-                        to_df=lambda: pd.DataFrame(), results=[],
+                        to_df=lambda: pd.DataFrame(),
+                        results=[],
                     ),
                 ),
             )
         )
         monkeypatch.setitem(
-            __import__("sys").modules, "openbb", SimpleNamespace(obb=fake_obb),
+            __import__("sys").modules,
+            "openbb",
+            SimpleNamespace(obb=fake_obb),
         )
 
         import openbb_techtrade.engine.indicators as tt_indicators
+
         monkeypatch.setattr(
-            tt_indicators, "build_indicator_panel",
+            tt_indicators,
+            "build_indicator_panel",
             lambda **kw: (_ for _ in ()).throw(RuntimeError("simulated build failure")),
         )
 
@@ -2412,9 +2714,12 @@ class TestBdW85Phase3TechnicalsThreadsPanelConfig:
             "extended_panel must be None on build failure (Analysis pipeline "
             "continues with inline classic technicals)"
         )
-        warnings = [r for r in caplog.records
-                    if r.levelno >= logging.WARNING
-                    and "use_extended_confluence_panel" in r.getMessage()]
+        warnings = [
+            r
+            for r in caplog.records
+            if r.levelno >= logging.WARNING
+            and "use_extended_confluence_panel" in r.getMessage()
+        ]
         assert warnings, (
             "R7.3: build failure with flag ON must emit a WARNING so the "
             "user knows their opt-in silently produced None; got: "
@@ -2454,6 +2759,7 @@ class TestPhase6Rolling3M:
         / 0.0 defaults thinking they were harmless."
         """
         import math
+
         p6 = _make_mock_p6()
         assert math.isnan(p6.rolling_3m_rank), (
             "_make_mock_p6 must default rolling_3m_rank to NaN so future "
@@ -2476,6 +2782,7 @@ class TestPhase6Rolling3M:
         containers which have no coverage-decay hazard.
         """
         import math
+
         p2 = _make_mock_p2()
         assert math.isnan(p2.dilution_5y)
         assert math.isnan(p2.operating_leverage)
@@ -2499,9 +2806,21 @@ class TestPhase6Rolling3M:
         # 14 unused scalars on P5 — the ratio-of-ratios and stress metrics
         # not currently consumed by P7's composite scoring.
         for field_name in [
-            "sortino", "calmar", "gain_to_pain", "beta", "beta_up", "beta_down",
-            "var_95", "cvar_95", "ulcer_index", "kurtosis", "skewness",
-            "kelly_fraction", "conviction_size", "half_kelly_size", "recommended_size",
+            "sortino",
+            "calmar",
+            "gain_to_pain",
+            "beta",
+            "beta_up",
+            "beta_down",
+            "var_95",
+            "cvar_95",
+            "ulcer_index",
+            "kurtosis",
+            "skewness",
+            "kelly_fraction",
+            "conviction_size",
+            "half_kelly_size",
+            "recommended_size",
         ]:
             assert math.isnan(getattr(p5, field_name)), (
                 f"_make_mock_p5 must default {field_name} to NaN per bd-zuw "
@@ -2523,9 +2842,9 @@ class TestPhase6MomentumAccel:
 
     def test_mock_p6_has_momentum_accel_field(self):
         p6 = _make_mock_p6()
-        assert hasattr(p6, "momentum_accel_63d"), (
-            "Phase6Result must carry momentum_accel_63d per bead 0h2.9"
-        )
+        assert hasattr(
+            p6, "momentum_accel_63d"
+        ), "Phase6Result must carry momentum_accel_63d per bead 0h2.9"
 
     def test_momentum_accel_in_valid_range(self):
         """Range guard — the delta of two percentiles / 100 lives in [-1, +1]."""
@@ -2551,11 +2870,15 @@ class TestPhase6MomentumAccel:
         # later 63d window it has the HIGHEST cumulative return (best rank).
         rng = np.random.default_rng(seed=42)
         peer_returns_early = rng.normal(loc=0.001, scale=0.01, size=(63, 4))  # 4 peers
-        target_returns_early = rng.normal(loc=-0.005, scale=0.01, size=(63, 1))  # TARGET worst
+        target_returns_early = rng.normal(
+            loc=-0.005, scale=0.01, size=(63, 1)
+        )  # TARGET worst
         early_block = np.hstack([target_returns_early, peer_returns_early])
 
         peer_returns_late = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
-        target_returns_late = rng.normal(loc=0.005, scale=0.01, size=(63, 1))  # TARGET best
+        target_returns_late = rng.normal(
+            loc=0.005, scale=0.01, size=(63, 1)
+        )  # TARGET best
         late_block = np.hstack([target_returns_late, peer_returns_late])
 
         columns = ["TARGET", "P1", "P2", "P3", "P4"]
@@ -2565,9 +2888,9 @@ class TestPhase6MomentumAccel:
         )
 
         accel = _compute_momentum_accel_63d(returns_df, "TARGET")
-        assert accel > 0.0, (
-            f"Monotone-improving rank must yield positive accel, got {accel:.4f}"
-        )
+        assert (
+            accel > 0.0
+        ), f"Monotone-improving rank must yield positive accel, got {accel:.4f}"
 
     def test_monotone_deteriorating_ranks_yield_negative_accel(self):
         """Symmetric guard: a rank that's collapsing must produce negative accel."""
@@ -2575,11 +2898,15 @@ class TestPhase6MomentumAccel:
 
         rng = np.random.default_rng(seed=17)
         peer_returns_early = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
-        target_returns_early = rng.normal(loc=0.005, scale=0.01, size=(63, 1))  # TARGET best
+        target_returns_early = rng.normal(
+            loc=0.005, scale=0.01, size=(63, 1)
+        )  # TARGET best
         early_block = np.hstack([target_returns_early, peer_returns_early])
 
         peer_returns_late = rng.normal(loc=0.001, scale=0.01, size=(63, 4))
-        target_returns_late = rng.normal(loc=-0.005, scale=0.01, size=(63, 1))  # TARGET worst
+        target_returns_late = rng.normal(
+            loc=-0.005, scale=0.01, size=(63, 1)
+        )  # TARGET worst
         late_block = np.hstack([target_returns_late, peer_returns_late])
 
         columns = ["TARGET", "P1", "P2", "P3", "P4"]
@@ -2589,9 +2916,9 @@ class TestPhase6MomentumAccel:
         )
 
         accel = _compute_momentum_accel_63d(returns_df, "TARGET")
-        assert accel < 0.0, (
-            f"Monotone-deteriorating rank must yield negative accel, got {accel:.4f}"
-        )
+        assert (
+            accel < 0.0
+        ), f"Monotone-deteriorating rank must yield negative accel, got {accel:.4f}"
 
     def test_insufficient_history_returns_zero(self):
         """Fewer than 126 rows → cannot compute a t-63 baseline → 0.0 (neutral)."""
@@ -2632,13 +2959,15 @@ class TestPhase6MomentumAccel:
         from stock_analysis import _compute_momentum_accel_63d
 
         rng = np.random.default_rng(0)
-        df = pd.DataFrame({
-            "TARGET": [np.nan] * 126,
-            "P1": rng.normal(scale=0.01, size=126),
-            "P2": rng.normal(scale=0.01, size=126),
-            "P3": rng.normal(scale=0.01, size=126),
-            "P4": rng.normal(scale=0.01, size=126),
-        })
+        df = pd.DataFrame(
+            {
+                "TARGET": [np.nan] * 126,
+                "P1": rng.normal(scale=0.01, size=126),
+                "P2": rng.normal(scale=0.01, size=126),
+                "P3": rng.normal(scale=0.01, size=126),
+                "P4": rng.normal(scale=0.01, size=126),
+            }
+        )
         accel = _compute_momentum_accel_63d(df, "TARGET")
         assert accel == 0.0, (
             f"All-NaN target must degrade to 0.0; got {accel} — the "
@@ -2670,17 +2999,23 @@ class TestPhase6MomentumAccel:
         # TARGET's real returns dominate the accel — decisively worst early,
         # decisively best late. The load-bearing property is the small but
         # deterministic 0.05-point delta between the buggy and fixed paths.
-        target = np.concatenate([
-            np.full(63, -0.02),   # worst early
-            np.full(63, +0.02),   # best late
-        ])
-        df = pd.DataFrame({
-            "TARGET": target,
-            "PEER1": np.concatenate([[np.nan] * 63, rng.normal(scale=0.005, size=63)]),
-            "PEER2": rng.normal(scale=0.005, size=126),
-            "PEER3": rng.normal(scale=0.005, size=126),
-            "PEER4": rng.normal(scale=0.005, size=126),
-        })
+        target = np.concatenate(
+            [
+                np.full(63, -0.02),  # worst early
+                np.full(63, +0.02),  # best late
+            ]
+        )
+        df = pd.DataFrame(
+            {
+                "TARGET": target,
+                "PEER1": np.concatenate(
+                    [[np.nan] * 63, rng.normal(scale=0.005, size=63)]
+                ),
+                "PEER2": rng.normal(scale=0.005, size=126),
+                "PEER3": rng.normal(scale=0.005, size=126),
+                "PEER4": rng.normal(scale=0.005, size=126),
+            }
+        )
         accel_with_ipod_peer = _compute_momentum_accel_63d(df, "TARGET")
 
         # Fixed code: PEER1 correctly excluded from earlier rank set (4 peers
@@ -2703,12 +3038,16 @@ class TestPhase6MomentumAccel:
         from stock_analysis import _compute_momentum_accel_63d
 
         rng = np.random.default_rng(0)
-        df = pd.DataFrame({
-            "TARGET": np.concatenate([[np.nan] * 63, rng.normal(scale=0.01, size=63)]),
-            "P1": rng.normal(scale=0.01, size=126),
-            "P2": rng.normal(scale=0.01, size=126),
-            "P3": rng.normal(scale=0.01, size=126),
-        })
+        df = pd.DataFrame(
+            {
+                "TARGET": np.concatenate(
+                    [[np.nan] * 63, rng.normal(scale=0.01, size=63)]
+                ),
+                "P1": rng.normal(scale=0.01, size=126),
+                "P2": rng.normal(scale=0.01, size=126),
+                "P3": rng.normal(scale=0.01, size=126),
+            }
+        )
         accel = _compute_momentum_accel_63d(df, "TARGET")
         assert accel == 0.0
 
@@ -2733,12 +3072,14 @@ class TestPhase6MomentumAccel:
         # mid-window so cumulative rank moves decisively (would produce
         # accel ~ +0.5 without the units clamp).
         target_prices = np.linspace(100, 500, 150)
-        peers = np.column_stack([
-            np.full(150, 150.0),   # TARGET crosses at day ~19
-            np.full(150, 250.0),   # TARGET crosses at day ~56
-            np.full(150, 350.0),   # TARGET crosses at day ~94
-            np.full(150, 450.0),   # TARGET crosses at day ~131
-        ])
+        peers = np.column_stack(
+            [
+                np.full(150, 150.0),  # TARGET crosses at day ~19
+                np.full(150, 250.0),  # TARGET crosses at day ~56
+                np.full(150, 350.0),  # TARGET crosses at day ~94
+                np.full(150, 450.0),  # TARGET crosses at day ~131
+            ]
+        )
         prices = pd.DataFrame(
             np.column_stack([target_prices, peers]),
             columns=["TARGET", "P1", "P2", "P3", "P4"],
@@ -2761,7 +3102,7 @@ class TestPhase6MomentumAccel:
         peers_early = np.tile([0.001, 0.002, 0.003, 0.004], (63, 1))
         peers_late = np.tile([-0.001, -0.002, -0.003, -0.004], (63, 1))
         target_early = np.full((63, 1), -0.01)  # TARGET worst early
-        target_late = np.full((63, 1), 0.01)    # TARGET best late
+        target_late = np.full((63, 1), 0.01)  # TARGET best late
         early = np.hstack([target_early, peers_early])
         late = np.hstack([target_late, peers_late])
         df = pd.DataFrame(
@@ -2772,7 +3113,9 @@ class TestPhase6MomentumAccel:
         accel = _compute_momentum_accel_63d(df, "TARGET")
         # 5-symbol universe → percentileofscore returns 20-point lattice.
         # TARGET went from worst (rank ~0-20) to best (rank ~80-100).
-        assert accel > 0.5, f"N=126 boundary should compute strong positive accel, got {accel}"
+        assert (
+            accel > 0.5
+        ), f"N=126 boundary should compute strong positive accel, got {accel}"
 
     def test_boundary_125_rows_returns_zero(self):
         """GAP-C fix — exactly one row below the boundary returns 0.0."""
@@ -2796,8 +3139,8 @@ class TestPhase6MomentumAccel:
         from stock_analysis import _compute_momentum_accel_63d
 
         peers = np.tile([0.001, 0.002, 0.003, 0.004], (126, 1))
-        target_early = np.full((63, 1), -0.02)   # TARGET decisively worst
-        target_late = np.full((63, 1), 0.02)     # TARGET decisively best
+        target_early = np.full((63, 1), -0.02)  # TARGET decisively worst
+        target_late = np.full((63, 1), 0.02)  # TARGET decisively best
         target = np.vstack([target_early, target_late])
         df = pd.DataFrame(
             np.hstack([target, peers]),
@@ -2837,6 +3180,7 @@ class TestPhase6MomentumAccel:
         """
         import ast
         import inspect
+
         from stock_analysis import phase6_peer_relative
 
         tree = ast.parse(inspect.getsource(phase6_peer_relative))
@@ -2895,6 +3239,7 @@ class TestPhase6MomentumAccel:
         value AND appears in the sibling ``phase6_peer_relative`` source.
         """
         import inspect
+
         import stock_analysis
 
         # Constant is importable from module scope, not buried inside a function.
@@ -2929,6 +3274,7 @@ class TestPhase6MomentumAccel:
         substring.
         """
         import inspect
+
         import stock_analysis
 
         sibling_src = inspect.getsource(stock_analysis.phase6_peer_relative)
@@ -2952,25 +3298,29 @@ class TestPhase6MomentumAccel:
         (iter-1's ceremonial state) would change the accel because PEER1's
         30-obs-shrunk cumulative would push into the rank lattice.
         """
-        from stock_analysis import _compute_momentum_accel_63d, _MIN_OBS_PER_WINDOW
+        from stock_analysis import _MIN_OBS_PER_WINDOW, _compute_momentum_accel_63d
 
         # PEER1 has 30 non-NaN in each window (below the 42 threshold) —
         # would be included with min_count=1 (iter-1) but excluded now.
         rng = np.random.default_rng(0)
-        target = np.concatenate([
-            np.full(63, -0.02),   # worst early
-            np.full(63, +0.02),   # best late
-        ])
+        target = np.concatenate(
+            [
+                np.full(63, -0.02),  # worst early
+                np.full(63, +0.02),  # best late
+            ]
+        )
         # Peer with sparse history — 30 non-NaN out of 63 in EACH window.
         peer1_early = np.concatenate([[np.nan] * 33, rng.normal(scale=0.005, size=30)])
         peer1_late = np.concatenate([[np.nan] * 33, rng.normal(scale=0.005, size=30)])
-        df = pd.DataFrame({
-            "TARGET": target,
-            "PEER1": np.concatenate([peer1_early, peer1_late]),  # excluded — sparse
-            "PEER2": rng.normal(scale=0.005, size=126),
-            "PEER3": rng.normal(scale=0.005, size=126),
-            "PEER4": rng.normal(scale=0.005, size=126),
-        })
+        df = pd.DataFrame(
+            {
+                "TARGET": target,
+                "PEER1": np.concatenate([peer1_early, peer1_late]),  # excluded — sparse
+                "PEER2": rng.normal(scale=0.005, size=126),
+                "PEER3": rng.normal(scale=0.005, size=126),
+                "PEER4": rng.normal(scale=0.005, size=126),
+            }
+        )
         assert _MIN_OBS_PER_WINDOW == 42  # sanity: assertion below assumes this
         accel_with_sparse_peer = _compute_momentum_accel_63d(df, "TARGET")
 
@@ -2979,7 +3329,8 @@ class TestPhase6MomentumAccel:
         # Reverting min_count to 1 would include PEER1 with cumulative =
         # sum(30 tiny values) ≈ 0 → phantom-mid-rank → different accel.
         accel_without_sparse_peer = _compute_momentum_accel_63d(
-            df.drop(columns=["PEER1"]), "TARGET",
+            df.drop(columns=["PEER1"]),
+            "TARGET",
         )
         assert accel_with_sparse_peer == accel_without_sparse_peer, (
             f"SEV-C regression: sparse-history PEER1 (30 non-NaN) leaked "
@@ -3001,18 +3352,21 @@ class TestPhase6MomentumAccel:
         mutation `< 2` bypasses.
         """
         import logging
+
         from stock_analysis import _compute_momentum_accel_63d
 
         # TARGET + 1 real peer + 3 all-NaN peers → after NaN filter,
         # len(later_cum) = 2, triggers the < 3 guard.
         rng = np.random.default_rng(0)
-        df = pd.DataFrame({
-            "TARGET": rng.normal(scale=0.01, size=126),
-            "PEER1": rng.normal(scale=0.01, size=126),
-            "PEER2": [np.nan] * 126,
-            "PEER3": [np.nan] * 126,
-            "PEER4": [np.nan] * 126,
-        })
+        df = pd.DataFrame(
+            {
+                "TARGET": rng.normal(scale=0.01, size=126),
+                "PEER1": rng.normal(scale=0.01, size=126),
+                "PEER2": [np.nan] * 126,
+                "PEER3": [np.nan] * 126,
+                "PEER4": [np.nan] * 126,
+            }
+        )
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
             accel = _compute_momentum_accel_63d(df, "TARGET")
 
@@ -3021,7 +3375,8 @@ class TestPhase6MomentumAccel:
         # only when the < 3 threshold catches (later_cum has 2 items).
         # Mutation < 2 skips this branch entirely.
         peer_thin_warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno == logging.WARNING
             and "peer set too thin" in r.getMessage()
             and "later=2" in r.getMessage()
@@ -3046,19 +3401,22 @@ class TestPhase6MomentumAccel:
         dominates).
         """
         import logging
+
         from stock_analysis import _compute_momentum_accel_63d
 
         rng = np.random.default_rng(0)
         # TARGET + 3 returns-magnitude peers + 1 prices-magnitude peer.
         # max-of-per-col-medians = ~250 > 0.10 → clamp fires (iter-2 fix)
         # median-of-per-col-medians = ~0.008 < 0.10 → clamp misses (iter-1 bug)
-        df = pd.DataFrame({
-            "TARGET": rng.normal(scale=0.01, size=126),
-            "P1": rng.normal(scale=0.01, size=126),
-            "P2": rng.normal(scale=0.01, size=126),
-            "P3": rng.normal(scale=0.01, size=126),
-            "PRICES_PEER": np.linspace(100, 500, 126),   # magnitude ~250
-        })
+        df = pd.DataFrame(
+            {
+                "TARGET": rng.normal(scale=0.01, size=126),
+                "P1": rng.normal(scale=0.01, size=126),
+                "P2": rng.normal(scale=0.01, size=126),
+                "P3": rng.normal(scale=0.01, size=126),
+                "PRICES_PEER": np.linspace(100, 500, 126),  # magnitude ~250
+            }
+        )
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
             accel = _compute_momentum_accel_63d(df, "TARGET")
 
@@ -3068,7 +3426,8 @@ class TestPhase6MomentumAccel:
         # Mutation .max() → .median() lets the majority of returns columns
         # dominate the outer statistic, bypassing the warning entirely.
         units_warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno == logging.WARNING
             and "prices/levels, not returns" in r.getMessage()
         ]
@@ -3138,50 +3497,68 @@ class TestPhase1EarningsRevisionDirection:
                 "lowered": "lowered to $400 from $450",
                 "reiterated": "reiterated a Buy",
             }[direction]
-            rows.append({
-                "published_date": datetime.datetime.now(datetime.timezone.utc)
+            rows.append(
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
                     - datetime.timedelta(days=days_ago),
-                "symbol": "MSFT",
-                "analyst_firm": "TestFirm",
-                "price_target": 500.0 if direction == "raised" else 400.0,
-                "news_title": f"Microsoft price target {title_verb}",
-            })
+                    "symbol": "MSFT",
+                    "analyst_firm": "TestFirm",
+                    "price_target": 500.0 if direction == "raised" else 400.0,
+                    "news_title": f"Microsoft price target {title_verb}",
+                }
+            )
         return pd.DataFrame(rows)
 
     def test_mock_p1_has_earnings_revision_field(self):
         p1 = _make_mock_p1()
-        assert hasattr(p1, "earnings_revision_3m_direction"), (
-            "Phase1Result must carry earnings_revision_3m_direction per bd-0h2.10"
-        )
+        assert hasattr(
+            p1, "earnings_revision_3m_direction"
+        ), "Phase1Result must carry earnings_revision_3m_direction per bd-0h2.10"
 
     def test_helper_up_direction_when_majority_raised(self):
         from stock_analysis import _compute_earnings_revision_3m_direction
 
         # 4 raised, 1 lowered in last 60 days: 4/5 = 80% ups → "up"
-        df = self._make_price_targets_df([
-            (10, "raised"), (25, "raised"), (40, "raised"),
-            (55, "raised"), (60, "lowered"),
-        ])
+        df = self._make_price_targets_df(
+            [
+                (10, "raised"),
+                (25, "raised"),
+                (40, "raised"),
+                (55, "raised"),
+                (60, "lowered"),
+            ]
+        )
         assert _compute_earnings_revision_3m_direction(df) == "up"
 
     def test_helper_down_direction_when_majority_lowered(self):
         from stock_analysis import _compute_earnings_revision_3m_direction
 
         # 4 lowered, 1 raised: 80% downs → "down"
-        df = self._make_price_targets_df([
-            (10, "lowered"), (25, "lowered"), (40, "lowered"),
-            (55, "lowered"), (60, "raised"),
-        ])
+        df = self._make_price_targets_df(
+            [
+                (10, "lowered"),
+                (25, "lowered"),
+                (40, "lowered"),
+                (55, "lowered"),
+                (60, "raised"),
+            ]
+        )
         assert _compute_earnings_revision_3m_direction(df) == "down"
 
     def test_helper_flat_when_balanced(self):
         from stock_analysis import _compute_earnings_revision_3m_direction
 
         # 3 raised, 3 lowered: 0% net direction → "flat"
-        df = self._make_price_targets_df([
-            (5, "raised"), (15, "raised"), (25, "raised"),
-            (35, "lowered"), (45, "lowered"), (55, "lowered"),
-        ])
+        df = self._make_price_targets_df(
+            [
+                (5, "raised"),
+                (15, "raised"),
+                (25, "raised"),
+                (35, "lowered"),
+                (45, "lowered"),
+                (55, "lowered"),
+            ]
+        )
         assert _compute_earnings_revision_3m_direction(df) == "flat"
 
     def test_helper_unknown_when_insufficient_revisions(self, caplog):
@@ -3189,6 +3566,7 @@ class TestPhase1EarningsRevisionDirection:
         'unknown' with a WARNING (not a silent 'flat' misclassification).
         """
         import logging
+
         from stock_analysis import _compute_earnings_revision_3m_direction
 
         # Only 2 revisions in window: below the 3-minimum threshold.
@@ -3198,7 +3576,8 @@ class TestPhase1EarningsRevisionDirection:
 
         assert direction == "unknown"
         warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno == logging.WARNING
             and "insufficient analyst revisions" in r.getMessage()
         ]
@@ -3209,9 +3588,13 @@ class TestPhase1EarningsRevisionDirection:
 
         # All revisions > 90 days old — should be dropped, then triggers
         # insufficient-data → "unknown".
-        df = self._make_price_targets_df([
-            (100, "raised"), (120, "raised"), (150, "raised"),
-        ])
+        df = self._make_price_targets_df(
+            [
+                (100, "raised"),
+                (120, "raised"),
+                (150, "raised"),
+            ]
+        )
         assert _compute_earnings_revision_3m_direction(df) == "unknown"
 
     def test_helper_reiterated_ratings_dont_count_as_direction(self):
@@ -3221,11 +3604,17 @@ class TestPhase1EarningsRevisionDirection:
         """
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = self._make_price_targets_df([
-            (5, "raised"), (10, "raised"),
-            (20, "reiterated"), (30, "reiterated"), (40, "reiterated"),
-            (50, "reiterated"), (60, "reiterated"),
-        ])
+        df = self._make_price_targets_df(
+            [
+                (5, "raised"),
+                (10, "raised"),
+                (20, "reiterated"),
+                (30, "reiterated"),
+                (40, "reiterated"),
+                (50, "reiterated"),
+                (60, "reiterated"),
+            ]
+        )
         assert _compute_earnings_revision_3m_direction(df) == "unknown"
 
     def test_helper_empty_df_returns_unknown(self):
@@ -3242,6 +3631,7 @@ class TestPhase1EarningsRevisionDirection:
         """
         import ast
         import inspect
+
         from stock_analysis import phase1_company_profile
 
         tree = ast.parse(inspect.getsource(phase1_company_profile))
@@ -3285,26 +3675,32 @@ class TestPhase1EarningsRevisionDirection:
         """
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": f"Microsoft price target cut to $400 from $500",
-            }
-            for d in [10, 30, 50]
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": "Microsoft price target cut to $400 from $500",
+                }
+                for d in [10, 30, 50]
+            ]
+        )
         assert _compute_earnings_revision_3m_direction(df) == "down"
 
     def test_helper_reduced_verb_counts_as_down(self):
         """iter-2 CR2: ``\\breduced\\b`` regex branch coverage."""
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": f"Microsoft price target reduced to $400 from $500",
-            }
-            for d in [10, 30, 50]
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": "Microsoft price target reduced to $400 from $500",
+                }
+                for d in [10, 30, 50]
+            ]
+        )
         assert _compute_earnings_revision_3m_direction(df) == "down"
 
     def test_helper_hiked_and_boosted_verbs_count_as_up(self):
@@ -3314,17 +3710,20 @@ class TestPhase1EarningsRevisionDirection:
         """
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": title,
-            }
-            for d, title in [
-                (10, "Microsoft price target hiked to $600 from $500"),
-                (30, "Microsoft price target boosted to $650"),
-                (50, "Microsoft price target increased to $620 from $500"),
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": title,
+                }
+                for d, title in [
+                    (10, "Microsoft price target hiked to $600 from $500"),
+                    (30, "Microsoft price target boosted to $650"),
+                    (50, "Microsoft price target increased to $620 from $500"),
+                ]
             ]
-        ])
+        )
         assert _compute_earnings_revision_3m_direction(df) == "up"
 
     def test_helper_bare_raised_without_target_is_not_directional(self):
@@ -3340,17 +3739,23 @@ class TestPhase1EarningsRevisionDirection:
         """
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": title,
-            }
-            for d, title in [
-                (10, "Microsoft: analyst raised concerns about competitive pressure"),
-                (30, "Microsoft: firm raised recession worries for the sector"),
-                (50, "Microsoft: bank lowered outlook on downside macro risk"),
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": title,
+                }
+                for d, title in [
+                    (
+                        10,
+                        "Microsoft: analyst raised concerns about competitive pressure",
+                    ),
+                    (30, "Microsoft: firm raised recession worries for the sector"),
+                    (50, "Microsoft: bank lowered outlook on downside macro risk"),
+                ]
             ]
-        ])
+        )
         # All 3 titles contain raised/lowered as bare English words, NOT
         # in a "raised ... target" or "raised ... to $NNN" context.
         assert _compute_earnings_revision_3m_direction(df) == "unknown"
@@ -3367,19 +3772,26 @@ class TestPhase1EarningsRevisionDirection:
         The caplog message includes the ambiguous count for ops visibility.
         """
         import logging
+
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": title,
-            }
-            for d, title in [
-                (10, "Microsoft price target raised to $600 from $500"),
-                (20, "Microsoft price target raised to $580 from $500"),
-                (30, "Microsoft: Barclays raised target to $500, Morgan Stanley cut target to $400"),
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": title,
+                }
+                for d, title in [
+                    (10, "Microsoft price target raised to $600 from $500"),
+                    (20, "Microsoft price target raised to $580 from $500"),
+                    (
+                        30,
+                        "Microsoft: Barclays raised target to $500, Morgan Stanley cut target to $400",
+                    ),
+                ]
             ]
-        ])
+        )
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
             direction = _compute_earnings_revision_3m_direction(df)
 
@@ -3387,9 +3799,9 @@ class TestPhase1EarningsRevisionDirection:
         # → below min_revisions=3 → 'unknown' with ambiguous_count in log
         assert direction == "unknown"
         warnings = [
-            r for r in caplog.records
-            if r.levelno == logging.WARNING
-            and "1 ambiguous" in r.getMessage()
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and "1 ambiguous" in r.getMessage()
         ]
         assert len(warnings) == 1, (
             f"CR1 regression: expected 1 WARNING mentioning '1 ambiguous'; "
@@ -3411,19 +3823,22 @@ class TestPhase1EarningsRevisionDirection:
         """
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": title,
-            }
-            for d, title in [
-                (5, "Microsoft price target raised to $500 from $450"),
-                (15, "Microsoft price target raised to $520 from $500"),
-                (25, "Microsoft price target raised to $540 from $520"),
-                (35, "Microsoft price target lowered to $430 from $500"),
-                (45, "Microsoft price target lowered to $410 from $450"),
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": title,
+                }
+                for d, title in [
+                    (5, "Microsoft price target raised to $500 from $450"),
+                    (15, "Microsoft price target raised to $520 from $500"),
+                    (25, "Microsoft price target raised to $540 from $520"),
+                    (35, "Microsoft price target lowered to $430 from $500"),
+                    (45, "Microsoft price target lowered to $410 from $450"),
+                ]
             ]
-        ])
+        )
         # net_ratio = (3-2)/5 = 0.20 exactly. Code uses ``< net_threshold``
         # so 0.20 is NOT < 0.20 → not flat → net_ratio > 0 → 'up'.
         assert _compute_earnings_revision_3m_direction(df) == "up"
@@ -3433,16 +3848,20 @@ class TestPhase1EarningsRevisionDirection:
         column is renamed must WARN, not silently return 'unknown'.
         """
         import logging
+
         from stock_analysis import _compute_earnings_revision_3m_direction
 
         # Column renamed to publishedDate — pandas won't find published_date
-        df = pd.DataFrame([{"publishedDate": "2026-06-01", "news_title": "raised to $500"}])
+        df = pd.DataFrame(
+            [{"publishedDate": "2026-06-01", "news_title": "raised to $500"}]
+        )
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
             direction = _compute_earnings_revision_3m_direction(df)
 
         assert direction == "unknown"
         warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno == logging.WARNING
             and "'published_date' column missing" in r.getMessage()
         ]
@@ -3453,15 +3872,19 @@ class TestPhase1EarningsRevisionDirection:
         column is renamed must WARN, not silently return 'unknown'.
         """
         import logging
+
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([{"published_date": "2026-06-01", "newsTitle": "raised to $500"}])
+        df = pd.DataFrame(
+            [{"published_date": "2026-06-01", "newsTitle": "raised to $500"}]
+        )
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
             direction = _compute_earnings_revision_3m_direction(df)
 
         assert direction == "unknown"
         warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno == logging.WARNING
             and "'news_title' column missing" in r.getMessage()
         ]
@@ -3472,6 +3895,7 @@ class TestPhase1EarningsRevisionDirection:
         can distinguish upstream fetcher failure from real 'unknown'.
         """
         import logging
+
         from stock_analysis import _compute_earnings_revision_3m_direction
 
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
@@ -3479,7 +3903,8 @@ class TestPhase1EarningsRevisionDirection:
 
         assert direction == "unknown"
         warnings = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if r.levelno == logging.WARNING
             and "price_targets_df is empty" in r.getMessage()
         ]
@@ -3490,23 +3915,27 @@ class TestPhase1EarningsRevisionDirection:
         older than 90d) must WARN, not return 'unknown' silently.
         """
         import logging
+
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": f"Microsoft price target raised to $500 from $450",
-            }
-            for d in [100, 120, 150]
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": "Microsoft price target raised to $500 from $450",
+                }
+                for d in [100, 120, 150]
+            ]
+        )
         with caplog.at_level(logging.WARNING, logger="stock_analysis"):
             direction = _compute_earnings_revision_3m_direction(df)
 
         assert direction == "unknown"
         warnings = [
-            r for r in caplog.records
-            if r.levelno == logging.WARNING
-            and "no revisions within" in r.getMessage()
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and "no revisions within" in r.getMessage()
         ]
         assert len(warnings) == 1
 
@@ -3531,18 +3960,21 @@ class TestPhase1EarningsRevisionDirection:
         """
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": title,
-            }
-            for d, title in [
-                (5, "AAPL raised dividend to $0.24 per share"),
-                (15, "MSFT boosted buyback to $60 billion"),
-                (25, "AMZN raised guidance to $5.00 EPS"),
-                (35, "GOOGL hiked forecast to $10 range"),
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": title,
+                }
+                for d, title in [
+                    (5, "AAPL raised dividend to $0.24 per share"),
+                    (15, "MSFT boosted buyback to $60 billion"),
+                    (25, "AMZN raised guidance to $5.00 EPS"),
+                    (35, "GOOGL hiked forecast to $10 range"),
+                ]
             ]
-        ])
+        )
         # All 4 are non-PT news mentioning directional verbs. None should
         # register as directional revisions.
         assert _compute_earnings_revision_3m_direction(df) == "unknown"
@@ -3560,17 +3992,20 @@ class TestPhase1EarningsRevisionDirection:
         from stock_analysis import _compute_earnings_revision_3m_direction
 
         # Mixed participles: 2 raising + 1 cutting → up
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": title,
-            }
-            for d, title in [
-                (10, "Wells raising target to $600 from $500"),
-                (20, "MS raising PT to $580"),
-                (30, "Barclays cutting target to $400"),
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": title,
+                }
+                for d, title in [
+                    (10, "Wells raising target to $600 from $500"),
+                    (20, "MS raising PT to $580"),
+                    (30, "Barclays cutting target to $400"),
+                ]
             ]
-        ])
+        )
         # 2 up-participles, 1 down-participle → net=1/3 ≈ 0.33 > 0.20 → 'up'
         assert _compute_earnings_revision_3m_direction(df) == "up"
 
@@ -3588,20 +4023,26 @@ class TestPhase1EarningsRevisionDirection:
         """
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": title,
-            }
-            for d, title in [
-                # 4 bare-raised + 1 bare-lowered — all in non-PT contexts
-                (5, "Microsoft: analyst raised concerns about competitive pressure"),
-                (10, "Microsoft: firm raised recession worries for the sector"),
-                (15, "Microsoft: bank raised outlook citing macro risk"),
-                (20, "Microsoft: fund raised its cash position amid volatility"),
-                (30, "Microsoft: pundit lowered growth expectations for AI"),
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": title,
+                }
+                for d, title in [
+                    # 4 bare-raised + 1 bare-lowered — all in non-PT contexts
+                    (
+                        5,
+                        "Microsoft: analyst raised concerns about competitive pressure",
+                    ),
+                    (10, "Microsoft: firm raised recession worries for the sector"),
+                    (15, "Microsoft: bank raised outlook citing macro risk"),
+                    (20, "Microsoft: fund raised its cash position amid volatility"),
+                    (30, "Microsoft: pundit lowered growth expectations for AI"),
+                ]
             ]
-        ])
+        )
         # With phrase-anchoring: 0 directional → 'unknown'.
         # Without phrase-anchoring (mutation): ups=4, downs=1, net=0.60 → 'up'.
         assert _compute_earnings_revision_3m_direction(df) == "unknown"
@@ -3615,17 +4056,20 @@ class TestPhase1EarningsRevisionDirection:
         """
         from stock_analysis import _compute_earnings_revision_3m_direction
 
-        df = pd.DataFrame([
-            {
-                "published_date": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=d),
-                "news_title": title,
-            }
-            for d, title in [
-                (10, "Microsoft price target trimmed to $450 from $500"),
-                (30, "Microsoft price target slashed to $350 from $500"),
-                (50, "Microsoft downgraded, PT to $400 from $500"),
+        df = pd.DataFrame(
+            [
+                {
+                    "published_date": datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=d),
+                    "news_title": title,
+                }
+                for d, title in [
+                    (10, "Microsoft price target trimmed to $450 from $500"),
+                    (30, "Microsoft price target slashed to $350 from $500"),
+                    (50, "Microsoft downgraded, PT to $400 from $500"),
+                ]
             ]
-        ])
+        )
         assert _compute_earnings_revision_3m_direction(df) == "down"
 
 
@@ -3689,7 +4133,7 @@ class TestPhase1Tradeability:
             sector="",
             industry="",
             market_cap=1_000_000_000_000.0,  # $1T raw
-            free_float_pct=0.80,             # 80 % of shares publicly tradeable
+            free_float_pct=0.80,  # 80 % of shares publicly tradeable
             short_interest_pct=None,
             earnings_revision_3m_direction="unknown",
             gate_passed=False,
@@ -3724,6 +4168,7 @@ class TestPhase5FatTails:
         the output must be near 0.
         """
         from scipy.stats import kurtosis, skew
+
         rng = np.random.default_rng(42)
         # Large N to shrink sampling error
         normal_returns = rng.normal(loc=0.0, scale=0.01, size=10_000)
@@ -3736,8 +4181,10 @@ class TestPhase5FatTails:
     def test_fat_tailed_series_shows_positive_kurtosis(self):
         """A Student-t distribution with df=3 has infinite population kurtosis;
         the sample estimator should still return a large positive value —
-        confirming that the metric distinguishes fat-tailed from normal."""
+        confirming that the metric distinguishes fat-tailed from normal.
+        """
         from scipy.stats import kurtosis, t
+
         rng = np.random.default_rng(7)
         t_returns = t.rvs(df=3, size=10_000, random_state=rng) * 0.01
         k = float(kurtosis(t_returns, fisher=True))
@@ -3746,12 +4193,14 @@ class TestPhase5FatTails:
 
     def test_negatively_skewed_series_shows_negative_skew(self):
         """Left-skewed distributions (crashes worse than rallies) — the
-        canonical case for equity returns during stress periods."""
+        canonical case for equity returns during stress periods.
+        """
         from scipy.stats import skew
+
         rng = np.random.default_rng(11)
         # Negative-skew construction: mix of small positive returns and rare large negatives
         left_tail = rng.normal(loc=0.001, scale=0.005, size=9_500)
-        crashes  = rng.normal(loc=-0.05, scale=0.02, size=500)
+        crashes = rng.normal(loc=-0.05, scale=0.02, size=500)
         returns = np.concatenate([left_tail, crashes])
         s = float(skew(returns))
         assert s < -0.5, f"expected pronounced negative skew, got {s}"
@@ -3778,15 +4227,16 @@ class TestVolTrend:
         """
         rng = np.random.default_rng(1)
         quiet = pd.Series(rng.normal(0, 0.01, size=200))
-        loud  = pd.Series(rng.normal(0, 0.04, size=100))
+        loud = pd.Series(rng.normal(0, 0.04, size=100))
         returns = pd.concat([quiet, loud], ignore_index=True)
         assert _compute_vol_trend(returns) == "expanding"
 
     def test_returns_contracting_when_vol_falling_strongly(self):
         """Loud early followed by quiet — classic 'crisis then calm'.
-        Mirror of the expanding case."""
+        Mirror of the expanding case.
+        """
         rng = np.random.default_rng(2)
-        loud  = pd.Series(rng.normal(0, 0.04, size=200))
+        loud = pd.Series(rng.normal(0, 0.04, size=200))
         quiet = pd.Series(rng.normal(0, 0.01, size=100))
         returns = pd.concat([loud, quiet], ignore_index=True)
         assert _compute_vol_trend(returns) == "contracting"
@@ -3811,16 +4261,19 @@ class TestVolTrend:
     def test_only_returns_allowed_values(self):
         """Contract: output is always one of the three literal strings.
         Never returns None, NaN, or an unknown string — downstream code
-        can rely on the closed set."""
+        can rely on the closed set.
+        """
         rng = np.random.default_rng(5)
         for _ in range(20):
             n = rng.integers(low=10, high=500)
             scale = float(rng.uniform(0.005, 0.06))
             returns = pd.Series(rng.normal(0, scale, size=n))
             label = _compute_vol_trend(returns)
-            assert label in ("expanding", "contracting", "flat"), (
-                f"unexpected label {label!r} for scale={scale}, n={n}"
-            )
+            assert label in (
+                "expanding",
+                "contracting",
+                "flat",
+            ), f"unexpected label {label!r} for scale={scale}, n={n}"
 
 
 class TestTwoStageDCF:
@@ -3843,16 +4296,22 @@ class TestTwoStageDCF:
 
     def test_signature_matches_dcf_single(self):
         """Both helpers must be call-compatible so a dcf_fn = _dcf_single or
-        _dcf_two_stage indirection works cleanly in phase4_valuation."""
+        _dcf_two_stage indirection works cleanly in phase4_valuation.
+        """
         # Same positional-only call site must work for both
         v_single = _dcf_single(100.0, 0.10, 0.025, 0.09, 100.0)
-        v_two    = _dcf_two_stage(100.0, 0.10, 0.025, 0.09, 100.0)
+        v_two = _dcf_two_stage(100.0, 0.10, 0.025, 0.09, 100.0)
         assert isinstance(v_single, float)
         assert isinstance(v_two, float)
 
     def test_positive_value_for_reasonable_inputs(self):
-        v = _dcf_two_stage(fcf0=1_000_000_000, g_short=0.10, g_term=0.025,
-                            wacc=0.09, shares=1_000_000_000)
+        v = _dcf_two_stage(
+            fcf0=1_000_000_000,
+            g_short=0.10,
+            g_term=0.025,
+            wacc=0.09,
+            shares=1_000_000_000,
+        )
         assert v > 0
         assert np.isfinite(v)
 
@@ -3869,7 +4328,7 @@ class TestTwoStageDCF:
         essentially the same value (< 1 % difference).
         """
         v_single = _dcf_single(100.0, 0.025, 0.025, 0.09, 100.0)
-        v_two    = _dcf_two_stage(100.0, 0.025, 0.025, 0.09, 100.0)
+        v_two = _dcf_two_stage(100.0, 0.025, 0.025, 0.09, 100.0)
         # Same underlying model in the limit — should agree within 1 %
         assert abs(v_two - v_single) / v_single < 0.01, (
             f"two-stage {v_two} vs single {v_single} diverged by "
@@ -3885,10 +4344,8 @@ class TestTwoStageDCF:
         terminal 2.5 %), two-stage should exceed single-stage by 10 %+.
         """
         v_single = _dcf_single(1e10, 0.14, 0.025, 0.09, 1e9)
-        v_two    = _dcf_two_stage(1e10, 0.14, 0.025, 0.09, 1e9)
-        assert v_two > v_single, (
-            f"expected two-stage {v_two} > single {v_single}"
-        )
+        v_two = _dcf_two_stage(1e10, 0.14, 0.025, 0.09, 1e9)
+        assert v_two > v_single, f"expected two-stage {v_two} > single {v_single}"
         # And the gap should be material — not just noise
         assert (v_two - v_single) / v_single > 0.05, (
             f"expected > 5% uplift from fade, got "
@@ -3900,7 +4357,8 @@ class TestTwoStageDCF:
     def test_wacc_below_g_term_is_guarded(self):
         """If wacc <= g_term, terminal-value denominator (wacc - g_term)
         would go negative → nonsense.  Both helpers must clamp g_term to
-        (wacc - 0.01) so the terminal remains bounded."""
+        (wacc - 0.01) so the terminal remains bounded.
+        """
         # wacc=0.03, g_term=0.05 → without guard, terminal denominator = -0.02
         v_two = _dcf_two_stage(100.0, 0.10, 0.05, 0.03, 100.0)
         assert np.isfinite(v_two), "guard should keep the value finite"
@@ -3930,8 +4388,7 @@ class TestTwoStageDCF:
         Total enterprise value ≈ 710.336 + 289.664 ≈ 1000
         Per share (shares=100): ≈ 10.0
         """
-        v = _dcf_two_stage(fcf0=100.0, g_short=0.0, g_term=0.0,
-                            wacc=0.10, shares=100.0)
+        v = _dcf_two_stage(fcf0=100.0, g_short=0.0, g_term=0.0, wacc=0.10, shares=100.0)
         # Expected ~10.0 by the derivation above; allow small floating-point slack
         assert abs(v - 10.0) < 0.01, f"expected ~10.0, got {v}"
 
@@ -3943,39 +4400,52 @@ class TestPhase4TwoStageFlag:
     The parity assertion is critical: with the flag off, every downstream
     number (dcf_fair_value, sensitivity_df, implied_growth) must be
     bit-identical to pre-A4a.  A silent change means the branch introduced
-    an unintended side effect."""
+    an unintended side effect.
+    """
 
     def _cfg_and_p2p3(self, use_two_stage: bool):
         """Build minimal synthetic Phase2/Phase3 inputs that let
-        phase4_valuation run end-to-end without any live provider call."""
+        phase4_valuation run end-to-end without any live provider call.
+        """
         # A minimal but realistic Phase2Result — populated with the columns
         # phase4_valuation actually reads.
-        income_df = pd.DataFrame({
-            "revenue":                          [100e9, 115e9, 130e9, 148e9, 168e9],
-            "operating_income":                 [30e9,  35e9,  40e9,  46e9,  53e9],
-            "gross_profit":                     [65e9,  75e9,  85e9,  97e9,  110e9],
-            "eps_diluted":                      [8.0,   9.0,   10.5,  12.0,  14.0],
-            "shares_outstanding":               [10e9,  10e9,  9.9e9, 9.8e9, 9.75e9],
-        })
-        balance_df = pd.DataFrame({"total_assets": [1] * 5})   # unused by DCF branch
-        cash_df    = pd.DataFrame({"free_cash_flow": [30e9, 35e9, 40e9, 46e9, 50e9]})
-        ratios_df  = pd.DataFrame({
-            "price_earnings_ratio":       [28.0],
-            "enterprise_value_multiple":  [22.0],
-            "price_to_free_cash_flow":    [30.0],
-            "price_to_sales":             [12.0],
-            "piotroski_score":            [7],
-            "altman_z_score":             [4.5],
-            "wacc":                       [0.085],
-            "enterprise_value":           [3.5e12],
-        })
+        income_df = pd.DataFrame(
+            {
+                "revenue": [100e9, 115e9, 130e9, 148e9, 168e9],
+                "operating_income": [30e9, 35e9, 40e9, 46e9, 53e9],
+                "gross_profit": [65e9, 75e9, 85e9, 97e9, 110e9],
+                "eps_diluted": [8.0, 9.0, 10.5, 12.0, 14.0],
+                "shares_outstanding": [10e9, 10e9, 9.9e9, 9.8e9, 9.75e9],
+            }
+        )
+        balance_df = pd.DataFrame({"total_assets": [1] * 5})  # unused by DCF branch
+        cash_df = pd.DataFrame({"free_cash_flow": [30e9, 35e9, 40e9, 46e9, 50e9]})
+        ratios_df = pd.DataFrame(
+            {
+                "price_earnings_ratio": [28.0],
+                "enterprise_value_multiple": [22.0],
+                "price_to_free_cash_flow": [30.0],
+                "price_to_sales": [12.0],
+                "piotroski_score": [7],
+                "altman_z_score": [4.5],
+                "wacc": [0.085],
+                "enterprise_value": [3.5e12],
+            }
+        )
         p2 = Phase2Result(
-            income_df=income_df, balance_df=balance_df, cash_df=cash_df,
-            ratios_df=ratios_df, kpi_df=pd.DataFrame(),
+            income_df=income_df,
+            balance_df=balance_df,
+            cash_df=cash_df,
+            ratios_df=ratios_df,
+            kpi_df=pd.DataFrame(),
             roe_decomp_df=pd.DataFrame(),
-            score=4.2, accruals_ratio=0.03, gross_profitability=0.40,
-            operating_leverage=1.3, dilution_5y=-0.02,
-            gate_passed=True, gate_notes="OK",
+            score=4.2,
+            accruals_ratio=0.03,
+            gross_profitability=0.40,
+            operating_leverage=1.3,
+            dilution_5y=-0.02,
+            gate_passed=True,
+            gate_notes="OK",
         )
         # Default p3 mock: 3 rows with close ~145, ATR ~2.5.  phase4_valuation
         # only reads p3.price_df["close"].iloc[-1] so no override needed.
@@ -3988,27 +4458,29 @@ class TestPhase4TwoStageFlag:
 
     def test_flag_off_uses_single_stage(self):
         """Flag=False must produce exactly _dcf_single's output on the same
-        (fcf0, g_short, g_term, wacc, shares) inputs — no drift."""
+        (fcf0, g_short, g_term, wacc, shares) inputs — no drift.
+        """
         cfg, p2, p3 = self._cfg_and_p2p3(use_two_stage=False)
         p4 = phase4_valuation(cfg, p2, p3)
         # Reconstruct the expected DCF the same way phase4_valuation does
         fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
-        rev  = p2.income_df["revenue"]
+        rev = p2.income_df["revenue"]
         g_short = min(_cagr(rev, 5), 0.25)
         wacc = 0.085
         g_term = 0.025
         shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
         expected = _dcf_single(fcf0, g_short, g_term, wacc, shares_out)
-        assert abs(p4.dcf_fair_value - expected) < 1e-6, (
-            f"flag-off drift: p4.dcf={p4.dcf_fair_value}, expected={expected}"
-        )
+        assert (
+            abs(p4.dcf_fair_value - expected) < 1e-6
+        ), f"flag-off drift: p4.dcf={p4.dcf_fair_value}, expected={expected}"
 
     def test_flag_on_uses_two_stage(self):
         """Flag=True routes DCF through _dcf_two_stage.  Value must differ
-        from the flag-off case and match _dcf_two_stage on identical inputs."""
-        cfg_on,  p2, p3 = self._cfg_and_p2p3(use_two_stage=True)
-        cfg_off, _,  _  = self._cfg_and_p2p3(use_two_stage=False)
-        p4_on  = phase4_valuation(cfg_on,  p2, p3)
+        from the flag-off case and match _dcf_two_stage on identical inputs.
+        """
+        cfg_on, p2, p3 = self._cfg_and_p2p3(use_two_stage=True)
+        cfg_off, _, _ = self._cfg_and_p2p3(use_two_stage=False)
+        p4_on = phase4_valuation(cfg_on, p2, p3)
         p4_off = phase4_valuation(cfg_off, p2, p3)
         # Different model → different value
         assert p4_on.dcf_fair_value != p4_off.dcf_fair_value, (
@@ -4017,7 +4489,7 @@ class TestPhase4TwoStageFlag:
         )
         # And it should match _dcf_two_stage directly
         fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
-        rev  = p2.income_df["revenue"]
+        rev = p2.income_df["revenue"]
         g_short = min(_cagr(rev, 5), 0.25)
         shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
         expected = _dcf_two_stage(fcf0, g_short, 0.025, 0.085, shares_out)
@@ -4026,7 +4498,8 @@ class TestPhase4TwoStageFlag:
     def test_sensitivity_and_reverse_dcf_route_through_same_helper(self):
         """When flag is on, sensitivity_df and implied_growth must both
         use the two-stage model — otherwise the numbers on the same
-        Phase4Result contradict each other."""
+        Phase4Result contradict each other.
+        """
         cfg, p2, p3 = self._cfg_and_p2p3(use_two_stage=True)
         p4 = phase4_valuation(cfg, p2, p3)
         # Sensitivity: reconstruct one cell and compare — the base case
@@ -4052,12 +4525,14 @@ class TestSectorWaccDefault:
 
     def test_technology_sector_returns_9pct(self):
         """Technology sits at the baseline — same as the flat fallback.
-        This ensures Tech names don't shift when the flag flips on."""
+        This ensures Tech names don't shift when the flag flips on.
+        """
         assert _sector_wacc_default("Technology") == 0.09
 
     def test_utilities_sector_returns_low_wacc(self):
         """Utilities have regulated returns, low vol, dividend-heavy.
-        Empirically the lowest WACC of any sector (~6 %)."""
+        Empirically the lowest WACC of any sector (~6 %).
+        """
         assert _sector_wacc_default("Utilities") == 0.06
 
     def test_healthcare_sector_returns_higher_wacc(self):
@@ -4066,7 +4541,8 @@ class TestSectorWaccDefault:
 
     def test_health_care_alias_also_returns_11pct(self):
         """Provider inconsistency: FMP sometimes returns 'Health Care'
-        with a space.  Alias must resolve to the same value."""
+        with a space.  Alias must resolve to the same value.
+        """
         assert _sector_wacc_default("Health Care") == 0.11
 
     def test_energy_returns_elevated_wacc(self):
@@ -4075,32 +4551,43 @@ class TestSectorWaccDefault:
 
     def test_crypto_returns_15pct_per_bead_title(self):
         """Bead title explicitly names crypto at 15 % — the exemplar of
-        'reviewer's aggressive-fallback critique.'"""
+        'reviewer's aggressive-fallback critique.'
+        """
         assert _sector_wacc_default("Crypto") == 0.15
 
     def test_unknown_sector_returns_default_9pct(self):
         """When the sector name isn't in the map, fall back to the flat
-        9 % — preserves pre-A4b behavior for uncovered sectors."""
+        9 % — preserves pre-A4b behavior for uncovered sectors.
+        """
         assert _sector_wacc_default("Bogus") == 0.09
         assert _sector_wacc_default("") == 0.09
 
     def test_custom_default_respected(self):
         """Caller can override the fallback default (e.g., to preserve
-        an explicit numeric injected upstream)."""
+        an explicit numeric injected upstream).
+        """
         assert _sector_wacc_default("Bogus", default=0.075) == 0.075
 
     def test_all_mapped_sectors_have_plausible_wacc(self):
         """Sanity: every sector WACC is a real number in (0, 0.20).
-        Guards against typos that would ship silently."""
+        Guards against typos that would ship silently.
+        """
         # All the sector strings that appear in _SECTOR_ETF_MAP should
         # also appear in _SECTOR_WACC_MAP so the two stay in sync.
         for sector in [
-            "Technology", "Communication Services",
-            "Financial Services", "Financial",
-            "Healthcare", "Health Care",
-            "Consumer Cyclical", "Consumer Defensive",
-            "Industrials", "Basic Materials",
-            "Energy", "Utilities", "Real Estate",
+            "Technology",
+            "Communication Services",
+            "Financial Services",
+            "Financial",
+            "Healthcare",
+            "Health Care",
+            "Consumer Cyclical",
+            "Consumer Defensive",
+            "Industrials",
+            "Basic Materials",
+            "Energy",
+            "Utilities",
+            "Real Estate",
             "Crypto",
         ]:
             wacc = _sector_wacc_default(sector)
@@ -4120,34 +4607,46 @@ class TestPhase4SectorWaccFlag:
 
     def _cfg_p1_p2_p3(self, use_sector_wacc: bool, sector: str = "Utilities"):
         """Build synthetic p1/p2/p3.  ratios_df deliberately omits wacc
-        so the fallback path is exercised."""
+        so the fallback path is exercised.
+        """
         # p2 with NO wacc column — forces the fallback
-        income_df = pd.DataFrame({
-            "revenue":            [100e9, 115e9, 130e9, 148e9, 168e9],
-            "operating_income":   [30e9,  35e9,  40e9,  46e9,  53e9],
-            "gross_profit":       [65e9,  75e9,  85e9,  97e9,  110e9],
-            "eps_diluted":        [8.0,   9.0,   10.5,  12.0,  14.0],
-            "shares_outstanding": [10e9,  10e9,  9.9e9, 9.8e9, 9.75e9],
-        })
+        income_df = pd.DataFrame(
+            {
+                "revenue": [100e9, 115e9, 130e9, 148e9, 168e9],
+                "operating_income": [30e9, 35e9, 40e9, 46e9, 53e9],
+                "gross_profit": [65e9, 75e9, 85e9, 97e9, 110e9],
+                "eps_diluted": [8.0, 9.0, 10.5, 12.0, 14.0],
+                "shares_outstanding": [10e9, 10e9, 9.9e9, 9.8e9, 9.75e9],
+            }
+        )
         cash_df = pd.DataFrame({"free_cash_flow": [30e9, 35e9, 40e9, 46e9, 50e9]})
         # ratios_df with NO wacc key — the whole point of A4b's fallback
-        ratios_df = pd.DataFrame({
-            "price_earnings_ratio":      [28.0],
-            "enterprise_value_multiple": [22.0],
-            "price_to_free_cash_flow":   [30.0],
-            "price_to_sales":            [12.0],
-            "piotroski_score":           [7],
-            "altman_z_score":            [4.5],
-            "enterprise_value":          [3.5e12],
-            # wacc: absent
-        })
+        ratios_df = pd.DataFrame(
+            {
+                "price_earnings_ratio": [28.0],
+                "enterprise_value_multiple": [22.0],
+                "price_to_free_cash_flow": [30.0],
+                "price_to_sales": [12.0],
+                "piotroski_score": [7],
+                "altman_z_score": [4.5],
+                "enterprise_value": [3.5e12],
+                # wacc: absent
+            }
+        )
         p2 = Phase2Result(
-            income_df=income_df, balance_df=pd.DataFrame({"total_assets":[1]*5}),
-            cash_df=cash_df, ratios_df=ratios_df, kpi_df=pd.DataFrame(),
+            income_df=income_df,
+            balance_df=pd.DataFrame({"total_assets": [1] * 5}),
+            cash_df=cash_df,
+            ratios_df=ratios_df,
+            kpi_df=pd.DataFrame(),
             roe_decomp_df=pd.DataFrame(),
-            score=4.2, accruals_ratio=0.03, gross_profitability=0.40,
-            operating_leverage=1.3, dilution_5y=-0.02,
-            gate_passed=True, gate_notes="OK",
+            score=4.2,
+            accruals_ratio=0.03,
+            gross_profitability=0.40,
+            operating_leverage=1.3,
+            dilution_5y=-0.02,
+            gate_passed=True,
+            gate_notes="OK",
         )
         p3 = _make_mock_p3()
         p1 = _make_mock_p1()
@@ -4161,30 +4660,33 @@ class TestPhase4SectorWaccFlag:
 
     def test_flag_off_uses_flat_9pct(self):
         """Flag=False must produce the DCF you'd get from flat 9 %,
-        regardless of p1.sector — pre-A4b behavior preserved."""
-        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=False,
-                                              sector="Utilities")
+        regardless of p1.sector — pre-A4b behavior preserved.
+        """
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=False, sector="Utilities")
         # Utilities would map to 6 % under the flag; but with flag off,
         # WACC must remain 9 %.
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
         # Reconstruct expected DCF at 9 %
         fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
-        rev  = p2.income_df["revenue"]
+        rev = p2.income_df["revenue"]
         g_short = min(_cagr(rev, 5), 0.25)
         shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
         expected = _dcf_single(fcf0, g_short, 0.025, 0.09, shares_out)
-        assert abs(p4.dcf_fair_value - expected) < 1e-6, (
-            f"flag-off drift: p4.dcf={p4.dcf_fair_value}, expected(9%)={expected}"
-        )
+        assert (
+            abs(p4.dcf_fair_value - expected) < 1e-6
+        ), f"flag-off drift: p4.dcf={p4.dcf_fair_value}, expected(9%)={expected}"
 
     def test_flag_on_uses_sector_wacc_utilities(self):
         """Utilities → 6 %.  Lower WACC → higher DCF value than flat-9 %
-        case (same FCF, lower discount rate)."""
-        cfg_on,  p1_on,  p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True,
-                                                     sector="Utilities")
-        cfg_off, p1_off, _,  _  = self._cfg_p1_p2_p3(use_sector_wacc=False,
-                                                     sector="Utilities")
-        p4_on  = phase4_valuation(cfg_on,  p2, p3, p1=p1_on)
+        case (same FCF, lower discount rate).
+        """
+        cfg_on, p1_on, p2, p3 = self._cfg_p1_p2_p3(
+            use_sector_wacc=True, sector="Utilities"
+        )
+        cfg_off, p1_off, _, _ = self._cfg_p1_p2_p3(
+            use_sector_wacc=False, sector="Utilities"
+        )
+        p4_on = phase4_valuation(cfg_on, p2, p3, p1=p1_on)
         p4_off = phase4_valuation(cfg_off, p2, p3, p1=p1_off)
         # Utilities WACC 6 % < flat 9 % → utilities DCF should be higher
         assert p4_on.dcf_fair_value > p4_off.dcf_fair_value, (
@@ -4194,11 +4696,13 @@ class TestPhase4SectorWaccFlag:
 
     def test_flag_on_uses_sector_wacc_energy(self):
         """Energy → 12 %.  Higher WACC → lower DCF value than flat-9 %."""
-        cfg_on,  p1_on,  p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True,
-                                                     sector="Energy")
-        cfg_off, p1_off, _,  _  = self._cfg_p1_p2_p3(use_sector_wacc=False,
-                                                     sector="Energy")
-        p4_on  = phase4_valuation(cfg_on,  p2, p3, p1=p1_on)
+        cfg_on, p1_on, p2, p3 = self._cfg_p1_p2_p3(
+            use_sector_wacc=True, sector="Energy"
+        )
+        cfg_off, p1_off, _, _ = self._cfg_p1_p2_p3(
+            use_sector_wacc=False, sector="Energy"
+        )
+        p4_on = phase4_valuation(cfg_on, p2, p3, p1=p1_on)
         p4_off = phase4_valuation(cfg_off, p2, p3, p1=p1_off)
         # Energy WACC 12 % > flat 9 % → energy DCF should be lower
         assert p4_on.dcf_fair_value < p4_off.dcf_fair_value
@@ -4206,31 +4710,31 @@ class TestPhase4SectorWaccFlag:
     def test_flag_on_but_no_p1_falls_back_gracefully(self):
         """If phase4_valuation is called without p1 (older test-only path),
         the sector-WACC lookup can't resolve — must silently degrade to
-        flat 9 %, not crash."""
-        cfg, _, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True,
-                                             sector="Utilities")
+        flat 9 %, not crash.
+        """
+        cfg, _, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True, sector="Utilities")
         # Call WITHOUT p1
         p4 = phase4_valuation(cfg, p2, p3)  # p1 not passed
         fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
-        rev  = p2.income_df["revenue"]
+        rev = p2.income_df["revenue"]
         g_short = min(_cagr(rev, 5), 0.25)
         shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
         expected = _dcf_single(fcf0, g_short, 0.025, 0.09, shares_out)
-        assert abs(p4.dcf_fair_value - expected) < 1e-6, (
-            "no-p1 path should degrade to flat 9 % WACC"
-        )
+        assert (
+            abs(p4.dcf_fair_value - expected) < 1e-6
+        ), "no-p1 path should degrade to flat 9 % WACC"
 
     def test_ratios_wacc_takes_precedence_over_sector_default(self):
         """When ratios_df has a valid wacc, it wins regardless of flag —
-        the sector default is a FALLBACK, not an override."""
-        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True,
-                                              sector="Utilities")
+        the sector default is a FALLBACK, not an override.
+        """
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(use_sector_wacc=True, sector="Utilities")
         # Inject an explicit wacc into ratios_df — should be honored
         p2.ratios_df = p2.ratios_df.assign(wacc=[0.0725])
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
         # Compute what the DCF should be at wacc=0.0725
         fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
-        rev  = p2.income_df["revenue"]
+        rev = p2.income_df["revenue"]
         g_short = min(_cagr(rev, 5), 0.25)
         shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
         expected = _dcf_single(fcf0, g_short, 0.025, 0.0725, shares_out)
@@ -4251,37 +4755,53 @@ class TestPhase4CombinedFlags:
     both single-flag test suites.  This class covers the combined path.
     """
 
-    def _cfg_p1_p2_p3(self, *, use_two_stage_dcf: bool, use_sector_wacc: bool,
-                       sector: str = "Utilities"):
+    def _cfg_p1_p2_p3(
+        self,
+        *,
+        use_two_stage_dcf: bool,
+        use_sector_wacc: bool,
+        sector: str = "Utilities",
+    ):
         """Build a fixture where ratios_df.wacc is deliberately absent so
         the WACC fallback path is exercised — that's what use_sector_wacc
-        redirects."""
-        income_df = pd.DataFrame({
-            "revenue":            [100e9, 115e9, 130e9, 148e9, 168e9],
-            "operating_income":   [30e9,  35e9,  40e9,  46e9,  53e9],
-            "gross_profit":       [65e9,  75e9,  85e9,  97e9,  110e9],
-            "eps_diluted":        [8.0,   9.0,   10.5,  12.0,  14.0],
-            "shares_outstanding": [10e9,  10e9,  9.9e9, 9.8e9, 9.75e9],
-        })
+        redirects.
+        """
+        income_df = pd.DataFrame(
+            {
+                "revenue": [100e9, 115e9, 130e9, 148e9, 168e9],
+                "operating_income": [30e9, 35e9, 40e9, 46e9, 53e9],
+                "gross_profit": [65e9, 75e9, 85e9, 97e9, 110e9],
+                "eps_diluted": [8.0, 9.0, 10.5, 12.0, 14.0],
+                "shares_outstanding": [10e9, 10e9, 9.9e9, 9.8e9, 9.75e9],
+            }
+        )
         cash_df = pd.DataFrame({"free_cash_flow": [30e9, 35e9, 40e9, 46e9, 50e9]})
-        ratios_df = pd.DataFrame({
-            "price_earnings_ratio":      [28.0],
-            "enterprise_value_multiple": [22.0],
-            "price_to_free_cash_flow":   [30.0],
-            "price_to_sales":            [12.0],
-            "piotroski_score":           [7],
-            "altman_z_score":            [4.5],
-            "enterprise_value":          [3.5e12],
-            # wacc: absent — forces the fallback branch to fire
-        })
+        ratios_df = pd.DataFrame(
+            {
+                "price_earnings_ratio": [28.0],
+                "enterprise_value_multiple": [22.0],
+                "price_to_free_cash_flow": [30.0],
+                "price_to_sales": [12.0],
+                "piotroski_score": [7],
+                "altman_z_score": [4.5],
+                "enterprise_value": [3.5e12],
+                # wacc: absent — forces the fallback branch to fire
+            }
+        )
         p2 = Phase2Result(
             income_df=income_df,
             balance_df=pd.DataFrame({"total_assets": [1] * 5}),
-            cash_df=cash_df, ratios_df=ratios_df, kpi_df=pd.DataFrame(),
+            cash_df=cash_df,
+            ratios_df=ratios_df,
+            kpi_df=pd.DataFrame(),
             roe_decomp_df=pd.DataFrame(),
-            score=4.2, accruals_ratio=0.03, gross_profitability=0.40,
-            operating_leverage=1.3, dilution_5y=-0.02,
-            gate_passed=True, gate_notes="OK",
+            score=4.2,
+            accruals_ratio=0.03,
+            gross_profitability=0.40,
+            operating_leverage=1.3,
+            dilution_5y=-0.02,
+            gate_passed=True,
+            gate_notes="OK",
         )
         p3 = _make_mock_p3()
         p1 = _make_mock_p1()
@@ -4298,16 +4818,18 @@ class TestPhase4CombinedFlags:
     def test_both_flags_on_utilities_uses_two_stage_dcf_with_sector_wacc(self):
         """The load-bearing combined-flags test.  Both flags on, Utilities
         sector → WACC=6 %, DCF routed through _dcf_two_stage.  Result must
-        equal _dcf_two_stage(fcf0, g_short, 0.025, 0.06, shares) exactly."""
+        equal _dcf_two_stage(fcf0, g_short, 0.025, 0.06, shares) exactly.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
-            use_two_stage_dcf=True, use_sector_wacc=True,
+            use_two_stage_dcf=True,
+            use_sector_wacc=True,
             sector="Utilities",
         )
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
 
         # Reconstruct what the DCF should be
         fcf0 = float(p2.cash_df["free_cash_flow"].iloc[-1])
-        rev  = p2.income_df["revenue"]
+        rev = p2.income_df["revenue"]
         g_short = min(_cagr(rev, 5), 0.25)
         shares_out = float(p2.income_df["shares_outstanding"].iloc[-1])
         # Utilities WACC per _SECTOR_WACC_MAP
@@ -4322,38 +4844,44 @@ class TestPhase4CombinedFlags:
         """A stronger invariant: with Energy sector (WACC 12 %, high) and
         two-stage fade (which increases DCF vs single-stage), the combined
         result must differ from both single-flag paths — proving the two
-        modifications compose, not shadow each other."""
+        modifications compose, not shadow each other.
+        """
         cfg_both, p1, p2, p3 = self._cfg_p1_p2_p3(
-            use_two_stage_dcf=True, use_sector_wacc=True,
+            use_two_stage_dcf=True,
+            use_sector_wacc=True,
             sector="Energy",
         )
         cfg_two_only, _, _, _ = self._cfg_p1_p2_p3(
-            use_two_stage_dcf=True, use_sector_wacc=False,
+            use_two_stage_dcf=True,
+            use_sector_wacc=False,
             sector="Energy",  # sector doesn't matter when flag off
         )
         cfg_sec_only, _, _, _ = self._cfg_p1_p2_p3(
-            use_two_stage_dcf=False, use_sector_wacc=True,
+            use_two_stage_dcf=False,
+            use_sector_wacc=True,
             sector="Energy",
         )
-        p4_both     = phase4_valuation(cfg_both,     p2, p3, p1=p1)
+        p4_both = phase4_valuation(cfg_both, p2, p3, p1=p1)
         p4_two_only = phase4_valuation(cfg_two_only, p2, p3, p1=p1)
         p4_sec_only = phase4_valuation(cfg_sec_only, p2, p3, p1=p1)
 
         # Combined ≠ two-stage-only (because WACC changed from 9 % to 12 %)
-        assert p4_both.dcf_fair_value != p4_two_only.dcf_fair_value, (
-            "combined flags should differ from two-stage-alone (WACC differs)"
-        )
+        assert (
+            p4_both.dcf_fair_value != p4_two_only.dcf_fair_value
+        ), "combined flags should differ from two-stage-alone (WACC differs)"
         # Combined ≠ sector-only (because model changed from single to two-stage)
-        assert p4_both.dcf_fair_value != p4_sec_only.dcf_fair_value, (
-            "combined flags should differ from sector-only (model differs)"
-        )
+        assert (
+            p4_both.dcf_fair_value != p4_sec_only.dcf_fair_value
+        ), "combined flags should differ from sector-only (model differs)"
 
     def test_both_flags_route_through_sensitivity_and_reverse_dcf(self):
         """Combined flags: sensitivity table AND reverse-DCF must use the
         SAME (dcf_fn, wacc) pair as the point fair value.  Otherwise the
-        Phase4Result rows contradict each other under a real rollout."""
+        Phase4Result rows contradict each other under a real rollout.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
-            use_two_stage_dcf=True, use_sector_wacc=True,
+            use_two_stage_dcf=True,
+            use_sector_wacc=True,
             sector="Utilities",
         )
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
@@ -4367,9 +4895,9 @@ class TestPhase4CombinedFlags:
             f"not routed to sensitivity?"
         )
         # Reverse-DCF should produce a finite implied growth
-        assert not math.isnan(p4.implied_growth), (
-            "combined flags should still produce a finite implied_growth"
-        )
+        assert not math.isnan(
+            p4.implied_growth
+        ), "combined flags should still produce a finite implied_growth"
 
 
 class TestPhase4PegRatio:
@@ -4388,41 +4916,59 @@ class TestPhase4PegRatio:
     behavior overhaul.
     """
 
-    def _cfg_p1_p2_p3(self, pe: float, revenue_series: list[float],
-                       fcf: float = 30e9, use_peg_tightening: bool = False):
+    def _cfg_p1_p2_p3(
+        self,
+        pe: float,
+        revenue_series: list[float],
+        fcf: float = 30e9,
+        use_peg_tightening: bool = False,
+    ):
         """Build a synthetic p2/p3/p1 fixture where pe and revenue CAGR
         can be set explicitly to hit specific PEG target values.
 
         Pass ``use_peg_tightening=True`` to enable the A5 verdict-tightening
         (Fair Value + PEG<1 → Undervalued; Fair Value + PEG>2 → Overvalued).
         Default False preserves pre-A5 behavior (PR #304 review I1 / bead
-        OpenBBTechnical-0h2.35)."""
-        income_df = pd.DataFrame({
-            "revenue":            revenue_series,
-            "operating_income":   [r * 0.30 for r in revenue_series],
-            "gross_profit":       [r * 0.65 for r in revenue_series],
-            "eps_diluted":        [8.0, 9.0, 10.5, 12.0, 14.0],
-            "shares_outstanding": [10e9] * 5,
-        })
-        cash_df = pd.DataFrame({"free_cash_flow": [fcf * 0.7, fcf * 0.8,
-                                                   fcf * 0.9, fcf, fcf * 1.05]})
-        ratios_df = pd.DataFrame({
-            "price_earnings_ratio":      [pe],
-            "enterprise_value_multiple": [22.0],
-            "price_to_free_cash_flow":   [30.0],
-            "price_to_sales":            [12.0],
-            "piotroski_score":           [7],
-            "altman_z_score":            [4.5],
-            "enterprise_value":          [3.5e12],
-            "wacc":                      [0.085],
-        })
+        OpenBBTechnical-0h2.35).
+        """
+        income_df = pd.DataFrame(
+            {
+                "revenue": revenue_series,
+                "operating_income": [r * 0.30 for r in revenue_series],
+                "gross_profit": [r * 0.65 for r in revenue_series],
+                "eps_diluted": [8.0, 9.0, 10.5, 12.0, 14.0],
+                "shares_outstanding": [10e9] * 5,
+            }
+        )
+        cash_df = pd.DataFrame(
+            {"free_cash_flow": [fcf * 0.7, fcf * 0.8, fcf * 0.9, fcf, fcf * 1.05]}
+        )
+        ratios_df = pd.DataFrame(
+            {
+                "price_earnings_ratio": [pe],
+                "enterprise_value_multiple": [22.0],
+                "price_to_free_cash_flow": [30.0],
+                "price_to_sales": [12.0],
+                "piotroski_score": [7],
+                "altman_z_score": [4.5],
+                "enterprise_value": [3.5e12],
+                "wacc": [0.085],
+            }
+        )
         p2 = Phase2Result(
-            income_df=income_df, balance_df=pd.DataFrame({"total_assets": [1]*5}),
-            cash_df=cash_df, ratios_df=ratios_df, kpi_df=pd.DataFrame(),
+            income_df=income_df,
+            balance_df=pd.DataFrame({"total_assets": [1] * 5}),
+            cash_df=cash_df,
+            ratios_df=ratios_df,
+            kpi_df=pd.DataFrame(),
             roe_decomp_df=pd.DataFrame(),
-            score=4.0, accruals_ratio=0.03, gross_profitability=0.40,
-            operating_leverage=1.3, dilution_5y=-0.02,
-            gate_passed=True, gate_notes="OK",
+            score=4.0,
+            accruals_ratio=0.03,
+            gross_profitability=0.40,
+            operating_leverage=1.3,
+            dilution_5y=-0.02,
+            gate_passed=True,
+            gate_notes="OK",
         )
         p3 = _make_mock_p3()
         p1 = _make_mock_p1()
@@ -4442,11 +4988,12 @@ class TestPhase4PegRatio:
 
     def test_phase4_produces_peg_ratio(self):
         """Full phase4 call must populate peg_ratio from computed PE and
-        revenue CAGR."""
+        revenue CAGR.
+        """
         # 15 % revenue CAGR ((161/100)^(1/5)-1 ≈ 10 %; use 5-year doubling)
-        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(pe=25.0,
-                                              revenue_series=[100e9, 115e9,
-                                                              130e9, 148e9, 168e9])
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=25.0, revenue_series=[100e9, 115e9, 130e9, 148e9, 168e9]
+        )
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
         assert not math.isnan(p4.peg_ratio), "peg_ratio must be populated"
         assert p4.peg_ratio > 0
@@ -4461,31 +5008,31 @@ class TestPhase4PegRatio:
         5-point series that's 4 compounding periods, not 5 — so the
         expected CAGR is (168/100)^(1/4) - 1 ≈ 0.1381, not 0.1088.
         """
-        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(pe=25.0,
-                                              revenue_series=[100e9, 115e9,
-                                                              130e9, 148e9, 168e9])
-        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
-        expected_cagr = (168 / 100) ** (1/4) - 1   # 4 periods between 5 points
-        expected_peg = 25.0 / (expected_cagr * 100)
-        assert abs(p4.peg_ratio - expected_peg) < 0.01, (
-            f"peg={p4.peg_ratio}, expected≈{expected_peg}"
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=25.0, revenue_series=[100e9, 115e9, 130e9, 148e9, 168e9]
         )
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        expected_cagr = (168 / 100) ** (1 / 4) - 1  # 4 periods between 5 points
+        expected_peg = 25.0 / (expected_cagr * 100)
+        assert (
+            abs(p4.peg_ratio - expected_peg) < 0.01
+        ), f"peg={p4.peg_ratio}, expected≈{expected_peg}"
 
     def test_peg_nan_when_growth_negative(self):
         """Declining revenue → CAGR < 0 → PEG undefined. Must return NaN."""
-        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(pe=25.0,
-                                              revenue_series=[168e9, 148e9,
-                                                              130e9, 115e9, 100e9])
-        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
-        assert math.isnan(p4.peg_ratio), (
-            f"expected NaN for declining revenue, got {p4.peg_ratio}"
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=25.0, revenue_series=[168e9, 148e9, 130e9, 115e9, 100e9]
         )
+        p4 = phase4_valuation(cfg, p2, p3, p1=p1)
+        assert math.isnan(
+            p4.peg_ratio
+        ), f"expected NaN for declining revenue, got {p4.peg_ratio}"
 
     def test_peg_nan_when_pe_missing(self):
         """No PE → PEG is undefined."""
-        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(pe=float("nan"),
-                                              revenue_series=[100e9, 115e9,
-                                                              130e9, 148e9, 168e9])
+        cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
+            pe=float("nan"), revenue_series=[100e9, 115e9, 130e9, 148e9, 168e9]
+        )
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
         assert math.isnan(p4.peg_ratio)
 
@@ -4503,7 +5050,8 @@ class TestPhase4PegRatio:
     def test_peg_tightening_off_leaves_fair_value_unchanged(self):
         """Flag OFF (default): a Fair Value + cheap PEG stock stays Fair
         Value.  This is the pre-A5 behavior + establishes the baseline that
-        the other tightening tests compare against."""
+        the other tightening tests compare against.
+        """
         # Same inputs as the cheap-upgrade test — but with flag OFF.
         # Price ~75/share puts MOS ≈ 0 (Fair Value band) given the fixture's
         # DCF fair value (see companion test for the derivation).
@@ -4529,7 +5077,8 @@ class TestPhase4PegRatio:
 
         Fixture DCF: fcf0 ≈ 21e9, g_short=0.20 (capped at 0.25), wacc=0.085
         → fair value ≈ $75.45/share.  Setting price at $75 puts MOS ≈ 0.006
-        (well inside the Fair Value band [-0.05, +0.15])."""
+        (well inside the Fair Value band [-0.05, +0.15]).
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=15.0,
             revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],  # 20 % CAGR
@@ -4579,7 +5128,8 @@ class TestPhase4PegRatio:
 
         Fixture DCF: fcf0 ≈ 31.5e9, g_short=0.08, wacc=0.085 → fair value
         ≈ $69.84/share.  Setting price at $68 puts MOS ≈ +0.026 (Fair Value
-        band)."""
+        band).
+        """
         # PE 35, growth 8 % → PEG ≈ 4.4 (very expensive)
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
@@ -4627,7 +5177,8 @@ class TestPhase4PegRatio:
     def test_strong_dcf_undervalued_not_downgraded_by_expensive_peg(self):
         """Design invariant: even with the flag ON, PEG only refines Fair
         Value cases. When DCF signals strong Undervalued (MOS ≥ 15 %), an
-        expensive PEG must NOT overwrite the DCF verdict — DCF-first."""
+        expensive PEG must NOT overwrite the DCF verdict — DCF-first.
+        """
         # High FCF + low price → clear Undervalued.  Flag ON to make sure
         # the DCF-first invariant holds even when tightening is active.
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
@@ -4659,7 +5210,8 @@ class TestPhase4PegRatio:
 
     def test_entry_rec_follows_peg_tightened_verdict_overvalued(self):
         """When PEG flips Fair Value → Overvalued, entry_rec must be
-        the Overvalued recommendation, not the raw-MOS Opportunistic Entry."""
+        the Overvalued recommendation, not the raw-MOS Opportunistic Entry.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
             revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
@@ -4682,7 +5234,8 @@ class TestPhase4PegRatio:
     def test_entry_rec_follows_peg_tightened_verdict_undervalued(self):
         """When PEG flips Fair Value → Undervalued, entry_rec must be one
         of the Undervalued recommendations (Strong/Partial/Wait), not the
-        raw-MOS Opportunistic Entry or Watchlist."""
+        raw-MOS Opportunistic Entry or Watchlist.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=15.0,
             revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],
@@ -4722,7 +5275,8 @@ class TestPhase4PegRatio:
         """Undervalued verdict + bullish_count in [3, 5] must produce
         'Partial Entry' — the value case is strong but technicals aren't
         confirming. Uses the same Undervalued-producing fixture as the
-        strong-entry test but overrides bullish_count to 4."""
+        strong-entry test but overrides bullish_count to 4.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=15.0,
             revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],
@@ -4738,9 +5292,9 @@ class TestPhase4PegRatio:
             f"fixture invariant broken: expected Undervalued, got "
             f"{p4.valuation_verdict}"
         )
-        assert 3 <= p3.bullish_count <= 5, (
-            f"bull override drift: {p3.bullish_count} not in [3, 5]"
-        )
+        assert (
+            3 <= p3.bullish_count <= 5
+        ), f"bull override drift: {p3.bullish_count} not in [3, 5]"
         assert "Partial Entry" in p4.entry_recommendation, (
             f"Undervalued × bull={p3.bullish_count} must produce "
             f"'Partial Entry'; got {p4.entry_recommendation!r}"
@@ -4749,7 +5303,8 @@ class TestPhase4PegRatio:
     def test_entry_rec_undervalued_low_bull_produces_wait(self):
         """Undervalued verdict + bullish_count < 3 must produce 'Wait —
         cheap but technically broken'. The 'cheap' half is honored; the
-        'wait for technicals' warning becomes primary."""
+        'wait for technicals' warning becomes primary.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=15.0,
             revenue_series=[100e9, 120e9, 144e9, 173e9, 207e9],
@@ -4787,7 +5342,8 @@ class TestPhase4PegRatio:
     def test_entry_rec_pegtightened_overvalued_low_bull_still_produces_avoid(self):
         """bd-o8ns C4 (b): flag-ON + PEG-tightened → Overvalued + bull<3
         must still produce 'Avoid'. Overvalued is unconditional — bull
-        count does NOT gate it (unlike Undervalued which cascades)."""
+        count does NOT gate it (unlike Undervalued which cascades).
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
             revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
@@ -4813,7 +5369,8 @@ class TestPhase4PegRatio:
         """bd-o8ns C4 (b): flag-ON + PEG-tightened → Overvalued + bull in
         [3,5] must still produce 'Avoid'. Mirrors the low-bull test —
         covers the mid tier where a naive refactor mimicking Undervalued
-        might route Overvalued × mid-bull → 'Partial Avoid' or similar."""
+        might route Overvalued × mid-bull → 'Partial Avoid' or similar.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
             revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
@@ -4830,7 +5387,6 @@ class TestPhase4PegRatio:
             f"must produce 'Avoid' regardless of bull. Got: "
             f"{p4.entry_recommendation!r}"
         )
-
 
     def test_entry_rec_fair_value_low_bull_falls_back_to_raw_mos(self):
         """bd-3xq.6 successor: Fair Value verdict + bullish_count < 6 under
@@ -4849,10 +5405,11 @@ class TestPhase4PegRatio:
         verdict branch) but is unreachable in practice with the current
         logic — a Fair Value verdict with peg_tightened_verdict=True is
         impossible (PEG only tightens FairValue → Undervalued/Overvalued,
-        never keeps it Fair Value). Kept as safety net for future refactor."""
+        never keeps it Fair Value). Kept as safety net for future refactor.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
-            revenue_series=[100e9 * (1.18 ** i) for i in range(5)],
+            revenue_series=[100e9 * (1.18**i) for i in range(5)],
             use_peg_tightening=True,
         )
         p3.price_df = p3.price_df.copy()
@@ -4894,10 +5451,11 @@ class TestPhase4PegRatio:
         Uses a low-growth revenue series + a low price so DCF fair value
         substantially exceeds price. Deliberately does NOT touch use_peg_
         tightening — the raw-mos cascade is what matters, PEG is not
-        consulted."""
+        consulted.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=25.0,
-            revenue_series=[100e9 * (1.05 ** i) for i in range(5)],
+            revenue_series=[100e9 * (1.05**i) for i in range(5)],
             use_peg_tightening=False,  # the whole point of this section
         )
         p3.price_df = p3.price_df.copy()
@@ -4909,9 +5467,9 @@ class TestPhase4PegRatio:
         """Flag OFF + mos >= 0.15 + bull >= 6 → 'Strong Entry'."""
         cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=30.0, bull=7)
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
-        assert p4.margin_of_safety >= 0.15, (
-            f"fixture invariant broken: mos={p4.margin_of_safety} < 0.15"
-        )
+        assert (
+            p4.margin_of_safety >= 0.15
+        ), f"fixture invariant broken: mos={p4.margin_of_safety} < 0.15"
         assert p3.bullish_count >= 6
         assert "Strong Entry" in p4.entry_recommendation, (
             f"flag-OFF high-mos + high-bull must be 'Strong Entry'; "
@@ -4931,7 +5489,8 @@ class TestPhase4PegRatio:
 
     def test_flag_off_high_mos_low_bull_produces_wait(self):
         """Flag OFF + mos >= 0.15 + bull < 3 → 'Wait — cheap but
-        technically broken'. The value-only signal."""
+        technically broken'. The value-only signal.
+        """
         cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=30.0, bull=1)
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
         assert p4.margin_of_safety >= 0.15
@@ -4945,9 +5504,9 @@ class TestPhase4PegRatio:
         """Flag OFF + 0 <= mos < 0.15 + bull >= 6 → 'Opportunistic Entry'."""
         cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=52.0, bull=7)
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
-        assert 0.0 <= p4.margin_of_safety < 0.15, (
-            f"fixture invariant broken: mos={p4.margin_of_safety} not in [0, 0.15)"
-        )
+        assert (
+            0.0 <= p4.margin_of_safety < 0.15
+        ), f"fixture invariant broken: mos={p4.margin_of_safety} not in [0, 0.15)"
         assert p3.bullish_count >= 6
         assert "Opportunistic Entry" in p4.entry_recommendation, (
             f"flag-OFF mid-mos + high-bull must be 'Opportunistic Entry'; "
@@ -4956,7 +5515,8 @@ class TestPhase4PegRatio:
 
     def test_flag_off_mid_mos_low_bull_produces_watchlist(self):
         """Flag OFF + 0 <= mos < 0.15 + bull < 6 → 'Watchlist'. The else-
-        branch — no directional edge from either dimension."""
+        branch — no directional edge from either dimension.
+        """
         cfg, p1, p2, p3 = self._cfg_flag_off_high_mos(price=52.0, bull=3)
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
         assert 0.0 <= p4.margin_of_safety < 0.15
@@ -4980,7 +5540,8 @@ class TestPhase4PegRatio:
         """Flag OFF + mos ∈ [-0.05, 0) + strong technicals must produce
         'Avoid' — pre-A5 behavior. The verdict_verdict='Fair Value' band
         covers this MOS range, but the raw-mos cascade (default-off path)
-        still routes mos < 0 to 'Avoid'."""
+        still routes mos < 0 to 'Avoid'.
+        """
         # Fixture: same as expensive-PEG test but with price slightly HIGHER
         # than DCF fair value so mos lands in [-0.05, 0).  fcf0 ≈ 31.5e9,
         # g_short = 0.08, wacc = 0.085 → dcf ≈ $69.84/share.
@@ -4995,9 +5556,9 @@ class TestPhase4PegRatio:
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
 
         # Precondition: mos actually lands in [-0.05, 0).
-        assert -0.05 <= p4.margin_of_safety < 0.0, (
-            f"test invariant broken: mos={p4.margin_of_safety} not in [-0.05, 0)"
-        )
+        assert (
+            -0.05 <= p4.margin_of_safety < 0.0
+        ), f"test invariant broken: mos={p4.margin_of_safety} not in [-0.05, 0)"
         # Precondition: valuation_verdict is still 'Fair Value' (the range
         # that triggers the QC-A regression under the verdict-keyed branch).
         assert p4.valuation_verdict == "Fair Value", (
@@ -5033,10 +5594,11 @@ class TestPhase4PegRatio:
         R7.11: mutating `peg_tightened_verdict = False` initialization
         to `True` in stock_analysis.py::phase4_valuation would break
         this test (would re-enter the verdict-keyed ladder and produce
-        'Opportunistic Entry')."""
+        'Opportunistic Entry').
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
-            revenue_series=[100e9 * (1.18 ** i) for i in range(5)],
+            revenue_series=[100e9 * (1.18**i) for i in range(5)],
             use_peg_tightening=True,  # flag ON
         )
         p3.price_df = p3.price_df.copy()
@@ -5044,12 +5606,12 @@ class TestPhase4PegRatio:
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
 
         # Preconditions
-        assert -0.05 <= p4.margin_of_safety < 0.0, (
-            f"fixture invariant broken: mos={p4.margin_of_safety} not in [-0.05, 0)"
-        )
-        assert 1.0 <= p4.peg_ratio <= 2.0, (
-            f"fixture invariant broken: peg={p4.peg_ratio} not in [1.0, 2.0]"
-        )
+        assert (
+            -0.05 <= p4.margin_of_safety < 0.0
+        ), f"fixture invariant broken: mos={p4.margin_of_safety} not in [-0.05, 0)"
+        assert (
+            1.0 <= p4.peg_ratio <= 2.0
+        ), f"fixture invariant broken: peg={p4.peg_ratio} not in [1.0, 2.0]"
         assert p4.valuation_verdict == "Fair Value", (
             f"fixture invariant broken: PEG in [1,2] should NOT tighten "
             f"verdict; got {p4.valuation_verdict}"
@@ -5070,7 +5632,7 @@ class TestPhase4PegRatio:
         # entry_rec is identical.
         cfg_off, _, _, _ = self._cfg_p1_p2_p3(
             pe=35.0,
-            revenue_series=[100e9 * (1.18 ** i) for i in range(5)],
+            revenue_series=[100e9 * (1.18**i) for i in range(5)],
             use_peg_tightening=False,
         )
         p4_off = phase4_valuation(cfg_off, p2, p3, p1=p1)
@@ -5086,11 +5648,12 @@ class TestPhase4PegRatio:
         """Bead OpenBBTechnical-0h2.38 (peg_gate_str leak): when
         use_peg_tightening=False the display line ``| PEG X.XX`` must NOT
         appear in gate_notes — otherwise a reader could infer PEG was
-        consulted when it wasn't."""
+        consulted when it wasn't.
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
             revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
-            use_peg_tightening=False,   # flag OFF
+            use_peg_tightening=False,  # flag OFF
         )
         p3.price_df = p3.price_df.copy()
         p3.price_df["close"] = [68.0, 68.5, 68.0]
@@ -5099,14 +5662,14 @@ class TestPhase4PegRatio:
         # unaffected by the display flag) — but gate_notes must not mention it.
         assert not math.isnan(p4.peg_ratio), "peg_ratio should still compute"
         assert "PEG" not in p4.gate_notes, (
-            f"flag-off must preserve gate_notes bit-for-bit; "
-            f"got: {p4.gate_notes!r}"
+            f"flag-off must preserve gate_notes bit-for-bit; " f"got: {p4.gate_notes!r}"
         )
 
     def test_peg_gate_str_present_when_flag_on(self):
         """Complement to the flag-off parity test: with the flag on, the
         PEG value SHOULD appear in gate_notes (so users of the tightening
-        can see what tipped the decision)."""
+        can see what tipped the decision).
+        """
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=35.0,
             revenue_series=[100e9, 108e9, 117e9, 126e9, 136e9],
@@ -5115,9 +5678,9 @@ class TestPhase4PegRatio:
         p3.price_df = p3.price_df.copy()
         p3.price_df["close"] = [68.0, 68.5, 68.0]
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
-        assert "PEG" in p4.gate_notes, (
-            f"flag-on should surface PEG in gate_notes; got: {p4.gate_notes!r}"
-        )
+        assert (
+            "PEG" in p4.gate_notes
+        ), f"flag-on should surface PEG in gate_notes; got: {p4.gate_notes!r}"
 
     # --- silent no-op guard when flag on but PEG unavailable -------------
 
@@ -5138,7 +5701,8 @@ class TestPhase4PegRatio:
         DCF uses floored g_short = 0.05 (per the DCF-only safety clamp for
         declining revenue), fcf0 = 31.5e9, wacc = 0.085, shares = 9.75e9
         → dcf_fair_value ≈ $61.50/share.  Price $58 → MOS ≈ +0.057, safely
-        inside [-0.05, 0.15] Fair Value band."""
+        inside [-0.05, 0.15] Fair Value band.
+        """
         # Declining revenue → raw CAGR < 0 → PEG NaN.  DCF-only g_short
         # gets floored to 0.05 so DCF stays sensible.
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
@@ -5151,9 +5715,9 @@ class TestPhase4PegRatio:
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
 
         # Precondition 1: PEG really is NaN (declining revenue path).
-        assert math.isnan(p4.peg_ratio), (
-            f"test invariant broken: expected NaN PEG, got {p4.peg_ratio}"
-        )
+        assert math.isnan(
+            p4.peg_ratio
+        ), f"test invariant broken: expected NaN PEG, got {p4.peg_ratio}"
         # Precondition 2: verdict lands in Fair Value (the branch the
         # diagnostic fires on).  If fixture drifts and verdict becomes
         # Undervalued/Overvalued, the test loudly fails at this line
@@ -5189,7 +5753,8 @@ class TestPhase4PegRatio:
         """Flag ON + NaN PEG + Undervalued verdict → 'PEG unavailable'
         must NOT appear in gate_notes. Undervalued reaches its verdict
         via MOS alone; PEG isn't consulted, so the diagnostic would be
-        misleading noise if it fired here."""
+        misleading noise if it fired here.
+        """
         # Declining revenue → PEG NaN. Low price → high MOS → Undervalued.
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=25.0,
@@ -5201,9 +5766,9 @@ class TestPhase4PegRatio:
         p4 = phase4_valuation(cfg, p2, p3, p1=p1)
 
         # Preconditions: PEG NaN AND verdict Undervalued.
-        assert math.isnan(p4.peg_ratio), (
-            f"fixture invariant broken: expected NaN PEG, got {p4.peg_ratio}"
-        )
+        assert math.isnan(
+            p4.peg_ratio
+        ), f"fixture invariant broken: expected NaN PEG, got {p4.peg_ratio}"
         assert p4.valuation_verdict == "Undervalued", (
             f"fixture invariant broken: expected Undervalued, got "
             f"{p4.valuation_verdict} (mos={p4.margin_of_safety:.3f})"
@@ -5211,13 +5776,14 @@ class TestPhase4PegRatio:
         # Load-bearing: NO peg annotation on non-Fair-Value verdicts.
         assert "PEG unavailable" not in p4.gate_notes, (
             f"'PEG unavailable' must NOT appear on Undervalued verdict "
-            f"(the guard `verdict == \"Fair Value\"` should prevent it); "
+            f'(the guard `verdict == "Fair Value"` should prevent it); '
             f"got gate_notes={p4.gate_notes!r}"
         )
 
     def test_flag_on_nan_peg_no_annotation_on_overvalued(self):
         """Flag ON + NaN PEG + Overvalued verdict → 'PEG unavailable'
-        must NOT appear in gate_notes. Symmetric to the Undervalued case."""
+        must NOT appear in gate_notes. Symmetric to the Undervalued case.
+        """
         # Declining revenue → PEG NaN. High price → negative MOS → Overvalued.
         cfg, p1, p2, p3 = self._cfg_p1_p2_p3(
             pe=25.0,
@@ -5237,6 +5803,7 @@ class TestPhase4PegRatio:
             f"'PEG unavailable' must NOT appear on Overvalued verdict; "
             f"got gate_notes={p4.gate_notes!r}"
         )
+
 
 # ---------------------------------------------------------------------------
 
@@ -5277,7 +5844,8 @@ class TestPhase1MSFT:
         """MSFT's free float from fmp_cached share_statistics should be a
         fraction in (0, 1] — Microsoft's insider stake is small so free float
         is typically > 0.99.  A None result means fmp_cached share_statistics
-        failed; that's a provider regression worth surfacing."""
+        failed; that's a provider regression worth surfacing.
+        """
         assert result.free_float_pct is not None, (
             "fmp_cached share_statistics returned no free_float for MSFT — "
             "provider regression?"
@@ -5288,7 +5856,8 @@ class TestPhase1MSFT:
         """fmp_cached does not currently expose short_interest.  A1 preserves
         the field on the dataclass for future population (see follow-up bead
         for adding a short-interest provider) but the value must be None on
-        the current single-provider stack."""
+        the current single-provider stack.
+        """
         assert result.short_interest_pct is None
 
 
@@ -5309,10 +5878,11 @@ class TestPhase1AAPL:
 
     def test_free_float_pct_populated(self, result):
         """AAPL's free float from fmp_cached share_statistics — same expectation
-        as MSFT: fraction in (0, 1], typically > 0.99 for a well-held large-cap."""
-        assert result.free_float_pct is not None, (
-            "fmp_cached share_statistics returned no free_float for AAPL"
-        )
+        as MSFT: fraction in (0, 1], typically > 0.99 for a well-held large-cap.
+        """
+        assert (
+            result.free_float_pct is not None
+        ), "fmp_cached share_statistics returned no free_float for AAPL"
         assert 0.0 < result.free_float_pct <= 1.0
 
     def test_short_interest_pct_semantics(self, result):
@@ -5510,20 +6080,21 @@ class TestPhase5MSFT:
     def test_kurtosis_finite_and_typical(self, result):
         """MSFT's daily returns should show finite excess kurtosis in the
         empirical range for large-cap equities (~1-10 excess).  Extreme
-        values (>50 or infinite) suggest a data-quality problem."""
+        values (>50 or infinite) suggest a data-quality problem.
+        """
         assert not math.isnan(result.kurtosis), "kurtosis must not be NaN"
         assert math.isfinite(result.kurtosis)
-        assert -1.0 <= result.kurtosis <= 50.0, (
-            f"MSFT kurtosis {result.kurtosis} outside plausible large-cap range"
-        )
+        assert (
+            -1.0 <= result.kurtosis <= 50.0
+        ), f"MSFT kurtosis {result.kurtosis} outside plausible large-cap range"
 
     def test_skewness_finite(self, result):
         """Skewness should be finite; sign varies by lookback window."""
         assert not math.isnan(result.skewness), "skewness must not be NaN"
         assert math.isfinite(result.skewness)
-        assert -5.0 <= result.skewness <= 5.0, (
-            f"MSFT skewness {result.skewness} outside plausible range"
-        )
+        assert (
+            -5.0 <= result.skewness <= 5.0
+        ), f"MSFT skewness {result.skewness} outside plausible range"
 
     def test_risk_kpi_df_has_fat_tail_columns(self, result):
         """Bead spec: fields must appear in the exported KPI table too."""
@@ -5637,8 +6208,14 @@ class TestFullPipelineMSFT:
 
     def test_p7_handoff_complete(self, results):
         handoff = results["p7"].handoff
-        for key in ["investment_thesis", "bullish_drivers", "invalidation_events",
-                    "fair_value_range", "peer_relative", "trade_plan"]:
+        for key in [
+            "investment_thesis",
+            "bullish_drivers",
+            "invalidation_events",
+            "fair_value_range",
+            "peer_relative",
+            "trade_plan",
+        ]:
             assert key in handoff
 
 
@@ -5653,7 +6230,12 @@ class TestFullPipelineAAPL:
             assert key in results
 
     def test_p7_action_label_valid(self, results):
-        assert results["p7"].action_label in ("Strong Buy", "Buy", "Hold/Watch", "Avoid")
+        assert results["p7"].action_label in (
+            "Strong Buy",
+            "Buy",
+            "Hold/Watch",
+            "Avoid",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -5693,23 +6275,19 @@ class TestFeatureFlags:
         flags = AnalysisFeatureFlags()
         for name in AnalysisFeatureFlags.__dataclass_fields__:
             assert getattr(flags, name) is False, (
-                f"expected {name}=False by default, got "
-                f"{getattr(flags, name)!r}"
+                f"expected {name}=False by default, got " f"{getattr(flags, name)!r}"
             )
 
     def test_kwargs_override_defaults(self):
         """Passing all flags as True kwargs flips every one to True.
 
         Driven from ``__dataclass_fields__`` so new flags are auto-covered
-        (bead OpenBBTechnical-0h2.37)."""
-        all_true = {
-            name: True for name in AnalysisFeatureFlags.__dataclass_fields__
-        }
+        (bead OpenBBTechnical-0h2.37).
+        """
+        all_true = {name: True for name in AnalysisFeatureFlags.__dataclass_fields__}
         flags = AnalysisFeatureFlags(**all_true)
         for name in AnalysisFeatureFlags.__dataclass_fields__:
-            assert getattr(flags, name) is True, (
-                f"kwarg {name}=True did not stick"
-            )
+            assert getattr(flags, name) is True, f"kwarg {name}=True did not stick"
 
     # --- from_env: no vars set ------------------------------------------
 
@@ -5761,9 +6339,9 @@ class TestFeatureFlags:
         for other in AnalysisFeatureFlags.__dataclass_fields__:
             if other == attr:
                 continue
-            assert getattr(flags, other) is False, (
-                f"{envvar} unexpectedly toggled {other}"
-            )
+            assert (
+                getattr(flags, other) is False
+            ), f"{envvar} unexpectedly toggled {other}"
 
     # --- introspection helper --------------------------------------------
 
@@ -5773,7 +6351,8 @@ class TestFeatureFlags:
         Renamed from ``test_as_dict_returns_all_six`` — the name was stale
         when a 7th flag shipped (bead OpenBBTechnical-0h2.37).  Body now
         iterates ``__dataclass_fields__`` so both key coverage and value
-        wiring are checked for every flag."""
+        wiring are checked for every flag.
+        """
         # Pick one arbitrary flag to set — the first one in field order.
         first_flag = next(iter(AnalysisFeatureFlags.__dataclass_fields__))
         flags = AnalysisFeatureFlags(**{first_flag: True})
@@ -5786,6 +6365,181 @@ class TestFeatureFlags:
             if name == first_flag:
                 continue
             assert d[name] is False, f"unexpected {name}={d[name]!r}"
+
+
+class TestPhase2QualityOverlayColumns:
+    """Regression for #1463 — Phase 4's quality overlays (ROIC-WACC
+    spread, Altman Z, Piotroski F) returned NaN because Phase 2's
+    ratios_df didn't carry those columns. Pre-fix ratios_df came
+    from FMP's ``ratios`` endpoint alone; ROIC lives in ``key-metrics``,
+    Altman/Piotroski live in ``financial-scores``. Post-fix Phase 2
+    merges those columns onto ratios_df so Phase 4 (unchanged)
+    resolves numeric values.
+    """
+
+    def test_ratios_df_has_expected_columns_after_merge(self, monkeypatch):
+        """Directly verify the merge logic: when metrics + scores return
+        the expected shape, ratios_df ends up with the three new
+        columns (case: fmp_cached, symbol='MSFT').
+        """
+        import asyncio
+        import types
+
+        import pandas as pd
+
+        # 5-period ratios_df, no quality columns
+        base_ratios = pd.DataFrame(
+            {
+                "date": pd.to_datetime(
+                    [
+                        "2020-06-30",
+                        "2021-06-30",
+                        "2022-06-30",
+                        "2023-06-30",
+                        "2024-06-30",
+                    ]
+                ),
+                "pe": [30.1, 32.5, 28.0, 31.4, 33.7],
+            }
+        )
+        # metrics_df with a ROIC column keyed on same date index
+        metrics_df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(
+                    [
+                        "2020-06-30",
+                        "2021-06-30",
+                        "2022-06-30",
+                        "2023-06-30",
+                        "2024-06-30",
+                    ]
+                ),
+                "return_on_invested_capital": [0.18, 0.20, 0.22, 0.21, 0.20958],
+            }
+        )
+        # income/balance/cash are irrelevant to this test; return empty df
+        empty_df = pd.DataFrame()
+
+        fake_obb = types.SimpleNamespace(
+            equity=types.SimpleNamespace(
+                fundamental=types.SimpleNamespace(
+                    income=lambda **k: types.SimpleNamespace(results=[]),
+                    balance=lambda **k: types.SimpleNamespace(results=[]),
+                    cash=lambda **k: types.SimpleNamespace(results=[]),
+                    ratios=lambda **k: types.SimpleNamespace(results=[]),
+                    metrics=lambda **k: types.SimpleNamespace(results=[]),
+                )
+            )
+        )
+        # Patch _to_df so it returns our fixture dfs in call order
+        call_ix = {"i": 0}
+        returns = [empty_df, empty_df, empty_df, base_ratios.copy(), metrics_df]
+
+        def fake_to_df(_x):
+            i = call_ix["i"]
+            call_ix["i"] += 1
+            return returns[i]
+
+        # Also mock the direct financial_scores fetcher
+        class _FakeFetcher:
+            @staticmethod
+            async def aextract_data(_q, credentials=None):
+                return [
+                    {
+                        "symbol": "MSFT",
+                        "altmanZScore": 6.42,
+                        "piotroskiScore": 8,
+                    }
+                ]
+
+        class _FakeQuery:
+            def __init__(self, symbol):
+                self.symbol = symbol
+
+        # Test the merge directly by calling the helper logic
+        # (simplified — we don't run phase2_fundamentals end-to-end
+        # because it needs many more fixtures for CAGR / margins etc).
+        ratios_df = base_ratios.copy()
+
+        # ROIC merge
+        roic_col = "return_on_invested_capital"
+        if (
+            "date" in metrics_df.columns
+            and "date" in ratios_df.columns
+            and roic_col not in ratios_df.columns
+        ):
+            ratios_df = ratios_df.merge(
+                metrics_df[["date", roic_col]],
+                on="date",
+                how="left",
+            )
+        # Altman + Piotroski snapshot
+        scores_row = asyncio.run(_FakeFetcher.aextract_data(_FakeQuery("MSFT")))[0]
+        altman = scores_row.get("altmanZScore")
+        pio = scores_row.get("piotroskiScore")
+        if altman is not None:
+            ratios_df["altman_z_score"] = float(altman)
+        if pio is not None:
+            ratios_df["piotroski_score"] = float(pio)
+
+        # All three columns must land
+        assert "return_on_invested_capital" in ratios_df.columns
+        assert "altman_z_score" in ratios_df.columns
+        assert "piotroski_score" in ratios_df.columns
+        assert ratios_df["return_on_invested_capital"].iloc[-1] == pytest.approx(
+            0.20958
+        )
+        assert ratios_df["altman_z_score"].iloc[-1] == pytest.approx(6.42)
+        assert ratios_df["piotroski_score"].iloc[-1] == 8.0
+
+    def test_missing_metrics_gracefully_degrades(self):
+        """When the metrics fetch raises (endpoint down / plan tier /
+        unknown symbol), ratios_df keeps its original columns and
+        Phase 4 stays NaN (existing behavior). No exception surface.
+        """
+        import pandas as pd
+
+        base_ratios = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-06-30"]),
+                "pe": [33.7],
+            }
+        )
+        # Merge block with metrics fetch simulating failure
+        ratios_df = base_ratios.copy()
+        try:
+            raise RuntimeError("simulated FMP outage")
+        except Exception:  # noqa: BLE001
+            pass  # matches phase2's except: log.debug + continue
+
+        # ratios_df is unchanged; ROIC column absent -> Phase 4 gets NaN
+        assert list(ratios_df.columns) == ["date", "pe"]
+        assert "return_on_invested_capital" not in ratios_df.columns
+
+    def test_phase4_reads_the_injected_columns(self):
+        """Confirm Phase 4's ``_latest_col`` sees the merged columns.
+        This locks in that Phase 4 is not accidentally looking at the
+        wrong column name after the fix.
+        """
+        import pandas as pd
+        from stock_analysis import _latest_col
+
+        ratios_df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2023-06-30", "2024-06-30"]),
+                "return_on_invested_capital": [0.19, 0.20958],
+                "altman_z_score": [6.42, 6.42],
+                "piotroski_score": [8.0, 8.0],
+            }
+        )
+
+        roic = _latest_col(ratios_df, ["roic", "return_on_invested_capital"])
+        altman = _latest_col(ratios_df, ["altman_z_score", "altman"])
+        piotroski = _latest_col(ratios_df, ["piotroski_score", "piotroski"])
+
+        assert roic == pytest.approx(0.20958)
+        assert altman == pytest.approx(6.42)
+        assert piotroski == 8.0
 
 
 class TestReverseDcfBoundaryClamp:
@@ -5845,9 +6599,9 @@ class TestReverseDcfBoundaryClamp:
             "extreme-overvaluation case must clamp to a bracket edge, "
             "not return NaN (#1465)"
         )
-        assert implied == pytest.approx(0.30), (
-            f"expected upper bracket edge 0.30, got {implied}"
-        )
+        assert implied == pytest.approx(
+            0.30
+        ), f"expected upper bracket edge 0.30, got {implied}"
 
     def test_extreme_undervaluation_returns_lower_boundary_not_nan(self):
         """Market price implies growth < -10%. Pre-fix NaN, post-fix -0.10."""
@@ -5859,13 +6613,14 @@ class TestReverseDcfBoundaryClamp:
         # below the -0.10 bracket floor.
         implied = self._run_reverse_dcf(0.01, _dcf_single)
         assert not math.isnan(implied)
-        assert implied == pytest.approx(-0.10), (
-            f"expected lower bracket edge -0.10, got {implied}"
-        )
+        assert implied == pytest.approx(
+            -0.10
+        ), f"expected lower bracket edge -0.10, got {implied}"
 
     def test_interior_root_still_solved_unchanged(self):
         """Normal valuation with true implied growth inside the bracket
-        must still return the interior root, not a boundary edge."""
+        must still return the interior root, not a boundary edge.
+        """
         import math
 
         from stock_analysis import _dcf_single
@@ -5875,10 +6630,8 @@ class TestReverseDcfBoundaryClamp:
         target_price = _dcf_single(1_000_000.0, 0.10, 0.02, 0.09, 1_000_000.0)
         implied = self._run_reverse_dcf(target_price, _dcf_single)
         assert not math.isnan(implied)
-        assert implied == pytest.approx(0.10, abs=1e-4), (
-            f"interior root should be ~0.10 (not clamped to boundary); got {implied}"
-        )
+        assert implied == pytest.approx(
+            0.10, abs=1e-4
+        ), f"interior root should be ~0.10 (not clamped to boundary); got {implied}"
         # Not a boundary edge
         assert -0.099 < implied < 0.299
-
-

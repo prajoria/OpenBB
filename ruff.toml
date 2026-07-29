@@ -84,6 +84,18 @@ ignore = [
 "openbb_platform/providers/fmp_cached/tests/test_institutional_ownership_cached.py" = [
     "D101", "D102", "F841",
 ]
+# Analysis/ carries substantial pre-existing docstring debt (D101/D102
+# on ~170 classes/methods) plus F841/S110 idiom drift. Per-file
+# suppressions keep future one-liners (like #1463 phase2 wiring) from
+# gating on unrelated churn.
+"Analysis/stock_analysis.py" = [
+    "D101", "D102", "D103", "D105", "D301", "F401", "F841", "S110", "E501",
+    "PLW0603", "PLW0108", "PLR0912", "SIM108", "PLC0206", "S101",
+]
+"Analysis/tests/test_stock_analysis.py" = [
+    "D101", "D102", "D103", "D105", "D301", "F401", "F841", "S110", "S101", "E501",
+    "SIM102", "PLW0108",
+]
 
 [lint.isort]
 combine-as-imports = true
