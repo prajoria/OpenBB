@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/price-target-summary?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA2WQQWvDMAyF7/0VxudiNidZ2t22QmGHQLcaxmh6cDoRm7p2ke1BN/bfl8bL6JqD
+        DtL33pPQZkLIV1eEUH86NM7Qe0Kr9VLQaZoa6UPlbFALF23o6OwaPHy0K9Q7EBJbOCsKzllxoXqO
+        EgPgEHA7H7NxRlayu8tVbyD/EsryCozts4xl+a9KGiP0AQY3L+b/wcid5znjg+gYG6O9AvTn12xq
+        KhQszamm05quAwKEJ+v1O2A/eQT7qW0r+0bo44u0e08W3Z9QNzG4pFpF44FwdtN3lcQ9hFcZdipl
+        SERnfYpQkJbUdEu7g74n2x/JEsXpswEAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 17:11:15 GMT
+      Etag:
+      - W/"1b3-mYiMcqPSQ+woZIbrcRgnkncXrw8"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -826,3 +826,75 @@ def test_fmp_equity_active_fetcher(credentials=test_credentials):
     fetcher = FMPEquityActiveFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Analyst / Ratings / Grades — Tier-A parity port from fmp_cached
+# (#1482 #1483 #1484 #1485 #1486 #1487).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_ratings_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP ratings snapshot fetcher (#1487)."""
+    from openbb_fmp.models.analyst_ratings import FMPRatingsSnapshotFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPRatingsSnapshotFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_ratings_historical_fetcher(credentials=test_credentials):
+    """Test FMP ratings historical fetcher (#1486)."""
+    from openbb_fmp.models.analyst_ratings import FMPRatingsHistoricalFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPRatingsHistoricalFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_price_target_summary_fetcher(credentials=test_credentials):
+    """Test FMP price target summary fetcher (#1485)."""
+    from openbb_fmp.models.analyst_ratings import FMPPriceTargetSummaryFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPPriceTargetSummaryFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_grades_fetcher(credentials=test_credentials):
+    """Test FMP grades fetcher (#1482)."""
+    from openbb_fmp.models.analyst_ratings import FMPGradesFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPGradesFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_grades_historical_fetcher(credentials=test_credentials):
+    """Test FMP grades historical fetcher (#1484)."""
+    from openbb_fmp.models.analyst_ratings import FMPGradesHistoricalFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPGradesHistoricalFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_grades_consensus_fetcher(credentials=test_credentials):
+    """Test FMP grades consensus fetcher (#1483)."""
+    from openbb_fmp.models.analyst_ratings import FMPGradesConsensusFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPGradesConsensusFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None

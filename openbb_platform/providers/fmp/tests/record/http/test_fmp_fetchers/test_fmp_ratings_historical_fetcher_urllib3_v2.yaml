@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/ratings-historical?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3XOPQvCMBAG4L2/ImTVQon4gZsVu4lDu4lD2gYbjDnNXZUi/ndTNIIFh1ve597j
+        9hFjDz+McezOJRi+ZHybZwUfv9NakuozkYhZnMxjsQjiJGl77C0dhQxuyklj8gpc35qEIxoraC2p
+        ei2xyQzchxtOUevszm6uraYu6HSgK0RFONRalVTAb1N87OJ0pTxKZ/2z+IdTgNOXvDyjwwvcqgbm
+        GQEAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 17:11:14 GMT
+      Etag:
+      - W/"119-56gWoFI6nfn6FSR25I9WRDoZSpg"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
