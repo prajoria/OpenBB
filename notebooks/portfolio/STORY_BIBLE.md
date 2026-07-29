@@ -345,7 +345,7 @@ notebook.
 Exception: each notebook's own `📚 Further reading` appendix
 (Type C) re-lists every link cited in that notebook. That is a
 reference index, not a re-introduction — allowed. And the reader
-README's `📚 Learning path` block deliberately re-uses the URLs
+README's `📚 Learning path` block deliberately reuses the URLs
 because that is the pre-read.
 
 ### 10.2 Callout format (Type A — glossary box)

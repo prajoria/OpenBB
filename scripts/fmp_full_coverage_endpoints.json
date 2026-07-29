@@ -1,0 +1,2762 @@
+[
+  {
+    "category": "Search",
+    "group": "Search",
+    "endpoint": "Stock Symbol Search",
+    "path": "stable/search-symbol?query=AAPL",
+    "stable_path": "search-symbol",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Search",
+    "group": "Search",
+    "endpoint": "Company Name Search",
+    "path": "stable/search-name?query=AA",
+    "stable_path": "search-name",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Search",
+    "group": "Search",
+    "endpoint": "Search Cik",
+    "path": "stable/search-cik?cik=320193",
+    "stable_path": "search-cik",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Search",
+    "group": "Search",
+    "endpoint": "CUSIP",
+    "path": "stable/search-cusip?cusip=037833100",
+    "stable_path": "search-cusip",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Search",
+    "group": "Search",
+    "endpoint": "Search Isin",
+    "path": "stable/search-isin?isin=US0378331005",
+    "stable_path": "search-isin",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Search",
+    "group": "Search",
+    "endpoint": "Stock Screener",
+    "path": "stable/company-screener",
+    "stable_path": "company-screener",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Search",
+    "group": "Search",
+    "endpoint": "Exchange Variants",
+    "path": "stable/search-exchange-variants?symbol=AAPL",
+    "stable_path": "search-exchange-variants",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Company Symbols List",
+    "path": "stable/stock-list",
+    "stable_path": "stock-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Financial Statement Symbols List",
+    "path": "stable/financial-statement-symbol-list",
+    "stable_path": "financial-statement-symbol-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "CIK List",
+    "path": "stable/cik-list?page=0&limit=1000",
+    "stable_path": "cik-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Symbol Changes List",
+    "path": "stable/symbol-change",
+    "stable_path": "symbol-change",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "ETF Symbol Search",
+    "path": "stable/etf-list",
+    "stable_path": "etf-list",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Actively Trading List",
+    "path": "stable/actively-trading-list",
+    "stable_path": "actively-trading-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Earnings Transcript List",
+    "path": "stable/earnings-transcript-list",
+    "stable_path": "earnings-transcript-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Available Exchanges",
+    "path": "stable/available-exchanges",
+    "stable_path": "available-exchanges",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Available Sectors",
+    "path": "stable/available-sectors",
+    "stable_path": "available-sectors",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Available Industries",
+    "path": "stable/available-industries",
+    "stable_path": "available-industries",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Directory",
+    "group": "Directory",
+    "endpoint": "Available Countries",
+    "path": "stable/available-countries",
+    "stable_path": "available-countries",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Analyst",
+    "group": "Analyst Estimates",
+    "endpoint": "Financial Estimates",
+    "path": "stable/analyst-estimates?symbol=AAPL&period=annual&page=0&limit=10",
+    "stable_path": "analyst-estimates",
+    "cov": "D",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Analyst",
+    "group": "Ratings",
+    "endpoint": "Ratings Snapshot",
+    "path": "stable/ratings-snapshot?symbol=AAPL",
+    "stable_path": "ratings-snapshot",
+    "cov": "F/D",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "Analyst",
+    "group": "Ratings",
+    "endpoint": "Historical Ratings",
+    "path": "stable/ratings-historical?symbol=AAPL",
+    "stable_path": "ratings-historical",
+    "cov": "F/D",
+    "arc": "B",
+    "wave": 7
+  },
+  {
+    "category": "Analyst",
+    "group": "Price Targets",
+    "endpoint": "Price Target Summary",
+    "path": "stable/price-target-summary?symbol=AAPL",
+    "stable_path": "price-target-summary",
+    "cov": "N",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "Analyst",
+    "group": "Price Targets",
+    "endpoint": "Price Target Consensus",
+    "path": "stable/price-target-consensus?symbol=AAPL",
+    "stable_path": "price-target-consensus",
+    "cov": "D",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "Analyst",
+    "group": "Upgrades Downgrades",
+    "endpoint": "Stock Grades",
+    "path": "stable/grades?symbol=AAPL",
+    "stable_path": "grades",
+    "cov": "N",
+    "arc": "E",
+    "wave": 7
+  },
+  {
+    "category": "Analyst",
+    "group": "Upgrades Downgrades",
+    "endpoint": "Historical Stock Grades",
+    "path": "stable/grades-historical?symbol=AAPL",
+    "stable_path": "grades-historical",
+    "cov": "N",
+    "arc": "B",
+    "wave": 7
+  },
+  {
+    "category": "Analyst",
+    "group": "Upgrades Downgrades",
+    "endpoint": "Stock Grades Summary",
+    "path": "stable/grades-consensus?symbol=AAPL",
+    "stable_path": "grades-consensus",
+    "cov": "N",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "Calendar",
+    "group": "Dividends",
+    "endpoint": "Dividends Company",
+    "path": "stable/dividends?symbol=AAPL",
+    "stable_path": "dividends",
+    "cov": "F",
+    "arc": "C",
+    "wave": 6
+  },
+  {
+    "category": "Calendar",
+    "group": "Dividends",
+    "endpoint": "Dividends Calendar",
+    "path": "stable/dividends-calendar",
+    "stable_path": "dividends-calendar",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Calendar",
+    "group": "Earnings",
+    "endpoint": "Earnings Report",
+    "path": "stable/earnings?symbol=AAPL",
+    "stable_path": "earnings",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Calendar",
+    "group": "Earnings",
+    "endpoint": "Earnings Calendar",
+    "path": "stable/earnings-calendar",
+    "stable_path": "earnings-calendar",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Calendar",
+    "group": "Ipos",
+    "endpoint": "IPOs Calendar",
+    "path": "stable/ipos-calendar",
+    "stable_path": "ipos-calendar",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Calendar",
+    "group": "Ipos",
+    "endpoint": "IPOs Disclosure",
+    "path": "stable/ipos-disclosure",
+    "stable_path": "ipos-disclosure",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Calendar",
+    "group": "Ipos",
+    "endpoint": "IPOs Prospectus",
+    "path": "stable/ipos-prospectus",
+    "stable_path": "ipos-prospectus",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Calendar",
+    "group": "Splits",
+    "endpoint": "Stock Split Details",
+    "path": "stable/splits?symbol=AAPL",
+    "stable_path": "splits",
+    "cov": "F",
+    "arc": "C",
+    "wave": 6
+  },
+  {
+    "category": "Calendar",
+    "group": "Splits",
+    "endpoint": "Stock Splits Calendar",
+    "path": "stable/splits-calendar",
+    "stable_path": "splits-calendar",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Chart",
+    "group": "End Of Day",
+    "endpoint": "Stock Chart Light",
+    "path": "stable/historical-price-eod/light?symbol=AAPL",
+    "stable_path": "historical-price-eod/light",
+    "cov": "F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "End Of Day",
+    "endpoint": "Stock Price and Volume Data",
+    "path": "stable/historical-price-eod/full?symbol=AAPL",
+    "stable_path": "historical-price-eod/full",
+    "cov": "D",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "End Of Day",
+    "endpoint": "Unadjusted Stock Price",
+    "path": "stable/historical-price-eod/non-split-adjusted?symbol=AAPL",
+    "stable_path": "historical-price-eod/non-split-adjusted",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "End Of Day",
+    "endpoint": "Dividend Adjusted Price Chart",
+    "path": "stable/historical-price-eod/dividend-adjusted?symbol=AAPL",
+    "stable_path": "historical-price-eod/dividend-adjusted",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "Intraday",
+    "endpoint": "1 Min Interval Stock Chart",
+    "path": "stable/historical-chart/1min?symbol=AAPL",
+    "stable_path": "historical-chart/1min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "Intraday",
+    "endpoint": "5 Min Interval Stock Chart",
+    "path": "stable/historical-chart/5min?symbol=AAPL",
+    "stable_path": "historical-chart/5min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "Intraday",
+    "endpoint": "15 Min Interval Stock Chart",
+    "path": "stable/historical-chart/15min?symbol=AAPL",
+    "stable_path": "historical-chart/15min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "Intraday",
+    "endpoint": "30 Min Interval Stock Chart",
+    "path": "stable/historical-chart/30min?symbol=AAPL",
+    "stable_path": "historical-chart/30min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "Intraday",
+    "endpoint": "1 Hour Interval Stock Chart",
+    "path": "stable/historical-chart/1hour?symbol=AAPL",
+    "stable_path": "historical-chart/1hour",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Chart",
+    "group": "Intraday",
+    "endpoint": "4 Hour Interval Stock Chart",
+    "path": "stable/historical-chart/4hour?symbol=AAPL",
+    "stable_path": "historical-chart/4hour",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Company",
+    "group": "Profile",
+    "endpoint": "Company Profile Data",
+    "path": "stable/profile?symbol=AAPL",
+    "stable_path": "profile",
+    "cov": "D",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Company",
+    "group": "Profile",
+    "endpoint": "Company Profile by CIK",
+    "path": "stable/profile-cik?cik=320193",
+    "stable_path": "profile-cik",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Company",
+    "group": "Profile",
+    "endpoint": "Company Notes",
+    "path": "stable/company-notes?symbol=AAPL",
+    "stable_path": "company-notes",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Company",
+    "group": "Profile",
+    "endpoint": "Stock Peer Comparison",
+    "path": "stable/stock-peers?symbol=AAPL",
+    "stable_path": "stock-peers",
+    "cov": "D",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Company",
+    "group": "Profile",
+    "endpoint": "Delisted Companies",
+    "path": "stable/delisted-companies?page=0&limit=100",
+    "stable_path": "delisted-companies",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Company",
+    "group": "Employee Count",
+    "endpoint": "Company Employee Count",
+    "path": "stable/employee-count?symbol=AAPL",
+    "stable_path": "employee-count",
+    "cov": "F",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Company",
+    "group": "Employee Count",
+    "endpoint": "Company Historical Employee Count",
+    "path": "stable/historical-employee-count?symbol=AAPL",
+    "stable_path": "historical-employee-count",
+    "cov": "F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Company",
+    "group": "Market Cap",
+    "endpoint": "Company Market Cap",
+    "path": "stable/market-capitalization?symbol=AAPL",
+    "stable_path": "market-capitalization",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Company",
+    "group": "Market Cap",
+    "endpoint": "Batch Market Cap",
+    "path": "stable/market-capitalization-batch?symbols=AAPL,MSFT,GOOG",
+    "stable_path": "market-capitalization-batch",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Company",
+    "group": "Market Cap",
+    "endpoint": "Historical Market Cap",
+    "path": "stable/historical-market-capitalization?symbol=AAPL",
+    "stable_path": "historical-market-capitalization",
+    "cov": "F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Company",
+    "group": "Shares Float",
+    "endpoint": "Company Share Float & Liquidity",
+    "path": "stable/shares-float?symbol=AAPL",
+    "stable_path": "shares-float",
+    "cov": "F",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Company",
+    "group": "Shares Float",
+    "endpoint": "All Shares Float",
+    "path": "stable/shares-float-all?page=0&limit=1000",
+    "stable_path": "shares-float-all",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Company",
+    "group": "Mergers",
+    "endpoint": "Latest Mergers & Acquisitions",
+    "path": "stable/mergers-acquisitions-latest?page=0&limit=100",
+    "stable_path": "mergers-acquisitions-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Company",
+    "group": "Mergers",
+    "endpoint": "Search Mergers & Acquisitions",
+    "path": "stable/mergers-acquisitions-search?name=Apple",
+    "stable_path": "mergers-acquisitions-search",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Company",
+    "group": "Executive Compensation",
+    "endpoint": "Company Executives",
+    "path": "stable/key-executives?symbol=AAPL",
+    "stable_path": "key-executives",
+    "cov": "F",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Company",
+    "group": "Executive Compensation",
+    "endpoint": "Executive Compensation",
+    "path": "stable/governance-executive-compensation?symbol=AAPL",
+    "stable_path": "governance-executive-compensation",
+    "cov": "F",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Company",
+    "group": "Executive Compensation",
+    "endpoint": "Executive Compensation Benchmark",
+    "path": "stable/executive-compensation-benchmark",
+    "stable_path": "executive-compensation-benchmark",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "CommitmentOfTraders",
+    "group": "Commitment Of Traders",
+    "endpoint": "COT Report",
+    "path": "stable/commitment-of-traders-report",
+    "stable_path": "commitment-of-traders-report",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "CommitmentOfTraders",
+    "group": "Commitment Of Traders",
+    "endpoint": "COT Analysis By Dates",
+    "path": "stable/commitment-of-traders-analysis",
+    "stable_path": "commitment-of-traders-analysis",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "CommitmentOfTraders",
+    "group": "Commitment Of Traders",
+    "endpoint": "COT Report List",
+    "path": "stable/commitment-of-traders-list",
+    "stable_path": "commitment-of-traders-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "DiscountedCashFlow",
+    "group": "Dcf",
+    "endpoint": "DCF Valuation",
+    "path": "stable/discounted-cash-flow?symbol=AAPL",
+    "stable_path": "discounted-cash-flow",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "DiscountedCashFlow",
+    "group": "Dcf",
+    "endpoint": "Levered DCF",
+    "path": "stable/levered-discounted-cash-flow?symbol=AAPL",
+    "stable_path": "levered-discounted-cash-flow",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "DiscountedCashFlow",
+    "group": "Dcf",
+    "endpoint": "Custom DCF Advanced",
+    "path": "stable/custom-discounted-cash-flow?symbol=AAPL",
+    "stable_path": "custom-discounted-cash-flow",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "DiscountedCashFlow",
+    "group": "Dcf",
+    "endpoint": "Custom DCF Levered",
+    "path": "stable/custom-levered-discounted-cash-flow?symbol=AAPL",
+    "stable_path": "custom-levered-discounted-cash-flow",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Economics",
+    "group": "Economics Data",
+    "endpoint": "Treasury Rates",
+    "path": "stable/treasury-rates",
+    "stable_path": "treasury-rates",
+    "cov": "D",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Economics",
+    "group": "Economics Data",
+    "endpoint": "Economics Indicators",
+    "path": "stable/economic-indicators?name=GDP",
+    "stable_path": "economic-indicators",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Economics",
+    "group": "Economics Data",
+    "endpoint": "Economic Data Releases Calendar",
+    "path": "stable/economic-calendar",
+    "stable_path": "economic-calendar",
+    "cov": "D",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Economics",
+    "group": "Economics Data",
+    "endpoint": "Market Risk Premium",
+    "path": "stable/market-risk-premium",
+    "stable_path": "market-risk-premium",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "ESG",
+    "group": "Esg",
+    "endpoint": "ESG Investment Search",
+    "path": "stable/esg-disclosures?symbol=AAPL",
+    "stable_path": "esg-disclosures",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "ESG",
+    "group": "Esg",
+    "endpoint": "ESG Ratings",
+    "path": "stable/esg-ratings?symbol=AAPL",
+    "stable_path": "esg-ratings",
+    "cov": "F",
+    "arc": "C",
+    "wave": 6
+  },
+  {
+    "category": "ESG",
+    "group": "Esg",
+    "endpoint": "ESG Benchmark Comparison",
+    "path": "stable/esg-benchmark",
+    "stable_path": "esg-benchmark",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Holdings",
+    "endpoint": "ETF & Fund Holdings",
+    "path": "stable/etf/holdings?symbol=SPY",
+    "stable_path": "etf/holdings",
+    "cov": "D",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Holdings",
+    "endpoint": "ETF & Mutual Fund Information",
+    "path": "stable/etf/info?symbol=SPY",
+    "stable_path": "etf/info",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Holdings",
+    "endpoint": "ETF & Fund Country Allocation",
+    "path": "stable/etf/country-weightings?symbol=SPY",
+    "stable_path": "etf/country-weightings",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Holdings",
+    "endpoint": "ETF Asset Exposure",
+    "path": "stable/etf/asset-exposure?symbol=AAPL",
+    "stable_path": "etf/asset-exposure",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Holding",
+    "endpoint": "ETF Sector Weighting",
+    "path": "stable/etf/sector-weightings?symbol=SPY",
+    "stable_path": "etf/sector-weightings",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Fund Disclosures",
+    "endpoint": "Mutual Fund & ETF Disclosure",
+    "path": "stable/funds/disclosure-holders-latest?symbol=AAPL",
+    "stable_path": "funds/disclosure-holders-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Fund Disclosures",
+    "endpoint": "Mutual Fund Disclosures",
+    "path": "stable/funds/disclosure?symbol=VWO&year=2023&quarter=4",
+    "stable_path": "funds/disclosure",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Fund Disclosures",
+    "endpoint": "Mutual Fund & ETF Disclosure Name Search",
+    "path": "stable/funds/disclosure-holders-search?name=Federated Hermes Government Income Securities, Inc.",
+    "stable_path": "funds/disclosure-holders-search",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "EtfAndMutualFunds",
+    "group": "Fund Disclosures",
+    "endpoint": "Fund & ETF Disclosures by Date",
+    "path": "stable/funds/disclosure-dates?symbol=VWO",
+    "stable_path": "funds/disclosure-dates",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Statements",
+    "group": "Financial Statements",
+    "endpoint": "Income Statement",
+    "path": "stable/income-statement?symbol=AAPL",
+    "stable_path": "income-statement",
+    "cov": "D",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Financial Statements",
+    "endpoint": "Balance Sheet Statement",
+    "path": "stable/balance-sheet-statement?symbol=AAPL",
+    "stable_path": "balance-sheet-statement",
+    "cov": "D",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Financial Statements",
+    "endpoint": "Cash Flow Statement",
+    "path": "stable/cash-flow-statement?symbol=AAPL",
+    "stable_path": "cash-flow-statement",
+    "cov": "D",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Financial Statements",
+    "endpoint": "Latest Financial Statements",
+    "path": "stable/latest-financial-statements?page=0&limit=250",
+    "stable_path": "latest-financial-statements",
+    "cov": "N",
+    "arc": "E",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Financial StatementsTTM",
+    "endpoint": "Income Statements TTM",
+    "path": "stable/income-statement-ttm?symbol=AAPL",
+    "stable_path": "income-statement-ttm",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Financial StatementsTTM",
+    "endpoint": "Balance Sheet Statements TTM",
+    "path": "stable/balance-sheet-statement-ttm?symbol=AAPL",
+    "stable_path": "balance-sheet-statement-ttm",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Financial StatementsTTM",
+    "endpoint": "Cashflow Statements TTM",
+    "path": "stable/cash-flow-statement-ttm?symbol=AAPL",
+    "stable_path": "cash-flow-statement-ttm",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Ratios",
+    "endpoint": "Key Metrics",
+    "path": "stable/key-metrics?symbol=AAPL",
+    "stable_path": "key-metrics",
+    "cov": "D",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Ratios",
+    "endpoint": "Financial Ratios",
+    "path": "stable/ratios?symbol=AAPL",
+    "stable_path": "ratios",
+    "cov": "D",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Ratios",
+    "endpoint": "Key Metrics TTM",
+    "path": "stable/key-metrics-ttm?symbol=AAPL",
+    "stable_path": "key-metrics-ttm",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Ratios",
+    "endpoint": "Financial Ratios TTM",
+    "path": "stable/ratios-ttm?symbol=AAPL",
+    "stable_path": "ratios-ttm",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Analysis",
+    "endpoint": "Financial Scores",
+    "path": "stable/financial-scores?symbol=AAPL",
+    "stable_path": "financial-scores",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Analysis",
+    "endpoint": "Owner Earnings",
+    "path": "stable/owner-earnings?symbol=AAPL",
+    "stable_path": "owner-earnings",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Analysis",
+    "endpoint": "Enterprise Values",
+    "path": "stable/enterprise-values?symbol=AAPL",
+    "stable_path": "enterprise-values",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Growth",
+    "endpoint": "Income Statement Growth",
+    "path": "stable/income-statement-growth?symbol=AAPL",
+    "stable_path": "income-statement-growth",
+    "cov": "F",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Growth",
+    "endpoint": "Balance Sheet Statement Growth",
+    "path": "stable/balance-sheet-statement-growth?symbol=AAPL",
+    "stable_path": "balance-sheet-statement-growth",
+    "cov": "F",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Growth",
+    "endpoint": "Cashflow Statement Growth",
+    "path": "stable/cash-flow-statement-growth?symbol=AAPL",
+    "stable_path": "cash-flow-statement-growth",
+    "cov": "F",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Growth",
+    "endpoint": "Financial Statement Growth",
+    "path": "stable/financial-growth?symbol=AAPL",
+    "stable_path": "financial-growth",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Formats",
+    "endpoint": "Financial Reports Dates",
+    "path": "stable/financial-reports-dates?symbol=AAPL",
+    "stable_path": "financial-reports-dates",
+    "cov": "N",
+    "arc": "E",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Formats",
+    "endpoint": "Financial Reports Form 10-K JSON",
+    "path": "stable/financial-reports-json?symbol=AAPL&year=2022&period=FY",
+    "stable_path": "financial-reports-json",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Formats",
+    "endpoint": "Financial Reports Form 10-K XLSX",
+    "path": "stable/financial-reports-xlsx?symbol=AAPL&year=2022&period=FY",
+    "stable_path": "financial-reports-xlsx",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Segmentation",
+    "endpoint": "Revenue Product Segmentation",
+    "path": "stable/revenue-product-segmentation?symbol=AAPL",
+    "stable_path": "revenue-product-segmentation",
+    "cov": "F",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "Segmentation",
+    "endpoint": "Revenue Geographic Segments",
+    "path": "stable/revenue-geographic-segmentation?symbol=AAPL",
+    "stable_path": "revenue-geographic-segmentation",
+    "cov": "F",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "As Reported",
+    "endpoint": "As Reported Income Statements",
+    "path": "stable/income-statement-as-reported?symbol=AAPL",
+    "stable_path": "income-statement-as-reported",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "As Reported",
+    "endpoint": "As Reported Balance Statements",
+    "path": "stable/balance-sheet-statement-as-reported?symbol=AAPL",
+    "stable_path": "balance-sheet-statement-as-reported",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "As Reported",
+    "endpoint": "As Reported Cashflow Statements",
+    "path": "stable/cash-flow-statement-as-reported?symbol=AAPL",
+    "stable_path": "cash-flow-statement-as-reported",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Statements",
+    "group": "As Reported",
+    "endpoint": "As Reported Financial Statements",
+    "path": "stable/financial-statement-full-as-reported?symbol=AAPL",
+    "stable_path": "financial-statement-full-as-reported",
+    "cov": "N",
+    "arc": "C",
+    "wave": 1
+  },
+  {
+    "category": "Form13F",
+    "group": "Extract",
+    "endpoint": "Institutional Ownership Filings",
+    "path": "stable/institutional-ownership/latest?page=0&limit=100",
+    "stable_path": "institutional-ownership/latest",
+    "cov": "D",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Form13F",
+    "group": "Extract",
+    "endpoint": "Filings Extract",
+    "path": "stable/institutional-ownership/extract?cik=0001388838&year=2023&quarter=3",
+    "stable_path": "institutional-ownership/extract",
+    "cov": "D",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Form13F",
+    "group": "Extract",
+    "endpoint": "Form 13F Filings Dates",
+    "path": "stable/institutional-ownership/dates?cik=0001067983",
+    "stable_path": "institutional-ownership/dates",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Form13F",
+    "group": "Holder",
+    "endpoint": "Filings Extract With Analytics By Holder",
+    "path": "stable/institutional-ownership/extract-analytics/holder?symbol=AAPL&year=2023&quarter=3&page=0&limit=10",
+    "stable_path": "institutional-ownership/extract-analytics/holder",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "Form13F",
+    "group": "Holder",
+    "endpoint": "Holder Performance Summary",
+    "path": "stable/institutional-ownership/holder-performance-summary?cik=0001067983&page=0",
+    "stable_path": "institutional-ownership/holder-performance-summary",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "Form13F",
+    "group": "Holder",
+    "endpoint": "Holders Industry Breakdown",
+    "path": "stable/institutional-ownership/holder-industry-breakdown?cik=0001067983&year=2023&quarter=3",
+    "stable_path": "institutional-ownership/holder-industry-breakdown",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "Form13F",
+    "group": "Symbol",
+    "endpoint": "Positions Summary",
+    "path": "stable/institutional-ownership/symbol-positions-summary?symbol=AAPL&year=2023&quarter=3",
+    "stable_path": "institutional-ownership/symbol-positions-summary",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "Form13F",
+    "group": "Symbol",
+    "endpoint": "Industry Performance Summary",
+    "path": "stable/institutional-ownership/industry-summary?year=2023&quarter=3",
+    "stable_path": "institutional-ownership/industry-summary",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "Indexes",
+    "group": "Indexes",
+    "endpoint": "Stock Market Indexes List",
+    "path": "stable/index-list",
+    "stable_path": "index-list",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Indexes",
+    "group": "Quotes",
+    "endpoint": "Index Quote",
+    "path": "stable/quote?symbol=^VIX",
+    "stable_path": "quote",
+    "cov": "D",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Indexes",
+    "group": "Quotes",
+    "endpoint": "Index Short Quote",
+    "path": "stable/quote-short?symbol=^VIX",
+    "stable_path": "quote-short",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Indexes",
+    "group": "Quotes",
+    "endpoint": "All Index Quotes",
+    "path": "stable/batch-index-quotes",
+    "stable_path": "batch-index-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Indexes",
+    "group": "End Of Day",
+    "endpoint": "Historical Index Light Chart",
+    "path": "stable/historical-price-eod/light?symbol=^VIX",
+    "stable_path": "historical-price-eod/light",
+    "cov": "F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Indexes",
+    "group": "End Of Day",
+    "endpoint": "Historical Index Full Chart",
+    "path": "stable/historical-price-eod/full?symbol=^VIX",
+    "stable_path": "historical-price-eod/full",
+    "cov": "D",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Indexes",
+    "group": "Intraday",
+    "endpoint": "1-Minute Interval Index Price",
+    "path": "stable/historical-chart/1min?symbol=^VIX",
+    "stable_path": "historical-chart/1min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Indexes",
+    "group": "Intraday",
+    "endpoint": "5-Minute Interval Index Price",
+    "path": "stable/historical-chart/5min?symbol=^VIX",
+    "stable_path": "historical-chart/5min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Indexes",
+    "group": "Intraday",
+    "endpoint": "1-Hour Interval Index Price",
+    "path": "stable/historical-chart/1hour?symbol=^VIX",
+    "stable_path": "historical-chart/1hour",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Indexes",
+    "group": "Latest Constituents",
+    "endpoint": "S&P 500 Index",
+    "path": "stable/sp500-constituent",
+    "stable_path": "sp500-constituent",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Indexes",
+    "group": "Latest Constituents",
+    "endpoint": "Nasdaq Index",
+    "path": "stable/nasdaq-constituent",
+    "stable_path": "nasdaq-constituent",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Indexes",
+    "group": "Latest Constituents",
+    "endpoint": "Dow Jones",
+    "path": "stable/dowjones-constituent",
+    "stable_path": "dowjones-constituent",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Indexes",
+    "group": "Historical Constituents",
+    "endpoint": "Historical S&P 500",
+    "path": "stable/historical-sp500-constituent",
+    "stable_path": "historical-sp500-constituent",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Indexes",
+    "group": "Historical Constituents",
+    "endpoint": "Historical Nasdaq",
+    "path": "stable/historical-nasdaq-constituent",
+    "stable_path": "historical-nasdaq-constituent",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Indexes",
+    "group": "Historical Constituents",
+    "endpoint": "Historical Dow Jones",
+    "path": "stable/historical-dowjones-constituent",
+    "stable_path": "historical-dowjones-constituent",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Commodity",
+    "group": "Commodities",
+    "endpoint": "Commodities List",
+    "path": "stable/commodities-list",
+    "stable_path": "commodities-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Commodity",
+    "group": "Quotes",
+    "endpoint": "Commodities Quote",
+    "path": "stable/quote?symbol=GCUSD",
+    "stable_path": "quote",
+    "cov": "D",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Commodity",
+    "group": "Quotes",
+    "endpoint": "Commodities Quote Short",
+    "path": "stable/quote-short?symbol=GCUSD",
+    "stable_path": "quote-short",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Commodity",
+    "group": "Quotes",
+    "endpoint": "All Commodities Quotes",
+    "path": "stable/batch-commodity-quotes",
+    "stable_path": "batch-commodity-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Commodity",
+    "group": "End Of Day",
+    "endpoint": "Light Chart",
+    "path": "stable/historical-price-eod/light?symbol=GCUSD",
+    "stable_path": "historical-price-eod/light",
+    "cov": "F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Commodity",
+    "group": "End Of Day",
+    "endpoint": "Full Chart",
+    "path": "stable/historical-price-eod/full?symbol=GCUSD",
+    "stable_path": "historical-price-eod/full",
+    "cov": "D",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Commodity",
+    "group": "Intraday",
+    "endpoint": "1-Minute Interval Commodities Chart",
+    "path": "stable/historical-chart/1min?symbol=GCUSD",
+    "stable_path": "historical-chart/1min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Commodity",
+    "group": "Intraday",
+    "endpoint": "5-Minute Interval Commodities Chart",
+    "path": "stable/historical-chart/5min?symbol=GCUSD",
+    "stable_path": "historical-chart/5min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Commodity",
+    "group": "Intraday",
+    "endpoint": "1-Hour Interval Commodities Chart",
+    "path": "stable/historical-chart/1hour?symbol=GCUSD",
+    "stable_path": "historical-chart/1hour",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Crypto",
+    "group": "Cryptocurrency",
+    "endpoint": "Cryptocurrency List",
+    "path": "stable/cryptocurrency-list",
+    "stable_path": "cryptocurrency-list",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Crypto",
+    "group": "Quotes",
+    "endpoint": "Full Cryptocurrency Quote",
+    "path": "stable/quote?symbol=BTCUSD",
+    "stable_path": "quote",
+    "cov": "D",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Crypto",
+    "group": "Quotes",
+    "endpoint": "Cryptocurrency Quote Short",
+    "path": "stable/quote-short?symbol=BTCUSD",
+    "stable_path": "quote-short",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Crypto",
+    "group": "Quotes",
+    "endpoint": "All Cryptocurrencies Quotes",
+    "path": "stable/batch-crypto-quotes",
+    "stable_path": "batch-crypto-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Crypto",
+    "group": "End Of Day",
+    "endpoint": "Historical Cryptocurrency Light Chart",
+    "path": "stable/historical-price-eod/light?symbol=BTCUSD",
+    "stable_path": "historical-price-eod/light",
+    "cov": "F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Crypto",
+    "group": "End Of Day",
+    "endpoint": "Historical Cryptocurrency Full Chart",
+    "path": "stable/historical-price-eod/full?symbol=BTCUSD",
+    "stable_path": "historical-price-eod/full",
+    "cov": "D",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Crypto",
+    "group": "Intraday",
+    "endpoint": "1-Minute Interval Cryptocurrency Data",
+    "path": "stable/historical-chart/1min?symbol=BTCUSD",
+    "stable_path": "historical-chart/1min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Crypto",
+    "group": "Intraday",
+    "endpoint": "5-Minute Interval Cryptocurrency Data",
+    "path": "stable/historical-chart/5min?symbol=BTCUSD",
+    "stable_path": "historical-chart/5min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Crypto",
+    "group": "Intraday",
+    "endpoint": "1-Hour Interval Cryptocurrency Data",
+    "path": "stable/historical-chart/1hour?symbol=BTCUSD",
+    "stable_path": "historical-chart/1hour",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Fundraisers",
+    "group": "Crowdfunding",
+    "endpoint": "Latest Crowdfunding Campaigns",
+    "path": "stable/crowdfunding-offerings-latest?page=0&limit=100",
+    "stable_path": "crowdfunding-offerings-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Fundraisers",
+    "group": "Crowdfunding",
+    "endpoint": "Crowdfunding Campaign Search",
+    "path": "stable/crowdfunding-offerings-search?name=enotap",
+    "stable_path": "crowdfunding-offerings-search",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Fundraisers",
+    "group": "Crowdfunding",
+    "endpoint": "Crowdfunding By CIK",
+    "path": "stable/crowdfunding-offerings?cik=0001916078",
+    "stable_path": "crowdfunding-offerings",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Fundraisers",
+    "group": "Equity",
+    "endpoint": "Equity Offering Updates",
+    "path": "stable/fundraising-latest?page=0&limit=10",
+    "stable_path": "fundraising-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Fundraisers",
+    "group": "Equity",
+    "endpoint": "Equity Offering Search",
+    "path": "stable/fundraising-search?name=NJOY",
+    "stable_path": "fundraising-search",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Fundraisers",
+    "group": "Equity",
+    "endpoint": "Equity Offering By CIK",
+    "path": "stable/fundraising?cik=0001547416",
+    "stable_path": "fundraising",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Forex",
+    "group": "Forex",
+    "endpoint": "Forex Currency Pairs",
+    "path": "stable/forex-list",
+    "stable_path": "forex-list",
+    "cov": "F",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "Forex",
+    "group": "Quotes",
+    "endpoint": "Forex Quote",
+    "path": "stable/quote?symbol=EURUSD",
+    "stable_path": "quote",
+    "cov": "D",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Forex",
+    "group": "Quotes",
+    "endpoint": "Forex Short Quote",
+    "path": "stable/quote-short?symbol=EURUSD",
+    "stable_path": "quote-short",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Forex",
+    "group": "Quotes",
+    "endpoint": "Batch Forex Quotes",
+    "path": "stable/batch-forex-quotes",
+    "stable_path": "batch-forex-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Forex",
+    "group": "End Of Day",
+    "endpoint": "Historical Forex Light Chart",
+    "path": "stable/historical-price-eod/light?symbol=EURUSD",
+    "stable_path": "historical-price-eod/light",
+    "cov": "F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Forex",
+    "group": "End Of Day",
+    "endpoint": "Historical Forex Full Chart",
+    "path": "stable/historical-price-eod/full?symbol=EURUSD",
+    "stable_path": "historical-price-eod/full",
+    "cov": "D",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Forex",
+    "group": "Intraday",
+    "endpoint": "1-Minute Interval Forex Chart",
+    "path": "stable/historical-chart/1min?symbol=EURUSD",
+    "stable_path": "historical-chart/1min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Forex",
+    "group": "Intraday",
+    "endpoint": "5-Minute Interval Forex Chart",
+    "path": "stable/historical-chart/5min?symbol=EURUSD",
+    "stable_path": "historical-chart/5min",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "Forex",
+    "group": "Intraday",
+    "endpoint": "1-Hour Interval Forex Chart",
+    "path": "stable/historical-chart/1hour?symbol=EURUSD",
+    "stable_path": "historical-chart/1hour",
+    "cov": "D/F",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "InsiderTrades",
+    "group": "Latest",
+    "endpoint": "Latest Insider Trading",
+    "path": "stable/insider-trading/latest?page=0&limit=100",
+    "stable_path": "insider-trading/latest",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "InsiderTrades",
+    "group": "Search",
+    "endpoint": "Search Insider Trades",
+    "path": "stable/insider-trading/search?page=0&limit=100",
+    "stable_path": "insider-trading/search",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "InsiderTrades",
+    "group": "Search",
+    "endpoint": "Search Insider Trades by Reporting Name",
+    "path": "stable/insider-trading/reporting-name?name=Zuckerberg",
+    "stable_path": "insider-trading/reporting-name",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "InsiderTrades",
+    "group": "Statistics",
+    "endpoint": "All Insider Transaction Types",
+    "path": "stable/insider-trading-transaction-type",
+    "stable_path": "insider-trading-transaction-type",
+    "cov": "N",
+    "arc": "A",
+    "wave": 5
+  },
+  {
+    "category": "InsiderTrades",
+    "group": "Statistics",
+    "endpoint": "Insider Trade Statistics",
+    "path": "stable/insider-trading/statistics?symbol=AAPL",
+    "stable_path": "insider-trading/statistics",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "InsiderTrades",
+    "group": "Acquisition Ownership",
+    "endpoint": "Acquisition Ownership",
+    "path": "stable/acquisition-of-beneficial-ownership?symbol=AAPL",
+    "stable_path": "acquisition-of-beneficial-ownership",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "Market Performance",
+    "endpoint": "Market Sector Performance Snapshot",
+    "path": "stable/sector-performance-snapshot?date=2024-02-01",
+    "stable_path": "sector-performance-snapshot",
+    "cov": "N",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "Market Performance",
+    "endpoint": "Industry Performance Snapshot",
+    "path": "stable/industry-performance-snapshot?date=2024-02-01",
+    "stable_path": "industry-performance-snapshot",
+    "cov": "N",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "Market Performance",
+    "endpoint": "Historical Market Sector Performance",
+    "path": "stable/historical-sector-performance?sector=Energy",
+    "stable_path": "historical-sector-performance",
+    "cov": "N",
+    "arc": "B",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "Market Performance",
+    "endpoint": "Historical Industry Performance",
+    "path": "stable/historical-industry-performance?industry=Biotechnology",
+    "stable_path": "historical-industry-performance",
+    "cov": "N",
+    "arc": "B",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "PE Ratio",
+    "endpoint": "Sector Pe Snapshot",
+    "path": "stable/sector-pe-snapshot?date=2024-02-01",
+    "stable_path": "sector-pe-snapshot",
+    "cov": "N",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "PE Ratio",
+    "endpoint": "Industry Pe Snapshot",
+    "path": "stable/industry-pe-snapshot?date=2024-02-01",
+    "stable_path": "industry-pe-snapshot",
+    "cov": "N",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "PE Ratio",
+    "endpoint": "Historical Sector PE",
+    "path": "stable/historical-sector-pe?sector=Energy",
+    "stable_path": "historical-sector-pe",
+    "cov": "N",
+    "arc": "B",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "PE Ratio",
+    "endpoint": "Historical Industry PE",
+    "path": "stable/historical-industry-pe?industry=Biotechnology",
+    "stable_path": "historical-industry-pe",
+    "cov": "N",
+    "arc": "B",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "Market Leaders",
+    "endpoint": "Biggest Stock Gainers",
+    "path": "stable/biggest-gainers",
+    "stable_path": "biggest-gainers",
+    "cov": "D",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "Market Leaders",
+    "endpoint": "Biggest Stock Losers",
+    "path": "stable/biggest-losers",
+    "stable_path": "biggest-losers",
+    "cov": "D",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "MarketPerformance",
+    "group": "Market Leaders",
+    "endpoint": "Top Traded Stocks",
+    "path": "stable/most-actives",
+    "stable_path": "most-actives",
+    "cov": "D",
+    "arc": "D",
+    "wave": 7
+  },
+  {
+    "category": "MarketHours",
+    "group": "Market Hours",
+    "endpoint": "Global Exchange Market Hours",
+    "path": "stable/exchange-market-hours?exchange=NASDAQ",
+    "stable_path": "exchange-market-hours",
+    "cov": "D",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "MarketHours",
+    "group": "Market Hours",
+    "endpoint": "Holidays By Exchange",
+    "path": "stable/holidays-by-exchange?exchange=NASDAQ",
+    "stable_path": "holidays-by-exchange",
+    "cov": "N",
+    "arc": "A",
+    "wave": 4
+  },
+  {
+    "category": "MarketHours",
+    "group": "Market Hours",
+    "endpoint": "All Exchange Market Hours",
+    "path": "stable/all-exchange-market-hours",
+    "stable_path": "all-exchange-market-hours",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Simple Moving Average",
+    "path": "stable/technical-indicators/sma?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/sma",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Exponential Moving Average",
+    "path": "stable/technical-indicators/ema?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/ema",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Weighted Moving Average",
+    "path": "stable/technical-indicators/wma?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/wma",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Double Exponential Moving Average",
+    "path": "stable/technical-indicators/dema?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/dema",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Triple Exponential Moving Average",
+    "path": "stable/technical-indicators/tema?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/tema",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Relative Strength Index",
+    "path": "stable/technical-indicators/rsi?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/rsi",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Standard Deviation",
+    "path": "stable/technical-indicators/standarddeviation?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/standarddeviation",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Williams",
+    "path": "stable/technical-indicators/williams?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/williams",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "TechnicalIndicators",
+    "group": "Technical Indicators",
+    "endpoint": "Average Directional Index",
+    "path": "stable/technical-indicators/adx?symbol=AAPL&periodLength=10&timeframe=1day",
+    "stable_path": "technical-indicators/adx",
+    "cov": "N",
+    "arc": "B",
+    "wave": 3
+  },
+  {
+    "category": "News",
+    "group": "Articles",
+    "endpoint": "FMP Articles",
+    "path": "stable/fmp-articles?page=0&limit=20",
+    "stable_path": "fmp-articles",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Articles",
+    "endpoint": "General News",
+    "path": "stable/news/general-latest?page=0&limit=20",
+    "stable_path": "news/general-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Articles",
+    "endpoint": "Press Releases",
+    "path": "stable/news/press-releases-latest?page=0&limit=20",
+    "stable_path": "news/press-releases-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Articles",
+    "endpoint": "Stock News",
+    "path": "stable/news/stock-latest?page=0&limit=20",
+    "stable_path": "news/stock-latest",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Articles",
+    "endpoint": "Crypto News",
+    "path": "stable/news/crypto-latest?page=0&limit=20",
+    "stable_path": "news/crypto-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Articles",
+    "endpoint": "Forex News",
+    "path": "stable/news/forex-latest?page=0&limit=20",
+    "stable_path": "news/forex-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Symbol",
+    "endpoint": "Search Press Releases",
+    "path": "stable/news/press-releases?symbols=AAPL",
+    "stable_path": "news/press-releases",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Symbol",
+    "endpoint": "Search Stock News",
+    "path": "stable/news/stock?symbols=AAPL",
+    "stable_path": "news/stock",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Symbol",
+    "endpoint": "Search Crypto News",
+    "path": "stable/news/crypto?symbols=BTCUSD",
+    "stable_path": "news/crypto",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "News",
+    "group": "Symbol",
+    "endpoint": "Search Forex News",
+    "path": "stable/news/forex?symbols=EURUSD",
+    "stable_path": "news/forex",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "Quote",
+    "group": "Single Quote",
+    "endpoint": "Stock Quote",
+    "path": "stable/quote?symbol=AAPL",
+    "stable_path": "quote",
+    "cov": "D",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Single Quote",
+    "endpoint": "Stock Quote Short",
+    "path": "stable/quote-short?symbol=AAPL",
+    "stable_path": "quote-short",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Single Quote",
+    "endpoint": "Aftermarket Trade",
+    "path": "stable/aftermarket-trade?symbol=AAPL",
+    "stable_path": "aftermarket-trade",
+    "cov": "F",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Single Quote",
+    "endpoint": "Aftermarket Quote",
+    "path": "stable/aftermarket-quote?symbol=AAPL",
+    "stable_path": "aftermarket-quote",
+    "cov": "D",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Single Quote",
+    "endpoint": "Stock Price Change",
+    "path": "stable/stock-price-change?symbol=AAPL",
+    "stable_path": "stock-price-change",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch",
+    "endpoint": "Stock Batch Quote",
+    "path": "stable/batch-quote?symbols=AAPL",
+    "stable_path": "batch-quote",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch",
+    "endpoint": "Stock Batch Quote Short",
+    "path": "stable/batch-quote-short?symbols=AAPL",
+    "stable_path": "batch-quote-short",
+    "cov": "F",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch",
+    "endpoint": "Batch Aftermarket Trade",
+    "path": "stable/batch-aftermarket-trade?symbols=AAPL",
+    "stable_path": "batch-aftermarket-trade",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch",
+    "endpoint": "Batch Aftermarket Quote",
+    "path": "stable/batch-aftermarket-quote?symbols=AAPL",
+    "stable_path": "batch-aftermarket-quote",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch List",
+    "endpoint": "Exchange Stock Quotes",
+    "path": "stable/batch-exchange-quote?exchange=NASDAQ",
+    "stable_path": "batch-exchange-quote",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch List",
+    "endpoint": "Mutual Fund Price Quotes",
+    "path": "stable/batch-mutualfund-quotes",
+    "stable_path": "batch-mutualfund-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch List",
+    "endpoint": "ETF Price Quotes",
+    "path": "stable/batch-etf-quotes",
+    "stable_path": "batch-etf-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch List",
+    "endpoint": "Full Commodities Quotes",
+    "path": "stable/batch-commodity-quotes",
+    "stable_path": "batch-commodity-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch List",
+    "endpoint": "Full Cryptocurrency Quotes",
+    "path": "stable/batch-crypto-quotes",
+    "stable_path": "batch-crypto-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch List",
+    "endpoint": "Full Forex Quote",
+    "path": "stable/batch-forex-quotes",
+    "stable_path": "batch-forex-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "Quote",
+    "group": "Batch List",
+    "endpoint": "Full Index Quotes",
+    "path": "stable/batch-index-quotes",
+    "stable_path": "batch-index-quotes",
+    "cov": "N",
+    "arc": "D",
+    "wave": 2
+  },
+  {
+    "category": "SecFilings",
+    "group": "Latest Filings",
+    "endpoint": "Latest 8-K SEC Filings",
+    "path": "stable/sec-filings-8k?from=2024-01-01&to=2024-03-01&page=0&limit=100",
+    "stable_path": "sec-filings-8k",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Latest Filings",
+    "endpoint": "Latest SEC Filings",
+    "path": "stable/sec-filings-financials?from=2024-01-01&to=2024-03-01&page=0&limit=100",
+    "stable_path": "sec-filings-financials",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Search Filings",
+    "endpoint": "SEC Filings By Form Type",
+    "path": "stable/sec-filings-search/form-type?formType=8-K&from=2024-01-01&to=2024-03-01&page=0&limit=100",
+    "stable_path": "sec-filings-search/form-type",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Search Filings",
+    "endpoint": "SEC Filings By Symbol",
+    "path": "stable/sec-filings-search/symbol?symbol=AAPL&from=2024-01-01&to=2024-03-01&page=0&limit=100",
+    "stable_path": "sec-filings-search/symbol",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Search Filings",
+    "endpoint": "SEC Filings By CIK",
+    "path": "stable/sec-filings-search/cik?cik=0000320193&from=2024-01-01&to=2024-03-01&page=0&limit=100",
+    "stable_path": "sec-filings-search/cik",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Search Filings",
+    "endpoint": "SEC Filings By Name",
+    "path": "stable/sec-filings-company-search/name?company=Berkshire",
+    "stable_path": "sec-filings-company-search/name",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Company Info",
+    "endpoint": "SEC Filings Company Search By Symbol",
+    "path": "stable/sec-filings-company-search/symbol?symbol=AAPL",
+    "stable_path": "sec-filings-company-search/symbol",
+    "cov": "N",
+    "arc": "A",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Company Info",
+    "endpoint": "SEC Filings Company Search By CIK",
+    "path": "stable/sec-filings-company-search/cik?cik=0000320193",
+    "stable_path": "sec-filings-company-search/cik",
+    "cov": "N",
+    "arc": "A",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Company Info",
+    "endpoint": "SEC Company Full Profile",
+    "path": "stable/sec-profile?symbol=AAPL",
+    "stable_path": "sec-profile",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Industry Classification",
+    "endpoint": "Industry Classification List",
+    "path": "stable/standard-industrial-classification-list",
+    "stable_path": "standard-industrial-classification-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Industry Classification",
+    "endpoint": "Industry Classification Search",
+    "path": "stable/industry-classification-search",
+    "stable_path": "industry-classification-search",
+    "cov": "N",
+    "arc": "A",
+    "wave": 5
+  },
+  {
+    "category": "SecFilings",
+    "group": "Industry Classification",
+    "endpoint": "All Industry Classification",
+    "path": "stable/all-industry-classification",
+    "stable_path": "all-industry-classification",
+    "cov": "N",
+    "arc": "A",
+    "wave": 5
+  },
+  {
+    "category": "EarningsTranscript",
+    "group": "Earnings Transcript",
+    "endpoint": "Latest Earning Transcripts",
+    "path": "stable/earning-call-transcript-latest",
+    "stable_path": "earning-call-transcript-latest",
+    "cov": "N",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "EarningsTranscript",
+    "group": "Earnings Transcript",
+    "endpoint": "Earnings Transcript",
+    "path": "stable/earning-call-transcript?symbol=AAPL&year=2020&quarter=3",
+    "stable_path": "earning-call-transcript",
+    "cov": "F",
+    "arc": "E",
+    "wave": 6
+  },
+  {
+    "category": "EarningsTranscript",
+    "group": "Earnings Transcript",
+    "endpoint": "Transcripts Dates By Symbol",
+    "path": "stable/earning-call-transcript-dates?symbol=AAPL",
+    "stable_path": "earning-call-transcript-dates",
+    "cov": "N",
+    "arc": "A",
+    "wave": 6
+  },
+  {
+    "category": "EarningsTranscript",
+    "group": "Earnings Transcript",
+    "endpoint": "Available Transcript Symbols",
+    "path": "stable/earnings-transcript-list",
+    "stable_path": "earnings-transcript-list",
+    "cov": "N",
+    "arc": "A",
+    "wave": 6
+  },
+  {
+    "category": "Senate",
+    "group": "Latest",
+    "endpoint": "Latest Senate Financial Disclosures",
+    "path": "stable/senate-latest?page=0&limit=100",
+    "stable_path": "senate-latest",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Latest",
+    "endpoint": "Latest House Financial Disclosures",
+    "path": "stable/house-latest?page=0&limit=100",
+    "stable_path": "house-latest",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Symbol",
+    "endpoint": "Senate Trading Activity",
+    "path": "stable/senate-trades?symbol=AAPL",
+    "stable_path": "senate-trades",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Symbol",
+    "endpoint": "Senate Trades By Name",
+    "path": "stable/senate-trades-by-name?name=Jerry",
+    "stable_path": "senate-trades-by-name",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Symbol",
+    "endpoint": "Senate Trades By ID",
+    "path": "stable/senate-trades-by-id",
+    "stable_path": "senate-trades-by-id",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Symbol",
+    "endpoint": "U.S. House Trades",
+    "path": "stable/house-trades?symbol=AAPL",
+    "stable_path": "house-trades",
+    "cov": "F",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Symbol",
+    "endpoint": "House Trades By Name",
+    "path": "stable/house-trades-by-name?name=James",
+    "stable_path": "house-trades-by-name",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Symbol",
+    "endpoint": "House Trades By ID",
+    "path": "stable/house-trades-by-id",
+    "stable_path": "house-trades-by-id",
+    "cov": "N",
+    "arc": "E",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Profile",
+    "endpoint": "Senate Profiles",
+    "path": "stable/senate-profile",
+    "stable_path": "senate-profile",
+    "cov": "N",
+    "arc": "A",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Profile",
+    "endpoint": "Senate Positions",
+    "path": "stable/senate-positions",
+    "stable_path": "senate-positions",
+    "cov": "N",
+    "arc": "A",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Profile",
+    "endpoint": "Senate Net Worth",
+    "path": "stable/senate-net-worth?senateID=P000197&page=0&limit=250",
+    "stable_path": "senate-net-worth",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "Senate",
+    "group": "Profile",
+    "endpoint": "Senate Net Worth Aggregated",
+    "path": "stable/senate-net-worth-aggregated?senateID=P000197",
+    "stable_path": "senate-net-worth-aggregated",
+    "cov": "N",
+    "arc": "C",
+    "wave": 5
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Company Profile Bulk",
+    "path": "stable/profile-bulk?part=0",
+    "stable_path": "profile-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Stock Rating Bulk",
+    "path": "stable/rating-bulk",
+    "stable_path": "rating-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "DCF Valuations Bulk",
+    "path": "stable/dcf-bulk",
+    "stable_path": "dcf-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Financial Scores Bulk",
+    "path": "stable/scores-bulk",
+    "stable_path": "scores-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Price Target Summary Bulk",
+    "path": "stable/price-target-summary-bulk",
+    "stable_path": "price-target-summary-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "ETF Holder Bulk",
+    "path": "stable/etf-holder-bulk?part=1",
+    "stable_path": "etf-holder-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Upgrades Downgrades Consensus Bulk",
+    "path": "stable/upgrades-downgrades-consensus-bulk",
+    "stable_path": "upgrades-downgrades-consensus-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Key Metrics TTM Bulk",
+    "path": "stable/key-metrics-ttm-bulk",
+    "stable_path": "key-metrics-ttm-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Ratios TTM Bulk",
+    "path": "stable/ratios-ttm-bulk",
+    "stable_path": "ratios-ttm-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Stock Peers Bulk",
+    "path": "stable/peers-bulk",
+    "stable_path": "peers-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Profile",
+    "endpoint": "Earnings Surprises Bulk",
+    "path": "stable/earnings-surprises-bulk?year=2026",
+    "stable_path": "earnings-surprises-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Financials",
+    "endpoint": "Income Statement Bulk",
+    "path": "stable/income-statement-bulk?year=2026&period=Q1",
+    "stable_path": "income-statement-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Financials",
+    "endpoint": "Income Statement Growth Bulk",
+    "path": "stable/income-statement-growth-bulk?year=2026&period=Q1",
+    "stable_path": "income-statement-growth-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Financials",
+    "endpoint": "Balance Sheet Statement Bulk",
+    "path": "stable/balance-sheet-statement-bulk?year=2026&period=Q1",
+    "stable_path": "balance-sheet-statement-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Financials",
+    "endpoint": "Balance Sheet Statement Growth Bulk",
+    "path": "stable/balance-sheet-statement-growth-bulk?year=2026&period=Q1",
+    "stable_path": "balance-sheet-statement-growth-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Financials",
+    "endpoint": "Cash Flow Statement Bulk",
+    "path": "stable/cash-flow-statement-bulk?year=2026&period=Q1",
+    "stable_path": "cash-flow-statement-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Financials",
+    "endpoint": "Cash Flow Statement Growth Bulk",
+    "path": "stable/cash-flow-statement-growth-bulk?year=2026&period=Q1",
+    "stable_path": "cash-flow-statement-growth-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Bulk",
+    "group": "Chart",
+    "endpoint": "Eod Bulk",
+    "path": "stable/eod-bulk?date=2024-10-22",
+    "stable_path": "eod-bulk",
+    "cov": "N",
+    "arc": "F",
+    "wave": 8
+  },
+  {
+    "category": "Partners",
+    "group": "TipRanks Search",
+    "endpoint": "Analyst Ratings Search",
+    "path": "stable/tipranks-search",
+    "stable_path": "tipranks-search",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "Partners",
+    "group": "TipRanks PIT Latest",
+    "endpoint": "Point in time Ratings by Symbol",
+    "path": "stable/tipranks-pit-symbol?symbol=AAPL",
+    "stable_path": "tipranks-pit-symbol",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "Partners",
+    "group": "TipRanks PIT Latest",
+    "endpoint": "Point in time Ratings by Analyst",
+    "path": "stable/tipranks-pit-analyst",
+    "stable_path": "tipranks-pit-analyst",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "Partners",
+    "group": "TipRanks Summary",
+    "endpoint": "Ratings Summary by Symbol",
+    "path": "stable/tipranks-symbol-summary?symbol=AAPL",
+    "stable_path": "tipranks-symbol-summary",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "Partners",
+    "group": "TipRanks Summary",
+    "endpoint": "Ratings Summary by Analyst",
+    "path": "stable/tipranks-analyst-summary?expertUID=3c6eb8cf1347a4e5757e628fccb684a93abee587",
+    "stable_path": "tipranks-analyst-summary",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "Partners",
+    "group": "TipRanks Summary",
+    "endpoint": "Ratings Summary by Firm",
+    "path": "stable/tipranks-firm-summary?firmName=Morgan Stanley",
+    "stable_path": "tipranks-firm-summary",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  },
+  {
+    "category": "Partners",
+    "group": "Tipranks Analysts",
+    "endpoint": "Analyst Directory Lookup",
+    "path": "stable/tipranks-analysts",
+    "stable_path": "tipranks-analysts",
+    "cov": "N",
+    "arc": "G",
+    "wave": 8
+  }
+]

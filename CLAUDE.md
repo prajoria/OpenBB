@@ -33,10 +33,23 @@ session context loss.
    No issue → no work. Commits/PRs cite the issue per the "Communication
    Conventions" and "Coordination — GitHub Issues primary, bd fallback"
    sections below.
-4. **Upstream promotion is user-initiated.** When Daisy explicitly says "open
-   a PR from portfolio to develop" (or equivalent unambiguous instruction),
-   only then create the PR from `portfolio` → `develop` (or upstream
-   `OpenBB-finance/OpenBB:develop` if directed).
+4. **Upstream promotion is user-initiated AND fork-internal only.** When
+   Daisy explicitly says "open a PR from portfolio to develop" (or
+   equivalent unambiguous instruction), only then create the PR from
+   `portfolio` → `develop` — **inside `prajoria/OpenBB` only**
+   (`--repo prajoria/OpenBB`). Never propose to
+   `OpenBB-finance/OpenBB:develop`. See rule 5.
+5. **NEVER open cross-fork PRs.** Hard rule, no exceptions, no sign-off
+   overrides. Every PR in this repo MUST target a branch inside
+   `prajoria/OpenBB`. Never target `OpenBB-finance/OpenBB` (or any other
+   fork). Every `gh pr create` MUST include `--repo prajoria/OpenBB` so
+   the PR lands inside the fork. The default `gh pr create` behavior —
+   which targets the upstream repo the fork was cloned from — is a known
+   trap that has caused wrong-repo PRs in the past; always pass
+   `--repo prajoria/OpenBB` even when you think the default is right.
+   If a PR is accidentally opened cross-fork, close it immediately and
+   re-open inside `prajoria/OpenBB`. This rule applies to EVERY branch in
+   this repo.
 
 ### Cross-check commands
 
