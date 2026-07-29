@@ -171,8 +171,8 @@ class TestGapDetectionLogic:
 
         # Insert complete cache data for the query range matching the query's interval and adjustment
         insert_query = """
-        INSERT INTO equity_historical 
-        (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap, 
+        INSERT INTO equity_historical
+        (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap,
          interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
@@ -300,8 +300,8 @@ class TestGapDetectionLogic:
 
         # Insert partial cache data (missing middle day)
         insert_query = """
-        INSERT INTO equity_historical 
-        (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap, 
+        INSERT INTO equity_historical
+        (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap,
          interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
@@ -797,7 +797,7 @@ class TestDatabaseOperations:
         # Insert some old test data
         old_date = date(2020, 1, 1)
         insert_query = """
-        INSERT INTO equity_historical 
+        INSERT INTO equity_historical
         (symbol, date, close, interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, DATE_SUB(NOW(), INTERVAL 100 DAY), 1)
         ON DUPLICATE KEY UPDATE cached_at = DATE_SUB(NOW(), INTERVAL 100 DAY)
@@ -845,7 +845,7 @@ class TestMultiSymbolSupport:
 
         # Insert data for AAPL only
         insert_query = """
-        INSERT INTO equity_historical 
+        INSERT INTO equity_historical
         (symbol, date, close, interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
@@ -939,7 +939,7 @@ class TestPerformanceOptimizations:
 
         # Insert sparse data (lots of gaps)
         insert_query = """
-        INSERT INTO equity_historical 
+        INSERT INTO equity_historical
         (symbol, date, close, interval_type, adjustment_type, cached_at, is_valid)
         VALUES (%s, %s, %s, %s, %s, NOW(), 1)
         ON DUPLICATE KEY UPDATE cached_at = NOW()
@@ -1544,7 +1544,6 @@ class TestIntervalUrlRouting:
     def test_build_fmp_endpoint_raises_on_unknown_interval(self):
         """Defense in depth: unknown interval raises rather than empty-path silent 4xx."""
         import pytest as _pytest
-
         from openbb_fmp_cached.models.equity_historical import (
             _build_fmp_endpoint,
         )
@@ -1564,13 +1563,104 @@ class TestIntervalUrlRouting:
         misconfigured caller) fails loudly rather than silently.
         """
         import pytest as _pytest
-
         from openbb_fmp_cached.models.equity_historical import (
             _build_fmp_endpoint,
         )
 
         with _pytest.raises(ValueError, match="Unsupported FMP interval"):
             _build_fmp_endpoint(adjustment="splits_only", interval="60m")
+
+
+class TestDividendFetchParamsCoercion:
+    """Regression tests for #1389 — the dividend sub-fetch was passing raw
+    ``datetime.date`` objects to yarl / aiohttp which rejects them with
+    ``Invalid variable type: value should be str, int or float, got
+    datetime.date(...) of type <class 'datetime.date'>``.
+
+    The OHLC path at ~line 1382 coerces via ``.isoformat()``; the
+    dividend path at ~line 1613 did not — same bug pattern, different
+    call site. Fix mirrors the OHLC coercion.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_date_objects_reach_amake_request(self, monkeypatch):
+        """When start_date/end_date are datetime.date, the params dict
+        passed to amake_request must contain ISO strings, not date objects.
+        """
+        from openbb_fmp_cached.models.equity_historical import (
+            _fetch_dividends_from_fmp,
+        )
+
+        query = FMPCachedEquityHistoricalQueryParams(
+            symbol="MSFT",
+            start_date=date(2026, 7, 18),
+            end_date=date(2026, 7, 24),
+            interval="1d",
+            adjustment="splits_only",
+            include_dividends=True,
+        )
+
+        captured_params: dict = {}
+
+        async def fake_amake_request(url, response_callback=None, **kwargs):
+            captured_params.update(kwargs.get("params") or {})
+            return []
+
+        # amake_request is imported inside _fetch_dividends_from_fmp; patch
+        # at its source module so the inside-function import picks up the fake.
+        monkeypatch.setattr(
+            "openbb_core.provider.utils.helpers.amake_request",
+            fake_amake_request,
+            raising=False,
+        )
+
+        await _fetch_dividends_from_fmp(query, credentials={"fmp_api_key": "test"})
+
+        # Both date fields must have been coerced to ISO strings.
+        assert captured_params.get("start_date") == "2026-07-18"
+        assert captured_params.get("end_date") == "2026-07-24"
+        # No stray datetime.date left in params — every value is a scalar.
+        for k, v in captured_params.items():
+            assert not isinstance(
+                v, date
+            ), f"param {k!r}={v!r} leaked as datetime.date; must be str"
+
+    @pytest.mark.asyncio
+    async def test_string_dates_pass_through_unchanged(self, monkeypatch):
+        """When the query already carries string dates (e.g. from HTTP),
+        the coercion is a no-op — no double-encoding.
+        """
+        from openbb_fmp_cached.models.equity_historical import (
+            _fetch_dividends_from_fmp,
+        )
+
+        # Bypass FMPCachedEquityHistoricalQueryParams validation to inject
+        # a string directly — the guard must tolerate this path.
+        query = FMPCachedEquityHistoricalQueryParams.model_construct(
+            symbol="MSFT",
+            start_date="2026-07-18",
+            end_date="2026-07-24",
+            interval="1d",
+            adjustment="splits_only",
+            include_dividends=True,
+        )
+
+        captured_params: dict = {}
+
+        async def fake_amake_request(url, response_callback=None, **kwargs):
+            captured_params.update(kwargs.get("params") or {})
+            return []
+
+        monkeypatch.setattr(
+            "openbb_core.provider.utils.helpers.amake_request",
+            fake_amake_request,
+            raising=False,
+        )
+
+        await _fetch_dividends_from_fmp(query, credentials={"fmp_api_key": "test"})
+
+        assert captured_params.get("start_date") == "2026-07-18"
+        assert captured_params.get("end_date") == "2026-07-24"
 
 
 if __name__ == "__main__":
