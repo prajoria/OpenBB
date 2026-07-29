@@ -1610,10 +1610,18 @@ async def _fetch_dividends_from_fmp(
         # Route apikey (and every other query field) via ``params`` — keeps
         # the key OUT of any URL string in tracebacks / proxy logs
         # (bd-6641; sibling of bd-ir3f/q4b4 but at a different call site).
+        # Coerce date/datetime -> ISO string (fix #1389): the OHLC path at
+        # line ~1382 already does this; without the same coercion here,
+        # `aiohttp` / yarl rejects raw ``datetime.date`` with
+        # "Invalid variable type: value should be str, int or float, got
+        #  datetime.date(...) of type <class 'datetime.date'>" and the
+        # dividend sub-fetch fails while the OHLC parent call succeeds.
         params = {
             "symbol": symbol,
             **{
-                key: value
+                key: (
+                    value.isoformat() if isinstance(value, (date, datetime)) else value
+                )
                 for key, value in query.model_dump().items()
                 if value is not None
                 and key not in ("symbol", "adjustment", "interval", "include_dividends")
