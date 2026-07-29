@@ -3428,5 +3428,40 @@
     "phase": "A-parity",
     "type": "endpoint",
     "bead_id": null
+  },
+  "1529": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isfs",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1530": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0ishY",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1531": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isis",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1532": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0iskM",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1533": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0ismA",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
   }
 }

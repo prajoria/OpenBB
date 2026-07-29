@@ -1066,6 +1066,8 @@ def test_fmp_batch_quote_fetcher(credentials=test_credentials):
 
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPBatchQuoteFetcher()
+
+
 def test_fmp_dowjones_constituent_fetcher(credentials=test_credentials):
     """Test FMP Dow Jones constituent fetcher (#1515)."""
     from openbb_fmp.models.indexes_extras import FMPDowjonesConstituentFetcher
@@ -1163,6 +1165,8 @@ def test_fmp_batch_quote_short_fetcher(credentials=test_credentials):
 
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPBatchQuoteShortFetcher()
+
+
 def test_fmp_sector_pe_snapshot_fetcher(credentials=test_credentials):
     """Test FMP sector P/E snapshot fetcher (#1523)."""
     from openbb_fmp.models.indexes_extras import FMPSectorPeSnapshotFetcher
@@ -1194,6 +1198,8 @@ def test_fmp_batch_aftermarket_quote_fetcher(credentials=test_credentials):
 
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPBatchAftermarketQuoteFetcher()
+
+
 def test_fmp_industry_performance_snapshot_fetcher(credentials=test_credentials):
     """Test FMP industry performance snapshot fetcher (#1525)."""
     from openbb_fmp.models.indexes_extras import (
@@ -1230,6 +1236,8 @@ def test_fmp_batch_aftermarket_trade_fetcher(credentials=test_credentials):
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPBatchAftermarketTradeFetcher()
     result = fetcher.test(params, credentials)
+
+
 def test_fmp_industry_pe_snapshot_fetcher(credentials=test_credentials):
     """Test FMP industry P/E snapshot fetcher (#1527)."""
     from openbb_fmp.models.indexes_extras import FMPIndustryPeSnapshotFetcher
@@ -1290,6 +1298,11 @@ def test_fmp_market_cap_batch_fetcher(credentials=test_credentials):
 
     params = {"symbols": "AAPL,MSFT"}
     fetcher = FMPMarketCapBatchFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
 def test_fmp_historical_industry_pe_fetcher(credentials=test_credentials):
     """Test FMP historical industry P/E fetcher (#1528)."""
     from openbb_fmp.models.indexes_extras import FMPHistoricalIndustryPeFetcher
@@ -1301,4 +1314,64 @@ def test_fmp_historical_industry_pe_fetcher(credentials=test_credentials):
     }
     fetcher = FMPHistoricalIndustryPeFetcher()
     result = fetcher.test(params, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Economics-extras — Tier-A parity port (#1529-#1533).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_economic_indicators_fetcher(credentials=test_credentials):
+    """Test FMP economic indicators fetcher (#1529)."""
+    from openbb_fmp.models.economics_extras import FMPEconomicIndicatorsFetcher
+
+    params = {"name": "CPI", "from_date": "2024-01-01", "to_date": "2026-07-29"}
+    fetcher = FMPEconomicIndicatorsFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_market_risk_premium_fetcher(credentials=test_credentials):
+    """Test FMP market risk premium fetcher (#1530)."""
+    from openbb_fmp.models.economics_extras import FMPMarketRiskPremiumFetcher
+
+    fetcher = FMPMarketRiskPremiumFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_commitment_of_traders_analysis_fetcher(credentials=test_credentials):
+    """Test FMP commitment of traders analysis fetcher (#1531)."""
+    from openbb_fmp.models.economics_extras import (
+        FMPCommitmentOfTradersAnalysisFetcher,
+    )
+
+    fetcher = FMPCommitmentOfTradersAnalysisFetcher()
+    result = fetcher.test({"symbol": "ES"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_commitment_of_traders_list_fetcher(credentials=test_credentials):
+    """Test FMP commitment of traders list fetcher (#1532)."""
+    from openbb_fmp.models.economics_extras import FMPCommitmentOfTradersListFetcher
+
+    fetcher = FMPCommitmentOfTradersListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_commitment_of_traders_report_fetcher(credentials=test_credentials):
+    """Test FMP commitment of traders report fetcher (#1533)."""
+    from openbb_fmp.models.economics_extras import (
+        FMPCommitmentOfTradersReportFetcher,
+    )
+
+    fetcher = FMPCommitmentOfTradersReportFetcher()
+    result = fetcher.test({"symbol": "ES"}, credentials)
     assert result is None

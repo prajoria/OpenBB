@@ -109,6 +109,13 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.economics_extras import (
+    FMPCommitmentOfTradersAnalysisFetcher,
+    FMPCommitmentOfTradersListFetcher,
+    FMPCommitmentOfTradersReportFetcher,
+    FMPEconomicIndicatorsFetcher,
+    FMPMarketRiskPremiumFetcher,
+)
 from openbb_fmp.models.statements_extras import (
     FMPBalanceSheetStatementAsReportedFetcher,
     FMPCashFlowStatementAsReportedFetcher,
@@ -255,6 +262,12 @@ stock market information (news, currencies, and stock prices).""",
         "HistoricalIndustryPerformance": FMPHistoricalIndustryPerformanceFetcher,
         "IndustryPeSnapshot": FMPIndustryPeSnapshotFetcher,
         "HistoricalIndustryPe": FMPHistoricalIndustryPeFetcher,
+        # Economics-extras — Tier-A parity port (#1529-#1533).
+        "EconomicIndicators": FMPEconomicIndicatorsFetcher,
+        "MarketRiskPremium": FMPMarketRiskPremiumFetcher,
+        "CommitmentOfTradersAnalysis": FMPCommitmentOfTradersAnalysisFetcher,
+        "CommitmentOfTradersList": FMPCommitmentOfTradersListFetcher,
+        "CommitmentOfTradersReport": FMPCommitmentOfTradersReportFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,
