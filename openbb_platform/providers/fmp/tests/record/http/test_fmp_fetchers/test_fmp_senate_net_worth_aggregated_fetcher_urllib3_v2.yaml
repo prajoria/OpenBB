@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/senate-net-worth-aggregated?apikey=MOCK_API_KEY&senateID=L000397
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+2X32vbMBDH3/tXmDx3cJIs/+hb2VIIFAbb3sYevFQspo7cSXLHGPvfd059quM4
+        Tuq26cMcCCF3p9Pd96Mf9tezIPiD3yCYWaUzpxYfZhfB7BoARBrPzh9cv1Vm0MyBh43FlS4r0CTR
+        hpGN9U5pm5f6Ut98Ui43aq20W+hluVYYCk2QUVkxtw7nus6z73mRu1xZ9ItYArAm6KNbKdMatMzs
+        CtO+x5/5zyq/zwpMvRnFpR9kXbm8RRtrZ/pR3iuj60o+q2VlaDaWCADexJS/tDJ2ld8ttFNGWddJ
+        vK5clRVXlb6xWMT8y5XdqJGkIPhA65fWqp0iH9uvHVB/yOVMZR/j0fb3/Il4RBcPxAxCMVDjK+Np
+        q9zCI71xDx4hE2xxAE+7ml48LGYhiKHWR+PB0kbRoZ6Jjgg5i/iL0Knl8JoeTScW2CFtaY+Hszjy
+        2u/hwyGWg9vnIJ9UxgBDB4fHwwWTIPv4bLrewQNj2PgsxAZSiLz1+WyevHNCXJSeArFJZSTT6ACa
+        pLWc+9Cww2zSCNhRJ1sCeMQcj+Zh6jF8SC/i825rgjfgQwGEhv7voULuPiDk62UBAy16DLsttozP
+        2hiMtugk/ImFTybh30Z4Os+88KyWC17knt5ONUnfkZ6utu01P3QTHa38uCek/0V4eryahD+x8N0X
+        6kn4EwnffVWehB8p/Nm3f/huqahFEgAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:53:46 GMT
+      Etag:
+      - W/"1245-bY6XbVpSaS5dBKrrnajWpKsto+s"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
