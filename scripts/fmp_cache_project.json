@@ -1,0 +1,59 @@
+{
+  "project": {
+    "title": "FMP Cache",
+    "id": "PVT_kwHOAOc7384Bdn82",
+    "number": 7,
+    "owner": "prajoria",
+    "url": "https://github.com/users/prajoria/projects/7"
+  },
+  "fields": {
+    "Area": {
+      "id": "PVTSSF_lAHOAOc7384Bdn82zhYIMRg",
+      "options": {
+        "Storage": "f21b5b4a",
+        "Invalidation": "b527e108",
+        "Fetch": "784512ba",
+        "Serialization": "8a3cc367",
+        "Config": "b19af48d",
+        "Docs": "262ec8a2",
+        "Tests": "d3350550",
+        "Tooling": "f64608f7"
+      }
+    },
+    "Priority": {
+      "id": "PVTSSF_lAHOAOc7384Bdn82zhYIMR4",
+      "options": {
+        "P0": "058489e2",
+        "P1": "2d4b4285",
+        "P2": "979213b0",
+        "P3": "fee515df"
+      }
+    },
+    "Type": {
+      "id": "PVTSSF_lAHOAOc7384Bdn82zhYIMR8",
+      "options": {
+        "Epic": "9e6a176d",
+        "Feature": "a232b84f",
+        "Task": "e013cff9",
+        "Bug": "d77b0eba"
+      }
+    },
+    "Start": {
+      "id": "PVTF_lAHOAOc7384Bdn82zhYIMS4"
+    },
+    "End": {
+      "id": "PVTF_lAHOAOc7384Bdn82zhYIMS8"
+    }
+  },
+  "labels": [
+    "fmp-cache", "fmp-storage", "fmp-invalidation", "fmp-fetch",
+    "fmp-serialization", "fmp-config", "fmp-docs", "fmp-tests", "fmp-tooling",
+    "priority-p0", "priority-p1", "priority-p2", "priority-p3", "type-epic"
+  ],
+  "epic": {
+    "number": 844,
+    "url": "https://github.com/prajoria/OpenBB/issues/844",
+    "node_id": "I_kwDOQVcbSs8AAAABJH1x-g",
+    "project_item_id": "PVTI_lAHOAOc7384Bdn82zgzH_dM"
+  }
+}
