@@ -82,6 +82,20 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.statements_extras import (
+    FMPBalanceSheetStatementAsReportedFetcher,
+    FMPCashFlowStatementAsReportedFetcher,
+    FMPEnterpriseValuesFetcher,
+    FMPFinancialGrowthFetcher,
+    FMPFinancialReportsDatesFetcher,
+    FMPFinancialReportsJsonFetcher,
+    FMPFinancialScoresFetcher,
+    FMPFinancialStatementFullAsReportedFetcher,
+    FMPIncomeStatementAsReportedFetcher,
+    FMPKeyMetricsTtmFetcher,
+    FMPOwnerEarningsFetcher,
+    FMPRatiosTtmFetcher,
+)
 from openbb_fmp.models.technical_indicator_intraday import (
     FMPTechnicalIndicatorIntradayFetcher,
 )
@@ -175,6 +189,20 @@ stock market information (news, currencies, and stock prices).""",
         "RevenueGeographic": FMPRevenueGeographicFetcher,
         "RiskPremium": FMPRiskPremiumFetcher,
         "ShareStatistics": FMPShareStatisticsFetcher,
+        # Statements-extras — Tier-A parity port (#1488-#1499). See
+        # openbb_fmp.models.statements_extras for design notes.
+        "EnterpriseValues": FMPEnterpriseValuesFetcher,
+        "FinancialGrowth": FMPFinancialGrowthFetcher,
+        "FinancialScores": FMPFinancialScoresFetcher,
+        "KeyMetricsTtm": FMPKeyMetricsTtmFetcher,
+        "OwnerEarnings": FMPOwnerEarningsFetcher,
+        "RatiosTtm": FMPRatiosTtmFetcher,
+        "IncomeStatementAsReported": FMPIncomeStatementAsReportedFetcher,
+        "BalanceSheetStatementAsReported": FMPBalanceSheetStatementAsReportedFetcher,
+        "CashFlowStatementAsReported": FMPCashFlowStatementAsReportedFetcher,
+        "FinancialStatementFullAsReported": FMPFinancialStatementFullAsReportedFetcher,
+        "FinancialReportsDates": FMPFinancialReportsDatesFetcher,
+        "FinancialReportsJson": FMPFinancialReportsJsonFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,

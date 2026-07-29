@@ -3183,5 +3183,89 @@
     "phase": "A-parity",
     "type": "endpoint",
     "bead_id": null
+  },
+  "1488": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irTM",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1489": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irVM",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1490": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irWw",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1491": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irZU",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1492": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0ira8",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1493": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irc8",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1494": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irfU",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1495": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irg8",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1496": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0iri8",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1497": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irkM",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1498": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0irls",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1499": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0iroM",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
   }
 }

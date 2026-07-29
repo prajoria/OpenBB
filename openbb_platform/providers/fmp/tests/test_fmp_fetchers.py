@@ -898,3 +898,156 @@ def test_fmp_grades_consensus_fetcher(credentials=test_credentials):
     fetcher = FMPGradesConsensusFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Statements-extras — Tier-A parity port from fmp_cached (#1488-#1499).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_enterprise_values_fetcher(credentials=test_credentials):
+    """Test FMP enterprise values fetcher (#1488)."""
+    from openbb_fmp.models.statements_extras import FMPEnterpriseValuesFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPEnterpriseValuesFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_growth_fetcher(credentials=test_credentials):
+    """Test FMP financial growth fetcher (#1489)."""
+    from openbb_fmp.models.statements_extras import FMPFinancialGrowthFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPFinancialGrowthFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_scores_fetcher(credentials=test_credentials):
+    """Test FMP financial scores fetcher (#1490)."""
+    from openbb_fmp.models.statements_extras import FMPFinancialScoresFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPFinancialScoresFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_key_metrics_ttm_fetcher(credentials=test_credentials):
+    """Test FMP key metrics TTM fetcher (#1491)."""
+    from openbb_fmp.models.statements_extras import FMPKeyMetricsTtmFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPKeyMetricsTtmFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_owner_earnings_fetcher(credentials=test_credentials):
+    """Test FMP owner earnings fetcher (#1492)."""
+    from openbb_fmp.models.statements_extras import FMPOwnerEarningsFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPOwnerEarningsFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_ratios_ttm_fetcher(credentials=test_credentials):
+    """Test FMP ratios TTM fetcher (#1493)."""
+    from openbb_fmp.models.statements_extras import FMPRatiosTtmFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPRatiosTtmFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_income_statement_as_reported_fetcher(credentials=test_credentials):
+    """Test FMP income statement as-reported fetcher (#1494)."""
+    from openbb_fmp.models.statements_extras import (
+        FMPIncomeStatementAsReportedFetcher,
+    )
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPIncomeStatementAsReportedFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_balance_sheet_statement_as_reported_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP balance sheet as-reported fetcher (#1495)."""
+    from openbb_fmp.models.statements_extras import (
+        FMPBalanceSheetStatementAsReportedFetcher,
+    )
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPBalanceSheetStatementAsReportedFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cash_flow_statement_as_reported_fetcher(credentials=test_credentials):
+    """Test FMP cash flow as-reported fetcher (#1496)."""
+    from openbb_fmp.models.statements_extras import (
+        FMPCashFlowStatementAsReportedFetcher,
+    )
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPCashFlowStatementAsReportedFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_statement_full_as_reported_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP financial statement full as-reported fetcher (#1497)."""
+    from openbb_fmp.models.statements_extras import (
+        FMPFinancialStatementFullAsReportedFetcher,
+    )
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPFinancialStatementFullAsReportedFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_reports_dates_fetcher(credentials=test_credentials):
+    """Test FMP financial reports dates fetcher (#1498)."""
+    from openbb_fmp.models.statements_extras import FMPFinancialReportsDatesFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPFinancialReportsDatesFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_reports_json_fetcher(credentials=test_credentials):
+    """Test FMP financial reports JSON fetcher (#1499).
+
+    Requires ``year`` and ``period`` in addition to ``symbol``; FMP
+    returns a single object (not a list) that we wrap.
+    """
+    from openbb_fmp.models.statements_extras import FMPFinancialReportsJsonFetcher
+
+    params = {"symbol": "MSFT", "year": 2024, "period": "FY"}
+    fetcher = FMPFinancialReportsJsonFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
