@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/enterprise-values?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA53TS0vDQBAA4Ht/Rei5Dbuzsy9vUvUmCi1exMO2WWlomtQ8BBX/uxNTwVS7xi6E
+        wM5kNvlmcj+Koje6omhcvWyXRTY+i8bX86vFeNLtJq727R4wkFOmpoJ9Raq6WG1uy3TVxtHqGPk+
+        kjfbpS9vHudrV/qKohqFYJ9rn7F15cbXM7dLa5elr65Oi5zyhLIa0EjxPTXNm2rmqvV5nrS3y6cm
+        fXaZz+u2smCA0CvtkmRRUNULv6wpgXPgBnsZ9Kgvd2Va+TuXNe3bC60tt6w7l5LeJ/9gwRCLVLEW
+        ARY+iEVYYRVTw1m4EVyGWKw2su/2iwpqQX1VJ6mIgIpAFks8roJqiApIIZViXXMHqdAHsf4oHKho
+        i9jvyE8VkIYJ4sNTVCCgAjQrJjArdpAKtyA5Nc0MVuE0Xf2PPlT5+n8CKtwaq2iZU1R4SEWz2B5F
+        kdTRASjAENEA2HYNQ0GA4KhQNW3+QAHOaUhVd2yLMnr4AN7wEBRwBQAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 18:48:06 GMT
+      Etag:
+      - W/"570-g3n/rKy7pGRgbMNv74kGP828DwA"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

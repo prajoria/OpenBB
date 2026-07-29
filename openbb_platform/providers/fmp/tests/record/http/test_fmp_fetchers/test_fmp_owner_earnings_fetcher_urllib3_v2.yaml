@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/owner-earnings?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA72UQUvDMBTH7/sUpee1vLyXpInXOW/CZHoQ8RC3uBW2dqTVOcTvbspWpdD04HCE
+        Xt7vTwg//n1Poyj69F8UxdVh+1Ju4qsovp3f3Mfj49TZXelqu5y8OWeLxaHhD/PrFr/m1cJsHq1x
+        DUBA2ZKddXm5bKZ31M6WprZtLgFKiLXEvFtnVnY2m3oOqeD+nNDW5EVtC1Ms7MTs7IcPJEhKERED
+        gFOq3BfWVVPjirxYVT6DmGkhpf6NrFy5r9c/d0itscO7V8ysm6+Na95LKUgf+RpfQhb2yBIJw3Nk
+        CZScSSGCshgiMaGIi5As4rrDg7JYKvnFZLFeWaATgj/KYqgAJAAPN4sQhSStZbBZQlOHB2XxlPBf
+        ZIkeWbxfljxDFkilhVbZgCymRcaBUVAWKd3hA7JQXUxW384SZ+0s/4/JTHM50CzkWSZBULBZ3Ac6
+        fGBnHZs1ev4GB1VpeOMFAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 18:48:07 GMT
+      Etag:
+      - W/"5e3-QYNCbHj6hGcpxqXepD9jGjJzpGk"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

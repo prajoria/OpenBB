@@ -1,0 +1,82 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/balance-sheet-statement-as-reported?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 18:48:09 GMT
+      Etag:
+      - W/"279d-s4ma2brqthH5btBOUF98Hr5NVbo"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
