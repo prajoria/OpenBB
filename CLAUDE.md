@@ -1046,6 +1046,7 @@ seeded from the #955 fixture drain. Values for `tier`: `"Starter"`, `"Premium"`,
 1. **Recorded fixtures / unit tests**: not gated by our tier — they run
    against local snapshots. No marker needed.
 2. **Integration / live-call tests** for a plan-limited endpoint:
+
    ```python
    @pytest.mark.integration
    @pytest.mark.plan_limited  # skipped without --run-plan-limited
@@ -1062,9 +1063,11 @@ seeded from the #955 fixture drain. Values for `tier`: `"Starter"`, `"Premium"`,
    def test_endpointname_live_shape(...):
        ...
    ```
+
 3. **Fetcher docstring**: include a one-line tier note near the top so a
    reader who lands on the fetcher via grep sees the gap without opening
    the registry:
+
    ```python
    class FMPCachedSomeThingFetcher(Fetcher[...]):
        """FMP some-thing fetcher (#NNNN).
