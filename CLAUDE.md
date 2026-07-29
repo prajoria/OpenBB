@@ -1025,6 +1025,76 @@ print(p7.action_label, p7.composite_score)
 - **Reviewer discipline** (Mira gate, Zev veto): any PR introducing an `fmp` fallback that does *not* have a paired `area:fmp-cached-gap` GH issue is rejected. Codified rule, no judgment required.
 - Rationale: `fmp_cached` gives reproducible tests, deterministic dev loops, and cost control. The fallback exists so a missing endpoint never blocks the roadmap — but every use of the fallback is tracked debt on Project #4.
 
+### FMP subscription tier — mark tests when our key can't call an endpoint
+
+**The rule.** When a fetcher is implemented against an FMP endpoint that our
+current API key **cannot** successfully call (typically 402 Payment Required
+because the endpoint is behind a higher FMP subscription tier), the
+implementation ships but its live-call tests MUST carry a pytest marker
+naming the FMP tier that would unlock it. This turns "silent skip" into
+"documented gap" — future contributors and reviewers can trivially answer
+*"why isn't this test running?"* without spelunking the fetcher's 402
+history.
+
+**Where the tier data lives.** `openbb_platform/providers/fmp_cached/openbb_fmp_cached/utils/plan_limited.py`
+carries a structured registry `_PLAN_LIMITED[endpoint] = {"tier": str, "since": date, "notes": str}`
+seeded from the #955 fixture drain. Values for `tier`: `"Starter"`, `"Premium"`,
+`"Ultimate"`. The helper `is_plan_limited(endpoint)` returns `True` for any entry.
+
+**Test-marker convention.**
+
+1. **Recorded fixtures / unit tests**: not gated by our tier — they run
+   against local snapshots. No marker needed.
+2. **Integration / live-call tests** for a plan-limited endpoint:
+
+   ```python
+   @pytest.mark.integration
+   @pytest.mark.plan_limited  # skipped without --run-plan-limited
+   @pytest.mark.skipif(
+       is_plan_limited("EndpointNameHere"),
+       reason=(
+           "FMP endpoint 'EndpointNameHere' requires Premium tier "
+           "(see plan_limited.py). Our current key does not cover it; "
+           "test authoring completed but live call gated. Run "
+           "`pytest -m plan_limited --run-plan-limited` on a Premium "
+           "key to exercise."
+       ),
+   )
+   def test_endpointname_live_shape(...):
+       ...
+   ```
+
+3. **Fetcher docstring**: include a one-line tier note near the top so a
+   reader who lands on the fetcher via grep sees the gap without opening
+   the registry:
+
+   ```python
+   class FMPCachedSomeThingFetcher(Fetcher[...]):
+       """FMP some-thing fetcher (#NNNN).
+
+       Tier: Premium. Our current key returns 402; the fetcher is
+       shape-correct against the endpoint's documented schema, but
+       live-call tests are skipped via `plan_limited` marker. See
+       ``openbb_fmp_cached.utils.plan_limited``.
+       """
+   ```
+
+**When to add the entry to `plan_limited.py`.** As soon as
+`scripts/pi_fmp_record.py --endpoint <stem>` produces a 402 or
+"Payment Required" — file the entry (tier, discovery date, brief note)
+in the same PR that ships the fetcher. Reviewer gate: an implementation
+PR that adds a fetcher against an FMP endpoint but does NOT either
+(a) prove `is_plan_limited(endpoint) is False` with a green cassette
+OR (b) add the registry entry + `plan_limited` test marker — must be
+rejected.
+
+**Why this rule exists.** Cassette-only coverage gives no signal on
+whether a fetcher would work in the field. A `plan_limited` marker on
+the live test makes "we implemented it but our key can't verify it" a
+first-class state — searchable via `grep -rn plan_limited tests/`,
+CI-visible, and trivially unblockable by upgrading the FMP subscription
+and re-running with `--run-plan-limited`. No mystery skips.
+
 ### Running Analysis tests
 
 ```bash
