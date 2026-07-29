@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/search-cik?apikey=MOCK_API_KEY&cik=0000320193
+  response:
+    body:
+      string: "[\n  {\n    \"symbol\": \"AAPL\",\n    \"companyName\": \"Apple Inc.\",\n
+        \   \"cik\": \"0000320193\",\n    \"exchangeFullName\": \"NASDAQ Global Select\",\n
+        \   \"exchange\": \"NASDAQ\",\n    \"currency\": \"USD\"\n  }\n]"
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '187'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 21:23:28 GMT
+      Etag:
+      - W/"bb-FUfU1YTHhrP/8LLn250Rdh4ZhfA"
+      Server:
+      - nginx
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

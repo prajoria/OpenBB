@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/available-countries?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA33WvU7EMBAE4P6eIkrNE9AlzsXxJQ65/AGHqOhBQlAgxLtzEi36ijQZrb07uzPr
+        p0NRfF+/oihf3j5fP96/ytuibPvy+u/n5l9w3gA2ilxGgOGiyASwnwGeJoD1ArBSnWEAeK4AZtV5
+        PCqhVaVkZSv6BoG7WlaJ+P5e2SpyFH2TiB90bC3is7jNAWAUfceooVadjSZhkcoGlsKhfhR9NcBO
+        x7YUrxhKIuEkcBZYNwA3duVOzZabjIpcO2UrcNXEZ5USlFAt+mILsJLKosSb5WAT5aAZ2tSVXsf2
+        KmVknZLDJpVVSmgUfUFOnQRm3XlRV1YZY1adnRwsnzWa2iu7JqGSDy2ceEkwUJ/KdqAZcwtK9i3X
+        sroy7LpT3OYHgLOsJurYIPpWLnTdOallLbNVV5K0krR0svQ56c4Lx0RPgZGbV1ZTK/Ik+pISinph
+        JNl4lpv0anb808rh+Rc+4urUCQ0AAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 21:23:31 GMT
+      Etag:
+      - W/"d09-k4n5t560HwrgZckPKC5QQF9fVZo"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
