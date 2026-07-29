@@ -1,0 +1,70 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/commitment-of-traders-list?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA31XTW/bSAy991cQLlB4gQabpGgPe7M+LNmWZEWSk1hFD2NrYg8qz3j10TRd7H9f
+        Sq7TQvTy4Is85JCPj4+cz28A/sEfwKh+OWxMOfoLRpE3en/6psVB9l9E01aiBE/UMI68P0b497/v
+        L9lm0dB2VTaVgJvrq7UUFWRXkWkkjLOIcTL5NHQyaWv0UiqhwTFliY7Gk0+Mh3gy9BALNCtUe4Bx
+        PGEsrWxoaalma5QGO3Rh2iIQEkGwMsaHu0o8Kx76wa9/4mdIRAfA6QzjxLaHDmyzNQLGts3hT6BL
+        TdvsYfJUqS2ilwhdIPocdsv50MWyEnonYd6qLUa+nDPGeUjvf9lIvDmUSKBxHjLGiwspPz1JvHPB
+        5ZxfMKs03sUZRd7sAst7hs9sFwLnpmP6jPGwci5TPbuyTAfyyuGqS2hmm6YxGt7eYoU5cgXu0DJQ
+        3yTYomlKRCpwuVuD6dD4IZvBVGmhtwrrY1dtgU7wHIf3A3Gyl4jdOH/grIgyDDUh5zQhXxJWigYb
+        MV8yRvePBGVr6cL97BHG94+cCuREBSqpm5/4BKJuwBEvKAM5R2dSqYVtZfATrAVXKJe0sdtWBqYY
+        t8v1LlUdK3GjDGJ/nUK0RgUbs6KTkHuTtq472U3aTUevhLs9JS2VqvKbRLFOuUZyCZ/SdzGEqtiK
+        I7hXodIK0+a4FQdE7kvRKN2rfcAY+oRVqyB1ECnwRbUxGLnP8SukkR8rpXfnGodc0B6RLc+UqBse
+        q3ULQoxmL7Qpf42mfMHYO6TAttA4F38brA5X4twa2n947eKT7OUWCxgh6KRsD32lsODPEhsrruSh
+        n9N4mCtdQvDzTQMJZiELsI0qIW2kxJmDJ7mM7i5k1DX3FN1MW110kN5xrCeQpO0OAXl7gyMk5dAI
+        UiLl7WHT9UuQciCSGobyez/dY1kbxI0rYETSjURdiL9xQ7t+bbaIy9enA6ib777ZIVI+p2oRCTyS
+        z5DjYtBtJWf+RVz4oUsw68TiIwYfqi1K5DkFPMi1AREMuxQ1jv7ZDP2UX7ELONnIifl5y1mqbslh
+        bckI/jgYg9zs9Yj1VMoCKXOe/x5nPScFmIuj0LKWsJa4Mc3Z1icry+0gcG5tyRMyWUy720PS75R5
+        wg0l0mC4pZlSaQmJtbRwKHFNtiYbqWOeYaaLFj78Yvya20vvaOw4FWVZwu31b11zxyVhEeitSjWq
+        3kNs2k43LQ57mxCu29tO20hPOZujnEcg6CfNKWqPy/z/u+11LnNtFlxIWvxQ/Tsu6d8DAZe1Q9a3
+        VXqWCSyg/I5tym1xKX0MPSvs8im+Z7aozdzdPnkE+wrp6lUCIbfN8djJtM89hXOK3UkkuoHC6jur
+        0QOZO0v1my//AScUQYnMDwAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 19:56:02 GMT
+      Etag:
+      - W/"fcc-Tzhf7Zegzq0CWkwQXZJZmN1H68A"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
