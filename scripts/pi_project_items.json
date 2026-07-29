@@ -3114,8 +3114,22 @@
     "type": "bug",
     "bead_id": null
   },
-  "1390": {
-    "item_id": "PVTI_lAHOAOc7384BdSTgzg0i91U",
+  "1463": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0fhg4",
+    "lane": "A",
+    "phase": "Validation",
+    "type": "bug",
+    "bead_id": null
+  },
+  "1464": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0fhhw",
+    "lane": "A",
+    "phase": "Validation",
+    "type": "bug",
+    "bead_id": null
+  },
+  "1465": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0fhis",
     "lane": "A",
     "phase": "Validation",
     "type": "bug",
