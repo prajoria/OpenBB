@@ -1,0 +1,63 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/sec-filings-8k?apikey=MOCK_API_KEY&from=2024-01-01&limit=10&page=0&to=2026-07-29
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+2XXW/aMBSG7/srIq4b4u/YuaNru01lvRidqmqakBcMRA2BJqGApv332Q4pkRro
+        ullolRaBkF5HPn79+Jxjvp543g/99bxOsZl9n6edyOt8GfQ/dU4rNU7ujQTMwxFAoB4YJ2mSTc5l
+        qcy4HmE+CH0kPAAi+6lflHGsFqUatbwKWYRZhOjTnPN8drNZ2Ne4f1XLU1lcJpnM4kSmhR4b6x+1
+        HdOLsAucluWiiIJgtVp1CxV3J/PHoJfH0+RRFYEaTWQejGQpA+sh0GYgBIRRgRjgHHLckHyzPiv6
+        STZS6+60nO1cZzLtu4q5LNKZb/YDhEis+b2NpAP9PG3D8u7D59vnWPSUGIWheywAvRJLmS//lMrW
+        RLDzo/dEP6gpWS5WdMTlQFS1FgIqmWd6M4tcpUoW6gEBhsFhRud31y2INOxQENeIaATZERFVJqpj
+        LDBEFDGMsCCgIRlElegK0f6oo03mG0xDeBjJzV2/pZhxnXMYukcC4PGQVB6CnZ3q+BLekOqkIdwR
+        kf1B5fOU8XXCmC06TOjson/Za2GkiyLlzhsOifARK1vlwZ5fgsOQmOKPCBe4IVlGVnTEaH9QtR4K
+        RjijLxM5+0/kHyJyPc9UW/OnGFDhHsir72R/AWRroqrxBGBmSgoGgIGGZIlY0RERgQBFqC2oGiN9
+        0nlI2ND0F/+F/nIxGLRkSjX92wazf4veBJeP71sSBocCEOd9H0eUHI/L1kSw81P1YMobUt34qavG
+        fyCqwYGGetZiuVikaqaycv1bnb93e9XCiEB90WbuGSFxREaViWDnx+4WRLAhbRlp0RWj/VHtP5r6
+        PvaAFrkq6lvaE6OTb78Akqx28BAQAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:39:15 GMT
+      Etag:
+      - W/"1010-1K0VlcFm0+1WOxM1SDnznmZ1fQI"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1541,3 +1541,68 @@ def test_fmp_fmp_articles_fetcher(credentials=test_credentials):
     fetcher = FMPFmpArticlesFetcher()
     result = fetcher.test({"page": 0, "limit": 10}, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# SEC-extras — Tier-A parity port (#1549-#1553).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_sec_filings_8k_fetcher(credentials=test_credentials):
+    """Test FMP SEC 8-K filings fetcher (#1549)."""
+    from openbb_fmp.models.sec_extras import FMPSecFilings8kFetcher
+
+    params = {
+        "from_date": "2024-01-01",
+        "to_date": "2026-07-29",
+        "page": 0,
+        "limit": 10,
+    }
+    fetcher = FMPSecFilings8kFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_sec_profile_fetcher(credentials=test_credentials):
+    """Test FMP SEC profile fetcher (#1550)."""
+    from openbb_fmp.models.sec_extras import FMPSecProfileFetcher
+
+    fetcher = FMPSecProfileFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_standard_industrial_classification_list_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP SIC list fetcher (#1551)."""
+    from openbb_fmp.models.sec_extras import (
+        FMPStandardIndustrialClassificationListFetcher,
+    )
+
+    fetcher = FMPStandardIndustrialClassificationListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_all_industry_classification_fetcher(credentials=test_credentials):
+    """Test FMP all industry classification fetcher (#1552)."""
+    from openbb_fmp.models.sec_extras import FMPAllIndustryClassificationFetcher
+
+    fetcher = FMPAllIndustryClassificationFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_industry_classification_search_fetcher(credentials=test_credentials):
+    """Test FMP industry classification search fetcher (#1553)."""
+    from openbb_fmp.models.sec_extras import FMPIndustryClassificationSearchFetcher
+
+    fetcher = FMPIndustryClassificationSearchFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
