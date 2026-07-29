@@ -194,6 +194,11 @@ notebooks/portfolio_yfinance/Analysis/
 **/Analysis/exports/
 **/.openbb_backtest/
 
+# Local notebook sandbox — see CLAUDE.md "Notebook local sandbox".
+# All personal-data / kernel-restart runs happen HERE (not in
+# notebooks/portfolio). Nothing under this path is ever committed.
+notebooks_local/
+
 # Notebook helper scratchpads used by the fill/enrich cycles
 _fill_*.py
 _enrich_*.py

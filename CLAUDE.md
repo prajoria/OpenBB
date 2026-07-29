@@ -427,6 +427,79 @@ lines were execution-count renumbering. Reviewers cannot distinguish
 noise. The reset script removes the noise; the smoke test enforces that
 real outputs stay.
 
+## Notebook local sandbox (hard rule — PII defense-in-depth)
+
+**All personal-data / kernel-restart / manual-validation notebook runs
+happen in `notebooks_local/`, NEVER in the tracked `notebooks/` tree.**
+`notebooks_local/` is gitignored — nothing under it can be committed,
+even by accident. This is defense-in-depth against the class of leaks
+that #1460 filed: the reset script preserves outputs by design, the PII
+smoke test can only catch the specific patterns it's coded for, so the
+strongest guard is "the sandbox and the tracked copy are literally
+different directories on disk."
+
+### The rule
+
+1. **Never `Run All` in `notebooks/`** with a populated
+   `~/.portfolio_importer/positions.db` or any live personal data.
+   Do it in `notebooks_local/` instead.
+2. **The sync is one-way, source-of-truth → sandbox.** Refresh the
+   sandbox with:
+   ```bash
+   python scripts/sync_notebooks_local.py            # additive sync
+   python scripts/sync_notebooks_local.py --dry-run  # report only
+   ```
+   Files newer in `notebooks_local/` are kept (that's the operator's
+   live work); files only in `notebooks/` are copied in. `--overwrite`
+   force-clobbers, only use it after verifying no local PII is being
+   discarded.
+3. **Reverse direction is manual, per-file, with explicit review.**
+   When a change from a `notebooks_local/` run needs to land in
+   `notebooks/`:
+   - `cp notebooks_local/portfolio/NN-…ipynb notebooks/portfolio/`
+   - `python scripts/reset_notebooks_for_checkin.py --check
+     notebooks/portfolio/NN-…ipynb` — required.
+   - `python scripts/linkify_notebook_issue_refs.py` — required if
+     any `#NNN` refs were added.
+   - Inspect the diff cell-by-cell for real symbols / CUSIPs /
+     usernames / weights **before** `git add`. The PII smoke test
+     is a final check, not the only check.
+   No automated script pushes `notebooks_local/` → `notebooks/`. Ever.
+4. **`notebooks_local/` is gitignored.** `.gitignore` has an explicit
+   `notebooks_local/` entry so `git status` will not surface anything
+   under it. If you see `notebooks_local/` files show up in
+   `git status`, the `.gitignore` rule has regressed — restore it
+   before doing anything else.
+5. **The sandbox is per-machine, not per-branch.** `git checkout`
+   between branches does NOT clear it. That's the point — the
+   sandbox tracks *your* run history, not the branch's.
+
+### Why not just trust the smoke test
+
+`test_no_pii_in_notebook_outputs` in
+`openbb_platform/tests/test_notebooks_portfolio_smoke.py` catches a
+finite deny-list of known-leaked-username tokens (see #1460's audit
+trail). It CANNOT catch:
+
+- A new operator whose username isn't yet on the deny-list.
+- A leaked customer name or company name that isn't a username.
+- Real weights / dollar amounts printed as free text.
+- Screenshots of the executed notebook viewer (metadata + rendered
+  outputs both).
+
+The sandbox rule is the structural guard: if the personal-data run
+lives in an unrepo-able directory, none of those failure modes can
+propagate to a commit even if the smoke test misses them.
+
+### Related rules
+
+- Broker CSVs live outside the repo entirely
+  (`H:\masterswork\browser_exports\`) — see "Sensitive data" above.
+- `~/.portfolio_importer/positions.db` is user-local, never in the
+  repo — enforced by `config._validate_outside_repo` in the importer.
+- `notebooks_local/` closes the last gap: the *executed* view of
+  those data sources also stays local.
+
 ## Overview
 
 OpenBB is an open-source financial data platform that provides the "connect once, consume everywhere" infrastructure for integrating financial data sources. The project consists of multiple components:
