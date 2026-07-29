@@ -109,6 +109,21 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.market_hours_search_extras import (
+    FMPAllExchangeMarketHoursFetcher,
+    FMPAvailableCountriesFetcher,
+    FMPCikListFetcher,
+    FMPFinancialStatementSymbolListFetcher,
+    FMPHolidaysByExchangeFetcher,
+    FMPProfileCikFetcher,
+    FMPSearchCikFetcher,
+    FMPSearchCusipFetcher,
+    FMPSearchExchangeVariantsFetcher,
+    FMPSearchIsinFetcher,
+    FMPSearchNameFetcher,
+    FMPSearchSymbolFetcher,
+    FMPSymbolChangeFetcher,
+)
 from openbb_fmp.models.dcf_reference_extras import (
     FMPActivelyTradingListFetcher,
     FMPCommoditiesListFetcher,
@@ -358,6 +373,20 @@ stock market information (news, currencies, and stock prices).""",
         "ForexList": FMPForexListFetcher,
         "CryptocurrencyList": FMPCryptocurrencyListFetcher,
         "ActivelyTradingList": FMPActivelyTradingListFetcher,
+        # Market-hours + Search extras — Tier-A parity port (#1571-#1572, #1467-#1477).
+        "AllExchangeMarketHours": FMPAllExchangeMarketHoursFetcher,
+        "HolidaysByExchange": FMPHolidaysByExchangeFetcher,
+        "SearchSymbol": FMPSearchSymbolFetcher,
+        "SearchName": FMPSearchNameFetcher,
+        "SearchCik": FMPSearchCikFetcher,
+        "SearchCusip": FMPSearchCusipFetcher,
+        "SearchIsin": FMPSearchIsinFetcher,
+        "SearchExchangeVariants": FMPSearchExchangeVariantsFetcher,
+        "CikList": FMPCikListFetcher,
+        "ProfileCik": FMPProfileCikFetcher,
+        "SymbolChange": FMPSymbolChangeFetcher,
+        "FinancialStatementSymbolList": FMPFinancialStatementSymbolListFetcher,
+        "AvailableCountries": FMPAvailableCountriesFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,
