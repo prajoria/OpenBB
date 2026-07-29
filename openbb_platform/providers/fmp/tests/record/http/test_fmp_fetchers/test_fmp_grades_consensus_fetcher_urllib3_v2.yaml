@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/grades-consensus?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: "[\n  {\n    \"symbol\": \"MSFT\",\n    \"strongBuy\": 0,\n    \"buy\":
+        66,\n    \"hold\": 16,\n    \"sell\": 0,\n    \"strongSell\": 0,\n    \"consensus\":
+        \"Buy\"\n  }\n]"
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '143'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 17:11:16 GMT
+      Etag:
+      - W/"8f-j74Y7Mo5jT2Fk/Zq6nj0i9LJsJc"
+      Server:
+      - nginx
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

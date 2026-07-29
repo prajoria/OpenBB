@@ -4,6 +4,14 @@ from openbb_core.provider.abstract.provider import Provider
 from openbb_fmp.models.aftermarket_quote import FMPAftermarketQuoteFetcher
 from openbb_fmp.models.aftermarket_trade import FMPAftermarketTradeFetcher
 from openbb_fmp.models.analyst_estimates import FMPAnalystEstimatesFetcher
+from openbb_fmp.models.analyst_ratings import (
+    FMPGradesConsensusFetcher,
+    FMPGradesFetcher,
+    FMPGradesHistoricalFetcher,
+    FMPPriceTargetSummaryFetcher,
+    FMPRatingsHistoricalFetcher,
+    FMPRatingsSnapshotFetcher,
+)
 from openbb_fmp.models.available_indices import FMPAvailableIndicesFetcher
 from openbb_fmp.models.balance_sheet import FMPBalanceSheetFetcher
 from openbb_fmp.models.balance_sheet_growth import FMPBalanceSheetGrowthFetcher
@@ -91,6 +99,16 @@ stock market information (news, currencies, and stock prices).""",
         "AftermarketQuote": FMPAftermarketQuoteFetcher,
         "AftermarketTrade": FMPAftermarketTradeFetcher,
         "AnalystEstimates": FMPAnalystEstimatesFetcher,
+        # Analyst / Ratings / Grades — Tier-A parity port from fmp_cached
+        # (#1482-#1487). See openbb_fmp.models.analyst_ratings for
+        # design notes; #1481 (AnalystRecommendations) is deferred
+        # because FMP retired /stable/analyst-stock-recommendations.
+        "Grades": FMPGradesFetcher,
+        "GradesConsensus": FMPGradesConsensusFetcher,
+        "GradesHistorical": FMPGradesHistoricalFetcher,
+        "PriceTargetSummary": FMPPriceTargetSummaryFetcher,
+        "RatingsHistorical": FMPRatingsHistoricalFetcher,
+        "RatingsSnapshot": FMPRatingsSnapshotFetcher,
         "AvailableIndices": FMPAvailableIndicesFetcher,
         "BalanceSheet": FMPBalanceSheetFetcher,
         "BalanceSheetGrowth": FMPBalanceSheetGrowthFetcher,
