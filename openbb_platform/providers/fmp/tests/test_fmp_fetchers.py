@@ -1051,3 +1051,107 @@ def test_fmp_financial_reports_json_fetcher(credentials=test_credentials):
     fetcher = FMPFinancialReportsJsonFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Quotes-extras — Tier-A parity port (#1506-#1514).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_batch_quote_fetcher(credentials=test_credentials):
+    """Test FMP batch quote fetcher (#1506)."""
+    from openbb_fmp.models.quotes_extras import FMPBatchQuoteFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPBatchQuoteFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_batch_quote_short_fetcher(credentials=test_credentials):
+    """Test FMP batch quote short fetcher (#1507)."""
+    from openbb_fmp.models.quotes_extras import FMPBatchQuoteShortFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPBatchQuoteShortFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_batch_aftermarket_quote_fetcher(credentials=test_credentials):
+    """Test FMP batch aftermarket quote fetcher (#1508)."""
+    from openbb_fmp.models.quotes_extras import FMPBatchAftermarketQuoteFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPBatchAftermarketQuoteFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_batch_aftermarket_trade_fetcher(credentials=test_credentials):
+    """Test FMP batch aftermarket trade fetcher (#1509)."""
+    from openbb_fmp.models.quotes_extras import FMPBatchAftermarketTradeFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPBatchAftermarketTradeFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_stock_quote_fetcher(credentials=test_credentials):
+    """Test FMP stock quote fetcher (#1510)."""
+    from openbb_fmp.models.quotes_extras import FMPStockQuoteFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPStockQuoteFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_stock_quote_short_fetcher(credentials=test_credentials):
+    """Test FMP stock quote short fetcher (#1511)."""
+    from openbb_fmp.models.quotes_extras import FMPStockQuoteShortFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPStockQuoteShortFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_stock_price_change_fetcher(credentials=test_credentials):
+    """Test FMP stock price change fetcher (#1512)."""
+    from openbb_fmp.models.quotes_extras import FMPStockPriceChangeFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPStockPriceChangeFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_market_cap_fetcher(credentials=test_credentials):
+    """Test FMP market cap fetcher (#1513)."""
+    from openbb_fmp.models.quotes_extras import FMPMarketCapFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPMarketCapFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_market_cap_batch_fetcher(credentials=test_credentials):
+    """Test FMP market cap batch fetcher (#1514)."""
+    from openbb_fmp.models.quotes_extras import FMPMarketCapBatchFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPMarketCapBatchFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None

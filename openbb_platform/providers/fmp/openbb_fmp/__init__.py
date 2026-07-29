@@ -78,6 +78,17 @@ from openbb_fmp.models.nport_disclosure import FMPNportDisclosureFetcher
 from openbb_fmp.models.price_performance import FMPPricePerformanceFetcher
 from openbb_fmp.models.price_target import FMPPriceTargetFetcher
 from openbb_fmp.models.price_target_consensus import FMPPriceTargetConsensusFetcher
+from openbb_fmp.models.quotes_extras import (
+    FMPBatchAftermarketQuoteFetcher,
+    FMPBatchAftermarketTradeFetcher,
+    FMPBatchQuoteFetcher,
+    FMPBatchQuoteShortFetcher,
+    FMPMarketCapBatchFetcher,
+    FMPMarketCapFetcher,
+    FMPStockPriceChangeFetcher,
+    FMPStockQuoteFetcher,
+    FMPStockQuoteShortFetcher,
+)
 from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetcher
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
@@ -203,6 +214,16 @@ stock market information (news, currencies, and stock prices).""",
         "FinancialStatementFullAsReported": FMPFinancialStatementFullAsReportedFetcher,
         "FinancialReportsDates": FMPFinancialReportsDatesFetcher,
         "FinancialReportsJson": FMPFinancialReportsJsonFetcher,
+        # Quotes-extras — Tier-A parity port (#1506-#1514).
+        "BatchQuote": FMPBatchQuoteFetcher,
+        "BatchQuoteShort": FMPBatchQuoteShortFetcher,
+        "BatchAftermarketQuote": FMPBatchAftermarketQuoteFetcher,
+        "BatchAftermarketTrade": FMPBatchAftermarketTradeFetcher,
+        "StockQuote": FMPStockQuoteFetcher,
+        "StockQuoteShort": FMPStockQuoteShortFetcher,
+        "StockPriceChange": FMPStockPriceChangeFetcher,
+        "MarketCap": FMPMarketCapFetcher,
+        "MarketCapBatch": FMPMarketCapBatchFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,
