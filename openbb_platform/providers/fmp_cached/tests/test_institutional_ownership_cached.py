@@ -11,14 +11,10 @@ Tests are organised into:
 from __future__ import annotations
 
 import json
-import math
-from datetime import date, datetime, timedelta
-from typing import Any
+from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipFetcher
 
 
 @pytest.fixture
@@ -43,14 +39,17 @@ from openbb_fmp_cached.models.institutional_ownership import (
     _try_yfinance,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 
-def _fmp_record(symbol: str = "MSFT", ownership_pct: float = 0.72,
-                year: int = 2024, quarter: int = 4) -> dict:
+def _fmp_record(
+    symbol: str = "MSFT",
+    ownership_pct: float = 0.72,
+    year: int = 2024,
+    quarter: int = 4,
+) -> dict:
     """Create a minimal FMP-format institutional ownership record.
 
     #783/#784: year and quarter are required in the cached payload for
@@ -411,10 +410,13 @@ class TestSec13fEndToEnd:
 
     @pytest.mark.asyncio
     async def test_sec_tier_against_real_index(self):
-        from datetime import datetime as _dt, timezone as _tz
+        from datetime import (
+            datetime as _dt,
+            timezone as _tz,
+        )
 
-        from openbb_sec.utils import thirteen_f_index as tfi
         from openbb_fmp_cached.utils.database import execute_query as _eq
+        from openbb_sec.utils import thirteen_f_index as tfi
 
         if not tfi.init_thirteen_f_index():
             pytest.skip("13F index database unreachable")
@@ -782,8 +784,7 @@ class TestDataNormalisation:
     """Verify fallback source records comply with FMP schema."""
 
     def test_yfinance_record_has_required_fields(self):
-        """yfinance record should have all mandatory FMP fields."""
-        from datetime import date
+        """Yfinance record should have all mandatory FMP fields."""
 
         record = {
             "symbol": "MSFT",
@@ -988,11 +989,10 @@ class TestDataNormalisation:
         with caplog.at_level(
             logging.WARNING,
             logger="openbb_fmp_cached.models.institutional_ownership",
-        ):
-            with pytest.raises(ValueError, match="institutional"):
-                FMPCachedInstitutionalOwnershipFetcher.transform_data(
-                    query, invalid_records
-                )
+        ), pytest.raises(ValueError, match="institutional"):
+            FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                query, invalid_records
+            )
 
     def test_transform_data_empty_input_does_not_raise(self, caplog):
         """Empty input list is a valid degenerate case, NOT the 'all dropped' bug.
@@ -1063,11 +1063,10 @@ class TestDataNormalisation:
             FMPInstitutionalOwnershipData,
             "model_validate",
             side_effect=boom,
-        ):
-            with pytest.raises(RuntimeError, match="simulated non-validation"):
-                FMPCachedInstitutionalOwnershipFetcher.transform_data(
-                    query, [{"symbol": "TSLA"}]
-                )
+        ), pytest.raises(RuntimeError, match="simulated non-validation"):
+            FMPCachedInstitutionalOwnershipFetcher.transform_data(
+                query, [{"symbol": "TSLA"}]
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1120,3 +1119,121 @@ class TestEdgeCases:
                 query, {"fmp_api_key": "test"}
             )
             assert result == []
+
+
+class TestNullPercentTolerance:
+    """Regression tests for #1390 — FMP intermittently returns ``null`` for
+    the three derived percent fields (ownership_percent,
+    last_ownership_percent, ownership_percent_change). Pre-fix, a single
+    null nuked the whole record via ValidationError; for a symbol where
+    EVERY row had null percents (observed on MSFT, 2026-07), the
+    "all-dropped ⇒ raise" guard fired and the entire fetch threw
+    ValueError. Post-fix, _TolerantInstitutionalOwnershipData relaxes
+    those three fields to Optional[float] so records survive with None
+    percents and the caller gets share counts / invested totals /
+    holder counts back.
+    """
+
+    def test_all_three_percents_null_now_kept(self):
+        """The exact MSFT repro: every record has all three percents
+        null. Pre-fix: ValueError raised. Post-fix: record kept, percents
+        become None, other fields preserved.
+        """
+        from openbb_fmp_cached.models.institutional_ownership import (
+            FMPCachedInstitutionalOwnershipFetcher,
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        # Two records, both with null percents — the exact shape #1390 reports.
+        record = _fmp_record(symbol="MSFT")
+        record["ownership_percent"] = None
+        record["last_ownership_percent"] = None
+        record["ownership_percent_change"] = None
+        record2 = _fmp_record(symbol="MSFT")
+        record2["ownership_percent"] = None
+        record2["last_ownership_percent"] = None
+        record2["ownership_percent_change"] = None
+        record2["date"] = "2025-10-15"
+
+        query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
+        # Must NOT raise. Pre-fix this raised ValueError with "All 2
+        # institutional-ownership record(s) failed FMP schema validation".
+        result = FMPCachedInstitutionalOwnershipFetcher.transform_data(
+            query, [record, record2]
+        )
+
+        assert len(result) == 2, "both records must survive null-percent validation"
+        # Percents propagate as None on the kept record.
+        assert result[0].ownership_percent is None
+        assert result[0].last_ownership_percent is None
+        assert result[0].ownership_percent_change is None
+        # Non-percent fields preserved — this is the whole point of the fix.
+        assert result[0].investors_holding == 4500
+        assert result[0].number_of_13f_shares == 5_000_000_000
+        assert result[0].total_invested == 1_500_000_000_000.0
+
+    def test_one_of_three_percents_null_still_kept(self):
+        """Partial-null case: only one of the three percent fields is null.
+        Pre-fix: record dropped via ValidationError. Post-fix: kept.
+        """
+        from openbb_fmp_cached.models.institutional_ownership import (
+            FMPCachedInstitutionalOwnershipFetcher,
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        record = _fmp_record(symbol="MSFT", ownership_pct=0.72)
+        record["ownership_percent_change"] = None  # only one null
+
+        query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
+        result = FMPCachedInstitutionalOwnershipFetcher.transform_data(query, [record])
+
+        assert len(result) == 1
+        # Parent's normalize_percent divides raw by 100 (percent -> fraction).
+        # 0.72 stored -> 0.0072 after validation.
+        assert result[0].ownership_percent == pytest.approx(0.0072)
+        assert result[0].last_ownership_percent == pytest.approx(0.007)
+        assert result[0].ownership_percent_change is None  # null preserved
+
+    def test_valid_percents_still_pass_through(self):
+        """Sanity check: records with valid percents still validate and
+        round-trip correctly. Guards against the tolerant subclass
+        accidentally rejecting valid input.
+        """
+        from openbb_fmp_cached.models.institutional_ownership import (
+            FMPCachedInstitutionalOwnershipFetcher,
+            FMPInstitutionalOwnershipQueryParams,
+        )
+
+        record = _fmp_record(symbol="MSFT", ownership_pct=0.72)
+        query = FMPInstitutionalOwnershipQueryParams(symbol="MSFT")
+
+        result = FMPCachedInstitutionalOwnershipFetcher.transform_data(query, [record])
+
+        assert len(result) == 1
+        # Parent's normalize_percent divides raw by 100 (percent -> fraction).
+        assert result[0].ownership_percent == pytest.approx(0.0072)
+        assert result[0].last_ownership_percent == pytest.approx(0.007)
+        assert result[0].ownership_percent_change == pytest.approx(0.0002)
+
+    def test_tolerant_class_is_subclass_of_parent(self):
+        """Downstream consumers type-check against
+        FMPInstitutionalOwnershipData — the tolerant subclass must
+        preserve that IS-A relationship or callers reading .attributes
+        via the parent type will regress.
+        """
+        from openbb_fmp.models.institutional_ownership import (
+            FMPInstitutionalOwnershipData,
+        )
+        from openbb_fmp_cached.models.institutional_ownership import (
+            _TolerantInstitutionalOwnershipData,
+        )
+
+        assert issubclass(
+            _TolerantInstitutionalOwnershipData, FMPInstitutionalOwnershipData
+        )
+        record = _fmp_record(symbol="MSFT")
+        record["ownership_percent"] = None
+        record["last_ownership_percent"] = None
+        record["ownership_percent_change"] = None
+        instance = _TolerantInstitutionalOwnershipData.model_validate(record)
+        assert isinstance(instance, FMPInstitutionalOwnershipData)
