@@ -445,10 +445,12 @@ different directories on disk."
    Do it in `notebooks_local/` instead.
 2. **The sync is one-way, source-of-truth → sandbox.** Refresh the
    sandbox with:
+
    ```bash
    python scripts/sync_notebooks_local.py            # additive sync
    python scripts/sync_notebooks_local.py --dry-run  # report only
    ```
+
    Files newer in `notebooks_local/` are kept (that's the operator's
    live work); files only in `notebooks/` are copied in. `--overwrite`
    force-clobbers, only use it after verifying no local PII is being
