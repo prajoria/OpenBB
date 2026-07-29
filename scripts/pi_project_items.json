@@ -3330,5 +3330,103 @@
     "phase": "A-parity",
     "type": "endpoint",
     "bead_id": null
+  },
+  "1515": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isFM",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1516": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isG8",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1517": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isIg",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1518": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isK4",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1519": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isMA",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1520": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isN8",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1521": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isQA",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1522": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isTE",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1523": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isU4",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1524": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isWo",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1525": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isYM",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1526": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isaI",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1527": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isb4",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
+  },
+  "1528": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0isdo",
+    "lane": "A",
+    "phase": "A-parity",
+    "type": "endpoint",
+    "bead_id": null
   }
 }

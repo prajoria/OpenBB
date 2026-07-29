@@ -69,6 +69,22 @@ from openbb_fmp.models.income_statement import FMPIncomeStatementFetcher
 from openbb_fmp.models.income_statement_growth import FMPIncomeStatementGrowthFetcher
 from openbb_fmp.models.index_constituents import FMPIndexConstituentsFetcher
 from openbb_fmp.models.index_historical import FMPIndexHistoricalFetcher
+from openbb_fmp.models.indexes_extras import (
+    FMPDowjonesConstituentFetcher,
+    FMPHistoricalDowjonesConstituentFetcher,
+    FMPHistoricalIndustryPeFetcher,
+    FMPHistoricalIndustryPerformanceFetcher,
+    FMPHistoricalNasdaqConstituentFetcher,
+    FMPHistoricalSectorPeFetcher,
+    FMPHistoricalSectorPerformanceFetcher,
+    FMPHistoricalSp500ConstituentFetcher,
+    FMPIndustryPeSnapshotFetcher,
+    FMPIndustryPerformanceSnapshotFetcher,
+    FMPNasdaqConstituentFetcher,
+    FMPSectorPeSnapshotFetcher,
+    FMPSectorPerformanceSnapshotFetcher,
+    FMPSp500ConstituentFetcher,
+)
 from openbb_fmp.models.insider_trading import FMPInsiderTradingFetcher
 from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipFetcher
 from openbb_fmp.models.key_executives import FMPKeyExecutivesFetcher
@@ -224,6 +240,21 @@ stock market information (news, currencies, and stock prices).""",
         "StockPriceChange": FMPStockPriceChangeFetcher,
         "MarketCap": FMPMarketCapFetcher,
         "MarketCapBatch": FMPMarketCapBatchFetcher,
+        # Indexes-extras — Tier-A parity port (#1515-#1528).
+        "DowjonesConstituent": FMPDowjonesConstituentFetcher,
+        "HistoricalDowjonesConstituent": FMPHistoricalDowjonesConstituentFetcher,
+        "Sp500Constituent": FMPSp500ConstituentFetcher,
+        "HistoricalSp500Constituent": FMPHistoricalSp500ConstituentFetcher,
+        "NasdaqConstituent": FMPNasdaqConstituentFetcher,
+        "HistoricalNasdaqConstituent": FMPHistoricalNasdaqConstituentFetcher,
+        "SectorPerformanceSnapshot": FMPSectorPerformanceSnapshotFetcher,
+        "HistoricalSectorPerformance": FMPHistoricalSectorPerformanceFetcher,
+        "SectorPeSnapshot": FMPSectorPeSnapshotFetcher,
+        "HistoricalSectorPe": FMPHistoricalSectorPeFetcher,
+        "IndustryPerformanceSnapshot": FMPIndustryPerformanceSnapshotFetcher,
+        "HistoricalIndustryPerformance": FMPHistoricalIndustryPerformanceFetcher,
+        "IndustryPeSnapshot": FMPIndustryPeSnapshotFetcher,
+        "HistoricalIndustryPe": FMPHistoricalIndustryPeFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,
