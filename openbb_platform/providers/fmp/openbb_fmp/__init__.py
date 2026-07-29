@@ -109,6 +109,19 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.dcf_reference_extras import (
+    FMPActivelyTradingListFetcher,
+    FMPCommoditiesListFetcher,
+    FMPCryptocurrencyListFetcher,
+    FMPCustomDiscountedCashFlowFetcher,
+    FMPCustomLeveredDiscountedCashFlowFetcher,
+    FMPDiscountedCashFlowFetcher,
+    FMPEtfListFetcher,
+    FMPForexListFetcher,
+    FMPIndexListFetcher,
+    FMPLeveredDiscountedCashFlowFetcher,
+    FMPStockListFetcher,
+)
 from openbb_fmp.models.government_extras import (
     FMPHouseLatestFetcher,
     FMPSenateLatestFetcher,
@@ -332,6 +345,19 @@ stock market information (news, currencies, and stock prices).""",
         "SenateNetWorthAggregated": FMPSenateNetWorthAggregatedFetcher,
         "SenatePositions": FMPSenatePositionsFetcher,
         "SenateProfile": FMPSenateProfileFetcher,
+        # DCF-extras — Tier-A parity port (#1560-#1563).
+        "DiscountedCashFlow": FMPDiscountedCashFlowFetcher,
+        "LeveredDiscountedCashFlow": FMPLeveredDiscountedCashFlowFetcher,
+        "CustomDiscountedCashFlow": FMPCustomDiscountedCashFlowFetcher,
+        "CustomLeveredDiscountedCashFlow": FMPCustomLeveredDiscountedCashFlowFetcher,
+        # Reference-list extras — Tier-A parity port (#1564-#1570).
+        "StockList": FMPStockListFetcher,
+        "EtfList": FMPEtfListFetcher,
+        "IndexList": FMPIndexListFetcher,
+        "CommoditiesList": FMPCommoditiesListFetcher,
+        "ForexList": FMPForexListFetcher,
+        "CryptocurrencyList": FMPCryptocurrencyListFetcher,
+        "ActivelyTradingList": FMPActivelyTradingListFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,
