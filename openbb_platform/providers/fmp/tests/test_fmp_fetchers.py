@@ -1671,3 +1671,124 @@ def test_fmp_senate_profile_fetcher(credentials=test_credentials):
     fetcher = FMPSenateProfileFetcher()
     result = fetcher.test({"name": "Warren"}, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# DCF + Reference-list extras — Tier-A parity port (#1560-#1570).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_discounted_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP DCF fetcher (#1560)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPDiscountedCashFlowFetcher
+
+    fetcher = FMPDiscountedCashFlowFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_levered_discounted_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP levered DCF fetcher (#1561)."""
+    from openbb_fmp.models.dcf_reference_extras import (
+        FMPLeveredDiscountedCashFlowFetcher,
+    )
+
+    fetcher = FMPLeveredDiscountedCashFlowFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_custom_discounted_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP custom DCF fetcher (#1562)."""
+    from openbb_fmp.models.dcf_reference_extras import (
+        FMPCustomDiscountedCashFlowFetcher,
+    )
+
+    fetcher = FMPCustomDiscountedCashFlowFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_custom_levered_discounted_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP custom levered DCF fetcher (#1563)."""
+    from openbb_fmp.models.dcf_reference_extras import (
+        FMPCustomLeveredDiscountedCashFlowFetcher,
+    )
+
+    fetcher = FMPCustomLeveredDiscountedCashFlowFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_stock_list_fetcher(credentials=test_credentials):
+    """Test FMP stock list fetcher (#1564)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPStockListFetcher
+
+    fetcher = FMPStockListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_etf_list_fetcher(credentials=test_credentials):
+    """Test FMP ETF list fetcher (#1565)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPEtfListFetcher
+
+    fetcher = FMPEtfListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_index_list_fetcher(credentials=test_credentials):
+    """Test FMP index list fetcher (#1566)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPIndexListFetcher
+
+    fetcher = FMPIndexListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_commodities_list_fetcher(credentials=test_credentials):
+    """Test FMP commodities list fetcher (#1567)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPCommoditiesListFetcher
+
+    fetcher = FMPCommoditiesListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_forex_list_fetcher(credentials=test_credentials):
+    """Test FMP forex list fetcher (#1568)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPForexListFetcher
+
+    fetcher = FMPForexListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cryptocurrency_list_fetcher(credentials=test_credentials):
+    """Test FMP crypto list fetcher (#1569)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPCryptocurrencyListFetcher
+
+    fetcher = FMPCryptocurrencyListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_actively_trading_list_fetcher(credentials=test_credentials):
+    """Test FMP actively trading list fetcher (#1570)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPActivelyTradingListFetcher
+
+    fetcher = FMPActivelyTradingListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None

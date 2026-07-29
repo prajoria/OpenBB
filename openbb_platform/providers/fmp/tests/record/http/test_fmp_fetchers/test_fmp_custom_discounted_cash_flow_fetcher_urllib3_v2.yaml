@@ -1,0 +1,89 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/custom-discounted-cash-flow?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        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
+        9T/gKzfPGTgAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 21:08:08 GMT
+      Etag:
+      - W/"3819-k/rgDER1+1Oi8H6XeY2k8Hf86xU"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
