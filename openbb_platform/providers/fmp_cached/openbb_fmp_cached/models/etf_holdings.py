@@ -188,6 +188,7 @@ async def _try_issuer(symbol: str) -> list[dict]:
     bd-3ka: per-tier failures are logged at DEBUG here (never WARNING).
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from openbb_fmp_cached.models.etf_holdings_issuer import (  # noqa: PLC0415
             fetch_issuer_holdings,
         )
@@ -227,6 +228,7 @@ async def _try_nport(symbol: str) -> list[dict]:
         # Lazy import — the SEC provider pulls a heavy XML stack
         # (aiohttp_client_cache, xmltodict, pandas). Not needed unless
         # the two upstream tiers are exhausted.
+        # pylint: disable=import-outside-toplevel
         from openbb_sec.models.nport_disclosure import (  # noqa: PLC0415
             SecNportDisclosureFetcher,
         )
@@ -355,9 +357,9 @@ class FMPCachedEtfHoldingsFetcher(FMPEtfHoldingsFetcher):
 
     @staticmethod
     def transform_data(
-        query: FMPEtfHoldingsQueryParams,
+        query: FMPEtfHoldingsQueryParams,  # pylint: disable=unused-argument
         data: list[dict],
-        **kwargs: Any,
+        **kwargs: Any,  # pylint: disable=unused-argument
     ) -> list[FMPEtfHoldingsData]:
         """Normalize to FMPEtfHoldingsData; tolerate missing fields from fallback tiers.
 
