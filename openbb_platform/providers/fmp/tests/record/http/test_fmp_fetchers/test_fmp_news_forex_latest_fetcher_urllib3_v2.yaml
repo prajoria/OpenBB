@@ -1,0 +1,85 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/news/forex-latest?apikey=MOCK_API_KEY&limit=10&page=0
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:25:14 GMT
+      Etag:
+      - W/"1924-M44183BX+1w/MoRapfrDxALpUb8"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
