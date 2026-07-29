@@ -254,12 +254,7 @@ async def _try_nport(symbol: str) -> list[dict]:
         # #1459 bug reported). Only truly-anonymous rows (no ticker, no
         # cusip, no isin) — usually cash pools or derivatives — are
         # dropped.
-        sym = (
-            d.get("symbol")
-            or d.get("ticker")
-            or d.get("cusip")
-            or d.get("isin")
-        )
+        sym = d.get("symbol") or d.get("ticker") or d.get("cusip") or d.get("isin")
         if not sym:
             skipped_no_id += 1
             continue
