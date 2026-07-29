@@ -1484,3 +1484,60 @@ def test_fmp_ipos_prospectus_fetcher(credentials=test_credentials):
     fetcher = FMPIposProspectusFetcher()
     result = fetcher.test({"page": 0, "limit": 10}, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# News-extras — Tier-A parity port (#1544-#1548).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_news_crypto_fetcher(credentials=test_credentials):
+    """Test FMP news crypto fetcher (#1544)."""
+    from openbb_fmp.models.news_extras import FMPNewsCryptoFetcher
+
+    params = {"symbols": "BTCUSD", "from_date": "2024-01-01", "to_date": "2026-07-29"}
+    fetcher = FMPNewsCryptoFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_news_crypto_latest_fetcher(credentials=test_credentials):
+    """Test FMP news crypto latest fetcher (#1545)."""
+    from openbb_fmp.models.news_extras import FMPNewsCryptoLatestFetcher
+
+    fetcher = FMPNewsCryptoLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_news_forex_fetcher(credentials=test_credentials):
+    """Test FMP news forex fetcher (#1546)."""
+    from openbb_fmp.models.news_extras import FMPNewsForexFetcher
+
+    params = {"symbols": "EURUSD", "from_date": "2024-01-01", "to_date": "2026-07-29"}
+    fetcher = FMPNewsForexFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_news_forex_latest_fetcher(credentials=test_credentials):
+    """Test FMP news forex latest fetcher (#1547)."""
+    from openbb_fmp.models.news_extras import FMPNewsForexLatestFetcher
+
+    fetcher = FMPNewsForexLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_fmp_articles_fetcher(credentials=test_credentials):
+    """Test FMP articles fetcher (#1548)."""
+    from openbb_fmp.models.news_extras import FMPFmpArticlesFetcher
+
+    fetcher = FMPFmpArticlesFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
