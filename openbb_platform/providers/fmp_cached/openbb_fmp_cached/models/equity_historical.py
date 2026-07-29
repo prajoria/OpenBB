@@ -475,12 +475,12 @@ def _analyze_cache_gaps(
     )
 
     cache_query = """
-    SELECT symbol, date, open, high, low, close, volume, 
+    SELECT symbol, date, open, high, low, close, volume,
            change_amount, change_percent, vwap, dividend,
            is_filled, fill_source_date, fill_type
-    FROM equity_historical 
-    WHERE symbol = %s 
-    AND date BETWEEN %s AND %s 
+    FROM equity_historical
+    WHERE symbol = %s
+    AND date BETWEEN %s AND %s
     AND interval_type = %s
     AND adjustment_type = %s
     AND is_valid = TRUE
@@ -1190,17 +1190,17 @@ def _store_in_database_cache(
         return
 
     insert_query = """
-    INSERT INTO equity_historical 
+    INSERT INTO equity_historical
     (symbol, date, open, high, low, close, volume, change_amount, change_percent, vwap, dividend,
      interval_type, adjustment_type, cached_at, is_valid, is_filled, fill_source_date, fill_type)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
     ON DUPLICATE KEY UPDATE
-    open = new_values.open, high = new_values.high, low = new_values.low, 
-    close = new_values.close, volume = new_values.volume, 
+    open = new_values.open, high = new_values.high, low = new_values.low,
+    close = new_values.close, volume = new_values.volume,
     change_amount = new_values.change_amount, change_percent = new_values.change_percent,
-    vwap = new_values.vwap, dividend = new_values.dividend, 
+    vwap = new_values.vwap, dividend = new_values.dividend,
     updated_at = CURRENT_TIMESTAMP, is_valid = new_values.is_valid,
-    is_filled = new_values.is_filled, fill_source_date = new_values.fill_source_date, 
+    is_filled = new_values.is_filled, fill_source_date = new_values.fill_source_date,
     fill_type = new_values.fill_type
     """
 
@@ -1610,10 +1610,18 @@ async def _fetch_dividends_from_fmp(
         # Route apikey (and every other query field) via ``params`` — keeps
         # the key OUT of any URL string in tracebacks / proxy logs
         # (bd-6641; sibling of bd-ir3f/q4b4 but at a different call site).
+        # Coerce date/datetime -> ISO string (fix #1389): the OHLC path at
+        # line ~1382 already does this; without the same coercion here,
+        # `aiohttp` / yarl rejects raw ``datetime.date`` with
+        # "Invalid variable type: value should be str, int or float, got
+        #  datetime.date(...) of type <class 'datetime.date'>" and the
+        # dividend sub-fetch fails while the OHLC parent call succeeds.
         params = {
             "symbol": symbol,
             **{
-                key: value
+                key: (
+                    value.isoformat() if isinstance(value, (date, datetime)) else value
+                )
                 for key, value in query.model_dump().items()
                 if value is not None
                 and key not in ("symbol", "adjustment", "interval", "include_dividends")
@@ -1658,7 +1666,7 @@ def get_cache_statistics(symbol: str | None = None) -> dict[str, Any]:
     try:
         if symbol:
             stats_query = """
-            SELECT 
+            SELECT
                 symbol,
                 COUNT(*) as record_count,
                 MIN(date) as earliest_date,
@@ -1666,21 +1674,21 @@ def get_cache_statistics(symbol: str | None = None) -> dict[str, Any]:
                 interval_type,
                 adjustment_type,
                 COUNT(DISTINCT date) as unique_dates
-            FROM equity_historical 
+            FROM equity_historical
             WHERE symbol = %s AND is_valid = TRUE
             GROUP BY symbol, interval_type, adjustment_type
             """
             results = execute_query(stats_query, (symbol,))
         else:
             stats_query = """
-            SELECT 
+            SELECT
                 COUNT(DISTINCT symbol) as unique_symbols,
                 COUNT(*) as total_records,
                 MIN(date) as earliest_date,
                 MAX(date) as latest_date,
                 COUNT(DISTINCT interval_type) as interval_types,
                 COUNT(DISTINCT adjustment_type) as adjustment_types
-            FROM equity_historical 
+            FROM equity_historical
             WHERE is_valid = TRUE
             """
             results = execute_query(stats_query)
@@ -1695,7 +1703,7 @@ def clear_cache_for_symbol(symbol: str) -> bool:
     """Clear all cached data for a specific symbol."""
     try:
         delete_query = """
-        DELETE FROM equity_historical 
+        DELETE FROM equity_historical
         WHERE symbol = %s
         """
 
@@ -1713,7 +1721,7 @@ def clean_old_cache(days_old: int = 30) -> int:
     """Clean cache entries older than specified days."""
     try:
         cleanup_query = """
-        DELETE FROM equity_historical 
+        DELETE FROM equity_historical
         WHERE cached_at < DATE_SUB(NOW(), INTERVAL %s DAY)
         """
         result = execute_query(cleanup_query, (days_old,))

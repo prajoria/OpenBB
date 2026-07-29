@@ -3106,5 +3106,12 @@
     "phase": "Validation",
     "type": "docs",
     "bead_id": null
+  },
+  "1389": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0izn8",
+    "lane": "A",
+    "phase": "Validation",
+    "type": "bug",
+    "bead_id": null
   }
 }
