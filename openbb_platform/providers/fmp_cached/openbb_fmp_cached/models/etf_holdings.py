@@ -188,6 +188,7 @@ async def _try_issuer(symbol: str) -> list[dict]:
     bd-3ka: per-tier failures are logged at DEBUG here (never WARNING).
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from openbb_fmp_cached.models.etf_holdings_issuer import (  # noqa: PLC0415
             fetch_issuer_holdings,
         )
@@ -200,14 +201,95 @@ async def _try_issuer(symbol: str) -> list[dict]:
         return []
 
 
-async def _try_nport(symbol: str) -> list[dict]:  # noqa: ARG001
-    """SEC N-PORT tier (stub).
+async def _try_nport(symbol: str) -> list[dict]:
+    """SEC N-PORT tier — authoritative ETF look-through for #1459.
 
-    Deferred per the T1 spike: SEC N-PORT bulk-dataset URL was not at any
-    probed path. Follow-up beads OpenBBTechnical-0p0 and -022 stay deferred
-    until the URL is hand-confirmed. Until then, this returns [].
+    Wired to ``SecNportDisclosureFetcher`` (same fetcher powering
+    ``obb.etf.nport_disclosure(provider="sec")``) so that when the FMP
+    and issuer tiers both come up empty, we still return the ~99% of
+    ETF NAV that N-PORT filings disclose.
+
+    Row shape returned (dict keys) matches the tier-1/tier-2 contract:
+    ``symbol, name, weight, cusip, isin, balance, value, country``.
+    ``weight`` is emitted in **percent form (0-100)** to match the
+    issuer tier — ``FMPEtfHoldingsData.normalize_percent`` will divide
+    by 100 downstream. SEC's own ``normalize_percent`` already scaled
+    the raw ``pctVal`` to a fraction; we multiply back so the two
+    stages compose to identity.
+
+    Fails soft: any exception (network, EmptyDataError for a symbol
+    that has no N-PORT filing, XML parse) is logged at DEBUG and
+    returns ``[]`` — matches the ``_try_fmp`` / ``_try_issuer`` pattern
+    so a real SEC outage doesn't crash the aggregator.
     """
-    return []
+    if not symbol:
+        return []
+    try:
+        # Lazy import — the SEC provider pulls a heavy XML stack
+        # (aiohttp_client_cache, xmltodict, pandas). Not needed unless
+        # the two upstream tiers are exhausted.
+        # pylint: disable=import-outside-toplevel
+        from openbb_sec.models.nport_disclosure import (  # noqa: PLC0415
+            SecNportDisclosureFetcher,
+        )
+
+        query = SecNportDisclosureFetcher.transform_query({"symbol": symbol})
+        raw = await SecNportDisclosureFetcher.aextract_data(query, credentials=None)
+        annotated = SecNportDisclosureFetcher.transform_data(query, raw)
+        records = getattr(annotated, "result", annotated) or []
+    except Exception as exc:  # noqa: BLE001
+        # DEBUG (not WARNING) — the aggregate WARNING at aextract_data
+        # covers the "all tiers failed" surface. A no-N-PORT-filing
+        # symbol is expected (equities, commodity trusts).
+        logger.debug("N-PORT tier %s failed: %s", symbol, exc)
+        return []
+
+    rows: list[dict] = []
+    skipped_no_id = 0
+    for rec in records:
+        # SecNportDisclosureData or bare dict — accept both.
+        d = rec.model_dump() if hasattr(rec, "model_dump") else dict(rec)
+        # SEC N-PORT rows often ship without a ``symbol`` (ticker not
+        # required in the filing) — many funds file with only ``name`` +
+        # ``cusip`` + ``lei`` + ``isin``. Fall through to those in
+        # priority order so we don't lose 100% of QQQ (which is what the
+        # #1459 bug reported). Only truly-anonymous rows (no ticker, no
+        # cusip, no isin) — usually cash pools or derivatives — are
+        # dropped.
+        sym = d.get("symbol") or d.get("ticker") or d.get("cusip") or d.get("isin")
+        if not sym:
+            skipped_no_id += 1
+            continue
+        # SEC's normalize_percent divided pctVal by 100 -> fraction.
+        # The issuer tier emits percent (0-100). Match the issuer contract
+        # so FMPEtfHoldingsData validation composes correctly.
+        weight_fraction = d.get("weight")
+        weight_percent = (
+            float(weight_fraction) * 100.0
+            if isinstance(weight_fraction, (int, float))
+            else None
+        )
+        rows.append(
+            {
+                "symbol": str(sym).strip().upper(),
+                "name": d.get("name"),
+                "weight": weight_percent,
+                "cusip": d.get("cusip"),
+                "isin": d.get("isin"),
+                "balance": d.get("balance"),
+                "value": d.get("value"),
+                "country": d.get("country"),
+                "data_source": "sec_nport",
+            }
+        )
+    if skipped_no_id:
+        logger.debug(
+            "N-PORT tier %s: kept %d rows, skipped %d with no ticker/cusip/isin",
+            symbol,
+            len(rows),
+            skipped_no_id,
+        )
+    return rows
 
 
 class FMPCachedEtfHoldingsFetcher(FMPEtfHoldingsFetcher):
@@ -275,9 +357,9 @@ class FMPCachedEtfHoldingsFetcher(FMPEtfHoldingsFetcher):
 
     @staticmethod
     def transform_data(
-        query: FMPEtfHoldingsQueryParams,
+        query: FMPEtfHoldingsQueryParams,  # pylint: disable=unused-argument
         data: list[dict],
-        **kwargs: Any,
+        **kwargs: Any,  # pylint: disable=unused-argument
     ) -> list[FMPEtfHoldingsData]:
         """Normalize to FMPEtfHoldingsData; tolerate missing fields from fallback tiers.
 

@@ -6,6 +6,7 @@ for the full spec. This v1 implements the Fidelity happy path only.
 """
 
 from portfolio_snapshot_importer.basket_bridge import (
+    redact_basket_preview,
     snapshot_to_basket,
     write_basket_json,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "import_file",
     "import_files",
     "import_folder",
+    "redact_basket_preview",
     "snapshot_to_basket",
     "write_basket_json",
     "PortfolioStore",

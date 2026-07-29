@@ -185,9 +185,27 @@ positions.db
 
 # Notebook scratch state (broader than the portfolio-specific rule above)
 **/.notebook_state/
+
+# Per-session artifact dirs the notebooks write into during Run All
+# (tearsheets, exports, backtest bundles). These are re-generated on
+# every kernel restart and must never travel with the repo.
+notebooks/portfolio/Analysis/
+notebooks/portfolio_yfinance/Analysis/
+**/Analysis/exports/
 **/.openbb_backtest/
+
+# Local notebook sandbox — see CLAUDE.md "Notebook local sandbox".
+# All personal-data / kernel-restart runs happen HERE (not in
+# notebooks/portfolio). Nothing under this path is ever committed.
+notebooks_local/
 
 # Notebook helper scratchpads used by the fill/enrich cycles
 _fill_*.py
 _enrich_*.py
 _verify_*.py
+_build_nb*.py
+_insert_*.py
+_splice_*.py
+_pivot_*.py
+_tmp_*.txt
+_tmp_*.py

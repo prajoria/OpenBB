@@ -254,3 +254,146 @@ def test_yfinance_no_paid_provider_references(nb_name: str) -> None:
         f"{nb_name}: paid-provider references in code cells: {offenders}. "
         "Track B is free-only; route through cboe / sec / yfinance-snapshot instead."
     )
+
+
+# ---------------------------------------------------------------------------
+# #1461 guard: no bare `#NNNN` issue refs in markdown cells / .md siblings
+# ---------------------------------------------------------------------------
+# Same regex the rewriter (scripts/linkify_notebook_issue_refs.py) uses:
+# - lookbehind rejects `[`, `(`, `/`, word chars (existing links & URL paths)
+# - lookahead rejects `]`, word chars (existing links & multi-digit tokens)
+_BARE_ISSUE_REF = __import__("re").compile(r"(?<![\w/(\[])#(\d{2,5})(?!\w|\])")
+
+
+def _bare_refs_in_markdown(nb: dict) -> list[tuple[int, str]]:
+    """Return [(cell_index, "#NNNN"), ...] for each bare ref in markdown cells."""
+    out: list[tuple[int, str]] = []
+    for idx, cell in enumerate(nb.get("cells") or []):
+        if cell.get("cell_type") != "markdown":
+            continue
+        src = "".join(cell.get("source") or [])
+        for m in _BARE_ISSUE_REF.finditer(src):
+            out.append((idx, f"#{m.group(1)}"))
+    return out
+
+
+@pytest.mark.parametrize(
+    "nb_name",
+    EXPECTED_NOTEBOOKS + EXPECTED_NOTEBOOKS_YFINANCE,
+)
+def test_no_bare_issue_refs_in_markdown(nb_name: str) -> None:
+    """#1461: every ``#NNNN`` in a markdown cell must be a real link
+    (``[#NNNN](https://github.com/prajoria/OpenBB/issues/NNNN)``).
+
+    A bare ``#1234`` renders as inert text in nbviewer / GitHub notebook
+    preview, so readers can't click through to see what shipped. The
+    rewriter script under ``scripts/linkify_notebook_issue_refs.py``
+    keeps the whole series in the linked form; this guard prevents new
+    bare refs from sneaking back in.
+    """
+    if nb_name in EXPECTED_NOTEBOOKS:
+        path = PORTFOLIO_NB_DIR / nb_name
+    else:
+        path = PORTFOLIO_YFINANCE_NB_DIR / nb_name
+    nb = _load_notebook(path)
+    hits = _bare_refs_in_markdown(nb)
+    assert not hits, (
+        f"{nb_name}: bare issue refs in markdown cells: {hits}. "
+        "Run `python scripts/linkify_notebook_issue_refs.py` to fix."
+    )
+
+
+@pytest.mark.parametrize(
+    "md_relpath",
+    [
+        "notebooks/portfolio/README.md",
+        "notebooks/portfolio/STORY_BIBLE.md",
+        "notebooks/portfolio/UNIVERSE.md",
+    ],
+)
+def test_no_bare_issue_refs_in_series_md(md_relpath: str) -> None:
+    """Same guard for the checked-in ``.md`` companions."""
+    path = REPO_ROOT / md_relpath
+    if not path.exists():
+        pytest.skip(f"{md_relpath} not present")
+    text = path.read_text(encoding="utf-8")
+    hits = [f"#{m.group(1)}" for m in _BARE_ISSUE_REF.finditer(text)]
+    assert not hits, (
+        f"{md_relpath}: bare issue refs: {hits}. "
+        "Run `python scripts/linkify_notebook_issue_refs.py` to fix."
+    )
+
+
+# ---------------------------------------------------------------------------
+# #1460 PII guard: notebook outputs must never contain known real usernames.
+# ---------------------------------------------------------------------------
+#
+# The bridge cell (NB01 §6) reads ``~/.portfolio_importer/positions.db``
+# and can, if not careful, emit real symbols/CUSIPs/weights + usernames
+# into ``outputs``. Since outputs travel with commits (we intentionally
+# preserve them for the reader), any operator running Run All with
+# their own portfolio DB present could silently commit brokerage data.
+#
+# **Why usernames only?** CUSIPs are public SEC identifiers — the very
+# same tokens that appear legitimately in the ETF-holdings/N-PORT demos
+# (e.g. QQQ constituent NVIDIA = ``67066G104``). Scanning for CUSIP
+# shape alone gives false positives on every notebook that shows real
+# ETF holdings. Usernames, on the other hand, are the sharp signal that
+# the bridge cell leaked personal data. The deny-list is seeded with the
+# two usernames that #1460's initial leak already committed; add more
+# here after any confirmed incident.
+_KNOWN_LEAKED_USERNAMES = ["prajoria", "rashmi"]
+
+
+def _extract_output_text(nb: dict) -> list[tuple[int, str]]:
+    """Yield (cell_idx, output_text) for every text output in every code cell."""
+    out: list[tuple[int, str]] = []
+    for idx, cell in enumerate(nb.get("cells") or []):
+        if cell.get("cell_type") != "code":
+            continue
+        for output in cell.get("outputs") or []:
+            # stream outputs ("name": "stdout")
+            if "text" in output:
+                text = output["text"]
+                if isinstance(text, list):
+                    text = "".join(text)
+                out.append((idx, text))
+            # rich display / execute_result — text/plain fallback
+            data = output.get("data") or {}
+            plain = data.get("text/plain")
+            if plain:
+                if isinstance(plain, list):
+                    plain = "".join(plain)
+                out.append((idx, plain))
+    return out
+
+
+@pytest.mark.parametrize(
+    "nb_name",
+    EXPECTED_NOTEBOOKS + EXPECTED_NOTEBOOKS_YFINANCE,
+)
+def test_no_pii_in_notebook_outputs(nb_name: str) -> None:
+    """#1460: notebook cell outputs must contain no known-real usernames.
+
+    Reverse-verify (documented, not exercised by CI): manually inject
+    ``prajoria`` into any code-cell output text, run this test — it
+    MUST fail. Restore, it passes. The test is load-bearing only if
+    that reverse-verify holds.
+    """
+    if nb_name in EXPECTED_NOTEBOOKS:
+        path = PORTFOLIO_NB_DIR / nb_name
+    else:
+        path = PORTFOLIO_YFINANCE_NB_DIR / nb_name
+    nb = _load_notebook(path)
+    offenders: list[tuple[int, str, str]] = []
+    for idx, text in _extract_output_text(nb):
+        low = text.lower()
+        for uname in _KNOWN_LEAKED_USERNAMES:
+            if uname in low:
+                offenders.append((idx, "known-username", uname))
+    assert not offenders, (
+        f"{nb_name}: PII tokens in cell outputs: {offenders}. "
+        "The bridge cell (or any cell) is leaking real user data. "
+        "Redact via portfolio_snapshot_importer.redact_basket_preview or "
+        "strip outputs before commit."
+    )
