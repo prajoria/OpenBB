@@ -1375,3 +1375,112 @@ def test_fmp_commitment_of_traders_report_fetcher(credentials=test_credentials):
     fetcher = FMPCommitmentOfTradersReportFetcher()
     result = fetcher.test({"symbol": "ES"}, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Fundraising-extras — Tier-A parity port (#1534-#1543).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_fundraising_fetcher(credentials=test_credentials):
+    """Test FMP fundraising fetcher (#1534)."""
+    from openbb_fmp.models.fundraising_extras import FMPFundraisingFetcher
+
+    fetcher = FMPFundraisingFetcher()
+    result = fetcher.test({"cik": "0002078364"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_fundraising_latest_fetcher(credentials=test_credentials):
+    """Test FMP fundraising latest fetcher (#1535)."""
+    from openbb_fmp.models.fundraising_extras import FMPFundraisingLatestFetcher
+
+    fetcher = FMPFundraisingLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_fundraising_search_fetcher(credentials=test_credentials):
+    """Test FMP fundraising search fetcher (#1536)."""
+    from openbb_fmp.models.fundraising_extras import FMPFundraisingSearchFetcher
+
+    fetcher = FMPFundraisingSearchFetcher()
+    result = fetcher.test({"name": "Apple"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_crowdfunding_offerings_fetcher(credentials=test_credentials):
+    """Test FMP crowdfunding offerings fetcher (#1537)."""
+    from openbb_fmp.models.fundraising_extras import FMPCrowdfundingOfferingsFetcher
+
+    fetcher = FMPCrowdfundingOfferingsFetcher()
+    result = fetcher.test({"cik": "0002134401"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_crowdfunding_offerings_latest_fetcher(credentials=test_credentials):
+    """Test FMP crowdfunding offerings latest fetcher (#1538)."""
+    from openbb_fmp.models.fundraising_extras import (
+        FMPCrowdfundingOfferingsLatestFetcher,
+    )
+
+    fetcher = FMPCrowdfundingOfferingsLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_crowdfunding_offerings_search_fetcher(credentials=test_credentials):
+    """Test FMP crowdfunding offerings search fetcher (#1539)."""
+    from openbb_fmp.models.fundraising_extras import (
+        FMPCrowdfundingOfferingsSearchFetcher,
+    )
+
+    fetcher = FMPCrowdfundingOfferingsSearchFetcher()
+    result = fetcher.test({"name": "tech"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_mergers_acquisitions_latest_fetcher(credentials=test_credentials):
+    """Test FMP mergers acquisitions latest fetcher (#1540)."""
+    from openbb_fmp.models.fundraising_extras import FMPMergersAcquisitionsLatestFetcher
+
+    fetcher = FMPMergersAcquisitionsLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_mergers_acquisitions_search_fetcher(credentials=test_credentials):
+    """Test FMP mergers acquisitions search fetcher (#1541)."""
+    from openbb_fmp.models.fundraising_extras import FMPMergersAcquisitionsSearchFetcher
+
+    fetcher = FMPMergersAcquisitionsSearchFetcher()
+    result = fetcher.test({"name": "Apple"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_ipos_disclosure_fetcher(credentials=test_credentials):
+    """Test FMP IPOs disclosure fetcher (#1542)."""
+    from openbb_fmp.models.fundraising_extras import FMPIposDisclosureFetcher
+
+    fetcher = FMPIposDisclosureFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_ipos_prospectus_fetcher(credentials=test_credentials):
+    """Test FMP IPOs prospectus fetcher (#1543)."""
+    from openbb_fmp.models.fundraising_extras import FMPIposProspectusFetcher
+
+    fetcher = FMPIposProspectusFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None

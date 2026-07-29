@@ -1,0 +1,80 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/fundraising-search?apikey=MOCK_API_KEY&name=Apple
+  response:
+    body:
+      string: !!binary |
+        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
+        fnr3x7/OFkaYUBkAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:11:44 GMT
+      Etag:
+      - W/"1950-N4I870JrffDy1rYy3a3/Y6aW5Gs"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

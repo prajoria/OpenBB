@@ -1,0 +1,65 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/mergers-acquisitions-latest?apikey=MOCK_API_KEY&limit=10&page=0
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+3WW2/aMBQA4Pf9CovnQo4dx3HyBqHQSqVj0FWdpmlyExei5kITQ1VN++9zwqUX
+        GsJ42PrAA1KEDyfJ+bDP+f4JoV/6g1Ajf4pv06jhokan5zVOll/6aTwTydOliGW5IpJ71AuzXCEv
+        zWabqPC+WAUAbFOGwVkvKJFNpJKB9zrNcNxBZ2kUhMkkP0Hnid/a+sEmIziUm4y/DRhvnlYn+7JZ
+        zUSSC1+FadIVqrwXAcKaYDexvQ4Svi9nOsV2BMK2C+BaeB0ahUn5HFOlZrlrGI+Pj61c+q1JujDa
+        mT8NFzI3ZDARmREIJYzV6xtFJTBQZjmEAaeMM0PFhBGwqL7Pz5y2pipu6Hv8PnkP4OpsNKgQ6J9e
+        Xp2djgZF1bbLDw6YmNSVf5Dqyks0EMn8ThdrnmkHtIrZAQHMNqldDTH43N3DAUidAxAE3AXsmvRQ
+        h2UZlgyOvrR07R2TaobAIhSzoE6g2/HaXysIui3USTMRobb/MA/zsHhLdF5uiNY2CQHHwgzXkDzn
+        HHnv5UWeXqq2IcAs295yf7bRrzPaBwfX4mCETVfvE3rwJllVpNThxMHahgHYmFAjuC2KIDJf+A+1
+        u6QwOhJ9aCLvm1fVSrwnPxK+jNBwKrJYX81V6IvoTT940VmwCZixGqROmKJ+JmWCBjJA4zSaFzWs
+        6zEVuV/Y9AfjWhvWxGy3TRGBMHOBuYQfarN62NKG6sPNItqGcM6JcZdmcd7cw2R4RPlYKON276bC
+        5MbroX6U3oqoSoEAdmzHrDu/5GIxVpkU8fq8SuNYH19jlfr3Oxi4RSmHaobu6fVeDDV9v4hABFxM
+        XGoeyrCqRMlAsOno2jBgnFJmSAHEocCL83G3Rf/yooJiyYAupUIXUuSyclvoeUP/I2pAijFsoTME
+        81xl4VvedyQYtbi9lfXFANa93gOiroEUEQj0IOy4z5Pk30KsKvB6EGb6r2SWgzC29Ci5xyCsKZrD
+        qiZ/1PgfGt2jxj/X+PTjD/OSdGOoDwAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:11:45 GMT
+      Etag:
+      - W/"fa8-UqXh1tM9k58LE/p0ZgVexr5Dy8Y"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -109,6 +109,18 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.fundraising_extras import (
+    FMPCrowdfundingOfferingsFetcher,
+    FMPCrowdfundingOfferingsLatestFetcher,
+    FMPCrowdfundingOfferingsSearchFetcher,
+    FMPFundraisingFetcher,
+    FMPFundraisingLatestFetcher,
+    FMPFundraisingSearchFetcher,
+    FMPIposDisclosureFetcher,
+    FMPIposProspectusFetcher,
+    FMPMergersAcquisitionsLatestFetcher,
+    FMPMergersAcquisitionsSearchFetcher,
+)
 from openbb_fmp.models.economics_extras import (
     FMPCommitmentOfTradersAnalysisFetcher,
     FMPCommitmentOfTradersListFetcher,
@@ -268,6 +280,17 @@ stock market information (news, currencies, and stock prices).""",
         "CommitmentOfTradersAnalysis": FMPCommitmentOfTradersAnalysisFetcher,
         "CommitmentOfTradersList": FMPCommitmentOfTradersListFetcher,
         "CommitmentOfTradersReport": FMPCommitmentOfTradersReportFetcher,
+        # Fundraising-extras — Tier-A parity port (#1534-#1543).
+        "Fundraising": FMPFundraisingFetcher,
+        "FundraisingLatest": FMPFundraisingLatestFetcher,
+        "FundraisingSearch": FMPFundraisingSearchFetcher,
+        "CrowdfundingOfferings": FMPCrowdfundingOfferingsFetcher,
+        "CrowdfundingOfferingsLatest": FMPCrowdfundingOfferingsLatestFetcher,
+        "CrowdfundingOfferingsSearch": FMPCrowdfundingOfferingsSearchFetcher,
+        "MergersAcquisitionsLatest": FMPMergersAcquisitionsLatestFetcher,
+        "MergersAcquisitionsSearch": FMPMergersAcquisitionsSearchFetcher,
+        "IposDisclosure": FMPIposDisclosureFetcher,
+        "IposProspectus": FMPIposProspectusFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,

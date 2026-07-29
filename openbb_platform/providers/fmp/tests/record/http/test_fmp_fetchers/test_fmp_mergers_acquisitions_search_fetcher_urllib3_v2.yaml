@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/mergers-acquisitions-search?apikey=MOCK_API_KEY&name=Apple
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA82UUU+DMBSF3/0VDc9j7S0drLwRXXTGmMX5YoxZKmu2RiiEdluI8b9bmCMahyZG
+        E0lJgHs49/Id4P4EoWe3I+SZOn8sMi9G3mxyfucN9lfTIi+Frq9FLtuS0lKUZSbRRMtqVaOpToed
+        Vj01GtJslEYEDgUrqpW0cnn60cyd5hutUmFVoQ2a18bK3Aw+eHa3fuc978a/PJ13xUpoI9LG/0zY
+        tiklFHxwix5EIk1l6Rw+KxDh8YjFtJNmSrdjrK0tTYzxbrcbGpkOV8UWJ1W6VltpsFyuRIWXwgrc
+        Toqbmcc8AgIU3CEPKBYUgHK6MD4brm3uOfuXwbEsktnVpCeLpM3hojClsiJTtkY3k+ntoCcSYDB2
+        /b+LRFl1HL3eZFkf8ve1Y8Qh9MnIp6yf+EGBIIppGDP2U+Jvj9kwBxiPmhUSwiLCcfverh0uuzDM
+        tYMQwn8FP4mSP2Af+IT7QL5g/6ZAwOOAxyT8RfaB+1oJGe3ZV1JZ7X4gvmELwgmDoMN/8vAKa8x2
+        d4oEAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:11:46 GMT
+      Etag:
+      - W/"48a-JJRV5A6MDctcixjGU9fKKPbslnM"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
