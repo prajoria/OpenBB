@@ -470,9 +470,7 @@ class FMPBalanceSheetStatementAsReportedFetcher(
         query: FMPStatementSymbolQueryParams, data: list[dict], **kwargs: Any
     ) -> list[FMPBalanceSheetStatementAsReportedData]:
         """Map raw rows to typed model instances."""
-        return [
-            FMPBalanceSheetStatementAsReportedData.model_validate(r) for r in data
-        ]
+        return [FMPBalanceSheetStatementAsReportedData.model_validate(r) for r in data]
 
 
 class FMPCashFlowStatementAsReportedFetcher(
@@ -540,9 +538,7 @@ class FMPFinancialStatementFullAsReportedFetcher(
         query: FMPStatementSymbolQueryParams, data: list[dict], **kwargs: Any
     ) -> list[FMPFinancialStatementFullAsReportedData]:
         """Map raw rows to typed model instances."""
-        return [
-            FMPFinancialStatementFullAsReportedData.model_validate(r) for r in data
-        ]
+        return [FMPFinancialStatementFullAsReportedData.model_validate(r) for r in data]
 
 
 class FMPFinancialReportsDatesFetcher(
