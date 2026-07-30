@@ -109,6 +109,14 @@ from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetche
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.company_extras import (
+    FMPAcquisitionOfBeneficialOwnershipFetcher,
+    FMPCompanyNotesFetcher,
+    FMPDelistedCompaniesFetcher,
+    FMPExecutiveCompensationBenchmarkFetcher,
+    FMPSharesFloatAllFetcher,
+    FMPSharesFloatFetcher,
+)
 from openbb_fmp.models.available_lists_extras import (
     FMPAvailableExchangesFetcher,
     FMPAvailableIndustriesFetcher,
@@ -396,6 +404,13 @@ stock market information (news, currencies, and stock prices).""",
         "AvailableExchanges": FMPAvailableExchangesFetcher,
         "AvailableIndustries": FMPAvailableIndustriesFetcher,
         "AvailableSectors": FMPAvailableSectorsFetcher,
+        # Company-extras — Tier-A parity port (#1500-#1505).
+        "CompanyNotes": FMPCompanyNotesFetcher,
+        "DelistedCompanies": FMPDelistedCompaniesFetcher,
+        "SharesFloat": FMPSharesFloatFetcher,
+        "SharesFloatAll": FMPSharesFloatAllFetcher,
+        "AcquisitionOfBeneficialOwnership": FMPAcquisitionOfBeneficialOwnershipFetcher,
+        "ExecutiveCompensationBenchmark": FMPExecutiveCompensationBenchmarkFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,
