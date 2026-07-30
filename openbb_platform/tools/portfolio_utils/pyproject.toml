@@ -1,0 +1,21 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "openbb-portfolio-utils"
+version = "0.1.0"
+description = "Portfolio-adjacent brokerage import, ETF/13F ingest, and quant-strategy scraper utilities. Rehomed from top-level Tools/ (gh-1628)."
+authors = ["OpenBB Portfolio Team"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "portfolio_utils"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+python-dotenv = "*"
+requests = "*"
+pandas = "*"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

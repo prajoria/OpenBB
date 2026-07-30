@@ -1,8 +1,8 @@
-"""Unit tests for ``Tools/parse_fidelity_positions.py`` parsing helpers.
+"""Unit tests for ``portfolio_utils/parse_fidelity_positions.py`` parsing helpers.
 
 These tests use no real account numbers or holdings — only synthetic inputs —
 to satisfy the privacy requirements in
-``Tools/docs/portfolio_basket_privacy_strategy.md``.
+``openbb_platform/tools/portfolio_utils/docs_orig/portfolio_basket_privacy_strategy.md``.
 """
 
 import os
@@ -10,10 +10,12 @@ import sys
 
 import pytest
 
-# Make the Tools/ directory importable when running from the repo root.
-_TOOLS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _TOOLS_DIR not in sys.path:
-    sys.path.insert(0, _TOOLS_DIR)
+# Make the portfolio_utils inner package importable.
+_SCRIPTS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "portfolio_utils"
+)
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
 from parse_fidelity_positions import (  # noqa: E402
     parse_currency,

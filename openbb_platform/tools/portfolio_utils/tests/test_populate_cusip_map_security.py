@@ -41,22 +41,23 @@ def _scan_source_for_apikey_fstring(module) -> list[tuple[int, str]]:
 
 def test_no_apikey_in_url_fstring_in_populate_cusip_map():
     """Regression for OpenBBTechnical-1xgu — apikey must move to params dict."""
-    # Import inside the test so pytest collection doesn't require the Tools/
-    # module to be importable on failure (Tools/ has script-oriented modules
-    # that may pull in optional deps at import time).
+    # Import inside the test so pytest collection doesn't require the
+    # portfolio_utils module to be importable on failure (it has
+    # script-oriented modules that may pull in optional deps at import time).
     import sys
     from pathlib import Path
 
-    tools_root = str(Path(__file__).resolve().parents[1] / "Tools")
-    if tools_root not in sys.path:
-        sys.path.insert(0, tools_root)
+    pkg_root = str(Path(__file__).resolve().parents[1] / "portfolio_utils")
+    if pkg_root not in sys.path:
+        sys.path.insert(0, pkg_root)
 
-    from Tools import populate_cusip_map as mod  # type: ignore[import-not-found]
+    import populate_cusip_map as mod  # type: ignore[import-not-found]
 
     hits = _scan_source_for_apikey_fstring(mod)
     assert not hits, (
-        "Found f-string apikey= interpolation in Tools/populate_cusip_map.py — "
-        "these leak the API key via HTTPError.url and proxy logs. Move to "
+        "Found f-string apikey= interpolation in "
+        "openbb_platform/tools/portfolio_utils/portfolio_utils/populate_cusip_map.py "
+        "— these leak the API key via HTTPError.url and proxy logs. Move to "
         "params={'symbol': symbol, 'apikey': api_key}. Sites:\n"
         + "\n".join(f"  L{ln}: {ln_text}" for ln, ln_text in hits)
     )

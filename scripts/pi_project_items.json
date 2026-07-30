@@ -4009,5 +4009,12 @@
     "phase": "A-e2e",
     "type": "test",
     "bead_id": null
+  },
+  "1628": {
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg0ouGo",
+    "lane": "housekeep",
+    "phase": "reconcile",
+    "type": "chore",
+    "bead_id": null
   }
 }
