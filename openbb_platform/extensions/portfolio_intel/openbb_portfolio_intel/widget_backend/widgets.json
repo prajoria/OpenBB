@@ -8,6 +8,7 @@
     "raw": true,
     "gridData": { "w": 20, "h": 9 },
     "source": "portfolio-intel",
+    "data": { "chart": { "type": "pie", "labelColumn": "sector", "valueColumn": "weight" } },
     "params": [
       { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
     ]
@@ -21,6 +22,7 @@
     "raw": true,
     "gridData": { "w": 20, "h": 9 },
     "source": "portfolio-intel",
+    "data": { "chart": { "type": "pie", "labelColumn": "country", "valueColumn": "weight" } },
     "params": [
       { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
     ]

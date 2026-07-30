@@ -61,7 +61,7 @@ def _manifest() -> dict:
             / "openbb_portfolio_intel"
             / "widget_backend"
             / "widgets.json"
-        ).read_text()
+        ).read_text(encoding="utf-8")
     )
 
 
