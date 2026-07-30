@@ -562,7 +562,7 @@ python -m venv .venv_portfolio
 ```
 
 **Legacy `.venv_win` note:** older instructions and scripts (`openbb.sh`,
-`start_desktop_dev.ps1`, `portfolio_app/setup.ps1`) still reference
+`start_desktop_dev.ps1`) still reference
 `.venv_win`. Those paths remain valid for non-portfolio work, but portfolio
 branch commits must be tested with `.venv_portfolio` to prove they work in
 a clean environment. If a test passes on `.venv_win` but fails on
