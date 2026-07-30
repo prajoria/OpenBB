@@ -122,7 +122,7 @@ NB07 ─ "reproducible from disk, 45 min, works on a plane"
 
 ## What this series is NOT
 
-- Not a rewrite of the techtrade notebooks. `notebooks/01-06` covers
+- Not a rewrite of the techtrade notebooks. `notebooks/techtrade/01-06` covers
   that lane; this series covers the portfolio engine. They are
   complementary, not overlapping.
 - Not a demo of real-time streaming, alternative data, live broker
