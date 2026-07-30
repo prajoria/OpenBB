@@ -11,9 +11,12 @@ The endpoints are registered by importing this module for its side
 effects (``main.py`` does that).
 """
 
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import logging
+import math
 
 from fastapi import HTTPException, Request
 
@@ -951,8 +954,6 @@ def _demo_ohlc_series(symbol: str, days: int = 20) -> list[dict]:
     tickers get visibly different (but reproducible) curves. Kept dependency-
     free so the unit tests never touch the network.
     """
-    import math
-
     # Deterministic seed per symbol — never uses time.
     seed = sum(ord(c) for c in symbol.upper())
     base = 100.0 + (seed % 200)
@@ -1004,7 +1005,7 @@ def equity_price_history(
         raise HTTPException(
             status_code=400,
             detail=(
-                "symbol must match [A-Z0-9.\-]{1,10}; "
+                "symbol must match [A-Z0-9.-]{1,10}; "
                 f"got {symbol!r} (rejected before price-history fetch)"
             ),
         )
