@@ -1974,3 +1974,72 @@ def test_fmp_available_sectors_fetcher(credentials=test_credentials):
     fetcher = FMPAvailableSectorsFetcher()
     result = fetcher.test({}, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Company-extras — Tier-A parity port (#1500-#1505).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_company_notes_fetcher(credentials=test_credentials):
+    """Test FMP company notes fetcher (#1500)."""
+    from openbb_fmp.models.company_extras import FMPCompanyNotesFetcher
+
+    fetcher = FMPCompanyNotesFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_delisted_companies_fetcher(credentials=test_credentials):
+    """Test FMP delisted companies fetcher (#1501)."""
+    from openbb_fmp.models.company_extras import FMPDelistedCompaniesFetcher
+
+    fetcher = FMPDelistedCompaniesFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_shares_float_fetcher(credentials=test_credentials):
+    """Test FMP shares float fetcher (#1502)."""
+    from openbb_fmp.models.company_extras import FMPSharesFloatFetcher
+
+    fetcher = FMPSharesFloatFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_shares_float_all_fetcher(credentials=test_credentials):
+    """Test FMP shares float all fetcher (#1503)."""
+    from openbb_fmp.models.company_extras import FMPSharesFloatAllFetcher
+
+    fetcher = FMPSharesFloatAllFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_acquisition_of_beneficial_ownership_fetcher(credentials=test_credentials):
+    """Test FMP acquisition of beneficial ownership fetcher (#1504)."""
+    from openbb_fmp.models.company_extras import (
+        FMPAcquisitionOfBeneficialOwnershipFetcher,
+    )
+
+    fetcher = FMPAcquisitionOfBeneficialOwnershipFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_executive_compensation_benchmark_fetcher(credentials=test_credentials):
+    """Test FMP executive compensation benchmark fetcher (#1505)."""
+    from openbb_fmp.models.company_extras import (
+        FMPExecutiveCompensationBenchmarkFetcher,
+    )
+
+    fetcher = FMPExecutiveCompensationBenchmarkFetcher()
+    result = fetcher.test({"year": 2023}, credentials)
+    assert result is None

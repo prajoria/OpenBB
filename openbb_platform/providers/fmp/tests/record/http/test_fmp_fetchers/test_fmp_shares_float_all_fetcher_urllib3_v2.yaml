@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/shares-float-all?apikey=MOCK_API_KEY&limit=10&page=0
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA32Uy2pUQRCG93mKw6wzh7p2XXaiiKDgIiCIuJiQ8QIxA5lxIeK7W6MkiHSq6UNz
+        qmrx9f931YeLZflZ37Jsjj++XR9uN7lsgOD9+mZz+Td+szvtz1ECGluwLfkClEjJ8FDy6X6/f3l7
+        2J2qDh5i5/+rL7v7/fGf6OH76Xja3d18vfv8mHNxdBKpil+XU55noA1PLBhJmjDlYViVhoOjoDME
+        6BRwQCXBGkyMoGGGHebzVjaChKcwVVYVD0VDcrJBU0oVZXPmBjMiLAZah/miVRM4BWvPMBFgRQPw
+        MQjUTMaUU0oqHuKjAZVAh/PqSF81pLagJUSKzkjNVwr3cGNHRIspKJui6yDqQC3KlbpzA4reSkqU
+        YqlT581WJhMp22rxXFAclXVTaTgJjeoq0VmPr3tBJaH2VFDHtSg8CDlMQX0O6m7mSK2ixFRvh9mo
+        Q33b9zykjhSaovo6lOsRMruGPNHyNAS8usU70koHILSgVz2oJUnqVNNzO1HNJS3jSrg6pqRGIIIx
+        tCE1dAOuwdGRvpuSyhbpj/uUYIkyHaNW7fT4/P7zvEyvGd45zlgTY0Sc4S4+/gYGItftdgYAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 30 Jul 2026 00:59:20 GMT
+      Etag:
+      - W/"676-WDLEyZZUwVQDXBOo9egCgzHJv+M"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,59 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/delisted-companies?apikey=MOCK_API_KEY&limit=10&page=0
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA6XUu27CMBQG4J2nOMqMK9vcSrcIXMrApXEa9aIObmJBpMSJ7FAVVX33OiDUJQbR
+        DMngY8mfjv/jtw7At/0APLPPP4rMuwMvelkyr3tcjYu8FGq/FLk8lSDcSi1KuavS2MBcxTenzfIr
+        3gq1Oexc+nzqP54qaVlMRXUoUExuESaIDk7FRGapqWTyt4MOER4hOvLshp9uk3ESsKnDOCmyXf6R
+        CgikkULHW2DKsmKZ2BWRATOVPQhYeN/k9hfsuVFNewj3ER22UbPFeuZQs7zUBcx0sSsPPYWVTlIl
+        9B7MVmhpruwxHdQWTNtoF5y9OrQLmdgGc6mqNLe/rjMGq3DSnAGM8ACRXhuf/xTN1w6gX5ZZam/8
+        KbreRkl9Mum3sT0EjN07bLwSythQSr3Zw6TQ5VU6YnU9RG8v6gZnbjZauS42glWaQah3pmqM3Atn
+        jaw6bQSR8UVW382KeOga6kjaqVXJf54bShEeI3y5YWdkfrTkrqR9ClUYqCciFpk7bc7OkT6y00BJ
+        Gx+fBa5J4Gs/OL4rZ2yu7pHxeFjHDV/W9Q66zvsvLqLr7FMGAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 30 Jul 2026 00:59:19 GMT
+      Etag:
+      - W/"653-Hj0C6mGW1knEakbVworuF57STR0"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
