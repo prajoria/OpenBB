@@ -214,7 +214,7 @@ The series will NOT cover any of the following. These are legitimate
 topics, but they belong to other lanes or later work — trying to fit
 them will break the arc and dilute Sam's story.
 
-- **Techtrade lane.** `notebooks/01-06` covers techtrade + Analysis
+- **Techtrade lane.** `notebooks/techtrade/01-06` covers techtrade + Analysis
   end-to-end already. The portfolio series never opens `obb.techtrade`.
 - **Real-time streams.** No websockets, no L2 book, no tick data.
   Sam runs this on Monday morning and again on Friday afternoon;
@@ -326,7 +326,7 @@ Rules the sample encodes:
 
 ## 10. Teaching contract (added 2026-07-25)
 
-The reference notebook `notebooks/01-foundations-techtrade-and-analysis.ipynb`
+The reference notebook `notebooks/techtrade/01-foundations-techtrade-and-analysis.ipynb`
 ships 76 Investopedia links across 82 glossary boxes. The portfolio
 series is targeting ~80 links across all 7 notebooks. The rules below
 codify how those links + glossary boxes get written so future authors
