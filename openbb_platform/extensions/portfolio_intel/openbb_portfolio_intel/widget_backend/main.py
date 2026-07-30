@@ -81,9 +81,7 @@ def get_apps() -> JSONResponse:
     """Return the pre-built dashboard layout Workspace ingests on connect."""
     # Same charset guard as /widgets.json (see #1632).
     return JSONResponse(
-        content=json.loads(
-            (_MANIFEST_DIR / "apps.json").read_text(encoding="utf-8")
-        ),
+        content=json.loads((_MANIFEST_DIR / "apps.json").read_text(encoding="utf-8")),
         media_type="application/json; charset=utf-8",
     )
 

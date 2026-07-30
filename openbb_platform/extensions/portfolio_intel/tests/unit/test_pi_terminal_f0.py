@@ -151,11 +151,13 @@ def test_terminal_app_declared() -> None:
     else:
         entries = []
     ids = {
-        (a.get("id") or a.get("appId") or "").lower() for a in entries if isinstance(a, dict)
+        (a.get("id") or a.get("appId") or "").lower()
+        for a in entries
+        if isinstance(a, dict)
     }
-    assert _TERMINAL_APP_ID in ids, (
-        f"Portfolio Intelligence Terminal app entry missing. Got ids: {ids!r}."
-    )
+    assert (
+        _TERMINAL_APP_ID in ids
+    ), f"Portfolio Intelligence Terminal app entry missing. Got ids: {ids!r}."
 
 
 def _terminal_entry() -> dict:
@@ -167,7 +169,10 @@ def _terminal_entry() -> dict:
     else:
         entries = list(apps.values()) if isinstance(apps, dict) else []
     for a in entries:
-        if isinstance(a, dict) and (a.get("id") or a.get("appId") or "").lower() == _TERMINAL_APP_ID:
+        if (
+            isinstance(a, dict)
+            and (a.get("id") or a.get("appId") or "").lower() == _TERMINAL_APP_ID
+        ):
             return a
     return {}
 
@@ -186,9 +191,7 @@ def test_terminal_app_has_eleven_tabs() -> None:
     """#1635 — the app declares exactly eleven tabs, one per F1..F11."""
     e = _terminal_entry()
     tabs = _tabs_of(e)
-    assert (
-        len(tabs) == 11
-    ), f"Terminal app must have 11 tabs (F1..F11); got {len(tabs)}"
+    assert len(tabs) == 11, f"Terminal app must have 11 tabs (F1..F11); got {len(tabs)}"
 
 
 def test_terminal_app_tab_labels_present() -> None:
@@ -199,9 +202,9 @@ def test_terminal_app_tab_labels_present() -> None:
         (t.get("name") or t.get("label") or t.get("title") or "") for t in tabs
     )
     for sub in _EXPECTED_TAB_SUBSTRINGS:
-        assert sub in tab_labels, (
-            f"tab label {sub!r} missing from terminal app; got: {tab_labels!r}"
-        )
+        assert (
+            sub in tab_labels
+        ), f"tab label {sub!r} missing from terminal app; got: {tab_labels!r}"
 
 
 def test_terminal_app_declares_symbol_and_book_contexts() -> None:
@@ -218,9 +221,9 @@ def test_terminal_app_declares_symbol_and_book_contexts() -> None:
         names = {p.get("paramName") for p in params if isinstance(p, dict)}
     else:
         names = set(params.keys()) if isinstance(params, dict) else set()
-    assert "symbol" in names, (
-        f"Terminal app must declare a top-level ``symbol`` param context; got {names!r}"
-    )
+    assert (
+        "symbol" in names
+    ), f"Terminal app must declare a top-level ``symbol`` param context; got {names!r}"
     assert "account_id" in names or "book" in names, (
         f"Terminal app must declare a top-level book context (``account_id`` or"
         f" ``book``); got {names!r}"
