@@ -325,5 +325,19 @@
     "params": [
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
     ]
+  },
+  "pi_equity_price_history": {
+    "name": "Equity Price History (line / candle)",
+    "description": "Historical price series with a runtime line/candle toggle (#1702). Line mode returns date/close; candle mode returns full OHLC.",
+    "category": "Equity Profile",
+    "type": "chart",
+    "endpoint": "pi/equity/price-history",
+    "raw": true,
+    "gridData": { "w": 30, "h": 12 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
+      { "paramName": "chart_type", "value": "line", "label": "Chart type", "type": "text", "description": "Line (close-only) or candlestick (OHLC).", "options": [ { "value": "line", "label": "Line" }, { "value": "candle", "label": "Candlestick" } ] }
+    ]
   }
 }
