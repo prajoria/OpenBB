@@ -509,6 +509,36 @@ class AnalysisConfig:
 # ---------------------------------------------------------------------------
 
 
+def _fmt(x, dp=2, pct=False, money=False):
+    """Format a scalar for a phase summary; 'n/a' for None/NaN/non-numeric."""
+    import math
+    try:
+        if x is None:
+            return "n/a"
+        xf = float(x)
+        if math.isnan(xf):
+            return "n/a"
+    except (TypeError, ValueError):
+        return "n/a"
+    if money:
+        for div, suf in ((1e12, "T"), (1e9, "B"), (1e6, "M")):
+            if abs(xf) >= div:
+                return f"${xf / div:.2f}{suf}"
+        return f"${xf:,.0f}"
+    if pct:
+        return f"{xf * 100:.{dp}f}%"
+    return f"{xf:.{dp}f}"
+
+
+def _gate_str(passed):
+    """PASS / FAIL / n/a for True / False / other."""
+    if passed is True:
+        return "PASS"
+    if passed is False:
+        return "FAIL"
+    return "n/a"
+
+
 @dataclass
 class Phase1Result:
     """Outputs of Phase 1: Company Profile & Tradeability Screen.
@@ -549,6 +579,14 @@ class Phase1Result:
     gate_passed: bool
     gate_notes: str
 
+    def __str__(self) -> str:
+        return (
+            f"Phase 1 · Company & Tradeability — {self.sector or 'n/a'} · "
+            f"cap {_fmt(self.market_cap, money=True)} · "
+            f"peers {len(self.peers or [])} · "
+            f"gate {_gate_str(self.gate_passed)}"
+        )
+
 
 @dataclass
 class Phase2Result:
@@ -567,6 +605,14 @@ class Phase2Result:
     dilution_5y: float  # Net share change over 5Y
     gate_passed: bool
     gate_notes: str
+
+    def __str__(self) -> str:
+        return (
+            f"Phase 2 · Fundamentals — quality {_fmt(self.score)}/5 · "
+            f"gross-profitability {_fmt(self.gross_profitability)} · "
+            f"dilution {_fmt(self.dilution_5y, 1, pct=True)} · "
+            f"gate {_gate_str(self.gate_passed)}"
+        )
 
 
 @dataclass
@@ -595,6 +641,16 @@ class Phase3Result:
     #: ``_compute_technicals`` pipeline. Option A of the bd-85w design.
     extended_panel: Any = None
 
+    def __str__(self) -> str:
+        n = len(self.signals or {})
+        wk = "bullish" if self.weekly_trend_bullish else "bearish"
+        return (
+            f"Phase 3 · Technicals — {self.bullish_count}/{n} bullish · "
+            f"weekly {wk} · ATR {_fmt(self.atr)} · "
+            f"entry {self.entry_quality} · "
+            f"gate {_gate_str(self.gate_passed)}"
+        )
+
 
 @dataclass
 class Phase4Result:
@@ -619,6 +675,15 @@ class Phase4Result:
     multiples_vs_median: dict[str, float]  # current / 5Y median - 1
     gate_passed: bool
     gate_notes: str
+
+    def __str__(self) -> str:
+        return (
+            f"Phase 4 · Valuation — {self.valuation_verdict} · "
+            f"MOS {_fmt(self.margin_of_safety, 1, pct=True)} · "
+            f"Altman {_fmt(self.altman, 1)} · "
+            f"Piotroski {_fmt(self.piotroski, 0)}/9 · "
+            f"gate {_gate_str(self.gate_passed)}"
+        )
 
 
 @dataclass
@@ -659,6 +724,15 @@ class Phase5Result:
     gate_passed: bool
     gate_notes: str
 
+    def __str__(self) -> str:
+        return (
+            f"Phase 5 · Risk — Sharpe {_fmt(self.sharpe)} · "
+            f"maxDD {_fmt(self.max_drawdown, 1, pct=True)} · "
+            f"rec-size {_fmt(self.recommended_size, 2, pct=True)} · "
+            f"fit {self.portfolio_fit} · "
+            f"gate {_gate_str(self.gate_passed)}"
+        )
+
 
 @dataclass
 class Phase6Result:
@@ -688,6 +762,14 @@ class Phase6Result:
     """
     gate_passed: bool
     gate_notes: str
+
+    def __str__(self) -> str:
+        return (
+            f"Phase 6 · Peer-relative — score {_fmt(self.relative_score)}/5 · "
+            f"IR {_fmt(self.information_ratio)} vs {self.sector_etf or 'n/a'} · "
+            f"3m-rank {_fmt(self.rolling_3m_rank, 0)}pct · "
+            f"gate {_gate_str(self.gate_passed)}"
+        )
 
 
 @dataclass
@@ -767,6 +849,15 @@ class Phase7Result:
                 type(self.regime).__name__,
             )
             self.regime = MarketRegime.UNKNOWN
+
+    def __str__(self) -> str:
+        override = (self.hard_override or "").strip(" |")
+        tail = f" · override: {override}" if override else ""
+        return (
+            f"Phase 7 · Decision — {self.action_label} · "
+            f"composite {_fmt(self.composite_score)}/5 · "
+            f"entry {self.entry_quality}{tail}"
+        )
 
 
 # ---------------------------------------------------------------------------
