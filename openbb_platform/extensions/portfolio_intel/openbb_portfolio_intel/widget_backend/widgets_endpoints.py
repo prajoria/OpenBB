@@ -922,3 +922,109 @@ def equity_competitors(
         },
         {"symbol": "NVDA", "name": "NVIDIA Corp.", "price": 118.20, "change_pct": 2.10},
     ]
+
+
+# ---------------------------------------------------------------------------
+# Price-history widget with line ↔ candlestick toggle (#1702)
+#
+# Serves either a light ``{date, close}`` shape (default, backward-compat with
+# the existing line-only chart contract) or a full ``{date, open, high, low,
+# close, volume}`` OHLC shape when ``chart_type=candle``.
+#
+# Design notes:
+# - Data is a deterministic demo dataset (hermetic, offline, hashes stable
+#   across runs). Wiring to the fmp_cached provider is a follow-up (see the
+#   ``TODO`` block in-body) — the shape contract is what the widget consumes,
+#   so the toggle is testable end-to-end today.
+# - Server chooses the row shape from the query param; the widget spec
+#   surfaces the same param to the Workspace user via a dropdown.
+# ---------------------------------------------------------------------------
+
+
+_ALLOWED_CHART_TYPES = ("line", "candle")
+
+
+def _demo_ohlc_series(symbol: str, days: int = 20) -> list[dict]:
+    """Return a deterministic OHLC series keyed off the symbol hash.
+
+    Uses a simple sinusoid + linear drift, seeded by the symbol so different
+    tickers get visibly different (but reproducible) curves. Kept dependency-
+    free so the unit tests never touch the network.
+    """
+    import math
+
+    # Deterministic seed per symbol — never uses time.
+    seed = sum(ord(c) for c in symbol.upper())
+    base = 100.0 + (seed % 200)
+    out: list[dict] = []
+    for i in range(days):
+        drift = i * 0.5
+        wave = math.sin((seed + i) / 3.0) * 2.5
+        close = round(base + drift + wave, 2)
+        # Build a realistic bar around ``close``.
+        open_ = round(close - math.cos((seed + i) / 3.0) * 1.0, 2)
+        high = round(max(open_, close) + abs(math.sin((seed + i) / 2.0)) * 1.2, 2)
+        low = round(min(open_, close) - abs(math.cos((seed + i) / 2.0)) * 1.2, 2)
+        volume = int(1_000_000 + (seed * (i + 1)) % 5_000_000)
+        out.append(
+            {
+                # Trailing "T00:00:00" makes the date parse-friendly in
+                # Workspace's chart renderer without pinning a timezone.
+                "date": f"2026-06-{(i % 28) + 1:02d}",
+                "open": open_,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+        )
+    return out
+
+
+@app.get("/pi/equity/price-history")
+def equity_price_history(
+    request: Request,
+    symbol: str = "AAPL",
+    chart_type: str = "line",
+) -> list[dict]:
+    """Return a price-history series in either line or candlestick shape.
+
+    * ``chart_type=line`` (default): rows are ``{date, close}``.
+    * ``chart_type=candle``: rows are ``{date, open, high, low, close, volume}``.
+
+    Any other ``chart_type`` value is a 400 — no silent fallback to line,
+    because that would hide a UI wiring bug where the widget sent us a
+    typo (which was #1633's failure mode: the chart-mapping silently
+    normalized bad values). Loud rejection surfaces the mismatch at PR
+    time via the manifest ↔ endpoint parity test.
+    """
+    require_auth(request)
+    sym = symbol.strip().upper()
+    if not _SYMBOL_RE.match(sym):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "symbol must match [A-Z0-9.\-]{1,10}; "
+                f"got {symbol!r} (rejected before price-history fetch)"
+            ),
+        )
+    if chart_type not in _ALLOWED_CHART_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"chart_type must be one of {_ALLOWED_CHART_TYPES}; "
+                f"got {chart_type!r}. Use ``line`` or ``candle``."
+            ),
+        )
+
+    # TODO(gh-1702): swap the demo generator for
+    # ``obb.equity.price.historical(symbol=sym, provider='fmp_cached')`` once
+    # the widget-level integration test in the pi_widgets Playwright harness
+    # is green. Keeping the demo hermetic today so the shape contract can
+    # ship independently of provider-quota-sensitive tests.
+    bars = _demo_ohlc_series(sym)
+
+    if chart_type == "line":
+        return [{"date": b["date"], "close": b["close"]} for b in bars]
+    # chart_type == "candle"
+    return bars
