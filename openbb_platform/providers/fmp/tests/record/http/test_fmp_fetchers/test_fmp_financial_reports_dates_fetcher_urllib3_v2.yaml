@@ -1,0 +1,69 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/financial-reports-dates?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA82cTWsTURiF9/0VIYusWpPJR78giAsDKqLxAwwiJU1Tjc0XmSxaxP/uhNi5A0YP
+        XA/n3EU36ZCc83B5n7uZ9/NRrfaj+KvV6vnD4no1r1/W6q/fDz7Uj/ef3s7yyXg+mo43xX/arfbp
+        78/X081sdbN7eth5fHY+W969zFfL3affttt1ftls3s6W4+VkNp4vVjfT4oGv6810/WSyWjTz7fh6
+        Pg0PnBT/WG22+cn34iue7tP0d1EaD8Wv93e/3dj/an/YaYzXs7vpQ3/05uO7q2dvX1y9ej6qxvg0
+        z+//M8Z98RVRMYoUP48JXNt6ru00uB6OweKa6blmaXA9HCOKa+8ProORimvvsdBg5OSKYpC46uZr
+        L435imKwuMrmay+N+YpisLjK5msvjfmKYkRx7RrnazeN+YpikLgOu3Kuw24SXP8Sg8VV5q1QyOot
+        FIPFVeatUMjqLRSDxVXmrVDI6i0UI4prxzhfO2nMVxSDxFV3HygLee8DKAaJq85b4aBYvYVisLjK
+        vBUKWb2FYrC4yrwVClm9hWJEcW0b52s7jfmKYpC46u4DZSHvfQDFYHGVeSsUsnoLxWBxlXkrFLJ6
+        C8VgcZV5KxSyegvFiOKaGb2VpeEtFIPEVeetspDXWygGi6vMW6GQ1VsoBourzFuhkNVbKAaLq8xb
+        oZDVWyhGFNeW0VutNLyFYpC46rxVFvJ6C8VgcZV5KxSyegvFYHGVeSsUsnoLxWBxlXkrFLJ6C8WI
+        4Zpd+OZrdpHEfIUxSFxl94FQyHofgDFIXGXeqhwUp7dgDBZXlbcqhZzegjFYXFXeqhRyegvGiOJ6
+        bvTWeRreQjFIXHXeKgt5vYVikLjqvBUOitVbKAaLq8xboZDVWygGi6vMW6GQ1VsoRhTXM+N8PUtj
+        vqIYJK66+0BZyHsfQDFYXGXeCoWs3kIxWFxl3gqFrN5CMVhcZd4KhazeQjGiuB5471g2X0/TmK8o
+        Bomr7j5QFvLeB1AMEledt9BCBTVXpreMex0qhazeQjFYXGXeQgsV5FyJ3jrwPrfMW+FFaqu3UAwS
+        V5230KIKNVemt4z7MioHxeotFIPFVeYttKhCzpXoLeO+jEohq7dQjCiuxr0OGVqoIOKKYpC46ryF
+        FoCouTK9ZdyXUTkoVm+hGCyuMm+hRRVyrkRvGfdlVApZvYViRHE17svI0KIKEVcUg8RV5y20qELN
+        lekt476MykGxegvFYHGVeQstqpBzJXrLuC+jUsjqLRQjiqtxr0OGFiqIuKIYJK46b6EFIGquTG8Z
+        92VUDorVWygGi6tsvqKFCnKuxPlq3D+QoRf/RVxRDBJX3XxFiyrUXP8xX4++/AKe8z0sGmIAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 18:48:10 GMT
+      Etag:
+      - W/"621a-UqLdTyPhliG1D2/s8Zt7F/Uvqvk"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

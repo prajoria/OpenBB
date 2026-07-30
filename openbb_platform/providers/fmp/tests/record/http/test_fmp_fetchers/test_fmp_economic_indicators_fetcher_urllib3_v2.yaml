@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/economic-indicators?apikey=MOCK_API_KEY&from=2024-01-01&name=CPI&to=2026-07-29
+  response:
+    body:
+      string: "[\n  {\n    \"name\": \"CPI\",\n    \"date\": \"2026-06-01\",\n    \"value\":
+        332.568\n  },\n  {\n    \"name\": \"CPI\",\n    \"date\": \"2026-05-01\",\n
+        \   \"value\": 333.979\n  }\n]"
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '152'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 19:56:00 GMT
+      Etag:
+      - W/"98-cRtT2hvIFL7gtQK7shGaqRbu3Cg"
+      Server:
+      - nginx
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

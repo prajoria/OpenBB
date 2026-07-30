@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/industry-classification-search?apikey=MOCK_API_KEY&symbol=AAPL
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAzWOSwvCMBCE7/0VSy5VUEmsr3oLIYdiTUNNEREP1hYM2lYaexDxv9sHWVgW5psd
+        5uwAfNsFQOZTpNUTbQFRKkM0GdTyWuS9JmXIIRBsZslNPzqA2/HmmPieBUbfWJX1X95yTaysy6wx
+        7/qj9PvZQx5ypuJIBAxYtJeJ4vHBmtPG6DI3hmZZ3Z7OfnYjwWHoIWm8gyM9uRNwWSJ5rAIRAaPg
+        LzFZuBcb87pXZS6aIs3rLmK0wJsx+P5qSjDBqPX8nMsf6C/a1AMBAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:39:17 GMT
+      Etag:
+      - W/"103-3cXbxft91T173tebK0drINYhv00"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

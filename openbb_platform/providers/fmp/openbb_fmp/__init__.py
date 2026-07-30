@@ -69,6 +69,22 @@ from openbb_fmp.models.income_statement import FMPIncomeStatementFetcher
 from openbb_fmp.models.income_statement_growth import FMPIncomeStatementGrowthFetcher
 from openbb_fmp.models.index_constituents import FMPIndexConstituentsFetcher
 from openbb_fmp.models.index_historical import FMPIndexHistoricalFetcher
+from openbb_fmp.models.indexes_extras import (
+    FMPDowjonesConstituentFetcher,
+    FMPHistoricalDowjonesConstituentFetcher,
+    FMPHistoricalIndustryPeFetcher,
+    FMPHistoricalIndustryPerformanceFetcher,
+    FMPHistoricalNasdaqConstituentFetcher,
+    FMPHistoricalSectorPeFetcher,
+    FMPHistoricalSectorPerformanceFetcher,
+    FMPHistoricalSp500ConstituentFetcher,
+    FMPIndustryPeSnapshotFetcher,
+    FMPIndustryPerformanceSnapshotFetcher,
+    FMPNasdaqConstituentFetcher,
+    FMPSectorPeSnapshotFetcher,
+    FMPSectorPerformanceSnapshotFetcher,
+    FMPSp500ConstituentFetcher,
+)
 from openbb_fmp.models.insider_trading import FMPInsiderTradingFetcher
 from openbb_fmp.models.institutional_ownership import FMPInstitutionalOwnershipFetcher
 from openbb_fmp.models.key_executives import FMPKeyExecutivesFetcher
@@ -78,10 +94,117 @@ from openbb_fmp.models.nport_disclosure import FMPNportDisclosureFetcher
 from openbb_fmp.models.price_performance import FMPPricePerformanceFetcher
 from openbb_fmp.models.price_target import FMPPriceTargetFetcher
 from openbb_fmp.models.price_target_consensus import FMPPriceTargetConsensusFetcher
+from openbb_fmp.models.quotes_extras import (
+    FMPBatchAftermarketQuoteFetcher,
+    FMPBatchAftermarketTradeFetcher,
+    FMPBatchQuoteFetcher,
+    FMPBatchQuoteShortFetcher,
+    FMPMarketCapBatchFetcher,
+    FMPMarketCapFetcher,
+    FMPStockPriceChangeFetcher,
+    FMPStockQuoteFetcher,
+    FMPStockQuoteShortFetcher,
+)
 from openbb_fmp.models.revenue_business_line import FMPRevenueBusinessLineFetcher
 from openbb_fmp.models.revenue_geographic import FMPRevenueGeographicFetcher
 from openbb_fmp.models.risk_premium import FMPRiskPremiumFetcher
 from openbb_fmp.models.share_statistics import FMPShareStatisticsFetcher
+from openbb_fmp.models.company_extras import (
+    FMPAcquisitionOfBeneficialOwnershipFetcher,
+    FMPCompanyNotesFetcher,
+    FMPDelistedCompaniesFetcher,
+    FMPExecutiveCompensationBenchmarkFetcher,
+    FMPSharesFloatAllFetcher,
+    FMPSharesFloatFetcher,
+)
+from openbb_fmp.models.available_lists_extras import (
+    FMPAvailableExchangesFetcher,
+    FMPAvailableIndustriesFetcher,
+    FMPAvailableSectorsFetcher,
+)
+from openbb_fmp.models.market_hours_search_extras import (
+    FMPAllExchangeMarketHoursFetcher,
+    FMPAvailableCountriesFetcher,
+    FMPCikListFetcher,
+    FMPFinancialStatementSymbolListFetcher,
+    FMPHolidaysByExchangeFetcher,
+    FMPProfileCikFetcher,
+    FMPSearchCikFetcher,
+    FMPSearchCusipFetcher,
+    FMPSearchExchangeVariantsFetcher,
+    FMPSearchIsinFetcher,
+    FMPSearchNameFetcher,
+    FMPSearchSymbolFetcher,
+    FMPSymbolChangeFetcher,
+)
+from openbb_fmp.models.dcf_reference_extras import (
+    FMPActivelyTradingListFetcher,
+    FMPCommoditiesListFetcher,
+    FMPCryptocurrencyListFetcher,
+    FMPCustomDiscountedCashFlowFetcher,
+    FMPCustomLeveredDiscountedCashFlowFetcher,
+    FMPDiscountedCashFlowFetcher,
+    FMPEtfListFetcher,
+    FMPForexListFetcher,
+    FMPIndexListFetcher,
+    FMPLeveredDiscountedCashFlowFetcher,
+    FMPStockListFetcher,
+)
+from openbb_fmp.models.government_extras import (
+    FMPHouseLatestFetcher,
+    FMPSenateLatestFetcher,
+    FMPSenateNetWorthAggregatedFetcher,
+    FMPSenateNetWorthFetcher,
+    FMPSenatePositionsFetcher,
+    FMPSenateProfileFetcher,
+)
+from openbb_fmp.models.sec_extras import (
+    FMPAllIndustryClassificationFetcher,
+    FMPIndustryClassificationSearchFetcher,
+    FMPSecFilings8kFetcher,
+    FMPSecProfileFetcher,
+    FMPStandardIndustrialClassificationListFetcher,
+)
+from openbb_fmp.models.news_extras import (
+    FMPFmpArticlesFetcher,
+    FMPNewsCryptoFetcher,
+    FMPNewsCryptoLatestFetcher,
+    FMPNewsForexFetcher,
+    FMPNewsForexLatestFetcher,
+)
+from openbb_fmp.models.fundraising_extras import (
+    FMPCrowdfundingOfferingsFetcher,
+    FMPCrowdfundingOfferingsLatestFetcher,
+    FMPCrowdfundingOfferingsSearchFetcher,
+    FMPFundraisingFetcher,
+    FMPFundraisingLatestFetcher,
+    FMPFundraisingSearchFetcher,
+    FMPIposDisclosureFetcher,
+    FMPIposProspectusFetcher,
+    FMPMergersAcquisitionsLatestFetcher,
+    FMPMergersAcquisitionsSearchFetcher,
+)
+from openbb_fmp.models.economics_extras import (
+    FMPCommitmentOfTradersAnalysisFetcher,
+    FMPCommitmentOfTradersListFetcher,
+    FMPCommitmentOfTradersReportFetcher,
+    FMPEconomicIndicatorsFetcher,
+    FMPMarketRiskPremiumFetcher,
+)
+from openbb_fmp.models.statements_extras import (
+    FMPBalanceSheetStatementAsReportedFetcher,
+    FMPCashFlowStatementAsReportedFetcher,
+    FMPEnterpriseValuesFetcher,
+    FMPFinancialGrowthFetcher,
+    FMPFinancialReportsDatesFetcher,
+    FMPFinancialReportsJsonFetcher,
+    FMPFinancialScoresFetcher,
+    FMPFinancialStatementFullAsReportedFetcher,
+    FMPIncomeStatementAsReportedFetcher,
+    FMPKeyMetricsTtmFetcher,
+    FMPOwnerEarningsFetcher,
+    FMPRatiosTtmFetcher,
+)
 from openbb_fmp.models.technical_indicator_intraday import (
     FMPTechnicalIndicatorIntradayFetcher,
 )
@@ -175,6 +298,119 @@ stock market information (news, currencies, and stock prices).""",
         "RevenueGeographic": FMPRevenueGeographicFetcher,
         "RiskPremium": FMPRiskPremiumFetcher,
         "ShareStatistics": FMPShareStatisticsFetcher,
+        # Statements-extras — Tier-A parity port (#1488-#1499). See
+        # openbb_fmp.models.statements_extras for design notes.
+        "EnterpriseValues": FMPEnterpriseValuesFetcher,
+        "FinancialGrowth": FMPFinancialGrowthFetcher,
+        "FinancialScores": FMPFinancialScoresFetcher,
+        "KeyMetricsTtm": FMPKeyMetricsTtmFetcher,
+        "OwnerEarnings": FMPOwnerEarningsFetcher,
+        "RatiosTtm": FMPRatiosTtmFetcher,
+        "IncomeStatementAsReported": FMPIncomeStatementAsReportedFetcher,
+        "BalanceSheetStatementAsReported": FMPBalanceSheetStatementAsReportedFetcher,
+        "CashFlowStatementAsReported": FMPCashFlowStatementAsReportedFetcher,
+        "FinancialStatementFullAsReported": FMPFinancialStatementFullAsReportedFetcher,
+        "FinancialReportsDates": FMPFinancialReportsDatesFetcher,
+        "FinancialReportsJson": FMPFinancialReportsJsonFetcher,
+        # Quotes-extras — Tier-A parity port (#1506-#1514).
+        "BatchQuote": FMPBatchQuoteFetcher,
+        "BatchQuoteShort": FMPBatchQuoteShortFetcher,
+        "BatchAftermarketQuote": FMPBatchAftermarketQuoteFetcher,
+        "BatchAftermarketTrade": FMPBatchAftermarketTradeFetcher,
+        "StockQuote": FMPStockQuoteFetcher,
+        "StockQuoteShort": FMPStockQuoteShortFetcher,
+        "StockPriceChange": FMPStockPriceChangeFetcher,
+        "MarketCap": FMPMarketCapFetcher,
+        "MarketCapBatch": FMPMarketCapBatchFetcher,
+        # Indexes-extras — Tier-A parity port (#1515-#1528).
+        "DowjonesConstituent": FMPDowjonesConstituentFetcher,
+        "HistoricalDowjonesConstituent": FMPHistoricalDowjonesConstituentFetcher,
+        "Sp500Constituent": FMPSp500ConstituentFetcher,
+        "HistoricalSp500Constituent": FMPHistoricalSp500ConstituentFetcher,
+        "NasdaqConstituent": FMPNasdaqConstituentFetcher,
+        "HistoricalNasdaqConstituent": FMPHistoricalNasdaqConstituentFetcher,
+        "SectorPerformanceSnapshot": FMPSectorPerformanceSnapshotFetcher,
+        "HistoricalSectorPerformance": FMPHistoricalSectorPerformanceFetcher,
+        "SectorPeSnapshot": FMPSectorPeSnapshotFetcher,
+        "HistoricalSectorPe": FMPHistoricalSectorPeFetcher,
+        "IndustryPerformanceSnapshot": FMPIndustryPerformanceSnapshotFetcher,
+        "HistoricalIndustryPerformance": FMPHistoricalIndustryPerformanceFetcher,
+        "IndustryPeSnapshot": FMPIndustryPeSnapshotFetcher,
+        "HistoricalIndustryPe": FMPHistoricalIndustryPeFetcher,
+        # Economics-extras — Tier-A parity port (#1529-#1533).
+        "EconomicIndicators": FMPEconomicIndicatorsFetcher,
+        "MarketRiskPremium": FMPMarketRiskPremiumFetcher,
+        "CommitmentOfTradersAnalysis": FMPCommitmentOfTradersAnalysisFetcher,
+        "CommitmentOfTradersList": FMPCommitmentOfTradersListFetcher,
+        "CommitmentOfTradersReport": FMPCommitmentOfTradersReportFetcher,
+        # Fundraising-extras — Tier-A parity port (#1534-#1543).
+        "Fundraising": FMPFundraisingFetcher,
+        "FundraisingLatest": FMPFundraisingLatestFetcher,
+        "FundraisingSearch": FMPFundraisingSearchFetcher,
+        "CrowdfundingOfferings": FMPCrowdfundingOfferingsFetcher,
+        "CrowdfundingOfferingsLatest": FMPCrowdfundingOfferingsLatestFetcher,
+        "CrowdfundingOfferingsSearch": FMPCrowdfundingOfferingsSearchFetcher,
+        "MergersAcquisitionsLatest": FMPMergersAcquisitionsLatestFetcher,
+        "MergersAcquisitionsSearch": FMPMergersAcquisitionsSearchFetcher,
+        "IposDisclosure": FMPIposDisclosureFetcher,
+        "IposProspectus": FMPIposProspectusFetcher,
+        # News-extras — Tier-A parity port (#1544-#1548).
+        "NewsCrypto": FMPNewsCryptoFetcher,
+        "NewsCryptoLatest": FMPNewsCryptoLatestFetcher,
+        "NewsForex": FMPNewsForexFetcher,
+        "NewsForexLatest": FMPNewsForexLatestFetcher,
+        "FmpArticles": FMPFmpArticlesFetcher,
+        # SEC-extras — Tier-A parity port (#1549-#1553).
+        "SecFilings8K": FMPSecFilings8kFetcher,
+        "SecProfile": FMPSecProfileFetcher,
+        "StandardIndustrialClassificationList": FMPStandardIndustrialClassificationListFetcher,
+        "AllIndustryClassification": FMPAllIndustryClassificationFetcher,
+        "IndustryClassificationSearch": FMPIndustryClassificationSearchFetcher,
+        # Government-extras — Tier-A parity port (#1554-#1559).
+        "HouseLatest": FMPHouseLatestFetcher,
+        "SenateLatest": FMPSenateLatestFetcher,
+        "SenateNetWorth": FMPSenateNetWorthFetcher,
+        "SenateNetWorthAggregated": FMPSenateNetWorthAggregatedFetcher,
+        "SenatePositions": FMPSenatePositionsFetcher,
+        "SenateProfile": FMPSenateProfileFetcher,
+        # DCF-extras — Tier-A parity port (#1560-#1563).
+        "DiscountedCashFlow": FMPDiscountedCashFlowFetcher,
+        "LeveredDiscountedCashFlow": FMPLeveredDiscountedCashFlowFetcher,
+        "CustomDiscountedCashFlow": FMPCustomDiscountedCashFlowFetcher,
+        "CustomLeveredDiscountedCashFlow": FMPCustomLeveredDiscountedCashFlowFetcher,
+        # Reference-list extras — Tier-A parity port (#1564-#1570).
+        "StockList": FMPStockListFetcher,
+        "EtfList": FMPEtfListFetcher,
+        "IndexList": FMPIndexListFetcher,
+        "CommoditiesList": FMPCommoditiesListFetcher,
+        "ForexList": FMPForexListFetcher,
+        "CryptocurrencyList": FMPCryptocurrencyListFetcher,
+        "ActivelyTradingList": FMPActivelyTradingListFetcher,
+        # Market-hours + Search extras — Tier-A parity port (#1571-#1572, #1467-#1477).
+        "AllExchangeMarketHours": FMPAllExchangeMarketHoursFetcher,
+        "HolidaysByExchange": FMPHolidaysByExchangeFetcher,
+        "SearchSymbol": FMPSearchSymbolFetcher,
+        "SearchName": FMPSearchNameFetcher,
+        "SearchCik": FMPSearchCikFetcher,
+        "SearchCusip": FMPSearchCusipFetcher,
+        "SearchIsin": FMPSearchIsinFetcher,
+        "SearchExchangeVariants": FMPSearchExchangeVariantsFetcher,
+        "CikList": FMPCikListFetcher,
+        "ProfileCik": FMPProfileCikFetcher,
+        "SymbolChange": FMPSymbolChangeFetcher,
+        "FinancialStatementSymbolList": FMPFinancialStatementSymbolListFetcher,
+        "AvailableCountries": FMPAvailableCountriesFetcher,
+        # Available-lists extras — final Tier-A parity port (#1478-#1480).
+        "AvailableExchanges": FMPAvailableExchangesFetcher,
+        "AvailableIndustries": FMPAvailableIndustriesFetcher,
+        "AvailableSectors": FMPAvailableSectorsFetcher,
+        # Company-extras — Tier-A parity port (#1500-#1505).
+        "CompanyNotes": FMPCompanyNotesFetcher,
+        "DelistedCompanies": FMPDelistedCompaniesFetcher,
+        "SharesFloat": FMPSharesFloatFetcher,
+        "SharesFloatAll": FMPSharesFloatAllFetcher,
+        "AcquisitionOfBeneficialOwnership": FMPAcquisitionOfBeneficialOwnershipFetcher,
+        "ExecutiveCompensationBenchmark": FMPExecutiveCompensationBenchmarkFetcher,
         "TechnicalIndicatorIntraday": FMPTechnicalIndicatorIntradayFetcher,
         "TreasuryRates": FMPTreasuryRatesFetcher,
         "WorldNews": FMPWorldNewsFetcher,

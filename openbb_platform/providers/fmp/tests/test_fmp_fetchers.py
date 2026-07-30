@@ -898,3 +898,1148 @@ def test_fmp_grades_consensus_fetcher(credentials=test_credentials):
     fetcher = FMPGradesConsensusFetcher()
     result = fetcher.test(params, credentials)
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Statements-extras — Tier-A parity port from fmp_cached (#1488-#1499).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_enterprise_values_fetcher(credentials=test_credentials):
+    """Test FMP enterprise values fetcher (#1488)."""
+    from openbb_fmp.models.statements_extras import FMPEnterpriseValuesFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPEnterpriseValuesFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_growth_fetcher(credentials=test_credentials):
+    """Test FMP financial growth fetcher (#1489)."""
+    from openbb_fmp.models.statements_extras import FMPFinancialGrowthFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPFinancialGrowthFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_scores_fetcher(credentials=test_credentials):
+    """Test FMP financial scores fetcher (#1490)."""
+    from openbb_fmp.models.statements_extras import FMPFinancialScoresFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPFinancialScoresFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_key_metrics_ttm_fetcher(credentials=test_credentials):
+    """Test FMP key metrics TTM fetcher (#1491)."""
+    from openbb_fmp.models.statements_extras import FMPKeyMetricsTtmFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPKeyMetricsTtmFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_owner_earnings_fetcher(credentials=test_credentials):
+    """Test FMP owner earnings fetcher (#1492)."""
+    from openbb_fmp.models.statements_extras import FMPOwnerEarningsFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPOwnerEarningsFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_ratios_ttm_fetcher(credentials=test_credentials):
+    """Test FMP ratios TTM fetcher (#1493)."""
+    from openbb_fmp.models.statements_extras import FMPRatiosTtmFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPRatiosTtmFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_income_statement_as_reported_fetcher(credentials=test_credentials):
+    """Test FMP income statement as-reported fetcher (#1494)."""
+    from openbb_fmp.models.statements_extras import (
+        FMPIncomeStatementAsReportedFetcher,
+    )
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPIncomeStatementAsReportedFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_balance_sheet_statement_as_reported_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP balance sheet as-reported fetcher (#1495)."""
+    from openbb_fmp.models.statements_extras import (
+        FMPBalanceSheetStatementAsReportedFetcher,
+    )
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPBalanceSheetStatementAsReportedFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cash_flow_statement_as_reported_fetcher(credentials=test_credentials):
+    """Test FMP cash flow as-reported fetcher (#1496)."""
+    from openbb_fmp.models.statements_extras import (
+        FMPCashFlowStatementAsReportedFetcher,
+    )
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPCashFlowStatementAsReportedFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_statement_full_as_reported_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP financial statement full as-reported fetcher (#1497)."""
+    from openbb_fmp.models.statements_extras import (
+        FMPFinancialStatementFullAsReportedFetcher,
+    )
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPFinancialStatementFullAsReportedFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_reports_dates_fetcher(credentials=test_credentials):
+    """Test FMP financial reports dates fetcher (#1498)."""
+    from openbb_fmp.models.statements_extras import FMPFinancialReportsDatesFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPFinancialReportsDatesFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_reports_json_fetcher(credentials=test_credentials):
+    """Test FMP financial reports JSON fetcher (#1499).
+
+    Requires ``year`` and ``period`` in addition to ``symbol``; FMP
+    returns a single object (not a list) that we wrap.
+    """
+    from openbb_fmp.models.statements_extras import FMPFinancialReportsJsonFetcher
+
+    params = {"symbol": "MSFT", "year": 2024, "period": "FY"}
+    fetcher = FMPFinancialReportsJsonFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Quotes-extras — Tier-A parity port (#1506-#1514).
+# Indexes-extras — Tier-A parity port (#1515-#1528).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_batch_quote_fetcher(credentials=test_credentials):
+    """Test FMP batch quote fetcher (#1506)."""
+    from openbb_fmp.models.quotes_extras import FMPBatchQuoteFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPBatchQuoteFetcher()
+
+
+def test_fmp_dowjones_constituent_fetcher(credentials=test_credentials):
+    """Test FMP Dow Jones constituent fetcher (#1515)."""
+    from openbb_fmp.models.indexes_extras import FMPDowjonesConstituentFetcher
+
+    fetcher = FMPDowjonesConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_dowjones_constituent_fetcher(credentials=test_credentials):
+    """Test FMP historical Dow Jones constituent fetcher (#1516)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPHistoricalDowjonesConstituentFetcher,
+    )
+
+    fetcher = FMPHistoricalDowjonesConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_sp500_constituent_fetcher(credentials=test_credentials):
+    """Test FMP S&P 500 constituent fetcher (#1517)."""
+    from openbb_fmp.models.indexes_extras import FMPSp500ConstituentFetcher
+
+    fetcher = FMPSp500ConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_sp500_constituent_fetcher(credentials=test_credentials):
+    """Test FMP historical S&P 500 constituent fetcher (#1518)."""
+    from openbb_fmp.models.indexes_extras import FMPHistoricalSp500ConstituentFetcher
+
+    fetcher = FMPHistoricalSp500ConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_nasdaq_constituent_fetcher(credentials=test_credentials):
+    """Test FMP NASDAQ 100 constituent fetcher (#1519)."""
+    from openbb_fmp.models.indexes_extras import FMPNasdaqConstituentFetcher
+
+    fetcher = FMPNasdaqConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_nasdaq_constituent_fetcher(credentials=test_credentials):
+    """Test FMP historical NASDAQ 100 constituent fetcher (#1520)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPHistoricalNasdaqConstituentFetcher,
+    )
+
+    fetcher = FMPHistoricalNasdaqConstituentFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_sector_performance_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP sector performance snapshot fetcher (#1521)."""
+    from openbb_fmp.models.indexes_extras import FMPSectorPerformanceSnapshotFetcher
+
+    fetcher = FMPSectorPerformanceSnapshotFetcher()
+    result = fetcher.test({"date": "2026-07-29"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_sector_performance_fetcher(credentials=test_credentials):
+    """Test FMP historical sector performance fetcher (#1522)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPHistoricalSectorPerformanceFetcher,
+    )
+
+    params = {
+        "sector": "Technology",
+        "from_date": "2024-07-29",
+        "to_date": "2026-07-29",
+    }
+    fetcher = FMPHistoricalSectorPerformanceFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_batch_quote_short_fetcher(credentials=test_credentials):
+    """Test FMP batch quote short fetcher (#1507)."""
+    from openbb_fmp.models.quotes_extras import FMPBatchQuoteShortFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPBatchQuoteShortFetcher()
+
+
+def test_fmp_sector_pe_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP sector P/E snapshot fetcher (#1523)."""
+    from openbb_fmp.models.indexes_extras import FMPSectorPeSnapshotFetcher
+
+    fetcher = FMPSectorPeSnapshotFetcher()
+    result = fetcher.test({"date": "2026-07-29"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_sector_pe_fetcher(credentials=test_credentials):
+    """Test FMP historical sector P/E fetcher (#1524)."""
+    from openbb_fmp.models.indexes_extras import FMPHistoricalSectorPeFetcher
+
+    params = {
+        "sector": "Technology",
+        "from_date": "2024-07-29",
+        "to_date": "2026-07-29",
+    }
+    fetcher = FMPHistoricalSectorPeFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_batch_aftermarket_quote_fetcher(credentials=test_credentials):
+    """Test FMP batch aftermarket quote fetcher (#1508)."""
+    from openbb_fmp.models.quotes_extras import FMPBatchAftermarketQuoteFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPBatchAftermarketQuoteFetcher()
+
+
+def test_fmp_industry_performance_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP industry performance snapshot fetcher (#1525)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPIndustryPerformanceSnapshotFetcher,
+    )
+
+    fetcher = FMPIndustryPerformanceSnapshotFetcher()
+    result = fetcher.test({"date": "2026-07-29"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_industry_performance_fetcher(credentials=test_credentials):
+    """Test FMP historical industry performance fetcher (#1526)."""
+    from openbb_fmp.models.indexes_extras import (
+        FMPHistoricalIndustryPerformanceFetcher,
+    )
+
+    params = {
+        "industry": "Semiconductors",
+        "from_date": "2024-07-29",
+        "to_date": "2026-07-29",
+    }
+    fetcher = FMPHistoricalIndustryPerformanceFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_batch_aftermarket_trade_fetcher(credentials=test_credentials):
+    """Test FMP batch aftermarket trade fetcher (#1509)."""
+    from openbb_fmp.models.quotes_extras import FMPBatchAftermarketTradeFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPBatchAftermarketTradeFetcher()
+    result = fetcher.test(params, credentials)
+
+
+def test_fmp_industry_pe_snapshot_fetcher(credentials=test_credentials):
+    """Test FMP industry P/E snapshot fetcher (#1527)."""
+    from openbb_fmp.models.indexes_extras import FMPIndustryPeSnapshotFetcher
+
+    fetcher = FMPIndustryPeSnapshotFetcher()
+    result = fetcher.test({"date": "2026-07-29"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_stock_quote_fetcher(credentials=test_credentials):
+    """Test FMP stock quote fetcher (#1510)."""
+    from openbb_fmp.models.quotes_extras import FMPStockQuoteFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPStockQuoteFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_stock_quote_short_fetcher(credentials=test_credentials):
+    """Test FMP stock quote short fetcher (#1511)."""
+    from openbb_fmp.models.quotes_extras import FMPStockQuoteShortFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPStockQuoteShortFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_stock_price_change_fetcher(credentials=test_credentials):
+    """Test FMP stock price change fetcher (#1512)."""
+    from openbb_fmp.models.quotes_extras import FMPStockPriceChangeFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPStockPriceChangeFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_market_cap_fetcher(credentials=test_credentials):
+    """Test FMP market cap fetcher (#1513)."""
+    from openbb_fmp.models.quotes_extras import FMPMarketCapFetcher
+
+    params = {"symbol": "MSFT"}
+    fetcher = FMPMarketCapFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_market_cap_batch_fetcher(credentials=test_credentials):
+    """Test FMP market cap batch fetcher (#1514)."""
+    from openbb_fmp.models.quotes_extras import FMPMarketCapBatchFetcher
+
+    params = {"symbols": "AAPL,MSFT"}
+    fetcher = FMPMarketCapBatchFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_historical_industry_pe_fetcher(credentials=test_credentials):
+    """Test FMP historical industry P/E fetcher (#1528)."""
+    from openbb_fmp.models.indexes_extras import FMPHistoricalIndustryPeFetcher
+
+    params = {
+        "industry": "Semiconductors",
+        "from_date": "2024-07-29",
+        "to_date": "2026-07-29",
+    }
+    fetcher = FMPHistoricalIndustryPeFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Economics-extras — Tier-A parity port (#1529-#1533).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_economic_indicators_fetcher(credentials=test_credentials):
+    """Test FMP economic indicators fetcher (#1529)."""
+    from openbb_fmp.models.economics_extras import FMPEconomicIndicatorsFetcher
+
+    params = {"name": "CPI", "from_date": "2024-01-01", "to_date": "2026-07-29"}
+    fetcher = FMPEconomicIndicatorsFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_market_risk_premium_fetcher(credentials=test_credentials):
+    """Test FMP market risk premium fetcher (#1530)."""
+    from openbb_fmp.models.economics_extras import FMPMarketRiskPremiumFetcher
+
+    fetcher = FMPMarketRiskPremiumFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_commitment_of_traders_analysis_fetcher(credentials=test_credentials):
+    """Test FMP commitment of traders analysis fetcher (#1531)."""
+    from openbb_fmp.models.economics_extras import (
+        FMPCommitmentOfTradersAnalysisFetcher,
+    )
+
+    fetcher = FMPCommitmentOfTradersAnalysisFetcher()
+    result = fetcher.test({"symbol": "ES"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_commitment_of_traders_list_fetcher(credentials=test_credentials):
+    """Test FMP commitment of traders list fetcher (#1532)."""
+    from openbb_fmp.models.economics_extras import FMPCommitmentOfTradersListFetcher
+
+    fetcher = FMPCommitmentOfTradersListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_commitment_of_traders_report_fetcher(credentials=test_credentials):
+    """Test FMP commitment of traders report fetcher (#1533)."""
+    from openbb_fmp.models.economics_extras import (
+        FMPCommitmentOfTradersReportFetcher,
+    )
+
+    fetcher = FMPCommitmentOfTradersReportFetcher()
+    result = fetcher.test({"symbol": "ES"}, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Fundraising-extras — Tier-A parity port (#1534-#1543).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_fundraising_fetcher(credentials=test_credentials):
+    """Test FMP fundraising fetcher (#1534)."""
+    from openbb_fmp.models.fundraising_extras import FMPFundraisingFetcher
+
+    fetcher = FMPFundraisingFetcher()
+    result = fetcher.test({"cik": "0002078364"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_fundraising_latest_fetcher(credentials=test_credentials):
+    """Test FMP fundraising latest fetcher (#1535)."""
+    from openbb_fmp.models.fundraising_extras import FMPFundraisingLatestFetcher
+
+    fetcher = FMPFundraisingLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_fundraising_search_fetcher(credentials=test_credentials):
+    """Test FMP fundraising search fetcher (#1536)."""
+    from openbb_fmp.models.fundraising_extras import FMPFundraisingSearchFetcher
+
+    fetcher = FMPFundraisingSearchFetcher()
+    result = fetcher.test({"name": "Apple"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_crowdfunding_offerings_fetcher(credentials=test_credentials):
+    """Test FMP crowdfunding offerings fetcher (#1537)."""
+    from openbb_fmp.models.fundraising_extras import FMPCrowdfundingOfferingsFetcher
+
+    fetcher = FMPCrowdfundingOfferingsFetcher()
+    result = fetcher.test({"cik": "0002134401"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_crowdfunding_offerings_latest_fetcher(credentials=test_credentials):
+    """Test FMP crowdfunding offerings latest fetcher (#1538)."""
+    from openbb_fmp.models.fundraising_extras import (
+        FMPCrowdfundingOfferingsLatestFetcher,
+    )
+
+    fetcher = FMPCrowdfundingOfferingsLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_crowdfunding_offerings_search_fetcher(credentials=test_credentials):
+    """Test FMP crowdfunding offerings search fetcher (#1539)."""
+    from openbb_fmp.models.fundraising_extras import (
+        FMPCrowdfundingOfferingsSearchFetcher,
+    )
+
+    fetcher = FMPCrowdfundingOfferingsSearchFetcher()
+    result = fetcher.test({"name": "tech"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_mergers_acquisitions_latest_fetcher(credentials=test_credentials):
+    """Test FMP mergers acquisitions latest fetcher (#1540)."""
+    from openbb_fmp.models.fundraising_extras import FMPMergersAcquisitionsLatestFetcher
+
+    fetcher = FMPMergersAcquisitionsLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_mergers_acquisitions_search_fetcher(credentials=test_credentials):
+    """Test FMP mergers acquisitions search fetcher (#1541)."""
+    from openbb_fmp.models.fundraising_extras import FMPMergersAcquisitionsSearchFetcher
+
+    fetcher = FMPMergersAcquisitionsSearchFetcher()
+    result = fetcher.test({"name": "Apple"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_ipos_disclosure_fetcher(credentials=test_credentials):
+    """Test FMP IPOs disclosure fetcher (#1542)."""
+    from openbb_fmp.models.fundraising_extras import FMPIposDisclosureFetcher
+
+    fetcher = FMPIposDisclosureFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_ipos_prospectus_fetcher(credentials=test_credentials):
+    """Test FMP IPOs prospectus fetcher (#1543)."""
+    from openbb_fmp.models.fundraising_extras import FMPIposProspectusFetcher
+
+    fetcher = FMPIposProspectusFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# News-extras — Tier-A parity port (#1544-#1548).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_news_crypto_fetcher(credentials=test_credentials):
+    """Test FMP news crypto fetcher (#1544)."""
+    from openbb_fmp.models.news_extras import FMPNewsCryptoFetcher
+
+    params = {"symbols": "BTCUSD", "from_date": "2024-01-01", "to_date": "2026-07-29"}
+    fetcher = FMPNewsCryptoFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_news_crypto_latest_fetcher(credentials=test_credentials):
+    """Test FMP news crypto latest fetcher (#1545)."""
+    from openbb_fmp.models.news_extras import FMPNewsCryptoLatestFetcher
+
+    fetcher = FMPNewsCryptoLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_news_forex_fetcher(credentials=test_credentials):
+    """Test FMP news forex fetcher (#1546)."""
+    from openbb_fmp.models.news_extras import FMPNewsForexFetcher
+
+    params = {"symbols": "EURUSD", "from_date": "2024-01-01", "to_date": "2026-07-29"}
+    fetcher = FMPNewsForexFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_news_forex_latest_fetcher(credentials=test_credentials):
+    """Test FMP news forex latest fetcher (#1547)."""
+    from openbb_fmp.models.news_extras import FMPNewsForexLatestFetcher
+
+    fetcher = FMPNewsForexLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_fmp_articles_fetcher(credentials=test_credentials):
+    """Test FMP articles fetcher (#1548)."""
+    from openbb_fmp.models.news_extras import FMPFmpArticlesFetcher
+
+    fetcher = FMPFmpArticlesFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# SEC-extras — Tier-A parity port (#1549-#1553).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_sec_filings_8k_fetcher(credentials=test_credentials):
+    """Test FMP SEC 8-K filings fetcher (#1549)."""
+    from openbb_fmp.models.sec_extras import FMPSecFilings8kFetcher
+
+    params = {
+        "from_date": "2024-01-01",
+        "to_date": "2026-07-29",
+        "page": 0,
+        "limit": 10,
+    }
+    fetcher = FMPSecFilings8kFetcher()
+    result = fetcher.test(params, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_sec_profile_fetcher(credentials=test_credentials):
+    """Test FMP SEC profile fetcher (#1550)."""
+    from openbb_fmp.models.sec_extras import FMPSecProfileFetcher
+
+    fetcher = FMPSecProfileFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_standard_industrial_classification_list_fetcher(
+    credentials=test_credentials,
+):
+    """Test FMP SIC list fetcher (#1551)."""
+    from openbb_fmp.models.sec_extras import (
+        FMPStandardIndustrialClassificationListFetcher,
+    )
+
+    fetcher = FMPStandardIndustrialClassificationListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_all_industry_classification_fetcher(credentials=test_credentials):
+    """Test FMP all industry classification fetcher (#1552)."""
+    from openbb_fmp.models.sec_extras import FMPAllIndustryClassificationFetcher
+
+    fetcher = FMPAllIndustryClassificationFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_industry_classification_search_fetcher(credentials=test_credentials):
+    """Test FMP industry classification search fetcher (#1553)."""
+    from openbb_fmp.models.sec_extras import FMPIndustryClassificationSearchFetcher
+
+    fetcher = FMPIndustryClassificationSearchFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Government-extras — Tier-A parity port (#1554-#1559).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_house_latest_fetcher(credentials=test_credentials):
+    """Test FMP house latest fetcher (#1554)."""
+    from openbb_fmp.models.government_extras import FMPHouseLatestFetcher
+
+    fetcher = FMPHouseLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_latest_fetcher(credentials=test_credentials):
+    """Test FMP senate latest fetcher (#1555)."""
+    from openbb_fmp.models.government_extras import FMPSenateLatestFetcher
+
+    fetcher = FMPSenateLatestFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_net_worth_fetcher(credentials=test_credentials):
+    """Test FMP senate net worth fetcher (#1556)."""
+    from openbb_fmp.models.government_extras import FMPSenateNetWorthFetcher
+
+    fetcher = FMPSenateNetWorthFetcher()
+    result = fetcher.test({"senate_id": "L000397"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_net_worth_aggregated_fetcher(credentials=test_credentials):
+    """Test FMP senate net worth aggregated fetcher (#1557)."""
+    from openbb_fmp.models.government_extras import FMPSenateNetWorthAggregatedFetcher
+
+    fetcher = FMPSenateNetWorthAggregatedFetcher()
+    result = fetcher.test({"senate_id": "L000397"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_positions_fetcher(credentials=test_credentials):
+    """Test FMP senate positions fetcher (#1558)."""
+    from openbb_fmp.models.government_extras import FMPSenatePositionsFetcher
+
+    fetcher = FMPSenatePositionsFetcher()
+    result = fetcher.test({"name": "Warren"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_senate_profile_fetcher(credentials=test_credentials):
+    """Test FMP senate profile fetcher (#1559)."""
+    from openbb_fmp.models.government_extras import FMPSenateProfileFetcher
+
+    fetcher = FMPSenateProfileFetcher()
+    result = fetcher.test({"name": "Warren"}, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# DCF + Reference-list extras — Tier-A parity port (#1560-#1570).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_discounted_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP DCF fetcher (#1560)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPDiscountedCashFlowFetcher
+
+    fetcher = FMPDiscountedCashFlowFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_levered_discounted_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP levered DCF fetcher (#1561)."""
+    from openbb_fmp.models.dcf_reference_extras import (
+        FMPLeveredDiscountedCashFlowFetcher,
+    )
+
+    fetcher = FMPLeveredDiscountedCashFlowFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_custom_discounted_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP custom DCF fetcher (#1562)."""
+    from openbb_fmp.models.dcf_reference_extras import (
+        FMPCustomDiscountedCashFlowFetcher,
+    )
+
+    fetcher = FMPCustomDiscountedCashFlowFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_custom_levered_discounted_cash_flow_fetcher(credentials=test_credentials):
+    """Test FMP custom levered DCF fetcher (#1563)."""
+    from openbb_fmp.models.dcf_reference_extras import (
+        FMPCustomLeveredDiscountedCashFlowFetcher,
+    )
+
+    fetcher = FMPCustomLeveredDiscountedCashFlowFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_stock_list_fetcher(credentials=test_credentials):
+    """Test FMP stock list fetcher (#1564)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPStockListFetcher
+
+    fetcher = FMPStockListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_etf_list_fetcher(credentials=test_credentials):
+    """Test FMP ETF list fetcher (#1565)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPEtfListFetcher
+
+    fetcher = FMPEtfListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_index_list_fetcher(credentials=test_credentials):
+    """Test FMP index list fetcher (#1566)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPIndexListFetcher
+
+    fetcher = FMPIndexListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_commodities_list_fetcher(credentials=test_credentials):
+    """Test FMP commodities list fetcher (#1567)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPCommoditiesListFetcher
+
+    fetcher = FMPCommoditiesListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_forex_list_fetcher(credentials=test_credentials):
+    """Test FMP forex list fetcher (#1568)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPForexListFetcher
+
+    fetcher = FMPForexListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cryptocurrency_list_fetcher(credentials=test_credentials):
+    """Test FMP crypto list fetcher (#1569)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPCryptocurrencyListFetcher
+
+    fetcher = FMPCryptocurrencyListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_actively_trading_list_fetcher(credentials=test_credentials):
+    """Test FMP actively trading list fetcher (#1570)."""
+    from openbb_fmp.models.dcf_reference_extras import FMPActivelyTradingListFetcher
+
+    fetcher = FMPActivelyTradingListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Market-hours + Search extras — Tier-A parity port (#1571-#1572, #1467-#1477).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_all_exchange_market_hours_fetcher(credentials=test_credentials):
+    """Test FMP all exchange market hours fetcher (#1571)."""
+    from openbb_fmp.models.market_hours_search_extras import (
+        FMPAllExchangeMarketHoursFetcher,
+    )
+
+    fetcher = FMPAllExchangeMarketHoursFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_holidays_by_exchange_fetcher(credentials=test_credentials):
+    """Test FMP holidays by exchange fetcher (#1572)."""
+    from openbb_fmp.models.market_hours_search_extras import (
+        FMPHolidaysByExchangeFetcher,
+    )
+
+    fetcher = FMPHolidaysByExchangeFetcher()
+    result = fetcher.test({"exchange": "NASDAQ"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_search_symbol_fetcher(credentials=test_credentials):
+    """Test FMP search symbol fetcher (#1467)."""
+    from openbb_fmp.models.market_hours_search_extras import FMPSearchSymbolFetcher
+
+    fetcher = FMPSearchSymbolFetcher()
+    result = fetcher.test({"query": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_search_name_fetcher(credentials=test_credentials):
+    """Test FMP search name fetcher (#1468)."""
+    from openbb_fmp.models.market_hours_search_extras import FMPSearchNameFetcher
+
+    fetcher = FMPSearchNameFetcher()
+    result = fetcher.test({"query": "Apple"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_search_cik_fetcher(credentials=test_credentials):
+    """Test FMP search CIK fetcher (#1469)."""
+    from openbb_fmp.models.market_hours_search_extras import FMPSearchCikFetcher
+
+    fetcher = FMPSearchCikFetcher()
+    result = fetcher.test({"cik": "0000320193"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_search_cusip_fetcher(credentials=test_credentials):
+    """Test FMP search CUSIP fetcher (#1470)."""
+    from openbb_fmp.models.market_hours_search_extras import FMPSearchCusipFetcher
+
+    fetcher = FMPSearchCusipFetcher()
+    result = fetcher.test({"cusip": "037833100"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_search_isin_fetcher(credentials=test_credentials):
+    """Test FMP search ISIN fetcher (#1471)."""
+    from openbb_fmp.models.market_hours_search_extras import FMPSearchIsinFetcher
+
+    fetcher = FMPSearchIsinFetcher()
+    result = fetcher.test({"isin": "US0378331005"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_search_exchange_variants_fetcher(credentials=test_credentials):
+    """Test FMP search exchange variants fetcher (#1472)."""
+    from openbb_fmp.models.market_hours_search_extras import (
+        FMPSearchExchangeVariantsFetcher,
+    )
+
+    fetcher = FMPSearchExchangeVariantsFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_cik_list_fetcher(credentials=test_credentials):
+    """Test FMP CIK list fetcher (#1473)."""
+    from openbb_fmp.models.market_hours_search_extras import FMPCikListFetcher
+
+    fetcher = FMPCikListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_profile_cik_fetcher(credentials=test_credentials):
+    """Test FMP profile CIK fetcher (#1474)."""
+    from openbb_fmp.models.market_hours_search_extras import FMPProfileCikFetcher
+
+    fetcher = FMPProfileCikFetcher()
+    result = fetcher.test({"cik": "0000320193"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_symbol_change_fetcher(credentials=test_credentials):
+    """Test FMP symbol change fetcher (#1475)."""
+    from openbb_fmp.models.market_hours_search_extras import FMPSymbolChangeFetcher
+
+    fetcher = FMPSymbolChangeFetcher()
+    result = fetcher.test(
+        {"from_date": "2024-01-01", "to_date": "2026-07-29"}, credentials
+    )
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_financial_statement_symbol_list_fetcher(credentials=test_credentials):
+    """Test FMP financial statement symbol list fetcher (#1476)."""
+    from openbb_fmp.models.market_hours_search_extras import (
+        FMPFinancialStatementSymbolListFetcher,
+    )
+
+    fetcher = FMPFinancialStatementSymbolListFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_available_countries_fetcher(credentials=test_credentials):
+    """Test FMP available countries fetcher (#1477)."""
+    from openbb_fmp.models.market_hours_search_extras import (
+        FMPAvailableCountriesFetcher,
+    )
+
+    fetcher = FMPAvailableCountriesFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Available-lists — final Tier-A parity port (#1478-#1480).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_available_exchanges_fetcher(credentials=test_credentials):
+    """Test FMP available exchanges fetcher (#1478)."""
+    from openbb_fmp.models.available_lists_extras import FMPAvailableExchangesFetcher
+
+    fetcher = FMPAvailableExchangesFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_available_industries_fetcher(credentials=test_credentials):
+    """Test FMP available industries fetcher (#1479)."""
+    from openbb_fmp.models.available_lists_extras import FMPAvailableIndustriesFetcher
+
+    fetcher = FMPAvailableIndustriesFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_available_sectors_fetcher(credentials=test_credentials):
+    """Test FMP available sectors fetcher (#1480)."""
+    from openbb_fmp.models.available_lists_extras import FMPAvailableSectorsFetcher
+
+    fetcher = FMPAvailableSectorsFetcher()
+    result = fetcher.test({}, credentials)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Company-extras — Tier-A parity port (#1500-#1505).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.record_http
+def test_fmp_company_notes_fetcher(credentials=test_credentials):
+    """Test FMP company notes fetcher (#1500)."""
+    from openbb_fmp.models.company_extras import FMPCompanyNotesFetcher
+
+    fetcher = FMPCompanyNotesFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_delisted_companies_fetcher(credentials=test_credentials):
+    """Test FMP delisted companies fetcher (#1501)."""
+    from openbb_fmp.models.company_extras import FMPDelistedCompaniesFetcher
+
+    fetcher = FMPDelistedCompaniesFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_shares_float_fetcher(credentials=test_credentials):
+    """Test FMP shares float fetcher (#1502)."""
+    from openbb_fmp.models.company_extras import FMPSharesFloatFetcher
+
+    fetcher = FMPSharesFloatFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_shares_float_all_fetcher(credentials=test_credentials):
+    """Test FMP shares float all fetcher (#1503)."""
+    from openbb_fmp.models.company_extras import FMPSharesFloatAllFetcher
+
+    fetcher = FMPSharesFloatAllFetcher()
+    result = fetcher.test({"page": 0, "limit": 10}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_acquisition_of_beneficial_ownership_fetcher(credentials=test_credentials):
+    """Test FMP acquisition of beneficial ownership fetcher (#1504)."""
+    from openbb_fmp.models.company_extras import (
+        FMPAcquisitionOfBeneficialOwnershipFetcher,
+    )
+
+    fetcher = FMPAcquisitionOfBeneficialOwnershipFetcher()
+    result = fetcher.test({"symbol": "AAPL"}, credentials)
+    assert result is None
+
+
+@pytest.mark.record_http
+def test_fmp_executive_compensation_benchmark_fetcher(credentials=test_credentials):
+    """Test FMP executive compensation benchmark fetcher (#1505)."""
+    from openbb_fmp.models.company_extras import (
+        FMPExecutiveCompensationBenchmarkFetcher,
+    )
+
+    fetcher = FMPExecutiveCompensationBenchmarkFetcher()
+    result = fetcher.test({"year": 2023}, credentials)
+    assert result is None

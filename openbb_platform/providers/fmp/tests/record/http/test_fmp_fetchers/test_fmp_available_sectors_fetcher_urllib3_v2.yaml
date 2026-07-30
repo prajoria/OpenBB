@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/available-sectors?apikey=MOCK_API_KEY
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA42QOw7CQAxEe05hbc0JKAlBUNDwqRCFZQyxtPFKaydShLg7W1CSkMLVPNszc10A
+        vMoABGPylMMKwhpNCA7onAWjhaK/l7/AKrVtp0LokhROnHshnuTVupYzVAPFshZnoBt+sJr0PM7W
+        yvk5jOtbUVQqUWZY3DFGbwjzxL+93jvzP90cyyGozUuL49CZqdEU05T7i0sUl6/pxe0D+HEAp7MB
+        AAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 21:39:35 GMT
+      Etag:
+      - W/"1b3-p1LiP9HArAoIwrrPQamKDDJ6YMI"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

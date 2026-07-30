@@ -1,0 +1,68 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/crowdfunding-offerings?apikey=MOCK_API_KEY&cik=0002134401
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+1WUW8iNxB+v18xQonU6gK3LCHk6BPdkBKJY2lIGl2rPpjdWXDrtfdsL7pt1f/e
+        8cJuIIWQh0pVJaSNguxvxp+/+WzPL+8A/qQ/gEbEf2/0oeF5nt/uXF567cbFZkKlGZPFhKXoAIFg
+        GlMlLXyPqCFQLRiPgwocM1uivHaTPt/zu9VMwgWXi5vNPM1cNb1e0/8IntcvvwrIoggzi/EeaPuq
+        7132/RqaKJ0+FNmaV/Nxe3jGF5InPGKWK+nmp1otNBoDj1lJcoOVtK0wuTMmR318ewIXTMwss7m5
+        pUVcwJinnNjCmLM5bdEWFFMKVsX8lmtuYh45IqFeMMn/qElNRhWKlwxmViNaN9O5hnA6vB/AKHyc
+        DWH24+PgfrgLDmixkvKYpj6Fk4eXuWiboQ5ULq0u9q32M88CFa/r1elddnZnn3Bu+LoES2sz0//w
+        IarEmZM2kWqRNeoYaVGnGHOmi2DXMSMlsSDoHKZKWya2BX0RltLSJE1Qe7Hd87o9/+p1+C0XOMnT
+        +bqCHnmFAtsftw2M0pSiD1Inh4Ndt7rnoBKwSwSrHC2VJKjJo8BKEOSZksDA5GRIY5JcgGbcYAvO
+        up4HU8GsMxrcIg11zoHLFRqbIkUmiBCxLCNbMAtnvW4LAk2sLQRMx33ourXfw5n/HTyL88SEQNsH
+        75xGi7nmMXwzeiLYIBh92wf//GI7Z8drwQDGikmYoV7xyBEnKm5LLZ/SM2OINaFdvZaiaD0fRMlk
+        xJm4c2IS5dIaRKMCGIzIsrYInR4YVwfsBuf2ACQkEfUNmkjzbGNtmQtRHbGyNGEy2w0ikLdBVMpP
+        NY/cWu0X43XV2mSJOmhFHs/n9aKDzb3huH5uHAIJodZ3QrWtW66NbVIF8AKS8rchPUm3OTPcVHlS
+        9pWneRq+JOR3twhtJm+QxXTXYXWBkR/bHXcX1jYmHTT5ZLIRZphmQhWIZmvrpSUHVED7SRl7jxHh
+        b7mJmPiMTG9p9wwk9ZTei4mYWQ5kHNC/4Zec/8QEZTuSd2/M4SXo1naSGJeRr9hc4JH8/ww4nNws
+        6eJ4oJPvPHgk7w72cEqh5OKNGbehhxNqXKHMj+16g3qlVBT/g1KxmSkRHyvRNvZwSsu+opkyfixd
+        jTucSqK9k+6sHElV4/akIsRfDvYf9h30Xb+x7yihbb/f7fSfX5SdvuPVrqO6MKB8jd3j8H9oPDLU
+        jF6m3CDMvuTE60DjUVE+NR6NU+NxajxOjcebmohjr9qp8dgDPTUe/0rj8e7XvwG6ddTS8xAAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:11:44 GMT
+      Etag:
+      - W/"10f3-83DBr+ufdQ11aRDBxEz3DIyKFP0"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

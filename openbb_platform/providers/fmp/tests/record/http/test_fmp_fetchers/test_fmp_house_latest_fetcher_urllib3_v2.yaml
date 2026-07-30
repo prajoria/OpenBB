@@ -1,0 +1,62 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/house-latest?apikey=MOCK_API_KEY&limit=10&page=0
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+2XbW/aMBDH3/dTWFE1bRKBkBba9V0WHiceIpxJSNM0GWOKhRNbtmnVTfvus1NI
+        ymDtpkl0VfMCBHd/X+y7H3fm8wkA380LAEfdJTPOnCvgDGEndiobK0mRJv1WZve8ul+/2LrmVGHG
+        1VqSlpFYge/5Tde7cP1coyVKFcKa8nRX1HSLQAsqlR6hJHN/RJLMtx6GCseQqxW/pfrb1skXC4qL
+        NWBPYDaoJcXaSjoD/yxfeJsSaY1bA1KK6BZRWFJht5o9jmLJFV9oEHIpwNv6ux11fCeyR0PN8So/
+        7cYYrSVeIkXyFQlfp9k2TusVk0TggtN6w3zytgqMBNWIdRFN1fiGSN/zPsEs6R3EikCYJwm5j5Sn
+        iKYr+32ptVBXtVpRFeViRuSquuRrRarX/KYm1jNG8VcrqQktXTFfqJqth3nzzs7fN8+qxuSYwD8q
+        B8EYwRKMIU+VJhJ8IKZO6JqUfJSN4/eNo4Si13r1SMRLAno8IaBFBNegn+ISi2AShofAgOYkfiM/
+        zD+BYUTnB8GIiM7z8JALSJQyUdQ+FnYF+NX9EIp4WkCYQwGFzddjaASTNgRhEPXjYADC8SQaT4K4
+        Px79OSAQsRcGR8NrXj7RM8Lg1TcNkwPQI4jpJTbRy6aRlaC8YOz/M/HLm6cDo3B6BDD8Zwfj6YkC
+        oyBsg/Y0GmxGCYjbYQ9mw6UEJRgGx+ggl88OymOIBEIwaqOabUtqqmOnS9lI7n893f4R+Pi/Jwx8
+        E4Eu4zPE/u7a8fKuojtAnHz5CdcXmwkPFQAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:53:45 GMT
+      Etag:
+      - W/"150f-lvoBV73KenLkBg5CQjzb6cDTt2I"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

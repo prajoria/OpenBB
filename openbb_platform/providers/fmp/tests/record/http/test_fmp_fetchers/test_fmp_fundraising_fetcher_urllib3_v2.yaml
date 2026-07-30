@@ -1,0 +1,66 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/fundraising?apikey=MOCK_API_KEY&cik=0002078364
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA+1VUW/aMBB+36+weC5toAVW3rIQOjQKETBV3bQHN7mA18TObKcrmvbfd3ZIIIV2
+        e6g0VUJKUPB9/u589/nu6ztCfuFLSCNk940+aTiO03Z678+7F42TjUGkGeXrCU3BAJhHM6ZpQppk
+        5F0RT0gggWQPVAPxf+RMr4kbhqAUGeY8IuPT4LRkihBjKNpOu9t0es32ZWmJWcL4crBnJ47Tt08J
+        pEidaYgOQFudfqfXd7oVp5DpYp1Z2ODM3V2esyVnMQupZoIb+0RoFgIRMfEfIc00mcYxSAzJLM0h
+        zCXTDBRxU+AR4I8u6fATj/wKyWFK5SDnWgJoQ+WdTYk3vQ7GI3fi+WTgB+5sce1PFvUNHnLaE/g3
+        5HY6+/SUDj1PpSdyrmWBu30JMQAVSpZVaTlI+oVlnojseVtOq9upW4OV4DDJ0zuQtkCtdvPy8qLZ
+        u9gW8TumU0UsNG6m8YiHQmZCVsUY+GP3xp359RSXpRyzlKEASECl5iDVimVVABUTRDdMrxgfsge4
+        BSoV7tQyhw1wjUsHHKOYKtVLSAxNgB4E0kilyxo3D0LGdIuoVPBxSK6CEzIeewf3bIsdngkUS5ol
+        jHLU4QAyPN2uzGr7qprDT3Ir5P0z5M+X/gXgXxRQ2/mcEGqgmfmDbLZQiAykSIVGcVRFi3KFjq+k
+        yLOyyIEQCdZ4xB9A2TzY+7LlfwCew4zypUHzPEnKyw0RSJoUl9g49R/DJFfmyza37t0JOffMe9rb
+        ytbeapvtmkpMu5rGtvZzmti4qk6WF6qZxmWjGKlrvOyLFeVGb3UiVTUQi4bIlUhc9IPNiXfQTH3A
+        iDk2CVTEHePW0UJSrmi4KUtME1XCU8ZZmqfbVLmbFok4Z4PRAtVYRuqmptJPrcXqXCR7+wrLDFKK
+        nvhyx7yiaiI4+sMjmTtZxCDsbdsN0dIULcFNJNBoXSBrMSpMsTlxim1kU6/SFKNGUEtDgN3VpRRK
+        oZpCgEh9VgUZmn4b+38Zah07iSofe0NtY/+XoVZCW+3+OT4VtDbUXmOkHefYXvs6zrHjHNsHvbE5
+        ttt/j4PsbQ6yd9/+AOnfLFOgDQAA
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:11:42 GMT
+      Etag:
+      - W/"da0-rwm5KfAx+CId/8DTKH2PSE7iKIM"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,71 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/crowdfunding-offerings-search?apikey=MOCK_API_KEY&name=tech
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA7WYy27bOhCG930Kwouu4oIXUSS7ixU7CeC4wXHaLoqzoC26EaxIAS3HDYq+e6lL
+        TgOTIl07B4g3EfDN6J+Zn0N9ewfAT/MDYLDM1oOPYAAhRLEQEUeDs/ZBIR9U/eROZ+u1AndqeQ+u
+        i+WHl+eprOrnxTbPzT9+nTmRjAgExT7y8+h60gLnZb6tsrLY1Oi/IzPGebxPnj9IXYGJfMjy5ybC
+        2V+DhWCU8X3wRGZ6J5+PlEFQioTFnJbVdtMSk3IfOEB4iKH5w3jgA8eYWPq2yHuZFUbgVbWTWpkI
+        +tERAjUhkC8EiRGM9kOM8q0CV1me/1HZ9QaQ1PjIgz+lQ5oIyERA7C0i9L9FMIYQXAgrRiL1oiyM
+        9Nui6gp9O0qsAGgIeS0T8QWAJLKrcHsNkrzcpr4iwCGKDN0o0E/nnLAY79OvZL4CN6V5gyb16dRO
+        HXap+xqI4Rja8Mvp+SwZg7txcmUSnyWuxGEU0B3DKGKOwVI7aUxAP3h0gWLYTJi3OYXAEbTw4x+P
+        SmeqWKqO71DGyEKC08sQhYhY+PR7Z7dTudj00VEc6snT6d6G5DHlVlXvlNayt10MONjpGFKMIkvz
+        kc6+31dgXtX+Pk6HfT7cxMDBaTphXCEb4rovMfQNFBaE0P0AN2X6R3p39qyV/n9y5P/wvtwZp9w+
+        AM+N1/SLbri07hifyZyUdmPB3rSPasgO7M2bGfdibB88r3T21L8WDaDRue51FHvQMePm/LbQ4/EF
+        +PJpen7Z+iNIPv1z6+KzEF+gOKLWRlennnap36g0W8q8R3cTI1hWHjNKbXvXShXTbNWFqbePUsv6
+        mHUFwaGW58YYkNU7icyff4Bkm1fZU8Nugn1oojlfpqk195gPIoJzaM2t1HKbKu2x+7gdAOytxgED
+        0FeHlu7t/wPovWUO4zmKKbUcbb6Ti0WmNgfQ0ZvQQbqQYKSqylRj0qz5R8WDRiz7kJl97bpVPmaV
+        ZygQGZojxFtqMxLQep9RuXn1LhbYZC1CPcSYcCw8M7UDt7msVmW387gzNwFIaJyPu/7U7HbX97bo
+        8etU1K1T3nORIW4fuk3K78EkL3c9BY2GMA5uDMwcMJZTz4zrPL2k7bjD1egohKacImIZ6Egunl+2
+        nKJs7a3nhmKEb8RB3l2TGoOwxJmOzy88HUlaa/aumW+RPg6lb56abdZxQynSR50Vlacxzaw2O6d3
+        zw+Nq6slSbdL+Wp79B5IOkv2XqxgFENrMZltp0qufIZMagMLXR4IjanV75+L7EJW0gc3/RIHTllz
+        IxQRsk7ZuZKvLmwucDjrA8DOlEPkk28luOtC6tsGj/n+1qBrxaHPeYPoXmnCbBYJaktzqdQaXGb6
+        ZfFw3aRwex309goXlNhnBslaQb6Wet1nK7i1da8rHkp3welbwZ2ph+nHWgvq9m3vSR0yRJcmqOtx
+        /wfLI5z2EPCB34P7JEGvrgbv/v0N5JpT2yAXAAA=
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:11:45 GMT
+      Etag:
+      - W/"1720-a3IleV71ZDt1mARx24qA9prBEPQ"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

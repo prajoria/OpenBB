@@ -1,0 +1,68 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/key-metrics-ttm?apikey=MOCK_API_KEY&symbol=MSFT
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3VVTW/jNhC9768wcm4EcsjhR2+JkxR72KbNGgWKRQ+0zU2E6MMVZe8aRf97n2JJ
+        KzmuYPtgvTczfDPz+OXDYvEPvovFVTqW67q4+nlx9enzw+rqp9O/ZWheY7sMO7wgb6V2SpPRLPr3
+        sWpjs2vyFP8IxT6uVp8AVMJoJ8UceFjVn0MR0wniM0OehXQCXy2lncAed7EJbV49L0N6eSjqbyeK
+        dJmQSrGRyhirnTUTzkMT4xyuKROKhBVSS2O8m2a4v/24urvpw3JGLDwpz9ILYRT3wCq2d3HdztEi
+        00Zr4aQhx154YQb4Zt80UOMJldd95IwceSgmrTKe2Pgemlebuoy/70ORt8cBq9hZqEFOSqlprOK5
+        CS+h/HVfrmPTQzVn2iO7tczejdL1yNjic0Jek8yEEMp2QmjPzINkbfh+u2+2sRpO1bVLK/xKJmZl
+        xkrR3pjaOdg7Ekoq7zwiS0s9+FvdvL51bZe3oehHwRmDU3XPGPKAgHE7g2nH0HOGa2K7b6rH6ial
+        2KYhNQZGGQstEdeQGFLXw8g8XWSR9FJhEAQb1fXkLMUqVM/5uohnJAghDVpN1pAlRWes+7/3Y/tE
+        piAIlIYorLyR5yk+Xjo1cgjPTgu0Ugmhzzg99r7cFfUxbkeOsRItQi7H2tBQVgxNBQHSn3ksRix2
+        UDJOLkkBqXhI8XWyLnMCaUZcRMZ0S6dYDeMddvH7/+6myBjeoDDAVhtmS3ZOu4u7Jm7ybjf6KSLo
+        67R2HqtM3tN4+p7xFA+xGgwF8grWFlCNDFLJHps6Q/klVqipuKm2N9syr/LUdhUe4rsYsjMD7Dis
+        o3McHuVO0G7zggB3IBSYpRKLfIHu4GvaCOW0UW7c0NTWm9fbkNDcutzFKp1OeU4HzREJ5LVGCiP0
+        wMeO9fOXVvWqRsfP5hCmINA8LxS2iYTreeGAYz/Hp7iJ+SGsR2tlR26+cj3yt3CcwBR0F3wB1o1q
+        1dbN4ExY9Fm0bTimx69vXv64bxOK32IeTmDjMscwMsLiwEodzzhDAe9oUnFmYcLSs4FbSzWjjQW9
+        4+kMjaSuLTiwNX6YodEOlsdN0XfAqtPmAN7NEP+Yt/SyrJGiSWjbhHBtKIN5W1w2DBvw1lzaHlwP
+        Ex+w7s3EJ2rNsQ95U/ZIxt0kCdsC6xdyXJh26kWTO5Usd/Y8DY0Lanm6dM7B13Bzhue/PQD/++Gv
+        /wBEJR216gcAAA==
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 18:48:07 GMT
+      Etag:
+      - W/"7ea-Phx/Qs6HxBGA9VmQMjp/K9lHYS4"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,88 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+    method: GET
+    uri: https://financialmodelingprep.com/stable/news/crypto-latest?apikey=MOCK_API_KEY&limit=10&page=0
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      Access-Control-Allow-Credentials:
+      - 'true'
+      Access-Control-Allow-Headers:
+      - X-Requested-With, content-type, apikey, auth-token, Authorization, stripe-signature,
+        APPS, publicauthkey, privateauthkey, Mcp-Session-Id
+      Access-Control-Allow-Methods:
+      - GET, POST, DELETE, OPTIONS
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - Mcp-Session-Id
+      Access-Control-Max-Age:
+      - '3600'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 29 Jul 2026 20:25:14 GMT
+      Etag:
+      - W/"18d3-PaGMI+6IebmnKIHEjmlrxTbqD2w"
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      X-Frame-Options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
