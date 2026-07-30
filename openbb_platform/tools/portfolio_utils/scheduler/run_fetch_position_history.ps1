@@ -1,9 +1,10 @@
 $ErrorActionPreference = "Stop"
 
-# Derive the repo root from this script's location (Tools/scheduler/ -> repo root)
-# so the scheduled task is portable across machines/checkouts.
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$scriptPath = Join-Path $repoRoot "Tools\fetch_position_history.py"
+# Derive the repo root from this script's location
+# (openbb_platform/tools/portfolio_utils/scheduler/ -> repo root) so the
+# scheduled task is portable across machines/checkouts.
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path
+$scriptPath = Join-Path $repoRoot "openbb_platform\tools\portfolio_utils\portfolio_utils\fetch_position_history.py"
 $logDir = Join-Path $repoRoot "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logFile = Join-Path $logDir ("fetch_position_history_" + (Get-Date -Format "yyyy-MM-dd") + ".log")

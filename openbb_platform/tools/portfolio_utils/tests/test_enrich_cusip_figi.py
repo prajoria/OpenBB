@@ -1,4 +1,4 @@
-"""Regression tests for ``Tools/enrich_cusip_figi.py`` review-feedback fixes (PR #95).
+"""Regression tests for ``portfolio_utils/enrich_cusip_figi.py`` review-feedback fixes (PR #95).
 
 Covers the four behaviors flagged in code review:
 - A: ``--sleep`` is plumbed end-to-end into ``enrich()`` (was silently ignored)
@@ -17,13 +17,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Make the Tools/ directory importable when running from the repo root.
-_TOOLS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _TOOLS_DIR not in sys.path:
-    sys.path.insert(0, _TOOLS_DIR)
+# Make the portfolio_utils inner package + repo-root providers importable.
+_PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SCRIPTS_DIR = os.path.join(_PKG_DIR, "portfolio_utils")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
-# Make the SEC + fmp_cached providers importable for the openfigi/thirteen_f_index helpers.
-_REPO_ROOT = os.path.dirname(_TOOLS_DIR)
+# Repo root sits 4 levels above the tests dir:
+# openbb_platform/tools/portfolio_utils/tests/  ->  parents[3] is repo root.
+_REPO_ROOT = os.path.abspath(os.path.join(_PKG_DIR, "..", "..", ".."))
 for _p in (
     os.path.join(_REPO_ROOT, "openbb_platform", "providers", "sec"),
     os.path.join(_REPO_ROOT, "openbb_platform", "providers", "fmp_cached"),

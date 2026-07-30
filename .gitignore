@@ -61,10 +61,10 @@ obb/*
 !.github/scripts/*.sh
 *.pkg
 
-# Tools local context (PII, credentials, paths)
-Tools/docs/CONTEXT_LOCAL.md
+# Tools local context (PII, credentials, paths) — rehomed to portfolio_utils via gh-1628
+openbb_platform/tools/portfolio_utils/docs_orig/CONTEXT_LOCAL.md
 # Vendored binaries pulled in for one-off bootstrapping (uv standalone, etc.)
-Tools/uv/
+openbb_platform/tools/portfolio_utils/uv/
 *.exe
 build/conda/tmp
 # Windows virtual environment
@@ -154,7 +154,7 @@ C*nb_code.txt
 # ad-hoc PR review scratchpads (pr101-review.txt etc.)
 pr[0-9]*-review.txt
 # fixture-recording helpers -- local dev aid, not part of the repo
-/Tools/record_basket_fixture.py
+openbb_platform/tools/portfolio_utils/portfolio_utils/record_basket_fixture.py
 # transient scratch dir
 /tmp/
 # Beads / Dolt files (added by bd init)

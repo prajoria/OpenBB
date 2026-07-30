@@ -1,8 +1,8 @@
-"""Unit tests for ``Tools/refresh_etf_holdings_cache.py``.
+"""Unit tests for ``portfolio_utils/refresh_etf_holdings_cache.py``.
 
 All tests are offline -- the obb provider call is mocked, the DB connection
 is patched, and no live network/cache writes happen. Mirrors the
-``Tools/tests/test_enrich_cusip_figi.py`` test patterns (sys.path bootstrap,
+``test_enrich_cusip_figi.py`` test patterns (sys.path bootstrap,
 MagicMock-based fakes).
 """
 
@@ -12,13 +12,14 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
-# Make the Tools/ directory importable when running from the repo root.
-_TOOLS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _TOOLS_DIR not in sys.path:
-    sys.path.insert(0, _TOOLS_DIR)
+# Make the portfolio_utils inner package importable.
+_PKG_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SCRIPTS_DIR = os.path.join(_PKG_DIR, "portfolio_utils")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
-# Make the techtrade extension importable for the regression test.
-_REPO_ROOT = os.path.dirname(_TOOLS_DIR)
+# Repo root sits 4 levels above the tests dir.
+_REPO_ROOT = os.path.abspath(os.path.join(_PKG_DIR, "..", "..", ".."))
 for _p in (
     os.path.join(_REPO_ROOT, "openbb_platform", "providers", "fmp_cached"),
     os.path.join(_REPO_ROOT, "openbb_platform", "extensions", "techtrade"),

@@ -32,8 +32,10 @@ from unittest.mock import patch
 
 import pytest
 
-# Ensure quant_scraper is importable — it's a script-style module under Tools/.
-_SCRAPER_DIR = Path(__file__).resolve().parents[1] / "quant_scraper"
+# Ensure quant_scraper is importable — it's a script-style module under portfolio_utils/.
+_SCRAPER_DIR = (
+    Path(__file__).resolve().parents[1] / "portfolio_utils" / "quant_scraper"
+)
 if str(_SCRAPER_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRAPER_DIR))
 

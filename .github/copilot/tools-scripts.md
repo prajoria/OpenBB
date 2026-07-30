@@ -1,5 +1,5 @@
 ---
-applyTo: "Tools/**"
+applyTo: "openbb_platform/tools/portfolio_utils/**"
 ---
 
 # Tools/ Script Rules
