@@ -65,15 +65,27 @@ def root() -> dict[str, str]:
 @app.get("/widgets.json")
 def get_widgets() -> JSONResponse:
     """Return the widget manifest Workspace uses to discover + render widgets."""
+    # Force ``charset=utf-8`` so Workspace decodes em-dashes and other
+    # UTF-8 bytes in widget titles correctly (see #1632). Without this
+    # the em-dashes render as ``â€"`` mojibake.
     return JSONResponse(
-        content=json.loads((_MANIFEST_DIR / "widgets.json").read_text())
+        content=json.loads(
+            (_MANIFEST_DIR / "widgets.json").read_text(encoding="utf-8")
+        ),
+        media_type="application/json; charset=utf-8",
     )
 
 
 @app.get("/apps.json")
 def get_apps() -> JSONResponse:
     """Return the pre-built dashboard layout Workspace ingests on connect."""
-    return JSONResponse(content=json.loads((_MANIFEST_DIR / "apps.json").read_text()))
+    # Same charset guard as /widgets.json (see #1632).
+    return JSONResponse(
+        content=json.loads(
+            (_MANIFEST_DIR / "apps.json").read_text(encoding="utf-8")
+        ),
+        media_type="application/json; charset=utf-8",
+    )
 
 
 # ---------------------------------------------------------------------------
