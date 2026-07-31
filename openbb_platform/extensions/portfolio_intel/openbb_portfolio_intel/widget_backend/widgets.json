@@ -528,5 +528,44 @@
     "params": [
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
     ]
+  },
+  "pi_financial_statements": {
+    "name": "Financial Statements",
+    "description": "IS/BS/CF line-items with annual/quarterly toggle (#1653). Stub-shaped over FMPCached income/balance/cash-flow fetchers.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/statements",
+    "gridData": { "w": 30, "h": 12 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
+      { "paramName": "period", "value": "annual", "label": "Period", "type": "text", "description": "annual or quarterly", "options": [ { "value": "annual", "label": "Annual" }, { "value": "quarterly", "label": "Quarterly" } ] }
+    ]
+  },
+  "pi_charting": {
+    "name": "Charting (OHLC + Indicators)",
+    "description": "Historical OHLC + SMA20/SMA50/RSI14 overlays with window enum (#1655). Stub-shaped over FMPCachedHistoricalPriceFetcher + indicator overlays.",
+    "category": "Equity Profile",
+    "type": "chart",
+    "endpoint": "pi/equity/charting",
+    "raw": true,
+    "gridData": { "w": 40, "h": 12 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
+      { "paramName": "window", "value": "3M", "label": "Window", "type": "text", "description": "1M/3M/6M/YTD/1Y", "options": [ { "value": "1M", "label": "1M" }, { "value": "3M", "label": "3M" }, { "value": "6M", "label": "6M" }, { "value": "YTD", "label": "YTD" }, { "value": "1Y", "label": "1Y" } ] }
+    ]
+  },
+  "pi_peer_multiples": {
+    "name": "Peer Multiples Matrix",
+    "description": "Valuation multiples (P/E, EV/EBITDA, P/S) for the symbol and its peers (#1657). Stub-shaped over FMPCachedPeersFetcher + key-metrics.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/peer-multiples",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
   }
 }
