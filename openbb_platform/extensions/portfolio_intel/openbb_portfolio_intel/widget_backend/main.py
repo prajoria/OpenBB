@@ -87,6 +87,47 @@ def get_apps() -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
+# Context-bar endpoints — shared by every tab in the terminal (#1638, #1639)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/pi/context/symbol")
+def context_symbol(request: Request, symbol: str = "AAPL") -> str:
+    """Symbol context bar (#1638) — echoes the ticker as markdown.
+
+    The point of a "context bar" widget is to hold + display the shared
+    ``symbol`` param so Workspace can link it across tabs 1-7. The
+    response is intentionally minimal (a one-line markdown badge); the
+    param wiring is what matters for the persona surface.
+    """
+    require_auth(request)
+    sym = symbol.strip().upper()
+    if not _SYMBOL_RE.match(sym):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "symbol must match [A-Z0-9.\\-]{1,10}; "
+                f"got {symbol!r} (rejected before markdown formatting)"
+            ),
+        )
+    return f"**Symbol:** `{sym}`  \nResearch tabs (F1-F7) share this ticker."
+
+
+@app.get("/pi/context/book")
+def context_book(request: Request, account_id: str = "demo") -> str:
+    """Book (account) context bar (#1639) — echoes account_id as markdown.
+
+    Companion to ``/pi/context/symbol``. Holds the shared ``account_id``
+    param for portfolio tabs 8-11.
+    """
+    require_auth(request)
+    validate_account(account_id)
+    return (
+        f"**Book:** `{account_id}`  \nPortfolio tabs (F8-F11) share this " f"account."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Core widget endpoints — the three shipped in the original #1008 cut
 # ---------------------------------------------------------------------------
 
