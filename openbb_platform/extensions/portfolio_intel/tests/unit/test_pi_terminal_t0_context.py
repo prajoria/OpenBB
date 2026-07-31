@@ -147,30 +147,40 @@ _PORTFOLIO_TABS = ("xray", "risk", "paper", "alerts")
 
 
 def test_every_research_tab_starts_with_symbol_context() -> None:
-    """F1..F7 tabs must include pi_symbol_context as the first slot (y == 0)."""
+    """F1..F7 tabs must include pi_symbol_context as the first NON-CHROME slot.
+
+    Updated for F12: pi_provider_health chrome now sits at y:0 on every tab
+    per spec §3 T12.1. The T0 context bar (symbol) is the first slot
+    BELOW the chrome — still first-among-per-context widgets.
+    """
     tabs = _terminal().get("tabs", {})
     for tid in _RESEARCH_TABS:
         tab = tabs.get(tid, {})
         layout = tab.get("layout", [])
         assert layout, f"tab {tid!r} has empty layout"
-        # First slot (top of tab) must be the symbol context bar.
-        top = min(layout, key=lambda s: (s.get("y", 0), s.get("x", 0)))
+        # First non-chrome slot (top of tab excluding pi_provider_health).
+        non_chrome = [s for s in layout if s["i"] != "pi_provider_health"]
+        assert non_chrome, f"tab {tid!r} has only chrome"
+        top = min(non_chrome, key=lambda s: (s.get("y", 0), s.get("x", 0)))
         assert top["i"] == "pi_symbol_context", (
-            f"tab {tid!r} missing symbol context bar as first slot;"
+            f"tab {tid!r} missing symbol context bar as first non-chrome slot;"
             f" got {top['i']!r}"
         )
 
 
 def test_every_portfolio_tab_starts_with_book_context() -> None:
-    """F8..F11 tabs must include pi_book_context as the first slot."""
+    """F8..F11 tabs must include pi_book_context as the first NON-CHROME slot."""
     tabs = _terminal().get("tabs", {})
     for tid in _PORTFOLIO_TABS:
         tab = tabs.get(tid, {})
         layout = tab.get("layout", [])
         assert layout, f"tab {tid!r} has empty layout"
-        top = min(layout, key=lambda s: (s.get("y", 0), s.get("x", 0)))
+        non_chrome = [s for s in layout if s["i"] != "pi_provider_health"]
+        assert non_chrome, f"tab {tid!r} has only chrome"
+        top = min(non_chrome, key=lambda s: (s.get("y", 0), s.get("x", 0)))
         assert top["i"] == "pi_book_context", (
-            f"tab {tid!r} missing book context bar as first slot;" f" got {top['i']!r}"
+            f"tab {tid!r} missing book context bar as first non-chrome slot;"
+            f" got {top['i']!r}"
         )
 
 

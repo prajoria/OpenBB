@@ -1,6 +1,6 @@
 [
   {
-    "name": "Portfolio Intelligence — Overview",
+    "name": "Portfolio Intelligence \u2014 Overview",
     "img": "",
     "img_dark": "",
     "img_light": "",
@@ -17,7 +17,11 @@
             "y": 0,
             "w": 20,
             "h": 9,
-            "state": { "params": { "account_id": "demo" } }
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
           },
           {
             "i": "pi_whatif_diff",
@@ -25,7 +29,12 @@
             "y": 0,
             "w": 20,
             "h": 9,
-            "state": { "params": { "symbol": "AAPL", "delta_shares": "100" } }
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "delta_shares": "100"
+              }
+            }
           },
           {
             "i": "pi_brinson_attribution",
@@ -33,7 +42,12 @@
             "y": 9,
             "w": 40,
             "h": 9,
-            "state": { "params": { "window": "1Y", "benchmark_symbol": "SPY" } }
+            "state": {
+              "params": {
+                "window": "1Y",
+                "benchmark_symbol": "SPY"
+              }
+            }
           }
         ]
       }
@@ -42,7 +56,7 @@
   },
   {
     "id": "portfolio-intelligence-terminal",
-    "name": "Portfolio Intelligence — Terminal",
+    "name": "Portfolio Intelligence \u2014 Terminal",
     "img": "",
     "img_dark": "",
     "img_light": "",
@@ -57,112 +71,864 @@
         "id": "overview",
         "name": "F1: Overview",
         "layout": [
-          { "i": "pi_symbol_context",         "x": 0, "y": 0,  "w": 40, "h": 2,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_profile_header",  "x": 0, "y": 2,  "w": 40, "h": 5,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_key_stats",       "x": 0, "y": 7,  "w": 20, "h": 10, "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_price_history",   "x": 20, "y": 7, "w": 20, "h": 10, "state": { "params": { "symbol": "AAPL", "chart_type": "line" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_symbol_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_profile_header",
+            "x": 0,
+            "y": 4,
+            "w": 40,
+            "h": 5,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_key_stats",
+            "x": 0,
+            "y": 9,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_price_history",
+            "x": 20,
+            "y": 9,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "chart_type": "line"
+              }
+            }
+          }
         ]
       },
       "financials": {
         "id": "financials",
         "name": "F2: Financials",
         "layout": [
-          { "i": "pi_symbol_context",          "x": 0, "y": 0, "w": 40, "h": 2,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_financial_charts", "x": 0, "y": 2, "w": 40, "h": 10, "state": { "params": { "symbol": "AAPL" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_symbol_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_financial_charts",
+            "x": 0,
+            "y": 4,
+            "w": 40,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          }
         ]
       },
       "technicals": {
         "id": "technicals",
         "name": "F3: Technicals",
         "layout": [
-          { "i": "pi_symbol_context",        "x": 0, "y": 0, "w": 40, "h": 2,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_technicals",     "x": 0, "y": 2, "w": 20, "h": 12, "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_price_history",  "x": 20, "y": 2, "w": 20, "h": 12, "state": { "params": { "symbol": "AAPL", "chart_type": "candle" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_symbol_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_technicals",
+            "x": 0,
+            "y": 4,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_price_history",
+            "x": 20,
+            "y": 4,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "chart_type": "candle"
+              }
+            }
+          }
         ]
       },
       "comparison": {
         "id": "comparison",
         "name": "F4: Comparison",
         "layout": [
-          { "i": "pi_symbol_context",       "x": 0, "y": 0, "w": 40, "h": 2,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_competitors",   "x": 0, "y": 2, "w": 40, "h": 6,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_complementary", "x": 0, "y": 8, "w": 40, "h": 12, "state": { "params": { "symbol": "AAPL" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_symbol_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_competitors",
+            "x": 0,
+            "y": 4,
+            "w": 40,
+            "h": 6,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_complementary",
+            "x": 0,
+            "y": 10,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          }
         ]
       },
       "ownership": {
         "id": "ownership",
         "name": "F5: Ownership",
         "layout": [
-          { "i": "pi_symbol_context",   "x": 0, "y": 0, "w": 40, "h": 2,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_key_stats", "x": 0, "y": 2, "w": 40, "h": 10, "state": { "params": { "symbol": "AAPL" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_symbol_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_key_stats",
+            "x": 0,
+            "y": 4,
+            "w": 40,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          }
         ]
       },
       "calendar": {
         "id": "calendar",
         "name": "F6: Calendar",
         "layout": [
-          { "i": "pi_symbol_context", "x": 0, "y": 0, "w": 40, "h": 2,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_event_calendar", "x": 0, "y": 2, "w": 40, "h": 12, "state": { "params": { "account_id": "demo", "horizon_days": "30" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_symbol_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_event_calendar",
+            "x": 0,
+            "y": 4,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "account_id": "demo",
+                "horizon_days": "30"
+              }
+            }
+          }
         ]
       },
       "estimates": {
         "id": "estimates",
         "name": "F7: Estimates",
         "layout": [
-          { "i": "pi_symbol_context",           "x": 0, "y": 0, "w": 40, "h": 2,  "state": { "params": { "symbol": "AAPL" } } },
-          { "i": "pi_equity_analyst_forecasts", "x": 0, "y": 2, "w": 40, "h": 12, "state": { "params": { "symbol": "AAPL" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_symbol_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_analyst_forecasts",
+            "x": 0,
+            "y": 4,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_basket_analyst_consensus",
+            "x": 0,
+            "y": 16,
+            "w": 30,
+            "h": 10,
+            "state": {
+              "params": {
+                "basket_id": "demo"
+              }
+            }
+          }
         ]
       },
       "xray": {
         "id": "xray",
         "name": "F8: X-Ray",
         "layout": [
-          { "i": "pi_book_context",       "x": 0,  "y": 0,  "w": 40, "h": 2,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_xray_sector",        "x": 0,  "y": 2,  "w": 20, "h": 9,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_xray_country",       "x": 20, "y": 2,  "w": 20, "h": 9,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_concentration_gauge","x": 0,  "y": 11, "w": 12, "h": 6,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_lookthrough_top25",  "x": 12, "y": 11, "w": 28, "h": 12, "state": { "params": { "account_id": "demo" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_book_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_xray_sector",
+            "x": 0,
+            "y": 4,
+            "w": 20,
+            "h": 9,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_xray_country",
+            "x": 20,
+            "y": 4,
+            "w": 20,
+            "h": 9,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_concentration_gauge",
+            "x": 0,
+            "y": 13,
+            "w": 12,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_lookthrough_top25",
+            "x": 12,
+            "y": 13,
+            "w": 28,
+            "h": 12,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          }
         ]
       },
       "risk": {
         "id": "risk",
         "name": "F9: Risk & Attribution",
         "layout": [
-          { "i": "pi_book_context",         "x": 0,  "y": 0,  "w": 40, "h": 2, "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_risk_dashboard",       "x": 0,  "y": 2,  "w": 12, "h": 6, "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_concentration_gauge",  "x": 12, "y": 2,  "w": 8,  "h": 6, "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_risk_vol_chart",       "x": 20, "y": 2,  "w": 20, "h": 8, "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_brinson_attribution",  "x": 0,  "y": 10, "w": 40, "h": 9, "state": { "params": { "window": "1Y", "benchmark_symbol": "SPY" } } },
-          { "i": "pi_whatif_card",          "x": 0,  "y": 19, "w": 20, "h": 10, "state": { "params": { "symbol": "AAPL", "delta_shares": "100" } } },
-          { "i": "pi_whatif_diff",          "x": 20, "y": 19, "w": 20, "h": 10, "state": { "params": { "symbol": "AAPL", "delta_shares": "100" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_book_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_risk_dashboard",
+            "x": 0,
+            "y": 4,
+            "w": 12,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_concentration_gauge",
+            "x": 12,
+            "y": 4,
+            "w": 8,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_risk_vol_chart",
+            "x": 20,
+            "y": 4,
+            "w": 20,
+            "h": 8,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_brinson_attribution",
+            "x": 0,
+            "y": 12,
+            "w": 40,
+            "h": 9,
+            "state": {
+              "params": {
+                "window": "1Y",
+                "benchmark_symbol": "SPY"
+              }
+            }
+          },
+          {
+            "i": "pi_whatif_card",
+            "x": 0,
+            "y": 21,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "delta_shares": "100"
+              }
+            }
+          },
+          {
+            "i": "pi_whatif_diff",
+            "x": 20,
+            "y": 21,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "delta_shares": "100"
+              }
+            }
+          }
         ]
       },
       "paper": {
         "id": "paper",
         "name": "F10: Paper Trading",
         "layout": [
-          { "i": "pi_book_context",       "x": 0,  "y": 0,  "w": 40, "h": 2,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_paper_ticket",       "x": 0,  "y": 2,  "w": 16, "h": 8,  "state": { "params": { "account_id": "demo", "symbol": "AAPL", "side": "buy", "quantity": "100", "confirm": "false" } } },
-          { "i": "pi_paper_perf_kpis",    "x": 16, "y": 2,  "w": 12, "h": 6,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_backtest_button",    "x": 28, "y": 2,  "w": 12, "h": 6,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_paper_performance",  "x": 0,  "y": 10, "w": 32, "h": 10, "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_paper_blotter",      "x": 0,  "y": 20, "w": 32, "h": 10, "state": { "params": { "account_id": "demo" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_book_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_paper_ticket",
+            "x": 0,
+            "y": 4,
+            "w": 16,
+            "h": 8,
+            "state": {
+              "params": {
+                "account_id": "demo",
+                "symbol": "AAPL",
+                "side": "buy",
+                "quantity": "100",
+                "confirm": "false"
+              }
+            }
+          },
+          {
+            "i": "pi_paper_perf_kpis",
+            "x": 16,
+            "y": 4,
+            "w": 12,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_backtest_button",
+            "x": 28,
+            "y": 4,
+            "w": 12,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_paper_performance",
+            "x": 0,
+            "y": 12,
+            "w": 32,
+            "h": 10,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_paper_blotter",
+            "x": 0,
+            "y": 22,
+            "w": 32,
+            "h": 10,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          }
         ]
       },
       "alerts": {
         "id": "alerts",
         "name": "F11: Alerts & Catalysts",
         "layout": [
-          { "i": "pi_book_context",       "x": 0,  "y": 0,  "w": 40, "h": 2,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_alerts_panel",       "x": 0,  "y": 2,  "w": 30, "h": 10, "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_sentiment_gauge",    "x": 30, "y": 2,  "w": 10, "h": 6,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_event_calendar",     "x": 0,  "y": 12, "w": 30, "h": 10, "state": { "params": { "account_id": "demo", "horizon_days": "14" } } },
-          { "i": "pi_smart_money_ribbon", "x": 0,  "y": 22, "w": 40, "h": 8,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_news_ribbon",        "x": 0,  "y": 30, "w": 30, "h": 10, "state": { "params": { "account_id": "demo", "horizon_days": "7" } } }
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_book_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_alerts_panel",
+            "x": 0,
+            "y": 4,
+            "w": 30,
+            "h": 10,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_sentiment_gauge",
+            "x": 30,
+            "y": 4,
+            "w": 10,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_event_calendar",
+            "x": 0,
+            "y": 14,
+            "w": 30,
+            "h": 10,
+            "state": {
+              "params": {
+                "account_id": "demo",
+                "horizon_days": "14"
+              }
+            }
+          },
+          {
+            "i": "pi_smart_money_ribbon",
+            "x": 0,
+            "y": 24,
+            "w": 40,
+            "h": 8,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_news_ribbon",
+            "x": 0,
+            "y": 32,
+            "w": 30,
+            "h": 10,
+            "state": {
+              "params": {
+                "account_id": "demo",
+                "horizon_days": "7"
+              }
+            }
+          }
+        ]
+      },
+      "morning-review": {
+        "id": "morning-review",
+        "name": "Morning Review (W8)",
+        "layout": [
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "pi_book_context",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 2,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_concentration_gauge",
+            "x": 0,
+            "y": 4,
+            "w": 8,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_risk_dashboard",
+            "x": 8,
+            "y": 4,
+            "w": 12,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_paper_perf_kpis",
+            "x": 20,
+            "y": 4,
+            "w": 12,
+            "h": 6,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          },
+          {
+            "i": "pi_event_calendar",
+            "x": 0,
+            "y": 10,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "account_id": "demo",
+                "horizon_days": "7"
+              }
+            }
+          },
+          {
+            "i": "pi_alerts_panel",
+            "x": 20,
+            "y": 10,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "account_id": "demo"
+              }
+            }
+          }
         ]
       }
     },
-    "groups": []
+    "groups": [],
+    "guidedTour": {
+      "id": "sunday-routine",
+      "name": "Portfolio Sunday Routine",
+      "description": "Steps the W0-W9 notebook-aligned portfolio review flow.",
+      "steps": [
+        {
+          "step": "W0",
+          "tab": "overview",
+          "focusWidget": "pi_provider_health",
+          "note": "Confirm provider tier health before the review starts."
+        },
+        {
+          "step": "W1",
+          "tab": "overview",
+          "focusWidget": "pi_equity_profile_header",
+          "note": "Ground yourself on a single symbol (NB01)."
+        },
+        {
+          "step": "W2",
+          "tab": "financials",
+          "focusWidget": "pi_equity_financial_charts",
+          "note": "Review the fundamentals (NB02)."
+        },
+        {
+          "step": "W3",
+          "tab": "xray",
+          "focusWidget": "pi_xray_sector",
+          "note": "Portfolio composition breakdown (NB03)."
+        },
+        {
+          "step": "W4",
+          "tab": "risk",
+          "focusWidget": "pi_risk_dashboard",
+          "note": "Risk metrics + Brinson attribution (NB03/NB05)."
+        },
+        {
+          "step": "W5",
+          "tab": "calendar",
+          "focusWidget": "pi_event_calendar",
+          "note": "Upcoming catalysts (NB04)."
+        },
+        {
+          "step": "W6",
+          "tab": "alerts",
+          "focusWidget": "pi_alerts_panel",
+          "note": "Active alerts and smart-money moves (NB04)."
+        },
+        {
+          "step": "W7",
+          "tab": "paper",
+          "focusWidget": "pi_paper_perf_kpis",
+          "note": "Paper account performance vs. plan (NB05)."
+        },
+        {
+          "step": "W8",
+          "tab": "morning-review",
+          "focusWidget": "pi_alerts_panel",
+          "note": "One-page Morning Review composite (NB06/07)."
+        },
+        {
+          "step": "W9",
+          "tab": "estimates",
+          "focusWidget": "pi_basket_analyst_consensus",
+          "note": "Basket-consensus analyst view (NB08) - DEMO ONLY (basket input wiring is #1714)."
+        }
+      ]
+    }
   },
   {
     "id": "techtrade-desk",
@@ -180,9 +946,38 @@
         "id": "morning-scan",
         "name": "T1: Morning Scan",
         "layout": [
-          { "i": "tt_segment_movers", "x": 0,  "y": 0,  "w": 20, "h": 8,  "state": { "params": {} } },
-          { "i": "tt_export_button",  "x": 20, "y": 0,  "w": 10, "h": 4,  "state": { "params": {} } },
-          { "i": "tt_scan_table",     "x": 0,  "y": 8,  "w": 30, "h": 12, "state": { "params": { "segment": "" } } }
+          {
+            "i": "tt_segment_movers",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 8,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "tt_export_button",
+            "x": 20,
+            "y": 0,
+            "w": 10,
+            "h": 4,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "tt_scan_table",
+            "x": 0,
+            "y": 8,
+            "w": 30,
+            "h": 12,
+            "state": {
+              "params": {
+                "segment": ""
+              }
+            }
+          }
         ]
       }
     },

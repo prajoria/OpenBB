@@ -600,5 +600,27 @@
     "gridData": { "w": 10, "h": 4 },
     "source": "portfolio-intel",
     "params": []
+  },
+  "pi_provider_health": {
+    "name": "Provider Health Strip",
+    "description": "Live status of the 5-tier data-sourcing chain across Track A (paid) and Track B (free) (#1685). Chrome widget shown on every tab. Real 5-tier fallback is #1715.",
+    "category": "Chrome",
+    "type": "markdown",
+    "endpoint": "pi/health/providers",
+    "gridData": { "w": 40, "h": 2 },
+    "source": "portfolio-intel",
+    "params": []
+  },
+  "pi_basket_analyst_consensus": {
+    "name": "Basket Analyst Consensus",
+    "description": "Aggregated analyst target + rating distribution across a basket of holdings (#1687). Stub-shaped for basket_id=demo; real basket-input wiring is #1714.",
+    "category": "Portfolio Intelligence",
+    "type": "table",
+    "endpoint": "pi/equity/basket-analyst-consensus",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "basket_id", "value": "demo", "label": "Basket ID", "type": "text", "description": "Named basket (demo only until #1714 lands)" }
+    ]
   }
 }
