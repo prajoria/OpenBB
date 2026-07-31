@@ -132,7 +132,9 @@
           { "i": "pi_risk_dashboard",       "x": 0,  "y": 2,  "w": 12, "h": 6, "state": { "params": { "account_id": "demo" } } },
           { "i": "pi_concentration_gauge",  "x": 12, "y": 2,  "w": 8,  "h": 6, "state": { "params": { "account_id": "demo" } } },
           { "i": "pi_risk_vol_chart",       "x": 20, "y": 2,  "w": 20, "h": 8, "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_brinson_attribution",  "x": 0,  "y": 10, "w": 40, "h": 9, "state": { "params": { "window": "1Y", "benchmark_symbol": "SPY" } } }
+          { "i": "pi_brinson_attribution",  "x": 0,  "y": 10, "w": 40, "h": 9, "state": { "params": { "window": "1Y", "benchmark_symbol": "SPY" } } },
+          { "i": "pi_whatif_card",          "x": 0,  "y": 19, "w": 20, "h": 10, "state": { "params": { "symbol": "AAPL", "delta_shares": "100" } } },
+          { "i": "pi_whatif_diff",          "x": 20, "y": 19, "w": 20, "h": 10, "state": { "params": { "symbol": "AAPL", "delta_shares": "100" } } }
         ]
       },
       "paper": {
@@ -142,6 +144,7 @@
           { "i": "pi_book_context",       "x": 0,  "y": 0,  "w": 40, "h": 2,  "state": { "params": { "account_id": "demo" } } },
           { "i": "pi_paper_ticket",       "x": 0,  "y": 2,  "w": 16, "h": 8,  "state": { "params": { "account_id": "demo", "symbol": "AAPL", "side": "buy", "quantity": "100", "confirm": "false" } } },
           { "i": "pi_paper_perf_kpis",    "x": 16, "y": 2,  "w": 12, "h": 6,  "state": { "params": { "account_id": "demo" } } },
+          { "i": "pi_backtest_button",    "x": 28, "y": 2,  "w": 12, "h": 6,  "state": { "params": { "account_id": "demo" } } },
           { "i": "pi_paper_performance",  "x": 0,  "y": 10, "w": 32, "h": 10, "state": { "params": { "account_id": "demo" } } },
           { "i": "pi_paper_blotter",      "x": 0,  "y": 20, "w": 32, "h": 10, "state": { "params": { "account_id": "demo" } } }
         ]
@@ -152,8 +155,10 @@
         "layout": [
           { "i": "pi_book_context",       "x": 0,  "y": 0,  "w": 40, "h": 2,  "state": { "params": { "account_id": "demo" } } },
           { "i": "pi_alerts_panel",       "x": 0,  "y": 2,  "w": 30, "h": 10, "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_smart_money_ribbon", "x": 0,  "y": 12, "w": 40, "h": 8,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_news_ribbon",        "x": 0,  "y": 20, "w": 30, "h": 10, "state": { "params": { "account_id": "demo", "horizon_days": "7" } } }
+          { "i": "pi_sentiment_gauge",    "x": 30, "y": 2,  "w": 10, "h": 6,  "state": { "params": { "account_id": "demo" } } },
+          { "i": "pi_event_calendar",     "x": 0,  "y": 12, "w": 30, "h": 10, "state": { "params": { "account_id": "demo", "horizon_days": "14" } } },
+          { "i": "pi_smart_money_ribbon", "x": 0,  "y": 22, "w": 40, "h": 8,  "state": { "params": { "account_id": "demo" } } },
+          { "i": "pi_news_ribbon",        "x": 0,  "y": 30, "w": 30, "h": 10, "state": { "params": { "account_id": "demo", "horizon_days": "7" } } }
         ]
       }
     },
