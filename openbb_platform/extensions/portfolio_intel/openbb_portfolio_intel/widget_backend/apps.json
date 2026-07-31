@@ -120,7 +120,8 @@
           { "i": "pi_book_context",       "x": 0,  "y": 0,  "w": 40, "h": 2,  "state": { "params": { "account_id": "demo" } } },
           { "i": "pi_xray_sector",        "x": 0,  "y": 2,  "w": 20, "h": 9,  "state": { "params": { "account_id": "demo" } } },
           { "i": "pi_xray_country",       "x": 20, "y": 2,  "w": 20, "h": 9,  "state": { "params": { "account_id": "demo" } } },
-          { "i": "pi_lookthrough_top25",  "x": 0,  "y": 11, "w": 40, "h": 12, "state": { "params": { "account_id": "demo" } } }
+          { "i": "pi_concentration_gauge","x": 0,  "y": 11, "w": 12, "h": 6,  "state": { "params": { "account_id": "demo" } } },
+          { "i": "pi_lookthrough_top25",  "x": 12, "y": 11, "w": 28, "h": 12, "state": { "params": { "account_id": "demo" } } }
         ]
       },
       "risk": {

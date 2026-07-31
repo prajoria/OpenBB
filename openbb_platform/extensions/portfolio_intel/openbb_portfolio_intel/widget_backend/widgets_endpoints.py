@@ -1374,3 +1374,147 @@ def equity_price_target_history(
         {"date": "2026-04-01", "close": 174.05, "target": 195.00},
         {"date": "2026-05-01", "close": 173.45, "target": 200.00},
     ]
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — F2 Financials + F3 Technicals + F4 Comparison (stub-shaped)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/pi/equity/statements")
+def equity_statements(
+    request: Request, symbol: str = "AAPL", period: str = "annual"
+) -> list[dict[str, str | float]]:
+    """Return Financial Statements rows (#1653) — IS/BS/CF (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    if period not in {"annual", "quarterly"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"period must be 'annual' or 'quarterly', got {period!r}",
+        )
+    # TODO(gh-1653): wire to FMPCachedIncomeStatementFetcher etc via period.
+    scale = 1.0 if period == "annual" else 0.25
+    return [
+        {
+            "line_item": "Revenue",
+            "period_1": 391000 * scale,
+            "period_2": 383300 * scale,
+        },
+        {
+            "line_item": "Gross Profit",
+            "period_1": 170782 * scale,
+            "period_2": 169148 * scale,
+        },
+        {
+            "line_item": "Operating Income",
+            "period_1": 118658 * scale,
+            "period_2": 114301 * scale,
+        },
+        {
+            "line_item": "Net Income",
+            "period_1": 93000 * scale,
+            "period_2": 96995 * scale,
+        },
+        {"line_item": "Total Assets", "period_1": 364980, "period_2": 352755},
+        {"line_item": "Total Debt", "period_1": 104590, "period_2": 111088},
+        {"line_item": "Cash & Equivalents", "period_1": 61555, "period_2": 61555},
+        {
+            "line_item": "Operating Cash Flow",
+            "period_1": 122151 * scale,
+            "period_2": 110543 * scale,
+        },
+        {
+            "line_item": "Free Cash Flow",
+            "period_1": 111443 * scale,
+            "period_2": 99584 * scale,
+        },
+    ]
+
+
+@app.get("/pi/equity/charting")
+def equity_charting(
+    request: Request, symbol: str = "AAPL", window: str = "3M"
+) -> list[dict[str, str | float]]:
+    """Return Charting rows (#1655) — OHLC + indicator overlays (chart)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    if window not in {"1M", "3M", "6M", "YTD", "1Y"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"window must be one of 1M/3M/6M/YTD/1Y, got {window!r}",
+        )
+    # TODO(gh-1655): wire to FMPCachedHistoricalPriceFetcher + compute
+    # SMA/RSI overlays in a shared indicators module.
+    return [
+        {
+            "date": "2026-04-01",
+            "open": 170.10,
+            "high": 172.50,
+            "low": 169.20,
+            "close": 171.35,
+            "sma20": 168.40,
+            "sma50": 165.20,
+            "rsi14": 58.2,
+        },
+        {
+            "date": "2026-04-15",
+            "open": 172.00,
+            "high": 174.30,
+            "low": 171.20,
+            "close": 173.10,
+            "sma20": 170.10,
+            "sma50": 166.85,
+            "rsi14": 62.4,
+        },
+        {
+            "date": "2026-05-01",
+            "open": 173.50,
+            "high": 175.80,
+            "low": 172.90,
+            "close": 173.45,
+            "sma20": 171.85,
+            "sma50": 168.30,
+            "rsi14": 55.7,
+        },
+    ]
+
+
+@app.get("/pi/equity/peer-multiples")
+def equity_peer_multiples(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Return Peer Multiples rows (#1657) — self + peers valuation matrix (table)."""
+    _require_auth(request)
+    sym = _validate_symbol(symbol)
+    # TODO(gh-1657): wire to FMPCachedPeersFetcher + fan out key-metrics.
+    return [
+        {
+            "symbol": sym,
+            "pe_ttm": 32.1,
+            "pe_fwd": 29.4,
+            "ev_ebitda": 24.8,
+            "ps_ttm": 8.7,
+        },
+        {
+            "symbol": "MSFT",
+            "pe_ttm": 34.9,
+            "pe_fwd": 31.2,
+            "ev_ebitda": 26.1,
+            "ps_ttm": 12.4,
+        },
+        {
+            "symbol": "GOOGL",
+            "pe_ttm": 26.3,
+            "pe_fwd": 23.1,
+            "ev_ebitda": 18.9,
+            "ps_ttm": 6.2,
+        },
+        {
+            "symbol": "META",
+            "pe_ttm": 27.6,
+            "pe_fwd": 24.7,
+            "ev_ebitda": 17.2,
+            "ps_ttm": 9.1,
+        },
+    ]
