@@ -1567,7 +1567,7 @@ def tt_scan_table(request: Request, segment: str = "") -> list[dict[str, str | f
     if segment:
         _validate_segment(segment)
     # TODO(gh-1692): wire to openbb_techtrade.engine.scan.scan_segments.
-    all_rows = [
+    all_rows: list[dict[str, str | float]] = [
         {
             "symbol": "NVDA",
             "segment": "Technology",
@@ -1596,10 +1596,7 @@ def tt_scan_table(request: Request, segment: str = "") -> list[dict[str, str | f
         },
     ]
     if segment:
-        filtered: list[dict[str, str | float]] = [
-            r for r in all_rows if r["segment"] == segment
-        ]
-        return filtered
+        return [r for r in all_rows if r["segment"] == segment]
     return all_rows
 
 
