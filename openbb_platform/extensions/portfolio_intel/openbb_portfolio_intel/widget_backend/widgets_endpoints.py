@@ -1036,3 +1036,114 @@ def equity_price_history(
         return [{"date": b["date"], "close": b["close"]} for b in bars]
     # chart_type == "candle"
     return bars
+
+
+# ---------------------------------------------------------------------------
+# F1 Batch B — BUILD widgets over fmp_cached endpoints (stub-shaped)
+# ---------------------------------------------------------------------------
+#
+# The four endpoints below all have corresponding FMPCached fetchers in
+# openbb_platform/providers/fmp_cached/openbb_fmp_cached/models/
+#     price_performance.py, key_executives.py,
+#     revenue_geographic.py, revenue_business_line.py
+# Real fetcher wiring lands per-widget in a follow-up cycle (same
+# stub-first policy as every other F0/F1 widget on this backend). The
+# shape contract shipped here is what unlocks Workspace rendering and
+# downstream tab work.
+
+
+@app.get("/pi/equity/price-performance")
+def equity_price_performance(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Price Performance widget (#1645) — trailing return by horizon (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1645): wire to FMPPricePerformanceFetcher via fmp_cached.
+    return [
+        {"period": "1D", "return_pct": 0.54},
+        {"period": "1W", "return_pct": 1.82},
+        {"period": "1M", "return_pct": 3.41},
+        {"period": "3M", "return_pct": 7.20},
+        {"period": "6M", "return_pct": 12.85},
+        {"period": "YTD", "return_pct": 18.44},
+        {"period": "1Y", "return_pct": 24.10},
+        {"period": "3Y", "return_pct": 82.31},
+        {"period": "5Y", "return_pct": 245.60},
+    ]
+
+
+@app.get("/pi/equity/management-team")
+def equity_management_team(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float | None]]:
+    """Management Team widget (#1648) — key executives (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1648): wire to FMPKeyExecutivesFetcher via fmp_cached.
+    return [
+        {
+            "name": "Timothy D. Cook",
+            "title": "CEO",
+            "pay_usd": 63209845,
+            "tenure_years": 12,
+        },
+        {
+            "name": "Luca Maestri",
+            "title": "CFO",
+            "pay_usd": 27129231,
+            "tenure_years": 10,
+        },
+        {
+            "name": "Jeff Williams",
+            "title": "COO",
+            "pay_usd": 26985763,
+            "tenure_years": 8,
+        },
+        {
+            "name": "Katherine L. Adams",
+            "title": "General Counsel",
+            "pay_usd": 26985763,
+            "tenure_years": 7,
+        },
+        {
+            "name": "Deirdre O'Brien",
+            "title": "SVP Retail & People",
+            "pay_usd": 26985763,
+            "tenure_years": 6,
+        },
+    ]
+
+
+@app.get("/pi/equity/revenue-geography")
+def equity_revenue_geography(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Revenue Per Geography widget (#1649) — region/revenue rows (chart raw)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1649): wire to FMPRevenueGeographicFetcher via fmp_cached.
+    return [
+        {"region": "Americas", "revenue": 162560},
+        {"region": "Europe", "revenue": 94294},
+        {"region": "Greater China", "revenue": 66952},
+        {"region": "Japan", "revenue": 24257},
+        {"region": "Rest of Asia Pacific", "revenue": 29615},
+    ]
+
+
+@app.get("/pi/equity/revenue-business-line")
+def equity_revenue_business_line(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Revenue Per Business Line widget (#1650) — segment/revenue rows (chart raw)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1650): wire to FMPRevenueBusinessLineFetcher via fmp_cached.
+    return [
+        {"segment": "iPhone", "revenue": 200583},
+        {"segment": "Services", "revenue": 96169},
+        {"segment": "Wearables, Home & Accessories", "revenue": 39845},
+        {"segment": "Mac", "revenue": 29357},
+        {"segment": "iPad", "revenue": 28300},
+    ]
