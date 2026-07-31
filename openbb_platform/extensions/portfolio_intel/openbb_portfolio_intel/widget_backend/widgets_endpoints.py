@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 
 from fastapi import HTTPException, Request
 
@@ -1518,3 +1519,97 @@ def equity_peer_multiples(
             "ps_ttm": 9.1,
         },
     ]
+
+
+# ---------------------------------------------------------------------------
+# Techtrade Morning Scan (#1692 T13.1) — stub-shaped
+# ---------------------------------------------------------------------------
+#
+# 3 widgets under the tt_* prefix, hosted in the existing portfolio-intel
+# widget_backend server (Option A architecture). Real wiring calls
+# openbb_techtrade.engine.scan and .screener_router in follow-up.
+
+
+_SEGMENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 &_-]{0,63}$")
+
+
+def _validate_segment(segment: str) -> str:
+    """Reject XSS/malformed segment strings before echoing into rows."""
+    if not _SEGMENT_RE.match(segment):
+        raise HTTPException(
+            status_code=400,
+            detail=f"segment must match [A-Za-z][A-Za-z0-9 &_-]{{0,63}}; got {segment!r}",
+        )
+    return segment
+
+
+@app.get("/tt/scan/segment-movers")
+def tt_scan_segment_movers(
+    request: Request,
+) -> list[dict[str, str | float]]:
+    """Return Segment Movers rows (#1692) — top gainers/losers by segment (chart)."""
+    _require_auth(request)
+    # TODO(gh-1692): wire to openbb_techtrade.engine.screener_router.segments.
+    return [
+        {"segment": "Technology", "change_pct": +2.14, "bucket": "gainer"},
+        {"segment": "Communication Services", "change_pct": +1.62, "bucket": "gainer"},
+        {"segment": "Consumer Discretionary", "change_pct": +0.88, "bucket": "gainer"},
+        {"segment": "Health Care", "change_pct": -0.31, "bucket": "loser"},
+        {"segment": "Utilities", "change_pct": -0.94, "bucket": "loser"},
+        {"segment": "Real Estate", "change_pct": -1.55, "bucket": "loser"},
+    ]
+
+
+@app.get("/tt/scan/table")
+def tt_scan_table(request: Request, segment: str = "") -> list[dict[str, str | float]]:
+    """Return Scan Table rows (#1692) — filtered ticker scan results (table)."""
+    _require_auth(request)
+    if segment:
+        _validate_segment(segment)
+    # TODO(gh-1692): wire to openbb_techtrade.engine.scan.scan_segments.
+    all_rows = [
+        {
+            "symbol": "NVDA",
+            "segment": "Technology",
+            "score": 0.94,
+            "signal": "BREAKOUT",
+        },
+        {"symbol": "AAPL", "segment": "Technology", "score": 0.82, "signal": "TREND"},
+        {"symbol": "MSFT", "segment": "Technology", "score": 0.78, "signal": "TREND"},
+        {
+            "symbol": "META",
+            "segment": "Communication Services",
+            "score": 0.71,
+            "signal": "TREND",
+        },
+        {
+            "symbol": "AMZN",
+            "segment": "Consumer Discretionary",
+            "score": 0.66,
+            "signal": "BASE",
+        },
+        {
+            "symbol": "TSLA",
+            "segment": "Consumer Discretionary",
+            "score": 0.58,
+            "signal": "RANGE",
+        },
+    ]
+    if segment:
+        return [r for r in all_rows if r["segment"] == segment]
+    return all_rows
+
+
+@app.get("/tt/scan/export")
+def tt_scan_export(request: Request) -> str:
+    """Return Export button markdown (#1692) — CSV export link for the scan (markdown)."""
+    _require_auth(request)
+    # TODO(gh-1692): wire to an actual export route that streams the scan
+    # snapshot as a CSV attachment.
+    return (
+        "### Export Scan\n\n"
+        "- [Download CSV](#) — snapshot of the current scan table\n"
+        "- [Copy JSON](#) — machine-readable copy\n\n"
+        "> Stub — the CSV link will resolve to a real streaming download once "
+        "the export route lands in a follow-up cycle."
+    )
