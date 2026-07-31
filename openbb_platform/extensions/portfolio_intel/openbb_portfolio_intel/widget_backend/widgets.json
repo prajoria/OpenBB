@@ -1,4 +1,28 @@
 {
+  "pi_symbol_context": {
+    "name": "Symbol Context Bar",
+    "description": "Shared ticker context for research tabs F1-F7 (#1638).",
+    "category": "Portfolio Intelligence",
+    "type": "markdown",
+    "endpoint": "pi/context/symbol",
+    "gridData": { "w": 40, "h": 2 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker (allowlisted)" }
+    ]
+  },
+  "pi_book_context": {
+    "name": "Book Context Bar",
+    "description": "Shared account context for portfolio tabs F8-F11 (#1639).",
+    "category": "Portfolio Intelligence",
+    "type": "markdown",
+    "endpoint": "pi/context/book",
+    "gridData": { "w": 40, "h": 2 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id (allowlisted)" }
+    ]
+  },
   "pi_xray_sector": {
     "name": "X-Ray — Sector Weights",
     "description": "Portfolio sector weights (pie).",
