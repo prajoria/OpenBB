@@ -1596,7 +1596,10 @@ def tt_scan_table(request: Request, segment: str = "") -> list[dict[str, str | f
         },
     ]
     if segment:
-        return [r for r in all_rows if r["segment"] == segment]
+        filtered: list[dict[str, str | float]] = [
+            r for r in all_rows if r["segment"] == segment
+        ]
+        return filtered
     return all_rows
 
 
