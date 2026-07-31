@@ -365,5 +365,57 @@
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
       { "paramName": "chart_type", "value": "line", "label": "Chart type", "type": "text", "description": "Line (close-only) or candlestick (OHLC).", "options": [ { "value": "line", "label": "Line" }, { "value": "candle", "label": "Candlestick" } ] }
     ]
+  },
+  "pi_price_performance": {
+    "name": "Price Performance",
+    "description": "Trailing return by horizon: 1D/1W/1M/3M/6M/YTD/1Y/3Y/5Y (#1645). Stub-shaped over FMPPricePerformanceFetcher.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/price-performance",
+    "gridData": { "w": 20, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_management_team": {
+    "name": "Management Team",
+    "description": "Key executives, titles, pay, and tenure (#1648). Stub-shaped over FMPKeyExecutivesFetcher.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/management-team",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_revenue_geography": {
+    "name": "Revenue Per Geography",
+    "description": "Revenue split by geographic region (#1649). Stub-shaped over FMPRevenueGeographicFetcher.",
+    "category": "Equity Profile",
+    "type": "chart",
+    "endpoint": "pi/equity/revenue-geography",
+    "raw": true,
+    "gridData": { "w": 20, "h": 10 },
+    "source": "portfolio-intel",
+    "data": { "chart": { "type": "pie", "labelColumn": "region", "valueColumn": "revenue" } },
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_revenue_business_line": {
+    "name": "Revenue Per Business Line",
+    "description": "Revenue split by product/business segment (#1650). Stub-shaped over FMPRevenueBusinessLineFetcher.",
+    "category": "Equity Profile",
+    "type": "chart",
+    "endpoint": "pi/equity/revenue-business-line",
+    "raw": true,
+    "gridData": { "w": 20, "h": 10 },
+    "source": "portfolio-intel",
+    "data": { "chart": { "type": "pie", "labelColumn": "segment", "valueColumn": "revenue" } },
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
   }
 }
