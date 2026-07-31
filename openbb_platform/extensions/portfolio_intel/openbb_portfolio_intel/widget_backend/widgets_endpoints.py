@@ -622,6 +622,8 @@ def equity_header(request: Request, symbol: str = "AAPL") -> str:
         f"## {sym}\n\n"
         f"- **Exchange:** NASDAQ (stub)\n"
         f"- **Sector / Industry:** Technology / Consumer Electronics (stub)\n"
+        f"- **Price:** $228.14 (stub)\n"
+        f"- **Day Change:** +1.23 (+0.54%) (stub)\n"
         f"- **Live Price:** $228.14 (+1.23, +0.54%) — last update stub\n"
         f"- **Overnight (BOATS):** $228.20 (+0.06)\n\n"
         "> Preview stub — real wiring calls obb.equity.profile(symbol) plus "
@@ -639,10 +641,15 @@ def equity_key_stats(
     return [
         {"metric": "Market Cap", "value": "$3.47T"},
         {"metric": "P/E (TTM)", "value": 32.1},
+        {"metric": "Forward P/E", "value": 29.4},
+        {"metric": "EV/EBITDA", "value": 24.8},
+        {"metric": "P/S (TTM)", "value": 8.7},
         {"metric": "EPS (TTM)", "value": 6.51},
         {"metric": "Revenue (FY)", "value": "$391B"},
         {"metric": "Net Income (FY)", "value": "$93B"},
         {"metric": "Shares Float", "value": "15.2B"},
+        {"metric": "Short Interest", "value": "0.68%"},
+        {"metric": "Insider Ownership", "value": "0.07%"},
         {"metric": "Beta (1Y)", "value": 1.20},
         {"metric": "Dividend Yield", "value": "0.42%"},
         {"metric": "Volume (today)", "value": "48M"},
