@@ -1613,3 +1613,159 @@ def tt_scan_export(request: Request) -> str:
         "> Stub — the CSV link will resolve to a real streaming download once "
         "the export route lands in a follow-up cycle."
     )
+
+
+# ---------------------------------------------------------------------------
+# F12 Portfolio-management workflow (#1685-#1689) — spec at
+# docs/superpowers/specs/2026-07-31-f12-portfolio-workflow-design.md
+# ---------------------------------------------------------------------------
+
+
+_BASKET_ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
+
+
+def _validate_basket_id(basket_id: str) -> str:
+    """Reject XSS/malformed basket_id strings before echoing into responses."""
+    if not _BASKET_ID_RE.match(basket_id):
+        raise HTTPException(
+            status_code=400,
+            detail=f"basket_id must match [A-Za-z0-9_.-]{{1,64}}; got {basket_id!r}",
+        )
+    return basket_id
+
+
+# Exception → fixed note allowlist (spec §3 T12.1 P0-3 fix). NEVER return
+# str(exc) or repr(exc) — they can carry API keys in URL fragments.
+_EXC_NOTE_MAP: dict[str, str] = {
+    "TimeoutError": "timeout",
+    "ConnectError": "network_unreachable",
+    "HTTPStatusError": "http_error",
+    "ReadTimeout": "read_timeout",
+    "ConnectTimeout": "connect_timeout",
+}
+
+
+# In-memory cache for provider-health probe results. Keys: track name (A/B).
+# Value: dict with 'result' (the tiers list) and 'checked_at' timestamp.
+# 60s TTL per spec §3 T12.1.
+_PROVIDER_HEALTH_CACHE: dict[str, dict[str, object]] = {}
+
+
+@app.get("/pi/health/providers")
+def provider_health(request: Request) -> str:
+    """Return Provider Health strip markdown (#1685) — Track A + B tier status.
+
+    Spec §3 T12.1: non-blocking cold cache (returns 'unknown' immediately),
+    60s TTL, exception notes from the allowlist only, never raw exception
+    strings. Real 5-tier fallback wiring tracked in #1715.
+    """
+    _require_auth(request)
+    # TODO(gh-1685): swap the stub tiers below for real probe results
+    # populated by a background task with asyncio.gather(...,
+    # return_exceptions=True) + 2.5s total wall clock (spec §3 T12.1
+    # P0-1 fix). The response shape is stable now so Workspace can
+    # render today.
+    track_a_tiers = [
+        ("fmp_cached", "healthy", 42, None),
+        ("fmp", "healthy", 118, None),
+        ("cboe", "degraded", 1450, "high_latency"),
+        ("sec", "healthy", 90, None),
+        ("yfinance-snapshot", "healthy", 12, "snapshot_age_2h"),
+    ]
+    track_b_tiers = [
+        ("cboe", "degraded", 1450, "high_latency"),
+        ("sec", "healthy", 90, None),
+        ("yfinance", "healthy", 240, None),
+    ]
+
+    def _render_tier(t: tuple[str, str, int, str | None]) -> str:
+        name, status, ms, note = t
+        badge = {"healthy": "●", "degraded": "⚠", "down": "✕", "unknown": "?"}.get(
+            status, "?"
+        )
+        suffix = f" ({note})" if note else ""
+        return f"{badge} {name} ({ms}ms){suffix}"
+
+    a_str = "  ".join(_render_tier(t) for t in track_a_tiers)
+    b_str = "  ".join(_render_tier(t) for t in track_b_tiers)
+    return (
+        "**Track A (paid):**  " + a_str + "  \n"
+        "**Track B (free):**  " + b_str + "  \n\n"
+        "> Provider-health strip (#1685). Real per-tier probes with 2s "
+        "timeout + 60s cache + background refresh are TODO(gh-1685). "
+        "Real 5-tier fallback routing is #1715."
+    )
+
+
+# Demo basket rows used by the stub. Explicitly separate from any real
+# basket definition (which is deferred to #1714).
+_DEMO_BASKET_CONSENSUS: list[dict[str, str | float | int]] = [
+    {
+        "symbol": "AAPL",
+        "avg_target": 200.0,
+        "buy": 24,
+        "hold": 8,
+        "sell": 1,
+        "consensus": "BUY",
+    },
+    {
+        "symbol": "MSFT",
+        "avg_target": 465.0,
+        "buy": 28,
+        "hold": 4,
+        "sell": 0,
+        "consensus": "STRONG_BUY",
+    },
+    {
+        "symbol": "GOOGL",
+        "avg_target": 210.0,
+        "buy": 22,
+        "hold": 10,
+        "sell": 2,
+        "consensus": "BUY",
+    },
+    {
+        "symbol": "NVDA",
+        "avg_target": 175.0,
+        "buy": 32,
+        "hold": 3,
+        "sell": 0,
+        "consensus": "STRONG_BUY",
+    },
+    {
+        "symbol": "META",
+        "avg_target": 530.0,
+        "buy": 26,
+        "hold": 5,
+        "sell": 1,
+        "consensus": "BUY",
+    },
+]
+
+
+@app.get("/pi/equity/basket-analyst-consensus")
+def equity_basket_analyst_consensus(
+    request: Request, basket_id: str = "demo"
+) -> list[dict[str, str | float | int]]:
+    """Return Basket Analyst Consensus rows (#1687) — aggregated across a basket.
+
+    Spec §3 T12.3: 'demo' returns the stub rows; any other basket_id returns
+    HTTP 422 with a follow-up pointer (#1714) rather than silently returning
+    demo rows disguised with a marker note (P1-7 fix).
+    """
+    _require_auth(request)
+    _validate_basket_id(basket_id)
+    if basket_id == "demo":
+        return _DEMO_BASKET_CONSENSUS
+    raise HTTPException(
+        status_code=422,
+        detail={
+            "detail": "basket_input_wiring_deferred",
+            "follow_up": "#1714",
+            "message": (
+                "Real basket-input wiring (positions.db lookup or "
+                "user-defined basket resource) is tracked in #1714. Only "
+                "basket_id='demo' returns stub consensus rows today."
+            ),
+        },
+    )

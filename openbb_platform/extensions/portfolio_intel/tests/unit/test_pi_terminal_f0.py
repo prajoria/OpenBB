@@ -187,11 +187,18 @@ def _tabs_of(entry: dict) -> list:
     return []
 
 
-def test_terminal_app_has_eleven_tabs() -> None:
-    """#1635 — the app declares exactly eleven tabs, one per F1..F11."""
+def test_terminal_app_has_at_least_eleven_tabs() -> None:
+    """#1635 — the app declares at least eleven tabs (F1..F11 plus workflow tabs).
+
+    F12 (#1686) adds a Morning Review one-pager tab, so the count can
+    exceed 11 as workflow tabs are added. The invariant is that all
+    F1..F11 tab labels are still present (see the label test below).
+    """
     e = _terminal_entry()
     tabs = _tabs_of(e)
-    assert len(tabs) == 11, f"Terminal app must have 11 tabs (F1..F11); got {len(tabs)}"
+    assert (
+        len(tabs) >= 11
+    ), f"Terminal app must have at least 11 tabs (F1..F11 + workflows); got {len(tabs)}"
 
 
 def test_terminal_app_tab_labels_present() -> None:
