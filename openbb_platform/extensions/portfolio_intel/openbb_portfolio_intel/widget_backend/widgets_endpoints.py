@@ -1056,7 +1056,7 @@ def equity_price_history(
 def equity_price_performance(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Price Performance widget (#1645) — trailing return by horizon (table)."""
+    """Return Price Performance rows (#1645) — trailing return by horizon (table)."""
     _require_auth(request)
     _validate_symbol(symbol)
     # TODO(gh-1645): wire to FMPPricePerformanceFetcher via fmp_cached.
@@ -1077,7 +1077,7 @@ def equity_price_performance(
 def equity_management_team(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | None]]:
-    """Management Team widget (#1648) — key executives (table)."""
+    """Return Management Team rows (#1648) — key executives (table)."""
     _require_auth(request)
     _validate_symbol(symbol)
     # TODO(gh-1648): wire to FMPKeyExecutivesFetcher via fmp_cached.
@@ -1119,7 +1119,7 @@ def equity_management_team(
 def equity_revenue_geography(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Revenue Per Geography widget (#1649) — region/revenue rows (chart raw)."""
+    """Return Revenue Per Geography rows (#1649) — region/revenue (chart raw)."""
     _require_auth(request)
     _validate_symbol(symbol)
     # TODO(gh-1649): wire to FMPRevenueGeographicFetcher via fmp_cached.
@@ -1136,7 +1136,7 @@ def equity_revenue_geography(
 def equity_revenue_business_line(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Revenue Per Business Line widget (#1650) — segment/revenue rows (chart raw)."""
+    """Return Revenue Per Business Line rows (#1650) — segment/revenue (chart raw)."""
     _require_auth(request)
     _validate_symbol(symbol)
     # TODO(gh-1650): wire to FMPRevenueBusinessLineFetcher via fmp_cached.
