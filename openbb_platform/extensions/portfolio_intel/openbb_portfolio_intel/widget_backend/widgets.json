@@ -417,5 +417,116 @@
     "params": [
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
     ]
+  },
+  "pi_institutional_ownership": {
+    "name": "Institutional Ownership",
+    "description": "Top 13F holders and % owned (#1659). Stub-shaped over FMPCachedInstitutionalOwnershipFetcher.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/institutional-ownership",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_stock_ownership": {
+    "name": "Stock Ownership Breakdown",
+    "description": "Ownership split by bucket: Institutions / Retail / ETFs / Insiders (#1660). Stub-shaped over FMPCachedEquityOwnershipFetcher.",
+    "category": "Equity Profile",
+    "type": "chart",
+    "endpoint": "pi/equity/stock-ownership",
+    "raw": true,
+    "gridData": { "w": 20, "h": 10 },
+    "source": "portfolio-intel",
+    "data": { "chart": { "type": "pie", "labelColumn": "bucket", "valueColumn": "pct" } },
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_insider_trading": {
+    "name": "Insider Trading",
+    "description": "Recent insider Form 4 transactions (#1661). Stub-shaped over FMPCachedInsiderTradingFetcher.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/insider-trading",
+    "gridData": { "w": 40, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_earnings_history": {
+    "name": "Earnings History",
+    "description": "Historical EPS actual vs. estimate with surprise % (#1663). Stub-shaped over calendar_earnings (historical).",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/earnings-history",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_stock_splits": {
+    "name": "Stock Splits",
+    "description": "Historical stock-split events (#1664). Stub-shaped over FMPCachedHistoricalSplitsFetcher.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/stock-splits",
+    "gridData": { "w": 20, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_dividend_payment": {
+    "name": "Dividend Payment",
+    "description": "Recent dividends: ex-date, payment date, amount (#1665). Stub-shaped over FMPCachedHistoricalDividendsFetcher.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/dividend-payment",
+    "gridData": { "w": 20, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_company_filings": {
+    "name": "Company Filings",
+    "description": "Recent SEC filings (10-K, 10-Q, 8-K) with descriptions (#1666). Stub-shaped over FMPCachedCompanyFilingsFetcher.",
+    "category": "Equity Profile",
+    "type": "table",
+    "endpoint": "pi/equity/company-filings",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_earnings_transcripts": {
+    "name": "Earnings Transcripts",
+    "description": "Latest earnings-call transcript preview (#1667). Stub-shaped over FMPCachedEarningsCallTranscriptFetcher.",
+    "category": "Equity Profile",
+    "type": "markdown",
+    "endpoint": "pi/equity/earnings-transcripts",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "pi_price_target_history": {
+    "name": "Price Target vs. Close",
+    "description": "Analyst price target evolution vs. close (#1669). Stub-shaped over FMPCachedPriceTargetConsensusFetcher.",
+    "category": "Equity Profile",
+    "type": "chart",
+    "endpoint": "pi/equity/price-target-history",
+    "raw": true,
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
   }
 }

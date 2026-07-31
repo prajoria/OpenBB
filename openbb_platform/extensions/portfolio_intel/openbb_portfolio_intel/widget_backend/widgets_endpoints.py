@@ -1147,3 +1147,230 @@ def equity_revenue_business_line(
         {"segment": "Mac", "revenue": 29357},
         {"segment": "iPad", "revenue": 28300},
     ]
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — F5 Ownership + F6 Company Calendar + F7 Estimates (stub-shaped)
+# ---------------------------------------------------------------------------
+#
+# 9 BUILD widgets over fmp_cached endpoints. Same stub-first policy every
+# other F0/F1 widget follows. Real fetcher wiring per widget in follow-up.
+
+
+@app.get("/pi/equity/institutional-ownership")
+def equity_institutional_ownership(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float | int]]:
+    """Return Institutional Ownership rows (#1659) — 13F holders (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1659): wire to FMPCachedInstitutionalOwnershipFetcher.
+    return [
+        {"holder": "Vanguard Group Inc", "shares": 1359000000, "pct_owned": 8.82},
+        {"holder": "BlackRock Inc", "shares": 1050000000, "pct_owned": 6.82},
+        {"holder": "Berkshire Hathaway Inc", "shares": 906000000, "pct_owned": 5.88},
+        {"holder": "State Street Corp", "shares": 590000000, "pct_owned": 3.83},
+        {"holder": "FMR LLC (Fidelity)", "shares": 340000000, "pct_owned": 2.21},
+    ]
+
+
+@app.get("/pi/equity/stock-ownership")
+def equity_stock_ownership(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Return Stock Ownership rows (#1660) — insider/inst/retail split (chart raw)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1660): wire to FMPCachedEquityOwnershipFetcher.
+    return [
+        {"bucket": "Institutions", "pct": 61.4},
+        {"bucket": "Retail", "pct": 32.5},
+        {"bucket": "ETFs", "pct": 5.4},
+        {"bucket": "Insiders", "pct": 0.7},
+    ]
+
+
+@app.get("/pi/equity/insider-trading")
+def equity_insider_trading(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float | int]]:
+    """Return Insider Trading rows (#1661) — recent transactions (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1661): wire to FMPCachedInsiderTradingFetcher.
+    return [
+        {
+            "name": "Cook Timothy D",
+            "date": "2026-05-01",
+            "shares": -223986,
+            "transaction_type": "S-Sale",
+            "price_usd": 173.45,
+        },
+        {
+            "name": "Maestri Luca",
+            "date": "2026-04-14",
+            "shares": -50000,
+            "transaction_type": "S-Sale",
+            "price_usd": 169.85,
+        },
+        {
+            "name": "Williams Jeff",
+            "date": "2026-04-10",
+            "shares": -25000,
+            "transaction_type": "S-Sale",
+            "price_usd": 168.10,
+        },
+        {
+            "name": "Adams Katherine",
+            "date": "2026-03-15",
+            "shares": -10000,
+            "transaction_type": "S-Sale",
+            "price_usd": 173.20,
+        },
+    ]
+
+
+@app.get("/pi/equity/earnings-history")
+def equity_earnings_history(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Return Earnings History rows (#1663) — EPS actual vs. estimate (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1663): wire to FMPCachedCalendarEarningsFetcher (historical).
+    return [
+        {
+            "quarter": "Q3 2026",
+            "eps_actual": 1.65,
+            "eps_estimate": 1.60,
+            "surprise_pct": 3.13,
+        },
+        {
+            "quarter": "Q2 2026",
+            "eps_actual": 1.53,
+            "eps_estimate": 1.50,
+            "surprise_pct": 2.00,
+        },
+        {
+            "quarter": "Q1 2026",
+            "eps_actual": 2.18,
+            "eps_estimate": 2.10,
+            "surprise_pct": 3.81,
+        },
+        {
+            "quarter": "Q4 2025",
+            "eps_actual": 1.46,
+            "eps_estimate": 1.39,
+            "surprise_pct": 5.04,
+        },
+        {
+            "quarter": "Q3 2025",
+            "eps_actual": 1.40,
+            "eps_estimate": 1.35,
+            "surprise_pct": 3.70,
+        },
+    ]
+
+
+@app.get("/pi/equity/stock-splits")
+def equity_stock_splits(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float | int]]:
+    """Return Stock Splits rows (#1664) — historical split events (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1664): wire to FMPCachedHistoricalSplitsFetcher.
+    return [
+        {"date": "2020-08-31", "numerator": 4, "denominator": 1, "ratio": "4:1"},
+        {"date": "2014-06-09", "numerator": 7, "denominator": 1, "ratio": "7:1"},
+        {"date": "2005-02-28", "numerator": 2, "denominator": 1, "ratio": "2:1"},
+        {"date": "2000-06-21", "numerator": 2, "denominator": 1, "ratio": "2:1"},
+        {"date": "1987-06-16", "numerator": 2, "denominator": 1, "ratio": "2:1"},
+    ]
+
+
+@app.get("/pi/equity/dividend-payment")
+def equity_dividend_payment(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Return Dividend Payment rows (#1665) — recent dividends (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1665): wire to FMPCachedHistoricalDividendsFetcher.
+    return [
+        {"ex_date": "2026-05-10", "payment_date": "2026-05-16", "amount": 0.25},
+        {"ex_date": "2026-02-09", "payment_date": "2026-02-15", "amount": 0.24},
+        {"ex_date": "2025-11-10", "payment_date": "2025-11-16", "amount": 0.24},
+        {"ex_date": "2025-08-11", "payment_date": "2025-08-17", "amount": 0.24},
+    ]
+
+
+@app.get("/pi/equity/company-filings")
+def equity_company_filings(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str]]:
+    """Return Company Filings rows (#1666) — recent SEC filings (table)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1666): wire to FMPCachedCompanyFilingsFetcher.
+    return [
+        {
+            "date": "2026-05-01",
+            "filing_type": "10-Q",
+            "description": "Q2 2026 quarterly report",
+        },
+        {
+            "date": "2026-04-15",
+            "filing_type": "8-K",
+            "description": "Material event: dividend declared",
+        },
+        {
+            "date": "2026-02-01",
+            "filing_type": "10-Q",
+            "description": "Q1 2026 quarterly report",
+        },
+        {
+            "date": "2025-11-01",
+            "filing_type": "10-K",
+            "description": "FY 2025 annual report",
+        },
+        {
+            "date": "2025-10-27",
+            "filing_type": "8-K",
+            "description": "Earnings release Q4 2025",
+        },
+    ]
+
+
+@app.get("/pi/equity/earnings-transcripts")
+def equity_earnings_transcripts(request: Request, symbol: str = "AAPL") -> str:
+    """Return Earnings Transcript preview (#1667) — latest call summary (markdown)."""
+    _require_auth(request)
+    sym = _validate_symbol(symbol)
+    # TODO(gh-1667): wire to FMPCachedEarningsCallTranscriptFetcher.
+    return (
+        f"## {sym} — Latest Earnings Call (stub)\n\n"
+        "- **Date:** 2026-05-01\n"
+        "- **Quarter:** Q2 2026\n"
+        "- **Speakers:** Timothy Cook (CEO), Luca Maestri (CFO)\n\n"
+        "> Preview stub — real wiring pulls the full transcript from "
+        "FMPCachedEarningsCallTranscriptFetcher and renders the opening "
+        "remarks + Q&A digest here."
+    )
+
+
+@app.get("/pi/equity/price-target-history")
+def equity_price_target_history(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Return Price Target vs. Close time series (#1669) — target evolution (chart)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1669): wire to FMPCachedPriceTargetConsensusFetcher over time series.
+    return [
+        {"date": "2025-11-01", "close": 152.20, "target": 175.00},
+        {"date": "2026-01-15", "close": 168.35, "target": 185.00},
+        {"date": "2026-02-01", "close": 172.10, "target": 190.00},
+        {"date": "2026-04-01", "close": 174.05, "target": 195.00},
+        {"date": "2026-05-01", "close": 173.45, "target": 200.00},
+    ]
