@@ -18,11 +18,16 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 import re
 import time
 
 from fastapi import HTTPException, Request
 
+from openbb_portfolio_intel.basket_resolver import (
+    BasketNotFoundError,
+    resolve_basket,
+)
 from openbb_portfolio_intel.providers.probe import TierHealth, probe_tier
 from openbb_portfolio_intel.providers.registry import (
     TRACK_A_DEFAULT,
@@ -111,12 +116,34 @@ def _validate_symbol_from_call(
     _validate_symbol(symbol)
 
 
+def _validate_account_from_call(
+    *_args: object, account_id: str = "demo", **_kwargs: object
+) -> None:
+    """Wrapper-hook that validates the ``account_id=`` param before dispatch."""
+    _validate_account(account_id)
+
+
+def _account_kwargs(
+    *_args: object, account_id: str = "demo", **_kwargs: object
+) -> dict:
+    """Extract ``account_id`` for ChainedFetcher kwargs."""
+    return {"account_id": account_id}
+
+
 # ---------------------------------------------------------------------------
 # X-Ray widgets (#529, #530)
 # ---------------------------------------------------------------------------
 
 
 @app.get("/pi/xray/country")
+@with_chain(
+    endpoint="pi/xray/country",
+    family="xray/country",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def xray_country(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, float | str]]:
@@ -137,6 +164,14 @@ def xray_country(
 
 
 @app.get("/pi/lookthrough/top25")
+@with_chain(
+    endpoint="pi/lookthrough/top25",
+    family="lookthrough/top25",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def lookthrough_top25(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, float | str]]:
@@ -187,6 +222,14 @@ def lookthrough_top25(
 
 
 @app.get("/pi/concentration")
+@with_chain(
+    endpoint="pi/concentration",
+    family="concentration",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def concentration(request: Request, account_id: str = "demo") -> dict[str, float | str]:
     """Herfindahl-Hirschman concentration index for the effective book (#530)."""
     _require_auth(request)
@@ -236,6 +279,17 @@ def concentration(request: Request, account_id: str = "demo") -> dict[str, float
 
 
 @app.get("/pi/events/calendar")
+@with_chain(
+    endpoint="pi/events/calendar",
+    family="events/calendar",
+    record_tier_used=record_tier_used,
+    kwargs_from=lambda *_a, account_id="demo", horizon_days="14", **_k: {
+        "account_id": account_id,
+        "horizon_days": horizon_days,
+    },
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def events_calendar(
     request: Request, account_id: str = "demo", horizon_days: str = "14"
 ) -> list[dict[str, str]]:
@@ -297,6 +351,14 @@ def events_calendar(
 
 
 @app.get("/pi/smart-money/ribbon")
+@with_chain(
+    endpoint="pi/smart-money/ribbon",
+    family="smart-money/ribbon",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def smart_money_ribbon(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, str | float]]:
@@ -344,6 +406,14 @@ def smart_money_ribbon(
 
 
 @app.get("/pi/risk/dashboard")
+@with_chain(
+    endpoint="pi/risk/dashboard",
+    family="risk/dashboard",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def risk_dashboard(
     request: Request, account_id: str = "demo"
 ) -> dict[str, float | str]:
@@ -366,6 +436,14 @@ def risk_dashboard(
 
 
 @app.get("/pi/risk/vol")
+@with_chain(
+    endpoint="pi/risk/vol",
+    family="risk/vol",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def risk_vol(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, float | str]]:
@@ -431,6 +509,14 @@ def paper_ticket(  # pylint: disable=too-many-arguments,too-many-positional-argu
 
 
 @app.get("/pi/paper/blotter")
+@with_chain(
+    endpoint="pi/paper/blotter",
+    family="paper/blotter",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def paper_blotter(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, str | float | int]]:
@@ -477,6 +563,14 @@ def paper_blotter(
 
 
 @app.get("/pi/paper/performance")
+@with_chain(
+    endpoint="pi/paper/performance",
+    family="paper/performance",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def paper_performance(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, str | float]]:
@@ -495,6 +589,14 @@ def paper_performance(
 
 
 @app.get("/pi/paper/perf-kpis")
+@with_chain(
+    endpoint="pi/paper/perf-kpis",
+    family="paper/perf-kpis",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def paper_perf_kpis(
     request: Request, account_id: str = "demo"
 ) -> dict[str, float | str]:
@@ -522,6 +624,17 @@ def paper_perf_kpis(
 
 
 @app.get("/pi/whatif/card")
+@with_chain(
+    endpoint="pi/whatif/card",
+    family="whatif/card",
+    record_tier_used=record_tier_used,
+    kwargs_from=lambda *_a, symbol="AAPL", delta_shares="100", **_k: {
+        "symbol": symbol,
+        "delta_shares": delta_shares,
+    },
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
+)
 def whatif_card(
     request: Request, symbol: str = "AAPL", delta_shares: str = "100"
 ) -> list[dict[str, float | str]]:
@@ -568,6 +681,17 @@ def whatif_card(
 
 
 @app.get("/pi/news")
+@with_chain(
+    endpoint="pi/news",
+    family="news",
+    record_tier_used=record_tier_used,
+    kwargs_from=lambda *_a, account_id="demo", horizon_days="7", **_k: {
+        "account_id": account_id,
+        "horizon_days": horizon_days,
+    },
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def pi_news(
     request: Request, account_id: str = "demo", horizon_days: str = "7"
 ) -> list[dict[str, str]]:
@@ -612,6 +736,14 @@ def pi_news(
 
 
 @app.get("/pi/sentiment")
+@with_chain(
+    endpoint="pi/sentiment",
+    family="sentiment",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def pi_sentiment(request: Request, account_id: str = "demo") -> dict[str, float | str]:
     """Aggregate sentiment score across recent held-symbol news."""
     _require_auth(request)
@@ -626,6 +758,14 @@ def pi_sentiment(request: Request, account_id: str = "demo") -> dict[str, float 
 
 
 @app.get("/pi/alerts")
+@with_chain(
+    endpoint="pi/alerts",
+    family="alerts",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def pi_alerts(request: Request, account_id: str = "demo") -> list[dict[str, str]]:
     """Active alerts for the paper account."""
     _require_auth(request)
@@ -662,6 +802,14 @@ def pi_alerts(request: Request, account_id: str = "demo") -> list[dict[str, str]
 
 
 @app.get("/pi/backtest/oneclick")
+@with_chain(
+    endpoint="pi/backtest/oneclick",
+    family="backtest/oneclick",
+    record_tier_used=record_tier_used,
+    kwargs_from=_account_kwargs,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_account_from_call,
+)
 def pi_backtest_oneclick(request: Request, account_id: str = "demo") -> str:
     """Kick off a walk-forward backtest (stub)."""
     _require_auth(request)
@@ -2077,26 +2225,78 @@ def equity_basket_analyst_consensus(
 ) -> list[dict[str, str | float | int]]:
     """Return Basket Analyst Consensus rows (#1687) — aggregated across a basket.
 
-    Spec §3 T12.3: 'demo' returns the stub rows; any other basket_id returns
-    HTTP 422 with a follow-up pointer (#1714) rather than silently returning
-    demo rows disguised with a marker note (P1-7 fix).
+    #1714: real basket resolution now lifted from the 422 gate. Behavior:
+
+    - ``basket_id="demo"`` returns the baked-in demo rows (no auth-scoped
+      resolution needed — public reference basket).
+    - Any other basket_id is resolved via
+      :func:`openbb_portfolio_intel.basket_resolver.resolve_basket` against
+      the canonical positions store (MySQL per #1744) — BUT only when
+      ``PI_ALLOW_CROSS_USER_BASKET=true`` is set. Otherwise HTTP 403
+      (see #1748 security review + #1714's ownership follow-up).
+    - Unknown basket_id (no snapshot) raises HTTP 404 loud, never
+      silently returns [].
+
+    Authorization posture (#1748 security review): today the bearer-token
+    auth model does not carry a per-user identity. That means any caller
+    with a valid token could otherwise view ANY user's positions by
+    passing that user's id as basket_id (classic IDOR). Until per-user
+    session auth lands, non-demo resolution is disabled by default; the
+    single-user operator must opt in via the env flag. Cross-cutting
+    identity work is tracked in the #1714 follow-up ownership ticket.
     """
     _require_auth(request)
     _validate_basket_id(basket_id)
     if basket_id == "demo":
         return _DEMO_BASKET_CONSENSUS
-    raise HTTPException(
-        status_code=422,
-        detail={
-            "detail": "basket_input_wiring_deferred",
-            "follow_up": "#1714",
-            "message": (
-                "Real basket-input wiring (positions.db lookup or "
-                "user-defined basket resource) is tracked in #1714. Only "
-                "basket_id='demo' returns stub consensus rows today."
+
+    if os.environ.get("PI_ALLOW_CROSS_USER_BASKET", "").strip().lower() != "true":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "detail": "basket_authorization_required",
+                "message": (
+                    "Non-demo basket resolution requires "
+                    "PI_ALLOW_CROSS_USER_BASKET=true (single-user operator "
+                    "mode) until per-user session auth ships. See #1714 "
+                    "ownership follow-up + #1748 security review."
+                ),
+                "basket_id": basket_id,
+            },
+        )
+
+    try:
+        positions = resolve_basket(basket_id)
+    except BasketNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "detail": "basket_not_found",
+                "basket_id": basket_id,
+                "message": str(exc),
+            },
+        ) from exc
+    except ValueError as exc:  # bad basket_id shape (defense-in-depth)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # For each resolved symbol emit a stub consensus row. Per-symbol
+    # obb.equity.estimates.consensus() calls will replace this loop as
+    # ChainedFetcher tier registrations land (#1715 Phase 2B).
+    return [
+        {
+            "symbol": p.symbol,
+            "avg_target": 0.0,
+            "buy": 0,
+            "hold": 0,
+            "sell": 0,
+            "consensus": "PENDING",
+            "note": (
+                f"weight={p.weight:.4f} — per-symbol consensus wiring is "
+                "#1715 Phase 2B"
             ),
-        },
-    )
+        }
+        for p in positions
+    ]
 
 
 # ---------------------------------------------------------------------------

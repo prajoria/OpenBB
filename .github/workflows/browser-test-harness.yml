@@ -69,6 +69,8 @@ jobs:
           pip install -e openbb_platform/core
           pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
+          # positions store used by basket resolver (#1714)
+          pip install -e openbb_platform/tools/portfolio_snapshot_importer
           # harness itself (with [test] extra for pytest)
           pip install -e "openbb_platform/tools/browser_test_harness/[test]"
 
@@ -120,6 +122,7 @@ jobs:
           pip install -e openbb_platform/core
           pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
+          pip install -e openbb_platform/tools/portfolio_snapshot_importer
           pip install -e "openbb_platform/tools/browser_test_harness/[test]"
 
       - name: Run live fixture-drift check
@@ -157,6 +160,7 @@ jobs:
           pip install -e openbb_platform/core
           pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
+          pip install -e openbb_platform/tools/portfolio_snapshot_importer
           pip install -e "openbb_platform/tools/browser_test_harness/[workspace,test]"
           python -m playwright install --with-deps chromium
 

@@ -155,6 +155,37 @@ _TIER_REGISTRY_MUT: dict[str, TierList] = {
     # Charting / historical
     "charting:A": _EQUITY_A,
     "charting:B": _EQUITY_B,
+    # Basket / portfolio look-through
+    "lookthrough/top25:A": ("fmp_cached", "fmp", "sec"),
+    "lookthrough/top25:B": ("sec",),
+    # Risk sub-endpoints
+    "risk/vol:A": ("fmp_cached", "fmp", "yfinance-snapshot"),
+    "risk/vol:B": ("yfinance",),
+    # Smart-money / sentiment / alerts
+    "smart-money/ribbon:A": ("fmp_cached", "fmp"),
+    "smart-money/ribbon:B": (),
+    "sentiment:A": ("fmp_cached", "fmp"),
+    "sentiment:B": (),
+    "alerts:A": ("fmp_cached", "fmp"),
+    "alerts:B": (),
+    # Paper trading (all synthesized; chain exists for symmetry with health widget)
+    "paper/ticket:A": ("fmp_cached",),
+    "paper/ticket:B": (),
+    "paper/blotter:A": ("fmp_cached",),
+    "paper/blotter:B": (),
+    "paper/performance:A": ("fmp_cached",),
+    "paper/performance:B": (),
+    "paper/perf-kpis:A": ("fmp_cached",),
+    "paper/perf-kpis:B": (),
+    # What-if diff engine
+    "whatif/card:A": ("fmp_cached", "fmp"),
+    "whatif/card:B": (),
+    # Backtest one-click hand-off
+    "backtest/oneclick:A": ("fmp_cached",),
+    "backtest/oneclick:B": (),
+    # Basket analyst consensus (real basket resolution lives here #1714)
+    "equity/basket-analyst-consensus:A": ("fmp_cached", "fmp"),
+    "equity/basket-analyst-consensus:B": (),
 }
 
 TIER_REGISTRY: MappingProxyType[str, TierList] = MappingProxyType(_TIER_REGISTRY_MUT)
