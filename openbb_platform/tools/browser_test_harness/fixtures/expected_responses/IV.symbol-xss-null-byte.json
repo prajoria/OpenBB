@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "pi/equity/header",
+  "params": {
+    "symbol": "AAPL\u0000.evil"
+  },
+  "status_code": 400
+}

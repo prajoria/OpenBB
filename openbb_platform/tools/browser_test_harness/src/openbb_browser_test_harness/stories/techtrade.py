@@ -220,9 +220,130 @@ _COVERAGE_STEPS: tuple[Step, ...] = (
 _ALL_STEPS: tuple[Step, ...] = _STEPS + _COVERAGE_STEPS
 
 
+# ==================================================================
+# B9 #1734 — Deep invariant sweep (techtrade)
+# ==================================================================
+
+
+def _reject(
+    step_id: str,
+    tab_id: str,
+    endpoint: str,
+    params: dict,
+    invariant_tag: str,
+    what: str,
+    notebook_ref: str = "notebooks/techtrade/06-audit-and-replay.ipynb",
+    expected_status: int = 400,
+) -> Step:
+    """Build an ASSERT step that expects a rejection status code."""
+    return Step(
+        id=step_id,
+        story="techtrade",
+        notebook_ref=notebook_ref,
+        persona=Persona.SYSTEMATIC_TRADER,
+        tab_id=tab_id,
+        action=ActionKind.ASSERT,
+        human_title=f"Invariant — {what}",
+        human_description=(
+            f"Deep invariant sweep (B9 #1734). {what}. If the guard is "
+            "removed by a future change, the harness fails at PR time."
+        ),
+        human_expected=f"HTTP {expected_status} rejection.",
+        endpoint=endpoint,
+        params=params,
+        expected_status=expected_status,
+        tags=("safety", f"checker:{invariant_tag}"),
+    )
+
+
+_INVARIANT_STEPS: tuple[Step, ...] = (
+    # verdict enum: only PASS/FAIL allowed (widgets_endpoints.py:1993)
+    _reject(
+        "IV.execute-bridge-verdict-invalid",
+        tab_id="engine-status",
+        endpoint="tt/execute/bridge",
+        params={"verdict": "MAYBE"},
+        invariant_tag="verdict-enum-strict",
+        what="execute-bridge verdict enum rejects 'MAYBE'",
+    ),
+    _reject(
+        "IV.execute-bridge-verdict-lowercase",
+        tab_id="engine-status",
+        endpoint="tt/execute/bridge",
+        params={"verdict": "pass"},
+        invariant_tag="verdict-enum-case-sensitive",
+        what="execute-bridge verdict enum is case-sensitive (pass != PASS)",
+    ),
+    _reject(
+        "IV.execute-bridge-verdict-xss",
+        tab_id="engine-status",
+        endpoint="tt/execute/bridge",
+        params={"verdict": "<script>PASS</script>"},
+        invariant_tag="verdict-enum-rejects-html",
+        what="execute-bridge verdict rejects HTML-wrapped payload",
+    ),
+    _reject(
+        "IV.execute-bridge-verdict-empty",
+        tab_id="engine-status",
+        endpoint="tt/execute/bridge",
+        params={"verdict": ""},
+        invariant_tag="verdict-enum-rejects-empty",
+        what="execute-bridge verdict rejects empty string",
+    ),
+    # Symbol XSS on techtrade position endpoints
+    _reject(
+        "IV.tt-signal-card-symbol-xss",
+        tab_id="position-workbench",
+        endpoint="tt/position/signal-card",
+        params={"symbol": "<script>alert(1)</script>"},
+        invariant_tag="tt-signal-symbol-rejects-html",
+        what="techtrade signal-card symbol rejects <script>",
+        notebook_ref="notebooks/techtrade/03-single-position-deep-dive.ipynb",
+    ),
+    _reject(
+        "IV.tt-plan-card-symbol-shell",
+        tab_id="position-workbench",
+        endpoint="tt/position/plan-card",
+        params={"symbol": "NVDA;rm -rf /"},
+        invariant_tag="tt-plan-symbol-rejects-shell",
+        what="techtrade plan-card symbol rejects shell metachars",
+        notebook_ref="notebooks/techtrade/03-single-position-deep-dive.ipynb",
+    ),
+    _reject(
+        "IV.tt-order-legs-symbol-oversize",
+        tab_id="position-workbench",
+        endpoint="tt/position/order-legs",
+        params={"symbol": "N" * 11},
+        invariant_tag="tt-order-legs-symbol-oversize",
+        what="techtrade order-legs symbol >10 chars rejected",
+        notebook_ref="notebooks/techtrade/03-single-position-deep-dive.ipynb",
+    ),
+    _reject(
+        "IV.tt-validation-verdict-symbol-xss",
+        tab_id="validation",
+        endpoint="tt/validation/verdict",
+        params={"symbol": "<img onerror=1>"},
+        invariant_tag="tt-validation-symbol-rejects-html",
+        what="techtrade validation symbol rejects HTML img tag",
+        notebook_ref="notebooks/techtrade/04-validation-gate.ipynb",
+    ),
+    _reject(
+        "IV.tt-audit-journal-symbol-xss",
+        tab_id="audit",
+        endpoint="tt/audit/journal",
+        params={"symbol": "javascript:alert(1)"},
+        invariant_tag="tt-audit-symbol-rejects-javascript-uri",
+        what="techtrade audit-journal symbol rejects javascript: URI",
+    ),
+)
+
+
+_ALL_STEPS = _STEPS + _COVERAGE_STEPS + _INVARIANT_STEPS
+
+
 STORY = Story(
     id="techtrade",
-    title="Techtrade Trading-Desk (T1-T6 + widget-completeness)",
+    title="Techtrade Trading-Desk (T1-T6 + widget-completeness + invariants)",
     notebook_series_root="notebooks/techtrade/",
     steps=_ALL_STEPS,
 )

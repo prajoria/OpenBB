@@ -1,8 +1,8 @@
-# Techtrade Trading-Desk (T1-T6 + widget-completeness) — Manual Test Guide
+# Techtrade Trading-Desk (T1-T6 + widget-completeness + invariants) — Manual Test Guide
 
 **Story:** `techtrade`
 **Notebook series:** [`notebooks/techtrade/`](../../../notebooks/techtrade/)
-**Total steps:** 13
+**Total steps:** 22
 
 > This guide is auto-generated from the Story data source. Do NOT edit by hand — edit `src/openbb_browser_test_harness/stories/techtrade.py` and regenerate with:
 > 
@@ -285,6 +285,204 @@ Widget-completeness coverage step (B8 #1733). The scan tab's export button widge
 **Endpoint:** `tt/scan/export`
 
 ![CX.tt-export-button](screenshots/techtrade/CX.tt-export-button.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — execute-bridge verdict enum rejects 'MAYBE'
+
+**Step ID:** `IV.execute-bridge-verdict-invalid` &nbsp; · &nbsp; **Tab:** `engine-status` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/06-audit-and-replay.ipynb`](../../../notebooks/techtrade/06-audit-and-replay.ipynb)
+
+Deep invariant sweep (B9 #1734). execute-bridge verdict enum rejects 'MAYBE'. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `verdict=MAYBE`
+
+**Endpoint:** `tt/execute/bridge`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.execute-bridge-verdict-invalid](screenshots/techtrade/IV.execute-bridge-verdict-invalid.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — execute-bridge verdict enum is case-sensitive (pass != PASS)
+
+**Step ID:** `IV.execute-bridge-verdict-lowercase` &nbsp; · &nbsp; **Tab:** `engine-status` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/06-audit-and-replay.ipynb`](../../../notebooks/techtrade/06-audit-and-replay.ipynb)
+
+Deep invariant sweep (B9 #1734). execute-bridge verdict enum is case-sensitive (pass != PASS). If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `verdict=pass`
+
+**Endpoint:** `tt/execute/bridge`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.execute-bridge-verdict-lowercase](screenshots/techtrade/IV.execute-bridge-verdict-lowercase.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — execute-bridge verdict rejects HTML-wrapped payload
+
+**Step ID:** `IV.execute-bridge-verdict-xss` &nbsp; · &nbsp; **Tab:** `engine-status` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/06-audit-and-replay.ipynb`](../../../notebooks/techtrade/06-audit-and-replay.ipynb)
+
+Deep invariant sweep (B9 #1734). execute-bridge verdict rejects HTML-wrapped payload. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `verdict=<script>PASS</script>`
+
+**Endpoint:** `tt/execute/bridge`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.execute-bridge-verdict-xss](screenshots/techtrade/IV.execute-bridge-verdict-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — execute-bridge verdict rejects empty string
+
+**Step ID:** `IV.execute-bridge-verdict-empty` &nbsp; · &nbsp; **Tab:** `engine-status` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/06-audit-and-replay.ipynb`](../../../notebooks/techtrade/06-audit-and-replay.ipynb)
+
+Deep invariant sweep (B9 #1734). execute-bridge verdict rejects empty string. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `verdict=`
+
+**Endpoint:** `tt/execute/bridge`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.execute-bridge-verdict-empty](screenshots/techtrade/IV.execute-bridge-verdict-empty.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — techtrade signal-card symbol rejects <script>
+
+**Step ID:** `IV.tt-signal-card-symbol-xss` &nbsp; · &nbsp; **Tab:** `position-workbench` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/03-single-position-deep-dive.ipynb`](../../../notebooks/techtrade/03-single-position-deep-dive.ipynb)
+
+Deep invariant sweep (B9 #1734). techtrade signal-card symbol rejects <script>. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=<script>alert(1)</script>`
+
+**Endpoint:** `tt/position/signal-card`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.tt-signal-card-symbol-xss](screenshots/techtrade/IV.tt-signal-card-symbol-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — techtrade plan-card symbol rejects shell metachars
+
+**Step ID:** `IV.tt-plan-card-symbol-shell` &nbsp; · &nbsp; **Tab:** `position-workbench` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/03-single-position-deep-dive.ipynb`](../../../notebooks/techtrade/03-single-position-deep-dive.ipynb)
+
+Deep invariant sweep (B9 #1734). techtrade plan-card symbol rejects shell metachars. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=NVDA;rm -rf /`
+
+**Endpoint:** `tt/position/plan-card`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.tt-plan-card-symbol-shell](screenshots/techtrade/IV.tt-plan-card-symbol-shell.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — techtrade order-legs symbol >10 chars rejected
+
+**Step ID:** `IV.tt-order-legs-symbol-oversize` &nbsp; · &nbsp; **Tab:** `position-workbench` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/03-single-position-deep-dive.ipynb`](../../../notebooks/techtrade/03-single-position-deep-dive.ipynb)
+
+Deep invariant sweep (B9 #1734). techtrade order-legs symbol >10 chars rejected. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=NNNNNNNNNNN`
+
+**Endpoint:** `tt/position/order-legs`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.tt-order-legs-symbol-oversize](screenshots/techtrade/IV.tt-order-legs-symbol-oversize.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — techtrade validation symbol rejects HTML img tag
+
+**Step ID:** `IV.tt-validation-verdict-symbol-xss` &nbsp; · &nbsp; **Tab:** `validation` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/04-validation-gate.ipynb`](../../../notebooks/techtrade/04-validation-gate.ipynb)
+
+Deep invariant sweep (B9 #1734). techtrade validation symbol rejects HTML img tag. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=<img onerror=1>`
+
+**Endpoint:** `tt/validation/verdict`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.tt-validation-verdict-symbol-xss](screenshots/techtrade/IV.tt-validation-verdict-symbol-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — techtrade audit-journal symbol rejects javascript: URI
+
+**Step ID:** `IV.tt-audit-journal-symbol-xss` &nbsp; · &nbsp; **Tab:** `audit` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/06-audit-and-replay.ipynb`](../../../notebooks/techtrade/06-audit-and-replay.ipynb)
+
+Deep invariant sweep (B9 #1734). techtrade audit-journal symbol rejects javascript: URI. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=javascript:alert(1)`
+
+**Endpoint:** `tt/audit/journal`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.tt-audit-journal-symbol-xss](screenshots/techtrade/IV.tt-audit-journal-symbol-xss.png)
 
 *Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
 

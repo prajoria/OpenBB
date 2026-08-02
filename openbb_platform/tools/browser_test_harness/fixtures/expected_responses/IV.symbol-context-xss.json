@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol must match [A-Z0-9.\\-]{1,10}; got 'AAPL\\r\\nX-Injected: yes' (rejected before markdown formatting)"
+  },
+  "endpoint": "pi/context/symbol",
+  "params": {
+    "symbol": "AAPL\r\nX-Injected: yes"
+  },
+  "status_code": 400
+}

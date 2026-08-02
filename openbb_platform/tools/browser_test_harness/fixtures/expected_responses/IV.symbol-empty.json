@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "pi/equity/header",
+  "params": {
+    "symbol": ""
+  },
+  "status_code": 400
+}

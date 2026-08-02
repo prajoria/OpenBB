@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "pi/equity/header",
+  "params": {
+    "symbol": "../../etc/passwd"
+  },
+  "status_code": 400
+}

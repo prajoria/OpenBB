@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "pi/equity/header",
+  "params": {
+    "symbol": "aapl<img src=x onerror=1>"
+  },
+  "status_code": 400
+}

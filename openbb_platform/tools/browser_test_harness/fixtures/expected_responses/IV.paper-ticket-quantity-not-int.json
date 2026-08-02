@@ -1,0 +1,12 @@
+{
+  "body": {
+    "detail": "quantity not int"
+  },
+  "endpoint": "pi/paper/ticket",
+  "params": {
+    "quantity": "3.14",
+    "side": "buy",
+    "symbol": "AAPL"
+  },
+  "status_code": 400
+}

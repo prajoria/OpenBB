@@ -681,12 +681,350 @@ _COVERAGE_STEPS: tuple[Step, ...] = (
 )
 
 # Merged story steps: narrative spine + widget-completeness coverage.
-_ALL_STEPS: tuple[Step, ...] = _STEPS + _COVERAGE_STEPS
+_NARRATIVE_STEPS: tuple[Step, ...] = _STEPS + _COVERAGE_STEPS
+
+
+# ==================================================================
+# B9 #1734 — Deep invariant sweep
+#
+# Each step ASSERTs a load-bearing safety invariant of the backend:
+#   * XSS-reject       — symbol / basket params reject shell/HTML metachars
+#   * Enum-reject      — side / verdict params reject values outside the
+#                        allowed set
+#   * Range-reject     — horizon_days is bounded 1..365 (news 1..90)
+#   * Type-reject      — quantity / delta_shares / horizon must be ints
+#   * Loud-empty guard — basket_id != "demo" is a 422 (spec §5.6 — the
+#                        gate that prevents silent all-zero what-if
+#                        payloads reaching downstream widgets)
+#
+# The load-bearing test is `expected_status=400` (or 422). A mutation that
+# removed the guard would return 200 with a bogus body, and every step
+# below would fail the harness — this is R7.11 reverse verification at
+# the harness layer.
+# ==================================================================
+
+
+def _reject(
+    step_id: str,
+    tab_id: str,
+    endpoint: str,
+    params: dict,
+    invariant_tag: str,
+    what: str,
+    persona: Persona = Persona.ANALYST,
+    notebook_ref: str = (
+        "notebooks/portfolio/01-getting-started-and-providers.ipynb"
+    ),
+    expected_status: int = 400,
+) -> Step:
+    """Build an ASSERT step that expects a rejection status code."""
+    return Step(
+        id=step_id,
+        story="portfolio",
+        notebook_ref=notebook_ref,
+        persona=persona,
+        tab_id=tab_id,
+        action=ActionKind.ASSERT,
+        human_title=f"Invariant — {what}",
+        human_description=(
+            f"Deep invariant sweep (B9 #1734). {what}. If the guard is "
+            "removed by a future change, the harness fails at PR time."
+        ),
+        human_expected=f"HTTP {expected_status} rejection.",
+        endpoint=endpoint,
+        params=params,
+        expected_status=expected_status,
+        tags=("safety", f"checker:{invariant_tag}"),
+    )
+
+
+_INVARIANT_STEPS: tuple[Step, ...] = (
+    # -------------------------------------------------------------------
+    # XSS-reject: symbol regex is ^[A-Z0-9.\-]{1,10}$
+    # (widget_backend/_shared.py:54 _SYMBOL_RE)
+    # -------------------------------------------------------------------
+    _reject(
+        "IV.symbol-xss-script-tag",
+        tab_id="overview",
+        endpoint="pi/equity/header",
+        params={"symbol": "<script>alert(1)</script>"},
+        invariant_tag="symbol-rejects-html-tags",
+        what="symbol param rejects <script> tag",
+    ),
+    _reject(
+        "IV.symbol-xss-sql-injection",
+        tab_id="overview",
+        endpoint="pi/equity/header",
+        params={"symbol": "'; DROP TABLE users;--"},
+        invariant_tag="symbol-rejects-sql-metachars",
+        what="symbol param rejects SQL metacharacters",
+    ),
+    _reject(
+        "IV.symbol-xss-shell-metachars",
+        tab_id="overview",
+        endpoint="pi/equity/header",
+        params={"symbol": "AAPL|rm -rf /"},
+        invariant_tag="symbol-rejects-shell-pipe",
+        what="symbol param rejects shell pipe metacharacter",
+    ),
+    _reject(
+        "IV.symbol-xss-null-byte",
+        tab_id="overview",
+        endpoint="pi/equity/header",
+        params={"symbol": "AAPL\x00.evil"},
+        invariant_tag="symbol-rejects-null-byte",
+        what="symbol param rejects NUL byte",
+    ),
+    _reject(
+        "IV.symbol-xss-path-traversal",
+        tab_id="overview",
+        endpoint="pi/equity/header",
+        params={"symbol": "../../etc/passwd"},
+        invariant_tag="symbol-rejects-path-traversal",
+        what="symbol param rejects path-traversal sequence",
+    ),
+    _reject(
+        "IV.symbol-xss-lowercase-not-normalized-through-attack",
+        tab_id="overview",
+        endpoint="pi/equity/header",
+        params={"symbol": "aapl<img src=x onerror=1>"},
+        invariant_tag="symbol-rejects-html-after-lowercase-mixed",
+        what="mixed-case with HTML injection still rejected",
+    ),
+    _reject(
+        "IV.symbol-too-long",
+        tab_id="overview",
+        endpoint="pi/equity/header",
+        params={"symbol": "A" * 11},  # regex caps at 10
+        invariant_tag="symbol-rejects-oversize",
+        what="symbol >10 chars rejected (prevents runaway lookups)",
+    ),
+    _reject(
+        "IV.symbol-empty",
+        tab_id="overview",
+        endpoint="pi/equity/header",
+        params={"symbol": ""},
+        invariant_tag="symbol-rejects-empty",
+        what="symbol='' rejected",
+    ),
+    # -------------------------------------------------------------------
+    # Paper ticket: side must be buy|sell, quantity must be positive int
+    # -------------------------------------------------------------------
+    _reject(
+        "IV.paper-ticket-side-invalid",
+        tab_id="paper-trading",
+        endpoint="pi/paper/ticket",
+        params={"symbol": "AAPL", "side": "long", "quantity": "10"},
+        invariant_tag="paper-side-enum",
+        what="paper ticket side must be 'buy' or 'sell'",
+        notebook_ref="notebooks/portfolio/07-paper-and-alerts.ipynb",
+    ),
+    _reject(
+        "IV.paper-ticket-side-xss",
+        tab_id="paper-trading",
+        endpoint="pi/paper/ticket",
+        params={"symbol": "AAPL", "side": "<script>", "quantity": "10"},
+        invariant_tag="paper-side-rejects-html",
+        what="paper ticket side rejects HTML tag",
+        notebook_ref="notebooks/portfolio/07-paper-and-alerts.ipynb",
+    ),
+    _reject(
+        "IV.paper-ticket-quantity-not-int",
+        tab_id="paper-trading",
+        endpoint="pi/paper/ticket",
+        params={"symbol": "AAPL", "side": "buy", "quantity": "3.14"},
+        invariant_tag="paper-qty-int",
+        what="paper ticket quantity must be int",
+        notebook_ref="notebooks/portfolio/07-paper-and-alerts.ipynb",
+    ),
+    _reject(
+        "IV.paper-ticket-quantity-negative",
+        tab_id="paper-trading",
+        endpoint="pi/paper/ticket",
+        params={"symbol": "AAPL", "side": "buy", "quantity": "-5"},
+        invariant_tag="paper-qty-positive",
+        what="paper ticket quantity must be positive",
+        notebook_ref="notebooks/portfolio/07-paper-and-alerts.ipynb",
+    ),
+    _reject(
+        "IV.paper-ticket-quantity-zero",
+        tab_id="paper-trading",
+        endpoint="pi/paper/ticket",
+        params={"symbol": "AAPL", "side": "buy", "quantity": "0"},
+        invariant_tag="paper-qty-nonzero",
+        what="paper ticket quantity=0 rejected",
+        notebook_ref="notebooks/portfolio/07-paper-and-alerts.ipynb",
+    ),
+    _reject(
+        "IV.paper-ticket-quantity-symbol-xss",
+        tab_id="paper-trading",
+        endpoint="pi/paper/ticket",
+        params={"symbol": "<b>AAPL</b>", "side": "buy", "quantity": "10"},
+        invariant_tag="paper-symbol-rejects-html",
+        what="paper ticket symbol rejects HTML tags",
+        notebook_ref="notebooks/portfolio/07-paper-and-alerts.ipynb",
+    ),
+    # -------------------------------------------------------------------
+    # What-if: delta_shares must be int, symbol regex enforced
+    # -------------------------------------------------------------------
+    _reject(
+        "IV.whatif-delta-not-int",
+        tab_id="whatif",
+        endpoint="pi/whatif",
+        params={"symbol": "AAPL", "delta_shares": "1.5"},
+        invariant_tag="whatif-delta-int",
+        what=(
+            "what-if returns a graceful markdown 'invalid input' body when "
+            "delta_shares is not an int (widget-friendly, no raw 400)"
+        ),
+        expected_status=200,
+        notebook_ref="notebooks/portfolio/05-whatif-attribution-and-paper.ipynb",
+    ),
+    _reject(
+        "IV.whatif-symbol-xss",
+        tab_id="whatif",
+        endpoint="pi/whatif",
+        params={"symbol": "<script>", "delta_shares": "10"},
+        invariant_tag="whatif-symbol-rejects-html",
+        what="what-if symbol rejects HTML",
+        notebook_ref="notebooks/portfolio/05-whatif-attribution-and-paper.ipynb",
+    ),
+    # -------------------------------------------------------------------
+    # Horizon params: 1..365 for events, 1..90 for news (widgets_endpoints.py
+    # :170-176, :502-508)
+    # -------------------------------------------------------------------
+    _reject(
+        "IV.events-horizon-zero",
+        tab_id="calendar",
+        endpoint="pi/events/calendar",
+        params={"horizon_days": "0"},
+        invariant_tag="events-horizon-min",
+        what="events horizon_days=0 rejected",
+        notebook_ref="notebooks/portfolio/06-events-and-smart-money.ipynb",
+    ),
+    _reject(
+        "IV.events-horizon-too-big",
+        tab_id="calendar",
+        endpoint="pi/events/calendar",
+        params={"horizon_days": "366"},
+        invariant_tag="events-horizon-max",
+        what="events horizon_days>365 rejected",
+        notebook_ref="notebooks/portfolio/06-events-and-smart-money.ipynb",
+    ),
+    _reject(
+        "IV.events-horizon-not-int",
+        tab_id="calendar",
+        endpoint="pi/events/calendar",
+        params={"horizon_days": "abc"},
+        invariant_tag="events-horizon-int",
+        what="events horizon_days must parse as int",
+        notebook_ref="notebooks/portfolio/06-events-and-smart-money.ipynb",
+    ),
+    _reject(
+        "IV.events-horizon-xss",
+        tab_id="calendar",
+        endpoint="pi/events/calendar",
+        params={"horizon_days": "<script>alert(1)</script>"},
+        invariant_tag="events-horizon-rejects-html",
+        what="events horizon_days rejects HTML string",
+        notebook_ref="notebooks/portfolio/06-events-and-smart-money.ipynb",
+    ),
+    _reject(
+        "IV.news-horizon-too-big",
+        tab_id="alerts",
+        endpoint="pi/news",
+        params={"horizon_days": "91"},
+        invariant_tag="news-horizon-max",
+        what="news horizon_days>90 rejected",
+        notebook_ref="notebooks/portfolio/07-paper-and-alerts.ipynb",
+    ),
+    _reject(
+        "IV.news-horizon-zero",
+        tab_id="alerts",
+        endpoint="pi/news",
+        params={"horizon_days": "0"},
+        invariant_tag="news-horizon-min",
+        what="news horizon_days=0 rejected",
+        notebook_ref="notebooks/portfolio/07-paper-and-alerts.ipynb",
+    ),
+    # -------------------------------------------------------------------
+    # basket-analyst-consensus: only "demo" basket returns data;
+    # everything else is 422 (widgets_endpoints.py:1758-1761)
+    # This is the anti-silent-empty gate: the widget MUST NOT return an
+    # empty consensus for an unknown basket — it must loudly 422.
+    # -------------------------------------------------------------------
+    _reject(
+        "IV.basket-consensus-non-demo-loud-422",
+        tab_id="basket",
+        endpoint="pi/equity/basket-analyst-consensus",
+        params={"basket_id": "my_book"},
+        invariant_tag="basket-non-demo-is-422",
+        what=(
+            "basket-analyst-consensus returns 422 for non-demo basket "
+            "(loud-empty gate, not silent all-zero)"
+        ),
+        expected_status=422,
+        notebook_ref="notebooks/portfolio/04-basket-analyst-consensus.ipynb",
+    ),
+    _reject(
+        "IV.basket-consensus-xss",
+        tab_id="basket",
+        endpoint="pi/equity/basket-analyst-consensus",
+        params={"basket_id": "<script>alert(1)</script>"},
+        invariant_tag="basket-rejects-html",
+        what="basket-analyst-consensus rejects HTML basket_id",
+        expected_status=400,
+        notebook_ref="notebooks/portfolio/04-basket-analyst-consensus.ipynb",
+    ),
+    # -------------------------------------------------------------------
+    # Cross-endpoint XSS sample — spot-check a handful of the other
+    # symbol-taking endpoints so a change to one route can't accidentally
+    # sidestep the symbol guard.
+    # -------------------------------------------------------------------
+    _reject(
+        "IV.charting-symbol-xss",
+        tab_id="chart",
+        endpoint="pi/equity/charting",
+        params={"symbol": "<img src=x>"},
+        invariant_tag="charting-rejects-html",
+        what="charting symbol rejects HTML img tag",
+        notebook_ref="notebooks/portfolio/02-single-name-deep-dive.ipynb",
+    ),
+    _reject(
+        "IV.competitors-symbol-xss",
+        tab_id="comparison",
+        endpoint="pi/equity/competitors",
+        params={"symbol": "javascript:alert(1)"},
+        invariant_tag="competitors-rejects-javascript-uri",
+        what="competitors symbol rejects javascript: URI",
+        notebook_ref="notebooks/portfolio/02-single-name-deep-dive.ipynb",
+    ),
+    _reject(
+        "IV.insider-trading-symbol-xss",
+        tab_id="ownership",
+        endpoint="pi/equity/insider-trading",
+        params={"symbol": "A\"'>onload=1"},
+        invariant_tag="insider-trading-rejects-attr-inject",
+        what="insider-trading symbol rejects attribute-injection payload",
+        notebook_ref="notebooks/portfolio/06-events-and-smart-money.ipynb",
+    ),
+    _reject(
+        "IV.symbol-context-xss",
+        tab_id="chrome",
+        endpoint="pi/context/symbol",
+        params={"symbol": "AAPL\r\nX-Injected: yes"},
+        invariant_tag="context-symbol-rejects-crlf",
+        what="context symbol rejects CRLF header-injection payload",
+    ),
+)
+
+
+_ALL_STEPS: tuple[Step, ...] = _NARRATIVE_STEPS + _INVARIANT_STEPS
 
 
 STORY = Story(
     id="portfolio",
-    title="Portfolio Intelligence Terminal (W0-W9 + widget-completeness)",
+    title="Portfolio Intelligence Terminal (W0-W9 + widget-completeness + invariants)",
     notebook_series_root="notebooks/portfolio/",
     steps=_ALL_STEPS,
 )

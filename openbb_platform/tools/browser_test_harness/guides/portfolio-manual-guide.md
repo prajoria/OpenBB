@@ -1,8 +1,8 @@
-# Portfolio Intelligence Terminal (W0-W9 + widget-completeness) — Manual Test Guide
+# Portfolio Intelligence Terminal (W0-W9 + widget-completeness + invariants) — Manual Test Guide
 
 **Story:** `portfolio`
 **Notebook series:** [`notebooks/portfolio/`](../../../notebooks/portfolio/)
-**Total steps:** 49
+**Total steps:** 77
 
 > This guide is auto-generated from the Story data source. Do NOT edit by hand — edit `src/openbb_browser_test_harness/stories/portfolio.py` and regenerate with:
 > 
@@ -1003,6 +1003,623 @@ Widget-completeness coverage step (B8 #1733). Confirms the widget's default endp
 **Endpoint:** `pi/sentiment`
 
 ![CX.sentiment-gauge](screenshots/portfolio/CX.sentiment-gauge.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — symbol param rejects <script> tag
+
+**Step ID:** `IV.symbol-xss-script-tag` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). symbol param rejects <script> tag. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=<script>alert(1)</script>`
+
+**Endpoint:** `pi/equity/header`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-xss-script-tag](screenshots/portfolio/IV.symbol-xss-script-tag.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — symbol param rejects SQL metacharacters
+
+**Step ID:** `IV.symbol-xss-sql-injection` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). symbol param rejects SQL metacharacters. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol='; DROP TABLE users;--`
+
+**Endpoint:** `pi/equity/header`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-xss-sql-injection](screenshots/portfolio/IV.symbol-xss-sql-injection.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — symbol param rejects shell pipe metacharacter
+
+**Step ID:** `IV.symbol-xss-shell-metachars` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). symbol param rejects shell pipe metacharacter. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAPL|rm -rf /`
+
+**Endpoint:** `pi/equity/header`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-xss-shell-metachars](screenshots/portfolio/IV.symbol-xss-shell-metachars.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — symbol param rejects NUL byte
+
+**Step ID:** `IV.symbol-xss-null-byte` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). symbol param rejects NUL byte. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAPL .evil`
+
+**Endpoint:** `pi/equity/header`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-xss-null-byte](screenshots/portfolio/IV.symbol-xss-null-byte.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — symbol param rejects path-traversal sequence
+
+**Step ID:** `IV.symbol-xss-path-traversal` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). symbol param rejects path-traversal sequence. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=../../etc/passwd`
+
+**Endpoint:** `pi/equity/header`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-xss-path-traversal](screenshots/portfolio/IV.symbol-xss-path-traversal.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — mixed-case with HTML injection still rejected
+
+**Step ID:** `IV.symbol-xss-lowercase-not-normalized-through-attack` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). mixed-case with HTML injection still rejected. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=aapl<img src=x onerror=1>`
+
+**Endpoint:** `pi/equity/header`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-xss-lowercase-not-normalized-through-attack](screenshots/portfolio/IV.symbol-xss-lowercase-not-normalized-through-attack.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — symbol >10 chars rejected (prevents runaway lookups)
+
+**Step ID:** `IV.symbol-too-long` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). symbol >10 chars rejected (prevents runaway lookups). If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAAAAAAAAAA`
+
+**Endpoint:** `pi/equity/header`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-too-long](screenshots/portfolio/IV.symbol-too-long.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — symbol='' rejected
+
+**Step ID:** `IV.symbol-empty` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). symbol='' rejected. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=`
+
+**Endpoint:** `pi/equity/header`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-empty](screenshots/portfolio/IV.symbol-empty.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — paper ticket side must be 'buy' or 'sell'
+
+**Step ID:** `IV.paper-ticket-side-invalid` &nbsp; · &nbsp; **Tab:** `paper-trading` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/07-paper-and-alerts.ipynb`](../../../notebooks/portfolio/07-paper-and-alerts.ipynb)
+
+Deep invariant sweep (B9 #1734). paper ticket side must be 'buy' or 'sell'. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAPL` · `side=long` · `quantity=10`
+
+**Endpoint:** `pi/paper/ticket`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.paper-ticket-side-invalid](screenshots/portfolio/IV.paper-ticket-side-invalid.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — paper ticket side rejects HTML tag
+
+**Step ID:** `IV.paper-ticket-side-xss` &nbsp; · &nbsp; **Tab:** `paper-trading` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/07-paper-and-alerts.ipynb`](../../../notebooks/portfolio/07-paper-and-alerts.ipynb)
+
+Deep invariant sweep (B9 #1734). paper ticket side rejects HTML tag. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAPL` · `side=<script>` · `quantity=10`
+
+**Endpoint:** `pi/paper/ticket`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.paper-ticket-side-xss](screenshots/portfolio/IV.paper-ticket-side-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — paper ticket quantity must be int
+
+**Step ID:** `IV.paper-ticket-quantity-not-int` &nbsp; · &nbsp; **Tab:** `paper-trading` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/07-paper-and-alerts.ipynb`](../../../notebooks/portfolio/07-paper-and-alerts.ipynb)
+
+Deep invariant sweep (B9 #1734). paper ticket quantity must be int. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAPL` · `side=buy` · `quantity=3.14`
+
+**Endpoint:** `pi/paper/ticket`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.paper-ticket-quantity-not-int](screenshots/portfolio/IV.paper-ticket-quantity-not-int.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — paper ticket quantity must be positive
+
+**Step ID:** `IV.paper-ticket-quantity-negative` &nbsp; · &nbsp; **Tab:** `paper-trading` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/07-paper-and-alerts.ipynb`](../../../notebooks/portfolio/07-paper-and-alerts.ipynb)
+
+Deep invariant sweep (B9 #1734). paper ticket quantity must be positive. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAPL` · `side=buy` · `quantity=-5`
+
+**Endpoint:** `pi/paper/ticket`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.paper-ticket-quantity-negative](screenshots/portfolio/IV.paper-ticket-quantity-negative.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — paper ticket quantity=0 rejected
+
+**Step ID:** `IV.paper-ticket-quantity-zero` &nbsp; · &nbsp; **Tab:** `paper-trading` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/07-paper-and-alerts.ipynb`](../../../notebooks/portfolio/07-paper-and-alerts.ipynb)
+
+Deep invariant sweep (B9 #1734). paper ticket quantity=0 rejected. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAPL` · `side=buy` · `quantity=0`
+
+**Endpoint:** `pi/paper/ticket`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.paper-ticket-quantity-zero](screenshots/portfolio/IV.paper-ticket-quantity-zero.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — paper ticket symbol rejects HTML tags
+
+**Step ID:** `IV.paper-ticket-quantity-symbol-xss` &nbsp; · &nbsp; **Tab:** `paper-trading` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/07-paper-and-alerts.ipynb`](../../../notebooks/portfolio/07-paper-and-alerts.ipynb)
+
+Deep invariant sweep (B9 #1734). paper ticket symbol rejects HTML tags. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=<b>AAPL</b>` · `side=buy` · `quantity=10`
+
+**Endpoint:** `pi/paper/ticket`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.paper-ticket-quantity-symbol-xss](screenshots/portfolio/IV.paper-ticket-quantity-symbol-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — what-if returns a graceful markdown 'invalid input' body when delta_shares is not an int (widget-friendly, no raw 400)
+
+**Step ID:** `IV.whatif-delta-not-int` &nbsp; · &nbsp; **Tab:** `whatif` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/05-whatif-attribution-and-paper.ipynb`](../../../notebooks/portfolio/05-whatif-attribution-and-paper.ipynb)
+
+Deep invariant sweep (B9 #1734). what-if returns a graceful markdown 'invalid input' body when delta_shares is not an int (widget-friendly, no raw 400). If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 200 rejection.
+
+**Params:** `symbol=AAPL` · `delta_shares=1.5`
+
+**Endpoint:** `pi/whatif`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.whatif-delta-not-int](screenshots/portfolio/IV.whatif-delta-not-int.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — what-if symbol rejects HTML
+
+**Step ID:** `IV.whatif-symbol-xss` &nbsp; · &nbsp; **Tab:** `whatif` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/05-whatif-attribution-and-paper.ipynb`](../../../notebooks/portfolio/05-whatif-attribution-and-paper.ipynb)
+
+Deep invariant sweep (B9 #1734). what-if symbol rejects HTML. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=<script>` · `delta_shares=10`
+
+**Endpoint:** `pi/whatif`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.whatif-symbol-xss](screenshots/portfolio/IV.whatif-symbol-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — events horizon_days=0 rejected
+
+**Step ID:** `IV.events-horizon-zero` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/06-events-and-smart-money.ipynb`](../../../notebooks/portfolio/06-events-and-smart-money.ipynb)
+
+Deep invariant sweep (B9 #1734). events horizon_days=0 rejected. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `horizon_days=0`
+
+**Endpoint:** `pi/events/calendar`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.events-horizon-zero](screenshots/portfolio/IV.events-horizon-zero.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — events horizon_days>365 rejected
+
+**Step ID:** `IV.events-horizon-too-big` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/06-events-and-smart-money.ipynb`](../../../notebooks/portfolio/06-events-and-smart-money.ipynb)
+
+Deep invariant sweep (B9 #1734). events horizon_days>365 rejected. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `horizon_days=366`
+
+**Endpoint:** `pi/events/calendar`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.events-horizon-too-big](screenshots/portfolio/IV.events-horizon-too-big.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — events horizon_days must parse as int
+
+**Step ID:** `IV.events-horizon-not-int` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/06-events-and-smart-money.ipynb`](../../../notebooks/portfolio/06-events-and-smart-money.ipynb)
+
+Deep invariant sweep (B9 #1734). events horizon_days must parse as int. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `horizon_days=abc`
+
+**Endpoint:** `pi/events/calendar`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.events-horizon-not-int](screenshots/portfolio/IV.events-horizon-not-int.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — events horizon_days rejects HTML string
+
+**Step ID:** `IV.events-horizon-xss` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/06-events-and-smart-money.ipynb`](../../../notebooks/portfolio/06-events-and-smart-money.ipynb)
+
+Deep invariant sweep (B9 #1734). events horizon_days rejects HTML string. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `horizon_days=<script>alert(1)</script>`
+
+**Endpoint:** `pi/events/calendar`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.events-horizon-xss](screenshots/portfolio/IV.events-horizon-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — news horizon_days>90 rejected
+
+**Step ID:** `IV.news-horizon-too-big` &nbsp; · &nbsp; **Tab:** `alerts` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/07-paper-and-alerts.ipynb`](../../../notebooks/portfolio/07-paper-and-alerts.ipynb)
+
+Deep invariant sweep (B9 #1734). news horizon_days>90 rejected. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `horizon_days=91`
+
+**Endpoint:** `pi/news`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.news-horizon-too-big](screenshots/portfolio/IV.news-horizon-too-big.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — news horizon_days=0 rejected
+
+**Step ID:** `IV.news-horizon-zero` &nbsp; · &nbsp; **Tab:** `alerts` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/07-paper-and-alerts.ipynb`](../../../notebooks/portfolio/07-paper-and-alerts.ipynb)
+
+Deep invariant sweep (B9 #1734). news horizon_days=0 rejected. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `horizon_days=0`
+
+**Endpoint:** `pi/news`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.news-horizon-zero](screenshots/portfolio/IV.news-horizon-zero.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — basket-analyst-consensus returns 422 for non-demo basket (loud-empty gate, not silent all-zero)
+
+**Step ID:** `IV.basket-consensus-non-demo-loud-422` &nbsp; · &nbsp; **Tab:** `basket` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/04-basket-analyst-consensus.ipynb`](../../../notebooks/portfolio/04-basket-analyst-consensus.ipynb)
+
+Deep invariant sweep (B9 #1734). basket-analyst-consensus returns 422 for non-demo basket (loud-empty gate, not silent all-zero). If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 422 rejection.
+
+**Params:** `basket_id=my_book`
+
+**Endpoint:** `pi/equity/basket-analyst-consensus`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.basket-consensus-non-demo-loud-422](screenshots/portfolio/IV.basket-consensus-non-demo-loud-422.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — basket-analyst-consensus rejects HTML basket_id
+
+**Step ID:** `IV.basket-consensus-xss` &nbsp; · &nbsp; **Tab:** `basket` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/04-basket-analyst-consensus.ipynb`](../../../notebooks/portfolio/04-basket-analyst-consensus.ipynb)
+
+Deep invariant sweep (B9 #1734). basket-analyst-consensus rejects HTML basket_id. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `basket_id=<script>alert(1)</script>`
+
+**Endpoint:** `pi/equity/basket-analyst-consensus`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.basket-consensus-xss](screenshots/portfolio/IV.basket-consensus-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — charting symbol rejects HTML img tag
+
+**Step ID:** `IV.charting-symbol-xss` &nbsp; · &nbsp; **Tab:** `chart` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Deep invariant sweep (B9 #1734). charting symbol rejects HTML img tag. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=<img src=x>`
+
+**Endpoint:** `pi/equity/charting`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.charting-symbol-xss](screenshots/portfolio/IV.charting-symbol-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — competitors symbol rejects javascript: URI
+
+**Step ID:** `IV.competitors-symbol-xss` &nbsp; · &nbsp; **Tab:** `comparison` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Deep invariant sweep (B9 #1734). competitors symbol rejects javascript: URI. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=javascript:alert(1)`
+
+**Endpoint:** `pi/equity/competitors`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.competitors-symbol-xss](screenshots/portfolio/IV.competitors-symbol-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — insider-trading symbol rejects attribute-injection payload
+
+**Step ID:** `IV.insider-trading-symbol-xss` &nbsp; · &nbsp; **Tab:** `ownership` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/06-events-and-smart-money.ipynb`](../../../notebooks/portfolio/06-events-and-smart-money.ipynb)
+
+Deep invariant sweep (B9 #1734). insider-trading symbol rejects attribute-injection payload. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=A"'>onload=1`
+
+**Endpoint:** `pi/equity/insider-trading`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.insider-trading-symbol-xss](screenshots/portfolio/IV.insider-trading-symbol-xss.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Invariant — context symbol rejects CRLF header-injection payload
+
+**Step ID:** `IV.symbol-context-xss` &nbsp; · &nbsp; **Tab:** `chrome` &nbsp; · &nbsp; **Action:** Assert (safety invariant) &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/01-getting-started-and-providers.ipynb`](../../../notebooks/portfolio/01-getting-started-and-providers.ipynb)
+
+Deep invariant sweep (B9 #1734). context symbol rejects CRLF header-injection payload. If the guard is removed by a future change, the harness fails at PR time.
+
+**Expected:** HTTP 400 rejection.
+
+**Params:** `symbol=AAPL
+X-Injected: yes`
+
+**Endpoint:** `pi/context/symbol`
+
+> ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
+
+![IV.symbol-context-xss](screenshots/portfolio/IV.symbol-context-xss.png)
 
 *Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
 

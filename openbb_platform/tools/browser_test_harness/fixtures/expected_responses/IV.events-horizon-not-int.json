@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "horizon_days not int"
+  },
+  "endpoint": "pi/events/calendar",
+  "params": {
+    "horizon_days": "abc"
+  },
+  "status_code": 400
+}
