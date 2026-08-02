@@ -267,21 +267,22 @@ _STEPS: tuple[Step, ...] = (
         persona=Persona.ANALYST,
         tab_id="estimates",
         action=ActionKind.ASSERT,
-        human_title="Step W9 — Verify basket safety invariant",
+        human_title="Step W9 — Verify basket authorization invariant",
         human_description=(
-            "Try basket_id=real_book. The endpoint MUST return 422 with a "
-            "pointer to follow-up #1714, NOT demo rows disguised with a "
-            "marker note."
+            "Try basket_id=real_book without PI_ALLOW_CROSS_USER_BASKET. "
+            "The endpoint MUST return 403 with the basket_authorization_"
+            "required marker (post-#1714 + #1748 security review). Pre-"
+            "#1714 this was 422 (basket_input_wiring_deferred)."
         ),
         human_expected=(
-            "HTTP 422 with detail 'basket_input_wiring_deferred' and "
-            "follow_up = '#1714'. This is the load-bearing safety invariant "
-            "codified in test_non_demo_basket_id_returns_422."
+            "HTTP 403 with detail 'basket_authorization_required'. This is "
+            "the load-bearing IDOR guard — a valid bearer token alone MUST "
+            "NOT let a caller read another user's positions."
         ),
         endpoint="pi/equity/basket-analyst-consensus",
         params={"basket_id": "real_book"},
-        expected_status=422,
-        tags=("safety", "checker:non-demo-basket-is-422"),
+        expected_status=403,
+        tags=("safety", "checker:non-demo-basket-is-403"),
     ),
 )
 

@@ -112,6 +112,7 @@ def resolve_basket(
         # Deferred import: portfolio_snapshot_importer is optional at
         # widget-backend install time (browser harness CI doesn't install
         # it). Callers can always inject ``store=`` for tests.
+        # pylint: disable=import-outside-toplevel
         try:
             from portfolio_snapshot_importer import (  # noqa: PLC0415
                 get_default_store,
