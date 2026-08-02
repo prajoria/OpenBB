@@ -10,29 +10,61 @@ import asyncio
 import sys
 from pathlib import Path
 
-from .drivers import HarnessSetupError, StandaloneDriver
+from .drivers import (
+    HarnessSetupError,
+    StandaloneDriver,
+    WorkspaceDriver,
+    _WORKSPACE_AVAILABLE,
+)
 from .report import write_report_json, write_report_md
 from .steps import Step, StepResult
 from .stories import STORIES
 
 
-async def _run_story(story_id: str, mode: str, out_dir: Path) -> int:
+async def _run_story(
+    story_id: str,
+    mode: str,
+    out_dir: Path,
+    workspace_mode: str,
+    capture_guide_screenshots: bool,
+) -> int:
     story = STORIES[story_id]
     steps_by_id: dict[str, Step] = {s.id: s for s in story.steps}
 
+    driver: object
     if mode == "standalone":
         driver = StandaloneDriver()
-    else:
-        # workspace mode ships with B6 (#1728). Fail loudly for now.
-        print(
-            "workspace mode is not yet implemented — see #1728 (B6). "
-            "Use --mode standalone for now.",
-            file=sys.stderr,
+    elif mode == "workspace":
+        if not _WORKSPACE_AVAILABLE:
+            print(
+                "workspace mode requires playwright. Install with:\n"
+                "  pip install -e "
+                "openbb_platform/tools/browser_test_harness/[workspace]\n"
+                "  python -m playwright install chromium",
+                file=sys.stderr,
+            )
+            return 2
+        assert WorkspaceDriver is not None
+        # If --capture-guide-screenshots is set, save PNGs into the guides/
+        # tree so B5's manual guide auto-populates them.
+        screenshots_dir: Path | None = None
+        if capture_guide_screenshots:
+            screenshots_dir = (
+                Path(__file__).resolve().parents[2]
+                / "guides"
+                / "screenshots"
+                / story_id
+            )
+        driver = WorkspaceDriver(
+            mode=workspace_mode,
+            screenshots_dir=screenshots_dir,
         )
+    else:
+        print(f"Unknown mode {mode!r}", file=sys.stderr)
         return 2
 
     try:
-        await driver.setup()
+        await driver.setup()  # type: ignore[attr-defined]
     except HarnessSetupError as exc:
         print(f"Harness setup failed: {exc}", file=sys.stderr)
         return 3
@@ -40,12 +72,12 @@ async def _run_story(story_id: str, mode: str, out_dir: Path) -> int:
     results: list[StepResult] = []
     try:
         for step in story.steps:
-            result = await driver.run_step(step)
+            result = await driver.run_step(step)  # type: ignore[attr-defined]
             status = "OK" if result.ok else "FAIL"
             print(f"  [{status}] {step.id} - {result.duration_ms}ms")
             results.append(result)
     finally:
-        await driver.teardown()
+        await driver.teardown()  # type: ignore[attr-defined]
 
     out_dir.mkdir(parents=True, exist_ok=True)
     write_report_md(out_dir / "report.md", story, results, steps_by_id)
@@ -74,7 +106,21 @@ def main() -> int:
         "--mode",
         choices=["standalone", "workspace"],
         default="standalone",
-        help="standalone = HTTP-only (default, CI-friendly); workspace = Playwright (B6, WIP).",
+        help="standalone = HTTP-only (default, CI-friendly); workspace = Playwright.",
+    )
+    parser.add_argument(
+        "--workspace-mode",
+        choices=["persistent-context", "cdp-attach"],
+        default="persistent-context",
+        help="How Playwright attaches to Chrome (workspace mode only).",
+    )
+    parser.add_argument(
+        "--capture-guide-screenshots",
+        action="store_true",
+        help=(
+            "In workspace mode, save screenshots to guides/screenshots/<story>/ "
+            "so the B5 manual-guide generator can embed them."
+        ),
     )
     parser.add_argument(
         "--out",
@@ -83,7 +129,15 @@ def main() -> int:
         help="Where to write report.md and report.json.",
     )
     args = parser.parse_args()
-    return asyncio.run(_run_story(args.story, args.mode, args.out))
+    return asyncio.run(
+        _run_story(
+            args.story,
+            args.mode,
+            args.out,
+            args.workspace_mode,
+            args.capture_guide_screenshots,
+        )
+    )
 
 
 if __name__ == "__main__":

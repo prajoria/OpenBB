@@ -1,0 +1,33 @@
+{
+  "body": [
+    {
+      "gate": "PASS",
+      "metric": "PBO",
+      "threshold": 0.3,
+      "value": 0.18
+    },
+    {
+      "gate": "PASS",
+      "metric": "DSR",
+      "threshold": 1.0,
+      "value": 1.47
+    },
+    {
+      "gate": "PASS",
+      "metric": "OOS Sharpe",
+      "threshold": 1.0,
+      "value": 1.62
+    },
+    {
+      "gate": "PASS",
+      "metric": "Verdict",
+      "threshold": "PASS",
+      "value": "PASS"
+    }
+  ],
+  "endpoint": "tt/validation/verdict",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

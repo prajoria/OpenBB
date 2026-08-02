@@ -1,0 +1,26 @@
+{
+  "audit": [
+    "tt_audit_journal"
+  ],
+  "engine-status": [
+    "tt_engine_status",
+    "tt_execute_bridge"
+  ],
+  "morning-scan": [
+    "tt_segment_movers",
+    "tt_export_button",
+    "tt_scan_table"
+  ],
+  "position-workbench": [
+    "tt_signal_card",
+    "tt_plan_card",
+    "tt_order_legs",
+    "tt_simulate_result"
+  ],
+  "tuning": [
+    "tt_tuning_report"
+  ],
+  "validation": [
+    "tt_validation_verdict"
+  ]
+}

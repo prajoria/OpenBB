@@ -1,0 +1,13 @@
+{
+  "body": {
+    "beta_spy": 1.08,
+    "note": "demo book",
+    "var_95_1d": -0.021,
+    "vol_annualized": 0.184
+  },
+  "endpoint": "pi/risk/dashboard",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

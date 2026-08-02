@@ -1,0 +1,27 @@
+{
+  "body": [
+    {
+      "score": 0.94,
+      "segment": "Technology",
+      "signal": "BREAKOUT",
+      "symbol": "NVDA"
+    },
+    {
+      "score": 0.82,
+      "segment": "Technology",
+      "signal": "TREND",
+      "symbol": "AAPL"
+    },
+    {
+      "score": 0.78,
+      "segment": "Technology",
+      "signal": "TREND",
+      "symbol": "MSFT"
+    }
+  ],
+  "endpoint": "tt/scan/table",
+  "params": {
+    "segment": "Technology"
+  },
+  "status_code": 200
+}

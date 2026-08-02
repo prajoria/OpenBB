@@ -1,0 +1,6 @@
+{
+  "body": "**Track A (paid):**  \u25cf fmp_cached (42ms)  \u25cf fmp (118ms)  \u26a0 cboe (1450ms) (high_latency)  \u25cf sec (90ms)  \u25cf yfinance-snapshot (12ms) (snapshot_age_2h)  \n**Track B (free):**  \u26a0 cboe (1450ms) (high_latency)  \u25cf sec (90ms)  \u25cf yfinance (240ms)  \n\n> Provider-health strip (#1685). Real per-tier probes with 2s timeout + 60s cache + background refresh are TODO(gh-1685). Real 5-tier fallback routing is #1715.",
+  "endpoint": "pi/health/providers",
+  "params": {},
+  "status_code": 200
+}

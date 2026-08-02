@@ -1,0 +1,9 @@
+{
+  "body": "## What-If: BUY `AAPL` \u00d7 100\n\n- **Symbol:** AAPL\n- **Delta shares:** 100\n\n> \u26a0 Preview stub \u2014 full analytics.whatif wiring lands with the positions-store integration follow-up. See #558.",
+  "endpoint": "pi/whatif",
+  "params": {
+    "delta_shares": "100",
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

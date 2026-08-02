@@ -1,0 +1,33 @@
+{
+  "body": [
+    {
+      "leg_type": "ENTRY",
+      "order_type": "LIMIT",
+      "price": 173.5,
+      "quantity": 100,
+      "side": "BUY",
+      "symbol": "NVDA"
+    },
+    {
+      "leg_type": "STOP",
+      "order_type": "STOP_LIMIT",
+      "price": 168.2,
+      "quantity": 100,
+      "side": "SELL",
+      "symbol": "NVDA"
+    },
+    {
+      "leg_type": "TARGET",
+      "order_type": "LIMIT",
+      "price": 189.0,
+      "quantity": 100,
+      "side": "SELL",
+      "symbol": "NVDA"
+    }
+  ],
+  "endpoint": "tt/position/order-legs",
+  "params": {
+    "symbol": "NVDA"
+  },
+  "status_code": 200
+}

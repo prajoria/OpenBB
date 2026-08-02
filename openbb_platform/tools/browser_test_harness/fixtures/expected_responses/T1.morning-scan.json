@@ -1,0 +1,37 @@
+{
+  "body": [
+    {
+      "bucket": "gainer",
+      "change_pct": 2.14,
+      "segment": "Technology"
+    },
+    {
+      "bucket": "gainer",
+      "change_pct": 1.62,
+      "segment": "Communication Services"
+    },
+    {
+      "bucket": "gainer",
+      "change_pct": 0.88,
+      "segment": "Consumer Discretionary"
+    },
+    {
+      "bucket": "loser",
+      "change_pct": -0.31,
+      "segment": "Health Care"
+    },
+    {
+      "bucket": "loser",
+      "change_pct": -0.94,
+      "segment": "Utilities"
+    },
+    {
+      "bucket": "loser",
+      "change_pct": -1.55,
+      "segment": "Real Estate"
+    }
+  ],
+  "endpoint": "tt/scan/segment-movers",
+  "params": {},
+  "status_code": 200
+}

@@ -1,0 +1,6 @@
+{
+  "body": "## Techtrade Engine Status\n\n- **Scheduler:** RUNNING (next tick in 47s)\n- **Signal engine:** READY (last signal: NVDA BREAKOUT at 09:32:14)\n- **Execution engine:** IDLE (verdict gate: PASS)\n- **Data feed:** LIVE (fmp_cached hit-rate 98.2%)\n\n> Stub \u2014 real wiring calls openbb_techtrade.engine.status.",
+  "endpoint": "tt/engine/status",
+  "params": {},
+  "status_code": 200
+}

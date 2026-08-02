@@ -1,0 +1,8 @@
+{
+  "body": "## AAPL\n\n- **Exchange:** NASDAQ (stub)\n- **Sector / Industry:** Technology / Consumer Electronics (stub)\n- **Price:** $228.14 (stub)\n- **Day Change:** +1.23 (+0.54%) (stub)\n- **Live Price:** $228.14 (+1.23, +0.54%) \u2014 last update stub\n- **Overnight (BOATS):** $228.20 (+0.06)\n\n> Preview stub \u2014 real wiring calls obb.equity.profile(symbol) plus obb.equity.price.quote(symbol) plus obb.equity.price.aftermarket_quote(symbol).",
+  "endpoint": "pi/equity/header",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

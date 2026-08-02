@@ -1,0 +1,55 @@
+{
+  "body": [
+    {
+      "line_item": "Revenue",
+      "period_1": 391000.0,
+      "period_2": 383300.0
+    },
+    {
+      "line_item": "Gross Profit",
+      "period_1": 170782.0,
+      "period_2": 169148.0
+    },
+    {
+      "line_item": "Operating Income",
+      "period_1": 118658.0,
+      "period_2": 114301.0
+    },
+    {
+      "line_item": "Net Income",
+      "period_1": 93000.0,
+      "period_2": 96995.0
+    },
+    {
+      "line_item": "Total Assets",
+      "period_1": 364980.0,
+      "period_2": 352755.0
+    },
+    {
+      "line_item": "Total Debt",
+      "period_1": 104590.0,
+      "period_2": 111088.0
+    },
+    {
+      "line_item": "Cash & Equivalents",
+      "period_1": 61555.0,
+      "period_2": 61555.0
+    },
+    {
+      "line_item": "Operating Cash Flow",
+      "period_1": 122151.0,
+      "period_2": 110543.0
+    },
+    {
+      "line_item": "Free Cash Flow",
+      "period_1": 111443.0,
+      "period_2": 99584.0
+    }
+  ],
+  "endpoint": "pi/equity/statements",
+  "params": {
+    "period": "annual",
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

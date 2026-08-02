@@ -1,0 +1,33 @@
+{
+  "body": [
+    {
+      "sector": "Information Technology",
+      "weight": 0.38
+    },
+    {
+      "sector": "Healthcare",
+      "weight": 0.22
+    },
+    {
+      "sector": "Financials",
+      "weight": 0.15
+    },
+    {
+      "sector": "Consumer Discretionary",
+      "weight": 0.12
+    },
+    {
+      "sector": "Energy",
+      "weight": 0.08
+    },
+    {
+      "sector": "Other",
+      "weight": 0.05
+    }
+  ],
+  "endpoint": "pi/xray/sector",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

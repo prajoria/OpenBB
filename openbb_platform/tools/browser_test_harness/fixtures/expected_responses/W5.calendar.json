@@ -1,0 +1,40 @@
+{
+  "body": [
+    {
+      "date": "2026-07-25",
+      "detail": "Q3 2026",
+      "symbol": "AAPL",
+      "type": "earnings"
+    },
+    {
+      "date": "2026-07-30",
+      "detail": "FY26 Q4",
+      "symbol": "MSFT",
+      "type": "earnings"
+    },
+    {
+      "date": "2026-08-08",
+      "detail": "$0.24/sh",
+      "symbol": "AAPL",
+      "type": "ex_dividend"
+    },
+    {
+      "date": "2026-07-22",
+      "detail": "Item 7.01",
+      "symbol": "NVDA",
+      "type": "form_8k"
+    },
+    {
+      "date": "2026-07-24",
+      "detail": "Q2 2026",
+      "symbol": "META",
+      "type": "earnings"
+    }
+  ],
+  "endpoint": "pi/events/calendar",
+  "params": {
+    "account_id": "demo",
+    "horizon_days": "30"
+  },
+  "status_code": 200
+}

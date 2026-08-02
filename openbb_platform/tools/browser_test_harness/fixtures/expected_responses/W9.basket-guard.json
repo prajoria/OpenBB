@@ -1,0 +1,14 @@
+{
+  "body": {
+    "detail": {
+      "detail": "basket_input_wiring_deferred",
+      "follow_up": "#1714",
+      "message": "Real basket-input wiring (positions.db lookup or user-defined basket resource) is tracked in #1714. Only basket_id='demo' returns stub consensus rows today."
+    }
+  },
+  "endpoint": "pi/equity/basket-analyst-consensus",
+  "params": {
+    "basket_id": "real_book"
+  },
+  "status_code": 422
+}
