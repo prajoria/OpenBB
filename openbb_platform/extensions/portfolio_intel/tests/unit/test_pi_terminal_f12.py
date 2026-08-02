@@ -187,16 +187,19 @@ def test_basket_consensus_demo_returns_rows() -> None:
             assert f in row, f"missing {f} in {row!r}"
 
 
-def test_non_demo_basket_id_returns_422() -> None:
-    """P1-7 fix: non-demo basket_id returns 422 with a follow-up pointer,
-    never demo rows disguised with a marker note.
+def test_non_demo_basket_id_unknown_returns_404() -> None:
+    """#1714 flipped the 422 gate to real basket resolution.
+
+    Unknown basket_id (no snapshot for that user) returns a loud 404
+    with the ``basket_not_found`` marker — never silently returns [] or
+    demo rows disguised with a note.
     """
     r = _client.get("/pi/equity/basket-analyst-consensus?basket_id=real_book")
     assert (
-        r.status_code == 422
-    ), f"non-demo basket_id must return 422; got {r.status_code}"
+        r.status_code == 404
+    ), f"unknown basket_id must return 404 (was 422 pre-#1714); got {r.status_code}"
     detail = r.json().get("detail", "")
-    assert "basket_input_wiring_deferred" in str(detail) or "#1714" in str(detail)
+    assert "basket_not_found" in str(detail) or "real_book" in str(detail)
 
 
 def test_basket_consensus_rejects_malformed_basket_id() -> None:
