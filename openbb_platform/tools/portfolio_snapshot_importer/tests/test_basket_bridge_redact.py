@@ -18,7 +18,6 @@ from portfolio_snapshot_importer.basket_bridge import (
     redact_basket_preview,
 )
 
-
 _CUSIP = re.compile(r"\b[0-9A-Z]{8,9}\b")
 
 
@@ -26,15 +25,15 @@ def _synthetic_basket() -> dict:
     """3-row synthetic basket that exercises every bucket band."""
     return {
         "basket": [
-            {"symbol": "MSFT", "weight": 0.3075},       # >30% (concentration)
+            {"symbol": "MSFT", "weight": 0.3075},  # >30% (concentration)
             {"symbol": "09261F614", "weight": 0.1736},  # 15-30% + CUSIP
-            {"symbol": "NVDA", "weight": 0.015},        # <5%
+            {"symbol": "NVDA", "weight": 0.015},  # <5%
         ],
         "metadata": {
             "source": "portfolio_snapshot_importer",
             "snapshot_id": "hashy",
             "snapshot_date": "2026-07-18",
-            "user_id": "alice",            # real-name shape
+            "user_id": "alice",  # real-name shape
             "n_positions_in_snapshot": 56,
             "n_positions_in_basket": 3,
         },
@@ -44,15 +43,18 @@ def _synthetic_basket() -> dict:
 class TestBucketWeight:
     """The bucketer never leaks precise weight."""
 
-    @pytest.mark.parametrize("w,expected", [
-        (0.001, "<5%"),
-        (0.049, "<5%"),
-        (0.05, "5-15%"),
-        (0.149, "5-15%"),
-        (0.15, "15-30%"),
-        (0.30, ">30%"),
-        (0.99, ">30%"),
-    ])
+    @pytest.mark.parametrize(
+        "w,expected",
+        [
+            (0.001, "<5%"),
+            (0.049, "<5%"),
+            (0.05, "5-15%"),
+            (0.149, "5-15%"),
+            (0.15, "15-30%"),
+            (0.30, ">30%"),
+            (0.99, ">30%"),
+        ],
+    )
     def test_boundaries(self, w: float, expected: str) -> None:
         assert _bucket_weight(w) == expected
 
@@ -99,9 +101,9 @@ class TestBucketedLevel:
         assert "09261F614" not in out
         assert not _CUSIP.search(out.replace("SYM_", ""))
         # Buckets present, but no precise weight numbers.
-        assert ">30%" in out       # MSFT bucket
-        assert "15-30%" in out     # 09261F614 bucket
-        assert "<5%" in out        # NVDA bucket
+        assert ">30%" in out  # MSFT bucket
+        assert "15-30%" in out  # 09261F614 bucket
+        assert "<5%" in out  # NVDA bucket
         assert "30.75" not in out and "17.36" not in out and "1.50" not in out
 
 

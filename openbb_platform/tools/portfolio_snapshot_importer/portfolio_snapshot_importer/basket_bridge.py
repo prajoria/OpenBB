@@ -19,13 +19,20 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable
 
 from portfolio_snapshot_importer.store import PortfolioStore
 
 _CASH_SYMBOLS = {
-    "SPAXX**", "SPAXX", "FCASH**", "FCASH", "FDRXX**", "FDRXX",
-    "FZDXX", "FZDXX**", "SPRXX", "SPRXX**",
+    "SPAXX**",
+    "SPAXX",
+    "FCASH**",
+    "FCASH",
+    "FDRXX**",
+    "FDRXX",
+    "FZDXX",
+    "FZDXX**",
+    "SPRXX",
+    "SPRXX**",
 }
 
 
@@ -57,9 +64,7 @@ def snapshot_to_basket(
         rows = store.list_snapshots(user_id=user_id)
         matches = [r for r in rows if r["snapshot_date"] == snapshot_date]
         if not matches:
-            raise LookupError(
-                f"no snapshot for user_id={user_id!r} on {snapshot_date}"
-            )
+            raise LookupError(f"no snapshot for user_id={user_id!r} on {snapshot_date}")
         snap_id = matches[0]["snapshot_id"]
         snap_date = snapshot_date
 
@@ -75,12 +80,14 @@ def snapshot_to_basket(
             continue
         weight = p["percent_of_account"] or 0.0
         value = p["current_value"] or 0.0
-        kept.append({
-            "symbol": sym,
-            "weight": float(weight),
-            "current_value": float(value),
-            "account_number": p["account_number"],
-        })
+        kept.append(
+            {
+                "symbol": sym,
+                "weight": float(weight),
+                "current_value": float(value),
+                "account_number": p["account_number"],
+            }
+        )
 
     # Aggregate across accounts by symbol (a user may hold XYZ in both a
     # brokerage and an IRA).
@@ -148,7 +155,8 @@ _WEIGHT_BUCKETS = [
 
 def _bucket_weight(w: float) -> str:
     """Bucket a fraction weight into a coarse label for pedagogy without
-    leaking the precise concentration figure."""
+    leaking the precise concentration figure.
+    """
     for threshold, label in _WEIGHT_BUCKETS:
         if w < threshold:
             return label
