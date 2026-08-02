@@ -1,0 +1,69 @@
+{
+  "body": [
+    {
+      "day": 0,
+      "pnl": 0
+    },
+    {
+      "day": 1,
+      "pnl": 15
+    },
+    {
+      "day": 2,
+      "pnl": 32
+    },
+    {
+      "day": 3,
+      "pnl": 28
+    },
+    {
+      "day": 4,
+      "pnl": 42
+    },
+    {
+      "day": 5,
+      "pnl": 55
+    },
+    {
+      "day": 6,
+      "pnl": 48
+    },
+    {
+      "day": 7,
+      "pnl": 63
+    },
+    {
+      "day": 8,
+      "pnl": 78
+    },
+    {
+      "day": 9,
+      "pnl": 71
+    },
+    {
+      "day": 10,
+      "pnl": 85
+    },
+    {
+      "day": 11,
+      "pnl": 100
+    },
+    {
+      "day": 12,
+      "pnl": 95
+    },
+    {
+      "day": 13,
+      "pnl": 108
+    },
+    {
+      "day": 14,
+      "pnl": 118
+    }
+  ],
+  "endpoint": "tt/position/simulate",
+  "params": {
+    "symbol": "NVDA"
+  },
+  "status_code": 200
+}

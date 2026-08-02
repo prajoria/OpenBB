@@ -1,0 +1,33 @@
+{
+  "body": [
+    {
+      "country": "United States",
+      "weight": 0.72
+    },
+    {
+      "country": "China",
+      "weight": 0.08
+    },
+    {
+      "country": "Japan",
+      "weight": 0.05
+    },
+    {
+      "country": "United Kingdom",
+      "weight": 0.04
+    },
+    {
+      "country": "Germany",
+      "weight": 0.03
+    },
+    {
+      "country": "Other",
+      "weight": 0.08
+    }
+  ],
+  "endpoint": "pi/xray/country",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

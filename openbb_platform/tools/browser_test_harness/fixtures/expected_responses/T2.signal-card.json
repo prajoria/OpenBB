@@ -1,0 +1,8 @@
+{
+  "body": "## NVDA \u2014 Active Signal\n\n- **Type:** BREAKOUT\n- **Direction:** LONG\n- **Confidence:** 0.87\n- **Trigger:** close above 20d high on 1.4x volume\n\n> Stub \u2014 real wiring calls openbb_techtrade.engine.signal_router.",
+  "endpoint": "tt/position/signal-card",
+  "params": {
+    "symbol": "NVDA"
+  },
+  "status_code": 200
+}

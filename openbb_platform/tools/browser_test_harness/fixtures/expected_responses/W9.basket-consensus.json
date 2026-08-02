@@ -1,0 +1,49 @@
+{
+  "body": [
+    {
+      "avg_target": 200.0,
+      "buy": 24,
+      "consensus": "BUY",
+      "hold": 8,
+      "sell": 1,
+      "symbol": "AAPL"
+    },
+    {
+      "avg_target": 465.0,
+      "buy": 28,
+      "consensus": "STRONG_BUY",
+      "hold": 4,
+      "sell": 0,
+      "symbol": "MSFT"
+    },
+    {
+      "avg_target": 210.0,
+      "buy": 22,
+      "consensus": "BUY",
+      "hold": 10,
+      "sell": 2,
+      "symbol": "GOOGL"
+    },
+    {
+      "avg_target": 175.0,
+      "buy": 32,
+      "consensus": "STRONG_BUY",
+      "hold": 3,
+      "sell": 0,
+      "symbol": "NVDA"
+    },
+    {
+      "avg_target": 530.0,
+      "buy": 26,
+      "consensus": "BUY",
+      "hold": 5,
+      "sell": 1,
+      "symbol": "META"
+    }
+  ],
+  "endpoint": "pi/equity/basket-analyst-consensus",
+  "params": {
+    "basket_id": "demo"
+  },
+  "status_code": 200
+}

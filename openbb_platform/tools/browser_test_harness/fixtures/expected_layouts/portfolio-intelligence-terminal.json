@@ -1,0 +1,87 @@
+{
+  "alerts": [
+    "pi_provider_health",
+    "pi_book_context",
+    "pi_alerts_panel",
+    "pi_sentiment_gauge",
+    "pi_event_calendar",
+    "pi_smart_money_ribbon",
+    "pi_news_ribbon"
+  ],
+  "calendar": [
+    "pi_provider_health",
+    "pi_symbol_context",
+    "pi_event_calendar"
+  ],
+  "comparison": [
+    "pi_provider_health",
+    "pi_symbol_context",
+    "pi_equity_competitors",
+    "pi_equity_complementary"
+  ],
+  "estimates": [
+    "pi_provider_health",
+    "pi_symbol_context",
+    "pi_equity_analyst_forecasts",
+    "pi_basket_analyst_consensus"
+  ],
+  "financials": [
+    "pi_provider_health",
+    "pi_symbol_context",
+    "pi_equity_financial_charts"
+  ],
+  "morning-review": [
+    "pi_provider_health",
+    "pi_book_context",
+    "pi_concentration_gauge",
+    "pi_risk_dashboard",
+    "pi_paper_perf_kpis",
+    "pi_event_calendar",
+    "pi_alerts_panel"
+  ],
+  "overview": [
+    "pi_provider_health",
+    "pi_symbol_context",
+    "pi_equity_profile_header",
+    "pi_equity_key_stats",
+    "pi_equity_price_history"
+  ],
+  "ownership": [
+    "pi_provider_health",
+    "pi_symbol_context",
+    "pi_equity_key_stats"
+  ],
+  "paper": [
+    "pi_provider_health",
+    "pi_book_context",
+    "pi_paper_ticket",
+    "pi_paper_perf_kpis",
+    "pi_backtest_button",
+    "pi_paper_performance",
+    "pi_paper_blotter"
+  ],
+  "risk": [
+    "pi_provider_health",
+    "pi_book_context",
+    "pi_risk_dashboard",
+    "pi_concentration_gauge",
+    "pi_risk_vol_chart",
+    "pi_brinson_attribution",
+    "pi_whatif_card",
+    "pi_whatif_diff"
+  ],
+  "technicals": [
+    "pi_provider_health",
+    "pi_symbol_context",
+    "pi_equity_technicals",
+    "pi_equity_price_history"
+  ],
+  "xray": [
+    "pi_provider_health",
+    "pi_book_context",
+    "pi_xray_sector",
+    "pi_xray_country",
+    "pi_concentration_gauge",
+    "pi_lookthrough_top25"
+  ]
+}

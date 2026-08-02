@@ -1,0 +1,37 @@
+{
+  "body": [
+    {
+      "current": 14.0,
+      "delta": 6.0,
+      "param": "atr_period",
+      "proposed": 20.0,
+      "validate_gate": "PASS"
+    },
+    {
+      "current": 20.0,
+      "delta": -5.0,
+      "param": "sma_fast",
+      "proposed": 15.0,
+      "validate_gate": "PASS"
+    },
+    {
+      "current": 50.0,
+      "delta": 5.0,
+      "param": "sma_slow",
+      "proposed": 55.0,
+      "validate_gate": "PASS"
+    },
+    {
+      "current": 2.0,
+      "delta": -0.5,
+      "param": "risk_pct",
+      "proposed": 1.5,
+      "validate_gate": "FAIL"
+    }
+  ],
+  "endpoint": "tt/tuning/report",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

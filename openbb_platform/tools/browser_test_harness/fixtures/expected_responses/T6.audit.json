@@ -1,0 +1,39 @@
+{
+  "body": [
+    {
+      "bar_date": "2026-07-25",
+      "deviation_bps": 14.0,
+      "forward_pnl": 130.2,
+      "replay_pnl": 128.4
+    },
+    {
+      "bar_date": "2026-07-26",
+      "deviation_bps": -3.0,
+      "forward_pnl": 131.7,
+      "replay_pnl": 132.1
+    },
+    {
+      "bar_date": "2026-07-27",
+      "deviation_bps": 15.5,
+      "forward_pnl": 137.9,
+      "replay_pnl": 135.8
+    },
+    {
+      "bar_date": "2026-07-28",
+      "deviation_bps": 5.0,
+      "forward_pnl": 142.0,
+      "replay_pnl": 141.3
+    },
+    {
+      "bar_date": "2026-07-29",
+      "deviation_bps": -42.8,
+      "forward_pnl": 138.7,
+      "replay_pnl": 144.9
+    }
+  ],
+  "endpoint": "tt/audit/journal",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

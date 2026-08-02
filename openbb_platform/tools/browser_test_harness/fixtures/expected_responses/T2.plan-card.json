@@ -1,0 +1,8 @@
+{
+  "body": "## NVDA \u2014 Trading Plan\n\n- **Entry:** $173.50 (limit)\n- **Stop:** $168.20 (-3.1%)\n- **Target:** $189.00 (+8.9%)\n- **R:R:** 2.9x\n- **Sizing:** 2.0% of book risk\n\n> Stub \u2014 real wiring calls openbb_techtrade.engine.plan_router.",
+  "endpoint": "tt/position/plan-card",
+  "params": {
+    "symbol": "NVDA"
+  },
+  "status_code": 200
+}

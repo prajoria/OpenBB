@@ -1,0 +1,27 @@
+{
+  "body": [
+    {
+      "detail": "8-K Item 7.01 filed 2026-07-22",
+      "kind": "form_8k_for_held",
+      "severity": "warning",
+      "symbol": "NVDA"
+    },
+    {
+      "detail": "Earnings 2026-07-25",
+      "kind": "earnings_upcoming",
+      "severity": "info",
+      "symbol": "AAPL"
+    },
+    {
+      "detail": "Recall notice",
+      "kind": "news_material",
+      "severity": "critical",
+      "symbol": "TSLA"
+    }
+  ],
+  "endpoint": "pi/alerts",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

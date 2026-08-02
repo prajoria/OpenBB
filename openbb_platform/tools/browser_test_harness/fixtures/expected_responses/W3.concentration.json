@@ -1,0 +1,12 @@
+{
+  "body": {
+    "label": "HHI (0..1; higher = more concentrated)",
+    "note": "demo book",
+    "value": 0.2374
+  },
+  "endpoint": "pi/concentration",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

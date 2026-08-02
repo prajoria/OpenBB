@@ -1,0 +1,8 @@
+{
+  "body": "## Execute Bridge: READY\n\nVerdict gate: **PASS** \u2014 bridge ready to submit.\n\n> Real broker submission is #1719. This scaffold enforces the gate; a user's explicit confirm will trigger the real bridge.",
+  "endpoint": "tt/execute/bridge",
+  "params": {
+    "verdict": "PASS"
+  },
+  "status_code": 200
+}

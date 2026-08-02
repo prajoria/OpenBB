@@ -1,0 +1,77 @@
+{
+  "body": [
+    {
+      "metric": "Market Cap",
+      "value": "$3.47T"
+    },
+    {
+      "metric": "P/E (TTM)",
+      "value": 32.1
+    },
+    {
+      "metric": "Forward P/E",
+      "value": 29.4
+    },
+    {
+      "metric": "EV/EBITDA",
+      "value": 24.8
+    },
+    {
+      "metric": "P/S (TTM)",
+      "value": 8.7
+    },
+    {
+      "metric": "EPS (TTM)",
+      "value": 6.51
+    },
+    {
+      "metric": "Revenue (FY)",
+      "value": "$391B"
+    },
+    {
+      "metric": "Net Income (FY)",
+      "value": "$93B"
+    },
+    {
+      "metric": "Shares Float",
+      "value": "15.2B"
+    },
+    {
+      "metric": "Short Interest",
+      "value": "0.68%"
+    },
+    {
+      "metric": "Insider Ownership",
+      "value": "0.07%"
+    },
+    {
+      "metric": "Beta (1Y)",
+      "value": 1.2
+    },
+    {
+      "metric": "Dividend Yield",
+      "value": "0.42%"
+    },
+    {
+      "metric": "Volume (today)",
+      "value": "48M"
+    },
+    {
+      "metric": "Volume (30d avg)",
+      "value": "52M"
+    },
+    {
+      "metric": "Next Earnings",
+      "value": "2026-07-25 (Q3 2026)"
+    },
+    {
+      "metric": "Symbol",
+      "value": "AAPL"
+    }
+  ],
+  "endpoint": "pi/equity/key-stats",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}
