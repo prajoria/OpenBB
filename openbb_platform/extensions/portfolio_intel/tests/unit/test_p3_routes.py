@@ -28,6 +28,18 @@ D = Decimal
 NOW = datetime(2026, 7, 20, 12, 0, 0, tzinfo=timezone.utc)
 
 
+@pytest.fixture(autouse=True)
+def _pin_news_timeline_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin news_sentiment_router._now to NOW (#1716 fix).
+
+    Without this, tests that stub news/filing rows at ``NOW - timedelta(...)``
+    are silently dropped by the router's ``days_back`` window once wall-clock
+    time drifts past ``NOW + days_back``. The router injects ``_now()`` as a
+    seam specifically so tests pin it deterministically.
+    """
+    monkeypatch.setattr(news_sentiment_router, "_now", lambda: NOW)
+
+
 # ---------------------------------------------------------------------------
 # #572 news timeline
 # ---------------------------------------------------------------------------
@@ -135,9 +147,7 @@ def _stub_pt(target):
 
 
 def _stub_consensus(rating, count):
-    return _StubResp(
-        [SimpleNamespace(consensus_rating=rating, analyst_count=count)]
-    )
+    return _StubResp([SimpleNamespace(consensus_rating=rating, analyst_count=count)])
 
 
 def test_sentiment_rollup_computes_weighted_rating(monkeypatch) -> None:
@@ -251,9 +261,13 @@ def test_backtest_live_hands_off_when_endpoint_present(monkeypatch) -> None:
 
     def _endpoint(**kw):
         calls.update(kw)
-        return SimpleNamespace(results=SimpleNamespace(model_dump=lambda: {"sharpe": 1.2}))
+        return SimpleNamespace(
+            results=SimpleNamespace(model_dump=lambda: {"sharpe": 1.2})
+        )
 
-    monkeypatch.setattr(backtest_router, "_resolve_backtest_endpoint", lambda: _endpoint)
+    monkeypatch.setattr(
+        backtest_router, "_resolve_backtest_endpoint", lambda: _endpoint
+    )
     result = backtest_router.run(
         basket=[{"symbol": "AAPL", "weight": 1.0}],
         start=date(2025, 1, 1),
@@ -269,7 +283,9 @@ def test_backtest_live_handoff_exception_downgrades_to_stub(monkeypatch) -> None
     def _endpoint(**kw):
         raise RuntimeError("upstream 500")
 
-    monkeypatch.setattr(backtest_router, "_resolve_backtest_endpoint", lambda: _endpoint)
+    monkeypatch.setattr(
+        backtest_router, "_resolve_backtest_endpoint", lambda: _endpoint
+    )
     result = backtest_router.run(
         basket=[{"symbol": "AAPL", "weight": 1.0}],
         start=date(2025, 1, 1),
@@ -346,17 +362,13 @@ def test_paper_alerts_fills_produce_info_alerts(monkeypatch) -> None:
         account_id="a1", cash_balance=D("50000"), starting_cash=D("100000")
     )
     monkeypatch.setattr(paper_alerts_router, "_resolve_principal", lambda: "daisy")
-    monkeypatch.setattr(
-        paper_alerts_router, "_default_ledger_store", lambda: ledger
-    )
+    monkeypatch.setattr(paper_alerts_router, "_default_ledger_store", lambda: ledger)
     monkeypatch.setattr(
         paper_alerts_router,
         "_default_account_store",
         lambda: _StubAccountStore(account=acct),
     )
-    result = paper_alerts_router.alerts(
-        account_id="a1", since_seconds=3600
-    ).results
+    result = paper_alerts_router.alerts(account_id="a1", since_seconds=3600).results
     fill_alerts = [a for a in result.alerts if "filled" in a.message.lower()]
     assert len(fill_alerts) == 1
     assert fill_alerts[0].severity == "info"
@@ -434,9 +446,7 @@ def test_paper_alerts_gtc_expiring_within_horizon(monkeypatch) -> None:
         "_default_account_store",
         lambda: _StubAccountStore(account=acct),
     )
-    result = paper_alerts_router.alerts(
-        account_id="a1", gtc_horizon_days=3
-    ).results
+    result = paper_alerts_router.alerts(account_id="a1", gtc_horizon_days=3).results
     expiring = [a for a in result.alerts if "expires" in a.message]
     assert len(expiring) == 1
     assert expiring[0].symbol == "AAPL"

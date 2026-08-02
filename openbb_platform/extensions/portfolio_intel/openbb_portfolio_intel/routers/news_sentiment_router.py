@@ -80,6 +80,17 @@ def _fetch_news_company(symbol: str, *, provider: str | None):
     return obb.news.company(symbol=symbol, provider=provider)
 
 
+def _now() -> datetime:
+    """Wall-clock 'now' seam — monkeypatch in tests to pin the reference time.
+
+    Fixes #1716: tests that stub news/filing rows with a fixed ``NOW`` need
+    to pin ``now`` too or the router's real-clock ``days_back`` window
+    drops them as stale. Keeping it as a module-level function makes the
+    injection uniform with ``_fetch_news_company`` / ``_fetch_filings``.
+    """
+    return datetime.now(tz=timezone.utc)
+
+
 def _fetch_filings(symbol: str, *, provider: str | None):
     from openbb import obb  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
 
@@ -142,7 +153,7 @@ def _iso(v: Any) -> str:
         PythonEx(
             description="Merged news + 8-K stream for a two-symbol basket.",
             code=[
-                'obb.portfolio_intel.news.timeline('
+                "obb.portfolio_intel.news.timeline("
                 'basket=[{"symbol":"AAPL","weight":0.5},{"symbol":"MSFT","weight":0.5}],'
                 'severity="info", days_back=7)',
             ],
@@ -174,7 +185,7 @@ def timeline(
     sev_floor = _SEVERITY_RANK.get(severity.lower(), 1)
     warnings: list[str] = []
 
-    now = datetime.now(tz=timezone.utc)
+    now = _now()
     since = now - timedelta(days=days_back)
     items: list[NewsItem] = []
 
@@ -255,7 +266,9 @@ def timeline(
 # ---------------------------------------------------------------------------
 
 
-def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> AnalystSnapshot:
+def _snapshot_for(
+    symbol: str, weight: Decimal, *, provider: str | None
+) -> AnalystSnapshot:
     """Compose an AnalystSnapshot from three provider fetches, all optional."""
     price: Decimal | None = None
     pt_median: Decimal | None = None
@@ -267,7 +280,7 @@ def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> Anal
             last = getattr(q[0], "last_price", None) or getattr(q[0], "price", None)
             if last is not None:
                 price = Decimal(str(last))
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     try:
         pt = _rows(_fetch_price_target(symbol, provider=provider))
@@ -276,7 +289,9 @@ def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> Anal
         # that row's target.
         if pt:
             targets = [
-                Decimal(str(getattr(r, "price_target", None) or getattr(r, "target", 0)))
+                Decimal(
+                    str(getattr(r, "price_target", None) or getattr(r, "target", 0))
+                )
                 for r in pt
                 if (getattr(r, "price_target", None) or getattr(r, "target", None))
             ]
@@ -288,7 +303,7 @@ def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> Anal
                     if len(targets) % 2 == 1
                     else (targets[mid - 1] + targets[mid]) / Decimal(2)
                 )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     try:
         cons = _rows(_fetch_consensus(symbol, provider=provider))
@@ -303,7 +318,7 @@ def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> Anal
                 row, "number_of_analysts", 0
             )
             analyst_count = int(n) if n else 0
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     return AnalystSnapshot(
         symbol=symbol,
@@ -321,7 +336,7 @@ def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> Anal
         PythonEx(
             description="Portfolio-wide sentiment rollup with per-holding breakdown.",
             code=[
-                'obb.portfolio_intel.sentiment.rollup('
+                "obb.portfolio_intel.sentiment.rollup("
                 'basket=[{"symbol":"AAPL","weight":0.5},{"symbol":"MSFT","weight":0.5}])',
             ],
         )
