@@ -1,0 +1,186 @@
+name: Browser Test Harness
+
+# EPIC #1721. Closes #1713 (Real Playwright + Workspace-in-CI) via B7.
+#
+# Runs the standalone HTTP-only harness on every PR to portfolio — covers
+# 16 portfolio + 12 techtrade steps, ~30s per run. Workspace (Playwright)
+# mode is workflow_dispatch-only until a Workspace deployment target is
+# chosen (see #1713).
+
+on:
+  pull_request:
+    branches:
+      - portfolio
+      - develop
+    paths:
+      - "openbb_platform/tools/browser_test_harness/**"
+      - "openbb_platform/extensions/portfolio_intel/**"
+      - ".github/workflows/browser-test-harness.yml"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Harness mode"
+        required: true
+        default: "standalone"
+        type: choice
+        options:
+          - standalone
+          - workspace
+      workspace_mode:
+        description: "Workspace attach mode (only if mode=workspace)"
+        required: false
+        default: "persistent-context"
+        type: choice
+        options:
+          - persistent-context
+          - cdp-attach
+
+concurrency:
+  group: browser-harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  standalone-harness:
+    name: Standalone harness — ${{ matrix.story }} story
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.inputs.mode == 'standalone'
+    strategy:
+      fail-fast: false
+      matrix:
+        story: [portfolio, techtrade]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install widget_backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # portfolio_intel extension (widget_backend server we spawn)
+          pip install -e openbb_platform/core
+          pip install -e openbb_platform/extensions/portfolio_intel
+          # harness itself
+          pip install -e openbb_platform/tools/browser_test_harness/
+
+      - name: Run unit tests
+        working-directory: openbb_platform/tools/browser_test_harness
+        env:
+          # Clean parent env — no PI_WIDGET_BACKEND_* set — so the harness's
+          # own auth-safety check (P0-3) doesn't refuse to run.
+          PI_WIDGET_BACKEND_AUTH_MODE: ""
+          PI_WIDGET_BACKEND_TOKEN: ""
+        run: pytest tests/ -v --tb=short
+
+      - name: Run ${{ matrix.story }} story (standalone mode)
+        env:
+          PI_WIDGET_BACKEND_AUTH_MODE: ""
+          PI_WIDGET_BACKEND_TOKEN: ""
+        run: |
+          python -m openbb_browser_test_harness.run \
+            --story ${{ matrix.story }} \
+            --mode standalone \
+            --out .dev-cycle/browser-harness-report-${{ matrix.story }}
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-harness-report-${{ matrix.story }}-${{ github.run_id }}
+          path: .dev-cycle/browser-harness-report-${{ matrix.story }}/
+          retention-days: 14
+
+  fixture-drift-check:
+    name: Fixture staleness enforcement
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e openbb_platform/core
+          pip install -e openbb_platform/extensions/portfolio_intel
+          pip install -e openbb_platform/tools/browser_test_harness/
+
+      - name: Run live fixture-drift check
+        working-directory: openbb_platform/tools/browser_test_harness
+        env:
+          BROWSER_HARNESS_LIVE: "1"
+          PI_WIDGET_BACKEND_AUTH_MODE: ""
+          PI_WIDGET_BACKEND_TOKEN: ""
+        run: |
+          pytest tests/test_fixtures_are_current.py -v --tb=short
+
+  workspace-harness:
+    name: Workspace harness (Playwright)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'workspace'
+    strategy:
+      fail-fast: false
+      matrix:
+        story: [portfolio, techtrade]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies + Playwright chromium
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e openbb_platform/core
+          pip install -e openbb_platform/extensions/portfolio_intel
+          pip install -e "openbb_platform/tools/browser_test_harness/[workspace]"
+          python -m playwright install --with-deps chromium
+
+      - name: Warn about Workspace-in-CI target
+        run: |
+          echo "::warning::Workspace mode currently launches Chromium against"
+          echo "::warning::pro.openbb.co with no cookies (persistent-context is empty"
+          echo "::warning::on a fresh runner) — expect the run to fail at the login gate."
+          echo "::warning::A Workspace deployment target (self-hosted Docker /"
+          echo "::warning::OpenBB-hosted preview) is the last piece needed to close #1713."
+
+      - name: Run ${{ matrix.story }} story (workspace mode)
+        env:
+          PI_WIDGET_BACKEND_AUTH_MODE: ""
+          PI_WIDGET_BACKEND_TOKEN: ""
+        run: |
+          python -m openbb_browser_test_harness.run \
+            --story ${{ matrix.story }} \
+            --mode workspace \
+            --workspace-mode ${{ github.event.inputs.workspace_mode }} \
+            --out .dev-cycle/browser-harness-workspace-${{ matrix.story }}
+        continue-on-error: true
+
+      - name: Upload workspace report + screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-harness-workspace-${{ matrix.story }}-${{ github.run_id }}
+          path: |
+            .dev-cycle/browser-harness-workspace-${{ matrix.story }}/
+            openbb_platform/tools/browser_test_harness/guides/screenshots/
+          retention-days: 14
