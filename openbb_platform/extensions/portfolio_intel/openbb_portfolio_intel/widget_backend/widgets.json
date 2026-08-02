@@ -671,5 +671,63 @@
     "params": [
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
     ]
+  },
+  "tt_validation_verdict": {
+    "name": "Techtrade — Validation Verdict",
+    "description": "PBO / DSR / OOS Sharpe + PASS/FAIL verdict badge (#1697). Stub-shaped over openbb_techtrade.engine.validate_router.",
+    "category": "Techtrade",
+    "type": "table",
+    "endpoint": "tt/validation/verdict",
+    "gridData": { "w": 20, "h": 8 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "tt_tuning_report": {
+    "name": "Techtrade — Tuning Report",
+    "description": "tuneta proposal + per-param validate gate (#1698). Persist behavior is stub-only. Stub-shaped over openbb_techtrade.engine.tune_router.",
+    "category": "Techtrade",
+    "type": "table",
+    "endpoint": "tt/tuning/report",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "tt_audit_journal": {
+    "name": "Techtrade — Audit Journal",
+    "description": "Replay vs forward P&L + deviation (bps) per bar (#1699). Stub-shaped over openbb_techtrade.reporting.audit.",
+    "category": "Techtrade",
+    "type": "table",
+    "endpoint": "tt/audit/journal",
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "tt_engine_status": {
+    "name": "Techtrade — Engine Status",
+    "description": "Scheduler / signal / execution engine state (#1700). Stub-shaped over openbb_techtrade.engine.status.",
+    "category": "Techtrade",
+    "type": "markdown",
+    "endpoint": "tt/engine/status",
+    "gridData": { "w": 20, "h": 8 },
+    "source": "portfolio-intel",
+    "params": []
+  },
+  "tt_execute_bridge": {
+    "name": "Techtrade — Execute Bridge",
+    "description": "Verdict-gated execute readiness scaffold (#1700 T5). Real broker submission is #1719.",
+    "category": "Techtrade",
+    "type": "markdown",
+    "endpoint": "tt/execute/bridge",
+    "gridData": { "w": 20, "h": 8 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "verdict", "value": "PASS", "label": "Verdict", "type": "text", "description": "PASS or FAIL", "options": [ { "value": "PASS", "label": "PASS" }, { "value": "FAIL", "label": "FAIL" } ] }
+    ]
   }
 }
