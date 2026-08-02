@@ -33,6 +33,7 @@ from .chain import (
 )
 from .probe import TierHealth, probe_tier
 from .registry import TIER_REGISTRY, TierList, track_key
+from .retrofit import register_tier_call, route_through_chain, with_chain
 
 __all__ = [
     "ChainedFetcher",
@@ -43,5 +44,8 @@ __all__ = [
     "TierList",
     "Trigger",
     "probe_tier",
+    "register_tier_call",
+    "route_through_chain",
     "track_key",
+    "with_chain",
 ]
