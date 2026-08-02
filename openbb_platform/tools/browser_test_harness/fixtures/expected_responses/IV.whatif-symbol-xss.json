@@ -1,0 +1,11 @@
+{
+  "body": {
+    "detail": "symbol must match [A-Z0-9.\\-]{1,10}; got '<script>' (rejected before markdown formatting)"
+  },
+  "endpoint": "pi/whatif",
+  "params": {
+    "delta_shares": "10",
+    "symbol": "<script>"
+  },
+  "status_code": 400
+}

@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "verdict must be PASS or FAIL; got ''"
+  },
+  "endpoint": "tt/execute/bridge",
+  "params": {
+    "verdict": ""
+  },
+  "status_code": 400
+}

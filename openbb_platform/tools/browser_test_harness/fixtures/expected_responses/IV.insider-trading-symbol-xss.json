@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "pi/equity/insider-trading",
+  "params": {
+    "symbol": "A\"'>onload=1"
+  },
+  "status_code": 400
+}

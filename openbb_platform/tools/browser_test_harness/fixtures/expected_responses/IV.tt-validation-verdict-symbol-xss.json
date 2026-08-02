@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "tt/validation/verdict",
+  "params": {
+    "symbol": "<img onerror=1>"
+  },
+  "status_code": 400
+}

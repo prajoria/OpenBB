@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "verdict must be PASS or FAIL; got '<script>PASS</script>'"
+  },
+  "endpoint": "tt/execute/bridge",
+  "params": {
+    "verdict": "<script>PASS</script>"
+  },
+  "status_code": 400
+}

@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "tt/position/order-legs",
+  "params": {
+    "symbol": "NNNNNNNNNNN"
+  },
+  "status_code": 400
+}

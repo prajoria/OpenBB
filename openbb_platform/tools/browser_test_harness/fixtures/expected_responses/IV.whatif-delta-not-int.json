@@ -1,0 +1,9 @@
+{
+  "body": "**What-If (invalid input)**\n\n`delta_shares` is not an integer.",
+  "endpoint": "pi/whatif",
+  "params": {
+    "delta_shares": "1.5",
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

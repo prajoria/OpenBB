@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "tt/position/signal-card",
+  "params": {
+    "symbol": "<script>alert(1)</script>"
+  },
+  "status_code": 400
+}
