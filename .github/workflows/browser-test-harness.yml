@@ -63,8 +63,11 @@ jobs:
       - name: Install widget_backend dependencies
         run: |
           python -m pip install --upgrade pip
-          # portfolio_intel extension (widget_backend server we spawn)
+          # openbb_backtest is a hard runtime dep of portfolio_intel
+          # (Broker Protocol at module-load). Install editable BEFORE
+          # portfolio_intel so PyPI resolution doesn't get triggered.
           pip install -e openbb_platform/core
+          pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
           # harness itself
           pip install -e openbb_platform/tools/browser_test_harness/
@@ -115,6 +118,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e openbb_platform/core
+          pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
           pip install -e openbb_platform/tools/browser_test_harness/
 
@@ -151,6 +155,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e openbb_platform/core
+          pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
           pip install -e "openbb_platform/tools/browser_test_harness/[workspace]"
           python -m playwright install --with-deps chromium
