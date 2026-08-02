@@ -622,5 +622,54 @@
     "params": [
       { "paramName": "basket_id", "value": "demo", "label": "Basket ID", "type": "text", "description": "Named basket (demo only until #1714 lands)" }
     ]
+  },
+  "tt_signal_card": {
+    "name": "Techtrade — Signal Card",
+    "description": "Active signal summary for a symbol (#1696). Stub-shaped over openbb_techtrade.engine.signal_router.",
+    "category": "Techtrade",
+    "type": "markdown",
+    "endpoint": "tt/position/signal-card",
+    "gridData": { "w": 15, "h": 8 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "tt_plan_card": {
+    "name": "Techtrade — Plan Card",
+    "description": "Trading plan (entry, stop, target, R:R, sizing) (#1696). Stub-shaped over openbb_techtrade.engine.plan_router.",
+    "category": "Techtrade",
+    "type": "markdown",
+    "endpoint": "tt/position/plan-card",
+    "gridData": { "w": 15, "h": 8 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "tt_order_legs": {
+    "name": "Techtrade — Order Legs",
+    "description": "Proposed order legs (entry, stop, target) with side/qty/price (#1696). Stub-shaped over openbb_techtrade.execution.order_builder.",
+    "category": "Techtrade",
+    "type": "table",
+    "endpoint": "tt/position/order-legs",
+    "gridData": { "w": 30, "h": 8 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
+  },
+  "tt_simulate_result": {
+    "name": "Techtrade — Simulated P&L",
+    "description": "Simulated P&L trajectory over the plan horizon (#1696). Stub-shaped over openbb_techtrade.engine.simulate_router.",
+    "category": "Techtrade",
+    "type": "chart",
+    "endpoint": "tt/position/simulate",
+    "raw": true,
+    "gridData": { "w": 30, "h": 10 },
+    "source": "portfolio-intel",
+    "params": [
+      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+    ]
   }
 }
