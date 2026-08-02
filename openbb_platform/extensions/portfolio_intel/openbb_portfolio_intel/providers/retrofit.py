@@ -34,12 +34,11 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from openbb_portfolio_intel.providers import (
-    TIER_REGISTRY,
+from openbb_portfolio_intel.providers.chain import (
     ChainedFetcher,
     ChainedFetcherAllTiersFailed,
-    track_key,
 )
+from openbb_portfolio_intel.providers.registry import TIER_REGISTRY, track_key
 
 logger = logging.getLogger(__name__)
 
