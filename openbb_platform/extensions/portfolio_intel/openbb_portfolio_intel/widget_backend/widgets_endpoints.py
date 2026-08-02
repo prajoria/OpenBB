@@ -28,6 +28,7 @@ from openbb_portfolio_intel.providers.registry import (
     TRACK_A_DEFAULT,
     TRACK_B_DEFAULT,
 )
+from openbb_portfolio_intel.providers.retrofit import with_chain
 from openbb_portfolio_intel.widget_backend._app import app
 from openbb_portfolio_intel.widget_backend._shared import (
     _SYMBOL_RE,
@@ -42,6 +43,27 @@ logger = logging.getLogger(__name__)
 # and _validate_account) keep working without a global rename.
 _require_auth = require_auth
 _validate_account = validate_account
+
+
+# ---------------------------------------------------------------------------
+# Provider-chain ledger (#1715)
+# ---------------------------------------------------------------------------
+
+# Endpoint -> currently-active tier ledger. Populated by @with_chain
+# decorators (retrofit); read by provider_health() to render "which tier
+# is serving endpoint X". Kept at module scope so decorators applied to
+# endpoint functions defined below can reference it lazily.
+_TIER_IN_USE: dict[str, str] = {}
+
+
+def record_tier_used(endpoint: str, tier: str) -> None:
+    """Update the tier-in-use ledger.
+
+    Called by the ChainedFetcher wiring after every successful fetch so
+    the provider-health widget can render "endpoint X: currently served
+    by tier Y". Kept module-level so the retrofit sites are one-liners.
+    """
+    _TIER_IN_USE[endpoint] = tier
 
 
 # ---------------------------------------------------------------------------
@@ -622,6 +644,11 @@ def _validate_symbol(symbol: str) -> str:
 
 
 @app.get("/pi/equity/header")
+@with_chain(
+    endpoint="pi/equity/header",
+    family="equity/header",
+    record_tier_used=record_tier_used,
+)
 def equity_header(request: Request, symbol: str = "AAPL") -> str:
     """Equity Profile section 1 — header + live price ticker (markdown)."""
     _require_auth(request)
@@ -640,6 +667,11 @@ def equity_header(request: Request, symbol: str = "AAPL") -> str:
 
 
 @app.get("/pi/equity/key-stats")
+@with_chain(
+    endpoint="pi/equity/key-stats",
+    family="equity/key-stats",
+    record_tier_used=record_tier_used,
+)
 def equity_key_stats(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -668,6 +700,11 @@ def equity_key_stats(
 
 
 @app.get("/pi/equity/financials")
+@with_chain(
+    endpoint="pi/equity/financials",
+    family="equity/financials",
+    record_tier_used=record_tier_used,
+)
 def equity_financials(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, float | str]]:
@@ -689,6 +726,11 @@ def equity_financials(
 
 
 @app.get("/pi/equity/technicals")
+@with_chain(
+    endpoint="pi/equity/technicals",
+    family="equity/technicals",
+    record_tier_used=record_tier_used,
+)
 def equity_technicals(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -714,6 +756,11 @@ def equity_technicals(
 
 
 @app.get("/pi/equity/analyst-forecasts")
+@with_chain(
+    endpoint="pi/equity/analyst-forecasts",
+    family="equity/analyst-forecasts",
+    record_tier_used=record_tier_used,
+)
 def equity_analyst_forecasts(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -861,6 +908,11 @@ def equity_analyst_forecasts(
 
 
 @app.get("/pi/equity/complementary")
+@with_chain(
+    endpoint="pi/equity/complementary",
+    family="equity/complementary",
+    record_tier_used=record_tier_used,
+)
 def equity_complementary(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -907,6 +959,11 @@ def equity_complementary(
 
 
 @app.get("/pi/equity/competitors")
+@with_chain(
+    endpoint="pi/equity/competitors",
+    family="equity/competitors",
+    record_tier_used=record_tier_used,
+)
 def equity_competitors(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -998,6 +1055,11 @@ def _demo_ohlc_series(symbol: str, days: int = 20) -> list[dict]:
 
 
 @app.get("/pi/equity/price-history")
+@with_chain(
+    endpoint="pi/equity/price-history",
+    family="equity/price-history",
+    record_tier_used=record_tier_used,
+)
 def equity_price_history(
     request: Request,
     symbol: str = "AAPL",
@@ -1061,6 +1123,11 @@ def equity_price_history(
 
 
 @app.get("/pi/equity/price-performance")
+@with_chain(
+    endpoint="pi/equity/price-performance",
+    family="equity/price-performance",
+    record_tier_used=record_tier_used,
+)
 def equity_price_performance(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -1082,6 +1149,11 @@ def equity_price_performance(
 
 
 @app.get("/pi/equity/management-team")
+@with_chain(
+    endpoint="pi/equity/management-team",
+    family="equity/management-team",
+    record_tier_used=record_tier_used,
+)
 def equity_management_team(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | None]]:
@@ -1124,6 +1196,11 @@ def equity_management_team(
 
 
 @app.get("/pi/equity/revenue-geography")
+@with_chain(
+    endpoint="pi/equity/revenue-geography",
+    family="equity/revenue-geography",
+    record_tier_used=record_tier_used,
+)
 def equity_revenue_geography(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -1141,6 +1218,11 @@ def equity_revenue_geography(
 
 
 @app.get("/pi/equity/revenue-business-line")
+@with_chain(
+    endpoint="pi/equity/revenue-business-line",
+    family="equity/revenue-business-line",
+    record_tier_used=record_tier_used,
+)
 def equity_revenue_business_line(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -1166,6 +1248,11 @@ def equity_revenue_business_line(
 
 
 @app.get("/pi/equity/institutional-ownership")
+@with_chain(
+    endpoint="pi/equity/institutional-ownership",
+    family="equity/institutional-ownership",
+    record_tier_used=record_tier_used,
+)
 def equity_institutional_ownership(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | int]]:
@@ -1183,6 +1270,11 @@ def equity_institutional_ownership(
 
 
 @app.get("/pi/equity/stock-ownership")
+@with_chain(
+    endpoint="pi/equity/stock-ownership",
+    family="equity/stock-ownership",
+    record_tier_used=record_tier_used,
+)
 def equity_stock_ownership(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -1199,6 +1291,11 @@ def equity_stock_ownership(
 
 
 @app.get("/pi/equity/insider-trading")
+@with_chain(
+    endpoint="pi/equity/insider-trading",
+    family="equity/insider-trading",
+    record_tier_used=record_tier_used,
+)
 def equity_insider_trading(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | int]]:
@@ -1239,6 +1336,11 @@ def equity_insider_trading(
 
 
 @app.get("/pi/equity/earnings-history")
+@with_chain(
+    endpoint="pi/equity/earnings-history",
+    family="equity/earnings-history",
+    record_tier_used=record_tier_used,
+)
 def equity_earnings_history(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -1281,6 +1383,11 @@ def equity_earnings_history(
 
 
 @app.get("/pi/equity/stock-splits")
+@with_chain(
+    endpoint="pi/equity/stock-splits",
+    family="equity/stock-splits",
+    record_tier_used=record_tier_used,
+)
 def equity_stock_splits(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | int]]:
@@ -1298,6 +1405,11 @@ def equity_stock_splits(
 
 
 @app.get("/pi/equity/dividend-payment")
+@with_chain(
+    endpoint="pi/equity/dividend-payment",
+    family="equity/dividend-payment",
+    record_tier_used=record_tier_used,
+)
 def equity_dividend_payment(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -1314,6 +1426,11 @@ def equity_dividend_payment(
 
 
 @app.get("/pi/equity/company-filings")
+@with_chain(
+    endpoint="pi/equity/company-filings",
+    family="equity/company-filings",
+    record_tier_used=record_tier_used,
+)
 def equity_company_filings(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str]]:
@@ -1351,6 +1468,11 @@ def equity_company_filings(
 
 
 @app.get("/pi/equity/earnings-transcripts")
+@with_chain(
+    endpoint="pi/equity/earnings-transcripts",
+    family="equity/earnings-transcripts",
+    record_tier_used=record_tier_used,
+)
 def equity_earnings_transcripts(request: Request, symbol: str = "AAPL") -> str:
     """Return Earnings Transcript preview (#1667) — latest call summary (markdown)."""
     _require_auth(request)
@@ -1368,6 +1490,11 @@ def equity_earnings_transcripts(request: Request, symbol: str = "AAPL") -> str:
 
 
 @app.get("/pi/equity/price-target-history")
+@with_chain(
+    endpoint="pi/equity/price-target-history",
+    family="equity/price-target-history",
+    record_tier_used=record_tier_used,
+)
 def equity_price_target_history(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -1390,6 +1517,11 @@ def equity_price_target_history(
 
 
 @app.get("/pi/equity/statements")
+@with_chain(
+    endpoint="pi/equity/statements",
+    family="equity/statements",
+    record_tier_used=record_tier_used,
+)
 def equity_statements(
     request: Request, symbol: str = "AAPL", period: str = "annual"
 ) -> list[dict[str, str | float]]:
@@ -1441,6 +1573,11 @@ def equity_statements(
 
 
 @app.get("/pi/equity/charting")
+@with_chain(
+    endpoint="pi/equity/charting",
+    family="charting",
+    record_tier_used=record_tier_used,
+)
 def equity_charting(
     request: Request, symbol: str = "AAPL", window: str = "3M"
 ) -> list[dict[str, str | float]]:
@@ -1489,6 +1626,11 @@ def equity_charting(
 
 
 @app.get("/pi/equity/peer-multiples")
+@with_chain(
+    endpoint="pi/equity/peer-multiples",
+    family="equity/peer-multiples",
+    record_tier_used=record_tier_used,
+)
 def equity_peer_multiples(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
@@ -1656,23 +1798,11 @@ _EXC_NOTE_MAP: dict[str, str] = {
 # Value: dict with 'tiers' (list[TierHealth]) and 'checked_at' timestamp.
 # 60s TTL per spec §3 T12.1.
 _PROVIDER_HEALTH_CACHE: dict[str, dict[str, object]] = {}
+# In-memory cache for provider-health probe results. Keys: track name (A/B).
+# Value: dict with 'tiers' (list[TierHealth]) and 'checked_at' timestamp.
+# 60s TTL per spec §3 T12.1.
+_PROVIDER_HEALTH_CACHE: dict[str, dict[str, object]] = {}
 _PROVIDER_HEALTH_TTL_S: float = 60.0
-
-# Endpoint -> currently-active tier ledger (#1715). Populated by the
-# ChainedFetcher callback the retrofit will wire up; read here to render
-# "which tier is serving endpoint X" per §3 T12.1. Empty at boot ==
-# nothing has fetched yet, and provider_health renders tier status only.
-_TIER_IN_USE: dict[str, str] = {}
-
-
-def record_tier_used(endpoint: str, tier: str) -> None:
-    """Update the tier-in-use ledger.
-
-    Called by the ChainedFetcher wiring after every successful fetch so
-    the provider-health widget can render "endpoint X: currently served
-    by tier Y". Kept module-level so the retrofit sites are one-liners.
-    """
-    _TIER_IN_USE[endpoint] = tier
 
 
 def _cached_health(track: str) -> list | None:
