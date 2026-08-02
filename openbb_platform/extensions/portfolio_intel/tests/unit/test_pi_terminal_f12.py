@@ -189,7 +189,8 @@ def test_basket_consensus_demo_returns_rows() -> None:
 
 def test_non_demo_basket_id_returns_422() -> None:
     """P1-7 fix: non-demo basket_id returns 422 with a follow-up pointer,
-    never demo rows disguised with a marker note."""
+    never demo rows disguised with a marker note.
+    """
     r = _client.get("/pi/equity/basket-analyst-consensus?basket_id=real_book")
     assert (
         r.status_code == 422
@@ -233,7 +234,8 @@ def test_guided_tour_steps_are_ordered_W0_to_W9() -> None:
 
 def test_every_step_tab_exists() -> None:
     """P1-6 mutation named test: renaming a tab in the tour manifest fails
-    here because the resolver returns None."""
+    here because the resolver returns None.
+    """
     term_tabs = set(_terminal_app().get("tabs", {}).keys())
     for step in _tour().get("steps", []):
         tab_id = step.get("tab")
@@ -260,7 +262,8 @@ def test_every_step_focuswidget_exists() -> None:
 
 def test_tour_substitute_every_step_tab_has_nonblank_layout() -> None:
     """#1689 substitute (real Playwright follow-up #1713) — every step's
-    tab has non-empty layout so a Workspace render won't blank."""
+    tab has non-empty layout so a Workspace render won't blank.
+    """
     term = _terminal_app()
     tabs = term.get("tabs", {})
     for step in _tour().get("steps", []):
@@ -271,7 +274,8 @@ def test_tour_substitute_every_step_tab_has_nonblank_layout() -> None:
 
 def test_tour_substitute_focuswidget_is_present_on_its_tab() -> None:
     """#1689 substitute — the focused widget must be on the tab it targets,
-    else Workspace can't scroll/highlight it."""
+    else Workspace can't scroll/highlight it.
+    """
     tabs = _terminal_app().get("tabs", {})
     for step in _tour().get("steps", []):
         tab_id = step["tab"]

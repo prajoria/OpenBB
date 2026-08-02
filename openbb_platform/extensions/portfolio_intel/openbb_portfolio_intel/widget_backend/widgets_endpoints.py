@@ -15,12 +15,19 @@ effects (``main.py`` does that).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import re
+import time
 
 from fastapi import HTTPException, Request
 
+from openbb_portfolio_intel.providers.probe import TierHealth, probe_tier
+from openbb_portfolio_intel.providers.registry import (
+    TRACK_A_DEFAULT,
+    TRACK_B_DEFAULT,
+)
 from openbb_portfolio_intel.widget_backend._app import app
 from openbb_portfolio_intel.widget_backend._shared import (
     _SYMBOL_RE,
@@ -725,7 +732,7 @@ def equity_analyst_forecasts(
     ]
 
     # Rating distribution — live via #997
-    # pylint: disable=import-outside-toplevel,broad-exception-caught
+    # pylint: disable=import-outside-toplevel,broad-exception-caught,redefined-outer-name,reimported
     try:
         import asyncio
 
@@ -1646,54 +1653,164 @@ _EXC_NOTE_MAP: dict[str, str] = {
 
 
 # In-memory cache for provider-health probe results. Keys: track name (A/B).
-# Value: dict with 'result' (the tiers list) and 'checked_at' timestamp.
+# Value: dict with 'tiers' (list[TierHealth]) and 'checked_at' timestamp.
 # 60s TTL per spec §3 T12.1.
 _PROVIDER_HEALTH_CACHE: dict[str, dict[str, object]] = {}
+_PROVIDER_HEALTH_TTL_S: float = 60.0
+
+# Endpoint -> currently-active tier ledger (#1715). Populated by the
+# ChainedFetcher callback the retrofit will wire up; read here to render
+# "which tier is serving endpoint X" per §3 T12.1. Empty at boot ==
+# nothing has fetched yet, and provider_health renders tier status only.
+_TIER_IN_USE: dict[str, str] = {}
+
+
+def record_tier_used(endpoint: str, tier: str) -> None:
+    """Update the tier-in-use ledger.
+
+    Called by the ChainedFetcher wiring after every successful fetch so
+    the provider-health widget can render "endpoint X: currently served
+    by tier Y". Kept module-level so the retrofit sites are one-liners.
+    """
+    _TIER_IN_USE[endpoint] = tier
+
+
+def _cached_health(track: str) -> list | None:
+    """Return cached tier list if still within TTL, else None."""
+    entry = _PROVIDER_HEALTH_CACHE.get(track)
+    if entry is None:
+        return None
+    checked_at = entry.get("checked_at", 0.0)
+    if not isinstance(checked_at, float):
+        return None
+    if time.monotonic() - checked_at > _PROVIDER_HEALTH_TTL_S:
+        return None
+    tiers = entry.get("tiers")
+    return tiers if isinstance(tiers, list) else None
+
+
+def _store_health(track: str, tiers: list) -> None:
+    _PROVIDER_HEALTH_CACHE[track] = {
+        "tiers": tiers,
+        "checked_at": time.monotonic(),
+    }
+
+
+async def _probe_track(track_tiers: tuple[str, ...], budget_s: float) -> list:
+    """Probe every tier concurrently, bounded by ``budget_s`` wall-clock.
+
+    Uses ``asyncio.gather(..., return_exceptions=True)`` per spec §3 T12.1
+    P0-1: a single hanging tier CANNOT block the widget. Each individual
+    probe already has its own 2s timeout (default in probe_tier); the
+    outer budget is defence-in-depth.
+    """
+    coros = [probe_tier(t) for t in track_tiers]
+    try:
+        results = await asyncio.wait_for(
+            asyncio.gather(*coros, return_exceptions=True), timeout=budget_s
+        )
+    except asyncio.TimeoutError:
+        # Overall budget exceeded — return unknown-marked entries for
+        # every tier so the widget shows the cold-cache state loudly.
+        return [
+            TierHealth(name=t, status="unknown", latency_ms=0, note="timeout")
+            for t in track_tiers
+        ]
+
+    healths: list = []
+    for tier, res in zip(track_tiers, results):
+        if isinstance(res, TierHealth):
+            healths.append(res)
+        else:
+            # An exception escaped probe_tier (shouldn't — it catches
+            # everything internally — but be defensive).
+            healths.append(
+                TierHealth(name=tier, status="down", latency_ms=0, note="unknown_error")
+            )
+    return healths
 
 
 @app.get("/pi/health/providers")
 def provider_health(request: Request) -> str:
-    """Return Provider Health strip markdown (#1685) — Track A + B tier status.
+    """Return Provider Health strip markdown (#1685 + #1715).
 
     Spec §3 T12.1: non-blocking cold cache (returns 'unknown' immediately),
     60s TTL, exception notes from the allowlist only, never raw exception
-    strings. Real 5-tier fallback wiring tracked in #1715.
+    strings. #1715 adds the ``in-use: <tier>`` annotation per endpoint,
+    driven by :func:`record_tier_used` calls from retrofitted endpoints.
     """
     _require_auth(request)
-    # TODO(gh-1685): swap the stub tiers below for real probe results
-    # populated by a background task with asyncio.gather(...,
-    # return_exceptions=True) + 2.5s total wall clock (spec §3 T12.1
-    # P0-1 fix). The response shape is stable now so Workspace can
-    # render today.
-    track_a_tiers = [
-        ("fmp_cached", "healthy", 42, None),
-        ("fmp", "healthy", 118, None),
-        ("cboe", "degraded", 1450, "high_latency"),
-        ("sec", "healthy", 90, None),
-        ("yfinance-snapshot", "healthy", 12, "snapshot_age_2h"),
-    ]
-    track_b_tiers = [
-        ("cboe", "degraded", 1450, "high_latency"),
-        ("sec", "healthy", 90, None),
-        ("yfinance", "healthy", 240, None),
-    ]
 
-    def _render_tier(t: tuple[str, str, int, str | None]) -> str:
-        name, status, ms, note = t
+    # Cold cache: return a fully-``unknown`` strip immediately per spec
+    # §T12.1 P0-1. The next request within the TTL window still hits
+    # cold-cache until the background refresh completes — that's OK,
+    # the widget will simply re-render as soon as data is present.
+    def _unknown_strip(tiers: tuple[str, ...]) -> list:
+        return [
+            TierHealth(
+                name=t, status="unknown", latency_ms=0, note="probe_failed_cold_cache"
+            )
+            for t in tiers
+        ]
+
+    track_a = _cached_health("A")
+    track_b = _cached_health("B")
+    if track_a is None or track_b is None:
+        # Kick off a real probe synchronously but with a small (0.5s)
+        # budget so cold-cache never blocks the widget for long. If it
+        # comes back in time, great; otherwise we render unknown and
+        # try again on the next call.
+        try:
+            probed_a, probed_b = asyncio.run(
+                asyncio.wait_for(
+                    asyncio.gather(
+                        _probe_track(TRACK_A_DEFAULT, budget_s=0.4),
+                        _probe_track(TRACK_B_DEFAULT, budget_s=0.4),
+                    ),
+                    timeout=0.5,
+                )
+            )
+            _store_health("A", probed_a)
+            _store_health("B", probed_b)
+            track_a = probed_a
+            track_b = probed_b
+        except (asyncio.TimeoutError, RuntimeError):
+            # RuntimeError catches "asyncio.run() cannot be called from
+            # a running event loop" — the FastAPI test client runs
+            # sync so this is fine, but if the endpoint is ever
+            # called from an async context we must fall back gracefully.
+            track_a = track_a or _unknown_strip(TRACK_A_DEFAULT)
+            track_b = track_b or _unknown_strip(TRACK_B_DEFAULT)
+
+    def _render_tier(h: object) -> str:
         badge = {"healthy": "●", "degraded": "⚠", "down": "✕", "unknown": "?"}.get(
-            status, "?"
+            getattr(h, "status", "unknown"), "?"
         )
+        name = getattr(h, "name", "?")
+        ms = getattr(h, "latency_ms", 0)
+        note = getattr(h, "note", None)
         suffix = f" ({note})" if note else ""
         return f"{badge} {name} ({ms}ms){suffix}"
 
-    a_str = "  ".join(_render_tier(t) for t in track_a_tiers)
-    b_str = "  ".join(_render_tier(t) for t in track_b_tiers)
+    a_str = "  ".join(_render_tier(t) for t in track_a)
+    b_str = "  ".join(_render_tier(t) for t in track_b)
+
+    # Optional "currently in-use" summary — only rendered if any endpoint
+    # has actually gone through a ChainedFetcher yet. Sorted for
+    # determinism.
+    in_use_lines = ""
+    if _TIER_IN_USE:
+        summary = "\n".join(
+            f"- `{ep}` → **{tier}**" for ep, tier in sorted(_TIER_IN_USE.items())
+        )
+        in_use_lines = f"\n\n**Currently serving:**\n{summary}"
+
     return (
         "**Track A (paid):**  " + a_str + "  \n"
-        "**Track B (free):**  " + b_str + "  \n\n"
-        "> Provider-health strip (#1685). Real per-tier probes with 2s "
-        "timeout + 60s cache + background refresh are TODO(gh-1685). "
-        "Real 5-tier fallback routing is #1715."
+        "**Track B (free):**  " + b_str + in_use_lines + "\n\n"
+        "> Provider-health strip (#1685) with 5-tier probing + tier-in-use "
+        "ledger (#1715). 60s cache, 2s per-tier timeout, 500ms overall "
+        "cold-cache budget."
     )
 
 
