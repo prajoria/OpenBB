@@ -32,8 +32,6 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from portfolio_snapshot_importer import get_default_store
-
 logger = logging.getLogger(__name__)
 
 
@@ -111,6 +109,18 @@ def resolve_basket(
 
     # basket_id ≡ user_id (for now — richer schemes tracked in follow-ups).
     if store is None:
+        # Deferred import: portfolio_snapshot_importer is optional at
+        # widget-backend install time (browser harness CI doesn't install
+        # it). Callers can always inject ``store=`` for tests.
+        try:
+            from portfolio_snapshot_importer import (  # noqa: PLC0415
+                get_default_store,
+            )
+        except ImportError as exc:
+            raise BasketNotFoundError(
+                f"portfolio_snapshot_importer is not installed; cannot "
+                f"resolve basket_id={basket_id!r} without an injected store"
+            ) from exc
         store = get_default_store()
 
     snap = store.latest_snapshot(basket_id)
