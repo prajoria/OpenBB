@@ -939,7 +939,8 @@
     "description": "Systematic-trader desk surface (F13, EPIC #1691). Morning Scan (T1) ships first; T2-T6 (Position Workbench, Validation, Tuning, Audit, Engine Status) land per-widget in follow-up cycles.",
     "allowCustomization": true,
     "params": {
-      "segment": ""
+      "segment": "",
+      "symbol": "AAPL"
     },
     "tabs": {
       "morning-scan": {
@@ -975,6 +976,60 @@
             "state": {
               "params": {
                 "segment": ""
+              }
+            }
+          }
+        ]
+      },
+      "position-workbench": {
+        "id": "position-workbench",
+        "name": "T2: Position Workbench",
+        "layout": [
+          {
+            "i": "tt_signal_card",
+            "x": 0,
+            "y": 0,
+            "w": 15,
+            "h": 8,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "tt_plan_card",
+            "x": 15,
+            "y": 0,
+            "w": 15,
+            "h": 8,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "tt_order_legs",
+            "x": 0,
+            "y": 8,
+            "w": 30,
+            "h": 8,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "tt_simulate_result",
+            "x": 0,
+            "y": 16,
+            "w": 30,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
               }
             }
           }

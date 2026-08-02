@@ -1769,3 +1769,90 @@ def equity_basket_analyst_consensus(
             ),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Techtrade Position Workbench (#1696 T13.2) — stub-shaped
+# ---------------------------------------------------------------------------
+
+
+@app.get("/tt/position/signal-card")
+def tt_position_signal_card(request: Request, symbol: str = "AAPL") -> str:
+    """Return Signal Card markdown (#1696) — active signal for a symbol."""
+    _require_auth(request)
+    sym = _validate_symbol(symbol)
+    # TODO(gh-1696): wire to openbb_techtrade.engine.signal_router.
+    return (
+        f"## {sym} — Active Signal\n\n"
+        "- **Type:** BREAKOUT\n"
+        "- **Direction:** LONG\n"
+        "- **Confidence:** 0.87\n"
+        "- **Trigger:** close above 20d high on 1.4x volume\n\n"
+        "> Stub — real wiring calls openbb_techtrade.engine.signal_router."
+    )
+
+
+@app.get("/tt/position/plan-card")
+def tt_position_plan_card(request: Request, symbol: str = "AAPL") -> str:
+    """Return Plan Card markdown (#1696) — entry/stop/target for a trade."""
+    _require_auth(request)
+    sym = _validate_symbol(symbol)
+    # TODO(gh-1696): wire to openbb_techtrade.engine.plan_router.
+    return (
+        f"## {sym} — Trading Plan\n\n"
+        "- **Entry:** $173.50 (limit)\n"
+        "- **Stop:** $168.20 (-3.1%)\n"
+        "- **Target:** $189.00 (+8.9%)\n"
+        "- **R:R:** 2.9x\n"
+        "- **Sizing:** 2.0% of book risk\n\n"
+        "> Stub — real wiring calls openbb_techtrade.engine.plan_router."
+    )
+
+
+@app.get("/tt/position/order-legs")
+def tt_position_order_legs(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float | int]]:
+    """Return Order Legs rows (#1696) — proposed order legs for the plan."""
+    _require_auth(request)
+    sym = _validate_symbol(symbol)
+    # TODO(gh-1696): wire to openbb_techtrade.execution.order_builder.
+    return [
+        {
+            "leg_type": "ENTRY",
+            "side": "BUY",
+            "symbol": sym,
+            "quantity": 100,
+            "price": 173.50,
+            "order_type": "LIMIT",
+        },
+        {
+            "leg_type": "STOP",
+            "side": "SELL",
+            "symbol": sym,
+            "quantity": 100,
+            "price": 168.20,
+            "order_type": "STOP_LIMIT",
+        },
+        {
+            "leg_type": "TARGET",
+            "side": "SELL",
+            "symbol": sym,
+            "quantity": 100,
+            "price": 189.00,
+            "order_type": "LIMIT",
+        },
+    ]
+
+
+@app.get("/tt/position/simulate")
+def tt_position_simulate(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float | int]]:
+    """Return Simulate Result rows (#1696) — simulated P&L trajectory (chart raw)."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1696): wire to openbb_techtrade.engine.simulate_router.
+    # Deterministic stub: monotonic-ish P&L climb with two drawdown wobbles.
+    trajectory = [0, 15, 32, 28, 42, 55, 48, 63, 78, 71, 85, 100, 95, 108, 118]
+    return [{"day": d, "pnl": p} for d, p in enumerate(trajectory)]
