@@ -153,7 +153,7 @@ def _iso(v: Any) -> str:
         PythonEx(
             description="Merged news + 8-K stream for a two-symbol basket.",
             code=[
-                'obb.portfolio_intel.news.timeline('
+                "obb.portfolio_intel.news.timeline("
                 'basket=[{"symbol":"AAPL","weight":0.5},{"symbol":"MSFT","weight":0.5}],'
                 'severity="info", days_back=7)',
             ],
@@ -266,7 +266,9 @@ def timeline(
 # ---------------------------------------------------------------------------
 
 
-def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> AnalystSnapshot:
+def _snapshot_for(
+    symbol: str, weight: Decimal, *, provider: str | None
+) -> AnalystSnapshot:
     """Compose an AnalystSnapshot from three provider fetches, all optional."""
     price: Decimal | None = None
     pt_median: Decimal | None = None
@@ -287,7 +289,9 @@ def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> Anal
         # that row's target.
         if pt:
             targets = [
-                Decimal(str(getattr(r, "price_target", None) or getattr(r, "target", 0)))
+                Decimal(
+                    str(getattr(r, "price_target", None) or getattr(r, "target", 0))
+                )
                 for r in pt
                 if (getattr(r, "price_target", None) or getattr(r, "target", None))
             ]
@@ -332,7 +336,7 @@ def _snapshot_for(symbol: str, weight: Decimal, *, provider: str | None) -> Anal
         PythonEx(
             description="Portfolio-wide sentiment rollup with per-holding breakdown.",
             code=[
-                'obb.portfolio_intel.sentiment.rollup('
+                "obb.portfolio_intel.sentiment.rollup("
                 'basket=[{"symbol":"AAPL","weight":0.5},{"symbol":"MSFT","weight":0.5}])',
             ],
         )
