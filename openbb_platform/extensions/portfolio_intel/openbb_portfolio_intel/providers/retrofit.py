@@ -208,7 +208,7 @@ def with_chain(
       inside the stub body would be bypassed on chain success.
 
     Both hooks receive the endpoint's ``*args, **kwargs`` verbatim so
-    the caller re-uses the same auth/validation helpers the stub body
+    the caller reuses the same auth/validation helpers the stub body
     already calls. When the chain exhausts and falls back to the stub,
     those in-body calls fire again — redundant but harmless (dictates
     that the security posture holds identically for the stub path and
