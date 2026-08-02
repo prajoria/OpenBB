@@ -1856,3 +1856,155 @@ def tt_position_simulate(
     # Deterministic stub: monotonic-ish P&L climb with two drawdown wobbles.
     trajectory = [0, 15, 32, 28, 42, 55, 48, 63, 78, 71, 85, 100, 95, 108, 118]
     return [{"day": d, "pnl": p} for d, p in enumerate(trajectory)]
+
+
+# ---------------------------------------------------------------------------
+# Techtrade T13.3-T13.7: Validation + Tuning + Audit + Engine + Execute
+# ---------------------------------------------------------------------------
+
+
+@app.get("/tt/validation/verdict")
+def tt_validation_verdict(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Return Validation Verdict rows (#1697) — PBO/DSR/OOS-Sharpe + verdict."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1697): wire to openbb_techtrade.engine.validate_router.
+    return [
+        {"metric": "PBO", "value": 0.18, "threshold": 0.30, "gate": "PASS"},
+        {"metric": "DSR", "value": 1.47, "threshold": 1.00, "gate": "PASS"},
+        {"metric": "OOS Sharpe", "value": 1.62, "threshold": 1.00, "gate": "PASS"},
+        {"metric": "Verdict", "value": "PASS", "threshold": "PASS", "gate": "PASS"},
+    ]
+
+
+@app.get("/tt/tuning/report")
+def tt_tuning_report(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Return Tuning Report rows (#1698) — tuneta proposal + validate gate.
+
+    Persist behavior is stub-only. Real state persistence follow-up
+    is filed under the broader techtrade epic.
+    """
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1698): wire to openbb_techtrade.engine.tune_router (tuneta).
+    return [
+        {
+            "param": "atr_period",
+            "current": 14,
+            "proposed": 20,
+            "delta": +6,
+            "validate_gate": "PASS",
+        },
+        {
+            "param": "sma_fast",
+            "current": 20,
+            "proposed": 15,
+            "delta": -5,
+            "validate_gate": "PASS",
+        },
+        {
+            "param": "sma_slow",
+            "current": 50,
+            "proposed": 55,
+            "delta": +5,
+            "validate_gate": "PASS",
+        },
+        {
+            "param": "risk_pct",
+            "current": 2.0,
+            "proposed": 1.5,
+            "delta": -0.5,
+            "validate_gate": "FAIL",
+        },
+    ]
+
+
+@app.get("/tt/audit/journal")
+def tt_audit_journal(
+    request: Request, symbol: str = "AAPL"
+) -> list[dict[str, str | float]]:
+    """Return Audit Journal rows (#1699) — replay vs forward P&L + deviation."""
+    _require_auth(request)
+    _validate_symbol(symbol)
+    # TODO(gh-1699): wire to openbb_techtrade.reporting.audit.
+    return [
+        {
+            "bar_date": "2026-07-25",
+            "replay_pnl": 128.4,
+            "forward_pnl": 130.2,
+            "deviation_bps": 14.0,
+        },
+        {
+            "bar_date": "2026-07-26",
+            "replay_pnl": 132.1,
+            "forward_pnl": 131.7,
+            "deviation_bps": -3.0,
+        },
+        {
+            "bar_date": "2026-07-27",
+            "replay_pnl": 135.8,
+            "forward_pnl": 137.9,
+            "deviation_bps": 15.5,
+        },
+        {
+            "bar_date": "2026-07-28",
+            "replay_pnl": 141.3,
+            "forward_pnl": 142.0,
+            "deviation_bps": 5.0,
+        },
+        {
+            "bar_date": "2026-07-29",
+            "replay_pnl": 144.9,
+            "forward_pnl": 138.7,
+            "deviation_bps": -42.8,
+        },
+    ]
+
+
+@app.get("/tt/engine/status")
+def tt_engine_status(request: Request) -> str:
+    """Return Engine Status markdown (#1700) — scheduler/signal/execution state."""
+    _require_auth(request)
+    # TODO(gh-1700): wire to openbb_techtrade.engine.status.
+    return (
+        "## Techtrade Engine Status\n\n"
+        "- **Scheduler:** RUNNING (next tick in 47s)\n"
+        "- **Signal engine:** READY (last signal: NVDA BREAKOUT at 09:32:14)\n"
+        "- **Execution engine:** IDLE (verdict gate: PASS)\n"
+        "- **Data feed:** LIVE (fmp_cached hit-rate 98.2%)\n\n"
+        "> Stub — real wiring calls openbb_techtrade.engine.status."
+    )
+
+
+@app.get("/tt/execute/bridge")
+def tt_execute_bridge(request: Request, verdict: str = "PASS") -> str:
+    """Return Execute Bridge markdown (#1700 T5) — gated by verdict.
+
+    Real broker adapter (paper/live order submission) is deferred to
+    follow-up #1719. This endpoint ships a scaffold that shows the
+    gate outcome ('READY' or 'BLOCKED') so the T1->T6 cadence smoke
+    (#1701) can prove the verdict actually gates execution.
+    """
+    _require_auth(request)
+    if verdict not in {"PASS", "FAIL"}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"verdict must be PASS or FAIL; got {verdict!r}",
+        )
+    if verdict == "FAIL":
+        return (
+            "## Execute Bridge: BLOCKED\n\n"
+            "Verdict gate: **FAIL** — execution blocked.\n\n"
+            "> Real broker submission is #1719. This scaffold enforces the "
+            "gate so #1701's cadence smoke proves the safety invariant."
+        )
+    return (
+        "## Execute Bridge: READY\n\n"
+        "Verdict gate: **PASS** — bridge ready to submit.\n\n"
+        "> Real broker submission is #1719. This scaffold enforces the "
+        "gate; a user's explicit confirm will trigger the real bridge."
+    )
