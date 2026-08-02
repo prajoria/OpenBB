@@ -69,8 +69,8 @@ jobs:
           pip install -e openbb_platform/core
           pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
-          # harness itself
-          pip install -e openbb_platform/tools/browser_test_harness/
+          # harness itself (with [test] extra for pytest)
+          pip install -e "openbb_platform/tools/browser_test_harness/[test]"
 
       - name: Run unit tests
         working-directory: openbb_platform/tools/browser_test_harness
@@ -120,7 +120,7 @@ jobs:
           pip install -e openbb_platform/core
           pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
-          pip install -e openbb_platform/tools/browser_test_harness/
+          pip install -e "openbb_platform/tools/browser_test_harness/[test]"
 
       - name: Run live fixture-drift check
         working-directory: openbb_platform/tools/browser_test_harness
@@ -157,7 +157,7 @@ jobs:
           pip install -e openbb_platform/core
           pip install -e openbb_platform/extensions/backtest
           pip install -e openbb_platform/extensions/portfolio_intel
-          pip install -e "openbb_platform/tools/browser_test_harness/[workspace]"
+          pip install -e "openbb_platform/tools/browser_test_harness/[workspace,test]"
           python -m playwright install --with-deps chromium
 
       - name: Warn about Workspace-in-CI target
