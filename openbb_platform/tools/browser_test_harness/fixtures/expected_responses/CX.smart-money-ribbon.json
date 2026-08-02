@@ -1,0 +1,30 @@
+{
+  "body": [
+    {
+      "actor": "CFO",
+      "date": "2026-07-18",
+      "kind": "insider_buy",
+      "symbol": "NVDA",
+      "value_usd": 2400000.0
+    },
+    {
+      "actor": "Berkshire Hathaway",
+      "date": "2026-07-15",
+      "kind": "13F_increase",
+      "symbol": "AAPL",
+      "value_usd": 180000000.0
+    },
+    {
+      "actor": "Director",
+      "date": "2026-07-17",
+      "kind": "insider_sell",
+      "symbol": "TSLA",
+      "value_usd": 1100000.0
+    }
+  ],
+  "endpoint": "pi/smart-money/ribbon",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

@@ -1,0 +1,159 @@
+{
+  "body": [
+    {
+      "effective_weight": 0.078,
+      "name": "Apple Inc.",
+      "rank": 1.0,
+      "symbol": "AAPL"
+    },
+    {
+      "effective_weight": 0.071,
+      "name": "Microsoft Corp.",
+      "rank": 2.0,
+      "symbol": "MSFT"
+    },
+    {
+      "effective_weight": 0.063,
+      "name": "NVIDIA Corp.",
+      "rank": 3.0,
+      "symbol": "NVDA"
+    },
+    {
+      "effective_weight": 0.041,
+      "name": "Amazon.com Inc.",
+      "rank": 4.0,
+      "symbol": "AMZN"
+    },
+    {
+      "effective_weight": 0.033,
+      "name": "Alphabet Inc. Class A",
+      "rank": 5.0,
+      "symbol": "GOOGL"
+    },
+    {
+      "effective_weight": 0.028,
+      "name": "Meta Platforms Inc.",
+      "rank": 6.0,
+      "symbol": "META"
+    },
+    {
+      "effective_weight": 0.024,
+      "name": "Tesla Inc.",
+      "rank": 7.0,
+      "symbol": "TSLA"
+    },
+    {
+      "effective_weight": 0.021,
+      "name": "Berkshire Hathaway B",
+      "rank": 8.0,
+      "symbol": "BRK.B"
+    },
+    {
+      "effective_weight": 0.018,
+      "name": "JPMorgan Chase & Co.",
+      "rank": 9.0,
+      "symbol": "JPM"
+    },
+    {
+      "effective_weight": 0.017,
+      "name": "Eli Lilly & Co.",
+      "rank": 10.0,
+      "symbol": "LLY"
+    },
+    {
+      "effective_weight": 0.016,
+      "name": "Visa Inc.",
+      "rank": 11.0,
+      "symbol": "V"
+    },
+    {
+      "effective_weight": 0.015,
+      "name": "UnitedHealth Group",
+      "rank": 12.0,
+      "symbol": "UNH"
+    },
+    {
+      "effective_weight": 0.014,
+      "name": "Exxon Mobil Corp.",
+      "rank": 13.0,
+      "symbol": "XOM"
+    },
+    {
+      "effective_weight": 0.013,
+      "name": "Mastercard Inc.",
+      "rank": 14.0,
+      "symbol": "MA"
+    },
+    {
+      "effective_weight": 0.012,
+      "name": "Procter & Gamble",
+      "rank": 15.0,
+      "symbol": "PG"
+    },
+    {
+      "effective_weight": 0.011,
+      "name": "Johnson & Johnson",
+      "rank": 16.0,
+      "symbol": "JNJ"
+    },
+    {
+      "effective_weight": 0.01,
+      "name": "Home Depot Inc.",
+      "rank": 17.0,
+      "symbol": "HD"
+    },
+    {
+      "effective_weight": 0.01,
+      "name": "Costco Wholesale",
+      "rank": 18.0,
+      "symbol": "COST"
+    },
+    {
+      "effective_weight": 0.009,
+      "name": "AbbVie Inc.",
+      "rank": 19.0,
+      "symbol": "ABBV"
+    },
+    {
+      "effective_weight": 0.009,
+      "name": "Bank of America",
+      "rank": 20.0,
+      "symbol": "BAC"
+    },
+    {
+      "effective_weight": 0.009,
+      "name": "Broadcom Inc.",
+      "rank": 21.0,
+      "symbol": "AVGO"
+    },
+    {
+      "effective_weight": 0.008,
+      "name": "Coca-Cola Co.",
+      "rank": 22.0,
+      "symbol": "KO"
+    },
+    {
+      "effective_weight": 0.008,
+      "name": "PepsiCo Inc.",
+      "rank": 23.0,
+      "symbol": "PEP"
+    },
+    {
+      "effective_weight": 0.008,
+      "name": "Merck & Co.",
+      "rank": 24.0,
+      "symbol": "MRK"
+    },
+    {
+      "effective_weight": 0.007,
+      "name": "Chevron Corp.",
+      "rank": 25.0,
+      "symbol": "CVX"
+    }
+  ],
+  "endpoint": "pi/lookthrough/top25",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

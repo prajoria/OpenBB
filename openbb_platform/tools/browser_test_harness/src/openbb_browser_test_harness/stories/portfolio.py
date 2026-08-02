@@ -285,9 +285,408 @@ _STEPS: tuple[Step, ...] = (
     ),
 )
 
+
+# ==================================================================
+# Widget-completeness coverage (B8, #1733)
+# ==================================================================
+# One step per widget in widgets.json that isn't already exercised by the
+# W0-W9 narrative spine. Kept as a distinct tuple so the story's narrative
+# ordering (act by act) stays reviewable — the coverage steps live in a
+# labelled batch at the end and use CX.NN ids so they're visually distinct
+# from the W steps.
+#
+# Every step:
+# - Uses the widget's default params from widgets.json (so it exercises the
+#   real happy path a user hits on first render)
+# - Anchors to the notebook that introduced the widget
+# - Has action=ActionKind.OBSERVE (widget-completeness, not safety-invariant)
+
+
+def _coverage(
+    step_id: str,
+    tab_id: str,
+    endpoint: str,
+    params: dict[str, str],
+    notebook_ref: str,
+    persona: Persona,
+    human_title: str,
+    human_expected: str,
+) -> Step:
+    """Compact helper — most coverage steps have similar boilerplate."""
+    return Step(
+        id=step_id,
+        story="portfolio",
+        notebook_ref=notebook_ref,
+        persona=persona,
+        tab_id=tab_id,
+        action=ActionKind.OBSERVE,
+        human_title=human_title,
+        human_description=(
+            "Widget-completeness coverage step (B8 #1733). Confirms the "
+            "widget's default endpoint responds with the expected shape."
+        ),
+        human_expected=human_expected,
+        endpoint=endpoint,
+        params=params,
+        tags=("coverage",),
+    )
+
+
+_COVERAGE_STEPS: tuple[Step, ...] = (
+    # --- Chrome ---
+    _coverage(
+        "CX.symbol-context",
+        "overview",
+        "pi/context/symbol",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_symbol_context chrome bar",
+        "Markdown badge echoing the ticker (AAPL).",
+    ),
+    _coverage(
+        "CX.book-context",
+        "xray",
+        "pi/context/book",
+        {"account_id": "demo"},
+        "notebooks/portfolio/03-basket-xray-and-risk.ipynb",
+        Persona.PM,
+        "Coverage — pi_book_context chrome bar",
+        "Markdown badge echoing the account (demo).",
+    ),
+    # --- F1 Overview extras ---
+    _coverage(
+        "CX.equity-financial-charts",
+        "financials",
+        "pi/equity/financials",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_equity_financial_charts",
+        "Chart rows for 5-yr revenue + net income + margin.",
+    ),
+    _coverage(
+        "CX.equity-technicals",
+        "technicals",
+        "pi/equity/technicals",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_equity_technicals",
+        "Consensus + pivot matrix rows.",
+    ),
+    _coverage(
+        "CX.equity-analyst-forecasts",
+        "estimates",
+        "pi/equity/analyst-forecasts",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_equity_analyst_forecasts",
+        "Analyst rating distribution + surprise history rows.",
+    ),
+    _coverage(
+        "CX.equity-complementary",
+        "comparison",
+        "pi/equity/complementary",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_equity_complementary",
+        "Top ETFs holding the ticker + bond ladder rows.",
+    ),
+    _coverage(
+        "CX.equity-competitors",
+        "comparison",
+        "pi/equity/competitors",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_equity_competitors",
+        "Regional industry competitors with live price rows.",
+    ),
+    _coverage(
+        "CX.equity-price-history",
+        "overview",
+        "pi/equity/price-history",
+        {"symbol": "AAPL", "chart_type": "line"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_equity_price_history (line mode)",
+        "OHLC rows with date+close in line-chart mode.",
+    ),
+    _coverage(
+        "CX.charting",
+        "technicals",
+        "pi/equity/charting",
+        {"symbol": "AAPL", "window": "3M"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_charting (3M window)",
+        "OHLC + SMA20/SMA50/RSI14 overlays.",
+    ),
+    # --- F5 Ownership ---
+    _coverage(
+        "CX.institutional-ownership",
+        "ownership",
+        "pi/equity/institutional-ownership",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.PM,
+        "Coverage — pi_institutional_ownership (13F holders)",
+        "Top holder rows with shares and pct_owned.",
+    ),
+    _coverage(
+        "CX.stock-ownership",
+        "ownership",
+        "pi/equity/stock-ownership",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.PM,
+        "Coverage — pi_stock_ownership (bucket pie)",
+        "Ownership bucket rows (Institutions/Retail/ETFs/Insiders).",
+    ),
+    _coverage(
+        "CX.insider-trading",
+        "ownership",
+        "pi/equity/insider-trading",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.PM,
+        "Coverage — pi_insider_trading",
+        "Recent insider Form 4 transaction rows.",
+    ),
+    # --- F6 Calendar ---
+    _coverage(
+        "CX.earnings-history",
+        "calendar",
+        "pi/equity/earnings-history",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_earnings_history",
+        "Historical EPS actual vs. estimate rows with surprise%.",
+    ),
+    _coverage(
+        "CX.stock-splits",
+        "calendar",
+        "pi/equity/stock-splits",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_stock_splits",
+        "Historical stock-split event rows.",
+    ),
+    _coverage(
+        "CX.dividend-payment",
+        "calendar",
+        "pi/equity/dividend-payment",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_dividend_payment",
+        "Recent dividend rows: ex-date, payment date, amount.",
+    ),
+    _coverage(
+        "CX.company-filings",
+        "calendar",
+        "pi/equity/company-filings",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_company_filings",
+        "Recent 10-K/10-Q/8-K filing rows.",
+    ),
+    _coverage(
+        "CX.earnings-transcripts",
+        "calendar",
+        "pi/equity/earnings-transcripts",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_earnings_transcripts",
+        "Markdown preview of latest earnings call transcript.",
+    ),
+    # --- F1B builds ---
+    _coverage(
+        "CX.management-team",
+        "overview",
+        "pi/equity/management-team",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_management_team",
+        "Key executives: name/title/pay/tenure rows.",
+    ),
+    _coverage(
+        "CX.revenue-geography",
+        "overview",
+        "pi/equity/revenue-geography",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_revenue_geography (pie)",
+        "Region/revenue rows totaling ~total revenue.",
+    ),
+    _coverage(
+        "CX.revenue-business-line",
+        "overview",
+        "pi/equity/revenue-business-line",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_revenue_business_line (pie)",
+        "Segment/revenue rows totaling ~total revenue.",
+    ),
+    _coverage(
+        "CX.price-performance",
+        "overview",
+        "pi/equity/price-performance",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_price_performance",
+        "9 horizon return rows (1D/1W/1M/3M/6M/YTD/1Y/3Y/5Y).",
+    ),
+    _coverage(
+        "CX.peer-multiples",
+        "comparison",
+        "pi/equity/peer-multiples",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_peer_multiples",
+        "Symbol + peers with P/E TTM, forward P/E, EV/EBITDA, P/S.",
+    ),
+    _coverage(
+        "CX.price-target-history",
+        "estimates",
+        "pi/equity/price-target-history",
+        {"symbol": "AAPL"},
+        "notebooks/portfolio/02-single-name-deep-dive.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_price_target_history",
+        "Target-vs-close time series rows.",
+    ),
+    # --- F8 X-Ray extras ---
+    _coverage(
+        "CX.lookthrough-top25",
+        "xray",
+        "pi/lookthrough/top25",
+        {"account_id": "demo"},
+        "notebooks/portfolio/03-basket-xray-and-risk.ipynb",
+        Persona.PM,
+        "Coverage — pi_lookthrough_top25",
+        "Top-25 effective holdings after ETF look-through.",
+    ),
+    # --- F9 Risk extras ---
+    _coverage(
+        "CX.risk-vol-chart",
+        "risk",
+        "pi/risk/vol",
+        {"account_id": "demo"},
+        "notebooks/portfolio/03-basket-xray-and-risk.ipynb",
+        Persona.PM,
+        "Coverage — pi_risk_vol_chart",
+        "20d/60d rolling realized volatility rows.",
+    ),
+    _coverage(
+        "CX.whatif-card",
+        "risk",
+        "pi/whatif/card",
+        {"symbol": "AAPL", "delta_shares": "100"},
+        "notebooks/portfolio/05-whatif-attribution-and-paper.ipynb",
+        Persona.PM,
+        "Coverage — pi_whatif_card (structured diff)",
+        "Structured before/after exposure diff rows.",
+    ),
+    # --- F10 Paper Trading ---
+    _coverage(
+        "CX.paper-ticket",
+        "paper",
+        "pi/paper/ticket",
+        {
+            "account_id": "demo",
+            "symbol": "AAPL",
+            "side": "buy",
+            "quantity": "100",
+            "confirm": "false",
+        },
+        "notebooks/portfolio/05-whatif-attribution-and-paper.ipynb",
+        Persona.PM,
+        "Coverage — pi_paper_ticket (preview)",
+        "Markdown ticket preview (confirm=false).",
+    ),
+    _coverage(
+        "CX.paper-blotter",
+        "paper",
+        "pi/paper/blotter",
+        {"account_id": "demo"},
+        "notebooks/portfolio/05-whatif-attribution-and-paper.ipynb",
+        Persona.PM,
+        "Coverage — pi_paper_blotter",
+        "Recent paper order rows with status.",
+    ),
+    _coverage(
+        "CX.paper-performance",
+        "paper",
+        "pi/paper/performance",
+        {"account_id": "demo"},
+        "notebooks/portfolio/05-whatif-attribution-and-paper.ipynb",
+        Persona.PM,
+        "Coverage — pi_paper_performance",
+        "Paper account equity-curve rows.",
+    ),
+    _coverage(
+        "CX.backtest-button",
+        "paper",
+        "pi/backtest/oneclick",
+        {"account_id": "demo"},
+        "notebooks/portfolio/06-backtest-and-validation.ipynb",
+        Persona.PM,
+        "Coverage — pi_backtest_button",
+        "Markdown widget kicking off one-click backtest.",
+    ),
+    # --- F11 Alerts extras ---
+    _coverage(
+        "CX.smart-money-ribbon",
+        "alerts",
+        "pi/smart-money/ribbon",
+        {"account_id": "demo"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.PM,
+        "Coverage — pi_smart_money_ribbon",
+        "Insider + institutional move rows for held names.",
+    ),
+    _coverage(
+        "CX.news-ribbon",
+        "alerts",
+        "pi/news",
+        {"account_id": "demo", "horizon_days": "7"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.PM,
+        "Coverage — pi_news_ribbon",
+        "Recent material news rows for held symbols.",
+    ),
+    _coverage(
+        "CX.sentiment-gauge",
+        "alerts",
+        "pi/sentiment",
+        {"account_id": "demo"},
+        "notebooks/portfolio/04-events-and-smart-money.ipynb",
+        Persona.PM,
+        "Coverage — pi_sentiment_gauge",
+        "Aggregate sentiment metric value.",
+    ),
+)
+
+# Merged story steps: narrative spine + widget-completeness coverage.
+_ALL_STEPS: tuple[Step, ...] = _STEPS + _COVERAGE_STEPS
+
+
 STORY = Story(
     id="portfolio",
-    title="Portfolio Intelligence Terminal (W0-W9)",
+    title="Portfolio Intelligence Terminal (W0-W9 + widget-completeness)",
     notebook_series_root="notebooks/portfolio/",
-    steps=_STEPS,
+    steps=_ALL_STEPS,
 )

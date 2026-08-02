@@ -1,8 +1,8 @@
-# Portfolio Intelligence Terminal (W0-W9) — Manual Test Guide
+# Portfolio Intelligence Terminal (W0-W9 + widget-completeness) — Manual Test Guide
 
 **Story:** `portfolio`
 **Notebook series:** [`notebooks/portfolio/`](../../../notebooks/portfolio/)
-**Total steps:** 16
+**Total steps:** 49
 
 > This guide is auto-generated from the Story data source. Do NOT edit by hand — edit `src/openbb_browser_test_harness/stories/portfolio.py` and regenerate with:
 > 
@@ -343,6 +343,666 @@ Try basket_id=real_book. The endpoint MUST return 422 with a pointer to follow-u
 > ⚠️ **Safety invariant** — this step guards a load-bearing behavior. If it fails, DO NOT ship.
 
 ![W9.basket-guard](screenshots/portfolio/W9.basket-guard.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_symbol_context chrome bar
+
+**Step ID:** `CX.symbol-context` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Markdown badge echoing the ticker (AAPL).
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/context/symbol`
+
+![CX.symbol-context](screenshots/portfolio/CX.symbol-context.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_book_context chrome bar
+
+**Step ID:** `CX.book-context` &nbsp; · &nbsp; **Tab:** `xray` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/03-basket-xray-and-risk.ipynb`](../../../notebooks/portfolio/03-basket-xray-and-risk.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Markdown badge echoing the account (demo).
+
+**Params:** `account_id=demo`
+
+**Endpoint:** `pi/context/book`
+
+![CX.book-context](screenshots/portfolio/CX.book-context.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_equity_financial_charts
+
+**Step ID:** `CX.equity-financial-charts` &nbsp; · &nbsp; **Tab:** `financials` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Chart rows for 5-yr revenue + net income + margin.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/financials`
+
+![CX.equity-financial-charts](screenshots/portfolio/CX.equity-financial-charts.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_equity_technicals
+
+**Step ID:** `CX.equity-technicals` &nbsp; · &nbsp; **Tab:** `technicals` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Consensus + pivot matrix rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/technicals`
+
+![CX.equity-technicals](screenshots/portfolio/CX.equity-technicals.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_equity_analyst_forecasts
+
+**Step ID:** `CX.equity-analyst-forecasts` &nbsp; · &nbsp; **Tab:** `estimates` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Analyst rating distribution + surprise history rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/analyst-forecasts`
+
+![CX.equity-analyst-forecasts](screenshots/portfolio/CX.equity-analyst-forecasts.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_equity_complementary
+
+**Step ID:** `CX.equity-complementary` &nbsp; · &nbsp; **Tab:** `comparison` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Top ETFs holding the ticker + bond ladder rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/complementary`
+
+![CX.equity-complementary](screenshots/portfolio/CX.equity-complementary.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_equity_competitors
+
+**Step ID:** `CX.equity-competitors` &nbsp; · &nbsp; **Tab:** `comparison` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Regional industry competitors with live price rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/competitors`
+
+![CX.equity-competitors](screenshots/portfolio/CX.equity-competitors.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_equity_price_history (line mode)
+
+**Step ID:** `CX.equity-price-history` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** OHLC rows with date+close in line-chart mode.
+
+**Params:** `symbol=AAPL` · `chart_type=line`
+
+**Endpoint:** `pi/equity/price-history`
+
+![CX.equity-price-history](screenshots/portfolio/CX.equity-price-history.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_charting (3M window)
+
+**Step ID:** `CX.charting` &nbsp; · &nbsp; **Tab:** `technicals` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** OHLC + SMA20/SMA50/RSI14 overlays.
+
+**Params:** `symbol=AAPL` · `window=3M`
+
+**Endpoint:** `pi/equity/charting`
+
+![CX.charting](screenshots/portfolio/CX.charting.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_institutional_ownership (13F holders)
+
+**Step ID:** `CX.institutional-ownership` &nbsp; · &nbsp; **Tab:** `ownership` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Top holder rows with shares and pct_owned.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/institutional-ownership`
+
+![CX.institutional-ownership](screenshots/portfolio/CX.institutional-ownership.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_stock_ownership (bucket pie)
+
+**Step ID:** `CX.stock-ownership` &nbsp; · &nbsp; **Tab:** `ownership` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Ownership bucket rows (Institutions/Retail/ETFs/Insiders).
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/stock-ownership`
+
+![CX.stock-ownership](screenshots/portfolio/CX.stock-ownership.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_insider_trading
+
+**Step ID:** `CX.insider-trading` &nbsp; · &nbsp; **Tab:** `ownership` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Recent insider Form 4 transaction rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/insider-trading`
+
+![CX.insider-trading](screenshots/portfolio/CX.insider-trading.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_earnings_history
+
+**Step ID:** `CX.earnings-history` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Historical EPS actual vs. estimate rows with surprise%.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/earnings-history`
+
+![CX.earnings-history](screenshots/portfolio/CX.earnings-history.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_stock_splits
+
+**Step ID:** `CX.stock-splits` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Historical stock-split event rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/stock-splits`
+
+![CX.stock-splits](screenshots/portfolio/CX.stock-splits.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_dividend_payment
+
+**Step ID:** `CX.dividend-payment` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Recent dividend rows: ex-date, payment date, amount.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/dividend-payment`
+
+![CX.dividend-payment](screenshots/portfolio/CX.dividend-payment.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_company_filings
+
+**Step ID:** `CX.company-filings` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Recent 10-K/10-Q/8-K filing rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/company-filings`
+
+![CX.company-filings](screenshots/portfolio/CX.company-filings.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_earnings_transcripts
+
+**Step ID:** `CX.earnings-transcripts` &nbsp; · &nbsp; **Tab:** `calendar` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Markdown preview of latest earnings call transcript.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/earnings-transcripts`
+
+![CX.earnings-transcripts](screenshots/portfolio/CX.earnings-transcripts.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_management_team
+
+**Step ID:** `CX.management-team` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Key executives: name/title/pay/tenure rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/management-team`
+
+![CX.management-team](screenshots/portfolio/CX.management-team.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_revenue_geography (pie)
+
+**Step ID:** `CX.revenue-geography` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Region/revenue rows totaling ~total revenue.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/revenue-geography`
+
+![CX.revenue-geography](screenshots/portfolio/CX.revenue-geography.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_revenue_business_line (pie)
+
+**Step ID:** `CX.revenue-business-line` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Segment/revenue rows totaling ~total revenue.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/revenue-business-line`
+
+![CX.revenue-business-line](screenshots/portfolio/CX.revenue-business-line.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_price_performance
+
+**Step ID:** `CX.price-performance` &nbsp; · &nbsp; **Tab:** `overview` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** 9 horizon return rows (1D/1W/1M/3M/6M/YTD/1Y/3Y/5Y).
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/price-performance`
+
+![CX.price-performance](screenshots/portfolio/CX.price-performance.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_peer_multiples
+
+**Step ID:** `CX.peer-multiples` &nbsp; · &nbsp; **Tab:** `comparison` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Symbol + peers with P/E TTM, forward P/E, EV/EBITDA, P/S.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/peer-multiples`
+
+![CX.peer-multiples](screenshots/portfolio/CX.peer-multiples.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_price_target_history
+
+**Step ID:** `CX.price-target-history` &nbsp; · &nbsp; **Tab:** `estimates` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** analyst
+
+**Notebook anchor:** [`notebooks/portfolio/02-single-name-deep-dive.ipynb`](../../../notebooks/portfolio/02-single-name-deep-dive.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Target-vs-close time series rows.
+
+**Params:** `symbol=AAPL`
+
+**Endpoint:** `pi/equity/price-target-history`
+
+![CX.price-target-history](screenshots/portfolio/CX.price-target-history.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_lookthrough_top25
+
+**Step ID:** `CX.lookthrough-top25` &nbsp; · &nbsp; **Tab:** `xray` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/03-basket-xray-and-risk.ipynb`](../../../notebooks/portfolio/03-basket-xray-and-risk.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Top-25 effective holdings after ETF look-through.
+
+**Params:** `account_id=demo`
+
+**Endpoint:** `pi/lookthrough/top25`
+
+![CX.lookthrough-top25](screenshots/portfolio/CX.lookthrough-top25.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_risk_vol_chart
+
+**Step ID:** `CX.risk-vol-chart` &nbsp; · &nbsp; **Tab:** `risk` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/03-basket-xray-and-risk.ipynb`](../../../notebooks/portfolio/03-basket-xray-and-risk.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** 20d/60d rolling realized volatility rows.
+
+**Params:** `account_id=demo`
+
+**Endpoint:** `pi/risk/vol`
+
+![CX.risk-vol-chart](screenshots/portfolio/CX.risk-vol-chart.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_whatif_card (structured diff)
+
+**Step ID:** `CX.whatif-card` &nbsp; · &nbsp; **Tab:** `risk` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/05-whatif-attribution-and-paper.ipynb`](../../../notebooks/portfolio/05-whatif-attribution-and-paper.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Structured before/after exposure diff rows.
+
+**Params:** `symbol=AAPL` · `delta_shares=100`
+
+**Endpoint:** `pi/whatif/card`
+
+![CX.whatif-card](screenshots/portfolio/CX.whatif-card.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_paper_ticket (preview)
+
+**Step ID:** `CX.paper-ticket` &nbsp; · &nbsp; **Tab:** `paper` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/05-whatif-attribution-and-paper.ipynb`](../../../notebooks/portfolio/05-whatif-attribution-and-paper.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Markdown ticket preview (confirm=false).
+
+**Params:** `account_id=demo` · `symbol=AAPL` · `side=buy` · `quantity=100` · `confirm=false`
+
+**Endpoint:** `pi/paper/ticket`
+
+![CX.paper-ticket](screenshots/portfolio/CX.paper-ticket.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_paper_blotter
+
+**Step ID:** `CX.paper-blotter` &nbsp; · &nbsp; **Tab:** `paper` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/05-whatif-attribution-and-paper.ipynb`](../../../notebooks/portfolio/05-whatif-attribution-and-paper.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Recent paper order rows with status.
+
+**Params:** `account_id=demo`
+
+**Endpoint:** `pi/paper/blotter`
+
+![CX.paper-blotter](screenshots/portfolio/CX.paper-blotter.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_paper_performance
+
+**Step ID:** `CX.paper-performance` &nbsp; · &nbsp; **Tab:** `paper` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/05-whatif-attribution-and-paper.ipynb`](../../../notebooks/portfolio/05-whatif-attribution-and-paper.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Paper account equity-curve rows.
+
+**Params:** `account_id=demo`
+
+**Endpoint:** `pi/paper/performance`
+
+![CX.paper-performance](screenshots/portfolio/CX.paper-performance.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_backtest_button
+
+**Step ID:** `CX.backtest-button` &nbsp; · &nbsp; **Tab:** `paper` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/06-backtest-and-validation.ipynb`](../../../notebooks/portfolio/06-backtest-and-validation.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Markdown widget kicking off one-click backtest.
+
+**Params:** `account_id=demo`
+
+**Endpoint:** `pi/backtest/oneclick`
+
+![CX.backtest-button](screenshots/portfolio/CX.backtest-button.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_smart_money_ribbon
+
+**Step ID:** `CX.smart-money-ribbon` &nbsp; · &nbsp; **Tab:** `alerts` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Insider + institutional move rows for held names.
+
+**Params:** `account_id=demo`
+
+**Endpoint:** `pi/smart-money/ribbon`
+
+![CX.smart-money-ribbon](screenshots/portfolio/CX.smart-money-ribbon.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_news_ribbon
+
+**Step ID:** `CX.news-ribbon` &nbsp; · &nbsp; **Tab:** `alerts` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Recent material news rows for held symbols.
+
+**Params:** `account_id=demo` · `horizon_days=7`
+
+**Endpoint:** `pi/news`
+
+![CX.news-ribbon](screenshots/portfolio/CX.news-ribbon.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — pi_sentiment_gauge
+
+**Step ID:** `CX.sentiment-gauge` &nbsp; · &nbsp; **Tab:** `alerts` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** portfolio manager
+
+**Notebook anchor:** [`notebooks/portfolio/04-events-and-smart-money.ipynb`](../../../notebooks/portfolio/04-events-and-smart-money.ipynb)
+
+Widget-completeness coverage step (B8 #1733). Confirms the widget's default endpoint responds with the expected shape.
+
+**Expected:** Aggregate sentiment metric value.
+
+**Params:** `account_id=demo`
+
+**Endpoint:** `pi/sentiment`
+
+![CX.sentiment-gauge](screenshots/portfolio/CX.sentiment-gauge.png)
 
 *Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story portfolio --mode workspace --capture-guide-screenshots` (B6 #1728).
 

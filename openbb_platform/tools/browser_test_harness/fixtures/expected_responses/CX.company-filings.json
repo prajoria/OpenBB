@@ -1,0 +1,34 @@
+{
+  "body": [
+    {
+      "date": "2026-05-01",
+      "description": "Q2 2026 quarterly report",
+      "filing_type": "10-Q"
+    },
+    {
+      "date": "2026-04-15",
+      "description": "Material event: dividend declared",
+      "filing_type": "8-K"
+    },
+    {
+      "date": "2026-02-01",
+      "description": "Q1 2026 quarterly report",
+      "filing_type": "10-Q"
+    },
+    {
+      "date": "2025-11-01",
+      "description": "FY 2025 annual report",
+      "filing_type": "10-K"
+    },
+    {
+      "date": "2025-10-27",
+      "description": "Earnings release Q4 2025",
+      "filing_type": "8-K"
+    }
+  ],
+  "endpoint": "pi/equity/company-filings",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

@@ -1,0 +1,49 @@
+{
+  "body": [
+    {
+      "metric": "1Y target (consensus)",
+      "note": "sample n=32",
+      "value": 245.0
+    },
+    {
+      "metric": "Target range",
+      "note": "",
+      "value": "215..280"
+    },
+    {
+      "metric": "Upside vs current",
+      "note": "",
+      "value": "7.4%"
+    },
+    {
+      "metric": "Rating: Strong Buy / Buy",
+      "note": "as of 2026-07-31; n=111 firms",
+      "value": "1 / 70"
+    },
+    {
+      "metric": "Rating: Hold / Sell / Strong Sell",
+      "note": "",
+      "value": "33 / 7 / 0"
+    },
+    {
+      "metric": "Q3 2025 EPS Surprise",
+      "note": "actual 1.55 vs est 1.50",
+      "value": "+3.2%"
+    },
+    {
+      "metric": "Q2 2025 EPS Surprise",
+      "note": "actual 1.52 vs est 1.49",
+      "value": "+1.9%"
+    },
+    {
+      "metric": "Historical rev estimate",
+      "note": "no snapshot in analyst_estimates_history yet; surprise% available once opportunistic snapshots accumulate (#998 / #1025)",
+      "value": "insufficient history"
+    }
+  ],
+  "endpoint": "pi/equity/analyst-forecasts",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

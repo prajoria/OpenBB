@@ -1,0 +1,33 @@
+{
+  "body": [
+    {
+      "avg_price": 227.45,
+      "qty": 100,
+      "side": "BUY",
+      "status": "FILLED",
+      "symbol": "AAPL",
+      "time": "2026-07-20T14:30:00Z"
+    },
+    {
+      "avg_price": 118.2,
+      "qty": 50,
+      "side": "BUY",
+      "status": "FILLED",
+      "symbol": "NVDA",
+      "time": "2026-07-19T15:02:00Z"
+    },
+    {
+      "avg_price": 244.1,
+      "qty": 25,
+      "side": "SELL",
+      "status": "FILLED",
+      "symbol": "TSLA",
+      "time": "2026-07-18T13:45:00Z"
+    }
+  ],
+  "endpoint": "pi/paper/blotter",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

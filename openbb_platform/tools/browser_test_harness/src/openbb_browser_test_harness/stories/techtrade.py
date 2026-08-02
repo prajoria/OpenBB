@@ -194,9 +194,35 @@ _STEPS: tuple[Step, ...] = (
     ),
 )
 
+
+# Widget-completeness coverage (B8, #1733) — the one tt_ widget the T1-T6
+# spine didn't hit.
+_COVERAGE_STEPS: tuple[Step, ...] = (
+    Step(
+        id="CX.tt-export-button",
+        story="techtrade",
+        notebook_ref="notebooks/techtrade/02-morning-scan.ipynb",
+        persona=Persona.SYSTEMATIC_TRADER,
+        tab_id="morning-scan",
+        action=ActionKind.OBSERVE,
+        human_title="Coverage — tt_export_button",
+        human_description=(
+            "Widget-completeness coverage step (B8 #1733). The scan tab's "
+            "export button widget returns a markdown link block."
+        ),
+        human_expected="Markdown body with CSV/JSON export links + guidance.",
+        endpoint="tt/scan/export",
+        params={},
+        tags=("coverage",),
+    ),
+)
+
+_ALL_STEPS: tuple[Step, ...] = _STEPS + _COVERAGE_STEPS
+
+
 STORY = Story(
     id="techtrade",
-    title="Techtrade Trading-Desk (T1-T6)",
+    title="Techtrade Trading-Desk (T1-T6 + widget-completeness)",
     notebook_series_root="notebooks/techtrade/",
-    steps=_STEPS,
+    steps=_ALL_STEPS,
 )

@@ -1,0 +1,8 @@
+{
+  "body": "## AAPL \u2014 Latest Earnings Call (stub)\n\n- **Date:** 2026-05-01\n- **Quarter:** Q2 2026\n- **Speakers:** Timothy Cook (CEO), Luca Maestri (CFO)\n\n> Preview stub \u2014 real wiring pulls the full transcript from FMPCachedEarningsCallTranscriptFetcher and renders the opening remarks + Q&A digest here.",
+  "endpoint": "pi/equity/earnings-transcripts",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}
