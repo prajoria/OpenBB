@@ -14,6 +14,7 @@ from portfolio_snapshot_importer import (
     FilenameParseError,
     IngestReport,
     PortfolioStore,
+    SqlitePortfolioStore,
     import_file,
     import_files,
     import_folder,
@@ -60,11 +61,11 @@ SYNTHETIC_CSV = (
     "Last price change,Current value,Today's gain/loss dollar,"
     "Today's gain/loss percent,Total gain/loss dollar,Total gain/loss percent,"
     "Percent of account,Cost basis total,Average cost basis,Type,user_id\n"
-    "Z1234567,Brokerage,XYZ,SYNTHETIC INC,10,$100.50,+$1.00,\"$1,005.00\","
-    "+$10.00,+1.00%,+$100.00,+11.05%,25.00%,\"$905.00\",$90.50,Cash,alice\n"
-    "Z1234567,Brokerage,ABC,SYNTHETIC ETF,20,$50.00,-$0.50,\"$1,000.00\","
-    "-$10.00,-0.99%,-$50.00,-4.76%,24.90%,\"$1,050.00\",$52.50,Cash,alice\n"
-    "Z1234567,Brokerage,SPAXX**,MONEY MARKET,2000.5,$1.00,--,\"$2,000.50\","
+    'Z1234567,Brokerage,XYZ,SYNTHETIC INC,10,$100.50,+$1.00,"$1,005.00",'
+    '+$10.00,+1.00%,+$100.00,+11.05%,25.00%,"$905.00",$90.50,Cash,alice\n'
+    'Z1234567,Brokerage,ABC,SYNTHETIC ETF,20,$50.00,-$0.50,"$1,000.00",'
+    '-$10.00,-0.99%,-$50.00,-4.76%,24.90%,"$1,050.00",$52.50,Cash,alice\n'
+    'Z1234567,Brokerage,SPAXX**,MONEY MARKET,2000.5,$1.00,--,"$2,000.50",'
     "--,--,--,--,49.80%,--,--,Cash,alice\n"
     "Brokerage services provided by ... (footer)\n"
 )
@@ -79,7 +80,7 @@ def synthetic_csv(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def store(tmp_path: Path) -> PortfolioStore:
-    return PortfolioStore(tmp_path / "positions.db")
+    return SqlitePortfolioStore(tmp_path / "positions.db")
 
 
 # ---------------------------------------------------------------------------
@@ -149,12 +150,12 @@ class TestIngest:
 # ---------------------------------------------------------------------------
 class TestStore:
     def test_wal_journal(self, tmp_path):
-        with PortfolioStore(tmp_path / "s.db") as s:
+        with SqlitePortfolioStore(tmp_path / "s.db") as s:
             mode = s._conn.execute("PRAGMA journal_mode").fetchone()[0]
             assert mode == "wal"
 
     def test_foreign_keys_enabled(self, tmp_path):
-        with PortfolioStore(tmp_path / "s.db") as s:
+        with SqlitePortfolioStore(tmp_path / "s.db") as s:
             fk = s._conn.execute("PRAGMA foreign_keys").fetchone()[0]
             assert fk == 1
 
@@ -198,6 +199,7 @@ class TestBasketBridge:
         out = tmp_path / "basket.json"
         basket = write_basket_json(store, out, user_id="alice")
         import json
+
         loaded = json.loads(out.read_text())
         assert loaded == basket
 

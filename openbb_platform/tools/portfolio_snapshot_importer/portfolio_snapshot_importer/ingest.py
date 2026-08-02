@@ -11,9 +11,9 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
 
 from portfolio_snapshot_importer.filename import (
     FilenameParseError,
@@ -193,18 +193,22 @@ def import_file(
     missing = _EXPECTED_COLS - set(header)
     if missing:
         return IngestResult(
-            p, "error",
+            p,
+            "error",
             message=f"missing required columns: {sorted(missing)}",
         )
 
     # Resolve user_id: filename > in-file column > caller fallback
     user_id = user_from_name
     if not user_id:
-        first_with_user = next((r.get("user_id") for r in rows if r.get("user_id")), None)
+        first_with_user = next(
+            (r.get("user_id") for r in rows if r.get("user_id")), None
+        )
         user_id = first_with_user or user_id_fallback
     if not user_id:
         return IngestResult(
-            p, "skipped_unrecognized",
+            p,
+            "skipped_unrecognized",
             snapshot_date=snap_date.isoformat(),
             message="user_id absent in filename and file; pass --user_id or add suffix",
         )
@@ -213,14 +217,17 @@ def import_file(
     existing = store.snapshot_exists(sha, user_id)
     if existing:
         return IngestResult(
-            p, "duplicate",
+            p,
+            "duplicate",
             snapshot_id=existing,
             snapshot_date=snap_date.isoformat(),
             user_id=user_id,
             message=f"already imported as {existing[:12]}…",
         )
 
-    snapshot_id = hashlib.blake2b(f"{sha}|{user_id}".encode(), digest_size=16).hexdigest()
+    snapshot_id = hashlib.blake2b(
+        f"{sha}|{user_id}".encode(), digest_size=16
+    ).hexdigest()
 
     row_count_raw = len(rows)
     kept: list[dict] = []
@@ -231,45 +238,56 @@ def import_file(
         if not symbol or not account_number:
             skipped += 1
             continue
-        kept.append({
+        kept.append(
+            {
+                "snapshot_id": snapshot_id,
+                "snapshot_date": snap_date.isoformat(),
+                "user_id": user_id,
+                "account_number": account_number,
+                "account_name": (r.get("Account name") or "").strip() or None,
+                "basket_name": None,  # v1: no basket assignment
+                "symbol": symbol,
+                "description": (r.get("Description") or "").strip() or None,
+                "type": (r.get("Type") or "").strip() or None,
+                "quantity": _parse_qty(r.get("Quantity")),
+                "last_price": _parse_money(r.get("Last price")),
+                "last_price_change": _parse_money(r.get("Last price change")),
+                "current_value": _parse_money(r.get("Current value")),
+                "today_gain_loss_dollar": _parse_money(
+                    r.get("Today's gain/loss dollar")
+                ),
+                "today_gain_loss_percent": _parse_percent(
+                    r.get("Today's gain/loss percent")
+                ),
+                "total_gain_loss_dollar": _parse_money(r.get("Total gain/loss dollar")),
+                "total_gain_loss_percent": _parse_percent(
+                    r.get("Total gain/loss percent")
+                ),
+                "percent_of_account": _parse_percent(r.get("Percent of account")),
+                "cost_basis_total": _parse_money(r.get("Cost basis total")),
+                "average_cost_basis": _parse_money(r.get("Average cost basis")),
+                "raw_row_number": i,
+            }
+        )
+
+    store.insert_snapshot(
+        {
             "snapshot_id": snapshot_id,
             "snapshot_date": snap_date.isoformat(),
             "user_id": user_id,
-            "account_number": account_number,
-            "account_name": (r.get("Account name") or "").strip() or None,
-            "basket_name": None,  # v1: no basket assignment
-            "symbol": symbol,
-            "description": (r.get("Description") or "").strip() or None,
-            "type": (r.get("Type") or "").strip() or None,
-            "quantity": _parse_qty(r.get("Quantity")),
-            "last_price": _parse_money(r.get("Last price")),
-            "last_price_change": _parse_money(r.get("Last price change")),
-            "current_value": _parse_money(r.get("Current value")),
-            "today_gain_loss_dollar": _parse_money(r.get("Today's gain/loss dollar")),
-            "today_gain_loss_percent": _parse_percent(r.get("Today's gain/loss percent")),
-            "total_gain_loss_dollar": _parse_money(r.get("Total gain/loss dollar")),
-            "total_gain_loss_percent": _parse_percent(r.get("Total gain/loss percent")),
-            "percent_of_account": _parse_percent(r.get("Percent of account")),
-            "cost_basis_total": _parse_money(r.get("Cost basis total")),
-            "average_cost_basis": _parse_money(r.get("Average cost basis")),
-            "raw_row_number": i,
-        })
-
-    store.insert_snapshot({
-        "snapshot_id": snapshot_id,
-        "snapshot_date": snap_date.isoformat(),
-        "user_id": user_id,
-        "source_filename": p.name,
-        "source_sha256": sha,
-        "row_count_raw": row_count_raw,
-        "row_count_kept": len(kept),
-        "row_count_skipped": skipped,
-        "schema_version": SCHEMA_VERSION,
-    })
+            "source_filename": p.name,
+            "source_sha256": sha,
+            "row_count_raw": row_count_raw,
+            "row_count_kept": len(kept),
+            "row_count_skipped": skipped,
+            "schema_version": SCHEMA_VERSION,
+        }
+    )
     store.insert_positions(kept)
 
     return IngestResult(
-        p, "imported",
+        p,
+        "imported",
         snapshot_id=snapshot_id,
         snapshot_date=snap_date.isoformat(),
         user_id=user_id,
