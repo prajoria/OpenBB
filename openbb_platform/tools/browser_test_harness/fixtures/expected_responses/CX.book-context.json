@@ -1,0 +1,8 @@
+{
+  "body": "**Book:** `demo`  \nPortfolio tabs (F8-F11) share this account.",
+  "endpoint": "pi/context/book",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

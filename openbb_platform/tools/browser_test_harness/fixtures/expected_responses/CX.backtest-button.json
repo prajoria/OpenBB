@@ -1,0 +1,8 @@
+{
+  "body": "## Backtest \u2014 kicked off\n\n- **Account:** `demo`\n- **Status:** queued (stub \u2014 full wiring to `openbb_backtest.run` pending)\n\n> Preview stub: real button hands off the paper book's rules to `openbb-backtest` for a walk-forward run.",
+  "endpoint": "pi/backtest/oneclick",
+  "params": {
+    "account_id": "demo"
+  },
+  "status_code": 200
+}

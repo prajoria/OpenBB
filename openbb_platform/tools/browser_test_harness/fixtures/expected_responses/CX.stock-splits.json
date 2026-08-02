@@ -1,0 +1,39 @@
+{
+  "body": [
+    {
+      "date": "2020-08-31",
+      "denominator": 1,
+      "numerator": 4,
+      "ratio": "4:1"
+    },
+    {
+      "date": "2014-06-09",
+      "denominator": 1,
+      "numerator": 7,
+      "ratio": "7:1"
+    },
+    {
+      "date": "2005-02-28",
+      "denominator": 1,
+      "numerator": 2,
+      "ratio": "2:1"
+    },
+    {
+      "date": "2000-06-21",
+      "denominator": 1,
+      "numerator": 2,
+      "ratio": "2:1"
+    },
+    {
+      "date": "1987-06-16",
+      "denominator": 1,
+      "numerator": 2,
+      "ratio": "2:1"
+    }
+  ],
+  "endpoint": "pi/equity/stock-splits",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

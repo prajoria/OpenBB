@@ -1,0 +1,8 @@
+{
+  "body": "**Symbol:** `AAPL`  \nResearch tabs (F1-F7) share this ticker.",
+  "endpoint": "pi/context/symbol",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

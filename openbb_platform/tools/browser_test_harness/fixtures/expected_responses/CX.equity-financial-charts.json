@@ -1,0 +1,39 @@
+{
+  "body": [
+    {
+      "net_income_b": 94.7,
+      "net_margin_pct": 25.89,
+      "revenue_b": 365.8,
+      "year": 2021.0
+    },
+    {
+      "net_income_b": 99.8,
+      "net_margin_pct": 25.31,
+      "revenue_b": 394.3,
+      "year": 2022.0
+    },
+    {
+      "net_income_b": 97.0,
+      "net_margin_pct": 25.31,
+      "revenue_b": 383.3,
+      "year": 2023.0
+    },
+    {
+      "net_income_b": 93.0,
+      "net_margin_pct": 23.79,
+      "revenue_b": 391.0,
+      "year": 2024.0
+    },
+    {
+      "net_income_b": 102.3,
+      "net_margin_pct": 25.54,
+      "revenue_b": 400.5,
+      "year": 2025.0
+    }
+  ],
+  "endpoint": "pi/equity/financials",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

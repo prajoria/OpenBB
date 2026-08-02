@@ -1,0 +1,39 @@
+{
+  "body": [
+    {
+      "eps_actual": 1.65,
+      "eps_estimate": 1.6,
+      "quarter": "Q3 2026",
+      "surprise_pct": 3.13
+    },
+    {
+      "eps_actual": 1.53,
+      "eps_estimate": 1.5,
+      "quarter": "Q2 2026",
+      "surprise_pct": 2.0
+    },
+    {
+      "eps_actual": 2.18,
+      "eps_estimate": 2.1,
+      "quarter": "Q1 2026",
+      "surprise_pct": 3.81
+    },
+    {
+      "eps_actual": 1.46,
+      "eps_estimate": 1.39,
+      "quarter": "Q4 2025",
+      "surprise_pct": 5.04
+    },
+    {
+      "eps_actual": 1.4,
+      "eps_estimate": 1.35,
+      "quarter": "Q3 2025",
+      "surprise_pct": 3.7
+    }
+  ],
+  "endpoint": "pi/equity/earnings-history",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

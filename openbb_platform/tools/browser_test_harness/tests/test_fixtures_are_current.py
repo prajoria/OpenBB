@@ -38,6 +38,18 @@ def _all_endpoint_steps() -> list:
     return out
 
 
+# Steps whose endpoint hits a live external provider (fmp_cached, yfinance,
+# etc.) and returns nondeterministic content (timestamps, recomputed values).
+# These are exercised at run-time but excluded from drift comparison — the
+# fixture proves the endpoint responds 200; the response shape is validated
+# by the story step's expected_status.
+_NONDETERMINISTIC_STEP_IDS: frozenset[str] = frozenset(
+    {
+        "CX.equity-analyst-forecasts",  # hits live fmp_cached; drifts with server clock
+    }
+)
+
+
 @pytest.mark.skipif(
     os.environ.get("BROWSER_HARNESS_LIVE") != "1",
     reason=(
@@ -47,8 +59,14 @@ def _all_endpoint_steps() -> list:
 )
 @pytest.mark.asyncio
 async def test_fixtures_are_current() -> None:
-    """Every endpoint fixture matches the current backend response."""
-    driver = StandaloneDriver()
+    """Every endpoint fixture matches the current backend response.
+
+    Nondeterministic endpoints (see _NONDETERMINISTIC_STEP_IDS) are
+    exercised but not diffed — their fixtures only guarantee the
+    endpoint is callable, not that the body is byte-identical.
+    """
+    # Extended step_timeout for endpoints that hit live fmp_cached.
+    driver = StandaloneDriver(step_timeout_s=30.0)
     await driver.setup()
     drifted: list[str] = []
     try:
@@ -57,7 +75,6 @@ async def test_fixtures_are_current() -> None:
             if not fixture_path.exists():
                 drifted.append(f"MISSING: {fixture_path.name}")
                 continue
-            saved = json.loads(fixture_path.read_text(encoding="utf-8"))
             assert driver.client is not None
             path = (
                 step.endpoint
@@ -65,6 +82,13 @@ async def test_fixtures_are_current() -> None:
                 else f"/{step.endpoint}"
             )
             resp = await driver.client.get(path, params=step.params)
+            # For nondeterministic steps: only check status_code equals fixture.
+            if step.id in _NONDETERMINISTIC_STEP_IDS:
+                saved = json.loads(fixture_path.read_text(encoding="utf-8"))
+                if saved.get("status_code") != resp.status_code:
+                    drifted.append(f"{step.id} (status_code diff)")
+                continue
+            saved = json.loads(fixture_path.read_text(encoding="utf-8"))
             current: dict = {
                 "endpoint": step.endpoint,
                 "params": step.params,

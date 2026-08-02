@@ -1,0 +1,29 @@
+{
+  "body": [
+    {
+      "revenue": 200583.0,
+      "segment": "iPhone"
+    },
+    {
+      "revenue": 96169.0,
+      "segment": "Services"
+    },
+    {
+      "revenue": 39845.0,
+      "segment": "Wearables, Home & Accessories"
+    },
+    {
+      "revenue": 29357.0,
+      "segment": "Mac"
+    },
+    {
+      "revenue": 28300.0,
+      "segment": "iPad"
+    }
+  ],
+  "endpoint": "pi/equity/revenue-business-line",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

@@ -1,0 +1,28 @@
+{
+  "body": [
+    {
+      "severity": "material",
+      "symbol": "AAPL",
+      "title": "Apple beats Q3 EPS; services growth accelerates",
+      "when": "2026-07-19"
+    },
+    {
+      "severity": "material",
+      "symbol": "NVDA",
+      "title": "NVIDIA announces new datacenter GPU",
+      "when": "2026-07-18"
+    },
+    {
+      "severity": "material",
+      "symbol": "MSFT",
+      "title": "Microsoft raises Azure guidance",
+      "when": "2026-07-17"
+    }
+  ],
+  "endpoint": "pi/news",
+  "params": {
+    "account_id": "demo",
+    "horizon_days": "7"
+  },
+  "status_code": 200
+}

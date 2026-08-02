@@ -1,0 +1,37 @@
+{
+  "body": [
+    {
+      "date": "2026-05-01",
+      "name": "Cook Timothy D",
+      "price_usd": 173.45,
+      "shares": -223986,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-04-14",
+      "name": "Maestri Luca",
+      "price_usd": 169.85,
+      "shares": -50000,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-04-10",
+      "name": "Williams Jeff",
+      "price_usd": 168.1,
+      "shares": -25000,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-03-15",
+      "name": "Adams Katherine",
+      "price_usd": 173.2,
+      "shares": -10000,
+      "transaction_type": "S-Sale"
+    }
+  ],
+  "endpoint": "pi/equity/insider-trading",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}
