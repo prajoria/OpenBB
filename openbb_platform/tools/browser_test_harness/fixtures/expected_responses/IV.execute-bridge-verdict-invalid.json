@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "verdict must be PASS or FAIL; got 'MAYBE'"
+  },
+  "endpoint": "tt/execute/bridge",
+  "params": {
+    "verdict": "MAYBE"
+  },
+  "status_code": 400
+}

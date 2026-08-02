@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "horizon_days out of range"
+  },
+  "endpoint": "pi/news",
+  "params": {
+    "horizon_days": "0"
+  },
+  "status_code": 400
+}

@@ -1,0 +1,12 @@
+{
+  "body": {
+    "detail": "side must be buy or sell"
+  },
+  "endpoint": "pi/paper/ticket",
+  "params": {
+    "quantity": "10",
+    "side": "<script>",
+    "symbol": "AAPL"
+  },
+  "status_code": 400
+}

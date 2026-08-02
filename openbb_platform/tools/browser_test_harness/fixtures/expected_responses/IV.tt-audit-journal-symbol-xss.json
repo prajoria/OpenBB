@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "symbol invalid"
+  },
+  "endpoint": "tt/audit/journal",
+  "params": {
+    "symbol": "javascript:alert(1)"
+  },
+  "status_code": 400
+}

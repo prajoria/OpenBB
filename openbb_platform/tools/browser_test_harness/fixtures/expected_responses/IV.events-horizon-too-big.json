@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "horizon_days out of range"
+  },
+  "endpoint": "pi/events/calendar",
+  "params": {
+    "horizon_days": "366"
+  },
+  "status_code": 400
+}

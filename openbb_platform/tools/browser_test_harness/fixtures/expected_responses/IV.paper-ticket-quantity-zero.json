@@ -1,0 +1,12 @@
+{
+  "body": {
+    "detail": "quantity must be positive"
+  },
+  "endpoint": "pi/paper/ticket",
+  "params": {
+    "quantity": "0",
+    "side": "buy",
+    "symbol": "AAPL"
+  },
+  "status_code": 400
+}
