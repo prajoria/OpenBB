@@ -280,7 +280,7 @@ def _snapshot_for(
             last = getattr(q[0], "last_price", None) or getattr(q[0], "price", None)
             if last is not None:
                 price = Decimal(str(last))
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     try:
         pt = _rows(_fetch_price_target(symbol, provider=provider))
@@ -303,7 +303,7 @@ def _snapshot_for(
                     if len(targets) % 2 == 1
                     else (targets[mid - 1] + targets[mid]) / Decimal(2)
                 )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     try:
         cons = _rows(_fetch_consensus(symbol, provider=provider))
@@ -318,7 +318,7 @@ def _snapshot_for(
                 row, "number_of_analysts", 0
             )
             analyst_count = int(n) if n else 0
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001, S110
         pass
     return AnalystSnapshot(
         symbol=symbol,
