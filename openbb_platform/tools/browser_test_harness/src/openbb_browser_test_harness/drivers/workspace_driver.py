@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..redact import assert_screenshot_clean
+from ..selectors import WidgetSelector, selector_for_endpoint
 from ..steps import ActionKind, Step, StepResult
 
 if TYPE_CHECKING:
@@ -142,17 +143,19 @@ class WorkspaceDriver:
     async def run_step(self, step: Step) -> StepResult:
         """Execute one step against the live Workspace UI.
 
-        This is a MINIMAL first-pass implementation. It:
-        - Screenshots the current page state
-        - Records the SHA-256 of the screenshot bytes (P2-10)
-        - Redacts the screenshot filesystem path (P1-4)
-        - Reports widget_visible and not_blank observations honestly
-          (currently as "unverified" pending selector work in a follow-up)
+        Screenshots the page, computes SHA-256, redacts the path, then
+        (for steps with an endpoint) uses the selector graph (B10, #1735)
+        to turn ``widget_visible`` and ``not_blank`` from ``"unverified"``
+        sentinels into REAL UI assertions:
 
-        Real tab-navigation + widget-selector logic requires a Workspace
-        selector map that varies by Workspace version. Filed as a follow-up
-        so the harness ships useful today (screenshots per step) even before
-        the full selector graph exists.
+        - ``widget_visible``: container ``[data-widget-id="<id>"]`` is
+          attached AND ``bounding_box().height > 0``.
+        - ``not_blank``: at least one type-appropriate content selector
+          resolves to a locator with non-empty ``innerText`` OR non-zero
+          bounding-box area (charts/canvases are legitimately empty-text).
+
+        Steps with no endpoint (NAVIGATE / SCREENSHOT chrome steps) fall
+        back to page-level "did we load" observations.
         """
         if self._page is None:
             return StepResult(
@@ -189,25 +192,112 @@ class WorkspaceDriver:
             )
             screenshot_sha = hashlib.sha256(png_bytes).hexdigest()
 
+        # Selector-graph assertions (B10, #1735).
+        widget_visible: object = "n/a"
+        not_blank: object = "n/a"
+        selector: WidgetSelector | None = None
+        if step.endpoint:
+            selector = selector_for_endpoint(step.endpoint)
+        if selector is not None:
+            widget_visible = await self._is_widget_visible(selector)
+            if widget_visible is True:
+                not_blank = await self._is_widget_not_blank(selector)
+
         duration_ms = int((time.monotonic() - start) * 1000)
 
-        # Observations — honest about what we can and can't verify.
         observations: dict[str, object] = {
-            "widget_visible": "unverified",
-            "not_blank": "unverified",
+            "widget_visible": widget_visible,
+            "not_blank": not_blank,
             "screenshot_bytes": len(png_bytes),
         }
+        if selector is not None:
+            observations["container_selector"] = selector.container
+            observations["widget_type"] = selector.widget_type
         if step.action == ActionKind.NAVIGATE:
             observations["current_url"] = self._page.url
 
-        # ok=True because we successfully captured the frame. Real
-        # widget-presence assertion is follow-up work (Workspace selector map).
+        # An ASSERT-kind step in workspace mode gates ok on widget_visible.
+        # OBSERVE / NAVIGATE / SCREENSHOT still record the observation but
+        # don't fail on it (the standalone driver already gated the shape).
+        ok = True
+        error: str | None = None
+        if step.action == ActionKind.ASSERT and selector is not None:
+            if widget_visible is not True:
+                ok = False
+                error = f"widget_not_visible: selector={selector.container}"
+            elif not_blank is not True:
+                ok = False
+                error = (
+                    f"widget_blank: selector={selector.container} "
+                    f"type={selector.widget_type}"
+                )
+
         return StepResult(
             step_id=step.id,
-            ok=True,
+            ok=ok,
             duration_ms=duration_ms,
             screenshot_path=screenshot_path,
             observations=observations,
-            error=None,
+            error=error,
             screenshot_sha256=screenshot_sha,
         )
+
+    async def _is_widget_visible(self, selector: WidgetSelector) -> bool:
+        """Container ``[data-widget-id="..."]`` is attached and has size.
+
+        Uses ``locator.count()`` to survive missing containers without
+        throwing (Playwright's ``bounding_box()`` on an absent locator
+        raises). We return ``False`` (not None) so downstream logic is
+        boolean-clean; the observation dict still carries the selector
+        string for diagnosis.
+        """
+        assert self._page is not None
+        loc = self._page.locator(selector.container).first
+        try:
+            n = await loc.count()
+        except Exception:  # noqa: BLE001 — treat any playwright error as "not visible"
+            return False
+        if n == 0:
+            return False
+        try:
+            box = await loc.bounding_box()
+        except Exception:  # noqa: BLE001
+            return False
+        return bool(box and box.get("height", 0) > 0 and box.get("width", 0) > 0)
+
+    async def _is_widget_not_blank(self, selector: WidgetSelector) -> bool:
+        """Content non-blank per widget type.
+
+        For each candidate content selector (rooted inside the container),
+        we consider the widget non-blank if EITHER:
+        - text mode: ``innerText.strip()`` is non-empty (tables / markdown /
+          metrics), OR
+        - visual mode: ``bounding_box().height > 0`` on a canvas / svg
+          (charts legitimately have empty text but a visible frame).
+
+        Returns True on the first candidate that satisfies either mode.
+        """
+        assert self._page is not None
+        container = self._page.locator(selector.container).first
+        for content_sel in selector.content_candidates:
+            child = container.locator(content_sel).first
+            try:
+                if await child.count() == 0:
+                    continue
+            except Exception:  # noqa: BLE001
+                continue
+            # Text mode
+            try:
+                text = (await child.inner_text()).strip()
+            except Exception:  # noqa: BLE001
+                text = ""
+            if text:
+                return True
+            # Visual mode
+            try:
+                box = await child.bounding_box()
+            except Exception:  # noqa: BLE001
+                box = None
+            if box and box.get("height", 0) > 0:
+                return True
+        return False
