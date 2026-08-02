@@ -28,6 +28,18 @@ D = Decimal
 NOW = datetime(2026, 7, 20, 12, 0, 0, tzinfo=timezone.utc)
 
 
+@pytest.fixture(autouse=True)
+def _pin_news_timeline_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin news_sentiment_router._now to NOW (#1716 fix).
+
+    Without this, tests that stub news/filing rows at ``NOW - timedelta(...)``
+    are silently dropped by the router's ``days_back`` window once wall-clock
+    time drifts past ``NOW + days_back``. The router injects ``_now()`` as a
+    seam specifically so tests pin it deterministically.
+    """
+    monkeypatch.setattr(news_sentiment_router, "_now", lambda: NOW)
+
+
 # ---------------------------------------------------------------------------
 # #572 news timeline
 # ---------------------------------------------------------------------------

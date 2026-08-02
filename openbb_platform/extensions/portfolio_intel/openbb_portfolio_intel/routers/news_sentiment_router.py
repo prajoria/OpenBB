@@ -80,6 +80,17 @@ def _fetch_news_company(symbol: str, *, provider: str | None):
     return obb.news.company(symbol=symbol, provider=provider)
 
 
+def _now() -> datetime:
+    """Wall-clock 'now' seam — monkeypatch in tests to pin the reference time.
+
+    Fixes #1716: tests that stub news/filing rows with a fixed ``NOW`` need
+    to pin ``now`` too or the router's real-clock ``days_back`` window
+    drops them as stale. Keeping it as a module-level function makes the
+    injection uniform with ``_fetch_news_company`` / ``_fetch_filings``.
+    """
+    return datetime.now(tz=timezone.utc)
+
+
 def _fetch_filings(symbol: str, *, provider: str | None):
     from openbb import obb  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
 
@@ -174,7 +185,7 @@ def timeline(
     sev_floor = _SEVERITY_RANK.get(severity.lower(), 1)
     warnings: list[str] = []
 
-    now = datetime.now(tz=timezone.utc)
+    now = _now()
     since = now - timedelta(days=days_back)
     items: list[NewsItem] = []
 
