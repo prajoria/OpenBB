@@ -1,0 +1,29 @@
+{
+  "body": [
+    {
+      "amount": 0.25,
+      "ex_date": "2026-05-10",
+      "payment_date": "2026-05-16"
+    },
+    {
+      "amount": 0.24,
+      "ex_date": "2026-02-09",
+      "payment_date": "2026-02-15"
+    },
+    {
+      "amount": 0.24,
+      "ex_date": "2025-11-10",
+      "payment_date": "2025-11-16"
+    },
+    {
+      "amount": 0.24,
+      "ex_date": "2025-08-11",
+      "payment_date": "2025-08-17"
+    }
+  ],
+  "endpoint": "pi/equity/dividend-payment",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

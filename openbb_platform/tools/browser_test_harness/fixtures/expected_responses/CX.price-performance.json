@@ -1,0 +1,45 @@
+{
+  "body": [
+    {
+      "period": "1D",
+      "return_pct": 0.54
+    },
+    {
+      "period": "1W",
+      "return_pct": 1.82
+    },
+    {
+      "period": "1M",
+      "return_pct": 3.41
+    },
+    {
+      "period": "3M",
+      "return_pct": 7.2
+    },
+    {
+      "period": "6M",
+      "return_pct": 12.85
+    },
+    {
+      "period": "YTD",
+      "return_pct": 18.44
+    },
+    {
+      "period": "1Y",
+      "return_pct": 24.1
+    },
+    {
+      "period": "3Y",
+      "return_pct": 82.31
+    },
+    {
+      "period": "5Y",
+      "return_pct": 245.6
+    }
+  ],
+  "endpoint": "pi/equity/price-performance",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

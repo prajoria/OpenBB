@@ -16,12 +16,49 @@ def test_both_stories_load() -> None:
     assert "techtrade" in STORIES
 
 
-def test_portfolio_story_has_16_steps() -> None:
-    assert len(PORTFOLIO_STORY.steps) == 16
+def test_portfolio_story_has_at_least_16_steps() -> None:
+    """W0-W9 spine (16) plus B8 coverage steps."""
+    assert len(PORTFOLIO_STORY.steps) >= 16
 
 
-def test_techtrade_story_has_12_steps() -> None:
-    assert len(TECHTRADE_STORY.steps) == 12
+def test_techtrade_story_has_at_least_12_steps() -> None:
+    """T1-T6 spine (12) plus B8 coverage step."""
+    assert len(TECHTRADE_STORY.steps) >= 12
+
+
+def test_all_widgets_have_a_coverage_step_or_are_in_the_spine() -> None:
+    """B8 #1733 — every widget in widgets.json is exercised by SOME step.
+
+    This is the load-bearing invariant of the widget-completeness sweep:
+    if a new widget lands in widgets.json without a story step, this test
+    fails at PR time so we can't ship uncovered UI.
+    """
+    import json
+    from pathlib import Path
+
+    manifest_path = (
+        Path(__file__).resolve().parents[3]
+        / "extensions"
+        / "portfolio_intel"
+        / "openbb_portfolio_intel"
+        / "widget_backend"
+        / "widgets.json"
+    )
+    widgets = json.loads(manifest_path.read_text(encoding="utf-8"))
+    exercised_endpoints: set[str] = set()
+    for story in STORIES.values():
+        for step in story.steps:
+            if step.endpoint:
+                exercised_endpoints.add(step.endpoint)
+    uncovered: list[str] = []
+    for wid, spec in widgets.items():
+        if spec["endpoint"] not in exercised_endpoints:
+            uncovered.append(f"{wid} ({spec['endpoint']})")
+    assert not uncovered, (
+        f"{len(uncovered)} widget(s) have no story step covering them:\n  "
+        + "\n  ".join(uncovered)
+        + "\n\nAdd coverage steps to the appropriate story's _COVERAGE_STEPS."
+    )
 
 
 def test_all_step_ids_are_unique_within_story() -> None:

@@ -33,7 +33,9 @@ async def _run_story(
 
     driver: object
     if mode == "standalone":
-        driver = StandaloneDriver()
+        # Extended step_timeout for endpoints that hit live fmp_cached
+        # (e.g. pi/equity/analyst-forecasts).
+        driver = StandaloneDriver(step_timeout_s=30.0)
     elif mode == "workspace":
         if not _WORKSPACE_AVAILABLE:
             print(

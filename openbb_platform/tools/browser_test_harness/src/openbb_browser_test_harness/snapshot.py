@@ -31,7 +31,9 @@ _LAYOUT_ROOT = _HARNESS_ROOT / "fixtures" / "expected_layouts"
 
 
 async def _snapshot_all() -> int:
-    driver = StandaloneDriver()
+    # Extended step_timeout because pi/equity/analyst-forecasts hits the live
+    # fmp_cached fetcher and can spike above the default 5s.
+    driver = StandaloneDriver(step_timeout_s=30.0)
     await driver.setup()
     try:
         _FIXTURE_ROOT.mkdir(parents=True, exist_ok=True)

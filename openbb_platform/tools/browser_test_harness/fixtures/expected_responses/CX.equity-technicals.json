@@ -1,0 +1,54 @@
+{
+  "body": [
+    {
+      "metric": "Consensus",
+      "note": "24 analysts",
+      "value": "BUY"
+    },
+    {
+      "metric": "R3 (Classic)",
+      "note": "",
+      "value": 234.66
+    },
+    {
+      "metric": "R2 (Classic)",
+      "note": "",
+      "value": 232.58
+    },
+    {
+      "metric": "R1 (Classic)",
+      "note": "",
+      "value": 230.36
+    },
+    {
+      "metric": "P (Classic)",
+      "note": "pivot",
+      "value": 228.28
+    },
+    {
+      "metric": "S1 (Classic)",
+      "note": "",
+      "value": 226.06
+    },
+    {
+      "metric": "S2 (Classic)",
+      "note": "",
+      "value": 223.98
+    },
+    {
+      "metric": "S3 (Classic)",
+      "note": "",
+      "value": 221.76
+    },
+    {
+      "metric": "ATM IV term structure",
+      "note": "gap 999",
+      "value": "BLOCKED"
+    }
+  ],
+  "endpoint": "pi/equity/technicals",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

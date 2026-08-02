@@ -1,0 +1,6 @@
+{
+  "body": "### Export Scan\n\n- [Download CSV](#) \u2014 snapshot of the current scan table\n- [Copy JSON](#) \u2014 machine-readable copy\n\n> Stub \u2014 the CSV link will resolve to a real streaming download once the export route lands in a follow-up cycle.",
+  "endpoint": "tt/scan/export",
+  "params": {},
+  "status_code": 200
+}

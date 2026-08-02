@@ -1,0 +1,39 @@
+{
+  "body": [
+    {
+      "change_pct": 0.85,
+      "name": "Microsoft Corp.",
+      "price": 428.1,
+      "symbol": "MSFT"
+    },
+    {
+      "change_pct": -0.42,
+      "name": "Alphabet Inc. Class A",
+      "price": 178.4,
+      "symbol": "GOOGL"
+    },
+    {
+      "change_pct": 1.2,
+      "name": "Meta Platforms Inc.",
+      "price": 512.75,
+      "symbol": "META"
+    },
+    {
+      "change_pct": 0.33,
+      "name": "Amazon.com Inc.",
+      "price": 194.3,
+      "symbol": "AMZN"
+    },
+    {
+      "change_pct": 2.1,
+      "name": "NVIDIA Corp.",
+      "price": 118.2,
+      "symbol": "NVDA"
+    }
+  ],
+  "endpoint": "pi/equity/competitors",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

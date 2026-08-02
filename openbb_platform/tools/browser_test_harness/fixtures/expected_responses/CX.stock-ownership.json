@@ -1,0 +1,25 @@
+{
+  "body": [
+    {
+      "bucket": "Institutions",
+      "pct": 61.4
+    },
+    {
+      "bucket": "Retail",
+      "pct": 32.5
+    },
+    {
+      "bucket": "ETFs",
+      "pct": 5.4
+    },
+    {
+      "bucket": "Insiders",
+      "pct": 0.7
+    }
+  ],
+  "endpoint": "pi/equity/stock-ownership",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

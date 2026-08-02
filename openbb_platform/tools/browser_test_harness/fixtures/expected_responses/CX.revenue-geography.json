@@ -1,0 +1,29 @@
+{
+  "body": [
+    {
+      "region": "Americas",
+      "revenue": 162560.0
+    },
+    {
+      "region": "Europe",
+      "revenue": 94294.0
+    },
+    {
+      "region": "Greater China",
+      "revenue": 66952.0
+    },
+    {
+      "region": "Japan",
+      "revenue": 24257.0
+    },
+    {
+      "region": "Rest of Asia Pacific",
+      "revenue": 29615.0
+    }
+  ],
+  "endpoint": "pi/equity/revenue-geography",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

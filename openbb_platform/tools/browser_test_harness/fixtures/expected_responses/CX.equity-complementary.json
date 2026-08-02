@@ -1,0 +1,44 @@
+{
+  "body": [
+    {
+      "id": "SPY",
+      "kind": "ETF",
+      "name": "SPDR S&P 500",
+      "value_usd": "$62B",
+      "weight_pct": 7.0
+    },
+    {
+      "id": "QQQ",
+      "kind": "ETF",
+      "name": "Invesco QQQ Trust",
+      "value_usd": "$25B",
+      "weight_pct": 8.9
+    },
+    {
+      "id": "VOO",
+      "kind": "ETF",
+      "name": "Vanguard S&P 500",
+      "value_usd": "$52B",
+      "weight_pct": 7.0
+    },
+    {
+      "id": "XLK",
+      "kind": "ETF",
+      "name": "SPDR Technology",
+      "value_usd": "$14B",
+      "weight_pct": 22.1
+    },
+    {
+      "id": "BLOCKED",
+      "kind": "Bond",
+      "name": "corporate bond ladder",
+      "value_usd": "gap 1000",
+      "weight_pct": 0.0
+    }
+  ],
+  "endpoint": "pi/equity/complementary",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

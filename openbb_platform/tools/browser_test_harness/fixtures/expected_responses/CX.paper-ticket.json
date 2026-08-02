@@ -1,0 +1,12 @@
+{
+  "body": "## Paper Order \u2014 PREVIEW\n\n- **Account:** `demo`\n- **Side:** BUY\n- **Symbol:** `AAPL`\n- **Quantity:** 100\n\n> Preview only. Re-submit with `confirm=true` to commit.",
+  "endpoint": "pi/paper/ticket",
+  "params": {
+    "account_id": "demo",
+    "confirm": "false",
+    "quantity": "100",
+    "side": "buy",
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

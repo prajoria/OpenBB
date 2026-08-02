@@ -1,0 +1,39 @@
+{
+  "body": [
+    {
+      "name": "Timothy D. Cook",
+      "pay_usd": 63209845.0,
+      "tenure_years": 12.0,
+      "title": "CEO"
+    },
+    {
+      "name": "Luca Maestri",
+      "pay_usd": 27129231.0,
+      "tenure_years": 10.0,
+      "title": "CFO"
+    },
+    {
+      "name": "Jeff Williams",
+      "pay_usd": 26985763.0,
+      "tenure_years": 8.0,
+      "title": "COO"
+    },
+    {
+      "name": "Katherine L. Adams",
+      "pay_usd": 26985763.0,
+      "tenure_years": 7.0,
+      "title": "General Counsel"
+    },
+    {
+      "name": "Deirdre O'Brien",
+      "pay_usd": 26985763.0,
+      "tenure_years": 6.0,
+      "title": "SVP Retail & People"
+    }
+  ],
+  "endpoint": "pi/equity/management-team",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

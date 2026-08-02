@@ -1,0 +1,37 @@
+{
+  "body": [
+    {
+      "ev_ebitda": 24.8,
+      "pe_fwd": 29.4,
+      "pe_ttm": 32.1,
+      "ps_ttm": 8.7,
+      "symbol": "AAPL"
+    },
+    {
+      "ev_ebitda": 26.1,
+      "pe_fwd": 31.2,
+      "pe_ttm": 34.9,
+      "ps_ttm": 12.4,
+      "symbol": "MSFT"
+    },
+    {
+      "ev_ebitda": 18.9,
+      "pe_fwd": 23.1,
+      "pe_ttm": 26.3,
+      "ps_ttm": 6.2,
+      "symbol": "GOOGL"
+    },
+    {
+      "ev_ebitda": 17.2,
+      "pe_fwd": 24.7,
+      "pe_ttm": 27.6,
+      "ps_ttm": 9.1,
+      "symbol": "META"
+    }
+  ],
+  "endpoint": "pi/equity/peer-multiples",
+  "params": {
+    "symbol": "AAPL"
+  },
+  "status_code": 200
+}

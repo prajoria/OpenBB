@@ -1,8 +1,8 @@
-# Techtrade Trading-Desk (T1-T6) — Manual Test Guide
+# Techtrade Trading-Desk (T1-T6 + widget-completeness) — Manual Test Guide
 
 **Story:** `techtrade`
 **Notebook series:** [`notebooks/techtrade/`](../../../notebooks/techtrade/)
-**Total steps:** 12
+**Total steps:** 13
 
 > This guide is auto-generated from the Story data source. Do NOT edit by hand — edit `src/openbb_browser_test_harness/stories/techtrade.py` and regenerate with:
 > 
@@ -267,6 +267,24 @@ Read tt_audit_journal on the Audit tab.
 **Endpoint:** `tt/audit/journal`
 
 ![T6.audit](screenshots/techtrade/T6.audit.png)
+
+*Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
+
+---
+
+### Coverage — tt_export_button
+
+**Step ID:** `CX.tt-export-button` &nbsp; · &nbsp; **Tab:** `morning-scan` &nbsp; · &nbsp; **Action:** Observe &nbsp; · &nbsp; **Persona:** systematic trader
+
+**Notebook anchor:** [`notebooks/techtrade/02-morning-scan.ipynb`](../../../notebooks/techtrade/02-morning-scan.ipynb)
+
+Widget-completeness coverage step (B8 #1733). The scan tab's export button widget returns a markdown link block.
+
+**Expected:** Markdown body with CSV/JSON export links + guidance.
+
+**Endpoint:** `tt/scan/export`
+
+![CX.tt-export-button](screenshots/techtrade/CX.tt-export-button.png)
 
 *Screenshot will be captured by* `python -m openbb_browser_test_harness.run --story techtrade --mode workspace --capture-guide-screenshots` (B6 #1728).
 
