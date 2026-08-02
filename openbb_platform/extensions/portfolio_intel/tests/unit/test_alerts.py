@@ -344,9 +344,7 @@ def test_evaluate_all_empty_context_returns_empty_list() -> None:
 def test_evaluate_all_sort_is_severity_desc_then_time_asc() -> None:
     ctx = AlertContext(
         holdings=_holdings(("AAPL", "0.5"), ("MSFT", "0.5")),
-        earnings=(
-            EarningsEvent(symbol="AAPL", date=TODAY + timedelta(days=1)),
-        ),
+        earnings=(EarningsEvent(symbol="AAPL", date=TODAY + timedelta(days=1)),),
         analyst_actions=(
             AnalystAction(
                 symbol="AAPL",
@@ -354,9 +352,7 @@ def test_evaluate_all_sort_is_severity_desc_then_time_asc() -> None:
                 action="downgrade",
             ),
         ),
-        dividends=(
-            DividendEvent(symbol="MSFT", ex_date=TODAY + timedelta(days=1)),
-        ),
+        dividends=(DividendEvent(symbol="MSFT", ex_date=TODAY + timedelta(days=1)),),
     )
     out = evaluate_all(ctx, now=NOW)
     # Expect: CRITICAL downgrade first, then WARNING earnings, then INFO ex-div

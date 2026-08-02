@@ -127,12 +127,12 @@ def test_stress_100_concurrent_buys_serialize_correctly() -> None:
 
     final = astore.get(acc.account_id, user_id="daisy")
     lot = pstore.get(acc.account_id, "AAPL", user_id="daisy")
-    assert final.cash_balance == D("40000"), (
-        f"cash conservation: expected 40000, got {final.cash_balance} — race lost updates"
-    )
-    assert lot.qty == D("100"), (
-        f"position conservation: expected 100 lot qty, got {lot.qty} — race lost updates"
-    )
+    assert final.cash_balance == D(
+        "40000"
+    ), f"cash conservation: expected 40000, got {final.cash_balance} — race lost updates"
+    assert lot.qty == D(
+        "100"
+    ), f"position conservation: expected 100 lot qty, got {lot.qty} — race lost updates"
 
 
 def test_stress_cash_never_underflows_under_race() -> None:
@@ -178,9 +178,9 @@ def test_stress_cash_never_underflows_under_race() -> None:
     # Exactly 25 fill; 25 reject. Cash exactly 0 (no underflow).
     assert filled == 25, f"expected 25 FILLED; got {filled}"
     assert rejected == 25, f"expected 25 REJECTED; got {rejected}"
-    assert final.cash_balance == D("0"), (
-        f"cash floor violated: {final.cash_balance} (race let a buy through past the check)"
-    )
+    assert final.cash_balance == D(
+        "0"
+    ), f"cash floor violated: {final.cash_balance} (race let a buy through past the check)"
     assert final.cash_balance >= 0, "cash cannot go negative on non-margin"
 
 
@@ -203,12 +203,16 @@ def test_two_accounts_isolated_locks() -> None:
 
     a1 = astore.create(
         user_id="daisy",
-        config=AccountConfig(starting_cash=D("10000"), slippage_bps=0, commission_model="zero"),
+        config=AccountConfig(
+            starting_cash=D("10000"), slippage_bps=0, commission_model="zero"
+        ),
         now=NOW,
     )
     a2 = astore.create(
         user_id="mallory",
-        config=AccountConfig(starting_cash=D("10000"), slippage_bps=0, commission_model="zero"),
+        config=AccountConfig(
+            starting_cash=D("10000"), slippage_bps=0, commission_model="zero"
+        ),
         now=NOW,
     )
 
@@ -225,9 +229,9 @@ def test_two_accounts_isolated_locks() -> None:
         ).status
 
     with ThreadPoolExecutor(max_workers=16) as ex:
-        futures = [
-            ex.submit(_worker, a1.account_id, "daisy") for _ in range(30)
-        ] + [ex.submit(_worker, a2.account_id, "mallory") for _ in range(30)]
+        futures = [ex.submit(_worker, a1.account_id, "daisy") for _ in range(30)] + [
+            ex.submit(_worker, a2.account_id, "mallory") for _ in range(30)
+        ]
         results = [f.result() for f in as_completed(futures)]
 
     assert all(s is OrderStatus.FILLED for s in results)

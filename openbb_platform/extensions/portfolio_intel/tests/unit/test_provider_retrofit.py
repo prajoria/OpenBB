@@ -226,3 +226,102 @@ def test_with_chain_falls_to_stub_when_registered_tier_raises() -> None:
 
     result = equity_header(symbol="AAPL")
     assert result == {"source": "stub-recovered", "symbol": "AAPL"}
+
+
+# ---------------------------------------------------------------------------
+# Security review (#1715 review — HIGH: auth-bypass, input-validation-bypass)
+# ---------------------------------------------------------------------------
+
+
+def test_with_chain_require_auth_runs_before_chain_dispatch() -> None:
+    """R7.11 twin: without ``require_auth`` firing in the wrapper, a
+    registered live tier would serve unauthenticated requests because
+    the ``_require_auth(request)`` inside the stub body is bypassed on
+    chain success.
+
+    Load-bearing: replace ``if require_auth is not None: require_auth(...)``
+    with ``pass`` in retrofit.py and this test fails.
+    """
+
+    tier_called = []
+
+    def live_tier(**kw: object) -> dict:
+        tier_called.append(kw)
+        return {"served_by": "fmp_cached", **kw}
+
+    register_tier_call("equity/header", "fmp_cached", live_tier)
+
+    class _Denied(RuntimeError):
+        pass
+
+    def deny_auth(*_a: object, **_kw: object) -> None:
+        raise _Denied("unauthenticated")
+
+    @with_chain(
+        endpoint="pi/equity/header",
+        family="equity/header",
+        record_tier_used=lambda e, t: None,
+        require_auth=deny_auth,
+    )
+    def equity_header(symbol: str = "AAPL") -> dict:
+        # Would run if the wrapper let us past auth — must not.
+        return {"never": True}
+
+    with pytest.raises(_Denied):
+        equity_header(symbol="AAPL")
+    assert tier_called == [], "tier called despite auth denial — auth bypass!"
+
+
+def test_with_chain_validate_kwargs_runs_before_chain_dispatch() -> None:
+    """R7.11 twin: without ``validate_kwargs`` firing in the wrapper, a
+    registered tier receives un-sanitized user input.
+
+    Load-bearing: replace the ``validate_kwargs(...)`` call with ``pass``
+    in retrofit.py and this test fails.
+    """
+
+    tier_called = []
+
+    def live_tier(**kw: object) -> dict:
+        tier_called.append(kw)
+        return {"served_by": "fmp_cached", **kw}
+
+    register_tier_call("equity/header", "fmp_cached", live_tier)
+
+    class _Invalid(RuntimeError):
+        pass
+
+    def reject_xss(*_a: object, symbol: str = "AAPL", **_kw: object) -> None:
+        if "<" in symbol or ">" in symbol:
+            raise _Invalid(f"invalid symbol {symbol!r}")
+
+    @with_chain(
+        endpoint="pi/equity/header",
+        family="equity/header",
+        record_tier_used=lambda e, t: None,
+        validate_kwargs=reject_xss,
+    )
+    def equity_header(symbol: str = "AAPL") -> dict:
+        return {"stub": True, "symbol": symbol}
+
+    with pytest.raises(_Invalid):
+        equity_header(symbol="<script>alert(1)</script>")
+    assert tier_called == [], "tier called with un-sanitized input — validation bypass!"
+
+
+def test_with_chain_auth_runs_even_when_chain_falls_to_stub() -> None:
+    """Auth must run for BOTH the wired-tier and stub-fallback paths."""
+    auth_calls: list = []
+
+    @with_chain(
+        endpoint="pi/equity/header",
+        family="equity/header",
+        record_tier_used=lambda e, t: None,
+        require_auth=lambda *a, **kw: auth_calls.append(1),
+    )
+    def equity_header(symbol: str = "AAPL") -> dict:
+        return {"stub": True}
+
+    # No tiers wired — chain exhausts → stub runs.
+    equity_header(symbol="AAPL")
+    assert auth_calls == [1], "auth must fire even on stub fallback path"

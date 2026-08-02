@@ -113,7 +113,9 @@ def test_rollup_analyst_count_weighting_biases_toward_high_coverage() -> None:
     assert D("4.5") < roll.rating < D("4.7")
 
 
-def test_rollup_holdings_without_rating_excluded_from_rating_but_kept_for_coverage() -> None:
+def test_rollup_holdings_without_rating_excluded_from_rating_but_kept_for_coverage() -> (
+    None
+):
     """Coverage_pct is the flagship invariant. Verify it directly."""
     _, roll = score_and_rollup(
         [
@@ -221,9 +223,9 @@ def test_reverse_verify_rating_mutation_actually_changes_rollup() -> None:
     mutated = [_mk("A", "0.5", "5.0", 20), _mk("B", "0.5", "2.0", 20)]
     _, roll_base = score_and_rollup(base)
     _, roll_mut = score_and_rollup(mutated)
-    assert roll_base.rating != roll_mut.rating, (
-        "fixture is ceremonial — mutation didn't change output"
-    )
+    assert (
+        roll_base.rating != roll_mut.rating
+    ), "fixture is ceremonial — mutation didn't change output"
     assert roll_mut.rating > roll_base.rating
 
 

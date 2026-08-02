@@ -80,9 +80,7 @@ def test_price_history_candle_returns_ohlc_shape() -> None:
 
 def test_price_history_rejects_invalid_chart_type() -> None:
     """Unknown ``chart_type`` returns 400 with a discriminating error."""
-    resp = _client.get(
-        "/pi/equity/price-history?symbol=AAPL&chart_type=heikinashi"
-    )
+    resp = _client.get("/pi/equity/price-history?symbol=AAPL&chart_type=heikinashi")
     assert resp.status_code == 400
     detail = resp.json().get("detail", "")
     assert "chart_type" in detail

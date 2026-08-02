@@ -121,7 +121,9 @@ def test_account_attacker_can_create_own_account_with_same_id_scope():
     """OWNER + ATTACKER get their own listing — but account_ids are globally
     unique in InMemoryAccountStore (first-write-wins). Verifies scope."""
     store = InMemoryAccountStore()
-    a1 = store.create(user_id=OWNER, config=AccountConfig(starting_cash=D("1000")), now=NOW)
+    a1 = store.create(
+        user_id=OWNER, config=AccountConfig(starting_cash=D("1000")), now=NOW
+    )
     a2 = store.create(
         user_id=ATTACKER, config=AccountConfig(starting_cash=D("1000")), now=NOW
     )
@@ -237,9 +239,7 @@ REAL_PORTFOLIO_TABLES: tuple[str, ...] = (
 )
 
 PAPER_MODULE_ROOT = (
-    Path(__file__).resolve().parents[2]
-    / "openbb_portfolio_intel"
-    / "paper"
+    Path(__file__).resolve().parents[2] / "openbb_portfolio_intel" / "paper"
 )
 
 
@@ -263,7 +263,9 @@ def test_no_cross_namespace_sql_references() -> None:
     assert not violations, (
         "PRD §10.3 / §16.2 violation — paper_* modules must not reference "
         "real-portfolio tables. Hits:\n"
-        + "\n".join(f"  {p}:{ln}  [{name}]  {line}" for (p, name, ln, line) in violations)
+        + "\n".join(
+            f"  {p}:{ln}  [{name}]  {line}" for (p, name, ln, line) in violations
+        )
     )
 
 

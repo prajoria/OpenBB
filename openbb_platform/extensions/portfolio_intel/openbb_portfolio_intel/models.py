@@ -238,7 +238,9 @@ class BacktestHandoffResult(BaseModel):
     caller can persist and re-run once backtest is wired.
     """
 
-    mode: str = Field(description="'live' when handed off to obb.backtest, else 'stub'.")
+    mode: str = Field(
+        description="'live' when handed off to obb.backtest, else 'stub'."
+    )
     payload: dict = Field(
         default_factory=dict,
         description="Backtest results (mode='live') or portable JSON dump (mode='stub').",

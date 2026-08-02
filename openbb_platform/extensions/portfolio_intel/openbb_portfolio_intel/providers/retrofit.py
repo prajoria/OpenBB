@@ -185,6 +185,8 @@ def with_chain(
     record_tier_used: Callable[[str, str], None],
     track: str = "A",
     kwargs_from: Callable[..., dict] | None = None,
+    require_auth: Callable[..., None] | None = None,
+    validate_kwargs: Callable[..., None] | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Build a decorator that routes an endpoint through its tier chain.
 
@@ -193,6 +195,24 @@ def with_chain(
     behavior change today (no tiers wired) — every call falls through
     to the wrapped stub and the ledger records ``"stub"``. As tiers
     get registered via :func:`register_tier_call`, they start winning.
+
+    **Security invariants (#1715 security review):**
+
+    - ``require_auth`` runs BEFORE any tier is dispatched. Without it,
+      a registered live tier would serve unauthenticated requests
+      because the ``_require_auth(request)`` call inside the stub body
+      would be bypassed on chain success.
+    - ``validate_kwargs`` runs BEFORE any tier is dispatched. Without
+      it, a registered tier would receive un-sanitized user-supplied
+      params (e.g. ``symbol="<script>"``) because ``_validate_symbol``
+      inside the stub body would be bypassed on chain success.
+
+    Both hooks receive the endpoint's ``*args, **kwargs`` verbatim so
+    the caller re-uses the same auth/validation helpers the stub body
+    already calls. When the chain exhausts and falls back to the stub,
+    those in-body calls fire again — redundant but harmless (dictates
+    that the security posture holds identically for the stub path and
+    the wired-tier path).
 
     Args:
         endpoint: Ledger key for the health widget (e.g.
@@ -206,30 +226,27 @@ def with_chain(
             decorated function; return dict is passed as kwargs to
             each tier's dispatch. When omitted, the decorator passes
             ``symbol=`` when present in the function signature.
-
-    Usage::
-
-        @with_chain(
-            endpoint="pi/equity/header",
-            family="equity/header",
-            record_tier_used=record_tier_used,
-            kwargs_from=lambda request, symbol="AAPL": {"symbol": symbol},
-        )
-        @app.get("/pi/equity/header")
-        def equity_header(request, symbol="AAPL"):
-            ...  # existing stub body
-
-    The decorator order matters: ``@with_chain`` is OUTERMOST so FastAPI
-    still sees the wrapped function's signature for its route
-    handler.  Wait — actually the more useful convention is the
-    reverse, so this docstring is illustrative; see the widget_backend
-    usage for the actual placement.
+        require_auth: Optional auth hook. Receives ``*args, **kwargs``
+            of the endpoint call. Should raise ``HTTPException(401)``
+            (or equivalent) when unauthorized. When omitted, no auth
+            check runs in the wrapper — the stub body is expected to
+            handle it (safe only while no tiers are wired).
+        validate_kwargs: Optional input-validation hook. Receives
+            ``*args, **kwargs`` of the endpoint call. Should raise
+            ``HTTPException(400)`` on invalid input. When omitted,
+            validation lives entirely in the stub body (safe only while
+            no tiers are wired).
     """
     import functools  # noqa: PLC0415 — module-level import would leak
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **fn_kwargs: Any) -> Any:
+            # Security gates BEFORE chain dispatch (#1715 review).
+            if require_auth is not None:
+                require_auth(*args, **fn_kwargs)
+            if validate_kwargs is not None:
+                validate_kwargs(*args, **fn_kwargs)
             chain_kwargs = (
                 kwargs_from(*args, **fn_kwargs)
                 if kwargs_from is not None

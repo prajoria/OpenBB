@@ -66,6 +66,51 @@ def record_tier_used(endpoint: str, tier: str) -> None:
     _TIER_IN_USE[endpoint] = tier
 
 
+def _validate_symbol(symbol: str) -> str:
+    """Return uppercased ticker or raise 400."""
+    sym = symbol.strip().upper()
+    if not _SYMBOL_RE.match(sym):
+        raise HTTPException(status_code=400, detail="symbol invalid")
+    return sym
+
+
+# ---------------------------------------------------------------------------
+# @with_chain security hooks (#1715 review)
+# ---------------------------------------------------------------------------
+#
+# These run in the wrapper BEFORE any tier is dispatched, so the auth &
+# input-validation posture holds identically whether a live tier or the
+# stub-body eventually serves the response. Without them, a wired tier
+# would bypass the ``_require_auth(request)`` and ``_validate_symbol()``
+# calls that live inside the stub body.
+
+
+def _find_request(args: tuple, kwargs: dict) -> Request | None:
+    """Locate the FastAPI Request instance regardless of call style."""
+    for a in args:
+        if isinstance(a, Request):
+            return a
+    val = kwargs.get("request")
+    return val if isinstance(val, Request) else None
+
+
+def _require_auth_from_call(*args: object, **kwargs: object) -> None:
+    """Wrapper-hook that pulls ``request`` out of the endpoint args."""
+    req = _find_request(args, kwargs)
+    if req is None:
+        raise HTTPException(
+            status_code=500, detail="internal: request not passed to auth hook"
+        )
+    require_auth(req)
+
+
+def _validate_symbol_from_call(
+    *_args: object, symbol: str = "AAPL", **_kwargs: object
+) -> None:
+    """Wrapper-hook that validates the ``symbol=`` param before dispatch."""
+    _validate_symbol(symbol)
+
+
 # ---------------------------------------------------------------------------
 # X-Ray widgets (#529, #530)
 # ---------------------------------------------------------------------------
@@ -635,19 +680,13 @@ def pi_backtest_oneclick(request: Request, account_id: str = "demo") -> str:
 # ---------------------------------------------------------------------------
 
 
-def _validate_symbol(symbol: str) -> str:
-    """Return uppercased ticker or raise 400."""
-    sym = symbol.strip().upper()
-    if not _SYMBOL_RE.match(sym):
-        raise HTTPException(status_code=400, detail="symbol invalid")
-    return sym
-
-
 @app.get("/pi/equity/header")
 @with_chain(
     endpoint="pi/equity/header",
     family="equity/header",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_header(request: Request, symbol: str = "AAPL") -> str:
     """Equity Profile section 1 — header + live price ticker (markdown)."""
@@ -671,6 +710,8 @@ def equity_header(request: Request, symbol: str = "AAPL") -> str:
     endpoint="pi/equity/key-stats",
     family="equity/key-stats",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_key_stats(
     request: Request, symbol: str = "AAPL"
@@ -704,6 +745,8 @@ def equity_key_stats(
     endpoint="pi/equity/financials",
     family="equity/financials",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_financials(
     request: Request, symbol: str = "AAPL"
@@ -730,6 +773,8 @@ def equity_financials(
     endpoint="pi/equity/technicals",
     family="equity/technicals",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_technicals(
     request: Request, symbol: str = "AAPL"
@@ -760,6 +805,8 @@ def equity_technicals(
     endpoint="pi/equity/analyst-forecasts",
     family="equity/analyst-forecasts",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_analyst_forecasts(
     request: Request, symbol: str = "AAPL"
@@ -912,6 +959,8 @@ def equity_analyst_forecasts(
     endpoint="pi/equity/complementary",
     family="equity/complementary",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_complementary(
     request: Request, symbol: str = "AAPL"
@@ -963,6 +1012,8 @@ def equity_complementary(
     endpoint="pi/equity/competitors",
     family="equity/competitors",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_competitors(
     request: Request, symbol: str = "AAPL"
@@ -1059,6 +1110,8 @@ def _demo_ohlc_series(symbol: str, days: int = 20) -> list[dict]:
     endpoint="pi/equity/price-history",
     family="equity/price-history",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_price_history(
     request: Request,
@@ -1127,6 +1180,8 @@ def equity_price_history(
     endpoint="pi/equity/price-performance",
     family="equity/price-performance",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_price_performance(
     request: Request, symbol: str = "AAPL"
@@ -1153,6 +1208,8 @@ def equity_price_performance(
     endpoint="pi/equity/management-team",
     family="equity/management-team",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_management_team(
     request: Request, symbol: str = "AAPL"
@@ -1200,6 +1257,8 @@ def equity_management_team(
     endpoint="pi/equity/revenue-geography",
     family="equity/revenue-geography",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_revenue_geography(
     request: Request, symbol: str = "AAPL"
@@ -1222,6 +1281,8 @@ def equity_revenue_geography(
     endpoint="pi/equity/revenue-business-line",
     family="equity/revenue-business-line",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_revenue_business_line(
     request: Request, symbol: str = "AAPL"
@@ -1252,6 +1313,8 @@ def equity_revenue_business_line(
     endpoint="pi/equity/institutional-ownership",
     family="equity/institutional-ownership",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_institutional_ownership(
     request: Request, symbol: str = "AAPL"
@@ -1274,6 +1337,8 @@ def equity_institutional_ownership(
     endpoint="pi/equity/stock-ownership",
     family="equity/stock-ownership",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_stock_ownership(
     request: Request, symbol: str = "AAPL"
@@ -1295,6 +1360,8 @@ def equity_stock_ownership(
     endpoint="pi/equity/insider-trading",
     family="equity/insider-trading",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_insider_trading(
     request: Request, symbol: str = "AAPL"
@@ -1340,6 +1407,8 @@ def equity_insider_trading(
     endpoint="pi/equity/earnings-history",
     family="equity/earnings-history",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_earnings_history(
     request: Request, symbol: str = "AAPL"
@@ -1387,6 +1456,8 @@ def equity_earnings_history(
     endpoint="pi/equity/stock-splits",
     family="equity/stock-splits",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_stock_splits(
     request: Request, symbol: str = "AAPL"
@@ -1409,6 +1480,8 @@ def equity_stock_splits(
     endpoint="pi/equity/dividend-payment",
     family="equity/dividend-payment",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_dividend_payment(
     request: Request, symbol: str = "AAPL"
@@ -1430,6 +1503,8 @@ def equity_dividend_payment(
     endpoint="pi/equity/company-filings",
     family="equity/company-filings",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_company_filings(
     request: Request, symbol: str = "AAPL"
@@ -1472,6 +1547,8 @@ def equity_company_filings(
     endpoint="pi/equity/earnings-transcripts",
     family="equity/earnings-transcripts",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_earnings_transcripts(request: Request, symbol: str = "AAPL") -> str:
     """Return Earnings Transcript preview (#1667) — latest call summary (markdown)."""
@@ -1494,6 +1571,8 @@ def equity_earnings_transcripts(request: Request, symbol: str = "AAPL") -> str:
     endpoint="pi/equity/price-target-history",
     family="equity/price-target-history",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_price_target_history(
     request: Request, symbol: str = "AAPL"
@@ -1521,6 +1600,8 @@ def equity_price_target_history(
     endpoint="pi/equity/statements",
     family="equity/statements",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_statements(
     request: Request, symbol: str = "AAPL", period: str = "annual"
@@ -1577,6 +1658,8 @@ def equity_statements(
     endpoint="pi/equity/charting",
     family="charting",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_charting(
     request: Request, symbol: str = "AAPL", window: str = "3M"
@@ -1630,6 +1713,8 @@ def equity_charting(
     endpoint="pi/equity/peer-multiples",
     family="equity/peer-multiples",
     record_tier_used=record_tier_used,
+    require_auth=_require_auth_from_call,
+    validate_kwargs=_validate_symbol_from_call,
 )
 def equity_peer_multiples(
     request: Request, symbol: str = "AAPL"
@@ -1794,10 +1879,6 @@ _EXC_NOTE_MAP: dict[str, str] = {
 }
 
 
-# In-memory cache for provider-health probe results. Keys: track name (A/B).
-# Value: dict with 'tiers' (list[TierHealth]) and 'checked_at' timestamp.
-# 60s TTL per spec §3 T12.1.
-_PROVIDER_HEALTH_CACHE: dict[str, dict[str, object]] = {}
 # In-memory cache for provider-health probe results. Keys: track name (A/B).
 # Value: dict with 'tiers' (list[TierHealth]) and 'checked_at' timestamp.
 # 60s TTL per spec §3 T12.1.
