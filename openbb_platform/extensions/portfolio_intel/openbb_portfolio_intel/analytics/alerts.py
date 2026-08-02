@@ -182,9 +182,7 @@ def _held_symbols(holdings: Iterable[HoldingRef]) -> set[str]:
 
 
 def _top_n_symbols(holdings: Iterable[HoldingRef], n: int) -> set[str]:
-    return {
-        h.symbol for h in sorted(holdings, key=lambda h: h.weight, reverse=True)[:n]
-    }
+    return {h.symbol for h in sorted(holdings, key=lambda h: h.weight, reverse=True)[:n]}
 
 
 def evaluate_earnings_upcoming(
@@ -278,7 +276,8 @@ def evaluate_insider_open_market_buy(
                 symbol=t.symbol,
                 when=datetime.combine(t.transaction_date, datetime.min.time()),
                 message=(
-                    f"Insider open-market buy: {t.symbol} " f"${t.value_usd:,.0f}"
+                    f"Insider open-market buy: {t.symbol} "
+                    f"${t.value_usd:,.0f}"
                 ),
                 key=(
                     f"insider:{t.symbol}:{t.transaction_date.isoformat()}"
@@ -471,7 +470,9 @@ def evaluate_all(
             min_value_usd=cfg.insider_buy_min_usd,
         )
     if TriggerType.FORM_8K_FOR_HELD in cfg.enabled:
-        out += evaluate_form_8k_for_held(ctx.holdings, ctx.filings, since=since_dt)
+        out += evaluate_form_8k_for_held(
+            ctx.holdings, ctx.filings, since=since_dt
+        )
     if TriggerType.ANALYST_DOWNGRADE_TOP10 in cfg.enabled:
         out += evaluate_analyst_downgrade_top10(
             ctx.holdings, ctx.analyst_actions, since=since_date, top_n=cfg.top_n
@@ -479,7 +480,9 @@ def evaluate_all(
     if TriggerType.PAPER_TRADING_EVENT in cfg.enabled:
         out += evaluate_paper_trading_events(ctx.paper_events, since=since_dt)
 
-    out.sort(key=lambda a: (-_SEVERITY_RANK[a.severity], a.when, a.symbol, a.key))
+    out.sort(
+        key=lambda a: (-_SEVERITY_RANK[a.severity], a.when, a.symbol, a.key)
+    )
     return out
 
 

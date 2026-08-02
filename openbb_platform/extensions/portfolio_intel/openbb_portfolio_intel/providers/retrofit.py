@@ -29,6 +29,7 @@ and treats as a transition. Family authors register real calls with
 
 from __future__ import annotations
 
+import functools
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -132,7 +133,7 @@ def route_through_chain(
         # chain exhaustion. Should never happen in practice because
         # every retrofit-eligible endpoint has a registered family.
         logger.warning(
-            "chain.no_tiers endpoint=%s family=%s track=%s " "— falling to stub",
+            "chain.no_tiers endpoint=%s family=%s track=%s — falling to stub",
             endpoint,
             family,
             track,
@@ -237,7 +238,6 @@ def with_chain(
             validation lives entirely in the stub body (safe only while
             no tiers are wired).
     """
-    import functools  # noqa: PLC0415 — module-level import would leak
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)

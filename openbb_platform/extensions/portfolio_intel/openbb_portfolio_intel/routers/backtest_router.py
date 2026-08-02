@@ -52,9 +52,7 @@ def _resolve_backtest_endpoint():
     ``pip install openbb-backtest`` picks up on the next request.
     """
     try:
-        from openbb import (
-            obb,
-        )  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        from openbb import obb  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
     except Exception:  # noqa: BLE001
         return None
     endpoint = getattr(getattr(obb, "backtest", None), "portfolio", None)
@@ -80,7 +78,7 @@ def _positions_from_basket(basket: list[dict]) -> list[BasketPosition]:
         PythonEx(
             description="Stub call — always safe, returns portable JSON dump.",
             code=[
-                "obb.portfolio_intel.backtest.run("
+                'obb.portfolio_intel.backtest.run('
                 'basket=[{"symbol":"AAPL","weight":0.5},{"symbol":"MSFT","weight":0.5}],'
                 'start="2025-01-01", end="2025-12-31", live=False)',
             ],
