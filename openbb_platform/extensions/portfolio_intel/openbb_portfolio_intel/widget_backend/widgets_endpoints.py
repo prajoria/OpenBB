@@ -23,6 +23,11 @@ import time
 
 from fastapi import HTTPException, Request
 
+from openbb_portfolio_intel.providers.probe import TierHealth, probe_tier
+from openbb_portfolio_intel.providers.registry import (
+    TRACK_A_DEFAULT,
+    TRACK_B_DEFAULT,
+)
 from openbb_portfolio_intel.widget_backend._app import app
 from openbb_portfolio_intel.widget_backend._shared import (
     _SYMBOL_RE,
@@ -727,7 +732,7 @@ def equity_analyst_forecasts(
     ]
 
     # Rating distribution — live via #997
-    # pylint: disable=import-outside-toplevel,broad-exception-caught
+    # pylint: disable=import-outside-toplevel,broad-exception-caught,redefined-outer-name,reimported
     try:
         import asyncio
 
@@ -1699,12 +1704,6 @@ async def _probe_track(track_tiers: tuple[str, ...], budget_s: float) -> list:
     probe already has its own 2s timeout (default in probe_tier); the
     outer budget is defence-in-depth.
     """
-    # Local import so widget_backend module import stays cheap.
-    from openbb_portfolio_intel.providers.probe import (  # noqa: PLC0415
-        TierHealth,
-        probe_tier,
-    )
-
     coros = [probe_tier(t) for t in track_tiers]
     try:
         results = await asyncio.wait_for(
@@ -1741,14 +1740,6 @@ def provider_health(request: Request) -> str:
     driven by :func:`record_tier_used` calls from retrofitted endpoints.
     """
     _require_auth(request)
-
-    # Local imports keep the widget_backend module import cheap for
-    # non-health call paths.
-    from openbb_portfolio_intel.providers.probe import TierHealth  # noqa: PLC0415
-    from openbb_portfolio_intel.providers.registry import (  # noqa: PLC0415
-        TRACK_A_DEFAULT,
-        TRACK_B_DEFAULT,
-    )
 
     # Cold cache: return a fully-``unknown`` strip immediately per spec
     # §T12.1 P0-1. The next request within the TTL window still hits

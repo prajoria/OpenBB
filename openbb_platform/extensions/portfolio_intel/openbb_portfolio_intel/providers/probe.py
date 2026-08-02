@@ -89,7 +89,7 @@ DEFAULT_PROBE_TIMEOUT_S: float = 2.0
 Prober = Callable[[], Awaitable[None]]
 
 
-async def _default_prober(tier: str) -> None:
+async def _default_prober() -> None:
     """No-op probe used when a tier has no registered prober.
 
     Immediately returns — the caller wraps this in ``asyncio.wait_for``

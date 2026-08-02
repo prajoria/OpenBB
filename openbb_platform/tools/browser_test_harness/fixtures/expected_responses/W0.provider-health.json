@@ -1,5 +1,5 @@
 {
-  "body": "**Track A (paid):**  \u25cf fmp_cached (42ms)  \u25cf fmp (118ms)  \u26a0 cboe (1450ms) (high_latency)  \u25cf sec (90ms)  \u25cf yfinance-snapshot (12ms) (snapshot_age_2h)  \n**Track B (free):**  \u26a0 cboe (1450ms) (high_latency)  \u25cf sec (90ms)  \u25cf yfinance (240ms)  \n\n> Provider-health strip (#1685). Real per-tier probes with 2s timeout + 60s cache + background refresh are TODO(gh-1685). Real 5-tier fallback routing is #1715.",
+  "body": "**Track A (paid):**  ? fmp_cached (0ms) (probe_failed_cold_cache)  ? fmp (0ms) (probe_failed_cold_cache)  ? cboe (0ms) (probe_failed_cold_cache)  ? sec (0ms) (probe_failed_cold_cache)  ? yfinance-snapshot (0ms) (probe_failed_cold_cache)  \n**Track B (free):**  ? cboe (0ms) (probe_failed_cold_cache)  ? sec (0ms) (probe_failed_cold_cache)  ? yfinance (0ms) (probe_failed_cold_cache)\n\n> Provider-health strip (#1685) with 5-tier probing + tier-in-use ledger (#1715). 60s cache, 2s per-tier timeout, 500ms overall cold-cache budget.",
   "endpoint": "pi/health/providers",
   "params": {},
   "status_code": 200
