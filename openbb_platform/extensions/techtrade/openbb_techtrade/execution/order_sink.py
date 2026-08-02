@@ -76,6 +76,19 @@ _VALID_TIFS: frozenset[str] = frozenset({"Day", "GTC", "IOC", "FOK"})
 #: dot for share classes (BRK.B) and slash for warrants (WFC/WT).
 _SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9./\-]{0,15}$")
 
+#: CSV / Excel formula-injection leading chars. Any free-form string field
+#: (notes, account_masked) starting with one of these is rejected loudly
+#: at OrderTicket construction — Excel and Fidelity's basket importer
+#: both interpret ``=SUM(...)`` / ``@cmd`` / ``+foo`` etc. as a formula
+#: or command, so an operator (or an upstream planner) writing a
+#: literal ``@`` into a note becomes remote-code-execution when the
+#: basket lands on the reviewer's Excel. Loud rejection means a bad
+#: note NEVER reaches either writer — one guard covers both formats.
+_FORMULA_LEAD_CHARS = frozenset({"=", "+", "-", "@", "\t", "\r"})
+
+#: Account-mask allowlist — expected shape is ``***1234``.
+_ACCOUNT_MASK_RE = re.compile(r"^[*A-Za-z0-9_\-]{1,32}$")
+
 #: Batch SHA short-form used in filenames (first N chars of the full SHA).
 _SHA_SHORT_LEN = 8
 
@@ -136,6 +149,29 @@ class OrderTicket:
                 f"OrderTicket.limit_price must be positive; got "
                 f"{self.limit_price}"
             )
+        # CSV / Excel formula-injection guard on every free-form string
+        # field. Symbol / action / order_type / tif are already allowlist-
+        # validated above, so notes + account_masked are the only vectors.
+        if self.notes and self.notes[0] in _FORMULA_LEAD_CHARS:
+            raise ValueError(
+                f"OrderTicket.notes must not start with a CSV/Excel "
+                f"formula-injection character "
+                f"{sorted(_FORMULA_LEAD_CHARS)}; got {self.notes!r}"
+            )
+        if self.account_masked is not None:
+            if self.account_masked and self.account_masked[0] in _FORMULA_LEAD_CHARS:
+                raise ValueError(
+                    f"OrderTicket.account_masked must not start with a "
+                    f"CSV/Excel formula-injection character "
+                    f"{sorted(_FORMULA_LEAD_CHARS)}; got "
+                    f"{self.account_masked!r}"
+                )
+            if not _ACCOUNT_MASK_RE.match(self.account_masked):
+                raise ValueError(
+                    f"OrderTicket.account_masked must match "
+                    f"{_ACCOUNT_MASK_RE.pattern!r}; got "
+                    f"{self.account_masked!r}"
+                )
 
 
 @dataclass(frozen=True)

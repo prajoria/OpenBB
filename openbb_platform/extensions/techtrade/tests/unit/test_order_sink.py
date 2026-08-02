@@ -147,6 +147,81 @@ class TestOrderTicketValidation:
                 limit_price=Decimal("-1"),
             )
 
+    @pytest.mark.parametrize(
+        "bad_note",
+        ["=SUM(A1:A10)", "+1+1", "-1", "@cmd", "\t=cmd", "\r=cmd"],
+    )
+    def test_notes_formula_injection_rejected(self, bad_note: str) -> None:
+        """CSV/Excel formula-injection guard on `notes`.
+
+        Every Fidelity Basket Trading CSV opened in Excel evaluates
+        first-char formula leaders (=, +, -, @, tab, CR) as formulas or
+        commands — a note ``@cmd|/C calc`` becomes RCE when the reviewer
+        double-clicks the CSV. Rejection at construction means such a
+        note NEVER reaches _write_csv or _write_xlsx.
+
+        R7.11 twin: removing the check lets `=SUM(A1:A10)` through and
+        the CSV writer emits it verbatim; the twin test below then
+        reads that raw output and asserts it does NOT start with a
+        formula leader — that would fail if the guard is dropped.
+        """
+        with pytest.raises(ValueError, match="formula-injection"):
+            OrderTicket(
+                symbol="MSFT",
+                action="Buy",
+                quantity=Decimal("1"),
+                notes=bad_note,
+            )
+
+    @pytest.mark.parametrize(
+        "bad_mask",
+        ["=EVIL", "+1234", "@cmd", "\t***1234"],
+    )
+    def test_account_masked_formula_injection_rejected(
+        self, bad_mask: str
+    ) -> None:
+        """R7.11 twin: same guard as notes; account_masked was the second
+        formula-injection vector flagged by the security review.
+        """
+        with pytest.raises(ValueError, match="formula-injection"):
+            OrderTicket(
+                symbol="MSFT",
+                action="Buy",
+                quantity=Decimal("1"),
+                account_masked=bad_mask,
+            )
+
+    @pytest.mark.parametrize(
+        "bad_mask",
+        ["mask with space", "mask;drop", "<script>", "A" * 33],
+    )
+    def test_account_masked_allowlist_enforced(self, bad_mask: str) -> None:
+        """account_masked shape check (belt-and-braces with the formula
+        guard). R7.11 twin: reverting the regex lets ``mask;drop`` through
+        and this test fails on the first assertion.
+        """
+        with pytest.raises(ValueError, match="account_masked"):
+            OrderTicket(
+                symbol="MSFT",
+                action="Buy",
+                quantity=Decimal("1"),
+                account_masked=bad_mask,
+            )
+
+    def test_leading_dash_in_symbol_would_be_caught_by_symbol_regex(
+        self,
+    ) -> None:
+        """Symbol column is the third potential vector (Fidelity CSV
+        row 1 = Symbol), but the symbol allowlist regex already forbids
+        a leading dash / plus / @ / equals. Belt-and-braces confirmation
+        so nobody assumes only notes/account are guarded.
+        """
+        for bad in ("-MSFT", "=MSFT", "+MSFT", "@MSFT"):
+            with pytest.raises(ValueError, match="symbol"):
+                OrderTicket(
+                    symbol=bad, action="Buy", quantity=Decimal("1")
+                )
+
 
 # ---------------------------------------------------------------------------
 # OrderBatch + SHA determinism
