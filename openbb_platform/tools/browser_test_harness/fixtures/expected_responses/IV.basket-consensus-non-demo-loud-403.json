@@ -1,14 +1,14 @@
 {
   "body": {
     "detail": {
-      "basket_id": "real_book",
+      "basket_id": "my_book",
       "detail": "basket_authorization_required",
       "message": "Non-demo basket resolution requires PI_ALLOW_CROSS_USER_BASKET=true (single-user operator mode) until per-user session auth ships. See #1714 ownership follow-up + #1748 security review."
     }
   },
   "endpoint": "pi/equity/basket-analyst-consensus",
   "params": {
-    "basket_id": "real_book"
+    "basket_id": "my_book"
   },
   "status_code": 403
 }

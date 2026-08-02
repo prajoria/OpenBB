@@ -193,13 +193,48 @@ def test_non_demo_basket_id_unknown_returns_404() -> None:
     Unknown basket_id (no snapshot for that user) returns a loud 404
     with the ``basket_not_found`` marker — never silently returns [] or
     demo rows disguised with a note.
+
+    Requires PI_ALLOW_CROSS_USER_BASKET=true — see #1748 security review
+    (authorization gate on cross-user basket resolution).
     """
-    r = _client.get("/pi/equity/basket-analyst-consensus?basket_id=real_book")
-    assert (
-        r.status_code == 404
-    ), f"unknown basket_id must return 404 (was 422 pre-#1714); got {r.status_code}"
-    detail = r.json().get("detail", "")
-    assert "basket_not_found" in str(detail) or "real_book" in str(detail)
+    import os as _os
+
+    orig = _os.environ.get("PI_ALLOW_CROSS_USER_BASKET")
+    _os.environ["PI_ALLOW_CROSS_USER_BASKET"] = "true"
+    try:
+        r = _client.get("/pi/equity/basket-analyst-consensus?basket_id=real_book")
+        assert (
+            r.status_code == 404
+        ), f"unknown basket_id must return 404 with env flag; got {r.status_code}"
+        detail = r.json().get("detail", "")
+        assert "basket_not_found" in str(detail) or "real_book" in str(detail)
+    finally:
+        if orig is None:
+            _os.environ.pop("PI_ALLOW_CROSS_USER_BASKET", None)
+        else:
+            _os.environ["PI_ALLOW_CROSS_USER_BASKET"] = orig
+
+
+def test_non_demo_basket_id_default_returns_403() -> None:
+    """#1748 security review: without PI_ALLOW_CROSS_USER_BASKET, non-demo
+    resolution is refused with 403. Prevents IDOR-style cross-user reads
+    when the auth model doesn't carry per-user identity yet.
+    """
+    import os as _os
+
+    # Ensure the env flag is UNSET.
+    orig = _os.environ.pop("PI_ALLOW_CROSS_USER_BASKET", None)
+    try:
+        r = _client.get("/pi/equity/basket-analyst-consensus?basket_id=alice")
+        assert r.status_code == 403, (
+            f"non-demo basket_id without env flag must return 403; got "
+            f"{r.status_code}"
+        )
+        detail = r.json().get("detail", "")
+        assert "basket_authorization_required" in str(detail)
+    finally:
+        if orig is not None:
+            _os.environ["PI_ALLOW_CROSS_USER_BASKET"] = orig
 
 
 def test_basket_consensus_rejects_malformed_basket_id() -> None:

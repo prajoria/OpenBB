@@ -18,11 +18,16 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 import re
 import time
 
 from fastapi import HTTPException, Request
 
+from openbb_portfolio_intel.basket_resolver import (
+    BasketNotFoundError,
+    resolve_basket,
+)
 from openbb_portfolio_intel.providers.probe import TierHealth, probe_tier
 from openbb_portfolio_intel.providers.registry import (
     TRACK_A_DEFAULT,
@@ -2222,26 +2227,43 @@ def equity_basket_analyst_consensus(
 
     #1714: real basket resolution now lifted from the 422 gate. Behavior:
 
-    - ``basket_id="demo"`` continues to return the baked-in demo rows.
+    - ``basket_id="demo"`` returns the baked-in demo rows (no auth-scoped
+      resolution needed — public reference basket).
     - Any other basket_id is resolved via
       :func:`openbb_portfolio_intel.basket_resolver.resolve_basket` against
-      the canonical positions store (MySQL per #1744). Each resolved
-      symbol gets a stub-shape consensus row echoed back — the real
-      per-symbol fetcher wiring is Phase 2B of #1715 and lands as a
-      registered ``ChainedFetcher`` tier call.
+      the canonical positions store (MySQL per #1744) — BUT only when
+      ``PI_ALLOW_CROSS_USER_BASKET=true`` is set. Otherwise HTTP 403
+      (see #1748 security review + #1714's ownership follow-up).
     - Unknown basket_id (no snapshot) raises HTTP 404 loud, never
       silently returns [].
+
+    Authorization posture (#1748 security review): today the bearer-token
+    auth model does not carry a per-user identity. That means any caller
+    with a valid token could otherwise view ANY user's positions by
+    passing that user's id as basket_id (classic IDOR). Until per-user
+    session auth lands, non-demo resolution is disabled by default; the
+    single-user operator must opt in via the env flag. Cross-cutting
+    identity work is tracked in the #1714 follow-up ownership ticket.
     """
     _require_auth(request)
     _validate_basket_id(basket_id)
     if basket_id == "demo":
         return _DEMO_BASKET_CONSENSUS
 
-    # Real basket resolution (#1714).
-    from openbb_portfolio_intel.basket_resolver import (  # noqa: PLC0415
-        BasketNotFoundError,
-        resolve_basket,
-    )
+    if os.environ.get("PI_ALLOW_CROSS_USER_BASKET", "").strip().lower() != "true":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "detail": "basket_authorization_required",
+                "message": (
+                    "Non-demo basket resolution requires "
+                    "PI_ALLOW_CROSS_USER_BASKET=true (single-user operator "
+                    "mode) until per-user session auth ships. See #1714 "
+                    "ownership follow-up + #1748 security review."
+                ),
+                "basket_id": basket_id,
+            },
+        )
 
     try:
         positions = resolve_basket(basket_id)

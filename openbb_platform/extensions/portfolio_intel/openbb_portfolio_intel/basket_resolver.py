@@ -32,6 +32,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from portfolio_snapshot_importer import get_default_store
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,8 +111,6 @@ def resolve_basket(
 
     # basket_id ≡ user_id (for now — richer schemes tracked in follow-ups).
     if store is None:
-        from portfolio_snapshot_importer import get_default_store  # noqa: PLC0415
-
         store = get_default_store()
 
     snap = store.latest_snapshot(basket_id)

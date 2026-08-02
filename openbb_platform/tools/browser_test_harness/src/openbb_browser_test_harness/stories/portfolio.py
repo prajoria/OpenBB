@@ -954,16 +954,16 @@ _INVARIANT_STEPS: tuple[Step, ...] = (
     # empty consensus for an unknown basket — it must loudly 422.
     # -------------------------------------------------------------------
     _reject(
-        "IV.basket-consensus-non-demo-loud-422",
+        "IV.basket-consensus-non-demo-loud-403",
         tab_id="basket",
         endpoint="pi/equity/basket-analyst-consensus",
         params={"basket_id": "my_book"},
-        invariant_tag="basket-non-demo-is-422",
+        invariant_tag="basket-non-demo-is-403",
         what=(
-            "basket-analyst-consensus returns 422 for non-demo basket "
-            "(loud-empty gate, not silent all-zero)"
+            "basket-analyst-consensus returns 403 for non-demo basket "
+            "(authorization gate #1748, was 422 pre-#1714)"
         ),
-        expected_status=422,
+        expected_status=403,
         notebook_ref="notebooks/portfolio/04-basket-analyst-consensus.ipynb",
     ),
     _reject(
