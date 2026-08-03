@@ -64,9 +64,7 @@ OrderType = Literal["Market", "Limit", "StopLoss", "StopLimit"]
 #: Fidelity Basket Trading valid TIF codes.
 Tif = Literal["Day", "GTC", "IOC", "FOK"]
 
-_VALID_ACTIONS: frozenset[str] = frozenset(
-    {"Buy", "Sell", "BuyToCover", "SellShort"}
-)
+_VALID_ACTIONS: frozenset[str] = frozenset({"Buy", "Sell", "BuyToCover", "SellShort"})
 _VALID_ORDER_TYPES: frozenset[str] = frozenset(
     {"Market", "Limit", "StopLoss", "StopLimit"}
 )
@@ -146,8 +144,7 @@ class OrderTicket:
             )
         if self.limit_price is not None and self.limit_price <= 0:
             raise ValueError(
-                f"OrderTicket.limit_price must be positive; got "
-                f"{self.limit_price}"
+                f"OrderTicket.limit_price must be positive; got " f"{self.limit_price}"
             )
         # CSV / Excel formula-injection guard on every free-form string
         # field. Symbol / action / order_type / tif are already allowlist-
@@ -186,9 +183,7 @@ class OrderBatch:
     tickets: tuple[OrderTicket, ...]
     plan_id: str = ""
     verdict_gate_pass: bool = False
-    generated_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self) -> None:
         """Reject empty tickets and enforce tuple (stable hash)."""
@@ -286,17 +281,15 @@ class OrderSink(Protocol):
         sink, return its existing artifacts without rewriting (so a
         re-run of the same T5 step is safe).
         """
-        ...
+        ...  # pylint: disable=unnecessary-ellipsis
 
-    def list_batches(
-        self, since: date | None = None
-    ) -> list[BatchRecord]:
+    def list_batches(self, since: date | None = None) -> list[BatchRecord]:
         """Enumerate previously-written batches, most recent first."""
-        ...
+        ...  # pylint: disable=unnecessary-ellipsis
 
     def batch_exists(self, batch_sha256: str) -> BatchArtifacts | None:
         """Return artifacts for ``batch_sha256`` if present, else None."""
-        ...
+        ...  # pylint: disable=unnecessary-ellipsis
 
 
 class OrderSinkError(RuntimeError):
@@ -368,13 +361,9 @@ class PaperOrderSink:
         # enforce below.
         self._atomic_write(xlsx_path, lambda p: _write_xlsx(p, batch))
         self._atomic_write(csv_path, lambda p: _write_csv(p, batch))
-        return BatchArtifacts(
-            csv_path=csv_path, xlsx_path=xlsx_path, batch_sha256=sha
-        )
+        return BatchArtifacts(csv_path=csv_path, xlsx_path=xlsx_path, batch_sha256=sha)
 
-    def list_batches(
-        self, since: date | None = None
-    ) -> list[BatchRecord]:
+    def list_batches(self, since: date | None = None) -> list[BatchRecord]:
         """List previously-written batches, most recent first.
 
         A batch is only listed when BOTH the CSV and its XLSX exist —
@@ -555,12 +544,8 @@ def _write_xlsx(path: Path, batch: OrderBatch) -> None:
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center")
 
-    buy_fill = PatternFill(
-        start_color="E6F4EA", end_color="E6F4EA", fill_type="solid"
-    )
-    sell_fill = PatternFill(
-        start_color="FCE8E6", end_color="FCE8E6", fill_type="solid"
-    )
+    buy_fill = PatternFill(start_color="E6F4EA", end_color="E6F4EA", fill_type="solid")
+    sell_fill = PatternFill(start_color="FCE8E6", end_color="FCE8E6", fill_type="solid")
 
     for t in batch.tickets:
         row = [
@@ -574,11 +559,7 @@ def _write_xlsx(path: Path, batch: OrderBatch) -> None:
             t.notes,
         ]
         ws.append(row)
-        fill = (
-            buy_fill
-            if t.action in ("Buy", "BuyToCover")
-            else sell_fill
-        )
+        fill = buy_fill if t.action in ("Buy", "BuyToCover") else sell_fill
         for cell in ws[ws.max_row]:
             cell.fill = fill
 
@@ -626,8 +607,7 @@ def get_default_sink(paper_dir: Path | str | None = None) -> OrderSink:
         )
     if kind != "paper":
         raise ValueError(
-            f"PI_ORDER_SINK must be one of 'paper' | 'fidelity_csv'; "
-            f"got {kind!r}"
+            f"PI_ORDER_SINK must be one of 'paper' | 'fidelity_csv'; " f"got {kind!r}"
         )
 
     resolved_dir: Path

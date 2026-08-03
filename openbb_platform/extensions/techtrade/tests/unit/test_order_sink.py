@@ -177,9 +177,7 @@ class TestOrderTicketValidation:
         "bad_mask",
         ["=EVIL", "+1234", "@cmd", "\t***1234"],
     )
-    def test_account_masked_formula_injection_rejected(
-        self, bad_mask: str
-    ) -> None:
+    def test_account_masked_formula_injection_rejected(self, bad_mask: str) -> None:
         """R7.11 twin: same guard as notes; account_masked was the second
         formula-injection vector flagged by the security review.
         """
@@ -218,9 +216,7 @@ class TestOrderTicketValidation:
         """
         for bad in ("-MSFT", "=MSFT", "+MSFT", "@MSFT"):
             with pytest.raises(ValueError, match="symbol"):
-                OrderTicket(
-                    symbol=bad, action="Buy", quantity=Decimal("1")
-                )
+                OrderTicket(symbol=bad, action="Buy", quantity=Decimal("1"))
 
 
 # ---------------------------------------------------------------------------
@@ -342,13 +338,11 @@ class TestPaperOrderSinkWrite:
         batch = OrderBatch(tickets=(_tk("MSFT"),))
         art = sink.write_batch(batch)
         first_line = art.csv_path.read_text(encoding="utf-8").splitlines()[0]
-        assert first_line.startswith("MSFT"), (
-            f"CSV first row must be a data row (no header); got {first_line!r}"
-        )
+        assert first_line.startswith(
+            "MSFT"
+        ), f"CSV first row must be a data row (no header); got {first_line!r}"
 
-    def test_csv_column_order_matches_fidelity_spec(
-        self, tmp_path: Path
-    ) -> None:
+    def test_csv_column_order_matches_fidelity_spec(self, tmp_path: Path) -> None:
         """R7.11 twin: swapping any two columns breaks Fidelity import.
         Verified by swapping Symbol/Action — this test catches it.
         """
@@ -368,13 +362,13 @@ class TestPaperOrderSinkWrite:
         )
         art = sink.write_batch(batch)
         row = art.csv_path.read_text(encoding="utf-8").splitlines()[0].split(",")
-        assert row[0] == "MSFT"          # Symbol
-        assert row[1] == "Buy"           # Action
-        assert row[2] == "100"           # Quantity
-        assert row[3] == "Limit"         # Order Type
-        assert row[4] == "400.5"         # Limit Price (trailing zero stripped)
-        assert row[5] == "Day"           # TIF
-        assert row[6] == "***1234"       # Account
+        assert row[0] == "MSFT"  # Symbol
+        assert row[1] == "Buy"  # Action
+        assert row[2] == "100"  # Quantity
+        assert row[3] == "Limit"  # Order Type
+        assert row[4] == "400.5"  # Limit Price (trailing zero stripped)
+        assert row[5] == "Day"  # TIF
+        assert row[6] == "***1234"  # Account
 
     def test_xlsx_loads_back_with_expected_shape(self, tmp_path: Path) -> None:
         """Round-trip through openpyxl. R7.11 twin: forgetting to save
@@ -450,9 +444,7 @@ class TestPaperOrderSinkWrite:
         orphans = list(tmp_path.glob("*.tmp"))
         assert orphans == [], f"orphan tmp files remain: {orphans}"
 
-    def test_list_batches_returns_most_recent_first(
-        self, tmp_path: Path
-    ) -> None:
+    def test_list_batches_returns_most_recent_first(self, tmp_path: Path) -> None:
         sink = PaperOrderSink(tmp_path)
         b1 = OrderBatch(tickets=(_tk("MSFT"),))
         b2 = OrderBatch(tickets=(_tk("AAPL"),))
@@ -476,9 +468,7 @@ class TestPaperOrderSinkWrite:
         assert found is not None
         assert found.csv_path.exists()
 
-    def test_batch_exists_returns_none_for_unknown(
-        self, tmp_path: Path
-    ) -> None:
+    def test_batch_exists_returns_none_for_unknown(self, tmp_path: Path) -> None:
         sink = PaperOrderSink(tmp_path)
         assert sink.batch_exists("deadbeef" * 8) is None
 
@@ -522,9 +512,7 @@ class TestGetDefaultSink:
         assert isinstance(sink, PaperOrderSink)
         assert sink.output_dir == tmp_path.resolve()
 
-    def test_fidelity_csv_reserved(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_fidelity_csv_reserved(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Phase 3 slot — must not silently fall back.
 
         R7.11 twin: if the factory silently returned PaperOrderSink for
@@ -535,9 +523,7 @@ class TestGetDefaultSink:
         with pytest.raises(NotImplementedError, match="phase 3"):
             get_default_sink()
 
-    def test_unknown_kind_loud(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_unknown_kind_loud(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PI_ORDER_SINK", "alpaca")
         with pytest.raises(ValueError, match="paper.*fidelity_csv"):
             get_default_sink()
@@ -628,9 +614,7 @@ class TestTicketsFromOrders:
         ):
             tickets = list(tickets_from_orders(orders))
         assert tickets == []
-        warnings = [
-            r for r in caplog.records if "unknown side" in r.getMessage()
-        ]
+        warnings = [r for r in caplog.records if "unknown side" in r.getMessage()]
         assert len(warnings) == 1
 
     def test_missing_symbol_logs_warning(
@@ -653,14 +637,9 @@ class TestTicketsFromOrders:
             logging.WARNING, logger="openbb_techtrade.execution.order_sink"
         ):
             list(tickets_from_orders(orders))
-        assert any(
-            "required field missing" in r.getMessage()
-            for r in caplog.records
-        )
+        assert any("required field missing" in r.getMessage() for r in caplog.records)
 
-    def test_all_dropped_logs_error(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_all_dropped_logs_error(self, caplog: pytest.LogCaptureFixture) -> None:
         """Non-empty input yielding zero tickets is a signal, not silence.
 
         R7.11 twin: removing the end-of-loop ERROR would let a fully-
@@ -681,10 +660,7 @@ class TestTicketsFromOrders:
             logging.ERROR, logger="openbb_techtrade.execution.order_sink"
         ):
             list(tickets_from_orders(orders))
-        assert any(
-            "yielded 0 tickets" in r.getMessage()
-            for r in caplog.records
-        )
+        assert any("yielded 0 tickets" in r.getMessage() for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -749,9 +725,7 @@ class TestPartialBatchHardening:
         ):
             records = sink.list_batches()
         assert records == []
-        assert any(
-            "partial batch" in r.getMessage() for r in caplog.records
-        )
+        assert any("partial batch" in r.getMessage() for r in caplog.records)
 
     def test_batch_exists_warns_on_csv_without_xlsx(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
