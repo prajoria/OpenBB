@@ -92,6 +92,31 @@ _FORMULA_LEAD_CHARS = frozenset({"=", "+", "-", "@", "\t", "\r"})
 #: Account-mask allowlist — expected shape is ``***1234``.
 _ACCOUNT_MASK_RE = re.compile(r"^[*A-Za-z0-9_\-]{1,32}$")
 
+
+def _reject_formula_lead(field_name: str, value: str) -> None:
+    """Raise if ``value`` starts with a CSV/Excel formula-injection char.
+
+    Shared helper: :class:`OrderTicket`, :class:`VerdictGate`, and
+    :class:`PlanContext` all need the identical guard on their string
+    fields. Extracted so the pattern (and its rationale) live in one
+    place — any future writer that renders operator/planner-supplied
+    strings into a cell should call this at construction rather than
+    invent a new sanitizer.
+
+    Empty strings are allowed (default values). Non-string types
+    are ignored (e.g., bools on ``VerdictGate.passed`` — the caller
+    filters what's checked).
+    """
+    if not isinstance(value, str) or not value:
+        return
+    if value[0] in _FORMULA_LEAD_CHARS:
+        raise ValueError(
+            f"{field_name} must not start with a CSV/Excel "
+            f"formula-injection character {sorted(_FORMULA_LEAD_CHARS)}; "
+            f"got {value!r}"
+        )
+
+
 #: Batch SHA short-form used in filenames (first N chars of the full SHA).
 _SHA_SHORT_LEN = 8
 
@@ -184,6 +209,12 @@ class VerdictGate:
     why the plan was cleared. ``passed=False`` gates are rendered with
     a red fill; the batch as a whole should not be executed without
     the operator's explicit acknowledgement.
+
+    Formula-injection guard on every string field (name, threshold,
+    actual, notes) — same discipline as :class:`OrderTicket.notes`.
+    A malicious upstream planner writing ``name="=cmd|/C calc"`` would
+    otherwise emit an Excel formula into the workbook the reviewer
+    double-clicks.
     """
 
     name: str
@@ -191,6 +222,13 @@ class VerdictGate:
     actual: str
     passed: bool
     notes: str = ""
+
+    def __post_init__(self) -> None:
+        """Reject CSV/Excel formula-injection in every string field."""
+        _reject_formula_lead("VerdictGate.name", self.name)
+        _reject_formula_lead("VerdictGate.threshold", self.threshold)
+        _reject_formula_lead("VerdictGate.actual", self.actual)
+        _reject_formula_lead("VerdictGate.notes", self.notes)
 
 
 @dataclass(frozen=True)
@@ -202,11 +240,21 @@ class PlanContext:
     SHA — content-addressed idempotency identifies *what will trade*,
     not *why the planner blessed it*, so a re-computed plan against the
     same universe yields the same file.
+
+    Formula-injection guard on ``generator_version`` and ``git_sha`` —
+    both land on the Audit sheet, and both come from upstream tooling
+    that could conceivably be compromised. Loud rejection over silent
+    sanitization for the same reason as :class:`OrderTicket`.
     """
 
     verdict_gates: tuple[VerdictGate, ...] = ()
     generator_version: str = ""
     git_sha: str = ""
+
+    def __post_init__(self) -> None:
+        """Reject CSV/Excel formula-injection in every string field."""
+        _reject_formula_lead("PlanContext.generator_version", self.generator_version)
+        _reject_formula_lead("PlanContext.git_sha", self.git_sha)
 
 
 @dataclass(frozen=True)

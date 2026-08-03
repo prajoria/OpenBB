@@ -93,6 +93,88 @@ class TestP2AdditiveFields:
 
 
 # ---------------------------------------------------------------------------
+# Formula-injection guard on VerdictGate + PlanContext (security review)
+# ---------------------------------------------------------------------------
+
+
+class TestVerdictGateFormulaInjection:
+    """P2 opened a new attack surface: VerdictGate string fields land on
+    the Plan Context sheet. Rejection at construction (matching P1's
+    OrderTicket discipline) is the only fix — sanitization would silently
+    mutate audit content.
+
+    R7.11 twin: dropping any of the four _reject_formula_lead() calls in
+    VerdictGate.__post_init__ lets the corresponding field through and
+    the matching parametrized case fails.
+    """
+
+    @pytest.mark.parametrize(
+        "field, bad_value",
+        [
+            ("name", "=cmd|/C calc"),
+            ("threshold", "@evil"),
+            ("actual", "+1+1"),
+            ("notes", "\tembedded"),
+        ],
+    )
+    def test_verdict_gate_rejects_formula_lead(
+        self, field: str, bad_value: str
+    ) -> None:
+        kwargs = {
+            "name": "safe",
+            "threshold": "safe",
+            "actual": "safe",
+            "passed": True,
+            "notes": "safe",
+        }
+        kwargs[field] = bad_value
+        with pytest.raises(ValueError, match="formula-injection"):
+            VerdictGate(**kwargs)  # type: ignore[arg-type]
+
+    def test_safe_verdict_gate_constructs(self) -> None:
+        VerdictGate(
+            name="max_position",
+            threshold="0.10",
+            actual="0.08",
+            passed=True,
+            notes="reviewed",
+        )
+
+
+class TestPlanContextFormulaInjection:
+    """Same rationale as VerdictGate — PlanContext.generator_version and
+    .git_sha both land on the Audit sheet.
+
+    R7.11 twin: dropping either _reject_formula_lead() call lets the
+    matching parametrized case pass a bad value through.
+    """
+
+    @pytest.mark.parametrize(
+        "field, bad_value",
+        [
+            ("generator_version", "=malicious()"),
+            ("git_sha", "@cmd"),
+            ("generator_version", "-1"),
+            ("git_sha", "+evil"),
+        ],
+    )
+    def test_plan_context_rejects_formula_lead(
+        self, field: str, bad_value: str
+    ) -> None:
+        kwargs = {"generator_version": "safe", "git_sha": "safe"}
+        kwargs[field] = bad_value
+        with pytest.raises(ValueError, match="formula-injection"):
+            PlanContext(**kwargs)  # type: ignore[arg-type]
+
+    def test_safe_plan_context_constructs(self) -> None:
+        PlanContext(
+            verdict_gates=(),
+            generator_version="techtrade-1.2.3",
+            git_sha="abc123def456",
+        )
+
+
+# ---------------------------------------------------------------------------
 # 6-sheet structure — every named sheet present in tab order
 # ---------------------------------------------------------------------------
 
