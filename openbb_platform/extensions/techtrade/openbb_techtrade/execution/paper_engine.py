@@ -41,6 +41,12 @@ Non-goals for P3.a
   once P3.a + P3.b are exercised.
 """
 
+# pylint: disable=too-many-lines
+# P3.b added unrealized-P&L methods + dataclasses (~120 lines). Splitting
+# out feels premature — the new code closely couples to PaperPosition
+# and the SqlitePaperEngine internals. Reconsider if P3.c grows the file
+# past ~1500 lines.
+
 from __future__ import annotations
 
 import logging
@@ -48,7 +54,7 @@ import os
 import re
 import sqlite3
 import uuid
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -185,6 +191,55 @@ class PaperPosition:
     last_updated: datetime
 
 
+@dataclass(frozen=True)
+class PaperPositionMarked:
+    """Position augmented with a mark price + unrealized P&L (P3.b).
+
+    ``mark_price`` is None when the caller's pricing dict didn't cover
+    this symbol; ``unrealized_pl`` and ``unrealized_pl_pct`` are also
+    None in that case (loud-empty — silent zero would hide a broken
+    price feed).
+
+    Unrealized P&L formula:
+
+    - **Long** (``quantity > 0``):
+      ``unrealized_pl = quantity * (mark_price - avg_cost)``
+    - **Short** (``quantity < 0``):
+      ``unrealized_pl = quantity * (mark_price - avg_cost)``
+      (same formula — negative quantity flips the sign automatically,
+      since a short profits when mark drops below basis)
+    """
+
+    account_id: str
+    symbol: str
+    quantity: Decimal
+    avg_cost: Decimal
+    realized_pl: Decimal
+    last_updated: datetime
+    mark_price: Decimal | None
+    mark_value: Decimal | None  # quantity * mark_price
+    unrealized_pl: Decimal | None
+    unrealized_pl_pct: Decimal | None
+
+
+@dataclass(frozen=True)
+class PaperEquity:
+    """Snapshot of total account equity given a pricing dict (P3.b).
+
+    ``equity`` = ``cash`` + ``sum(mark_value for known-marked positions)``.
+    Positions with missing marks are excluded from the sum AND surfaced
+    in ``symbols_missing_marks`` so the caller can't ignore them.
+    """
+
+    account_id: str
+    cash: Decimal
+    realized_pl: Decimal
+    marked_value: Decimal
+    equity: Decimal
+    unrealized_pl: Decimal
+    symbols_missing_marks: tuple[str, ...]
+
+
 # Tax lot for FIFO realized-P&L computation — kept private, exposed to
 # tests via a debug hook.
 @dataclass
@@ -253,6 +308,34 @@ class PaperEngine(Protocol):
 
     def get_fills(self, since: datetime | None = None) -> list[PaperFill]:
         """Return every recorded fill after ``since`` (or all if None)."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
+    # -- P3.b unrealized P&L ---------------------------------------------
+
+    def get_positions_with_unrealized(
+        self, pricing: Mapping[str, Decimal]
+    ) -> list[PaperPositionMarked]:
+        """Return current positions augmented with mark + unrealized P&L.
+
+        ``pricing`` maps symbol → last-close (or bid/ask midpoint, or
+        whatever mark source the caller chose). Symbols we hold that are
+        missing from ``pricing`` render with ``mark_price=None`` and
+        ``unrealized_pl=None`` — loud-empty, never silent zero.
+
+        Raises :class:`PaperEngineError` when a supplied mark_price is
+        non-positive (misconfigured feed). A None mark price is a
+        genuine "no data" state and is preserved; a zero mark is a bug.
+        """
+        ...  # pylint: disable=unnecessary-ellipsis
+
+    def get_account_equity(self, pricing: Mapping[str, Decimal]) -> PaperEquity:
+        """Return equity = cash + sum(mark_value for known-marked positions).
+
+        Positions with missing marks are excluded from ``marked_value``
+        but SURFACED in ``symbols_missing_marks`` — caller decides
+        whether that's tolerable. Returns a :class:`PaperEquity`
+        snapshot.
+        """
         ...  # pylint: disable=unnecessary-ellipsis
 
 
@@ -643,6 +726,94 @@ class SqlitePaperEngine:
                 (self._account_id, _to_iso(since)),
             ).fetchall()
         return [_row_to_fill(r) for r in rows]
+
+    # -- P3.b unrealized P&L -------------------------------------------
+
+    def get_positions_with_unrealized(
+        self, pricing: Mapping[str, Decimal]
+    ) -> list[PaperPositionMarked]:
+        """See :class:`PaperEngine` for the contract."""
+        results: list[PaperPositionMarked] = []
+        for pos in self.get_positions():
+            mark = pricing.get(pos.symbol)
+            if mark is not None and mark <= 0:
+                raise PaperEngineError(
+                    f"get_positions_with_unrealized: mark_price for "
+                    f"{pos.symbol!r} is non-positive ({mark}). Zero or "
+                    f"negative marks indicate a misconfigured price feed; "
+                    f"correct upstream before proceeding."
+                )
+            if mark is None:
+                # Loud-empty: we HELD this symbol but the caller's
+                # pricing dict didn't cover it. Preserve as None so the
+                # caller cannot mistake it for zero.
+                results.append(
+                    PaperPositionMarked(
+                        account_id=pos.account_id,
+                        symbol=pos.symbol,
+                        quantity=pos.quantity,
+                        avg_cost=pos.avg_cost,
+                        realized_pl=pos.realized_pl,
+                        last_updated=pos.last_updated,
+                        mark_price=None,
+                        mark_value=None,
+                        unrealized_pl=None,
+                        unrealized_pl_pct=None,
+                    )
+                )
+                continue
+
+            # Same formula for longs and shorts: quantity carries the
+            # sign, so negative-quantity shorts profit when mark drops.
+            mark_value = pos.quantity * mark
+            unrealized_pl = pos.quantity * (mark - pos.avg_cost)
+            # Percent uses avg_cost as denominator; short position with
+            # avg_cost basis works fine. Guard against zero-basis
+            # (would be a bug in the ledger but let's not divide by 0).
+            unrealized_pct: Decimal | None = (
+                (mark - pos.avg_cost) / pos.avg_cost * Decimal("100")
+                if pos.avg_cost != 0
+                else None
+            )
+            results.append(
+                PaperPositionMarked(
+                    account_id=pos.account_id,
+                    symbol=pos.symbol,
+                    quantity=pos.quantity,
+                    avg_cost=pos.avg_cost,
+                    realized_pl=pos.realized_pl,
+                    last_updated=pos.last_updated,
+                    mark_price=mark,
+                    mark_value=mark_value,
+                    unrealized_pl=unrealized_pl,
+                    unrealized_pl_pct=unrealized_pct,
+                )
+            )
+        return results
+
+    def get_account_equity(self, pricing: Mapping[str, Decimal]) -> PaperEquity:
+        """See :class:`PaperEngine` for the contract."""
+        acct = self.get_account()
+        marked = self.get_positions_with_unrealized(pricing)
+        marked_value = Decimal("0")
+        unrealized_total = Decimal("0")
+        missing: list[str] = []
+        for m in marked:
+            if m.mark_value is None:
+                missing.append(m.symbol)
+                continue
+            marked_value += m.mark_value
+            if m.unrealized_pl is not None:
+                unrealized_total += m.unrealized_pl
+        return PaperEquity(
+            account_id=acct.account_id,
+            cash=acct.cash,
+            realized_pl=acct.realized_pl,
+            marked_value=marked_value,
+            equity=acct.cash + marked_value,
+            unrealized_pl=unrealized_total,
+            symbols_missing_marks=tuple(missing),
+        )
 
     # --- internal: fill side effects --------------------------------------
 
