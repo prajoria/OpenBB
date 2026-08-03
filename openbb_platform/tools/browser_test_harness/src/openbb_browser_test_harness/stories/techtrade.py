@@ -176,6 +176,24 @@ _STEPS: tuple[Step, ...] = (
         params={"verdict": "PASS"},
         tags=("safety", "checker:ready-signal-present"),
     ),
+    Step(
+        id="T5.paper-status-empty",
+        story="techtrade",
+        notebook_ref="notebooks/techtrade/09-t5-end-to-end-plan-to-fills.ipynb",
+        persona=Persona.SYSTEMATIC_TRADER,
+        tab_id="engine-status",
+        action=ActionKind.ASSERT,
+        human_title="Step T5b — Paper status widget renders empty state",
+        human_description=(
+            "Fresh install (no paper.db) — tt_execute_paper_status "
+            "must return a friendly 'No batches submitted yet' message, "
+            "never crash. Covers #1777 P4 widget frontend."
+        ),
+        human_expected="Markdown reads 'Paper Trading Engine' + 'No batches submitted yet'.",
+        endpoint="tt/execute/paper-status/markdown",
+        params={},
+        tags=("safety", "checker:paper-status-empty"),
+    ),
     # ==================================================================
     # Act 6 — Audit Journal (T6) — NB06
     # ==================================================================

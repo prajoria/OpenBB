@@ -1,5 +1,5 @@
 {
-  "body": "## Execute Bridge: READY\n\nVerdict gate: **PASS** \u2014 bridge ready to submit.\n\n> Real broker submission is #1719. This scaffold enforces the gate; a user's explicit confirm will trigger the real bridge.",
+  "body": "## Execute Bridge: READY\n\nVerdict gate: **PASS** — bridge ready to submit. 🟡 Real writes DISABLED — set `PI_ALLOW_T5_EXECUTE=true` to enable.\n\n### Next steps\n\n1. **Write batch** — `POST /tt/execute/write-batch?verdict=PASS&confirm=yes` (triple-gate: env + verdict + confirm).\n2. **File orders manually** at Fidelity using the produced XLSX as your cheat sheet.\n3. **Record fills** into the paper engine via a widget action or bulk-import a Fidelity Activity CSV (P5).\n\n> See `docs/superpowers/specs/2026-08-03-t5-e2e-test-guide.md` for the E2E test guide.",
   "endpoint": "tt/execute/bridge",
   "params": {
     "verdict": "PASS"

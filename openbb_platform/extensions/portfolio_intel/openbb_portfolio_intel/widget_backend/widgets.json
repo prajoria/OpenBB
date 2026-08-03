@@ -720,7 +720,7 @@
   },
   "tt_execute_bridge": {
     "name": "Techtrade — Execute Bridge",
-    "description": "Verdict-gated execute readiness scaffold (#1700 T5). Real broker submission is #1719.",
+    "description": "Verdict-gated execute readiness with actionable next-steps and env-var status (#1719 P4).",
     "category": "Techtrade",
     "type": "markdown",
     "endpoint": "tt/execute/bridge",
@@ -729,5 +729,15 @@
     "params": [
       { "paramName": "verdict", "value": "PASS", "label": "Verdict", "type": "text", "description": "PASS or FAIL", "options": [ { "value": "PASS", "label": "PASS" }, { "value": "FAIL", "label": "FAIL" } ] }
     ]
+  },
+  "tt_execute_paper_status": {
+    "name": "Techtrade — Paper Trading Status",
+    "description": "Read-only paper engine snapshot: cash, positions, realized P&L, order counts (#1719 P4).",
+    "category": "Techtrade",
+    "type": "markdown",
+    "endpoint": "tt/execute/paper-status/markdown",
+    "gridData": { "w": 20, "h": 12 },
+    "source": "portfolio-intel",
+    "params": []
   }
 }

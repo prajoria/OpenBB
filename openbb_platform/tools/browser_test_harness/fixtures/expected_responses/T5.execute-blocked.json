@@ -1,5 +1,5 @@
 {
-  "body": "## Execute Bridge: BLOCKED\n\nVerdict gate: **FAIL** \u2014 execution blocked.\n\n> Real broker submission is #1719. This scaffold enforces the gate so #1701's cadence smoke proves the safety invariant.",
+  "body": "## Execute Bridge: BLOCKED\n\nVerdict gate: **FAIL** — execution blocked.\n\n> Re-run T4 validation; only a PASS verdict opens the write-batch path.",
   "endpoint": "tt/execute/bridge",
   "params": {
     "verdict": "FAIL"

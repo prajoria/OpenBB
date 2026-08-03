@@ -1,0 +1,6 @@
+{
+  "body": "## Paper Trading Engine\n\n**No batches submitted yet.**\n\nSubmit a batch via the Execute Bridge widget (`POST /tt/execute/write-batch`) to see cash, positions, and P&L here.",
+  "endpoint": "tt/execute/paper-status/markdown",
+  "params": {},
+  "status_code": 200
+}

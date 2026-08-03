@@ -2510,12 +2510,13 @@ def tt_engine_status(request: Request) -> str:
 
 @app.get("/tt/execute/bridge")
 def tt_execute_bridge(request: Request, verdict: str = "PASS") -> str:
-    """Return Execute Bridge markdown (#1700 T5) — gated by verdict.
+    """Return Execute Bridge markdown (#1700 T5, wired to real endpoints per #1719).
 
-    Real broker adapter (paper/live order submission) is deferred to
-    follow-up #1719. This endpoint ships a scaffold that shows the
-    gate outcome ('READY' or 'BLOCKED') so the T1->T6 cadence smoke
-    (#1701) can prove the verdict actually gates execution.
+    Now points readers at the actual write-batch + paper-status endpoints
+    that landed in P4 (#1768). The gate semantics remain — verdict=FAIL
+    still blocks. The verdict=PASS branch documents the real double-gate
+    (env var + explicit confirm) so operators know what's needed to
+    trigger a real write.
     """
     _require_auth(request)
     if verdict not in {"PASS", "FAIL"}:
@@ -2523,19 +2524,123 @@ def tt_execute_bridge(request: Request, verdict: str = "PASS") -> str:
             status_code=400,
             detail=f"verdict must be PASS or FAIL; got {verdict!r}",
         )
+    execute_allowed = (
+        os.environ.get("PI_ALLOW_T5_EXECUTE", "").strip().lower() == "true"
+    )
     if verdict == "FAIL":
         return (
             "## Execute Bridge: BLOCKED\n\n"
             "Verdict gate: **FAIL** — execution blocked.\n\n"
-            "> Real broker submission is #1719. This scaffold enforces the "
-            "gate so #1701's cadence smoke proves the safety invariant."
+            "> Re-run T4 validation; only a PASS verdict opens the "
+            "write-batch path."
         )
+    ready_signal = (
+        "🟢 Real writes ENABLED (`PI_ALLOW_T5_EXECUTE=true`)."
+        if execute_allowed
+        else "🟡 Real writes DISABLED — set `PI_ALLOW_T5_EXECUTE=true` " "to enable."
+    )
     return (
         "## Execute Bridge: READY\n\n"
-        "Verdict gate: **PASS** — bridge ready to submit.\n\n"
-        "> Real broker submission is #1719. This scaffold enforces the "
-        "gate; a user's explicit confirm will trigger the real bridge."
+        f"Verdict gate: **PASS** — bridge ready to submit. {ready_signal}\n\n"
+        "### Next steps\n\n"
+        "1. **Write batch** — `POST /tt/execute/write-batch"
+        "?verdict=PASS&confirm=yes` (triple-gate: env + verdict + confirm).\n"
+        "2. **File orders manually** at Fidelity using the produced XLSX "
+        "as your cheat sheet.\n"
+        "3. **Record fills** into the paper engine via a widget action "
+        "or bulk-import a Fidelity Activity CSV (P5).\n\n"
+        "> See `docs/superpowers/specs/2026-08-03-t5-e2e-test-guide.md` "
+        "for the E2E test guide."
     )
+
+
+@app.get("/tt/execute/paper-status/markdown")
+def tt_execute_paper_status_markdown(request: Request) -> str:
+    """Render the paper engine snapshot as a markdown widget (#1777).
+
+    Companion to /tt/execute/paper-status (JSON). This endpoint returns a
+    markdown-formatted view suitable for the ``tt_execute_paper_status``
+    markdown widget — no JS required.
+
+    Fresh install (no paper.db) returns a friendly "nothing yet" message
+    rather than an error — same discipline as the JSON version.
+    """
+    _require_auth(request)
+
+    # pylint: disable=import-outside-toplevel
+    try:
+        from pathlib import Path  # noqa: PLC0415
+
+        from openbb_techtrade.execution.paper_engine import (  # noqa: PLC0415
+            OrderStatus,
+            SqlitePaperEngine,
+        )
+    except ImportError:
+        return (
+            "## Paper Trading Engine\n\n"
+            "*T5 dependencies not installed. Install `openbb_techtrade` "
+            "editable to see paper engine state.*"
+        )
+
+    db_path = Path(
+        os.environ.get(
+            "PI_PAPER_DB",
+            str(Path.home() / ".portfolio_intel" / "paper.db"),
+        )
+    )
+    if not db_path.exists():
+        return (
+            "## Paper Trading Engine\n\n"
+            "**No batches submitted yet.**\n\n"
+            "Submit a batch via the Execute Bridge widget "
+            "(`POST /tt/execute/write-batch`) to see cash, positions, "
+            "and P&L here."
+        )
+
+    engine = SqlitePaperEngine(db_path)
+    try:
+        acct = engine.get_account()
+        positions = engine.get_positions()
+        pending = engine.get_orders(status=OrderStatus.PENDING)
+        filled = engine.get_orders(status=OrderStatus.FILLED)
+
+        # Build the markdown body.
+        lines: list[str] = [
+            "## Paper Trading Engine",
+            "",
+            f"**Account** `{acct.account_id}`",
+            "",
+            "| Field | Value |",
+            "| --- | --- |",
+            f"| Starting cash | ${acct.starting_cash} |",
+            f"| Cash | ${acct.cash} |",
+            f"| Realized P&L | ${acct.realized_pl} |",
+            "",
+            f"**Positions** ({len(positions)})",
+            "",
+        ]
+        if positions:
+            lines.append("| Symbol | Qty | Avg cost | Realized P&L |")
+            lines.append("| --- | ---: | ---: | ---: |")
+            for p in positions:
+                lines.append(
+                    f"| {p.symbol} | {p.quantity} | ${p.avg_cost} | ${p.realized_pl} |"
+                )
+        else:
+            lines.append("*No open positions.*")
+        lines.extend(
+            [
+                "",
+                f"**Orders**: {len(pending)} PENDING, {len(filled)} FILLED",
+                "",
+                "> Read-only view. Use the Execute Bridge widget to write "
+                "new batches; record fills via the widget action or a "
+                "Fidelity Activity CSV bulk import (P5).",
+            ]
+        )
+        return "\n".join(lines)
+    finally:
+        engine.close()
 
 
 # ---------------------------------------------------------------------------
