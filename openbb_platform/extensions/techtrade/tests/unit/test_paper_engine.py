@@ -443,6 +443,7 @@ class TestFactory:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         target = tmp_path / "paper.db"
+        monkeypatch.setenv("PI_PAPER_ENGINE", "sqlite")
         monkeypatch.setenv("PI_PAPER_DB", str(target))
         eng = get_default_engine()
         assert isinstance(eng, SqlitePaperEngine)
@@ -453,6 +454,7 @@ class TestFactory:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        monkeypatch.setenv("PI_PAPER_ENGINE", "sqlite")
         monkeypatch.setenv("PI_PAPER_DB", "/nonexistent/should-not-be-used.db")
         arg_target = tmp_path / "arg.db"
         get_default_engine(db_path=arg_target)  # side effect: creates arg_target
