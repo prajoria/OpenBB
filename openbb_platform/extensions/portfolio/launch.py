@@ -52,6 +52,13 @@ from openbb_portfolio.portfolio_router import router  # noqa: E402
 
 app.include_router(router)
 
+# Include the custom-copilot backend (#1794): /agents.json + /query, streaming
+# answers from the local copilot-api proxy on :4141. Mounted here so it reuses
+# this backend's already-trusted cert and CORS origin.
+from openbb_portfolio.copilot import router as copilot_router  # noqa: E402
+
+app.include_router(copilot_router)
+
 # Add root endpoints for widgets.json and apps.json (for pro.openbb.co integration)
 import json  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402

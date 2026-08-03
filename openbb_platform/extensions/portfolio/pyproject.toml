@@ -18,6 +18,10 @@ pymysql = ">=1.1.0"
 python-dotenv = ">=1.0.0"
 pandas = ">=1.3"
 numpy = ">=1.21"
+# Custom-copilot backend (#1794): OpenBB Workspace agent protocol + LLM proxy.
+openbb-ai = ">=1.0.0"
+openai = ">=1.40"
+sse-starlette = ">=1.6"
 
 [build-system]
 requires = ["poetry-core"]
