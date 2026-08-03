@@ -33,7 +33,9 @@ events, citations and artifacts are follow-up work.
 import logging
 import os
 from collections.abc import AsyncGenerator
+from typing import Any
 
+import openai
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from openbb_ai import message_chunk
@@ -147,7 +149,7 @@ def _to_openai_messages(messages) -> list[dict]:
 # ---------------------------------------------------------------------------
 async def _proxy_deltas(
     openai_messages: list[dict],
-    client: object | None = None,
+    client: Any = None,
 ) -> AsyncGenerator[str, None]:
     """Yield text deltas from the LLM proxy for the given messages.
 
@@ -156,9 +158,9 @@ async def _proxy_deltas(
     """
     owns_client = client is None
     if client is None:
-        from openai import AsyncOpenAI
-
-        client = AsyncOpenAI(base_url=_proxy_base_url(), api_key=_proxy_api_key())
+        client = openai.AsyncOpenAI(
+            base_url=_proxy_base_url(), api_key=_proxy_api_key()
+        )
 
     # Close a self-created client (and its httpx connection pool) on normal
     # completion, on error, and on cancellation (client disconnect throws

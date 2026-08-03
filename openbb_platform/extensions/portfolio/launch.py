@@ -1,4 +1,4 @@
-"""
+r"""
 OpenBB Portfolio Extension — Entry Script.
 
 This script imports the standard OpenBB Platform FastAPI application
@@ -34,12 +34,19 @@ Result:
       - /apps.json         Merged (default + Portfolio Overview app)
 """
 
+# This is an entry/launcher script: ``load_dotenv`` must run before the platform
+# app is imported (the app reads env vars at import time), so imports are
+# intentionally not all at module top. The E402 noqa markers below document the
+# same intent for ruff; the disable here is the pylint equivalent.
+# pylint: disable=wrong-import-position,wrong-import-order
+
 from pathlib import Path
 
 # Load .env from project root (extension/ → extensions/ → openbb_platform/ → project root)
 _project_root = Path(__file__).resolve().parents[3]
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_project_root / ".env", override=False)
 except ImportError:
     pass  # python-dotenv optional if env vars set another way
@@ -61,7 +68,9 @@ app.include_router(copilot_router)
 
 # Add root endpoints for widgets.json and apps.json (for pro.openbb.co integration)
 import json  # noqa: E402
+
 from fastapi.responses import JSONResponse  # noqa: E402
+
 
 @app.get("/widgets.json", include_in_schema=False)
 async def root_widgets():
@@ -71,6 +80,7 @@ async def root_widgets():
     with open(widgets_file, encoding="utf-8") as f:
         return JSONResponse(content=json.load(f))
 
+
 @app.get("/apps.json", include_in_schema=False)
 async def root_apps():
     """Serve portfolio apps.json at root for pro.openbb.co integration."""
@@ -78,5 +88,6 @@ async def root_apps():
     apps_file = assets_dir / "apps.json"
     with open(apps_file, encoding="utf-8") as f:
         return JSONResponse(content=json.load(f))
+
 
 # `app` is the name detected by the openbb-api launcher (default name = "app")
