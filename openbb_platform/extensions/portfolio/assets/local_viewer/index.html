@@ -371,10 +371,12 @@
         const { value, done } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-        let idx;
-        while ((idx = buf.indexOf("\n\n")) >= 0) {
-          const frame = buf.slice(0, idx);
-          buf = buf.slice(idx + 2);
+        let m;
+        // Frames are delimited by a blank line. sse_starlette uses CRLF
+        // (\r\n\r\n); tolerate LF-only (\n\n) too. Match either boundary.
+        while ((m = /\r\n\r\n|\n\n/.exec(buf))) {
+          const frame = buf.slice(0, m.index);
+          buf = buf.slice(m.index + m[0].length);
           const { event, data } = parseSSEFrame(frame);
           if (event === "copilotMessageChunk" && data) {
             try {
