@@ -26,10 +26,15 @@ paired.
 Atomicity: both files are written to a temp path in the same directory
 then renamed. The operator never observes a half-written workbook.
 
-Phase 1 (this module) ships only the ``Orders`` sheet in the XLSX. The
-5 additional sheets (Batch Summary, Plan Context, Deviation Analysis,
-Concentration, Audit) land in phase 2 as additive writes against the
-frozen :class:`OrderSink` interface — no interface change needed.
+Phase 2 (this module, live) — the XLSX writer now produces a full
+6-sheet workbook: Orders, Batch Summary, Plan Context, Deviation
+Analysis, Concentration, Audit. The Deviation sheet embeds a
+horizontal bar chart of |deviation from last close|; the
+Concentration sheet embeds a side-by-side pair of pre/post-execution
+pie charts. Optional :class:`OrderBatch` fields (``pricing``,
+``pre_execution_positions``, ``plan_context``) feed sheets 3-5 and 6;
+when omitted (P1-style batches), the corresponding sheet renders a
+"not provided" placeholder row so a valid workbook always ships.
 """
 
 from __future__ import annotations
@@ -40,7 +45,7 @@ import hashlib
 import logging
 import os
 import re
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -86,6 +91,31 @@ _FORMULA_LEAD_CHARS = frozenset({"=", "+", "-", "@", "\t", "\r"})
 
 #: Account-mask allowlist — expected shape is ``***1234``.
 _ACCOUNT_MASK_RE = re.compile(r"^[*A-Za-z0-9_\-]{1,32}$")
+
+
+def _reject_formula_lead(field_name: str, value: str) -> None:
+    """Raise if ``value`` starts with a CSV/Excel formula-injection char.
+
+    Shared helper: :class:`OrderTicket`, :class:`VerdictGate`, and
+    :class:`PlanContext` all need the identical guard on their string
+    fields. Extracted so the pattern (and its rationale) live in one
+    place — any future writer that renders operator/planner-supplied
+    strings into a cell should call this at construction rather than
+    invent a new sanitizer.
+
+    Empty strings are allowed (default values). Non-string types
+    are ignored (e.g., bools on ``VerdictGate.passed`` — the caller
+    filters what's checked).
+    """
+    if not isinstance(value, str) or not value:
+        return
+    if value[0] in _FORMULA_LEAD_CHARS:
+        raise ValueError(
+            f"{field_name} must not start with a CSV/Excel "
+            f"formula-injection character {sorted(_FORMULA_LEAD_CHARS)}; "
+            f"got {value!r}"
+        )
+
 
 #: Batch SHA short-form used in filenames (first N chars of the full SHA).
 _SHA_SHORT_LEN = 8
@@ -172,18 +202,90 @@ class OrderTicket:
 
 
 @dataclass(frozen=True)
+class VerdictGate:
+    """One T4 validation gate that a plan was checked against.
+
+    Surfaces on the Plan Context sheet (P2) so the reviewer can see
+    why the plan was cleared. ``passed=False`` gates are rendered with
+    a red fill; the batch as a whole should not be executed without
+    the operator's explicit acknowledgement.
+
+    Formula-injection guard on every string field (name, threshold,
+    actual, notes) — same discipline as :class:`OrderTicket.notes`.
+    A malicious upstream planner writing ``name="=cmd|/C calc"`` would
+    otherwise emit an Excel formula into the workbook the reviewer
+    double-clicks.
+    """
+
+    name: str
+    threshold: str
+    actual: str
+    passed: bool
+    notes: str = ""
+
+    def __post_init__(self) -> None:
+        """Reject CSV/Excel formula-injection in every string field."""
+        _reject_formula_lead("VerdictGate.name", self.name)
+        _reject_formula_lead("VerdictGate.threshold", self.threshold)
+        _reject_formula_lead("VerdictGate.actual", self.actual)
+        _reject_formula_lead("VerdictGate.notes", self.notes)
+
+
+@dataclass(frozen=True)
+class PlanContext:
+    """Provenance/audit metadata attached to an :class:`OrderBatch`.
+
+    Optional on the batch. When present, feeds the Plan Context and
+    Audit sheets in the P2 XLSX. Deliberately not part of the batch
+    SHA — content-addressed idempotency identifies *what will trade*,
+    not *why the planner blessed it*, so a re-computed plan against the
+    same universe yields the same file.
+
+    Formula-injection guard on ``generator_version`` and ``git_sha`` —
+    both land on the Audit sheet, and both come from upstream tooling
+    that could conceivably be compromised. Loud rejection over silent
+    sanitization for the same reason as :class:`OrderTicket`.
+    """
+
+    verdict_gates: tuple[VerdictGate, ...] = ()
+    generator_version: str = ""
+    git_sha: str = ""
+
+    def __post_init__(self) -> None:
+        """Reject CSV/Excel formula-injection in every string field."""
+        _reject_formula_lead("PlanContext.generator_version", self.generator_version)
+        _reject_formula_lead("PlanContext.git_sha", self.git_sha)
+
+
+@dataclass(frozen=True)
 class OrderBatch:
     """A validated set of order tickets destined for a broker.
 
     ``plan_id`` and ``verdict_gate_pass`` are provenance from the T4
     validation step; they surface in the XLSX audit sheet and the
     ``pi_order_batch`` audit row (phase 2).
+
+    P2 optional fields (all default to None; P1 batches without them
+    render "not provided" placeholder rows on the P2 sheets):
+
+    - ``pricing`` — per-symbol last-close price for the Deviation sheet.
+      Caller supplies (e.g., via ChainedFetcher #1715) so the writer stays
+      pure and deterministic.
+    - ``pre_execution_positions`` — pre-exec portfolio weights (fraction-
+      of-1) for the Concentration sheet. Caller supplies from
+      ``MySqlPortfolioStore.latest_snapshot`` (#1744).
+    - ``plan_context`` — :class:`PlanContext` with verdict gates + audit
+      provenance for the Plan Context and Audit sheets.
     """
 
     tickets: tuple[OrderTicket, ...]
     plan_id: str = ""
     verdict_gate_pass: bool = False
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    # P2 additive fields — all optional, none affect the batch SHA.
+    pricing: Mapping[str, Decimal] | None = None
+    pre_execution_positions: Mapping[str, Decimal] | None = None
+    plan_context: PlanContext | None = None
 
     def __post_init__(self) -> None:
         """Reject empty tickets and enforce tuple (stable hash)."""
@@ -513,65 +615,21 @@ def _fmt_decimal(d: Decimal) -> str:
 
 
 # ---------------------------------------------------------------------------
-# XLSX writer — phase-1 minimal (Orders sheet only).
+# XLSX writer — delegates to _xlsx_sheets (extracted for pylint too-many-lines).
 # ---------------------------------------------------------------------------
 
 
 def _write_xlsx(path: Path, batch: OrderBatch) -> None:
-    """Write phase-1 minimal XLSX (Orders sheet only).
+    """Write phase-2 full 6-sheet XLSX workbook via :mod:`_xlsx_sheets`.
 
-    Phase 2 will add: Batch Summary, Plan Context, Deviation Analysis,
-    Concentration, Audit — plus embedded charts. Kept intentionally
-    minimal here so the full write path (openpyxl workbook lifecycle,
-    atomic rename, load-back verification) is exercised without the
-    surface of 5 more sheets in this PR.
+    Sheet writers live in the sibling ``_xlsx_sheets`` module to keep this
+    file under pylint's ``too-many-lines`` threshold. The public write
+    surface stays here on :func:`_write_xlsx` so nothing else changes.
     """
-    # Deferred import — openpyxl is a heavy dep and only the XLSX writer
-    # needs it. If a downstream call site imports order_sink only for
-    # the CSV path, no openpyxl load penalty.
     # pylint: disable=import-outside-toplevel
-    from openpyxl import Workbook  # noqa: PLC0415
-    from openpyxl.styles import Alignment, Font, PatternFill  # noqa: PLC0415
+    from openbb_techtrade.execution._xlsx_sheets import write_workbook  # noqa: PLC0415
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Orders"
-
-    header = list(_CSV_COLUMNS) + ["Notes"]
-    ws.append(header)
-    header_font = Font(bold=True)
-    for cell in ws[1]:
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center")
-
-    buy_fill = PatternFill(start_color="E6F4EA", end_color="E6F4EA", fill_type="solid")
-    sell_fill = PatternFill(start_color="FCE8E6", end_color="FCE8E6", fill_type="solid")
-
-    for t in batch.tickets:
-        row = [
-            t.symbol,
-            t.action,
-            float(t.quantity),
-            t.order_type,
-            float(t.limit_price) if t.limit_price is not None else None,
-            t.tif,
-            t.account_masked or "",
-            t.notes,
-        ]
-        ws.append(row)
-        fill = buy_fill if t.action in ("Buy", "BuyToCover") else sell_fill
-        for cell in ws[ws.max_row]:
-            cell.fill = fill
-
-    # Freeze the header row.
-    ws.freeze_panes = "A2"
-
-    # Column widths — approximate, no fancy auto-fit.
-    widths = {"A": 12, "B": 12, "C": 12, "D": 12, "E": 14, "F": 8, "G": 14, "H": 30}
-    for col, w in widths.items():
-        ws.column_dimensions[col].width = w
-
-    wb.save(path)
+    write_workbook(path, batch)
 
 
 # ---------------------------------------------------------------------------
