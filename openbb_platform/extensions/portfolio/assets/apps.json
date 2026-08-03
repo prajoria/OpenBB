@@ -47,14 +47,14 @@
         "id": "stock_analysis",
         "name": "Stock Analysis",
         "layout": [
-          { "i": "stock_context",      "x": 0,  "y": 0,  "w": 40, "h": 5,  "state": { "params": { "symbol": "CLS" } } },
-          { "i": "stock_profile",      "x": 0,  "y": 5,  "w": 40, "h": 10, "state": { "params": { "symbol": "CLS" } } },
-          { "i": "stock_fundamentals", "x": 0,  "y": 15, "w": 20, "h": 14, "state": { "params": { "symbol": "CLS" } } },
-          { "i": "stock_valuation",    "x": 20, "y": 15, "w": 20, "h": 14, "state": { "params": { "symbol": "CLS" } } },
-          { "i": "stock_technicals",   "x": 0,  "y": 29, "w": 20, "h": 10, "state": { "params": { "symbol": "CLS" } } },
-          { "i": "stock_risk",         "x": 20, "y": 29, "w": 20, "h": 10, "state": { "params": { "symbol": "CLS" } } },
-          { "i": "stock_relative",     "x": 0,  "y": 39, "w": 40, "h": 16, "state": { "params": { "symbol": "CLS" } } },
-          { "i": "stock_decision",     "x": 0,  "y": 55, "w": 20, "h": 10, "state": { "params": { "symbol": "CLS" } } }
+          { "i": "stock_context",      "x": 0,  "y": 0,  "w": 40, "h": 5,  "state": { "params": { "symbol": "MSFT" } } },
+          { "i": "stock_profile",      "x": 0,  "y": 5,  "w": 40, "h": 10, "state": { "params": { "symbol": "MSFT" } } },
+          { "i": "stock_fundamentals", "x": 0,  "y": 15, "w": 20, "h": 14, "state": { "params": { "symbol": "MSFT" } } },
+          { "i": "stock_valuation",    "x": 20, "y": 15, "w": 20, "h": 14, "state": { "params": { "symbol": "MSFT" } } },
+          { "i": "stock_technicals",   "x": 0,  "y": 29, "w": 20, "h": 10, "state": { "params": { "symbol": "MSFT" } } },
+          { "i": "stock_risk",         "x": 20, "y": 29, "w": 20, "h": 10, "state": { "params": { "symbol": "MSFT" } } },
+          { "i": "stock_relative",     "x": 0,  "y": 39, "w": 40, "h": 16, "state": { "params": { "symbol": "MSFT" } } },
+          { "i": "stock_decision",     "x": 0,  "y": 55, "w": 20, "h": 10, "state": { "params": { "symbol": "MSFT" } } }
         ]
       }
     },
@@ -83,7 +83,7 @@
         "name": "Analysis Symbol",
         "type": "param",
         "paramName": "symbol",
-        "defaultValue": "CLS",
+        "defaultValue": "MSFT",
         "widgetIds": [
           "stock_context",
           "stock_profile",
