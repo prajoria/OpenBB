@@ -66,6 +66,13 @@ from openbb_portfolio.copilot import router as copilot_router  # noqa: E402
 
 app.include_router(copilot_router)
 
+# Include the Local Workspace Viewer (#1798): an offline dashboard at /viewer
+# that renders this backend's apps.json/widgets.json and a chat pane wired to
+# the copilot /query endpoint above. Dev-loop tool, not a Workspace replacement.
+from openbb_portfolio.local_viewer import router as local_viewer_router  # noqa: E402
+
+app.include_router(local_viewer_router)
+
 # Add root endpoints for widgets.json and apps.json (for pro.openbb.co integration)
 import json  # noqa: E402
 

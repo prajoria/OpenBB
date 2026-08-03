@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portfolio — Local Workspace Viewer</title>
+  <style>
+    :root {
+      --bg: #0d1117; --panel: #161b22; --panel2: #1c2330; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+      --green: #3fb950; --red: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      height: 100vh; display: flex; flex-direction: column;
+    }
+    header {
+      display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+      border-bottom: 1px solid var(--border); background: var(--panel);
+    }
+    header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+    header .badge {
+      font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+      padding: 2px 8px; border-radius: 10px;
+    }
+    header .spacer { flex: 1; }
+    button, select, input {
+      background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: 5px 9px; font-size: 13px;
+    }
+    button { cursor: pointer; }
+    button:hover:not(:disabled) { border-color: var(--accent); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .main { flex: 1; display: flex; min-height: 0; }
+    .dashboard { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .tabs { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+    .tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .grid { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+    .widget {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    }
+    .widget > .whead {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+      border-bottom: 1px solid var(--border); background: var(--panel2); flex-wrap: wrap;
+    }
+    .widget > .whead .wname { font-weight: 600; }
+    .widget > .whead .params { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+    .widget > .whead label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+    .wbody { padding: 0; max-height: 460px; overflow: auto; }
+    .state { padding: 16px; color: var(--muted); font-size: 13px; }
+    .state.err { color: var(--red); }
+    table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+    th, td { padding: 6px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border); }
+    th { position: sticky; top: 0; background: var(--panel2); color: var(--muted); font-weight: 600; z-index: 1; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.pos { color: var(--green); } td.neg { color: var(--red); }
+    /* Chat pane */
+    .chat { width: 360px; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--panel); }
+    .chat .chead { padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .chat .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .chat .dot.on { background: var(--green); } .chat .dot.off { background: var(--red); }
+    .messages { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { padding: 8px 11px; border-radius: 8px; max-width: 92%; white-space: pre-wrap; word-wrap: break-word; }
+    .msg.human { align-self: flex-end; background: var(--accent); color: #fff; }
+    .msg.ai { align-self: flex-start; background: var(--panel2); border: 1px solid var(--border); }
+    .msg.note { align-self: stretch; background: transparent; color: var(--muted); font-size: 12px; text-align: center; }
+    .composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
+    .composer input { flex: 1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Portfolio — Local Workspace Viewer</h1>
+    <span class="badge" id="app-badge">loading…</span>
+    <span class="badge" title="This viewer is served same-origin and renders /apps.json + /widgets.json">local &middot; offline</span>
+    <div class="spacer"></div>
+    <button id="refresh-btn" title="Reload all widgets in the active tab">↻ Refresh</button>
+  </header>
+  <div class="main">
+    <div class="dashboard">
+      <div class="tabs" id="tabs"></div>
+      <div class="grid" id="grid"><div class="state">Loading dashboard…</div></div>
+    </div>
+    <aside class="chat">
+      <div class="chead"><span class="dot" id="chat-dot"></span><span id="chat-title">Copilot</span></div>
+      <div class="messages" id="messages"></div>
+      <div class="composer">
+        <input id="chat-input" type="text" placeholder="Ask the local Copilot…" disabled />
+        <button id="chat-send" disabled>Send</button>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+  //--------------------------------------------------------------------------
+  // Small helpers. Everything is same-origin, so relative URLs are used
+  // throughout (works regardless of host/port/scheme).
+  //--------------------------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+
+  // Escape any backend-derived string before it enters innerHTML. Widget
+  // definitions are ours, but row data and option lists come from data
+  // endpoints and must not be able to inject markup/script (DOM-XSS).
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+  }
+
+  async function fetchJSON(url, opts) {
+    const resp = await fetch(url, opts);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+    return resp.json();
+  }
+
+  // Resolve a possibly-dotted dataKey and coerce the payload into an array of
+  // row objects. Portfolio widgets return the array directly (dataKey ""), but
+  // be defensive about common wrappers so an unexpected shape degrades to a
+  // readable state instead of throwing.
+  function extractRows(resp, dataKey) {
+    let d = resp;
+    if (dataKey) {
+      for (const k of dataKey.split(".")) {
+        d = (d && typeof d === "object") ? d[k] : undefined;
+      }
+    }
+    if (Array.isArray(d)) return d;
+    for (const wrap of ["items", "results", "data", "rows"]) {
+      if (d && Array.isArray(d[wrap])) return d[wrap];
+    }
+    if (Array.isArray(resp)) return resp;
+    if (d && typeof d === "object") return [d]; // single object -> one row
+    return [];
+  }
+
+  function fmtCell(value, col) {
+    if (value === null || value === undefined) return "";
+    const isNum = typeof value === "number";
+    let text = value;
+    if (col && col.formatterFn === "percent" && isNum) text = value.toFixed(2) + "%";
+    else if (isNum) text = Number.isInteger(value) ? value : value.toFixed(2);
+    return String(text);
+  }
+
+  function cellClass(value, col) {
+    const cls = [];
+    if (typeof value === "number") cls.push("num");
+    if (col && col.renderFn === "greenRed" && typeof value === "number") {
+      if (value > 0) cls.push("pos"); else if (value < 0) cls.push("neg");
+    }
+    return cls.join(" ");
+  }
+
+  function renderTable(container, rows, widget) {
+    if (!rows.length) { container.innerHTML = '<div class="state">No rows returned.</div>'; return; }
+    const defs = widget && widget.data && widget.data.table && widget.data.table.columnsDefs;
+    const cols = (defs && defs.length)
+      ? defs.map((c) => ({ field: c.field, header: c.headerName || c.field, formatterFn: c.formatterFn, renderFn: c.renderFn }))
+      : Object.keys(rows[0]).map((k) => ({ field: k, header: k }));
+    const thead = "<tr>" + cols.map((c) => `<th>${escapeHtml(c.header)}</th>`).join("") + "</tr>";
+    const body = rows.map((r) =>
+      "<tr>" + cols.map((c) => {
+        const v = r[c.field];
+        return `<td class="${cellClass(v, c)}">${escapeHtml(fmtCell(v, c))}</td>`;
+      }).join("") + "</tr>"
+    ).join("");
+    container.innerHTML = `<table><thead>${thead}</thead><tbody>${body}</tbody></table>`;
+  }
+
+  //--------------------------------------------------------------------------
+  // Dashboard: /apps.json (tabs) + /widgets.json (defs) -> tables.
+  //--------------------------------------------------------------------------
+  let APP = null;          // the active app object from /apps.json
+  let WIDGETS = {};        // widgetId -> definition from /widgets.json
+
+  function initialParams(widgetDef, layoutState) {
+    // Precedence: layout state.params > widget default value > "".
+    const out = {};
+    const stateParams = (layoutState && layoutState.params) || {};
+    for (const p of (widgetDef.params || [])) {
+      out[p.paramName] = (p.paramName in stateParams) ? stateParams[p.paramName]
+        : (p.value !== undefined && p.value !== null ? p.value : "");
+    }
+    return out;
+  }
+
+  function buildQuery(params) {
+    const usp = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== "" && v !== null && v !== undefined) usp.append(k, v);
+    }
+    const s = usp.toString();
+    return s ? "?" + s : "";
+  }
+
+  async function loadWidgetData(bodyEl, widgetDef, params) {
+    bodyEl.innerHTML = '<div class="state">Loading…</div>';
+    try {
+      const resp = await fetchJSON(widgetDef.endpoint + buildQuery(params));
+      const rows = extractRows(resp, widgetDef.data ? widgetDef.data.dataKey : "");
+      renderTable(bodyEl, rows, widgetDef);
+    } catch (e) {
+      bodyEl.innerHTML = `<div class="state err">Failed to load: ${e.message}</div>`;
+    }
+  }
+
+  async function populateOptions(selectEl, optionsEndpoint, current) {
+    try {
+      const opts = await fetchJSON(optionsEndpoint);
+      const list = Array.isArray(opts) ? opts : extractRows(opts, "");
+      selectEl.innerHTML = '<option value="">(all)</option>' + list.map((o) => {
+        const value = (o && typeof o === "object") ? (o.value ?? o.label ?? "") : o;
+        const label = (o && typeof o === "object") ? (o.label ?? o.value ?? "") : o;
+        const sel = String(value) === String(current) ? " selected" : "";
+        return `<option value="${escapeHtml(value)}"${sel}>${escapeHtml(label)}</option>`;
+      }).join("");
+    } catch (e) {
+      // Options endpoint failed — leave the free-text fallback in place.
+      selectEl.innerHTML = `<option value="${escapeHtml(current || "")}">${escapeHtml(current || "(unavailable)")}</option>`;
+    }
+  }
+
+  function renderWidget(gridEl, layoutItem) {
+    const def = WIDGETS[layoutItem.i];
+    const card = document.createElement("div");
+    card.className = "widget";
+    if (!def) {
+      card.innerHTML = `<div class="whead"><span class="wname">${escapeHtml(layoutItem.i)}</span></div>`
+        + `<div class="state err">Unknown widget id "${escapeHtml(layoutItem.i)}" — not in /widgets.json.</div>`;
+      gridEl.appendChild(card);
+      return;
+    }
+    if (def.type && def.type !== "table") {
+      card.innerHTML = `<div class="whead"><span class="wname">${escapeHtml(def.name || layoutItem.i)}</span></div>`
+        + `<div class="state">Widget type "${escapeHtml(def.type)}" is not supported in the local viewer yet.</div>`;
+      gridEl.appendChild(card);
+      return;
+    }
+
+    const params = initialParams(def, layoutItem.state);
+    const head = document.createElement("div");
+    head.className = "whead";
+    head.innerHTML = `<span class="wname">${escapeHtml(def.name || layoutItem.i)}</span>`;
+    const paramsWrap = document.createElement("div");
+    paramsWrap.className = "params";
+
+    const body = document.createElement("div");
+    body.className = "wbody";
+
+    for (const p of (def.params || [])) {
+      if (p.show === false) continue;
+      const label = document.createElement("label");
+      label.textContent = p.label || p.paramName;
+      let control;
+      if (p.type === "endpoint" && p.optionsEndpoint) {
+        control = document.createElement("select");
+        populateOptions(control, p.optionsEndpoint, params[p.paramName]);
+      } else {
+        control = document.createElement("input");
+        control.type = (p.type === "date") ? "date" : "text";
+        control.value = params[p.paramName] ?? "";
+        control.placeholder = p.paramName;
+      }
+      control.addEventListener("change", () => {
+        params[p.paramName] = control.value;
+        loadWidgetData(body, def, params);
+      });
+      label.appendChild(control);
+      paramsWrap.appendChild(label);
+    }
+    head.appendChild(paramsWrap);
+    card.appendChild(head);
+    card.appendChild(body);
+    gridEl.appendChild(card);
+    loadWidgetData(body, def, params); // async — each widget loads independently
+  }
+
+  function renderTab(tabId) {
+    for (const b of document.querySelectorAll("#tabs button")) {
+      b.classList.toggle("active", b.dataset.tab === tabId);
+    }
+    const grid = $("grid");
+    grid.innerHTML = "";
+    const tab = APP.tabs[tabId];
+    if (!tab || !tab.layout || !tab.layout.length) {
+      grid.innerHTML = '<div class="state">This tab has no widgets.</div>';
+      return;
+    }
+    const ordered = [...tab.layout].sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    for (const item of ordered) renderWidget(grid, item);
+  }
+
+  let ACTIVE_TAB = null;
+
+  async function initDashboard() {
+    try {
+      const apps = await fetchJSON("/apps.json");
+      APP = Array.isArray(apps) ? apps[0] : apps;
+      WIDGETS = await fetchJSON("/widgets.json");
+    } catch (e) {
+      $("grid").innerHTML = `<div class="state err">Could not load dashboard: ${e.message}</div>`;
+      $("app-badge").textContent = "error";
+      return;
+    }
+    $("app-badge").textContent = APP.name || "app";
+    const tabsEl = $("tabs");
+    tabsEl.innerHTML = "";
+    const tabIds = Object.keys(APP.tabs || {});
+    tabIds.forEach((tid) => {
+      const b = document.createElement("button");
+      b.textContent = APP.tabs[tid].name || tid;
+      b.dataset.tab = tid;
+      b.addEventListener("click", () => { ACTIVE_TAB = tid; renderTab(tid); });
+      tabsEl.appendChild(b);
+    });
+    if (tabIds.length) { ACTIVE_TAB = tabIds[0]; renderTab(ACTIVE_TAB); }
+  }
+
+  $("refresh-btn").addEventListener("click", () => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); });
+
+  //--------------------------------------------------------------------------
+  // Chat pane: POST /query and stream copilotMessageChunk SSE frames.
+  // EventSource can't POST, so we read the response body with fetch + a reader
+  // and parse the SSE frames by hand.
+  //--------------------------------------------------------------------------
+  const HISTORY = []; // {role: "human"|"ai", content}
+  let CHAT_READY = false;
+
+  function addBubble(role, text) {
+    const el = document.createElement("div");
+    el.className = "msg " + role;
+    el.textContent = text;
+    $("messages").appendChild(el);
+    $("messages").scrollTop = $("messages").scrollHeight;
+    return el;
+  }
+
+  function parseSSEFrame(frame) {
+    let event = "message";
+    const dataLines = [];
+    for (const line of frame.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+    }
+    return { event, data: dataLines.join("\n") };
+  }
+
+  async function sendChat() {
+    const input = $("chat-input");
+    const text = input.value.trim();
+    if (!text || !CHAT_READY) return;
+    input.value = "";
+    addBubble("human", text);
+    HISTORY.push({ role: "human", content: text });
+
+    const bubble = addBubble("ai", "");
+    let answer = "";
+    try {
+      const resp = await fetch("/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: HISTORY }),
+      });
+      if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          const frame = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const { event, data } = parseSSEFrame(frame);
+          if (event === "copilotMessageChunk" && data) {
+            try {
+              const delta = JSON.parse(data).delta;
+              if (delta) { answer += delta; bubble.textContent = answer; }
+            } catch (_) { /* ignore malformed frame */ }
+          }
+        }
+      }
+    } catch (e) {
+      bubble.className = "msg note";
+      bubble.textContent = `Chat failed: ${e.message}`;
+    }
+    if (answer) HISTORY.push({ role: "ai", content: answer });
+    $("messages").scrollTop = $("messages").scrollHeight;
+  }
+
+  async function initChat() {
+    const dot = $("chat-dot");
+    try {
+      const agents = await fetchJSON("/agents.json");
+      const first = agents && Object.values(agents)[0];
+      $("chat-title").textContent = (first && first.name) || "Copilot";
+      CHAT_READY = true;
+      dot.className = "dot on";
+      $("chat-input").disabled = false;
+      $("chat-send").disabled = false;
+      addBubble("note", "Connected to the local Copilot proxy. Ask about your data.");
+    } catch (e) {
+      CHAT_READY = false;
+      dot.className = "dot off";
+      $("chat-title").textContent = "Copilot unavailable";
+      addBubble("note", "Copilot backend not available on this server (GET /agents.json failed). "
+        + "Run/merge the copilot backend (PR #1795, issue #1794) to enable chat.");
+    }
+  }
+
+  $("chat-send").addEventListener("click", sendChat);
+  $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+
+  // Boot.
+  initDashboard();
+  initChat();
+  </script>
+</body>
+</html>
