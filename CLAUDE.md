@@ -719,8 +719,8 @@ first failure (`bash -e`). Non-obvious gotchas:
   need a documented module-level `# pylint: disable=wrong-import-position,
   wrong-import-order`. Lazy in-function imports need
   `import-outside-toplevel` handling — prefer a top-level `import openai`
-  + call-time `openai.AsyncOpenAI(...)` (still monkeypatchable) over
-  `from openai import AsyncOpenAI` inside a function.
+  with a call-time `openai.AsyncOpenAI(...)` (still monkeypatchable)
+  over `from openai import AsyncOpenAI` inside a function.
 - **`.gitattributes` has `text eol=lf` but `core.autocrlf=true` on
   Windows.** Your working tree is CRLF, so local `pylint` spams
   `C0328 (unexpected-line-ending-format)` — but the committed git blob is
