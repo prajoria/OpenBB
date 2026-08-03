@@ -30,8 +30,6 @@ response with an ``ACL denied`` warning — no cash balance, no ledger
 row, no metadata leaks about whether the account actually exists.
 """
 
-from __future__ import annotations
-
 # pylint: disable=unused-argument
 import logging
 from datetime import datetime, timedelta, timezone
@@ -81,7 +79,9 @@ def _resolve_principal() -> str:
     )
 
 
-def _verify_account_ownership(account_store, *, principal: str, account_id: str) -> bool:
+def _verify_account_ownership(
+    account_store, *, principal: str, account_id: str
+) -> bool:
     """Return True iff the account exists and belongs to ``principal``.
 
     Returns False on any mismatch or fetch error — never raises. The
@@ -112,7 +112,7 @@ def _default_ledger_store():
         InMemoryLedgerStore,
     )
 
-    global _LEDGER_SINGLETON  # noqa: PLW0603
+    global _LEDGER_SINGLETON  # noqa: PLW0603  # pylint: disable=global-statement
     if _LEDGER_SINGLETON is None:
         _LEDGER_SINGLETON = InMemoryLedgerStore()
     return _LEDGER_SINGLETON
@@ -123,7 +123,7 @@ def _default_account_store():
         InMemoryAccountStore,
     )
 
-    global _ACCOUNT_SINGLETON  # noqa: PLW0603
+    global _ACCOUNT_SINGLETON  # noqa: PLW0603  # pylint: disable=global-statement
     if _ACCOUNT_SINGLETON is None:
         _ACCOUNT_SINGLETON = InMemoryAccountStore()
     return _ACCOUNT_SINGLETON
@@ -160,7 +160,11 @@ def _ledger_to_paper_events(entries) -> list[PaperTradingEvent]:
             events.append(
                 PaperTradingEvent(
                     symbol=str(symbol),
-                    when=when if isinstance(when, datetime) else datetime.now(tz=timezone.utc),
+                    when=(
+                        when
+                        if isinstance(when, datetime)
+                        else datetime.now(tz=timezone.utc)
+                    ),
                     status="FILLED",
                     quantity=Decimal(str(qty)) if qty is not None else None,
                     fill_price=Decimal(str(price)) if price is not None else None,
@@ -210,7 +214,9 @@ def _low_buying_power_alerts(
     ]
 
 
-def _gtc_expiring_alerts(open_orders, now: datetime, horizon_days: int = 3) -> list[Alert]:
+def _gtc_expiring_alerts(
+    open_orders, now: datetime, horizon_days: int = 3
+) -> list[Alert]:
     """Emit alerts for GTC orders whose ``expires_at`` is within horizon."""
     out: list[Alert] = []
     cutoff = now + timedelta(days=horizon_days)
@@ -221,7 +227,7 @@ def _gtc_expiring_alerts(open_orders, now: datetime, horizon_days: int = 3) -> l
         expires = getattr(order, "expires_at", None)
         if not isinstance(expires, datetime):
             continue
-        if expires <= cutoff and expires >= now:
+        if now <= expires <= cutoff:
             symbol = str(getattr(order, "symbol", "?"))
             oid = str(getattr(order, "order_id", ""))
             days = (expires - now).days
@@ -262,7 +268,7 @@ def _alert_to_item(a: Alert) -> PaperAlertItem:
         PythonEx(
             description="Paper-trading alert stream for the last hour.",
             code=[
-                'obb.portfolio_intel.paper.alerts('
+                "obb.portfolio_intel.paper.alerts("
                 'account_id="acc-1", since_seconds=3600)',
             ],
         )
@@ -308,9 +314,7 @@ def alerts(
         principal = _resolve_principal()
     except PermissionError as exc:
         return OBBject(
-            results=PaperAlertsResult(
-                alerts=[], warnings=[f"ACL denied: {exc}"]
-            )
+            results=PaperAlertsResult(alerts=[], warnings=[f"ACL denied: {exc}"])
         )
     if not _verify_account_ownership(
         account_store, principal=principal, account_id=account_id
@@ -324,9 +328,7 @@ def alerts(
     user_id = principal
 
     try:
-        entries = ledger_store.list_for_account(
-            user_id=user_id, account_id=account_id
-        )
+        entries = ledger_store.list_for_account(user_id=user_id, account_id=account_id)
     except Exception as exc:  # noqa: BLE001
         warnings.append(f"ledger read failed: {exc}")
         entries = []
@@ -334,9 +336,7 @@ def alerts(
     combined += evaluate_paper_trading_events(events, since=since)
 
     try:
-        account = account_store.get(
-            user_id=user_id, account_id=account_id
-        )
+        account = account_store.get(user_id=user_id, account_id=account_id)
     except Exception as exc:  # noqa: BLE001
         warnings.append(f"account read failed: {exc}")
         account = None
@@ -345,7 +345,9 @@ def alerts(
     )
 
     open_orders = getattr(account, "open_orders", None) if account is not None else None
-    combined += _gtc_expiring_alerts(open_orders, now=now, horizon_days=gtc_horizon_days)
+    combined += _gtc_expiring_alerts(
+        open_orders, now=now, horizon_days=gtc_horizon_days
+    )
 
     combined.sort(
         key=lambda a: (

@@ -14,8 +14,6 @@ never breaks; when the backtest extension lands, callers get real
 results with no code change.
 """
 
-from __future__ import annotations
-
 # pylint: disable=unused-argument
 import logging
 from datetime import date
@@ -52,7 +50,9 @@ def _resolve_backtest_endpoint():
     ``pip install openbb-backtest`` picks up on the next request.
     """
     try:
-        from openbb import obb  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        from openbb import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+            obb,
+        )
     except Exception:  # noqa: BLE001
         return None
     endpoint = getattr(getattr(obb, "backtest", None), "portfolio", None)
@@ -78,7 +78,7 @@ def _positions_from_basket(basket: list[dict]) -> list[BasketPosition]:
         PythonEx(
             description="Stub call — always safe, returns portable JSON dump.",
             code=[
-                'obb.portfolio_intel.backtest.run('
+                "obb.portfolio_intel.backtest.run("
                 'basket=[{"symbol":"AAPL","weight":0.5},{"symbol":"MSFT","weight":0.5}],'
                 'start="2025-01-01", end="2025-12-31", live=False)',
             ],

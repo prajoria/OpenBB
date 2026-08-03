@@ -23,8 +23,6 @@ Design mirrors the P1/P2 routers (xray, events, smart_money, risk):
 - Provider fetch behind a seam so unit tests never hit the network.
 """
 
-from __future__ import annotations
-
 # pylint: disable=unused-argument
 import logging
 from datetime import datetime, timedelta, timezone

@@ -34,8 +34,6 @@ Scope narrowed vs PRD §14 (documented in module docstring):
 # pylint: disable=unused-import  # _fetch_holdings kept for test-patching parity
 # pylint: disable=unused-argument  # metrics() 'provider' arg reserved for future auto-fetch overload
 
-from __future__ import annotations
-
 import logging
 from decimal import Decimal
 

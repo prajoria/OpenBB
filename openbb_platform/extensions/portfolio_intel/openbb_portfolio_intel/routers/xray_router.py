@@ -24,8 +24,6 @@ Scope narrowed vs original PRD §11:
   as What-If #904).
 """
 
-from __future__ import annotations
-
 import logging
 from decimal import Decimal
 
