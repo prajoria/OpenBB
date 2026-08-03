@@ -46,6 +46,13 @@ def _all_endpoint_steps() -> list:
 _NONDETERMINISTIC_STEP_IDS: frozenset[str] = frozenset(
     {
         "CX.equity-analyst-forecasts",  # hits live fmp_cached; drifts with server clock
+        # T5.paper-status-empty reads from ~/.portfolio_intel/paper.db.
+        # If a prior CI step or a runner-level artifact created that file,
+        # the "no batches yet" body diverges from the fixture. The
+        # standalone-harness (TestClient) test asserts the body shape
+        # with a controlled env; this drift check just proves the
+        # endpoint responds 200 without touching state.
+        "T5.paper-status-empty",
     }
 )
 
