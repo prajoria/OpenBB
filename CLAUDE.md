@@ -698,6 +698,46 @@ pre-commit run black
 pre-commit run ruff
 ```
 
+### CI "General Code Linting" — traps that cost real debugging time
+
+The `general-linting.yml` workflow (`General Code Linting` check) runs
+**five** tools on the PR's changed `.py` files: `codespell`, `black
+--check`, `mypy`, `pylint`, `ruff check` — in that order, aborting on the
+first failure (`bash -e`). Non-obvious gotchas:
+
+- **`ruff.toml` line-length is 122, but CI's Black uses the 88 default.**
+  A line 89–122 chars long passes `ruff check` locally yet fails CI's
+  `black --check`. **Always run `black --check <files>` locally before
+  pushing** — green ruff is not enough.
+- **`diff_files` excludes `tests`, `integration`, `openbb_platform/tools/`,
+  and `.../core/openbb/package/`.** New test files are NOT CI-linted, so a
+  long line in a `tests/` file won't fail CI (but keep them clean anyway).
+- **`.pylintrc` `disable=` does NOT include `wrong-import-position`
+  (C0413), `wrong-import-order` (C0411), or `import-outside-toplevel`
+  (C0415).** Launcher scripts with intentional mid-file imports (e.g.
+  `launch.py`, which must run `load_dotenv` before importing the app)
+  need a documented module-level `# pylint: disable=wrong-import-position,
+  wrong-import-order`. Lazy in-function imports need
+  `import-outside-toplevel` handling — prefer a top-level `import openai`
+  + call-time `openai.AsyncOpenAI(...)` (still monkeypatchable) over
+  `from openai import AsyncOpenAI` inside a function.
+- **`.gitattributes` has `text eol=lf` but `core.autocrlf=true` on
+  Windows.** Your working tree is CRLF, so local `pylint` spams
+  `C0328 (unexpected-line-ending-format)` — but the committed git blob is
+  LF (verify: `git show :<path> | Format-Hex | Select-String "0D 0A"`
+  → 0), so **CI never sees C0328**. Ignore that specific local-only noise.
+
+### Stacked PRs (portfolio-intel)
+
+When a feature branch must be cut on top of another unmerged PR's branch
+(e.g. needing the #1788 openapi fix to boot the backend), retarget the PR
+base from `portfolio` to the **stacked branch** so the diff/lint surface
+is only your files. GitHub auto-retargets to `portfolio` when the base PR
+merges. Note: `portfolio-intel-base-guard.yml` only triggers on PRs
+targeting `develop`/`main`, so a stacked-on-`feat/pi-*` base is not
+blocked, but the `portfolio`-gated checks (closes-syntax, harness) don't
+run until the auto-retarget happens.
+
 ## Configuration
 
 ### API Keys

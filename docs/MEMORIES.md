@@ -1212,3 +1212,38 @@ fabrication.
 with this PR. Remaining open in Project #4: the 6 fresh follow-ups
 (#1400-#1405), bug reports #1389/#1390/#1394/#1395 (surfaced during
 notebook execution), and the assorted long-tail non-portfolio issues.
+
+## portfolio-intel: local custom-copilot backend shipped (2026-08-03, PR #1795, issue #1794)
+
+Shipped a custom-copilot backend so OpenBB Workspace's Copilot can route
+through the local `copilot-api` OpenAI-compatible proxy on
+`127.0.0.1:4141` (GitHub Copilot models) instead of the OpenBB-hosted
+LLM. New module `openbb_platform/extensions/portfolio/openbb_portfolio/copilot.py`
+implements the Workspace agent contract: `GET /agents.json` (descriptor)
++ `POST /query` (SSE streaming `copilotMessageChunk` via `openbb_ai.message_chunk`
++ `sse_starlette.EventSourceResponse`). Mounted on the portfolio backend
+(`launch.py`, :6902) so it reuses the trusted self-signed cert + CORS.
+Config is env-overridable: `COPILOT_PROXY_BASE_URL` / `COPILOT_PROXY_API_KEY`
+/ `COPILOT_PROXY_MODEL`. v1 is text-only (human/ai history forwarded;
+widget/dashboard context, reasoning steps, citations = follow-up).
+
+Key implementation notes for future work:
+- **The seam:** `import openai` at module top + call `openai.AsyncOpenAI(...)`
+  at call time (NOT `from openai import AsyncOpenAI`, which captures a
+  stale binding). Tests monkeypatch `openai.AsyncOpenAI`; the call-time
+  attribute lookup makes the seam work.
+- **Robustness (from self-review):** proxy-down (connection error) is
+  caught → user-visible fallback chunk + WARNING (not a silently-broken
+  empty 200 SSE stream); self-created `AsyncOpenAI` client closed in a
+  `finally` (no connection-pool leak on completion/error/cancellation);
+  `except Exception` won't swallow `CancelledError`/`GeneratorExit`.
+- **Stacked PR:** #1795 was cut on top of the #1788-fix branch
+  (`fix/pi-portfolio-intel-obbject-openapi-gh-1788`, PR #1791) because
+  the portfolio backend needs the #1788 openapi-forward-ref fix to boot.
+  PR base was retargeted from `portfolio` to that stacked branch so the
+  diff/lint surface is only the copilot files; GitHub auto-retargets to
+  `portfolio` when #1791 merges. Deps added to portfolio pyproject:
+  `openbb-ai`, `openai>=1.40`, `sse-starlette`.
+- **User must accept the self-signed cert** at `https://127.0.0.1:6902/`
+  in Chrome once for Workspace to connect; the `start-copilot-proxy.ps1`
+  proxy must be running on :4141.
