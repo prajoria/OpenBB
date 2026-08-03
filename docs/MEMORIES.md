@@ -1247,3 +1247,42 @@ Key implementation notes for future work:
 - **User must accept the self-signed cert** at `https://127.0.0.1:6902/`
   in Chrome once for Workspace to connect; the `start-copilot-proxy.ps1`
   proxy must be running on :4141.
+
+## portfolio-intel: local Workspace viewer shipped (2026-03-08, PR #1802)
+
+A **Local Workspace Viewer** now ships in the portfolio backend: an
+offline, backend-served dashboard at `GET /viewer` (:6902) that renders
+the backend's own `apps.json` tabs + `widgets.json` tables and includes
+a chat pane wired to the copilot `/query` SSE endpoint (routes through the
+:4141 Copilot proxy). It is a **dev-loop tool**, NOT a replacement for
+OpenBB Workspace — the Workspace UI is proprietary (Pro cloud or paid
+self-hosted Lite Docker); only the widgets/apps/agents.json contract is
+open, and this viewer is a DIY renderer of that open contract for local
+testing without pro.openbb.co.
+
+- Files: `openbb_portfolio/local_viewer.py` (APIRouter, `GET /viewer` →
+  fixed HTML asset), `assets/local_viewer/index.html` (self-contained
+  vanilla-JS SPA — no CDN), `tests/test_local_viewer.py`, mounted in
+  `launch.py` next to the copilot router.
+- SPA behavior: tab bar from `apps[0].tabs`; tables honour
+  `columnsDefs`/`formatterFn` (percent)/`renderFn` (greenRed);
+  **per-widget async load** with loading/error/empty states (data endpoints
+  are slow / can 500); param controls (text/date/dropdown via
+  `optionsEndpoint`); **SSE-over-fetch** chat (EventSource can't POST).
+- **CRLF SSE trap (caught by Phase 9 code-review, fixed pre-merge):**
+  `sse_starlette` frames events with `\r\n\r\n`, NOT `\n\n`. A fetch
+  reader that splits on `buf.indexOf("\n\n")` NEVER matches the real
+  stream → chat silently stays empty in a browser even though a curl of
+  `/query` shows deltas streaming. Fix: split on
+  `/\r\n\r\n|\n\n/.exec(buf)` and advance by `m[0].length`. Lesson: a
+  curl round-trip proves the SERVER streams, not that the browser JS
+  PARSER consumes it — verify the actual consumer's framing.
+- **DOM-XSS guard:** every backend-derived string entering `innerHTML`
+  (table headers/cells, option value/label, widget name/type/id) goes
+  through `escapeHtml`; chat uses `textContent`. security-review + 
+  code-review both clean at HEAD.
+- Stacked on `feat/pi-copilot-proxy-gh-1794` (PR #1795, needs `/query` +
+  `/agents.json`); base auto-retargets down the chain to `portfolio`.
+  Issues #1798 (parent) / #1799 / #1800 / #1801. PR #1802 OPEN, not merged
+  (conservative profile). Live at `https://127.0.0.1:6902/viewer` (accept
+  the self-signed cert once; proxy must be up on :4141).
