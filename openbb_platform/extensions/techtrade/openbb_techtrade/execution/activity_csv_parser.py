@@ -60,6 +60,12 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from openbb_techtrade.execution.paper_engine import (
+    OrderStatus,
+    PaperEngineError,
+    Side,
+)
+
 if TYPE_CHECKING:
     from openbb_techtrade.execution.paper_engine import PaperEngine
 
@@ -353,8 +359,6 @@ def match_fills_to_orders(
     capacity. So a batch of 3 fills against 1 partial order matches
     them in FIFO — each fill deducts from the remaining ordered qty.
     """
-    from openbb_techtrade.execution.paper_engine import OrderStatus  # pylint: disable=import-outside-toplevel
-
     # Snapshot the PENDING + PARTIAL orders. Track remaining capacity
     # per order id as we match.
     open_orders = [
@@ -384,8 +388,6 @@ def match_fills_to_orders(
 
 def _pick_candidate(fill, open_orders, remaining, date_window_days):  # noqa: ANN001
     """Return the best-matching order for ``fill`` or None."""
-    from openbb_techtrade.execution.paper_engine import Side  # pylint: disable=import-outside-toplevel
-
     action_to_side = {
         "Buy": Side.BUY,
         "Sell": Side.SELL,
@@ -443,8 +445,6 @@ def import_fills(
     duplicate fill is detected, it's counted in ``skipped_duplicate``
     rather than raised.
     """
-    from openbb_techtrade.execution.paper_engine import PaperEngineError  # pylint: disable=import-outside-toplevel
-
     fill_list = list(fills)
     matched, unmatched = match_fills_to_orders(fill_list, engine, date_window_days)
     logger.info(
