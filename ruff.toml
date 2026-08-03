@@ -64,6 +64,10 @@ ignore = [
 "*init*.py" = ["F401"]
 "website/*" = ["T201", "PLR0915"]
 "*integration/*" = ["S101"]
+# scripts/gen_selfsigned_cert.py (gh-1786) is a stdout-driven dev CLI —
+# print() is its intended user interface, so T201 (flake8-print) is a
+# deliberate, per-file exemption rather than inline noqa on every line.
+"scripts/gen_selfsigned_cert.py" = ["T201"]
 # fmp_cached equity_historical and its test carry pre-existing style debt
 # (PLR0912 branch count, PLW2901 loop-var reassignment, SIM103/SIM105
 # idiom, S110 try-except-pass, F841 unused var). Adding these suppressions
