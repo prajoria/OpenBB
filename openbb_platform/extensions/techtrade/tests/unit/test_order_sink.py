@@ -317,7 +317,7 @@ class TestPaperOrderSinkWrite:
             PaperOrderSink(tmp_path / "nope")
 
     def test_construct_refuses_file_as_dir(self, tmp_path: Path) -> None:
-        f = tmp_path / "afile"
+        f = tmp_path / "not_a_dir"
         f.write_text("x")
         with pytest.raises(OrderSinkError, match="directory"):
             PaperOrderSink(f)
