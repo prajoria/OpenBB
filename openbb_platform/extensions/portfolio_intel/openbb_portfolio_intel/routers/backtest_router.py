@@ -14,8 +14,6 @@ never breaks; when the backtest extension lands, callers get real
 results with no code change.
 """
 
-from __future__ import annotations
-
 # pylint: disable=unused-argument
 import logging
 from datetime import date

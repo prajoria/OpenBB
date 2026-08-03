@@ -27,8 +27,6 @@ Scope narrowed vs PRD §14 (documented):
   #542 posture).
 """
 
-from __future__ import annotations
-
 # pylint: disable=unused-argument  # rollup() 'provider' reserved for multi-provider follow-up
 # pylint: disable=broad-exception-caught  # per-source failure isolation is intentional
 import logging

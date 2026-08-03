@@ -28,8 +28,6 @@ Scope narrowed vs PRD §14 (documented):
   per-symbol); shape kept identical to other routes for API consistency.
 """
 
-from __future__ import annotations
-
 # pylint: disable=unused-argument  # timeline() 'provider' param reserved for multi-provider follow-up
 import logging
 from datetime import date, datetime, timedelta

@@ -30,8 +30,6 @@ response with an ``ACL denied`` warning — no cash balance, no ledger
 row, no metadata leaks about whether the account actually exists.
 """
 
-from __future__ import annotations
-
 # pylint: disable=unused-argument
 import logging
 from datetime import datetime, timedelta, timezone
