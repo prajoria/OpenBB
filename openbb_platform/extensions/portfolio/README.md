@@ -76,7 +76,9 @@ TLS-cert bootstrap so no manual step is required. See issue #1786.
 **Manual — raw `openbb-api` (any OS):**
 
 ```bash
-# With HTTPS (recommended for OpenBB Workspace). Generate the dev cert first:
+# With HTTPS (recommended for OpenBB Workspace). Generate the dev cert first.
+# gen_selfsigned_cert.py needs the `cryptography` package:
+pip install cryptography
 python scripts/gen_selfsigned_cert.py \
   --cert portfolio_app/cert.pem --key portfolio_app/key.pem
 

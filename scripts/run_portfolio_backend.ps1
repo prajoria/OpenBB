@@ -110,11 +110,15 @@ if (-not $SkipInstall) {
     }
 
     Write-Host "[2/4] Installing portfolio-backend packages (editable) ..." -ForegroundColor Yellow
-    Write-Host "      openbb-core, platform_api, portfolio" -ForegroundColor DarkGray
+    Write-Host "      openbb-core, platform_api, portfolio, cryptography" -ForegroundColor DarkGray
+    # cryptography is required by scripts/gen_selfsigned_cert.py for the default
+    # HTTPS cert bootstrap; none of the editable packages depend on it, so a fresh
+    # venv would otherwise fail the [4/4] cert step on the default HTTPS path.
     & $python -m pip install `
         -e (Join-Path $openbbPlatform "core") `
         -e (Join-Path $openbbPlatform "extensions\platform_api") `
-        -e (Join-Path $openbbPlatform "extensions\portfolio")
+        -e (Join-Path $openbbPlatform "extensions\portfolio") `
+        cryptography
     if ($LASTEXITCODE -ne 0) { throw "Editable install failed" }
     Write-Host "      Done." -ForegroundColor Green
 } else {
