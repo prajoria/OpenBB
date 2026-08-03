@@ -50,9 +50,9 @@ def _resolve_backtest_endpoint():
     ``pip install openbb-backtest`` picks up on the next request.
     """
     try:
-        from openbb import (
+        from openbb import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
             obb,
-        )  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+        )
     except Exception:  # noqa: BLE001
         return None
     endpoint = getattr(getattr(obb, "backtest", None), "portfolio", None)

@@ -112,7 +112,7 @@ def _default_ledger_store():
         InMemoryLedgerStore,
     )
 
-    global _LEDGER_SINGLETON  # noqa: PLW0603
+    global _LEDGER_SINGLETON  # noqa: PLW0603  # pylint: disable=global-statement
     if _LEDGER_SINGLETON is None:
         _LEDGER_SINGLETON = InMemoryLedgerStore()
     return _LEDGER_SINGLETON
@@ -123,7 +123,7 @@ def _default_account_store():
         InMemoryAccountStore,
     )
 
-    global _ACCOUNT_SINGLETON  # noqa: PLW0603
+    global _ACCOUNT_SINGLETON  # noqa: PLW0603  # pylint: disable=global-statement
     if _ACCOUNT_SINGLETON is None:
         _ACCOUNT_SINGLETON = InMemoryAccountStore()
     return _ACCOUNT_SINGLETON
@@ -227,7 +227,7 @@ def _gtc_expiring_alerts(
         expires = getattr(order, "expires_at", None)
         if not isinstance(expires, datetime):
             continue
-        if expires <= cutoff and expires >= now:
+        if now <= expires <= cutoff:
             symbol = str(getattr(order, "symbol", "?"))
             oid = str(getattr(order, "order_id", ""))
             days = (expires - now).days
