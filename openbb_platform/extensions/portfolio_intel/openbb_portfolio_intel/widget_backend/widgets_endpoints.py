@@ -2536,3 +2536,243 @@ def tt_execute_bridge(request: Request, verdict: str = "PASS") -> str:
         "> Real broker submission is #1719. This scaffold enforces the "
         "gate; a user's explicit confirm will trigger the real bridge."
     )
+
+
+# ---------------------------------------------------------------------------
+# T5 P4 real-execute endpoints (#1768). Wires the widget to the paper
+# trading engine + PaperOrderSink shipped in P1/P2/P3.a.
+# ---------------------------------------------------------------------------
+
+
+# Env gate for the whole P4 surface. Off by default in dev, must be
+# explicitly opted-in — matches the #1748 auth pattern for basket
+# resolution.
+_ENV_ALLOW_EXECUTE = "PI_ALLOW_T5_EXECUTE"
+
+
+def _t5_execute_allowed() -> bool:
+    """Return True iff PI_ALLOW_T5_EXECUTE=true is set in the environment."""
+    return os.environ.get(_ENV_ALLOW_EXECUTE, "").strip().lower() == "true"
+
+
+@app.post("/tt/execute/write-batch")
+def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
+    request: Request,
+    verdict: str = "PASS",
+    confirm: str = "",
+    plan_id: str = "",
+) -> dict:
+    """T5 P4 — write a demo batch to disk + submit to paper engine.
+
+    Double-gate: verdict must be PASS AND the caller must send
+    ``confirm=yes`` (an explicit-confirm string, not a boolean flag).
+    The confirm string is deliberately unusual so a stray reload of a
+    misconfigured page can't accidentally trigger a write.
+
+    Third gate: ``PI_ALLOW_T5_EXECUTE=true`` env var. Off by default so
+    dev deployments don't accidentally spawn paper.db files. Matches
+    the auth-gate pattern from #1748.
+
+    Returns a dict with:
+      - ``batch_sha`` — 8-char short SHA
+      - ``csv_path`` / ``xlsx_path`` — absolute paths of the written files
+      - ``order_ids`` — list of PENDING orders now in the paper engine
+      - ``next_step`` — a human-legible next-action hint
+
+    The batch content is a fixed demo (3-symbol basket) for this phase;
+    real integration with T4's plan output is a follow-up.
+    """
+    _require_auth(request)
+
+    if not _t5_execute_allowed():
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "t5_execute_not_allowed: set PI_ALLOW_T5_EXECUTE=true "
+                "to enable the real T5 write path. Default OFF to prevent "
+                "accidental disk writes from dev deployments."
+            ),
+        )
+    if verdict != "PASS":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"verdict_gate_blocked: verdict={verdict!r}; write-batch "
+                "requires verdict=PASS. Rerun the plan validation first."
+            ),
+        )
+    if confirm != "yes":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "explicit_confirm_required: pass confirm=yes to acknowledge "
+                "this write will persist to disk + the paper trading engine. "
+                "A stray reload without confirm=yes is intentionally rejected."
+            ),
+        )
+
+    # Deferred imports so the widget backend loads cleanly even when
+    # techtrade isn't installed (matches basket_resolver pattern from
+    # #1714).
+    # pylint: disable=import-outside-toplevel
+    try:
+        import tempfile  # noqa: PLC0415
+        from decimal import Decimal  # noqa: PLC0415
+        from pathlib import Path  # noqa: PLC0415
+
+        from openbb_techtrade.execution.order_sink import (  # noqa: PLC0415
+            OrderBatch,
+            OrderTicket,
+            PaperOrderSink,
+        )
+        from openbb_techtrade.execution.paper_engine import (  # noqa: PLC0415
+            SqlitePaperEngine,
+        )
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"t5_dependencies_missing: {exc}. Install openbb_techtrade "
+                "editable to enable the T5 execute endpoints."
+            ),
+        ) from exc
+
+    # Demo batch. Real batch composition from a T4 plan is a follow-up.
+    batch = OrderBatch(
+        tickets=(
+            OrderTicket(
+                symbol="MSFT",
+                action="Buy",
+                quantity=Decimal("10"),
+                order_type="Limit",
+                limit_price=Decimal("400.00"),
+            ),
+            OrderTicket(
+                symbol="AAPL",
+                action="Buy",
+                quantity=Decimal("25"),
+                order_type="Limit",
+                limit_price=Decimal("180.00"),
+            ),
+            OrderTicket(
+                symbol="NVDA",
+                action="Buy",
+                quantity=Decimal("5"),
+                order_type="Limit",
+                limit_price=Decimal("130.00"),
+            ),
+        ),
+        plan_id=plan_id or "widget-demo",
+        verdict_gate_pass=True,
+    )
+
+    out_dir = Path(
+        os.environ.get(
+            "PI_T5_EXECUTE_OUTPUT_DIR",
+            str(Path(tempfile.gettempdir()) / "pi_t5_execute"),
+        )
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sink = PaperOrderSink(out_dir)
+    art = sink.write_batch(batch)
+
+    # Submit to the paper engine.
+    db_path = Path(
+        os.environ.get(
+            "PI_PAPER_DB",
+            str(Path.home() / ".portfolio_intel" / "paper.db"),
+        )
+    )
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    engine = SqlitePaperEngine(db_path)
+    order_ids = engine.submit_batch(batch, plan_id=batch.plan_id)
+    engine.close()
+
+    return {
+        "batch_sha": batch.sha_short(),
+        "csv_path": str(art.csv_path),
+        "xlsx_path": str(art.xlsx_path),
+        "order_ids": order_ids,
+        "next_step": (
+            "Review the XLSX workbook, then file orders manually at "
+            "Fidelity. Record fills via /tt/execute/record-fill or bulk-"
+            "import a Fidelity Activity CSV via the P5 module."
+        ),
+    }
+
+
+@app.get("/tt/execute/paper-status")
+def tt_execute_paper_status(request: Request) -> dict:
+    """T5 P4 — read the paper trading engine's current state.
+
+    No writes. No env-gate needed (read-only endpoints are safe even
+    when execute is disabled). Returns:
+
+    - ``account`` — cash, realized_pl, starting_cash
+    - ``positions`` — current positions (symbol, qty, avg_cost)
+    - ``pending_order_count`` — how many PENDING orders await fills
+    - ``filled_order_count`` — how many orders have been FILLED so far
+
+    Returns an empty state (no positions, no orders) if the paper DB
+    doesn't exist yet — that's the natural "no batches submitted yet"
+    state, not an error.
+    """
+    _require_auth(request)
+
+    # pylint: disable=import-outside-toplevel
+    try:
+        from pathlib import Path  # noqa: PLC0415
+
+        from openbb_techtrade.execution.paper_engine import (  # noqa: PLC0415
+            OrderStatus,
+            SqlitePaperEngine,
+        )
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"t5_dependencies_missing: {exc}.",
+        ) from exc
+
+    db_path = Path(
+        os.environ.get(
+            "PI_PAPER_DB",
+            str(Path.home() / ".portfolio_intel" / "paper.db"),
+        )
+    )
+    # If the DB doesn't exist, return an empty snapshot (fresh install).
+    if not db_path.exists():
+        return {
+            "account": None,
+            "positions": [],
+            "pending_order_count": 0,
+            "filled_order_count": 0,
+            "note": "No paper.db yet — submit a batch via /tt/execute/write-batch",
+        }
+
+    engine = SqlitePaperEngine(db_path)
+    try:
+        acct = engine.get_account()
+        positions = engine.get_positions()
+        pending = len(engine.get_orders(status=OrderStatus.PENDING))
+        filled = len(engine.get_orders(status=OrderStatus.FILLED))
+        return {
+            "account": {
+                "account_id": acct.account_id,
+                "cash": str(acct.cash),
+                "realized_pl": str(acct.realized_pl),
+                "starting_cash": str(acct.starting_cash),
+            },
+            "positions": [
+                {
+                    "symbol": p.symbol,
+                    "quantity": str(p.quantity),
+                    "avg_cost": str(p.avg_cost),
+                    "realized_pl": str(p.realized_pl),
+                }
+                for p in positions
+            ],
+            "pending_order_count": pending,
+            "filled_order_count": filled,
+        }
+    finally:
+        engine.close()
