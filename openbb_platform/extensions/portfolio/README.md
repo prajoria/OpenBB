@@ -54,8 +54,34 @@ pip install -e .
 
 ### Start
 
+**Recommended — use the run helper (Windows PowerShell):**
+
+```powershell
+# First run: creates .venv_portfolio, editable-installs deps, generates a
+# self-signed dev cert, and serves HTTPS on 127.0.0.1:6902.
+.\scripts\run_portfolio_backend.ps1
+
+# Subsequent runs (skip the install step):
+.\scripts\run_portfolio_backend.ps1 -SkipInstall
+
+# Plain-HTTP dev path (no certs), on port 6900:
+.\scripts\run_portfolio_backend.ps1 -NoSsl -Port 6900
+```
+
+The helper mirrors `scripts/run_widget_backend.ps1` (which starts the
+*separate* `portfolio_intel` widget backend on port 6120 — a different set
+of apps). It handles the venv, editable install, MySQL `.env` check, and
+TLS-cert bootstrap so no manual step is required. See issue #1786.
+
+**Manual — raw `openbb-api` (any OS):**
+
 ```bash
-# With HTTPS (recommended for OpenBB Workspace)
+# With HTTPS (recommended for OpenBB Workspace). Generate the dev cert first.
+# gen_selfsigned_cert.py needs the `cryptography` package:
+pip install cryptography
+python scripts/gen_selfsigned_cert.py \
+  --cert portfolio_app/cert.pem --key portfolio_app/key.pem
+
 openbb-api --app openbb_platform/extensions/portfolio/launch.py \
   --ssl_certfile portfolio_app/cert.pem \
   --ssl_keyfile  portfolio_app/key.pem \
@@ -65,11 +91,24 @@ openbb-api --app openbb_platform/extensions/portfolio/launch.py \
 openbb-api --app openbb_platform/extensions/portfolio/launch.py --port 6900
 ```
 
+> **TLS certs are per-machine dev artifacts.** `portfolio_app/cert.pem` and
+> `portfolio_app/key.pem` are gitignored and generated on demand — never
+> committed. Your browser warns on first use of a self-signed cert; accept
+> the exception for `127.0.0.1`, or trust the cert in your OS store.
+
 ### Configure OpenBB Workspace
 
-Add a single backend: `https://127.0.0.1:6902`
+Add a single backend at the **canonical port `6902`** (HTTPS):
+`https://127.0.0.1:6902`.
 
-The **Portfolio Overview** app (with tabs: Overview, Positions, Cost Basis & Tax, Trends, ESPP, Stock Analysis) will appear automatically.
+> **Port note.** `6902` is canonical for this backend (HTTPS). The
+> plain-HTTP dev path uses `6900` (`-NoSsl`). If Workspace shows requests to
+> `6901`, that is a stale saved data-source config — update the saved app's
+> data source to `https://127.0.0.1:6902` so a single port/scheme is
+> expected.
+
+The **Portfolio Overview** app (with tabs: Overview, Positions, Cost Basis &
+Tax, Trends, ESPP, Stock Analysis) will appear automatically.
 
 ## Extension Structure
 

@@ -83,6 +83,12 @@ build/conda/tmp
 logs/
 portfolio_app/logs/
 
+# Self-signed dev TLS certs for the portfolio backend (gh-1786) — per-machine,
+# generated on demand by scripts/gen_selfsigned_cert.py. Covered by *.pem above,
+# repeated here explicitly so a future broad un-ignore can't leak them.
+portfolio_app/cert.pem
+portfolio_app/key.pem
+
 # Claude Code local config (machine-specific) — ignore the personal bits but
 # keep shared, version-controlled command definitions tracked.
 .claude/*
