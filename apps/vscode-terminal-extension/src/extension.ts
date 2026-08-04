@@ -16,6 +16,7 @@ import { SymbolContext } from "./symbol/context";
 import { createSymbolStatusBarItem } from "./symbol/statusBar";
 import { attachSymbolBridge } from "./symbol/panel-glue";
 import { registerCommands } from "./commands/register";
+import { registerSelectionCodeAction } from "./editor/codeAction";
 import { registerPanelFocusContext } from "./commands/context";
 import { DataModeController } from "./data/mode";
 import { WidgetFetcher } from "./data/fetcher";
@@ -129,6 +130,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(openTerminalCmd);
 
   registerCommands(context);
+  registerSelectionCodeAction(context);
 
   const layoutsView = vscode.window.registerTreeDataProvider(
     "openbbLayouts",

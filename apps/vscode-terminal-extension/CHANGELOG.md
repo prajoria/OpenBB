@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.15 - Editor selection ticker CodeAction (#1827)
+
+- Add `src/editor/codeAction.ts` — `TickerSelectionActionProvider`
+  offers a lightbulb "Open <SYM> in OpenBB Terminal" CodeAction when
+  the user's selection matches `^[A-Z]{1,5}(:[A-Z]+)?$`. Only fires
+  on explicit `Invoke` trigger (never auto-suggest) and never
+  auto-broadcasts. PRD §13.1: editor selection is the lowest-priority
+  symbol source and requires explicit user acceptance.
+- Wire `registerSelectionCodeAction(context)` in `src/extension.ts`.
+- Tests: `src/editor/codeAction.test.js`.
+
 ## 0.0.12 - Live-data mode (fixture ↔ live) (#1820)
 
 - Add `src/data/mode.ts` — `DataModeController` flips between `fixture`
