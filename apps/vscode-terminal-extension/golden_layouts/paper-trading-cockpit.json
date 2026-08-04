@@ -1,0 +1,12 @@
+{
+  "id": "paper-trading-cockpit",
+  "name": "Paper Trading Cockpit",
+  "gridTemplate": "12-col",
+  "slots": [
+    { "widgetId": "pi_paper_ticket",      "col": 1, "span": 4,  "row": 1 },
+    { "widgetId": "pi_paper_perf_kpis",   "col": 5, "span": 8,  "row": 1 },
+    { "widgetId": "pi_paper_blotter",     "col": 1, "span": 6,  "row": 2 },
+    { "widgetId": "pi_paper_performance", "col": 7, "span": 6,  "row": 2 },
+    { "widgetId": "tt_scan_table",        "col": 1, "span": 12, "row": 3 }
+  ]
+}

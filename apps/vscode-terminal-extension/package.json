@@ -3,7 +3,7 @@
   "displayName": "OpenBB Terminal",
   "description": "OpenBB Trading Terminal inside VS Code — layouts, widgets, and a local API bridge.",
   "publisher": "prajoria",
-  "version": "0.0.18",
+  "version": "0.0.22",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -23,33 +23,126 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      { "command": "openbb.openTerminal", "title": "OpenBB: Open Terminal" },
-      { "command": "openbb.newLayout", "title": "OpenBB: New Layout" },
-      { "command": "openbb.openSymbolInTerminal", "title": "OpenBB: Open Symbol in Terminal" },
-      { "command": "openbb.openPortfolio", "title": "OpenBB: Open Portfolio Overview" },
-      { "command": "openbb.openTradingDesk", "title": "OpenBB: Open Trading Desk" },
-      { "command": "openbb.openRisk", "title": "OpenBB: Open Portfolio Risk" },
-      { "command": "openbb.openChart", "title": "OpenBB: Open Chart" },
-      { "command": "openbb.setApiKey", "title": "OpenBB: Set API Key" },
-      { "command": "openbb.previewWidget", "title": "OpenBB: Preview Widget" },
-      { "command": "openbb.paperBuyActive", "title": "OpenBB: Paper Buy (Active Symbol)" },
-      { "command": "openbb.paperSellActive", "title": "OpenBB: Paper Sell (Active Symbol)" },
-      { "command": "openbb.runAnalysis", "title": "OpenBB: Run Analysis" },
-      { "command": "openbb.exportLayout", "title": "OpenBB: Export Layout" },
-      { "command": "openbb.importLayout", "title": "OpenBB: Import Layout" },
-      { "command": "openbb.startBackend", "title": "OpenBB: Start Back-end" },
-      { "command": "openbb.stopBackend", "title": "OpenBB: Stop Back-end" },
-      { "command": "openbb.restartBackend", "title": "OpenBB: Restart Back-end" },
-      { "command": "openbb.openBackendLogs", "title": "OpenBB: Open Back-end Logs" }
+      {
+        "command": "openbb.openTerminal",
+        "title": "OpenBB: Open Terminal"
+      },
+      {
+        "command": "openbb.newLayout",
+        "title": "OpenBB: New Layout"
+      },
+      {
+        "command": "openbb.openSymbolInTerminal",
+        "title": "OpenBB: Open Symbol in Terminal"
+      },
+      {
+        "command": "openbb.openPortfolio",
+        "title": "OpenBB: Open Portfolio Overview"
+      },
+      {
+        "command": "openbb.openTradingDesk",
+        "title": "OpenBB: Open Trading Desk"
+      },
+      {
+        "command": "openbb.openRisk",
+        "title": "OpenBB: Open Portfolio Risk"
+      },
+      {
+        "command": "openbb.openChart",
+        "title": "OpenBB: Open Chart"
+      },
+      {
+        "command": "openbb.setApiKey",
+        "title": "OpenBB: Set API Key"
+      },
+      {
+        "command": "openbb.previewWidget",
+        "title": "OpenBB: Preview Widget"
+      },
+      {
+        "command": "openbb.paperBuyActive",
+        "title": "OpenBB: Paper Buy (Active Symbol)"
+      },
+      {
+        "command": "openbb.paperSellActive",
+        "title": "OpenBB: Paper Sell (Active Symbol)"
+      },
+      {
+        "command": "openbb.runAnalysis",
+        "title": "OpenBB: Run Analysis"
+      },
+      {
+        "command": "openbb.exportLayout",
+        "title": "OpenBB: Export Layout"
+      },
+      {
+        "command": "openbb.importLayout",
+        "title": "OpenBB: Import Layout"
+      },
+      {
+        "command": "openbb.startBackend",
+        "title": "OpenBB: Start Back-end"
+      },
+      {
+        "command": "openbb.stopBackend",
+        "title": "OpenBB: Stop Back-end"
+      },
+      {
+        "command": "openbb.restartBackend",
+        "title": "OpenBB: Restart Back-end"
+      },
+      {
+        "command": "openbb.openBackendLogs",
+        "title": "OpenBB: Open Back-end Logs"
+      },
+      {
+        "command": "openbb.loadGoldenLayout",
+        "title": "OpenBB: Load Golden Layout"
+      },
+      {
+        "command": "openbb.resetToDefaultLayouts",
+        "title": "OpenBB: Reset to Default Layouts"
+      }
     ],
     "keybindings": [
-      { "command": "openbb.openTerminal", "key": "ctrl+shift+O", "mac": "cmd+shift+O" },
-      { "command": "openbb.openPortfolio", "key": "ctrl+shift+Q", "mac": "cmd+shift+Q" },
-      { "command": "openbb.openTradingDesk", "key": "ctrl+shift+T", "mac": "cmd+shift+T" },
-      { "command": "openbb.openRisk", "key": "ctrl+shift+R", "mac": "cmd+shift+R" },
-      { "command": "openbb.paperBuyActive", "key": "ctrl+alt+B", "mac": "cmd+alt+B", "when": "openbb.terminalFocused" },
-      { "command": "openbb.paperSellActive", "key": "ctrl+alt+S", "mac": "cmd+alt+S", "when": "openbb.terminalFocused" },
-      { "command": "openbb.openChart", "key": "f9", "mac": "f9", "when": "editorTextFocus && resourceLangId == python" }
+      {
+        "command": "openbb.openTerminal",
+        "key": "ctrl+shift+O",
+        "mac": "cmd+shift+O"
+      },
+      {
+        "command": "openbb.openPortfolio",
+        "key": "ctrl+shift+Q",
+        "mac": "cmd+shift+Q"
+      },
+      {
+        "command": "openbb.openTradingDesk",
+        "key": "ctrl+shift+T",
+        "mac": "cmd+shift+T"
+      },
+      {
+        "command": "openbb.openRisk",
+        "key": "ctrl+shift+R",
+        "mac": "cmd+shift+R"
+      },
+      {
+        "command": "openbb.paperBuyActive",
+        "key": "ctrl+alt+B",
+        "mac": "cmd+alt+B",
+        "when": "openbb.terminalFocused"
+      },
+      {
+        "command": "openbb.paperSellActive",
+        "key": "ctrl+alt+S",
+        "mac": "cmd+alt+S",
+        "when": "openbb.terminalFocused"
+      },
+      {
+        "command": "openbb.openChart",
+        "key": "f9",
+        "mac": "f9",
+        "when": "editorTextFocus && resourceLangId == python"
+      }
     ],
     "configuration": {
       "title": "OpenBB Terminal",
@@ -87,16 +180,25 @@
     },
     "views": {
       "openbb-explorer": [
-        { "id": "openbbLayouts", "name": "Layouts" },
-        { "id": "openbbWidgets", "name": "Widget Browser" },
-        { "id": "openbbBackend", "name": "Back-end Status" }
+        {
+          "id": "openbbLayouts",
+          "name": "Layouts"
+        },
+        {
+          "id": "openbbWidgets",
+          "name": "Widget Browser"
+        },
+        {
+          "id": "openbbBackend",
+          "name": "Back-end Status"
+        }
       ]
     }
   },
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js",
+    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js src/golden/loader.test.js",
     "verify:invariants": "bash scripts/verify-auth-invariants.sh",
     "package": "vsce package"
   },

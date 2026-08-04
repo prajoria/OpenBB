@@ -25,6 +25,7 @@ import { DataModeController } from "./data/mode";
 import { WidgetFetcher } from "./data/fetcher";
 import { attachDataModeToPanel } from "./data/mode-glue";
 import { AnalysisRunner } from "./analysis/runner";
+import { registerGoldenCommands } from "./golden/command";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -149,6 +150,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   registerCommands(context, undefined, analysisRunner);
   registerSelectionCodeAction(context);
+  registerGoldenCommands(context, outputChannel);
 
   const layoutsView = vscode.window.registerTreeDataProvider(
     "openbbLayouts",
