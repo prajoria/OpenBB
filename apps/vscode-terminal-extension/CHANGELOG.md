@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.0.9 - Command palette + keybindings (#1822)
+
+- Add `src/commands/register.ts` registering the 13 non-backend-lifecycle
+  commands from PRD §12.1. Backend lifecycle commands remain owned by #1819.
+- Add `src/commands/context.ts` (`registerPanelFocusContext`) binding the
+  `openbb.terminalFocused` context key to the webview panel's `active`
+  state via `onDidChangeViewState`.
+- `package.json`: register all 13 commands under `contributes.commands`
+  with `OpenBB:` title prefixes and the seven default keybindings from
+  PRD §12.2 (paper buy/sell gated on `openbb.terminalFocused`; F9 open
+  chart gated on `editorTextFocus && resourceLangId == python`).
+- Symbol validation on `openbb.openSymbolInTerminal` enforces
+  `^[A-Z]{1,5}(:[A-Z]+)?$` and warns on mismatch.
+- Add `src/commands/register.test.js` (node:test) covering registration
+  count, ID set, backend-lifecycle exclusion, symbol validation, and
+  the newLayout placeholder message.
+
 ## 0.0.8 - Symbol context v1 + validation (#1823)
 
 - Add `SymbolContext` (`src/symbol/context.ts`) — single source of truth
