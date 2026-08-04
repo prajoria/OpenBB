@@ -182,7 +182,7 @@ Scope (per PRD §18 Phase 1, corrected)
   to avoid Tauri scope creep per review comment #6).
 - Activation events, `openbb.openTerminal` command, Layouts tree-view stub.
 - Webview host that loads the shared React canvas (Vite bundle produced by a shared
-  `packages/webview-shell/` if Path A, or `desktop/` re-use if the ADR from Phase 0
+  `packages/webview-shell/` if Path A, or `desktop/` reuse if the ADR from Phase 0
   says so).
 - Theme token bridge (dark theme only) per PRD §16.
 - Two built-in layouts (`Portfolio Overview`, `Equity Deep-Dive`) in FIXTURE mode only
