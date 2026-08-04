@@ -7,6 +7,16 @@
 
 import * as vscodeReal from "vscode";
 import { openTerminalPanel } from "../webview/panel";
+import { openPreviewPanel } from "../preview/panel";
+import { getFixtureWidgetsManifest } from "../layouts/registry";
+import type { WidgetMeta } from "../layouts/types";
+
+interface PreviewQuickPickItem {
+  label: string;
+  description: string;
+  detail: string;
+  widget: WidgetMeta;
+}
 
 /** Minimal subset of the vscode API this module depends on. */
 export interface VsCodeApi {
@@ -27,6 +37,10 @@ export interface VsCodeApi {
     showInformationMessage(msg: string): Thenable<string | undefined>;
     showWarningMessage(msg: string): Thenable<string | undefined>;
     showErrorMessage(msg: string): Thenable<string | undefined>;
+    showQuickPick<T extends { label: string }>(
+      items: T[] | Thenable<T[]>,
+      options?: { placeHolder?: string; matchOnDescription?: boolean; matchOnDetail?: boolean },
+    ): Thenable<T | undefined>;
   };
 }
 
@@ -118,9 +132,22 @@ export function registerCommands(
   });
 
   reg("openbb.previewWidget", async () => {
-    await vscodeApi.window.showInformationMessage(
-      "Widget preview ships in #1832",
-    );
+    const widgets = await getFixtureWidgetsManifest(context);
+    const items: PreviewQuickPickItem[] = widgets.map((w) => ({
+      label: w.name,
+      description: `${w.id} · ${w.type}`,
+      detail: w.endpoint,
+      widget: w,
+    }));
+    const picked = await vscodeApi.window.showQuickPick(items, {
+      placeHolder: "Select a widget to preview",
+      matchOnDescription: true,
+      matchOnDetail: true,
+    });
+    if (!picked) {
+      return;
+    }
+    openPreviewPanel(context, picked.widget);
   });
 
   reg("openbb.paperBuyActive", async () => {
