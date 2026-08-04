@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.16 - openbb.runAnalysis command wired to 7-phase pipeline (#1828)
+
+- Replace the placeholder `openbb.runAnalysis` with a real handler that
+  prompts for a symbol (regex-validated), verifies the target Python can
+  import `stock_analysis`, and opens a fresh workspace-local Jupyter
+  notebook built from a template (3 cells: title markdown, pipeline
+  invocation, phase-by-phase results). Per PRD Q6, we do NOT modify the
+  checked-in notebooks in `notebooks/portfolio/`.
+- Add `src/analysis/runner.ts` — `AnalysisRunner` with `resolvePython`,
+  `ensureAnalysisModule`, and `runForSymbol`. Uses the checked-in
+  `Analysis/stock_analysis.py` pipeline.
+- Add `src/analysis/runner.test.js` — 10 node:test cases with mocked
+  spawn + mocked vscode.
+- Wire the runner in `src/extension.ts` from the `openbb.pythonPath`
+  setting and pass it to `registerCommands`.
+
 ## 0.0.15 - Editor selection ticker CodeAction (#1827)
 
 - Add `src/editor/codeAction.ts` — `TickerSelectionActionProvider`
