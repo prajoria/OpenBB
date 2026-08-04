@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.0.18 - Symbol hover provider (Python + Notebook) (#1825)
+
+- Add `src/hover/regex.ts` — pure ticker detection with a tightened
+  regex. Two modes: assignment (`symbol = "AAPL"` / `ticker='MSFT'`)
+  and quoted literal (`"NVDA"`). Rejects bare identifiers (API, URL,
+  MAX, SQL, DDL), single-letter tickers, ≥6-char runs, and
+  lower/mixed case.
+- Add `src/hover/sparkline.ts` — compact ~200x40 SVG sparkline; green
+  `#4CAF50` for positive trend, red `#F44336` otherwise; handles empty
+  and flat inputs without crashing.
+- Add `src/hover/provider.ts` — VS Code `HoverProvider` for Python
+  source files and Python notebook cells. Validates via
+  `SymbolValidator` (5-min TTL), fetches
+  `GET /api/v1/equity/price/historical?symbol=…&interval=1d&limit=5`
+  with NO `Authorization` header and NO `?token=` parameter, renders a
+  MarkdownString with header + sparkline data-URI + trusted command
+  link to `openbb.openSymbolInTerminal`. 5-min per-symbol cache and a
+  500 ms debounce prevent redundant fetches on rapid re-hovers.
+- Wire `registerSymbolHoverProvider` in `src/extension.ts`.
+- Tests: `src/hover/regex.test.js`, `src/hover/sparkline.test.js`.
+
 ## 0.0.17 - Notebook symbol watcher (source-text heuristic) (#1826)
 
 - Add `src/notebook/watcher.ts` — registers `onDidOpenNotebookDocument`
