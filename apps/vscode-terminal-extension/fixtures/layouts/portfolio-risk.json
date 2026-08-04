@@ -1,0 +1,14 @@
+{
+  "id": "portfolio-risk",
+  "name": "Portfolio Risk",
+  "gridTemplate": "12-col",
+  "slots": [
+    { "widgetId": "pi_xray_sector",         "col": 1, "span": 4,  "row": 1 },
+    { "widgetId": "pi_xray_country",        "col": 5, "span": 4,  "row": 1 },
+    { "widgetId": "pi_concentration_gauge", "col": 9, "span": 4,  "row": 1 },
+    { "widgetId": "pi_risk_dashboard",      "col": 1, "span": 8,  "row": 2 },
+    { "widgetId": "pi_whatif_card",         "col": 9, "span": 4,  "row": 2 },
+    { "widgetId": "pi_brinson_attribution", "col": 1, "span": 12, "row": 3 },
+    { "widgetId": "pi_whatif_diff",         "col": 1, "span": 12, "row": 4 }
+  ]
+}

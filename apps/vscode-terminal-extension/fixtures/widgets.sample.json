@@ -126,6 +126,198 @@
         { "date": "2026-08-03", "headline": "Sample headline one" },
         { "date": "2026-08-02", "headline": "Sample headline two" }
       ]
+    },
+    {
+      "id": "pi_xray_sector",
+      "name": "X-Ray by Sector",
+      "type": "chart",
+      "endpoint": "/pi/xray/sector",
+      "category": "Portfolio Risk",
+      "fixtureRows": [
+        { "sector": "Technology", "weight": 0.40 },
+        { "sector": "Financials", "weight": 0.20 },
+        { "sector": "Healthcare", "weight": 0.15 },
+        { "sector": "Energy",     "weight": 0.10 },
+        { "sector": "Other",      "weight": 0.15 }
+      ]
+    },
+    {
+      "id": "pi_xray_country",
+      "name": "X-Ray by Country",
+      "type": "chart",
+      "endpoint": "/pi/xray/country",
+      "category": "Portfolio Risk",
+      "fixtureRows": [
+        { "country": "United States", "weight": 0.70 },
+        { "country": "Europe",        "weight": 0.15 },
+        { "country": "Japan",         "weight": 0.10 },
+        { "country": "Other",         "weight": 0.05 }
+      ]
+    },
+    {
+      "id": "pi_risk_dashboard",
+      "name": "Risk Dashboard",
+      "type": "table",
+      "endpoint": "/pi/risk/dashboard",
+      "category": "Portfolio Risk",
+      "fixtureRows": [
+        { "metric": "Volatility (ann.)", "value": "15.0%" },
+        { "metric": "Beta (vs SPY)",     "value": "1.05" },
+        { "metric": "Sharpe (1y)",       "value": "1.20" },
+        { "metric": "Max Drawdown",      "value": "-12.0%" },
+        { "metric": "VaR 95% (1d)",      "value": "-1.5%" }
+      ]
+    },
+    {
+      "id": "pi_whatif_card",
+      "name": "What-If",
+      "type": "note",
+      "endpoint": "/pi/whatif/card",
+      "category": "Portfolio Risk",
+      "fixtureRows": "Scenario: +10% AAA, -5% BBB\nEstimated impact on portfolio: +0.75%\nRisk contribution delta: +0.20"
+    },
+    {
+      "id": "pi_brinson_attribution",
+      "name": "Brinson Attribution",
+      "type": "table",
+      "endpoint": "/pi/attribution/brinson",
+      "category": "Portfolio Risk",
+      "fixtureRows": [
+        { "sector": "Technology", "allocation": "+0.30%", "selection": "+0.10%", "total": "+0.40%" },
+        { "sector": "Financials", "allocation": "-0.10%", "selection": "+0.05%", "total": "-0.05%" },
+        { "sector": "Healthcare", "allocation": "+0.00%", "selection": "+0.20%", "total": "+0.20%" }
+      ]
+    },
+    {
+      "id": "pi_whatif_diff",
+      "name": "What-If Diff",
+      "type": "table",
+      "endpoint": "/pi/whatif/diff",
+      "category": "Portfolio Risk",
+      "fixtureRows": [
+        { "symbol": "AAA", "before_weight": "10.0%", "after_weight": "11.0%", "delta": "+1.0%" },
+        { "symbol": "BBB", "before_weight": "10.0%", "after_weight": "9.5%",  "delta": "-0.5%" },
+        { "symbol": "CCC", "before_weight": "5.0%",  "after_weight": "5.0%",  "delta": "0.0%" }
+      ]
+    },
+    {
+      "id": "tt_segment_movers",
+      "name": "Segment Movers",
+      "type": "table",
+      "endpoint": "/tt/segments/movers",
+      "category": "Trading Desk",
+      "fixtureRows": [
+        { "segment": "Semiconductors", "chg_pct": "+2.50%", "leader": "AAA" },
+        { "segment": "Banks",          "chg_pct": "+1.20%", "leader": "BBB" },
+        { "segment": "Energy",         "chg_pct": "-0.80%", "leader": "CCC" }
+      ]
+    },
+    {
+      "id": "tt_signal_card",
+      "name": "Signal Card",
+      "type": "metric",
+      "endpoint": "/tt/signals/card",
+      "category": "Trading Desk",
+      "fixtureRows": {
+        "signal": "Momentum Long",
+        "score": "0.75",
+        "confidence": "High",
+        "horizon": "5d"
+      }
+    },
+    {
+      "id": "tt_scan_table",
+      "name": "Scan Results",
+      "type": "table",
+      "endpoint": "/tt/scan",
+      "category": "Trading Desk",
+      "fixtureRows": [
+        { "symbol": "AAA", "score": "0.80", "rsi": 60, "vol": "1.2M" },
+        { "symbol": "BBB", "score": "0.72", "rsi": 55, "vol": "0.9M" },
+        { "symbol": "DDD", "score": "0.65", "rsi": 48, "vol": "0.5M" }
+      ]
+    },
+    {
+      "id": "pi_paper_ticket",
+      "name": "Paper Order Ticket",
+      "type": "note",
+      "endpoint": "/pi/paper/ticket",
+      "category": "Trading Desk",
+      "fixtureRows": "Symbol: AAA\nSide: BUY\nQty: 100\nType: MARKET\nEst. Cost: $10,000.00"
+    },
+    {
+      "id": "pi_paper_blotter",
+      "name": "Paper Blotter",
+      "type": "table",
+      "endpoint": "/pi/paper/blotter",
+      "category": "Trading Desk",
+      "fixtureRows": [
+        { "time": "2026-08-04 09:31", "symbol": "AAA", "side": "BUY",  "qty": 100, "price": "$100.00", "status": "FILLED" },
+        { "time": "2026-08-04 10:05", "symbol": "BBB", "side": "SELL", "qty": 50,  "price": "$200.00", "status": "FILLED" }
+      ]
+    },
+    {
+      "id": "pi_paper_performance",
+      "name": "Paper Performance",
+      "type": "chart",
+      "endpoint": "/pi/paper/performance",
+      "category": "Trading Desk",
+      "fixtureRows": [
+        { "date": "2026-07-01", "equity": 1000000 },
+        { "date": "2026-07-15", "equity": 1005000 },
+        { "date": "2026-08-01", "equity": 1010000 }
+      ]
+    },
+    {
+      "id": "pi_paper_perf_kpis",
+      "name": "Paper Perf KPIs",
+      "type": "metric",
+      "endpoint": "/pi/paper/perf_kpis",
+      "category": "Trading Desk",
+      "fixtureRows": {
+        "total_return": "+1.00%",
+        "win_rate": "60.0%",
+        "avg_trade": "+0.20%",
+        "trades": 25
+      }
+    },
+    {
+      "id": "pi_equity_technicals",
+      "name": "Technicals",
+      "type": "table",
+      "endpoint": "/pi/equity/technicals",
+      "category": "Chart Focus",
+      "fixtureRows": [
+        { "indicator": "RSI(14)",  "value": "55.0" },
+        { "indicator": "MACD",     "value": "+0.50" },
+        { "indicator": "SMA(50)",  "value": "$95.00" },
+        { "indicator": "SMA(200)", "value": "$88.00" }
+      ]
+    },
+    {
+      "id": "pi_price_performance",
+      "name": "Price Performance",
+      "type": "metric",
+      "endpoint": "/pi/equity/price_performance",
+      "category": "Chart Focus",
+      "fixtureRows": {
+        "1d": "+1.00%",
+        "1w": "+2.50%",
+        "1m": "+5.00%",
+        "ytd": "+10.00%"
+      }
+    },
+    {
+      "id": "regime_detect",
+      "name": "Regime Detect",
+      "type": "metric",
+      "endpoint": "/tt/regime/detect",
+      "category": "Chart Focus",
+      "fixtureRows": {
+        "regime": "Trend-Up",
+        "confidence": "0.80",
+        "since": "2026-07-10"
+      }
     }
   ]
 }

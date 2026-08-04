@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.0.11 - Complete built-in layout set (Portfolio Risk, Trading Desk, Chart Focus) (#1821)
+
+- Add `fixtures/layouts/portfolio-risk.json` (Layout 3): sector/country
+  X-Ray + concentration gauge, risk dashboard + what-if card, Brinson
+  attribution, what-if diff.
+- Add `fixtures/layouts/trading-desk.json` (Layout 4): segment movers +
+  signal card, scan table, paper ticket + blotter, paper performance +
+  KPIs.
+- Add `fixtures/layouts/chart-focus.json` (Layout 5): charting, equity
+  technicals + price performance, regime detect + signal card.
+- Extend `fixtures/widgets.sample.json` with 17 new synthetic-data
+  widgets covering every new layout slot (round numbers only, no real
+  portfolio data).
+- Add `src/layouts/all-layouts.test.js` (node:test): asserts exactly
+  5 layouts ship, every layout validates (shape, no overflow, no
+  overlap), and every referenced widgetId resolves in the manifest.
+
 ## 0.0.9 - Command palette + keybindings (#1822)
 
 - Add `src/commands/register.ts` registering the 13 non-backend-lifecycle
