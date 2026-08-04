@@ -2090,7 +2090,7 @@ async def _probe_track(track_tiers: tuple[str, ...], budget_s: float) -> list:
 
 
 @app.get("/pi/health/providers")
-def provider_health(request: Request) -> str:
+async def provider_health(request: Request) -> str:
     """Return Provider Health strip markdown (#1685 + #1715).
 
     Spec §3 T12.1: non-blocking cold cache (returns 'unknown' immediately),
@@ -2115,29 +2115,28 @@ def provider_health(request: Request) -> str:
     track_a = _cached_health("A")
     track_b = _cached_health("B")
     if track_a is None or track_b is None:
-        # Kick off a real probe synchronously but with a small (0.5s)
-        # budget so cold-cache never blocks the widget for long. If it
-        # comes back in time, great; otherwise we render unknown and
-        # try again on the next call.
+        # Probe both tracks concurrently, bounded by an overall budget so
+        # cold-cache never blocks the widget for long. This endpoint is an
+        # async route, so we AWAIT the probes on the running event loop —
+        # do NOT use asyncio.run() here (#1871): asyncio.run() raises
+        # RuntimeError inside uvicorn's running loop *before* the gather
+        # runs, which leaks the un-awaited _probe_track coroutines and
+        # forces every call onto the cold-cache 'unknown' fallback.
         try:
-            probed_a, probed_b = asyncio.run(
-                asyncio.wait_for(
-                    asyncio.gather(
-                        _probe_track(TRACK_A_DEFAULT, budget_s=0.4),
-                        _probe_track(TRACK_B_DEFAULT, budget_s=0.4),
-                    ),
-                    timeout=0.5,
-                )
+            probed_a, probed_b = await asyncio.wait_for(
+                asyncio.gather(
+                    _probe_track(TRACK_A_DEFAULT, budget_s=0.4),
+                    _probe_track(TRACK_B_DEFAULT, budget_s=0.4),
+                ),
+                timeout=0.5,
             )
             _store_health("A", probed_a)
             _store_health("B", probed_b)
             track_a = probed_a
             track_b = probed_b
-        except (asyncio.TimeoutError, RuntimeError):
-            # RuntimeError catches "asyncio.run() cannot be called from
-            # a running event loop" — the FastAPI test client runs
-            # sync so this is fine, but if the endpoint is ever
-            # called from an async context we must fall back gracefully.
+        except asyncio.TimeoutError:
+            # Overall budget exceeded — render the cold-cache 'unknown'
+            # strip loudly and try again on the next call (within TTL).
             track_a = track_a or _unknown_strip(TRACK_A_DEFAULT)
             track_b = track_b or _unknown_strip(TRACK_B_DEFAULT)
 
