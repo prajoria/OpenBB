@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.0.23 - Preview widget command (single-widget panel) (#1832)
+
+- Add `src/preview/panel.ts` — `openPreviewPanel(context, widgetMeta)`
+  opens a `ViewColumn.Beside` webview titled `Preview: ${name}`. Reuses
+  `buildCsp` + `generateNonce` from `src/webview/csp.ts` so the same
+  hardened CSP applies (no bearer, no `?token=`). Injects
+  `window.__OPENBB_PREVIEW_WIDGET__` as a nonce-tagged inline script.
+- Add `media/preview.js` — 24-line vanilla bootstrap that reads
+  `window.__OPENBB_PREVIEW_WIDGET__` and calls the Path-A renderer's
+  `renderWidget` in FIXTURE mode.
+- Replace `openbb.previewWidget` placeholder in `src/commands/register.ts`
+  with a real QuickPick over `getFixtureWidgetsManifest(context)`.
+- Node:test coverage: name/JSON/CSP/nonce/title/XSS-escape (name with
+  `<img>` and `"` correctly escaped).
+
 ## 0.0.22 - Golden layouts library + load command + reset (#1833)
 
 - Add curated `golden_layouts/*.json`: momentum-scan, risk-review,
