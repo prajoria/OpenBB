@@ -3,3 +3,6 @@ out/
 *.vsix
 .vscode-test/
 src/commands/__*_stub.js
+src/**/__*_stub*.js
+package-lock.json
+tests/**/__*_stub*.js

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-TEST_NONCE_00000000000000000000000000'; style-src 'nonce-TEST_NONCE_00000000000000000000000000' 'unsafe-inline'; connect-src http://127.0.0.1:6900 ws://127.0.0.1:6900; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none';" />
+  <title>Preview: Portfolio Summary</title>
+  <style nonce="TEST_NONCE_00000000000000000000000000">
+    body { font-family: var(--vscode-font-family); padding: 12px; }
+    header.preview-header { border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 8px; margin-bottom: 12px; }
+    header.preview-header h1 { margin: 0 0 4px 0; font-size: 1.1em; }
+    header.preview-header dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; font-size: 0.9em; }
+    header.preview-header dt { color: var(--vscode-descriptionForeground); }
+    #widget-root { display: block; }
+  </style>
+</head>
+<body>
+  <header class="preview-header">
+    <h1>Portfolio Summary</h1>
+    <dl>
+      <dt>ID</dt><dd>pi_portfolio_summary</dd>
+      <dt>Type</dt><dd>metric</dd>
+      <dt>Endpoint</dt><dd>/pi/portfolio/summary</dd>
+      <dt>Category</dt><dd>Portfolio Overview</dd>
+    </dl>
+  </header>
+  <div id="widget-root"></div>
+  <script nonce="TEST_NONCE_00000000000000000000000000">
+    window.__OPENBB_API_BASE__ = "http://127.0.0.1:6900";
+    window.__OPENBB_PREVIEW_WIDGET__ = JSON.parse("{&quot;id&quot;:&quot;pi_portfolio_summary&quot;,&quot;name&quot;:&quot;Portfolio Summary&quot;,&quot;type&quot;:&quot;metric&quot;,&quot;endpoint&quot;:&quot;/pi/portfolio/summary&quot;,&quot;category&quot;:&quot;Portfolio Overview&quot;}");
+  </script>
+  <script nonce="TEST_NONCE_00000000000000000000000000" src="vscode-webview://media/renderer.js"></script>
+  <script nonce="TEST_NONCE_00000000000000000000000000" src="vscode-webview://media/preview.js"></script>
+</body>
+</html>
