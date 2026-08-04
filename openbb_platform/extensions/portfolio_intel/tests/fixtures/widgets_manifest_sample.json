@@ -1,0 +1,34 @@
+{
+  "pi_symbol_context": {
+    "name": "Symbol Context Bar",
+    "description": "Shared ticker context for research tabs.",
+    "category": "Portfolio Intelligence",
+    "type": "markdown",
+    "endpoint": "pi/context/symbol",
+    "source": "portfolio-intel"
+  },
+  "pi_book_context": {
+    "name": "Book Context",
+    "description": "Portfolio book-level context banner.",
+    "category": "Portfolio Intelligence",
+    "type": "markdown",
+    "endpoint": "pi/context/book",
+    "source": "portfolio-intel"
+  },
+  "pi_xray_sector": {
+    "name": "X-Ray: Sector",
+    "description": "Sector-level X-Ray breakdown.",
+    "category": "Portfolio Intelligence / Risk",
+    "type": "table",
+    "endpoint": "pi/xray/sector",
+    "source": "portfolio-intel"
+  },
+  "tt_scan_table": {
+    "name": "TechTrade Scan Table",
+    "description": "TechTrade scan results.",
+    "category": "TechTrade",
+    "type": "table",
+    "endpoint": "tt/scan/results",
+    "source": "portfolio-intel"
+  }
+}
