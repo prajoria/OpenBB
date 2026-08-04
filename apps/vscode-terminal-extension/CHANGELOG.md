@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.4 - Theme token bridge (dark) (#1815)
+
+- Add `src/theme/tokens.ts` with `CORE_TOKEN_MAP` (10 pairs bridging
+  neutral `--color-*` tokens to VS Code `--vscode-*` variables) and a
+  `DARK_FALLBACK` palette using VS Code Dark+ defaults.
+- Add `src/theme/bridge.ts` with `collectThemeTokens()` and
+  `registerThemeSync()`, which re-posts tokens to webviews whenever
+  `vscode.window.onDidChangeActiveColorTheme` fires.
+- Add `media/theme.js` webview-side applier that mirrors the mapped
+  `--vscode-*` values onto `--color-*` on `<html>` and listens for
+  `{ type: 'themeChange' }` messages.
+- Add `src/theme/tokens.test.ts` (node:test) covering map size, key
+  shape, and fallback coverage.
+- Document mapping + fallback in `docs/theme.md`; light + high-contrast
+  follow-up tracked in #1837.
+
 ## 0.0.3 - Fixture layouts + Path-A renderer (#1816)
 
 - Ship `fixtures/widgets.sample.json` — 11-widget subset covering the
