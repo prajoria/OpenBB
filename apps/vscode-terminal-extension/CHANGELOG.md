@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.26 - Paper buy/sell command handlers wired (#1835)
+
+- `PaperOrderHandler` (`src/paper/handler.ts`) wires the paper buy/sell
+  keybindings (Ctrl+Alt+B / Ctrl+Alt+S) to a POST against
+  `/api/v1/portfolio_intel/paper/order` on the loopback backend.
+- Follows ADR-#1809: no `Authorization` header, no `?token=` query.
+- Modal confirmation by default before any order goes out.
+- 404 from the backend degrades gracefully into a "recorded locally"
+  warning so the hotkeys stay useful while the backend endpoint rolls
+  out.
+- `registerCommands` gains an optional `paperOrderHandler` parameter;
+  `extension.ts` wires the singleton after `SymbolContext` construction.
+
 ## 0.0.24 - Widget Browser tree-view + drag support (#1830)
 
 - `WidgetBrowserTreeProvider` with prefix grouping (`pi_*` / `tt_*` /
