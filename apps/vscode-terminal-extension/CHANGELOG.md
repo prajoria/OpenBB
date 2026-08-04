@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.24 - Widget Browser tree-view + drag support (#1830)
+
+- `WidgetBrowserTreeProvider` with prefix grouping (`pi_*` / `tt_*` /
+  `portfolio_*` / `regime_*` / `other`).
+- Drag source publishing `application/vnd.code.tree.openbb-widget` MIME
+  for layout drop targets.
+- Inline `openbb.previewWidgetFromBrowser` + `openbb.addWidgetToActiveLayout`
+  placeholder commands wired via `view/item/context` menu.
+- Node:test coverage of prefix ordering, alphabetical sort, unknown-prefix
+  bucketing, empty manifest, refresh event.
+
 ## 0.0.23 - Preview widget command (single-widget panel) (#1832)
 
 - Add `src/preview/panel.ts` — `openPreviewPanel(context, widgetMeta)`
