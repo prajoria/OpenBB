@@ -1286,3 +1286,37 @@ testing without pro.openbb.co.
   Issues #1798 (parent) / #1799 / #1800 / #1801. PR #1802 OPEN, not merged
   (conservative profile). Live at `https://127.0.0.1:6902/viewer` (accept
   the self-signed cert once; proxy must be up on :4141).
+## portfolio-intel: viewer chart/markdown/metric + 6120 mount (2026-08-04, PR #1841)
+
+Extended the Local Workspace Viewer (`assets/local_viewer/index.html`)
+from table-only to render all four widget types and mounted the same SPA
+on the 6120 `portfolio_intel` backend. Closes #1805.
+
+- **Renderers** (pure functions in index.html, 18 Node behavior tests):
+  `mdToHtml`/`renderMarkdown` (escape-first, scheme-allowlisted links,
+  code spans AND link URLs placeholder-protected so `**`/`*`/`_`
+  passes can't mangle hrefs — a real bug caught by pre-push code-review);
+  `inferChartModel`/`svgForChart`/`renderChart` (pie or inferred
+  multi-series line as **inline SVG**, no CDN; loud-empty falls back to a
+  table); `metricModel`/`renderMetric` (sign-colored cards).
+  `loadWidgetData` dispatches by widget `type`; old "not supported
+  yet" placeholder removed. Multi-app `<select id="app-select">` +
+  `selectApp`/`renderTabs` replace the single-app bootstrap.
+- **Shared asset, two mounts:** `openbb_portfolio.local_viewer` now
+  exports `read_viewer_html()`; the 6120 route
+  (`portfolio_intel/.../widget_backend/local_viewer.py`) lazy-imports it
+  and serves same-origin at `/viewer` (sidesteps the 6120 CORS lock —
+  pro.openbb.co only), returning **503** if `openbb_portfolio` is absent.
+  ONE canonical index.html, never duplicated.
+- **CI gotcha:** the lazy import trips pylint `C0415
+  import-outside-toplevel` under "General Code Linting". Annotate with an
+  inline `# pylint: disable=import-outside-toplevel` (same precedent as
+  `main.py`). The union return `HTMLResponse | PlainTextResponse` needs
+  `response_model=None` on the `@router.get` decorator or FastAPI
+  raises `Invalid args for response field` at startup.
+- **CodeRabbit is NOT installed on prajoria/OpenBB** — PRs get 0 bot
+  review threads, so the openbb-dev-cycle Phase-9 CodeRabbit/autofix clause
+  degrades to "0 threads = satisfied". Rely on the built-in code-review +
+  security-review agents for convergence.
+- PR #1841 base `portfolio` (fork-internal), OPEN not merged
+  (conservative profile). Both review agents clean; all CI green.
