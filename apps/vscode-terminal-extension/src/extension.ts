@@ -25,6 +25,9 @@ import { DataModeController } from "./data/mode";
 import { WidgetFetcher } from "./data/fetcher";
 import { attachDataModeToPanel } from "./data/mode-glue";
 import { AnalysisRunner } from "./analysis/runner";
+import { LayoutManager } from "./layouts/manager";
+import { LayoutsTreeProvider } from "./layouts/tree";
+import { getBuiltinLayouts } from "./layouts/registry";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -147,12 +150,17 @@ export function activate(context: vscode.ExtensionContext): void {
     workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     outputChannel,
   });
-  registerCommands(context, undefined, analysisRunner);
+  const layoutManager = new LayoutManager(context, {
+    getBuiltinLayouts: () => getBuiltinLayouts(context),
+    workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+  });
+  registerCommands(context, undefined, analysisRunner, layoutManager);
   registerSelectionCodeAction(context);
 
+  const layoutsTree = new LayoutsTreeProvider(layoutManager);
   const layoutsView = vscode.window.registerTreeDataProvider(
     "openbbLayouts",
-    new PlaceholderTreeProvider("Coming in #1830"),
+    layoutsTree,
   );
   const widgetsView = vscode.window.registerTreeDataProvider(
     "openbbWidgets",

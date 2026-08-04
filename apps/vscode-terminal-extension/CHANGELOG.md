@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.20 - User layouts CRUD + persistence (#1831)
+
+- Add `src/layouts/manager.ts` — `LayoutManager` with create / rename /
+  duplicate / delete / import / export against `context.globalState`
+  under `openbb.userLayouts`, plus workspace-scoped `.openbb/layouts/`.
+  Every persisted layout carries `schemaVersion: 1`.
+- Add `src/layouts/tree.ts` — `LayoutsTreeProvider` with Built-in /
+  User / Workspace sections; `contextValue` drives inline
+  rename/duplicate/delete/export actions in package.json menus.
+- Wire `openbb.newLayout`, `openbb.exportLayout`, `openbb.importLayout`
+  (formerly placeholders) plus new `openbb.renameLayout`,
+  `openbb.duplicateLayout`, `openbb.deleteLayout` (modal-confirm delete).
+- New Node:test suite `src/layouts/manager.test.js` covering create /
+  rename-missing / duplicate-copy-suffix / delete-builtin-throws /
+  delete-user-removes / merge-dedupe / export-json / import-overflow.
+- Extend `registerCommands()` to accept a `layoutManager` and add
+  `getAllLayouts()` helper in `registry.ts`.
+
 ## 0.0.18 - Symbol hover provider (Python + Notebook) (#1825)
 
 - Add `src/hover/regex.ts` — pure ticker detection with a tightened

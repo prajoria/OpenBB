@@ -34,3 +34,26 @@ export async function getFixtureWidgetsManifest(
   const parsed = await readJson<WidgetsManifestFile>(uri);
   return parsed.widgets;
 }
+
+/**
+ * Convenience helper (#1831): flattened, deduped list of every layout
+ * available to the user — built-in + user-defined + workspace.
+ */
+export async function getAllLayouts(
+  context: Pick<vscode.ExtensionContext, "extensionUri">,
+  layoutManager: {
+    listAll: () => Promise<{ builtins: Layout[]; user: Layout[]; workspace: Layout[] }>;
+  }
+): Promise<Layout[]> {
+  const all = await layoutManager.listAll();
+  const seen = new Set<string>();
+  const out: Layout[] = [];
+  for (const l of [...all.builtins, ...all.user, ...all.workspace]) {
+    if (!seen.has(l.id)) {
+      seen.add(l.id);
+      out.push(l);
+    }
+  }
+  void context;
+  return out;
+}

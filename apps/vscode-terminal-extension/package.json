@@ -3,7 +3,7 @@
   "displayName": "OpenBB Terminal",
   "description": "OpenBB Trading Terminal inside VS Code — layouts, widgets, and a local API bridge.",
   "publisher": "prajoria",
-  "version": "0.0.18",
+  "version": "0.0.20",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -40,7 +40,10 @@
       { "command": "openbb.startBackend", "title": "OpenBB: Start Back-end" },
       { "command": "openbb.stopBackend", "title": "OpenBB: Stop Back-end" },
       { "command": "openbb.restartBackend", "title": "OpenBB: Restart Back-end" },
-      { "command": "openbb.openBackendLogs", "title": "OpenBB: Open Back-end Logs" }
+      { "command": "openbb.openBackendLogs", "title": "OpenBB: Open Back-end Logs" },
+      { "command": "openbb.renameLayout", "title": "OpenBB: Rename Layout" },
+      { "command": "openbb.duplicateLayout", "title": "OpenBB: Duplicate Layout" },
+      { "command": "openbb.deleteLayout", "title": "OpenBB: Delete Layout" }
     ],
     "keybindings": [
       { "command": "openbb.openTerminal", "key": "ctrl+shift+O", "mac": "cmd+shift+O" },
@@ -76,6 +79,14 @@
         }
       }
     },
+    "menus": {
+      "view/item/context": [
+        { "command": "openbb.renameLayout", "when": "view == openbbLayouts && viewItem == openbbLayout", "group": "inline@1" },
+        { "command": "openbb.duplicateLayout", "when": "view == openbbLayouts && (viewItem == openbbLayout || viewItem == openbbBuiltinLayout)", "group": "inline@2" },
+        { "command": "openbb.exportLayout", "when": "view == openbbLayouts && viewItem == openbbLayout", "group": "inline@3" },
+        { "command": "openbb.deleteLayout", "when": "view == openbbLayouts && viewItem == openbbLayout", "group": "inline@4" }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -96,7 +107,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js",
+    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/layouts/manager.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js",
     "verify:invariants": "bash scripts/verify-auth-invariants.sh",
     "package": "vsce package"
   },
