@@ -3,7 +3,7 @@
   "displayName": "OpenBB Terminal",
   "description": "OpenBB Trading Terminal inside VS Code \u00e2\u20ac\u201d layouts, widgets, and a local API bridge.",
   "publisher": "prajoria",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -53,7 +53,8 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "node --test src/webview/panel.test.js",
+    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js",
+    "verify:invariants": "bash scripts/verify-auth-invariants.sh",
     "package": "vsce package"
   },
   "devDependencies": {

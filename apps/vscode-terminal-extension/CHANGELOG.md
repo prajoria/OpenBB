@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.0.5 - CSP hardening + auth invariant guards (#1817)
+
+- Extract CSP directive building into `src/webview/csp.ts` (`buildCsp`
+  + `generateNonce`); `panel.ts` now imports both. Removes the inlined
+  CSP string and the #1817 TODO.
+- CSP now enforces `default-src 'none'`, `frame-src 'none'`,
+  `object-src 'none'`, `base-uri 'none'`, `font-src 'self'` in addition
+  to the prior directives; `style-src` retains `'unsafe-inline'` for
+  chart libraries per PRD §17.3, per-panel nonce covers `script-src`
+  and inline `<script>` tags.
+- Add `src/webview/csp.test.js` (node:test): default-src, nonce
+  wiring, `unsafe-inline` in style-src only, connect-src
+  api+ws derivation, no `unsafe-eval`, no `*` wildcard, no
+  `blob:`/`filesystem:`/`chrome-extension:` schemes, nonce length +
+  uniqueness.
+- Add `scripts/verify-auth-invariants.sh` (wired as
+  `npm run verify:invariants`): four ADR §5 grep guards — no
+  `Authorization: Bearer` header, no `'unsafe-eval'`, no
+  `connect-src` wildcard, no `?token=` in URLs.
+- Resolves PRD §17.3 review comment #10 (CSP source of truth) in
+  shipped code.
+
 ## 0.0.4 - Theme token bridge (dark) (#1815)
 
 - Add `src/theme/tokens.ts` with `CORE_TOKEN_MAP` (10 pairs bridging
