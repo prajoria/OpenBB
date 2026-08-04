@@ -15,6 +15,8 @@ import { BackendState } from "./backend/state";
 import { SymbolContext } from "./symbol/context";
 import { createSymbolStatusBarItem } from "./symbol/statusBar";
 import { attachSymbolBridge } from "./symbol/panel-glue";
+import { registerCommands } from "./commands/register";
+import { registerPanelFocusContext } from "./commands/context";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -108,9 +110,13 @@ export function activate(context: vscode.ExtensionContext): void {
       const panel = openTerminalPanel(context);
       const bridge = attachSymbolBridge(panel, symbolContext);
       context.subscriptions.push(bridge);
+      const focusSub = registerPanelFocusContext(panel);
+      context.subscriptions.push(focusSub);
     },
   );
   context.subscriptions.push(openTerminalCmd);
+
+  registerCommands(context);
 
   const layoutsView = vscode.window.registerTreeDataProvider(
     "openbbLayouts",
