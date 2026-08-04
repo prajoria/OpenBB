@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-TEST_NONCE_00000000000000000000000000'; style-src 'nonce-TEST_NONCE_00000000000000000000000000' 'unsafe-inline'; connect-src http://127.0.0.1:6900 ws://127.0.0.1:6900; img-src 'self' data:; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none';" />
+  <title>OpenBB Terminal</title>
+  <script nonce="TEST_NONCE_00000000000000000000000000">
+    window.__OPENBB_API_BASE__ = "http://127.0.0.1:6900";
+  </script>
+</head>
+<body>
+  <div>Webview host ready — canvas mounted in #1816</div>
+  <div id="root"></div>
+  <script nonce="TEST_NONCE_00000000000000000000000000" src="vscode-webview://media/canvas.js"></script>
+</body>
+</html>
