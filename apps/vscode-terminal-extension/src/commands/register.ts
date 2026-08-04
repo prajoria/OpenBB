@@ -52,12 +52,22 @@ export interface AnalysisRunnerLike {
   }>;
 }
 
+/** Minimal PaperOrderHandler surface used by paper buy/sell (#1835). */
+export interface PaperOrderHandlerLike {
+  placeOrder(
+    side: "BUY" | "SELL",
+    opts?: { quantity?: number; confirmOverride?: boolean },
+  ): Promise<{ ok: boolean; message: string; endpoint?: string }>;
+}
+
 const SYMBOL_RE = /^[A-Z]{1,5}(:[A-Z]+)?$/;
 
 export function registerCommands(
   context: vscodeReal.ExtensionContext,
   vscodeApi: VsCodeApi = vscodeReal as unknown as VsCodeApi,
   analysisRunner?: AnalysisRunnerLike,
+  _layoutManager?: unknown,
+  paperOrderHandler?: PaperOrderHandlerLike,
 ): { dispose(): void }[] {
   const disposables: { dispose(): void }[] = [];
 
@@ -151,15 +161,33 @@ export function registerCommands(
   });
 
   reg("openbb.paperBuyActive", async () => {
-    await vscodeApi.window.showInformationMessage(
-      "Paper buy ships in #1835",
-    );
+    if (!paperOrderHandler) {
+      await vscodeApi.window.showInformationMessage(
+        "Paper buy ships in #1835",
+      );
+      return;
+    }
+    const result = await paperOrderHandler.placeOrder("BUY");
+    if (result.ok) {
+      await vscodeApi.window.showInformationMessage(result.message);
+    } else {
+      await vscodeApi.window.showWarningMessage(result.message);
+    }
   });
 
   reg("openbb.paperSellActive", async () => {
-    await vscodeApi.window.showInformationMessage(
-      "Paper sell ships in #1835",
-    );
+    if (!paperOrderHandler) {
+      await vscodeApi.window.showInformationMessage(
+        "Paper sell ships in #1835",
+      );
+      return;
+    }
+    const result = await paperOrderHandler.placeOrder("SELL");
+    if (result.ok) {
+      await vscodeApi.window.showInformationMessage(result.message);
+    } else {
+      await vscodeApi.window.showWarningMessage(result.message);
+    }
   });
 
   reg("openbb.runAnalysis", async () => {

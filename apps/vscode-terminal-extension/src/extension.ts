@@ -19,6 +19,7 @@ import { registerSymbolHoverProvider } from "./hover/provider";
 import { createSymbolStatusBarItem } from "./symbol/statusBar";
 import { attachSymbolBridge } from "./symbol/panel-glue";
 import { registerCommands } from "./commands/register";
+import { PaperOrderHandler } from "./paper/handler";
 import { registerSelectionCodeAction } from "./editor/codeAction";
 import { registerPanelFocusContext } from "./commands/context";
 import { DataModeController } from "./data/mode";
@@ -122,6 +123,13 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(symbolStatusBar);
   const symbolContext = new SymbolContext({ apiBase, statusBar: symbolStatusBar });
 
+  const paperOrderHandler = new PaperOrderHandler({
+    apiBase,
+    symbolContext,
+    outputChannel,
+    confirmByDefault: true,
+  });
+
   const notebookWatcher = registerNotebookSymbolWatcher(context, symbolContext);
   context.subscriptions.push(notebookWatcher);
 
@@ -174,7 +182,7 @@ export function activate(context: vscode.ExtensionContext): void {
     workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     outputChannel,
   });
-  registerCommands(context, undefined, analysisRunner);
+  registerCommands(context, undefined, analysisRunner, undefined, paperOrderHandler);
   registerSelectionCodeAction(context);
   registerGoldenCommands(context, outputChannel);
 
