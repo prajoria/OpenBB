@@ -1,8 +1,9 @@
 """Local Workspace Viewer for the portfolio backend (#1798).
 
 A minimal, offline-capable dashboard that renders *this* backend's own
-``apps.json`` tabs and ``widgets.json`` widgets (tables today) plus a chat pane
-wired to the copilot ``/query`` SSE endpoint (#1794).
+``apps.json`` tabs and ``widgets.json`` widgets (table, chart, metric, and
+markdown types — #1805) plus a chat pane wired to the copilot ``/query`` SSE
+endpoint (#1794).
 
 It is **not** a replacement for OpenBB Workspace (whose UI is proprietary) — it
 is a zero-cloud, zero-license dev-loop tool for eyeballing widgets and
@@ -28,10 +29,22 @@ _VIEWER_HTML = (
 )
 
 
+def read_viewer_html() -> str:
+    """Return the self-contained viewer SPA HTML.
+
+    Shared by the 6902 ``portfolio`` backend (this module) and the 6120
+    ``portfolio_intel`` backend (which reuses this canonical asset rather than
+    duplicating it — see #1805). The SPA is backend-neutral: it drives relative
+    ``/apps.json`` + ``/widgets.json`` + ``/query`` endpoints, so whichever
+    backend serves it same-origin gets its own apps rendered.
+    """
+    return _VIEWER_HTML.read_text(encoding="utf-8")
+
+
 @router.get("/viewer", include_in_schema=False)
 async def viewer() -> HTMLResponse:
     """Serve the self-contained local viewer page."""
-    return HTMLResponse(content=_VIEWER_HTML.read_text(encoding="utf-8"))
+    return HTMLResponse(content=read_viewer_html())
 
 
-__all__ = ["router"]
+__all__ = ["router", "read_viewer_html"]
