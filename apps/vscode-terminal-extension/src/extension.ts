@@ -26,6 +26,8 @@ import { WidgetFetcher } from "./data/fetcher";
 import { attachDataModeToPanel } from "./data/mode-glue";
 import { AnalysisRunner } from "./analysis/runner";
 import { registerGoldenCommands } from "./golden/command";
+import { registerWidgetBrowser } from "./widget-browser/browser";
+import { getFixtureWidgetsManifest } from "./layouts/registry";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -123,6 +125,30 @@ export function activate(context: vscode.ExtensionContext): void {
   const notebookWatcher = registerNotebookSymbolWatcher(context, symbolContext);
   context.subscriptions.push(notebookWatcher);
 
+  const wb = registerWidgetBrowser(context, () =>
+    getFixtureWidgetsManifest(context),
+  );
+  context.subscriptions.push(wb.disposable);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "openbb.previewWidgetFromBrowser",
+      (node: { meta?: { id?: string } } | undefined) => {
+        void vscode.window.showInformationMessage(
+          `Preview widget: ${node?.meta?.id ?? "unknown"}`,
+        );
+      },
+    ),
+    vscode.commands.registerCommand(
+      "openbb.addWidgetToActiveLayout",
+      (node: { meta?: { id?: string } } | undefined) => {
+        void vscode.window.showInformationMessage(
+          `Add ${node?.meta?.id ?? "unknown"} to layout: coming in #1831`,
+        );
+      },
+    ),
+  );
+
   // Hover provider (#1825) — Python + notebook cells. Independent
   // SymbolValidator instance so hover lookups don't perturb the
   // SymbolContext validator's cache lifecycle.
@@ -156,15 +182,11 @@ export function activate(context: vscode.ExtensionContext): void {
     "openbbLayouts",
     new PlaceholderTreeProvider("Coming in #1830"),
   );
-  const widgetsView = vscode.window.registerTreeDataProvider(
-    "openbbWidgets",
-    new PlaceholderTreeProvider("Coming in #1830"),
-  );
   const backendView = vscode.window.registerTreeDataProvider(
     "openbbBackend",
     new PlaceholderTreeProvider("Coming in #1830"),
   );
-  context.subscriptions.push(layoutsView, widgetsView, backendView);
+  context.subscriptions.push(layoutsView, backendView);
 }
 
 export function deactivate(): void {
