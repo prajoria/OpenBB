@@ -18,11 +18,24 @@ export interface VsCodeApi {
   };
   window: {
     showInputBox(
-      opts?: { placeHolder?: string; prompt?: string },
+      opts?: {
+        placeHolder?: string;
+        prompt?: string;
+        validateInput?: (v: string) => string | undefined;
+      },
     ): Thenable<string | undefined>;
     showInformationMessage(msg: string): Thenable<string | undefined>;
     showWarningMessage(msg: string): Thenable<string | undefined>;
+    showErrorMessage(msg: string): Thenable<string | undefined>;
   };
+}
+
+/** Minimal AnalysisRunner surface used by openbb.runAnalysis (#1828). */
+export interface AnalysisRunnerLike {
+  runForSymbol(symbol: string): Promise<{
+    notebookUri: unknown;
+    error?: string;
+  }>;
 }
 
 const SYMBOL_RE = /^[A-Z]{1,5}(:[A-Z]+)?$/;
@@ -30,6 +43,7 @@ const SYMBOL_RE = /^[A-Z]{1,5}(:[A-Z]+)?$/;
 export function registerCommands(
   context: vscodeReal.ExtensionContext,
   vscodeApi: VsCodeApi = vscodeReal as unknown as VsCodeApi,
+  analysisRunner?: AnalysisRunnerLike,
 ): { dispose(): void }[] {
   const disposables: { dispose(): void }[] = [];
 
@@ -122,8 +136,29 @@ export function registerCommands(
   });
 
   reg("openbb.runAnalysis", async () => {
+    const sym = await vscodeApi.window.showInputBox({
+      placeHolder: "Symbol (e.g. MSFT)",
+      validateInput: (v) =>
+        SYMBOL_RE.test(v) ? undefined : "Uppercase letters, 1-5 chars",
+    });
+    if (!sym) {
+      return;
+    }
+    if (!analysisRunner) {
+      await vscodeApi.window.showWarningMessage(
+        "Analysis runner not wired — extension activation is incomplete",
+      );
+      return;
+    }
+    const result = await analysisRunner.runForSymbol(sym);
+    if (result.error || !result.notebookUri) {
+      await vscodeApi.window.showErrorMessage(
+        `Analysis failed: ${result.error ?? "unknown error"}`,
+      );
+      return;
+    }
     await vscodeApi.window.showInformationMessage(
-      "Analysis run ships in #1828",
+      `Opened 7-phase analysis notebook for ${sym}`,
     );
   });
 

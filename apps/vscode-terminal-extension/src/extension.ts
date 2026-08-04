@@ -21,6 +21,7 @@ import { registerPanelFocusContext } from "./commands/context";
 import { DataModeController } from "./data/mode";
 import { WidgetFetcher } from "./data/fetcher";
 import { attachDataModeToPanel } from "./data/mode-glue";
+import { AnalysisRunner } from "./analysis/runner";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -129,7 +130,12 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(openTerminalCmd);
 
-  registerCommands(context);
+  const analysisRunner = new AnalysisRunner({
+    pythonPath,
+    workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+    outputChannel,
+  });
+  registerCommands(context, undefined, analysisRunner);
   registerSelectionCodeAction(context);
 
   const layoutsView = vscode.window.registerTreeDataProvider(
