@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.0.8 - Symbol context v1 + validation (#1823)
+
+- Add `SymbolContext` (`src/symbol/context.ts`) — single source of truth
+  for the active symbol across all open OpenBB Terminal panels;
+  broadcasts `symbolChange` messages to registered webviews.
+- Add `SymbolValidator` (`src/symbol/validator.ts`) — syntax check
+  (`^[A-Z]{1,5}(:[A-Z]+)?$`) plus remote validation against
+  `${apiBase}/api/v1/equity/search` with 5-minute TTL cache and
+  in-flight coalescing; no `Authorization` header, no `?token=`.
+- Add `registerSymbolStatusBar` (`src/symbol/statusBar.ts`) — status bar
+  entry on the right showing the active symbol, click routes to
+  `openbb.openSymbolInTerminal`.
+- Add `attachSymbolBridge` (`src/symbol/panel-glue.ts`) — wires each
+  webview panel's `symbolFromWidget` messages into the `SymbolContext`.
+- Add `media/symbol.js` — vanilla-JS listener applying broadcast symbol
+  changes to `[data-widget-symbol-input]` inputs; loaded via
+  `<script src>` under the nonce CSP.
+- Wire everything into `activate()` in `src/extension.ts` (no new
+  commands, no new config keys).
+
 ## 0.0.6 - Backend lifecycle + status bar (#1819)
 
 - Add `src/backend/state.ts` — pure reducer for the back-end lifecycle

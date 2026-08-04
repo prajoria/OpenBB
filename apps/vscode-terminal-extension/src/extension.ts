@@ -1,9 +1,10 @@
 // OpenBB Terminal VS Code extension — activation shell.
 //
 // Phase 1 wiring: webview host (#1814), theme bridge (#1815), layouts
-// (#1816), CSP hardening (#1817). Phase 1.5 adds the back-end lifecycle
+// (#1816), CSP hardening (#1817). Phase 2 wiring: back-end lifecycle
 // (#1819) — spawn `openbb-api`, poll `/widgets.json`, and reflect state
-// in a status-bar item.
+// in a status-bar item. Symbol context v1 (#1823) — widget selectors
+// broadcast into all panels; validation via /api/v1/equity/search.
 
 import * as vscode from "vscode";
 
@@ -11,6 +12,9 @@ import { openTerminalPanel } from "./webview/panel";
 import { BackendLifecycle } from "./backend/lifecycle";
 import { registerStatusBar } from "./backend/statusBar";
 import { BackendState } from "./backend/state";
+import { SymbolContext } from "./symbol/context";
+import { createSymbolStatusBarItem } from "./symbol/statusBar";
+import { attachSymbolBridge } from "./symbol/panel-glue";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -94,10 +98,16 @@ export function activate(context: vscode.ExtensionContext): void {
     });
   }
 
+  const symbolStatusBar = createSymbolStatusBarItem();
+  context.subscriptions.push(symbolStatusBar);
+  const symbolContext = new SymbolContext({ apiBase, statusBar: symbolStatusBar });
+
   const openTerminalCmd = vscode.commands.registerCommand(
     "openbb.openTerminal",
     () => {
-      openTerminalPanel(context);
+      const panel = openTerminalPanel(context);
+      const bridge = attachSymbolBridge(panel, symbolContext);
+      context.subscriptions.push(bridge);
     },
   );
   context.subscriptions.push(openTerminalCmd);
