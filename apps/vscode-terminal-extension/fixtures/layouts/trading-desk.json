@@ -1,0 +1,14 @@
+{
+  "id": "trading-desk",
+  "name": "Trading Desk",
+  "gridTemplate": "12-col",
+  "slots": [
+    { "widgetId": "tt_segment_movers",     "col": 1, "span": 8,  "row": 1 },
+    { "widgetId": "tt_signal_card",        "col": 9, "span": 4,  "row": 1 },
+    { "widgetId": "tt_scan_table",         "col": 1, "span": 12, "row": 2 },
+    { "widgetId": "pi_paper_ticket",       "col": 1, "span": 4,  "row": 3 },
+    { "widgetId": "pi_paper_blotter",      "col": 5, "span": 8,  "row": 3 },
+    { "widgetId": "pi_paper_performance",  "col": 1, "span": 8,  "row": 4 },
+    { "widgetId": "pi_paper_perf_kpis",    "col": 9, "span": 4,  "row": 4 }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "chart-focus",
+  "name": "Chart Focus",
+  "gridTemplate": "12-col",
+  "slots": [
+    { "widgetId": "pi_charting",           "col": 1, "span": 12, "row": 1 },
+    { "widgetId": "pi_equity_technicals",  "col": 1, "span": 8,  "row": 2 },
+    { "widgetId": "pi_price_performance",  "col": 9, "span": 4,  "row": 2 },
+    { "widgetId": "regime_detect",         "col": 1, "span": 6,  "row": 3 },
+    { "widgetId": "tt_signal_card",        "col": 7, "span": 6,  "row": 3 }
+  ]
+}
