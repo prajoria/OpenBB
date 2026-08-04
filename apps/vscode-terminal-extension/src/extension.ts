@@ -19,11 +19,8 @@ import { registerSymbolHoverProvider } from "./hover/provider";
 import { createSymbolStatusBarItem } from "./symbol/statusBar";
 import { attachSymbolBridge } from "./symbol/panel-glue";
 import { registerCommands } from "./commands/register";
-<<<<<<< HEAD
 import { PaperOrderHandler } from "./paper/handler";
-=======
 import { ApiKeyManager } from "./apikey/manager";
->>>>>>> 05376ae4d (feat(vscode-terminal): guided setApiKey quick-pick + editor (#1836))
 import { registerSelectionCodeAction } from "./editor/codeAction";
 import { registerPanelFocusContext } from "./commands/context";
 import { DataModeController } from "./data/mode";
@@ -80,6 +77,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const autoStart = cfg.get<boolean>("autoStartBackend", false);
   const userSettingsPath = cfg.get<string>("userSettingsPath", "");
   const apiKeyManager = new ApiKeyManager({ userSettingsPath });
+  const autoRestartOnError = cfg.get<boolean>("autoRestartBackend", false);
+  const autoRestartMaxAttempts = cfg.get<number>("autoRestartMaxAttempts", 3);
 
   const dataMode = new DataModeController({ outputChannel });
   // Host-side WidgetFetcher instance for future host-driven fetches; the
@@ -92,6 +91,8 @@ export function activate(context: vscode.ExtensionContext): void {
     port: apiPort,
     apiBase,
     outputChannel,
+    autoRestartOnError,
+    autoRestartMaxAttempts,
     onStateChange: (s: BackendState): void => {
       outputChannel.appendLine(
         `[state] status=${s.status} pid=${s.pid ?? "-"} lastError=${
@@ -191,11 +192,7 @@ export function activate(context: vscode.ExtensionContext): void {
     workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     outputChannel,
   });
-<<<<<<< HEAD
-  registerCommands(context, undefined, analysisRunner, undefined, paperOrderHandler);
-=======
-  registerCommands(context, undefined, analysisRunner, undefined, undefined, apiKeyManager);
->>>>>>> 05376ae4d (feat(vscode-terminal): guided setApiKey quick-pick + editor (#1836))
+  registerCommands(context, undefined, analysisRunner, undefined, paperOrderHandler, apiKeyManager);
   registerSelectionCodeAction(context);
   registerGoldenCommands(context, outputChannel);
 
