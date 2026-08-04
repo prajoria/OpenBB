@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.27 - Guided setApiKey command (#1836)
+
+- Add `src/apikey/manager.ts` — `ApiKeyManager` resolves the
+  `openbb.userSettingsPath` config (or `~/.openbb_platform/user_settings.json`
+  fallback), reads/parses JSON safely, writes with a `.bak` backup, and
+  opens the file in the editor. Ships `KNOWN_KEYS` for FMP, FMP-cached,
+  FRED, Polygon, Intrinio, Tiingo.
+- Replace placeholder `openbb.setApiKey` handler with a QuickPick over
+  the known keys. On selection, scaffolds `{"credentials": {}}` if the
+  file is missing, then opens it in the editor. The handler never
+  accepts, echoes, or logs the credential value — the user types it
+  directly into the opened `settings.json`.
+- Extend `registerCommands` signature with an optional `apiKeyManager`
+  parameter (positional slot 6). Wired in `extension.ts` from the new
+  `openbb.userSettingsPath` config.
+- Node:test coverage: path override vs. homedir fallback, empty-file
+  handling, JSON parse round-trip, `.bak` creation before overwrite.
+
 ## 0.0.24 - Widget Browser tree-view + drag support (#1830)
 
 - `WidgetBrowserTreeProvider` with prefix grouping (`pi_*` / `tt_*` /
