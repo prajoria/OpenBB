@@ -3,7 +3,7 @@
   "displayName": "OpenBB Terminal",
   "description": "OpenBB Trading Terminal inside VS Code — layouts, widgets, and a local API bridge.",
   "publisher": "prajoria",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -40,7 +40,9 @@
       { "command": "openbb.startBackend", "title": "OpenBB: Start Back-end" },
       { "command": "openbb.stopBackend", "title": "OpenBB: Stop Back-end" },
       { "command": "openbb.restartBackend", "title": "OpenBB: Restart Back-end" },
-      { "command": "openbb.openBackendLogs", "title": "OpenBB: Open Back-end Logs" }
+      { "command": "openbb.openBackendLogs", "title": "OpenBB: Open Back-end Logs" },
+      { "command": "openbb.previewWidgetFromBrowser", "title": "OpenBB: Preview Widget", "icon": "$(eye)" },
+      { "command": "openbb.addWidgetToActiveLayout", "title": "OpenBB: Add Widget to Active Layout", "icon": "$(add)" }
     ],
     "keybindings": [
       { "command": "openbb.openTerminal", "key": "ctrl+shift+O", "mac": "cmd+shift+O" },
@@ -91,12 +93,18 @@
         { "id": "openbbWidgets", "name": "Widget Browser" },
         { "id": "openbbBackend", "name": "Back-end Status" }
       ]
+    },
+    "menus": {
+      "view/item/context": [
+        { "command": "openbb.previewWidgetFromBrowser", "when": "view == openbbWidgets && viewItem == openbbWidget", "group": "inline" },
+        { "command": "openbb.addWidgetToActiveLayout", "when": "view == openbbWidgets && viewItem == openbbWidget", "group": "inline@1" }
+      ]
     }
   },
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js",
+    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js src/widget-browser/browser.test.js",
     "verify:invariants": "bash scripts/verify-auth-invariants.sh",
     "package": "vsce package"
   },

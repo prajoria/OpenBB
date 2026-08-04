@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.19 - Widget Browser tree-view (#1830)
+- New WidgetBrowserTreeProvider with prefix grouping (pi_, tt_, portfolio_, regime_, other).
+- Drag source publishing `application/vnd.code.tree.openbb-widget` MIME with widget metadata.
+- Inline Preview (#1832 placeholder) and Add-to-layout (#1831 placeholder) commands.
+
 ## 0.0.18 - Symbol hover provider (Python + Notebook) (#1825)
 
 - Add `src/hover/regex.ts` — pure ticker detection with a tightened
