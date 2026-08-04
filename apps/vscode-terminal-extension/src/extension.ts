@@ -6,6 +6,8 @@
 
 import * as vscode from "vscode";
 
+import { openTerminalPanel } from "./webview/panel";
+
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
  * the real providers land in later Phase 1 issues.
@@ -42,9 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const openTerminalCmd = vscode.commands.registerCommand(
     "openbb.openTerminal",
     () => {
-      void vscode.window.showInformationMessage(
-        "OpenBB Terminal placeholder — scaffold only. Webview lands in #1814.",
-      );
+      openTerminalPanel(context);
     },
   );
   context.subscriptions.push(openTerminalCmd);
