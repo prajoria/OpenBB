@@ -17,6 +17,9 @@ import { createSymbolStatusBarItem } from "./symbol/statusBar";
 import { attachSymbolBridge } from "./symbol/panel-glue";
 import { registerCommands } from "./commands/register";
 import { registerPanelFocusContext } from "./commands/context";
+import { DataModeController } from "./data/mode";
+import { WidgetFetcher } from "./data/fetcher";
+import { attachDataModeToPanel } from "./data/mode-glue";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -60,6 +63,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const apiBase = cfg.get<string>("apiBaseUrl", `http://127.0.0.1:${apiPort}`);
   const autoStart = cfg.get<boolean>("autoStartBackend", false);
 
+  const dataMode = new DataModeController({ outputChannel });
+  // Host-side WidgetFetcher instance for future host-driven fetches; the
+  // webview currently does its own fetches via window.__OPENBB_API_BASE__.
+  const widgetFetcher = new WidgetFetcher({ apiBase, outputChannel });
+  void widgetFetcher;
+
   const lifecycle = new BackendLifecycle(context, {
     pythonPath,
     port: apiPort,
@@ -71,6 +80,7 @@ export function activate(context: vscode.ExtensionContext): void {
           s.lastError ?? "-"
         }`,
       );
+      dataMode.updateFromBackendState(s);
     },
   });
   context.subscriptions.push(lifecycle);
@@ -112,6 +122,8 @@ export function activate(context: vscode.ExtensionContext): void {
       context.subscriptions.push(bridge);
       const focusSub = registerPanelFocusContext(panel);
       context.subscriptions.push(focusSub);
+      const dataModeSub = attachDataModeToPanel(panel, dataMode);
+      context.subscriptions.push(dataModeSub);
     },
   );
   context.subscriptions.push(openTerminalCmd);
