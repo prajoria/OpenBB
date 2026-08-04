@@ -1,0 +1,12 @@
+{
+  "id": "equity-deep-dive",
+  "name": "Equity Deep-Dive",
+  "gridTemplate": "12-col",
+  "slots": [
+    { "widgetId": "pi_equity_profile_header",    "col": 1, "span": 12, "row": 1 },
+    { "widgetId": "pi_charting",                 "col": 1, "span": 8,  "row": 2 },
+    { "widgetId": "pi_equity_key_stats",         "col": 9, "span": 4,  "row": 2 },
+    { "widgetId": "pi_equity_analyst_forecasts", "col": 1, "span": 6,  "row": 3 },
+    { "widgetId": "pi_equity_news",              "col": 7, "span": 6,  "row": 3 }
+  ]
+}

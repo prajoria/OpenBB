@@ -1,0 +1,131 @@
+{
+  "$schema": "https://pro.openbb.co/widgets.schema.json",
+  "version": "fixture-0.0.4",
+  "widgets": [
+    {
+      "id": "pi_portfolio_summary",
+      "name": "Portfolio Summary",
+      "type": "metric",
+      "endpoint": "/pi/portfolio/summary",
+      "category": "Portfolio Overview",
+      "fixtureRows": {
+        "total_value": "$1,000,000.00",
+        "day_pnl": "+$10,000.00 (1.00%)",
+        "cash": "$50,000.00",
+        "invested": "$950,000.00"
+      }
+    },
+    {
+      "id": "pi_book_context",
+      "name": "Book Context",
+      "type": "note",
+      "endpoint": "/pi/portfolio/book_context",
+      "category": "Portfolio Overview",
+      "fixtureRows": "Sample paper-trading book\nStrategy: 60/40 balanced\nInception: 2026-01-01\nBenchmark: SPY"
+    },
+    {
+      "id": "portfolio_positions",
+      "name": "Positions",
+      "type": "table",
+      "endpoint": "/pi/portfolio/positions",
+      "category": "Portfolio Overview",
+      "fixtureRows": [
+        { "symbol": "AAA", "qty": 100, "price": "$100.00", "value": "$10,000.00" },
+        { "symbol": "BBB", "qty": 50, "price": "$200.00", "value": "$10,000.00" },
+        { "symbol": "CCC", "qty": 25, "price": "$400.00", "value": "$10,000.00" }
+      ]
+    },
+    {
+      "id": "portfolio_allocation",
+      "name": "Allocation",
+      "type": "chart",
+      "endpoint": "/pi/portfolio/allocation",
+      "category": "Portfolio Overview",
+      "fixtureRows": [
+        { "bucket": "Equity", "weight": 0.6 },
+        { "bucket": "Fixed Income", "weight": 0.3 },
+        { "bucket": "Cash", "weight": 0.1 }
+      ]
+    },
+    {
+      "id": "pi_concentration_gauge",
+      "name": "Concentration Gauge",
+      "type": "metric",
+      "endpoint": "/pi/portfolio/concentration",
+      "category": "Portfolio Overview",
+      "fixtureRows": {
+        "top_1_weight": "12.5%",
+        "top_5_weight": "45.0%",
+        "hhi": "0.08"
+      }
+    },
+    {
+      "id": "pi_event_calendar",
+      "name": "Event Calendar",
+      "type": "table",
+      "endpoint": "/pi/portfolio/events",
+      "category": "Portfolio Overview",
+      "fixtureRows": [
+        { "date": "2026-08-10", "symbol": "AAA", "event": "Earnings" },
+        { "date": "2026-08-14", "symbol": "BBB", "event": "Ex-dividend" },
+        { "date": "2026-08-21", "symbol": "CCC", "event": "Analyst day" }
+      ]
+    },
+    {
+      "id": "pi_equity_profile_header",
+      "name": "Equity Profile",
+      "type": "markdown",
+      "endpoint": "/pi/equity/profile",
+      "category": "Equity Deep-Dive",
+      "fixtureRows": "**AAA Corp** — Sample Sector / Sample Industry\nMarket Cap: $500B  |  Price: $100.00  |  52W: $75.00 – $120.00"
+    },
+    {
+      "id": "pi_charting",
+      "name": "Price Chart",
+      "type": "chart",
+      "endpoint": "/pi/equity/chart",
+      "category": "Equity Deep-Dive",
+      "fixtureRows": [
+        { "date": "2026-07-01", "close": 92.0 },
+        { "date": "2026-07-15", "close": 96.5 },
+        { "date": "2026-08-01", "close": 100.0 }
+      ]
+    },
+    {
+      "id": "pi_equity_key_stats",
+      "name": "Key Stats",
+      "type": "metric",
+      "endpoint": "/pi/equity/key_stats",
+      "category": "Equity Deep-Dive",
+      "fixtureRows": {
+        "pe_ttm": "22.5",
+        "eps_ttm": "$4.44",
+        "dividend_yield": "1.20%",
+        "beta": "1.05"
+      }
+    },
+    {
+      "id": "pi_equity_analyst_forecasts",
+      "name": "Analyst Forecasts",
+      "type": "table",
+      "endpoint": "/pi/equity/analyst_forecasts",
+      "category": "Equity Deep-Dive",
+      "fixtureRows": [
+        { "metric": "Price Target (mean)", "value": "$115.00" },
+        { "metric": "Rating (mean)", "value": "Buy" },
+        { "metric": "# Analysts", "value": 25 }
+      ]
+    },
+    {
+      "id": "pi_equity_news",
+      "name": "News",
+      "type": "table",
+      "endpoint": "/pi/equity/news",
+      "category": "Equity Deep-Dive",
+      "fixtureRows": [
+        { "date": "2026-08-03", "headline": "Sample headline one" },
+        { "date": "2026-08-02", "headline": "Sample headline two" }
+      ]
+    }
+  ]
+}
