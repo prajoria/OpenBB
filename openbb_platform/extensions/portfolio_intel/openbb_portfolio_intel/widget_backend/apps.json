@@ -1,6 +1,7 @@
 [
   {
-    "name": "Portfolio Intelligence \u2014 Overview",
+    "id": "portfolio-intelligence-overview",
+    "name": "Portfolio Intelligence - Overview",
     "img": "",
     "img_dark": "",
     "img_light": "",
@@ -56,7 +57,7 @@
   },
   {
     "id": "portfolio-intelligence-terminal",
-    "name": "Portfolio Intelligence \u2014 Terminal",
+    "name": "Portfolio Intelligence - Terminal",
     "img": "",
     "img_dark": "",
     "img_light": "",

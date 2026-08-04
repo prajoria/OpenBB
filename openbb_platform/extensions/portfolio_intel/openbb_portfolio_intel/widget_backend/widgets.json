@@ -24,7 +24,7 @@
     ]
   },
   "pi_xray_sector": {
-    "name": "X-Ray — Sector Weights",
+    "name": "X-Ray - Sector Weights",
     "description": "Portfolio sector weights (pie).",
     "category": "Portfolio Intelligence",
     "type": "chart",
@@ -38,7 +38,7 @@
     ]
   },
   "pi_xray_country": {
-    "name": "X-Ray — Country Weights",
+    "name": "X-Ray - Country Weights",
     "description": "Portfolio country weights (pie), look-through into ETF holdings.",
     "category": "Portfolio Intelligence",
     "type": "chart",
@@ -52,7 +52,7 @@
     ]
   },
   "pi_lookthrough_top25": {
-    "name": "Look-Through — Top 25 Holdings",
+    "name": "Look-Through - Top 25 Holdings",
     "description": "Effective top-25 positions after ETF look-through.",
     "category": "Portfolio Intelligence",
     "type": "table",
@@ -113,7 +113,7 @@
     ]
   },
   "pi_risk_vol_chart": {
-    "name": "Risk — Rolling Volatility",
+    "name": "Risk - Rolling Volatility",
     "description": "Rolling 20/60d realized volatility of the effective book.",
     "category": "Portfolio Intelligence",
     "type": "chart",
@@ -179,7 +179,7 @@
     ]
   },
   "pi_whatif_diff": {
-    "name": "What-If — Trade Impact",
+    "name": "What-If - Trade Impact",
     "description": "Preview a hypothetical trade's impact on portfolio metrics.",
     "category": "Portfolio Intelligence",
     "type": "markdown",
@@ -192,7 +192,7 @@
     ]
   },
   "pi_whatif_card": {
-    "name": "What-If — Structured Diff Card",
+    "name": "What-If - Structured Diff Card",
     "description": "Structured before/after diff of exposure metrics for the What-If.",
     "category": "Portfolio Intelligence",
     "type": "table",
@@ -219,7 +219,7 @@
     ]
   },
   "pi_news_ribbon": {
-    "name": "News — Held Symbols",
+    "name": "News - Held Symbols",
     "description": "Recent news items for held symbols (material only).",
     "category": "Portfolio Intelligence",
     "type": "table",
@@ -256,7 +256,7 @@
     ]
   },
   "pi_backtest_button": {
-    "name": "Backtest — One Click",
+    "name": "Backtest - One Click",
     "description": "Kick off a walk-forward backtest of the current portfolio's rules.",
     "category": "Portfolio Intelligence",
     "type": "markdown",
@@ -268,7 +268,7 @@
     ]
   },
   "pi_equity_profile_header": {
-    "name": "Equity Profile — Header + Live Price",
+    "name": "Equity Profile - Header + Live Price",
     "description": "Ticker, name, exchange, sector/industry, live price + overnight (BOATS) price.",
     "category": "Equity Profile",
     "type": "markdown",
@@ -280,7 +280,7 @@
     ]
   },
   "pi_equity_key_stats": {
-    "name": "Equity Profile — Key Stats",
+    "name": "Equity Profile - Key Stats",
     "description": "Market cap, P/E TTM, EPS TTM, revenue, shares float, beta, dividend yield, volume.",
     "category": "Equity Profile",
     "type": "table",
@@ -292,7 +292,7 @@
     ]
   },
   "pi_equity_financial_charts": {
-    "name": "Equity Profile — Financial Statement Charts",
+    "name": "Equity Profile - Financial Statement Charts",
     "description": "5-yr revenue / net income + net margin; funnel; debt vs FCF vs cash.",
     "category": "Equity Profile",
     "type": "chart",
@@ -305,7 +305,7 @@
     ]
   },
   "pi_equity_technicals": {
-    "name": "Equity Profile — Technicals + Pivots (IV blocked on #999)",
+    "name": "Equity Profile - Technicals + Pivots (IV blocked on #999)",
     "description": "Consensus speedometer, pivot matrix. ATM IV term structure blocked on #999.",
     "category": "Equity Profile",
     "type": "table",
@@ -317,7 +317,7 @@
     ]
   },
   "pi_equity_analyst_forecasts": {
-    "name": "Equity Profile — Analyst Forecasts",
+    "name": "Equity Profile - Analyst Forecasts",
     "description": "1-yr price target, rating distribution, historical EPS + revenue surprise.",
     "category": "Equity Profile",
     "type": "table",
@@ -329,7 +329,7 @@
     ]
   },
   "pi_equity_complementary": {
-    "name": "Equity Profile — Complementary Assets (bonds blocked on #1000)",
+    "name": "Equity Profile - Complementary Assets (bonds blocked on #1000)",
     "description": "Top ETFs holding this ticker + bond ladder. Bond ladder blocked on #1000.",
     "category": "Equity Profile",
     "type": "table",
@@ -341,7 +341,7 @@
     ]
   },
   "pi_equity_competitors": {
-    "name": "Equity Profile — Competitor Strip",
+    "name": "Equity Profile - Competitor Strip",
     "description": "Regional industry competitors with live price and % change.",
     "category": "Equity Profile",
     "type": "table",
@@ -569,7 +569,7 @@
     ]
   },
   "tt_segment_movers": {
-    "name": "Techtrade — Segment Movers",
+    "name": "Techtrade - Segment Movers",
     "description": "Top gainers/losers by market segment (#1692). Stub-shaped over openbb_techtrade.engine.screener_router.segments.",
     "category": "Techtrade",
     "type": "chart",
@@ -580,7 +580,7 @@
     "params": []
   },
   "tt_scan_table": {
-    "name": "Techtrade — Scan Table",
+    "name": "Techtrade - Scan Table",
     "description": "Filtered ticker scan results (#1692). Stub-shaped over openbb_techtrade.engine.scan.scan_segments.",
     "category": "Techtrade",
     "type": "table",
@@ -592,7 +592,7 @@
     ]
   },
   "tt_export_button": {
-    "name": "Techtrade — Export Scan",
+    "name": "Techtrade - Export Scan",
     "description": "CSV / JSON export link for the current scan (#1692).",
     "category": "Techtrade",
     "type": "markdown",
@@ -624,7 +624,7 @@
     ]
   },
   "tt_signal_card": {
-    "name": "Techtrade — Signal Card",
+    "name": "Techtrade - Signal Card",
     "description": "Active signal summary for a symbol (#1696). Stub-shaped over openbb_techtrade.engine.signal_router.",
     "category": "Techtrade",
     "type": "markdown",
@@ -636,7 +636,7 @@
     ]
   },
   "tt_plan_card": {
-    "name": "Techtrade — Plan Card",
+    "name": "Techtrade - Plan Card",
     "description": "Trading plan (entry, stop, target, R:R, sizing) (#1696). Stub-shaped over openbb_techtrade.engine.plan_router.",
     "category": "Techtrade",
     "type": "markdown",
@@ -648,7 +648,7 @@
     ]
   },
   "tt_order_legs": {
-    "name": "Techtrade — Order Legs",
+    "name": "Techtrade - Order Legs",
     "description": "Proposed order legs (entry, stop, target) with side/qty/price (#1696). Stub-shaped over openbb_techtrade.execution.order_builder.",
     "category": "Techtrade",
     "type": "table",
@@ -660,7 +660,7 @@
     ]
   },
   "tt_simulate_result": {
-    "name": "Techtrade — Simulated P&L",
+    "name": "Techtrade - Simulated P&L",
     "description": "Simulated P&L trajectory over the plan horizon (#1696). Stub-shaped over openbb_techtrade.engine.simulate_router.",
     "category": "Techtrade",
     "type": "chart",
@@ -673,7 +673,7 @@
     ]
   },
   "tt_validation_verdict": {
-    "name": "Techtrade — Validation Verdict",
+    "name": "Techtrade - Validation Verdict",
     "description": "PBO / DSR / OOS Sharpe + PASS/FAIL verdict badge (#1697). Stub-shaped over openbb_techtrade.engine.validate_router.",
     "category": "Techtrade",
     "type": "table",
@@ -685,7 +685,7 @@
     ]
   },
   "tt_tuning_report": {
-    "name": "Techtrade — Tuning Report",
+    "name": "Techtrade - Tuning Report",
     "description": "tuneta proposal + per-param validate gate (#1698). Persist behavior is stub-only. Stub-shaped over openbb_techtrade.engine.tune_router.",
     "category": "Techtrade",
     "type": "table",
@@ -697,7 +697,7 @@
     ]
   },
   "tt_audit_journal": {
-    "name": "Techtrade — Audit Journal",
+    "name": "Techtrade - Audit Journal",
     "description": "Replay vs forward P&L + deviation (bps) per bar (#1699). Stub-shaped over openbb_techtrade.reporting.audit.",
     "category": "Techtrade",
     "type": "table",
@@ -709,7 +709,7 @@
     ]
   },
   "tt_engine_status": {
-    "name": "Techtrade — Engine Status",
+    "name": "Techtrade - Engine Status",
     "description": "Scheduler / signal / execution engine state (#1700). Stub-shaped over openbb_techtrade.engine.status.",
     "category": "Techtrade",
     "type": "markdown",
@@ -719,7 +719,7 @@
     "params": []
   },
   "tt_execute_bridge": {
-    "name": "Techtrade — Execute Bridge",
+    "name": "Techtrade - Execute Bridge",
     "description": "Verdict-gated execute readiness with actionable next-steps and env-var status (#1719 P4).",
     "category": "Techtrade",
     "type": "markdown",
@@ -731,7 +731,7 @@
     ]
   },
   "tt_execute_paper_status": {
-    "name": "Techtrade — Paper Trading Status",
+    "name": "Techtrade - Paper Trading Status",
     "description": "Read-only paper engine snapshot: cash, positions, realized P&L, order counts (#1719 P4).",
     "category": "Techtrade",
     "type": "markdown",

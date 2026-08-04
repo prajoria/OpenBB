@@ -233,6 +233,17 @@ from openbb_portfolio_intel.widget_backend import (  # noqa: E402, F401
     widgets_endpoints as _widgets_endpoints,
 )
 
+# Local Workspace Viewer (#1805): serve the self-contained dashboard SPA at
+# ``/viewer`` same-origin so the 6120 apps (Overview / Terminal / Techtrade)
+# render locally without pro.openbb.co. The asset is owned by the sibling
+# ``openbb_portfolio`` extension and reused via a lazy import (graceful 503 if
+# absent).
+from openbb_portfolio_intel.widget_backend.local_viewer import (  # noqa: E402
+    router as _local_viewer_router,
+)
+
+app.include_router(_local_viewer_router)
+
 # ---------------------------------------------------------------------------
 # Back-compat: existing tests reach into private attrs. Re-export.
 # ---------------------------------------------------------------------------

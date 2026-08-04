@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Portfolio — Local Workspace Viewer</title>
+  <title>Local Workspace Viewer</title>
   <style>
     :root {
       --bg: #0d1117; --panel: #161b22; --panel2: #1c2330; --border: #30363d;
@@ -56,6 +56,32 @@
     th { position: sticky; top: 0; background: var(--panel2); color: var(--muted); font-weight: 600; z-index: 1; }
     td.num { text-align: right; font-variant-numeric: tabular-nums; }
     td.pos { color: var(--green); } td.neg { color: var(--red); }
+    /* Markdown widgets (#1805) */
+    .md { padding: 12px 14px; font-size: 13px; }
+    .md h1, .md h2, .md h3, .md h4 { margin: 8px 0 6px; line-height: 1.25; }
+    .md h1 { font-size: 18px; } .md h2 { font-size: 16px; } .md h3 { font-size: 14px; } .md h4 { font-size: 13px; }
+    .md p { margin: 6px 0; }
+    .md ul, .md ol { margin: 6px 0 6px 20px; padding: 0; }
+    .md li { margin: 2px 0; }
+    .md code { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .md pre { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; overflow: auto; }
+    .md pre code { border: 0; padding: 0; background: transparent; }
+    .md blockquote { margin: 6px 0; padding: 4px 12px; border-left: 3px solid var(--border); color: var(--muted); }
+    .md a { color: var(--accent); }
+    .md table { margin: 6px 0; }
+    /* Metric widgets (#1805) */
+    .metrics { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+    .metric { flex: 1 1 120px; min-width: 120px; background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    .metric .mlabel { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .metric .mvalue { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .metric.pos .mvalue { color: var(--green); } .metric.neg .mvalue { color: var(--red); }
+    .mnote { padding: 0 14px 12px; color: var(--muted); font-size: 12px; }
+    /* Chart widgets — inline SVG, no CDN (#1805) */
+    .chart { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .chart svg { max-width: 100%; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--muted); }
+    .legend .lg { display: flex; align-items: center; gap: 5px; }
+    .legend .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
     /* Chat pane */
     .chat { width: 360px; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--panel); }
     .chat .chead { padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -72,7 +98,8 @@
 </head>
 <body>
   <header>
-    <h1>Portfolio — Local Workspace Viewer</h1>
+    <h1>Local Workspace Viewer</h1>
+    <select id="app-select" title="Switch app"></select>
     <span class="badge" id="app-badge">loading…</span>
     <span class="badge" title="This viewer is served same-origin and renders /apps.json + /widgets.json">local &middot; offline</span>
     <div class="spacer"></div>
@@ -107,6 +134,109 @@
     return String(s).replace(/[&<>"']/g, (c) => (
       { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
     ));
+  }
+
+  // Render a SAFE markdown subset to HTML (#1805). Every text run is passed
+  // through escapeHtml FIRST, so no backend-supplied raw HTML/script can
+  // survive — the markdown transforms only ADD our own trusted tags around
+  // already-escaped text. Link hrefs are scheme-allowlisted (http/https/
+  // relative/anchor/mailto) so `javascript:`/`data:` payloads degrade to
+  // plain text. Block structure is parsed on raw lines (before escaping) so
+  // `>` blockquotes and `#` headings aren't hidden behind entities.
+  function mdToHtml(md) {
+    const text = String(md == null ? "" : md);
+    if (!text.trim()) return "";
+
+    // Inline: escape, protect code spans, then apply link/bold/italic.
+    const inline = (raw) => {
+      let s = escapeHtml(raw);
+      const codes = [];
+      const links = [];
+      s = s.replace(/`([^`]+)`/g, (_m, c) => {
+        codes.push(c);
+        return "\u0000" + (codes.length - 1) + "\u0000";
+      });
+      s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, txt, url) => {
+        if (!/^(https?:\/\/|\/|#|mailto:)/i.test(url)) return txt; // unsafe scheme -> plain text
+        links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer">${txt}</a>`);
+        return "\u0001" + (links.length - 1) + "\u0001";
+      });
+      s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      s = s.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      s = s.replace(/_([^_]+)_/g, "<em>$1</em>");
+      s = s.replace(/\u0001(\d+)\u0001/g, (_m, i) => links[+i]);
+      s = s.replace(/\u0000(\d+)\u0000/g, (_m, i) => `<code>${codes[+i]}</code>`);
+      return s;
+    };
+    const splitRow = (line) => {
+      let s = line.trim();
+      if (s.startsWith("|")) s = s.slice(1);
+      if (s.endsWith("|")) s = s.slice(0, -1);
+      return s.split("|").map((c) => c.trim());
+    };
+
+    const lines = text.replace(/\r\n/g, "\n").split("\n");
+    const out = [];
+    let para = [];
+    const flushPara = () => {
+      if (para.length) {
+        out.push("<p>" + para.map(inline).join("<br>") + "</p>");
+        para = [];
+      }
+    };
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^\s*```/.test(line)) { // fenced code block
+        flushPara();
+        const buf = [];
+        i++;
+        while (i < lines.length && !/^\s*```/.test(lines[i])) { buf.push(lines[i]); i++; }
+        i++; // skip closing fence
+        out.push("<pre><code>" + escapeHtml(buf.join("\n")) + "</code></pre>");
+        continue;
+      }
+      if (!line.trim()) { flushPara(); i++; continue; }
+      const h = /^(#{1,6})\s+(.*)$/.exec(line);
+      if (h) { flushPara(); const n = h[1].length; out.push(`<h${n}>` + inline(h[2]) + `</h${n}>`); i++; continue; }
+      if (/^>\s?/.test(line)) { // blockquote
+        flushPara();
+        const buf = [];
+        while (i < lines.length && /^>\s?/.test(lines[i])) { buf.push(lines[i].replace(/^>\s?/, "")); i++; }
+        out.push("<blockquote>" + buf.map(inline).join("<br>") + "</blockquote>");
+        continue;
+      }
+      if (line.includes("|") && i + 1 < lines.length &&
+          lines[i + 1].includes("|") && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) { // pipe table
+        flushPara();
+        const header = splitRow(line);
+        i += 2; // header + separator
+        const body = [];
+        while (i < lines.length && lines[i].includes("|") && lines[i].trim()) { body.push(splitRow(lines[i])); i++; }
+        const thead = "<tr>" + header.map((c) => "<th>" + inline(c) + "</th>").join("") + "</tr>";
+        const tbody = body.map((r) => "<tr>" + r.map((c) => "<td>" + inline(c) + "</td>").join("") + "</tr>").join("");
+        out.push(`<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`);
+        continue;
+      }
+      if (/^\s*[-*]\s+/.test(line)) { // unordered list
+        flushPara();
+        const items = [];
+        while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, "")); i++; }
+        out.push("<ul>" + items.map((t) => "<li>" + inline(t) + "</li>").join("") + "</ul>");
+        continue;
+      }
+      if (/^\s*\d+\.\s+/.test(line)) { // ordered list
+        flushPara();
+        const items = [];
+        while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*\d+\.\s+/, "")); i++; }
+        out.push("<ol>" + items.map((t) => "<li>" + inline(t) + "</li>").join("") + "</ol>");
+        continue;
+      }
+      para.push(line);
+      i++;
+    }
+    flushPara();
+    return out.join("\n");
   }
 
   async function fetchJSON(url, opts) {
@@ -170,6 +300,146 @@
   }
 
   //--------------------------------------------------------------------------
+  // Chart / metric widget shaping (#1805). Pure functions (no DOM) so they
+  // are unit-testable in isolation (see assets/local_viewer/tests/).
+  //--------------------------------------------------------------------------
+
+  // Build a chart model from rows + the widget's data.chart config.
+  //  - pie:   explicit {type:"pie",labelColumn,valueColumn}
+  //  - line:  no config -> infer x = first non-numeric column, y = numeric cols
+  //  - empty: nothing chartable -> caller falls back to a table
+  function inferChartModel(rows, chartCfg) {
+    if (!Array.isArray(rows) || !rows.length) return { kind: "empty" };
+    const cfg = chartCfg || {};
+    if (cfg.type === "pie" || (cfg.labelColumn && cfg.valueColumn)) {
+      const lc = cfg.labelColumn, vc = cfg.valueColumn;
+      const slices = rows
+        .map((r) => ({ label: String(r[lc]), value: Number(r[vc]) }))
+        .filter((s) => Number.isFinite(s.value));
+      if (!slices.length) return { kind: "empty" };
+      const total = slices.reduce((a, s) => a + Math.abs(s.value), 0);
+      return { kind: "pie", slices, total };
+    }
+    const keys = Object.keys(rows[0]);
+    const numericKeys = keys.filter((k) =>
+      rows.every((r) => r[k] === null || r[k] === undefined || typeof r[k] === "number") &&
+      rows.some((r) => typeof r[k] === "number"));
+    if (!numericKeys.length) return { kind: "empty" };
+    const xKey = keys.find((k) => !numericKeys.includes(k));
+    const seriesKeys = numericKeys.filter((k) => k !== xKey);
+    if (!seriesKeys.length) return { kind: "empty" };
+    const xLabels = rows.map((r, idx) => String(xKey != null ? r[xKey] : idx));
+    const series = seriesKeys.map((k) => ({
+      key: k,
+      points: rows.map((r, idx) => ({ x: idx, y: typeof r[k] === "number" ? r[k] : null })),
+    }));
+    return { kind: "line", xKey: xKey != null ? xKey : null, series, xLabels };
+  }
+
+  // Render a chart model to an inline-SVG string (no CDN, no canvas). Labels
+  // and series keys are escaped; numeric coordinates come from Number().
+  function svgForChart(model) {
+    if (!model || model.kind === "empty") return "";
+    const colors = ["#2f81f7", "#3fb950", "#f85149", "#d29922", "#a371f7", "#39c5cf", "#db61a2", "#e3b341", "#8b949e", "#ff7b72"];
+    if (model.kind === "pie") {
+      const size = 220, cx = size / 2, cy = size / 2, r = size / 2 - 10;
+      const total = model.total || 1;
+      let a0 = -Math.PI / 2;
+      const paths = model.slices.map((s, idx) => {
+        const frac = Math.abs(s.value) / total;
+        const a1 = a0 + frac * 2 * Math.PI;
+        const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+        const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+        const large = frac > 0.5 ? 1 : 0;
+        const d = `M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z`;
+        a0 = a1;
+        return `<path d="${d}" fill="${colors[idx % colors.length]}" stroke="#0d1117" stroke-width="1"><title>${escapeHtml(s.label)}: ${(frac * 100).toFixed(1)}%</title></path>`;
+      }).join("");
+      const legend = model.slices.map((s, idx) =>
+        `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.label)} <b>${((Math.abs(s.value) / total) * 100).toFixed(1)}%</b></div>`
+      ).join("");
+      return `<div class="chart"><svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="pie chart">${paths}</svg><div class="legend">${legend}</div></div>`;
+    }
+    // line
+    const W = 480, Hh = 240, pad = 28;
+    const allY = [];
+    model.series.forEach((s) => s.points.forEach((p) => { if (p.y != null) allY.push(p.y); }));
+    if (!allY.length) return "";
+    let ymin = Math.min(...allY), ymax = Math.max(...allY);
+    if (ymin === ymax) { ymin -= 1; ymax += 1; }
+    const n = model.series[0].points.length;
+    const xAt = (idx) => pad + (n <= 1 ? (W - 2 * pad) / 2 : (idx / (n - 1)) * (W - 2 * pad));
+    const yAt = (v) => Hh - pad - ((v - ymin) / (ymax - ymin)) * (Hh - 2 * pad);
+    const polylines = model.series.map((s, idx) => {
+      const pts = s.points.filter((p) => p.y != null).map((p) => `${xAt(p.x).toFixed(1)},${yAt(p.y).toFixed(1)}`).join(" ");
+      return `<polyline fill="none" stroke="${colors[idx % colors.length]}" stroke-width="1.5" points="${pts}"><title>${escapeHtml(s.key)}</title></polyline>`;
+    }).join("");
+    const axis = `<line x1="${pad}" y1="${Hh - pad}" x2="${W - pad}" y2="${Hh - pad}" stroke="#30363d"/>`
+      + `<line x1="${pad}" y1="${pad}" x2="${pad}" y2="${Hh - pad}" stroke="#30363d"/>`;
+    const yhi = `<text x="${pad - 4}" y="${pad + 4}" text-anchor="end" fill="#8b949e" font-size="10">${ymax.toFixed(2)}</text>`;
+    const ylo = `<text x="${pad - 4}" y="${Hh - pad}" text-anchor="end" fill="#8b949e" font-size="10">${ymin.toFixed(2)}</text>`;
+    const legend = model.series.map((s, idx) =>
+      `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.key)}</div>`
+    ).join("");
+    return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="line chart">${axis}${yhi}${ylo}${polylines}</svg><div class="legend">${legend}</div></div>`;
+  }
+
+  // Shape a metric endpoint's dict into cards.
+  //  - {value,label,note}                 -> one prominent card
+  //  - {vol_annualized,var_95_1d,...,note} -> one card per numeric key
+  // Sign coloring: value > 0 -> pos, < 0 -> neg.
+  function metricModel(obj) {
+    const o = (obj && typeof obj === "object" && !Array.isArray(obj)) ? obj : {};
+    const note = (typeof o.note === "string") ? o.note : "";
+    const humanize = (k) => k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const sign = (v) => (typeof v === "number" ? (v > 0 ? "pos" : v < 0 ? "neg" : "") : "");
+    if ("value" in o) {
+      return { cards: [{ label: (typeof o.label === "string" ? o.label : ""), value: o.value, cls: sign(o.value) }], note };
+    }
+    const cards = [];
+    for (const [k, v] of Object.entries(o)) {
+      if (k === "note" || k === "label") continue;
+      if (typeof v === "number") cards.push({ label: humanize(k), value: v, cls: sign(v) });
+    }
+    return { cards, note };
+  }
+
+  function renderMarkdown(container, mdText) {
+    const text = (typeof mdText === "string") ? mdText : (mdText == null ? "" : String(mdText));
+    if (!text.trim()) { container.innerHTML = '<div class="state">No content returned.</div>'; return; }
+    const div = document.createElement("div");
+    div.className = "md";
+    div.innerHTML = mdToHtml(text); // mdToHtml escapes all backend text before adding trusted tags
+    container.innerHTML = "";
+    container.appendChild(div);
+  }
+
+  function renderMetric(container, obj) {
+    const model = metricModel(obj);
+    if (!model.cards.length) { container.innerHTML = '<div class="state">No metric value returned.</div>'; return; }
+    const fmt = (v) => (typeof v === "number"
+      ? (Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""))
+      : String(v));
+    const cards = model.cards.map((c) =>
+      `<div class="metric ${c.cls}"><div class="mlabel">${escapeHtml(c.label)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`
+    ).join("");
+    const note = model.note ? `<div class="mnote">${escapeHtml(model.note)}</div>` : "";
+    container.innerHTML = `<div class="metrics">${cards}</div>${note}`;
+  }
+
+  function renderChart(container, rows, widgetDef) {
+    const cfg = widgetDef && widgetDef.data && widgetDef.data.chart;
+    const model = inferChartModel(rows, cfg);
+    if (model.kind === "empty") {
+      // Loud fallback: show the raw rows as a table rather than a blank chart.
+      if (Array.isArray(rows) && rows.length) { renderTable(container, rows, widgetDef); return; }
+      container.innerHTML = '<div class="state">No chartable data returned.</div>';
+      return;
+    }
+    container.innerHTML = svgForChart(model);
+  }
+
+  //--------------------------------------------------------------------------
   // Dashboard: /apps.json (tabs) + /widgets.json (defs) -> tables.
   //--------------------------------------------------------------------------
   let APP = null;          // the active app object from /apps.json
@@ -199,10 +469,18 @@
     bodyEl.innerHTML = '<div class="state">Loading…</div>';
     try {
       const resp = await fetchJSON(widgetDef.endpoint + buildQuery(params));
+      const type = widgetDef.type || "table";
+      if (type === "markdown") { renderMarkdown(bodyEl, resp); return; }
+      if (type === "metric") { renderMetric(bodyEl, resp); return; }
+      if (type === "chart") {
+        const rows = extractRows(resp, widgetDef.data ? widgetDef.data.dataKey : "");
+        renderChart(bodyEl, rows, widgetDef);
+        return;
+      }
       const rows = extractRows(resp, widgetDef.data ? widgetDef.data.dataKey : "");
       renderTable(bodyEl, rows, widgetDef);
     } catch (e) {
-      bodyEl.innerHTML = `<div class="state err">Failed to load: ${e.message}</div>`;
+      bodyEl.innerHTML = `<div class="state err">Failed to load: ${escapeHtml(e.message)}</div>`;
     }
   }
 
@@ -232,13 +510,9 @@
       gridEl.appendChild(card);
       return;
     }
-    if (def.type && def.type !== "table") {
-      card.innerHTML = `<div class="whead"><span class="wname">${escapeHtml(def.name || layoutItem.i)}</span></div>`
-        + `<div class="state">Widget type "${escapeHtml(def.type)}" is not supported in the local viewer yet.</div>`;
-      gridEl.appendChild(card);
-      return;
-    }
-
+    // markdown / metric / chart widgets are dispatched by type in
+    // loadWidgetData (#1805); unknown future types fall through to the table
+    // renderer, which degrades to a "No rows" / raw-object state.
     const params = initialParams(def, layoutItem.state);
     const head = document.createElement("div");
     head.className = "whead";
@@ -293,21 +567,12 @@
   }
 
   let ACTIVE_TAB = null;
+  let APPS = [];           // all apps from /apps.json
 
-  async function initDashboard() {
-    try {
-      const apps = await fetchJSON("/apps.json");
-      APP = Array.isArray(apps) ? apps[0] : apps;
-      WIDGETS = await fetchJSON("/widgets.json");
-    } catch (e) {
-      $("grid").innerHTML = `<div class="state err">Could not load dashboard: ${e.message}</div>`;
-      $("app-badge").textContent = "error";
-      return;
-    }
-    $("app-badge").textContent = APP.name || "app";
+  function renderTabs() {
     const tabsEl = $("tabs");
     tabsEl.innerHTML = "";
-    const tabIds = Object.keys(APP.tabs || {});
+    const tabIds = Object.keys((APP && APP.tabs) || {});
     tabIds.forEach((tid) => {
       const b = document.createElement("button");
       b.textContent = APP.tabs[tid].name || tid;
@@ -316,6 +581,37 @@
       tabsEl.appendChild(b);
     });
     if (tabIds.length) { ACTIVE_TAB = tabIds[0]; renderTab(ACTIVE_TAB); }
+    else { $("grid").innerHTML = '<div class="state">This app has no tabs.</div>'; }
+  }
+
+  function selectApp(idx) {
+    APP = APPS[idx] || APPS[0] || null;
+    const sel = $("app-select");
+    if (sel) sel.value = String(idx);
+    $("app-badge").textContent = (APP && APP.name) || "app";
+    if (!APP) { $("grid").innerHTML = '<div class="state err">No apps in /apps.json.</div>'; return; }
+    renderTabs();
+  }
+
+  async function initDashboard() {
+    try {
+      const apps = await fetchJSON("/apps.json");
+      APPS = Array.isArray(apps) ? apps : [apps];
+      WIDGETS = await fetchJSON("/widgets.json");
+    } catch (e) {
+      $("grid").innerHTML = `<div class="state err">Could not load dashboard: ${escapeHtml(e.message)}</div>`;
+      $("app-badge").textContent = "error";
+      return;
+    }
+    // Multi-app switcher (#1805): list every app served by this backend and
+    // let the user switch. Terminal has ~12 tabs; Techtrade is a separate app.
+    const sel = $("app-select");
+    sel.innerHTML = APPS.map((a, i) =>
+      `<option value="${i}">${escapeHtml(a.name || ("App " + (i + 1)))}</option>`
+    ).join("");
+    sel.style.display = APPS.length > 1 ? "" : "none";
+    sel.addEventListener("change", () => selectApp(Number(sel.value)));
+    selectApp(0);
   }
 
   $("refresh-btn").addEventListener("click", () => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); });
