@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.0.6 - Backend lifecycle + status bar (#1819)
+
+- Add `src/backend/state.ts` — pure reducer for the back-end lifecycle
+  state machine (`stopped` → `starting` → `running`/`error` → `stopped`),
+  including a two-consecutive-`HEALTH_FAILED` transition into `error`
+  per ADR `2026-08-04-vscode-terminal-backend-spawn.md` §2.3.
+- Add `src/backend/lifecycle.ts` — `BackendLifecycle` class: attach-mode
+  short-circuit (probes `/widgets.json` before spawning), spawns
+  `openbb-api --host 127.0.0.1 --port <port>` via `child_process.spawn`,
+  streams stdout/stderr into the `"OpenBB Terminal"` output channel,
+  polls `/widgets.json` every 2 s (60 s readiness timeout), then runs a
+  10 s health monitor. Stop path uses `SIGTERM`/`SIGKILL` (POSIX) or
+  `execFile("taskkill", ["/pid", …, "/F"])` (Windows) — never `exec`
+  with concatenated strings.
+- Add `src/backend/statusBar.ts` — left-aligned `StatusBarItem` with
+  `$(circle-slash)/$(sync~spin)/$(check)/$(error)` icons per state,
+  tooltip carrying `port`, `lastHealthAt`, `lastError`; click routes to
+  `OpenBB: Open Back-end Logs`.
+- Add `src/backend/state.test.js` (node:test) — seven reducer scenarios
+  including two-fail-to-error and full restart cycle.
+- `package.json`: bump to `0.0.6`; add four commands (`openbb.start/stop/
+  restart/openBackendLogs`) and four settings (`openbb.pythonPath`,
+  `openbb.apiPort`, `openbb.apiBaseUrl`, `openbb.autoStartBackend`).
+- Auth invariants preserved (ADR §5): no bearer auth header, no token
+  query parameter anywhere in the module.
+
 ## 0.0.5 - CSP hardening + auth invariant guards (#1817)
 
 - Extract CSP directive building into `src/webview/csp.ts` (`buildCsp`

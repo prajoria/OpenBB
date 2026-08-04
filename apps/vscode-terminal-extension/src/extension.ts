@@ -1,12 +1,16 @@
-// OpenBB Terminal VS Code extension — Phase 1 scaffold (#1813).
+// OpenBB Terminal VS Code extension — activation shell.
 //
-// This file intentionally contains only the activation shell and stub
-// tree providers. The webview host lands in #1814, theme bridge in
-// #1815, layouts in #1816, and CSP hardening in #1817.
+// Phase 1 wiring: webview host (#1814), theme bridge (#1815), layouts
+// (#1816), CSP hardening (#1817). Phase 1.5 adds the back-end lifecycle
+// (#1819) — spawn `openbb-api`, poll `/widgets.json`, and reflect state
+// in a status-bar item.
 
 import * as vscode from "vscode";
 
 import { openTerminalPanel } from "./webview/panel";
+import { BackendLifecycle } from "./backend/lifecycle";
+import { registerStatusBar } from "./backend/statusBar";
+import { BackendState } from "./backend/state";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -40,6 +44,55 @@ class PlaceholderTreeProvider
 
 export function activate(context: vscode.ExtensionContext): void {
   console.log("OpenBB Terminal activated");
+
+  const outputChannel = vscode.window.createOutputChannel("OpenBB Terminal");
+  context.subscriptions.push(outputChannel);
+
+  const cfg = vscode.workspace.getConfiguration("openbb");
+  const pythonPath = cfg.get<string>("pythonPath", "");
+  const apiPort = cfg.get<number>("apiPort", 6900);
+  const apiBase = cfg.get<string>("apiBaseUrl", `http://127.0.0.1:${apiPort}`);
+  const autoStart = cfg.get<boolean>("autoStartBackend", false);
+
+  const lifecycle = new BackendLifecycle(context, {
+    pythonPath,
+    port: apiPort,
+    apiBase,
+    outputChannel,
+    onStateChange: (s: BackendState): void => {
+      outputChannel.appendLine(
+        `[state] status=${s.status} pid=${s.pid ?? "-"} lastError=${
+          s.lastError ?? "-"
+        }`,
+      );
+    },
+  });
+  context.subscriptions.push(lifecycle);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openbb.startBackend", async () => {
+      await lifecycle.start();
+    }),
+    vscode.commands.registerCommand("openbb.stopBackend", async () => {
+      await lifecycle.stop();
+    }),
+    vscode.commands.registerCommand("openbb.restartBackend", async () => {
+      await lifecycle.stop();
+      await lifecycle.start();
+    }),
+    vscode.commands.registerCommand("openbb.openBackendLogs", () => {
+      outputChannel.show(true);
+    }),
+  );
+
+  registerStatusBar(context, lifecycle);
+  context.subscriptions.push(lifecycle.startHealthMonitor());
+
+  if (autoStart) {
+    void lifecycle.start().catch((err: unknown) => {
+      outputChannel.appendLine(`autoStart failed: ${String(err)}`);
+    });
+  }
 
   const openTerminalCmd = vscode.commands.registerCommand(
     "openbb.openTerminal",
