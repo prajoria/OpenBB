@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.0.30 - Performance NFR gate + harness (#1839)
+
+- New `src/perf/budget.ts` — `NFR_BUDGETS` registry seeded from §17.1
+  (activation, webview first-paint fixture/live, symbol context
+  propagation, back-end start, widget hot reload) plus `checkBudget`,
+  `loadPreviousMeasurements`, and `saveMeasurements` helpers.
+- New `src/perf/harness.ts` — `PerfHarness` with `mark` / `measure` /
+  `report` / `persist` / `checkAll` and an injectable time source.
+- `extension.ts` instantiates the harness at the top of `activate()`,
+  measures `activation`, and registers the `openbb.showPerfReport`
+  command that dumps the report + `checkAll` into the output channel.
+- New `scripts/perf-check.sh` + `npm run perf:check` script exercises
+  the harness against synthetic under-budget measurements and prints
+  a per-metric table.
+- Unit tests (`src/perf/budget.test.js`, `src/perf/harness.test.js`).
+- `docs/perf.md` documents the six NFR targets and harness API.
+
 ## 0.0.26 - Paper buy/sell command handlers wired (#1835)
 
 - `PaperOrderHandler` (`src/paper/handler.ts`) wires the paper buy/sell

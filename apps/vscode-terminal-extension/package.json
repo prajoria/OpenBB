@@ -3,7 +3,7 @@
   "displayName": "OpenBB Terminal",
   "description": "OpenBB Trading Terminal inside VS Code — layouts, widgets, and a local API bridge.",
   "publisher": "prajoria",
-  "version": "0.0.26",
+  "version": "0.0.30",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -112,6 +112,10 @@
         "command": "openbb.addWidgetToActiveLayout",
         "title": "OpenBB: Add Widget to Active Layout",
         "icon": "$(add)"
+      },
+      {
+        "command": "openbb.showPerfReport",
+        "title": "OpenBB: Show Performance Report"
       }
     ],
     "keybindings": [
@@ -222,8 +226,9 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js src/golden/loader.test.js src/preview/panel.test.js src/widget-browser/browser.test.js src/paper/handler.test.js",
+    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js src/golden/loader.test.js src/preview/panel.test.js src/widget-browser/browser.test.js src/paper/handler.test.js src/perf/budget.test.js src/perf/harness.test.js",
     "verify:invariants": "bash scripts/verify-auth-invariants.sh",
+    "perf:check": "bash scripts/perf-check.sh",
     "package": "vsce package"
   },
   "devDependencies": {
