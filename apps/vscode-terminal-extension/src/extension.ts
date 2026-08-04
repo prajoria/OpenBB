@@ -70,6 +70,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const apiPort = cfg.get<number>("apiPort", 6900);
   const apiBase = cfg.get<string>("apiBaseUrl", `http://127.0.0.1:${apiPort}`);
   const autoStart = cfg.get<boolean>("autoStartBackend", false);
+  const autoRestartOnError = cfg.get<boolean>("autoRestartBackend", false);
+  const autoRestartMaxAttempts = cfg.get<number>("autoRestartMaxAttempts", 3);
 
   const dataMode = new DataModeController({ outputChannel });
   // Host-side WidgetFetcher instance for future host-driven fetches; the
@@ -82,6 +84,8 @@ export function activate(context: vscode.ExtensionContext): void {
     port: apiPort,
     apiBase,
     outputChannel,
+    autoRestartOnError,
+    autoRestartMaxAttempts,
     onStateChange: (s: BackendState): void => {
       outputChannel.appendLine(
         `[state] status=${s.status} pid=${s.pid ?? "-"} lastError=${
