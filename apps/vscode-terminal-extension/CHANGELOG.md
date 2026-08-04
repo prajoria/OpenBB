@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.0.12 - Live-data mode (fixture ↔ live) (#1820)
+
+- Add `src/data/mode.ts` — `DataModeController` flips between `fixture`
+  and `live` off the backend lifecycle state (`running` -> `live`).
+- Add `src/data/fetcher.ts` — `WidgetFetcher`, loopback-only HTTP GET
+  client. No bearer-style auth header. No token query param. Loud-empty
+  warning on empty responses.
+- Add `src/data/mode-glue.ts` — attaches the controller to a webview
+  panel, broadcasting `{type:"dataModeChange", mode}` on transitions.
+- `media/renderer.js` — listens for `dataModeChange`, renders from
+  `widget.fixtureRows` in fixture mode and fetches
+  `${window.__OPENBB_API_BASE__}${widget.endpoint}` in live mode; adds
+  FIXTURE/LIVE header badges and a Retry button on fetch errors.
+- Wire `DataModeController` + `attachDataModeToPanel` in
+  `src/extension.ts`.
+- Tests: `src/data/mode.test.js`, `src/data/fetcher.test.js`.
+
 ## 0.0.11 - Complete built-in layout set (Portfolio Risk, Trading Desk, Chart Focus) (#1821)
 
 - Add `fixtures/layouts/portfolio-risk.json` (Layout 3): sector/country
