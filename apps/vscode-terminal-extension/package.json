@@ -1,0 +1,56 @@
+{
+  "name": "openbb-terminal-vscode",
+  "displayName": "OpenBB Terminal",
+  "description": "OpenBB Trading Terminal inside VS Code — layouts, widgets, and a local API bridge.",
+  "publisher": "prajoria",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Data Science",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onCommand:openbb.openTerminal",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "openbb.openTerminal",
+        "title": "OpenBB: Open Terminal"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "openbb-explorer",
+          "title": "OpenBB Terminal",
+          "icon": "assets/openbb-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "openbb-explorer": [
+        { "id": "openbbLayouts", "name": "Layouts" },
+        { "id": "openbbWidgets", "name": "Widget Browser" },
+        { "id": "openbbBackend", "name": "Back-end Status" }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0",
+    "@vscode/vsce": "^2.24.0",
+    "@vscode/test-electron": "^2.3.9"
+  }
+}
