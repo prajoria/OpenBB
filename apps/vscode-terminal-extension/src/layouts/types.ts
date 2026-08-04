@@ -23,9 +23,10 @@ export interface Layout {
   name: string;
   gridTemplate: string;
   slots: WidgetSlot[];
+  schemaVersion?: number;
 }
 
-export function validateLayout(layout: Layout, knownWidgetIds: Set<string>): string[] {
+export function validateLayout(layout: Layout, knownWidgetIds?: Set<string>): string[] {
   const errors: string[] = [];
   if (!layout.id || !layout.name || !Array.isArray(layout.slots)) {
     errors.push(`layout missing required fields: ${layout.id ?? "<unknown>"}`);
@@ -37,7 +38,7 @@ export function validateLayout(layout: Layout, knownWidgetIds: Set<string>): str
       errors.push(`slot missing widgetId/col/span in ${layout.id}`);
       continue;
     }
-    if (!knownWidgetIds.has(slot.widgetId)) {
+    if (knownWidgetIds && !knownWidgetIds.has(slot.widgetId)) {
       errors.push(`unknown widgetId '${slot.widgetId}' in ${layout.id}`);
     }
     const end = slot.col + slot.span - 1;

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.25 - User layouts CRUD + workspace export (#1831)
+
+- `LayoutManager` (`src/layouts/manager.ts`) — create / rename /
+  duplicate / delete user layouts persisted in `globalState`
+  under `openbb.userLayouts`.
+- `exportToWorkspace(id)` writes user layouts to
+  `<workspaceRoot>/.openbb/layouts/<slug>.json` via
+  `vscode.workspace.fs`.
+- `importFromFile(uri)` reads a JSON layout, validates shape, and
+  persists it to user layouts.
+- `LayoutsTreeProvider` (`src/layouts/tree.ts`) renders three
+  collapsible groups in the sidebar: Built-in / User / Workspace.
+- Real handlers for `openbb.newLayout`, `openbb.exportLayout`,
+  `openbb.importLayout`, and three new commands:
+  `openbb.renameLayout`, `openbb.duplicateLayout`,
+  `openbb.deleteLayout` (modal confirm).
+- Node:test coverage for the manager CRUD + export/import round trip.
+
 ## 0.0.24 - Widget Browser tree-view + drag support (#1830)
 
 - `WidgetBrowserTreeProvider` with prefix grouping (`pi_*` / `tt_*` /
