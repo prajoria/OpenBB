@@ -1,0 +1,13 @@
+{
+  "id": "portfolio-overview",
+  "name": "Portfolio Overview",
+  "gridTemplate": "12-col",
+  "slots": [
+    { "widgetId": "pi_portfolio_summary",   "col": 1, "span": 8, "row": 1 },
+    { "widgetId": "pi_book_context",        "col": 9, "span": 4, "row": 1 },
+    { "widgetId": "portfolio_positions",    "col": 1, "span": 4, "row": 2 },
+    { "widgetId": "portfolio_allocation",   "col": 5, "span": 4, "row": 2 },
+    { "widgetId": "pi_concentration_gauge", "col": 9, "span": 4, "row": 2 },
+    { "widgetId": "pi_event_calendar",      "col": 1, "span": 12, "row": 3 }
+  ]
+}
