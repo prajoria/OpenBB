@@ -13,6 +13,8 @@ import { BackendLifecycle } from "./backend/lifecycle";
 import { registerStatusBar } from "./backend/statusBar";
 import { BackendState } from "./backend/state";
 import { SymbolContext } from "./symbol/context";
+import { SymbolValidator } from "./symbol/validator";
+import { registerSymbolHoverProvider } from "./hover/provider";
 import { createSymbolStatusBarItem } from "./symbol/statusBar";
 import { attachSymbolBridge } from "./symbol/panel-glue";
 import { registerCommands } from "./commands/register";
@@ -113,6 +115,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const symbolStatusBar = createSymbolStatusBarItem();
   context.subscriptions.push(symbolStatusBar);
   const symbolContext = new SymbolContext({ apiBase, statusBar: symbolStatusBar });
+
+  // Hover provider (#1825) — Python + notebook cells. Independent
+  // SymbolValidator instance so hover lookups don't perturb the
+  // SymbolContext validator's cache lifecycle.
+  const hoverValidator = new SymbolValidator({ apiBase });
+  registerSymbolHoverProvider(context, hoverValidator, apiBase);
 
   const openTerminalCmd = vscode.commands.registerCommand(
     "openbb.openTerminal",
