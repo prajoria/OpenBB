@@ -29,7 +29,9 @@ router = APIRouter()
 def _load_viewer_html() -> str | None:
     """Return the shared viewer HTML, or ``None`` if the asset is unavailable."""
     try:
-        from openbb_portfolio.local_viewer import read_viewer_html
+        from openbb_portfolio.local_viewer import (  # pylint: disable=import-outside-toplevel
+            read_viewer_html,
+        )
     except ImportError:
         return None
     try:
