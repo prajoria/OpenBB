@@ -1,0 +1,12 @@
+{
+  "id": "risk-review",
+  "name": "Risk Review",
+  "gridTemplate": "12-col",
+  "slots": [
+    { "widgetId": "pi_risk_dashboard",      "col": 1, "span": 8, "row": 1 },
+    { "widgetId": "pi_concentration_gauge", "col": 9, "span": 4, "row": 1 },
+    { "widgetId": "pi_xray_sector",         "col": 1, "span": 6, "row": 2 },
+    { "widgetId": "pi_xray_country",        "col": 7, "span": 6, "row": 2 },
+    { "widgetId": "pi_brinson_attribution", "col": 1, "span": 12, "row": 3 }
+  ]
+}

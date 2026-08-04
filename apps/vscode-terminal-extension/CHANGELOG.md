@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.22 - Golden layouts library + load command + reset (#1833)
+
+- Add curated `golden_layouts/*.json`: momentum-scan, risk-review,
+  single-stock-deep-dive, paper-trading-cockpit (repo-versioned,
+  distinct from ephemeral user layouts in globalState).
+- Add `src/golden/loader.ts` — reads + validates each JSON against
+  `widgets.sample.json`; module-scope cache with `resetCache()`.
+- Add `src/golden/command.ts` — `openbb.loadGoldenLayout` (quick-pick,
+  deep-copies picked layout into `openbb.userLayouts` with a fresh id
+  and preserved `sourceGoldenId`) and `openbb.resetToDefaultLayouts`
+  (modal confirm, clears the key).
+- Node:test coverage over the four goldens shape / widget refs /
+  overflow / overlap and loader cache semantics.
+
 ## 0.0.18 - Symbol hover provider (Python + Notebook) (#1825)
 
 - Add `src/hover/regex.ts` — pure ticker detection with a tightened

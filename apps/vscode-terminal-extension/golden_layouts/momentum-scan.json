@@ -1,0 +1,11 @@
+{
+  "id": "momentum-scan",
+  "name": "Momentum Scan",
+  "gridTemplate": "12-col",
+  "slots": [
+    { "widgetId": "tt_segment_movers", "col": 1, "span": 12, "row": 1 },
+    { "widgetId": "tt_scan_table",     "col": 1, "span": 6,  "row": 2 },
+    { "widgetId": "pi_charting",       "col": 7, "span": 6,  "row": 2 },
+    { "widgetId": "pi_equity_news",    "col": 1, "span": 12, "row": 3 }
+  ]
+}
