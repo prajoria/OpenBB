@@ -1,8 +1,4 @@
-// Webview-side theme applier for the OpenBB VS Code terminal (#1815).
-// Reads the mapped --vscode-* variables from computed styles and mirrors
-// them onto --color-* on <html>, so layout code stays theme-agnostic.
-// No imports/exports — this runs as a plain <script> inside the webview.
-
+// Webview-side theme applier (#1815, #1837).
 (function () {
   var CORE = [
     ["--color-background", "--vscode-editor-background"],
@@ -16,32 +12,45 @@
     ["--color-error", "--vscode-terminal-ansiRed"],
     ["--color-warning", "--vscode-terminal-ansiYellow"],
   ];
-
-  function applyVSCodeTheme() {
+  var currentKind = "dark";
+  function detectKindFromBody() {
+    var cls = (document.body && document.body.className) || "";
+    if (cls.indexOf("vscode-high-contrast") !== -1) return "high-contrast";
+    if (cls.indexOf("vscode-light") !== -1) return "light";
+    return "dark";
+  }
+  function applyVSCodeTheme(kindOverride) {
     var styles = getComputedStyle(document.body);
     var root = document.documentElement;
     for (var i = 0; i < CORE.length; i++) {
-      var target = CORE[i][0];
-      var source = CORE[i][1];
-      var value = styles.getPropertyValue(source).trim();
-      if (value) {
-        root.style.setProperty(target, value);
-      }
+      var value = styles.getPropertyValue(CORE[i][1]).trim();
+      if (value) root.style.setProperty(CORE[i][0], value);
     }
+    var kind = kindOverride || detectKindFromBody();
+    currentKind = kind;
+    root.setAttribute("data-openbb-theme", kind);
   }
-
+  function postReady() {
+    try {
+      if (typeof acquireVsCodeApi === "function") {
+        var api = window.__openbbVsCodeApi || acquireVsCodeApi();
+        window.__openbbVsCodeApi = api;
+        api.postMessage({ type: "themeReady", kind: currentKind });
+      }
+    } catch (_e) {}
+  }
   window.addEventListener("message", function (event) {
     var msg = event && event.data;
-    if (msg && msg.type === "themeChange") {
-      applyVSCodeTheme();
-    }
+    if (msg && msg.type === "themeChange") applyVSCodeTheme(msg.kind);
   });
-
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", applyVSCodeTheme);
+    document.addEventListener("DOMContentLoaded", function () {
+      applyVSCodeTheme();
+      postReady();
+    });
   } else {
     applyVSCodeTheme();
+    postReady();
   }
-
   window.applyVSCodeTheme = applyVSCodeTheme;
 })();

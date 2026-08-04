@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.27 - Light + high-contrast theme parity + audit (#1837)
+
+- Add LIGHT_FALLBACK and HIGH_CONTRAST_FALLBACK alongside DARK_FALLBACK in src/theme/tokens.ts, plus ThemeKind union and getFallbackForTheme selector.
+- src/theme/bridge.ts: detectThemeKind() maps VS Code active theme (Dark/Light/HighContrast/HighContrastLight) to ThemeKind, folding both HC variants into high-contrast. collectThemeTokens(kind?) accepts an override; registerThemeSync now posts (tokens, kind).
+- media/theme.js: tags <html data-openbb-theme="{kind}"> on every apply. Posts themeReady back to the host on boot.
+- New src/theme/audit.ts: auditTheme(tokens, kind) returns { kind, missingTokens, contrastWarnings } with WCAG-AA 4.5:1 checks via relative-luminance.
+- Tests: src/theme/tokens.test-extended.js and src/theme/audit.test.js.
+- Docs: docs/theme.md rewritten around the 3-way fallback, data-openbb-theme, and the audit helper.
+
 ## 0.0.26 - Paper buy/sell command handlers wired (#1835)
 
 - `PaperOrderHandler` (`src/paper/handler.ts`) wires the paper buy/sell
