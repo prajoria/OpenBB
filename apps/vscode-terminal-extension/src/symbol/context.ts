@@ -41,7 +41,7 @@ export class SymbolContext {
 
   async setSymbol(
     symbol: string,
-    _source: "widget" | "command",
+    _source: "widget" | "command" | "notebook" | "hover",
   ): Promise<SetSymbolResult> {
     const normalized = symbol.trim().toUpperCase();
     const result = await this.validator.validate(normalized);

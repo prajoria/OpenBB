@@ -13,6 +13,7 @@ import { BackendLifecycle } from "./backend/lifecycle";
 import { registerStatusBar } from "./backend/statusBar";
 import { BackendState } from "./backend/state";
 import { SymbolContext } from "./symbol/context";
+import { registerNotebookSymbolWatcher } from "./notebook/watcher";
 import { createSymbolStatusBarItem } from "./symbol/statusBar";
 import { attachSymbolBridge } from "./symbol/panel-glue";
 import { registerCommands } from "./commands/register";
@@ -115,6 +116,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const symbolStatusBar = createSymbolStatusBarItem();
   context.subscriptions.push(symbolStatusBar);
   const symbolContext = new SymbolContext({ apiBase, statusBar: symbolStatusBar });
+
+  const notebookWatcher = registerNotebookSymbolWatcher(context, symbolContext);
+  context.subscriptions.push(notebookWatcher);
 
   const openTerminalCmd = vscode.commands.registerCommand(
     "openbb.openTerminal",

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.17 - Notebook symbol watcher (source-text heuristic) (#1826)
+
+- Add `src/notebook/watcher.ts` — registers `onDidOpenNotebookDocument`
+  and `onDidChangeNotebookDocument` handlers. Scans cell source text
+  for `\b(?:symbol|ticker)\s*=\s*["']([A-Z]{2,5})(?::[A-Z]+)?["']`;
+  when matched, calls `SymbolContext.setSymbol(..., 'notebook')`.
+  Per-notebook debounce (300ms) suppresses redundant broadcasts on
+  rapid edits. **SOURCE-TEXT HEURISTIC ONLY** — does NOT introspect
+  Jupyter kernel runtime variable values (that would require Jupyter
+  extension API / debug adapter, tracked as separate follow-up).
+- Extend `SymbolContext.setSymbol` source-union to include `"notebook"`
+  and `"hover"` (matching the hover-provider work in #1825).
+- Tests: `src/notebook/watcher.test.js` — 6 node:test cases covering
+  symbol match, ticker match, non-match, comment match (dumb-parsing
+  fine), debounce coalescing, and per-notebook state.
+
 ## 0.0.16 - openbb.runAnalysis command wired to 7-phase pipeline (#1828)
 
 - Replace the placeholder `openbb.runAnalysis` with a real handler that
