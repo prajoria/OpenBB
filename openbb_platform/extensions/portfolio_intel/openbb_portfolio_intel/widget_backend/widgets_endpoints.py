@@ -1848,26 +1848,72 @@ def equity_price_target_history(
 # ---------------------------------------------------------------------------
 
 
+#: Allowed statement periods (widget-facing values, mapped in the tier call).
+_STATEMENT_PERIODS = ("annual", "quarterly")
+
+
+def _statements_kwargs(
+    *_args: object,
+    symbol: str = "AAPL",
+    period: str = "annual",
+    **_kwargs: object,
+) -> dict:
+    """Forward the normalized ``symbol`` + ``period`` to the statements tier.
+
+    The default ``kwargs_from`` forwards only the raw ``symbol``; the live tier
+    needs ``period`` too (to pick annual vs quarterly statements) and the
+    *normalized* ticker so an unnormalized ``" aapl "`` cannot reach the
+    provider verbatim, return empty, and silently fall to the demo stub.
+    """
+    return {"symbol": _validate_symbol(symbol), "period": period}
+
+
+def _validate_statements_from_call(
+    *_args: object,
+    symbol: str = "AAPL",
+    period: str = "annual",
+    **_kwargs: object,
+) -> None:
+    """Validate ``symbol`` AND ``period`` before any tier is dispatched.
+
+    Both checks must run pre-dispatch: once a live tier serves the request the
+    stub body (with its own inline period check) is bypassed, so validation
+    living only there would let an invalid ``period`` reach the tier call.
+    """
+    _validate_symbol(symbol)
+    if period not in _STATEMENT_PERIODS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"period must be 'annual' or 'quarterly', got {period!r}",
+        )
+
+
 @app.get("/pi/equity/statements")
 @with_chain(
     endpoint="pi/equity/statements",
     family="equity/statements",
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
-    validate_kwargs=_validate_symbol_from_call,
+    validate_kwargs=_validate_statements_from_call,
+    kwargs_from=_statements_kwargs,
 )
 def equity_statements(
     request: Request, symbol: str = "AAPL", period: str = "annual"
-) -> list[dict[str, str | float]]:
-    """Return Financial Statements rows (#1653) — IS/BS/CF (table)."""
+) -> list[dict[str, str | float | int | None]]:
+    """Return Financial Statements rows (#1653) — IS/BS/CF (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/statements`` tier call
+    (#1920): fetches income/balance/cash statements and maps nine canonical
+    line items to a 2-period comparison. This stub body is the loud fallback
+    when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    if period not in {"annual", "quarterly"}:
+    if period not in _STATEMENT_PERIODS:
         raise HTTPException(
             status_code=400,
             detail=f"period must be 'annual' or 'quarterly', got {period!r}",
         )
-    # TODO(gh-1653): wire to FMPCachedIncomeStatementFetcher etc via period.
     scale = 1.0 if period == "annual" else 0.25
     return [
         {

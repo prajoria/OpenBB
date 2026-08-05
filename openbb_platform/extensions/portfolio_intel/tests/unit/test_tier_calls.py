@@ -1724,9 +1724,7 @@ def test_shape_charting_computes_sma_over_full_series() -> None:
 def test_shape_charting_rsi_direction() -> None:
     """RSI is 100 for a monotonic-up series and 0 for a monotonic-down one."""
     up = tier_calls._shape_charting(_charting_rows(40, step=1.0), "3M")
-    down = tier_calls._shape_charting(
-        _charting_rows(40, start=200.0, step=-1.0), "3M"
-    )
+    down = tier_calls._shape_charting(_charting_rows(40, start=200.0, step=-1.0), "3M")
     assert up[-1]["rsi14"] == 100.0
     assert down[-1]["rsi14"] == 0.0
 
@@ -1773,9 +1771,7 @@ def test_charting_tier_call_loud_empty(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
-    monkeypatch.setattr(
-        tier_calls, "_fetch_price_history_rows", lambda symbol: []
-    )
+    monkeypatch.setattr(tier_calls, "_fetch_price_history_rows", lambda symbol: [])
     call = _TIER_CALLS[("charting", "fmp_cached")]
     with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
         out = call(symbol="AAPL", window="3M")
@@ -1867,3 +1863,265 @@ def test_charting_fmp_cached_live() -> None:
         "rsi14",
     }
     assert any(r["sma20"] is not None for r in shaped), "no SMA20 computed"
+
+
+# ---------------------------------------------------------------------------
+# financials / statements (#1920 — full-wiring of #1653)
+# ---------------------------------------------------------------------------
+
+
+def _statement_fixtures() -> tuple[list[dict], list[dict], list[dict]]:
+    """Two-period income/balance/cash fixtures, latest-first (FY2023, FY2022).
+
+    Values differ per period so period_1/period_2 wiring is discriminable, and
+    the fields are exactly those the shaper reads (see ``_STATEMENT_ITEMS``).
+    """
+    income = [
+        {
+            "period_ending": _dt.date(2023, 9, 30),
+            "revenue": 383285,
+            "gross_profit": 169148,
+            "total_operating_income": 114301,
+            "bottom_line_net_income": 96995,
+        },
+        {
+            "period_ending": _dt.date(2022, 9, 24),
+            "revenue": 394328,
+            "gross_profit": 170782,
+            "total_operating_income": 119437,
+            "bottom_line_net_income": 99803,
+        },
+    ]
+    balance = [
+        {
+            "period_ending": _dt.date(2023, 9, 30),
+            "total_assets": 352583,
+            "total_debt": 111088,
+            "cash_and_cash_equivalents": 29965,
+        },
+        {
+            "period_ending": _dt.date(2022, 9, 24),
+            "total_assets": 352755,
+            "total_debt": 120069,
+            "cash_and_cash_equivalents": 23646,
+        },
+    ]
+    cash = [
+        {
+            "period_ending": _dt.date(2023, 9, 30),
+            "operating_cash_flow": 110543,
+            "free_cash_flow": 99584,
+        },
+        {
+            "period_ending": _dt.date(2022, 9, 24),
+            "operating_cash_flow": 122151,
+            "free_cash_flow": 111443,
+        },
+    ]
+    return income, balance, cash
+
+
+def test_shape_statements_maps_nine_line_items_in_order() -> None:
+    """The shaper emits the 9 canonical line items in the fixed stub order."""
+    income, balance, cash = _statement_fixtures()
+    out = tier_calls._shape_statements(income, balance, cash)
+    assert [r["line_item"] for r in out] == [
+        "Revenue",
+        "Gross Profit",
+        "Operating Income",
+        "Net Income",
+        "Total Assets",
+        "Total Debt",
+        "Cash & Equivalents",
+        "Operating Cash Flow",
+        "Free Cash Flow",
+    ]
+
+
+def test_shape_statements_period_1_is_latest_period_2_is_prior() -> None:
+    """period_1 reads index 0 (latest), period_2 reads index 1 (prior)."""
+    income, balance, cash = _statement_fixtures()
+    out = tier_calls._shape_statements(income, balance, cash)
+    by = {r["line_item"]: r for r in out}
+    # Revenue from income[0]/income[1]
+    assert by["Revenue"]["period_1"] == 383285
+    assert by["Revenue"]["period_2"] == 394328
+    # Total Assets from balance[0]/balance[1]
+    assert by["Total Assets"]["period_1"] == 352583
+    assert by["Total Assets"]["period_2"] == 352755
+    # Free Cash Flow from cash[0]/cash[1]
+    assert by["Free Cash Flow"]["period_1"] == 99584
+    assert by["Free Cash Flow"]["period_2"] == 111443
+
+
+def test_shape_statements_missing_prior_period_is_none() -> None:
+    """A single available period fills period_1 and leaves period_2 None."""
+    income, balance, cash = _statement_fixtures()
+    out = tier_calls._shape_statements(income[:1], balance[:1], cash[:1])
+    by = {r["line_item"]: r for r in out}
+    assert by["Revenue"]["period_1"] == 383285
+    assert by["Revenue"]["period_2"] is None
+
+
+def test_shape_statements_missing_field_is_none() -> None:
+    """A field absent from the provider row yields None (not a KeyError)."""
+    out = tier_calls._shape_statements(
+        [{"period_ending": _dt.date(2023, 9, 30)}], [], []
+    )
+    by = {r["line_item"]: r for r in out}
+    assert by["Revenue"]["period_1"] is None
+    assert by["Total Assets"]["period_1"] is None
+
+
+def test_fetch_statement_sorts_period_ending_desc(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fetch returns rows latest-first even if the provider is unsorted."""
+
+    class _Row:
+        def __init__(self, d: dict) -> None:
+            self._d = d
+
+        def model_dump(self) -> dict:
+            return dict(self._d)
+
+    class _Res:
+        results = [
+            _Row({"period_ending": _dt.date(2021, 9, 25), "revenue": 1}),
+            _Row({"period_ending": _dt.date(2023, 9, 30), "revenue": 3}),
+            _Row({"period_ending": _dt.date(2022, 9, 24), "revenue": 2}),
+        ]
+
+    class _Fundamental:
+        def income(self, **_kwargs: object) -> _Res:
+            return _Res()
+
+    class _Equity:
+        fundamental = _Fundamental()
+
+    class _OBB:
+        equity = _Equity()
+
+    monkeypatch.setattr(tier_calls, "_obb", lambda: _OBB())
+    rows = tier_calls._fetch_statement("income", "AAPL", "annual")
+    assert [r["revenue"] for r in rows] == [3, 2, 1]  # sorted latest-first
+
+
+def test_statements_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes the 3-statement fetch + shape."""
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_statements_rows",
+        lambda symbol, period: _statement_fixtures(),
+    )
+    call = _TIER_CALLS[("equity/statements", "fmp_cached")]
+    out = call(symbol="AAPL", period="annual")
+    assert len(out) == 9
+    assert out[0]["line_item"] == "Revenue"
+
+
+def test_statements_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When no statement returns a row, WARN (0 rows) and return []."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_statements_rows", lambda symbol, period: ([], [], [])
+    )
+    call = _TIER_CALLS[("equity/statements", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL", period="annual")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_statements() -> None:
+    """The production registration wires the fmp_cached statements tier."""
+    assert ("equity/statements", "fmp_cached") in _TIER_CALLS
+
+
+def test_statements_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint serves live-shaped rows.
+
+    The stub's Revenue period_1 is 391000; the fixture yields 383285, so its
+    presence proves the tier served (not the demo stub).
+    """
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_statements_rows",
+        lambda symbol, period: _statement_fixtures(),
+    )
+    resp = _client.get("/pi/equity/statements?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows, "empty response"
+    by = {r["line_item"]: r for r in rows}
+    assert by["Revenue"]["period_1"] == 383285, "served the stub!"
+
+
+def test_statements_endpoint_forwards_normalized_symbol_and_period(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker AND the period."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str, period: str) -> tuple[list, list, list]:
+        seen["symbol"] = symbol
+        seen["period"] = period
+        return _statement_fixtures()
+
+    monkeypatch.setattr(tier_calls, "_fetch_statements_rows", _capture)
+    resp = _client.get("/pi/equity/statements?symbol=+aapl+&period=quarterly")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+    assert seen["period"] == "quarterly"
+
+
+def test_statements_endpoint_rejects_bad_period_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Period validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_statements_rows",
+        lambda symbol, period: _statement_fixtures(),
+    )
+    resp = _client.get("/pi/equity/statements?symbol=AAPL&period=monthly")
+    assert resp.status_code == 400
+
+
+def test_statements_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_statements_rows",
+        lambda symbol, period: _statement_fixtures(),
+    )
+    resp = _client.get("/pi/equity/statements?symbol=<script>")
+    assert resp.status_code == 400
+
+
+def test_statements_period_map_translates_quarterly() -> None:
+    """The widget's 'quarterly' maps to the provider's 'quarter'."""
+    assert tier_calls._STATEMENT_PERIOD_MAP["quarterly"] == "quarter"
+    assert tier_calls._STATEMENT_PERIOD_MAP["annual"] == "annual"
+
+
+@pytest.mark.integration
+def test_statements_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real income/balance/cash statements for AAPL."""
+    income, balance, cash = tier_calls._fetch_statements_rows("AAPL", "annual")
+    assert (
+        income or balance or cash
+    ), "fmp_cached returned no statements — wiring broken"
+    shaped = tier_calls._shape_statements(income, balance, cash)
+    assert len(shaped) == 9
+    assert [r["line_item"] for r in shaped][0] == "Revenue"
+    # At least the latest revenue should be a real number.
+    by = {r["line_item"]: r for r in shaped}
+    assert by["Revenue"]["period_1"] is not None, "no live revenue"

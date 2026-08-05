@@ -25,6 +25,7 @@ Wiring status
 - ``equity/company-filings`` -> ``fmp_cached`` (full-wiring of stub #1666, #1914)
 - ``equity/stock-splits`` -> ``fmp_cached`` (full-wiring of stub #1664, #1916)
 - ``charting`` -> ``fmp_cached`` (full-wiring of stub #1655, #1918)
+- ``equity/statements`` -> ``fmp_cached`` (full-wiring of stub #1653, #1920)
 """
 
 from __future__ import annotations
@@ -993,6 +994,113 @@ def _charting_fmp_cached(*, symbol: str, window: str = "3M") -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# financials / statements (#1920 — full-wiring of #1653)
+# ---------------------------------------------------------------------------
+#
+# A 2-period comparison table over three statements. Fetches income, balance,
+# and cash statements (limit=2, latest-first) and maps nine canonical line
+# items to ``{line_item, period_1 (latest), period_2 (prior)}``. Values are
+# the provider's raw amounts (absolute currency units), ``None`` where a
+# period or field is missing. The widget's ``period`` (annual/quarterly) maps
+# to the provider's ``annual``/``quarter``.
+
+#: Widget ``period`` value -> provider ``period`` argument.
+_STATEMENT_PERIOD_MAP: dict[str, str] = {"annual": "annual", "quarterly": "quarter"}
+
+#: (row label, statement source, provider field). Order defines row order and
+#: mirrors the shipped stub so the widget renders identically.
+_STATEMENT_ITEMS: tuple[tuple[str, str, str], ...] = (
+    ("Revenue", "income", "revenue"),
+    ("Gross Profit", "income", "gross_profit"),
+    ("Operating Income", "income", "total_operating_income"),
+    ("Net Income", "income", "bottom_line_net_income"),
+    ("Total Assets", "balance", "total_assets"),
+    ("Total Debt", "balance", "total_debt"),
+    ("Cash & Equivalents", "balance", "cash_and_cash_equivalents"),
+    ("Operating Cash Flow", "cash", "operating_cash_flow"),
+    ("Free Cash Flow", "cash", "free_cash_flow"),
+)
+
+
+def _fetch_statement(kind: str, symbol: str, period: str) -> list[dict]:
+    """Fetch one statement (``income``/``balance``/``cash``) latest-first.
+
+    Rows are normalized to plain dicts and sorted DESC by ``period_ending``
+    so index 0 is the most recent fiscal period.
+    """
+    fetch = getattr(_obb().equity.fundamental, kind)
+    res = fetch(symbol=symbol, provider="fmp_cached", period=period, limit=2)
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    out.sort(key=lambda d: _iso(d.get("period_ending")), reverse=True)
+    return out
+
+
+def _fetch_statements_rows(
+    symbol: str, period: str
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Fetch income, balance, and cash statements for ``symbol``/``period``."""
+    provider_period = _STATEMENT_PERIOD_MAP.get(period, "annual")
+    income = _fetch_statement("income", symbol, provider_period)
+    balance = _fetch_statement("balance", symbol, provider_period)
+    cash = _fetch_statement("cash", symbol, provider_period)
+    return income, balance, cash
+
+
+def _shape_statements(
+    income: list[dict], balance: list[dict], cash: list[dict]
+) -> list[dict]:
+    """Map three statements to the 9-row ``{line_item, period_1, period_2}``.
+
+    Pure (no I/O). Each source list is assumed latest-first; index 0 fills
+    ``period_1`` and index 1 fills ``period_2`` (``None`` when absent).
+    """
+    src = {"income": income, "balance": balance, "cash": cash}
+
+    def _value(source: str, field: str, idx: int) -> Any:
+        rows = src[source]
+        if idx < len(rows):
+            return rows[idx].get(field)
+        return None
+
+    out: list[dict] = []
+    for label, source, field in _STATEMENT_ITEMS:
+        out.append(
+            {
+                "line_item": label,
+                "period_1": _value(source, field, 0),
+                "period_2": _value(source, field, 1),
+            }
+        )
+    return out
+
+
+def _statements_fmp_cached(*, symbol: str, period: str = "annual") -> list[dict]:
+    """Tier call: fetch the three live statements from fmp_cached and shape them.
+
+    Empty output (no statement returned any row) is loud (WARNING) and returned
+    as ``[]`` so the chain transitions to the next tier / the endpoint stub.
+    """
+    income, balance, cash = _fetch_statements_rows(symbol, period)
+    if not (income or balance or cash):
+        logger.warning(
+            "statements fmp_cached returned 0 rows for %s (period=%s) "
+            "— chain will transition to the next tier/stub",
+            symbol,
+            period,
+        )
+        return []
+    return _shape_statements(income, balance, cash)
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -1019,6 +1127,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("equity/company-filings", "fmp_cached", _company_filings_fmp_cached)
     register("equity/stock-splits", "fmp_cached", _stock_splits_fmp_cached)
     register("charting", "fmp_cached", _charting_fmp_cached)
+    register("equity/statements", "fmp_cached", _statements_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports
