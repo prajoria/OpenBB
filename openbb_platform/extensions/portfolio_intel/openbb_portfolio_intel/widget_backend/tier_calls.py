@@ -21,6 +21,7 @@ Wiring status
 - ``equity/revenue-business-line`` -> ``fmp_cached`` (full-wiring of stub #1650, #1906)
 - ``equity/dividend-payment`` -> ``fmp_cached`` (full-wiring of stub #1665, #1908)
 - ``equity/insider-trading`` -> ``fmp_cached`` (full-wiring of stub #1661, #1910)
+- ``equity/earnings-history`` -> ``fmp_cached`` (full-wiring of stub #1663, #1912)
 """
 
 from __future__ import annotations
@@ -600,6 +601,111 @@ def _insider_trading_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# earnings-history (#1912 — full-wiring of #1663)
+# ---------------------------------------------------------------------------
+#
+# ``obb.equity.fundamental.historical_eps(provider="fmp_cached")`` returns
+# ``HistoricalEps`` (``symbol, date, eps_actual, eps_estimated, ...``). The
+# widget contract is ``[{quarter, eps_actual, eps_estimate, surprise_pct}]``,
+# newest-first. The standard model carries NO fiscal-period label, so
+# ``quarter`` is derived as the calendar quarter of the report ``date``
+# (``"Q{n} {year}"``) — a deterministic, non-fabricated label documented as
+# "quarter the results were reported in", not a fiscal period.
+
+_EARNINGS_LIMIT = 8
+
+
+def _fetch_earnings_rows(symbol: str) -> list[dict]:
+    """Fetch historical EPS rows for ``symbol`` from ``fmp_cached``.
+
+    Returns a list of plain dicts (``model_dump`` per row). Errors propagate
+    to the caller, which the chain classifies as a tier transition.
+    """
+    res = _obb().equity.fundamental.historical_eps(symbol=symbol, provider="fmp_cached")
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _calendar_quarter_label(value: Any) -> str | None:
+    """Return ``"Q{n} {year}"`` for a date-like value, else ``None``.
+
+    ``n`` is the calendar quarter (1-4) of the value's month. Non-date values
+    or ``None`` yield ``None``.
+    """
+    month = getattr(value, "month", None)
+    year = getattr(value, "year", None)
+    if month is None or year is None:
+        return None
+    return f"Q{(month - 1) // 3 + 1} {year}"
+
+
+def _shape_earnings_history(rows: list[dict]) -> list[dict]:
+    """Shape EPS rows to ``[{quarter, eps_actual, eps_estimate, surprise_pct}]``.
+
+    Maps ``eps_estimated`` -> ``eps_estimate``; computes ``surprise_pct`` =
+    ``(actual - estimate) / abs(estimate) * 100`` rounded to 2 decimals
+    (``None`` when estimate is ``None`` or ``0``). ``quarter`` is the calendar
+    quarter of the report ``date``. Rows with null ``eps_actual`` (future /
+    unreported) or no derivable quarter are skipped. Sorted newest-first,
+    capped to ``_EARNINGS_LIMIT``. Pure (no I/O).
+    """
+    kept: list[dict] = []
+    for r in rows:
+        actual = r.get("eps_actual")
+        if actual is None:
+            continue
+        quarter = _calendar_quarter_label(r.get("date"))
+        if quarter is None:
+            continue
+        estimate = r.get("eps_estimated")
+        surprise = (
+            None
+            if estimate in (None, 0)
+            else round((actual - estimate) / abs(estimate) * 100, 2)
+        )
+        kept.append(
+            {
+                "quarter": quarter,
+                "eps_actual": actual,
+                "eps_estimate": estimate,
+                "surprise_pct": surprise,
+                "_sort": _iso_date(r.get("date")) or "",
+            }
+        )
+    kept.sort(key=lambda r: r["_sort"], reverse=True)
+    out: list[dict] = []
+    for r in kept[:_EARNINGS_LIMIT]:
+        r.pop("_sort", None)
+        out.append(r)
+    return out
+
+
+def _earnings_history_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live historical EPS from fmp_cached and shape it.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_earnings_rows(symbol)
+    shaped = _shape_earnings_history(rows)
+    if not shaped:
+        logger.warning(
+            "earnings-history fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -622,6 +728,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     )
     register("equity/dividend-payment", "fmp_cached", _dividend_payment_fmp_cached)
     register("equity/insider-trading", "fmp_cached", _insider_trading_fmp_cached)
+    register("equity/earnings-history", "fmp_cached", _earnings_history_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports
