@@ -1688,14 +1688,18 @@ def equity_earnings_history(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_stock_splits(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | int]]:
-    """Return Stock Splits rows (#1664) — historical split events (table)."""
+    """Return Stock Splits rows (#1664) — historical split events (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/stock-splits`` tier call
+    (#1916); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1664): wire to FMPCachedHistoricalSplitsFetcher.
     return [
         {"date": "2020-08-31", "numerator": 4, "denominator": 1, "ratio": "4:1"},
         {"date": "2014-06-09", "numerator": 7, "denominator": 1, "ratio": "7:1"},

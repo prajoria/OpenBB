@@ -23,6 +23,7 @@ Wiring status
 - ``equity/insider-trading`` -> ``fmp_cached`` (full-wiring of stub #1661, #1910)
 - ``equity/earnings-history`` -> ``fmp_cached`` (full-wiring of stub #1663, #1912)
 - ``equity/company-filings`` -> ``fmp_cached`` (full-wiring of stub #1666, #1914)
+- ``equity/stock-splits`` -> ``fmp_cached`` (full-wiring of stub #1664, #1916)
 """
 
 from __future__ import annotations
@@ -777,6 +778,89 @@ def _company_filings_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# stock-splits (#1916 — full-wiring of #1664)
+# ---------------------------------------------------------------------------
+
+
+_SPLITS_LIMIT = 20
+
+
+def _fetch_splits_rows(symbol: str) -> list[dict]:
+    """Fetch historical split rows for ``symbol`` from ``fmp_cached``.
+
+    Returns a list of plain dicts (``model_dump`` per row). Errors propagate
+    to the caller, which the chain classifies as a tier transition.
+    """
+    res = _obb().equity.fundamental.historical_splits(
+        symbol=symbol, provider="fmp_cached"
+    )
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _whole_number(value: Any) -> int | float:
+    """Coerce a whole float (e.g. ``4.0``) to ``int``; leave others as-is."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
+
+
+def _shape_stock_splits(rows: list[dict]) -> list[dict]:
+    """Shape split rows to ``[{date, numerator, denominator, ratio}]``.
+
+    ``date`` is ISO-stringified. ``numerator``/``denominator`` are coerced to
+    ``int`` when whole (fmp yields floats like ``4.0``). ``ratio`` is derived
+    as ``"{numerator}:{denominator}"`` (fmp's own ``split_ratio`` is null).
+    Rows with no date or a null numerator/denominator are skipped. Sorted by
+    date newest-first, capped to ``_SPLITS_LIMIT``. Pure (no I/O).
+    """
+    kept: list[dict] = []
+    for r in rows:
+        date = _iso_date(r.get("date"))
+        numerator = r.get("numerator")
+        denominator = r.get("denominator")
+        if date is None or numerator is None or denominator is None:
+            continue
+        num = _whole_number(numerator)
+        den = _whole_number(denominator)
+        kept.append(
+            {
+                "date": date,
+                "numerator": num,
+                "denominator": den,
+                "ratio": f"{num}:{den}",
+            }
+        )
+    kept.sort(key=lambda r: r["date"], reverse=True)
+    return kept[:_SPLITS_LIMIT]
+
+
+def _stock_splits_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live historical splits from fmp_cached and shape them.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_splits_rows(symbol)
+    shaped = _shape_stock_splits(rows)
+    if not shaped:
+        logger.warning(
+            "stock-splits fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -801,6 +885,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("equity/insider-trading", "fmp_cached", _insider_trading_fmp_cached)
     register("equity/earnings-history", "fmp_cached", _earnings_history_fmp_cached)
     register("equity/company-filings", "fmp_cached", _company_filings_fmp_cached)
+    register("equity/stock-splits", "fmp_cached", _stock_splits_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports
