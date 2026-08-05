@@ -7,13 +7,18 @@ schema, mode dispatch, and screenshot-path PII guards.
 
 from __future__ import annotations
 
+import os
+
 import pytest
+
+pytest.importorskip("playwright")
 
 from openbb_browser_test_harness.drivers import _WORKSPACE_AVAILABLE
 from openbb_browser_test_harness.drivers.workspace_driver import (
     WorkspaceDriver,
     WorkspaceDriverError,
     _default_profile_dir,
+    _pick_random_port,
 )
 
 
@@ -61,3 +66,49 @@ def test_workspace_driver_screenshots_dir_none_by_default() -> None:
 def test_workspace_driver_error_type_exists() -> None:
     """Sanity — WorkspaceDriverError is a distinct error type."""
     assert issubclass(WorkspaceDriverError, RuntimeError)
+
+
+# ---------------------------------------------------------------------------
+# Random-port isolation + spawn/attach mode (#1789)
+# ---------------------------------------------------------------------------
+
+
+def test_pick_random_port_returns_valid_ephemeral_int() -> None:
+    """`_pick_random_port` returns a bindable int inside the 16-bit range."""
+    port = _pick_random_port()
+    assert isinstance(port, int)
+    assert 1024 <= port <= 65535
+
+
+def test_pick_random_port_returns_distinct_ports() -> None:
+    """Two calls should generally return different ports — loop to de-flake."""
+    seen: set[int] = set()
+    for _ in range(6):
+        seen.add(_pick_random_port())
+        if len(seen) >= 2:
+            break
+    assert len(seen) >= 2, f"expected >=2 distinct ports across 6 calls, got {seen}"
+
+
+def test_workspace_driver_records_spawn_mode_when_backend_url_none() -> None:
+    """Constructing without backend_url records spawn mode (#1789)."""
+    d = WorkspaceDriver(backend_url=None)
+    assert d._spawn_backend is True
+    assert d._resolved_backend_url is None
+
+
+def test_workspace_driver_records_attach_mode_when_backend_url_provided() -> None:
+    """Constructing with backend_url records attach mode (#1789)."""
+    d = WorkspaceDriver(backend_url="http://127.0.0.1:6120")
+    assert d._spawn_backend is False
+    assert d._resolved_backend_url == "http://127.0.0.1:6120"
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    os.getenv("RUN_WORKSPACE_HARNESS") != "1",
+    reason="Live workspace run gated by RUN_WORKSPACE_HARNESS=1",
+)
+def test_workspace_driver_live_smoke_placeholder() -> None:
+    """Placeholder — real end-to-end run wired via the workflow_dispatch job."""
+    assert os.getenv("RUN_WORKSPACE_HARNESS") == "1"
