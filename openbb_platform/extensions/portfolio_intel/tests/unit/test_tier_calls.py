@@ -2125,3 +2125,176 @@ def test_statements_fmp_cached_live() -> None:
     # At least the latest revenue should be a real number.
     by = {r["line_item"]: r for r in shaped}
     assert by["Revenue"]["period_1"] is not None, "no live revenue"
+
+
+# ---------------------------------------------------------------------------
+# peer-multiples / competitors (#1923 — full-wiring of #1657)
+# ---------------------------------------------------------------------------
+
+
+def test_shape_peer_row_maps_ratios_and_metrics() -> None:
+    """pe_ttm/ps_ttm come from ratios, ev_ebitda from metrics; pe_fwd is None."""
+    ratios = {"price_to_earnings": 32.1, "price_to_sales": 8.7}
+    metrics = {"ev_to_ebitda": 24.8}
+    row = tier_calls._shape_peer_row("AAPL", ratios, metrics)
+    assert row == {
+        "symbol": "AAPL",
+        "pe_ttm": 32.1,
+        "pe_fwd": None,
+        "ev_ebitda": 24.8,
+        "ps_ttm": 8.7,
+    }
+
+
+def test_shape_peer_row_missing_fields_are_none() -> None:
+    """Absent provider fields yield None (no KeyError), pe_fwd always None."""
+    row = tier_calls._shape_peer_row("XYZ", {}, {})
+    assert row["symbol"] == "XYZ"
+    assert row["pe_ttm"] is None
+    assert row["pe_fwd"] is None
+    assert row["ev_ebitda"] is None
+    assert row["ps_ttm"] is None
+
+
+def test_shape_peer_row_coerces_numeric_strings() -> None:
+    """Numeric-ish strings are coerced to float; junk becomes None."""
+    row = tier_calls._shape_peer_row(
+        "AAPL", {"price_to_earnings": "15.5", "price_to_sales": "n/a"}, {}
+    )
+    assert row["pe_ttm"] == 15.5
+    assert row["ps_ttm"] is None
+
+
+def test_fetch_peer_symbols_caps_and_dedupes_self_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Self is first; peers deduped; total capped at _PEER_CAP + 1."""
+
+    class _Peer:
+        def __init__(self, s: str) -> None:
+            self.symbol = s
+
+    class _Res:
+        results = [_Peer(s) for s in ["MSFT", "GOOGL", "META", "NVDA", "TSM", "AMD"]]
+
+    class _Compare:
+        def peers(self, **_kwargs: object) -> _Res:
+            return _Res()
+
+    class _Equity:
+        compare = _Compare()
+
+    class _OBB:
+        equity = _Equity()
+
+    monkeypatch.setattr(tier_calls, "_obb", lambda: _OBB())
+    out = tier_calls._fetch_peer_symbols("AAPL")
+    assert out[0] == "AAPL"
+    assert len(out) == tier_calls._PEER_CAP + 1
+    assert len(out) == len(set(out)), "duplicates present"
+
+
+def test_peer_multiples_tier_call_composes_symbols_and_valuation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tier call fans out over symbols and shapes each valuation row."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_peer_symbols", lambda symbol: ["AAPL", "MSFT"]
+    )
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_valuation",
+        lambda sym: (
+            {"price_to_earnings": 30.0, "price_to_sales": 8.0},
+            {"ev_to_ebitda": 20.0},
+        ),
+    )
+    call = _TIER_CALLS[("equity/peer-multiples", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert [r["symbol"] for r in out] == ["AAPL", "MSFT"]
+    assert out[0]["pe_ttm"] == 30.0
+    assert out[0]["pe_fwd"] is None
+
+
+def test_peer_multiples_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When no peer symbols resolve, WARN (0 rows) and return []."""
+    monkeypatch.setattr(tier_calls, "_fetch_peer_symbols", lambda symbol: [])
+    call = _TIER_CALLS[("equity/peer-multiples", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_peer_multiples() -> None:
+    """The production registration wires the fmp_cached peer-multiples tier."""
+    assert ("equity/peer-multiples", "fmp_cached") in _TIER_CALLS
+
+
+def test_peer_multiples_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint serves live-shaped rows.
+
+    The stub's second row is MSFT with pe_ttm 34.9; the fixture yields a
+    single self row with pe_fwd None and a distinct pe_ttm, proving the tier
+    served (not the demo stub).
+    """
+    monkeypatch.setattr(tier_calls, "_fetch_peer_symbols", lambda symbol: ["AAPL"])
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_valuation",
+        lambda sym: ({"price_to_earnings": 11.1, "price_to_sales": 2.2}, {}),
+    )
+    resp = _client.get("/pi/equity/peer-multiples?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows, "empty response"
+    assert rows[0]["pe_fwd"] is None, "served the stub!"
+    assert rows[0]["pe_ttm"] == 11.1, "served the stub!"
+
+
+def test_peer_multiples_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[str]:
+        seen["symbol"] = symbol
+        return [symbol]
+
+    monkeypatch.setattr(tier_calls, "_fetch_peer_symbols", _capture)
+    monkeypatch.setattr(tier_calls, "_fetch_valuation", lambda sym: ({}, {}))
+    resp = _client.get("/pi/equity/peer-multiples?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_peer_multiples_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(tier_calls, "_fetch_peer_symbols", lambda symbol: [symbol])
+    monkeypatch.setattr(tier_calls, "_fetch_valuation", lambda sym: ({}, {}))
+    resp = _client.get("/pi/equity/peer-multiples?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_peer_multiples_fmp_cached_live() -> None:
+    """Live: fmp_cached resolves AAPL peers + real trailing multiples."""
+    symbols = tier_calls._fetch_peer_symbols("AAPL")
+    assert symbols and symbols[0] == "AAPL", "peers not resolved — wiring broken"
+    ratios, metrics = tier_calls._fetch_valuation("AAPL")
+    row = tier_calls._shape_peer_row("AAPL", ratios, metrics)
+    assert set(row) == {"symbol", "pe_ttm", "pe_fwd", "ev_ebitda", "ps_ttm"}
+    assert row["pe_fwd"] is None
+    # At least one trailing multiple should be live.
+    assert (
+        row["pe_ttm"] is not None
+        or row["ps_ttm"] is not None
+        or row["ev_ebitda"] is not None
+    ), "no live valuation multiple"
