@@ -528,3 +528,135 @@ def test_management_team_fmp_cached_live() -> None:
     assert shaped, "no named executives — shaper produced empty"
     assert set(shaped[0]) == {"name", "title", "pay_usd", "tenure_years"}
     assert shaped[0]["tenure_years"] is None
+
+
+# ---------------------------------------------------------------------------
+# revenue-geography (#1904 — full-wiring of #1649)
+# ---------------------------------------------------------------------------
+
+
+def _geo_rows() -> list[dict]:
+    """Realistic fmp_cached revenue-by-geography dump spanning two periods.
+
+    Real ``RevenueGeographicData`` rows carry ``period_ending, fiscal_period,
+    fiscal_year, filing_date, region, revenue``. Two fiscal periods are
+    present so the shaper's latest-period selection is exercised; the latest
+    period (2026-09-30) also has a **split** Americas segment to exercise
+    per-region aggregation, plus a null-revenue row to exercise the skip.
+    """
+    old = _dt.date(2025, 9, 30)
+    new = _dt.date(2026, 9, 30)
+    return [
+        {"period_ending": old, "region": "Americas", "revenue": 100_000},
+        {"period_ending": old, "region": "Europe", "revenue": 50_000},
+        {"period_ending": new, "region": "Americas", "revenue": 120_000},
+        {"period_ending": new, "region": "Americas", "revenue": 5_000},
+        {"period_ending": new, "region": "Europe", "revenue": 60_000},
+        {"period_ending": new, "region": "Greater China", "revenue": None},
+    ]
+
+
+def test_shape_revenue_geography_latest_period_and_aggregates() -> None:
+    """Only the latest period; revenue summed per region; null revenue dropped."""
+    out = tier_calls._shape_revenue_geography(_geo_rows())
+    assert out == [
+        {"region": "Americas", "revenue": 125_000},
+        {"region": "Europe", "revenue": 60_000},
+    ]
+
+
+def test_shape_revenue_geography_empty_when_no_periods() -> None:
+    """Rows lacking period_ending yield [] (nothing to anchor 'latest' on)."""
+    assert tier_calls._shape_revenue_geography([{"region": "X", "revenue": 1}]) == []
+
+
+def test_geo_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes fetch + shape into contract rows."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_revenue_geography_rows", lambda symbol: _geo_rows()
+    )
+    call = _TIER_CALLS[("equity/revenue-geography", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert out == [
+        {"region": "Americas", "revenue": 125_000},
+        {"region": "Europe", "revenue": 60_000},
+    ]
+
+
+def test_geo_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
+    monkeypatch.setattr(tier_calls, "_fetch_revenue_geography_rows", lambda symbol: [])
+    call = _TIER_CALLS[("equity/revenue-geography", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_revenue_geography() -> None:
+    """The production registration wires the fmp_cached revenue-geography tier."""
+    assert ("equity/revenue-geography", "fmp_cached") in _TIER_CALLS
+
+
+def test_geo_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint returns the tier's shaped rows.
+
+    The stub emits Americas=162560; the fixture's latest period yields
+    Americas=125000. Asserting the fixture value proves the tier served.
+    """
+    monkeypatch.setattr(
+        tier_calls, "_fetch_revenue_geography_rows", lambda symbol: _geo_rows()
+    )
+    resp = _client.get("/pi/equity/revenue-geography?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert {"region": "Americas", "revenue": 125_000} in rows
+    assert not any(r["revenue"] == 162560 for r in rows), "served the stub!"
+
+
+def test_geo_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _geo_rows()
+
+    monkeypatch.setattr(tier_calls, "_fetch_revenue_geography_rows", _capture)
+    resp = _client.get("/pi/equity/revenue-geography?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_geo_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_revenue_geography_rows", lambda symbol: _geo_rows()
+    )
+    resp = _client.get("/pi/equity/revenue-geography?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_revenue_geography_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real geographic revenue the shaper can consume.
+
+    Not ``plan_limited`` — ``equity.fundamental.revenue_per_geography`` is
+    covered by our current FMP key (verified during the #1904 probe).
+    """
+    rows = tier_calls._fetch_revenue_geography_rows("AAPL")
+    assert rows, "fmp_cached returned no AAPL geo revenue — wiring broken"
+    shaped = tier_calls._shape_revenue_geography(rows)
+    assert shaped, "no regions in latest period — shaper produced empty"
+    assert set(shaped[0]) == {"region", "revenue"}
+    assert isinstance(shaped[0]["revenue"], (int, float))

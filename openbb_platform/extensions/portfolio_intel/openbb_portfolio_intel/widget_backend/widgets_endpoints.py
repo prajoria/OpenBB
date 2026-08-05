@@ -1473,14 +1473,18 @@ def equity_management_team(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_revenue_geography(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Return Revenue Per Geography rows (#1649) — region/revenue (chart raw)."""
+    """Return Revenue Per Geography rows (#1649) — region/revenue (chart raw).
+
+    Live-served from ``fmp_cached`` via the ``equity/revenue-geography`` tier
+    call (#1904); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1649): wire to FMPRevenueGeographicFetcher via fmp_cached.
     return [
         {"region": "Americas", "revenue": 162560},
         {"region": "Europe", "revenue": 94294},

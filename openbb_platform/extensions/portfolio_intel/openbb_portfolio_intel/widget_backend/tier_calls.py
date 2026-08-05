@@ -17,6 +17,7 @@ Wiring status
 - ``equity/price-history`` -> ``fmp_cached`` (full-wiring of stub #1702, #1898)
 - ``equity/price-performance`` -> ``fmp_cached`` (full-wiring of stub #1645, #1900)
 - ``equity/management-team`` -> ``fmp_cached`` (full-wiring of stub #1648, #1902)
+- ``equity/revenue-geography`` -> ``fmp_cached`` (full-wiring of stub #1649, #1904)
 """
 
 from __future__ import annotations
@@ -270,6 +271,80 @@ def _management_team_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# revenue-geography (#1904 — full-wiring of #1649)
+# ---------------------------------------------------------------------------
+#
+# ``obb.equity.fundamental.revenue_per_geography(provider="fmp_cached")``
+# returns ``RevenueGeographicData`` — one row per ``(period_ending, region)``
+# across many fiscal periods. The widget is a pie chart with the contract
+# ``[{region, revenue}]``, so we select the single latest ``period_ending``
+# and aggregate revenue by region within it (guards against duplicate pie
+# labels / split segments in one period).
+
+
+def _fetch_revenue_geography_rows(symbol: str) -> list[dict]:
+    """Fetch revenue-by-geography rows for ``symbol`` from ``fmp_cached``.
+
+    Returns a list of plain dicts (``model_dump`` per row). Errors propagate
+    to the caller, which the chain classifies as a tier transition.
+    """
+    res = _obb().equity.fundamental.revenue_per_geography(
+        symbol=symbol, provider="fmp_cached"
+    )
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _shape_revenue_geography(rows: list[dict]) -> list[dict]:
+    """Shape geographic-revenue rows to the pie contract ``[{region, revenue}]``.
+
+    Selects the single latest ``period_ending`` present, then aggregates
+    ``revenue`` by ``region`` within that period. Rows with a null region or
+    null revenue are ignored. Region insertion order (first seen in the
+    latest period) is preserved. Pure (no I/O).
+    """
+    dated = [r for r in rows if r.get("period_ending") is not None]
+    if not dated:
+        return []
+    latest = max(r["period_ending"] for r in dated)
+    agg: dict[str, float] = {}
+    for r in dated:
+        if r["period_ending"] != latest:
+            continue
+        region = r.get("region")
+        revenue = r.get("revenue")
+        if not region or revenue is None:
+            continue
+        agg[region] = agg.get(region, 0) + revenue
+    return [{"region": region, "revenue": revenue} for region, revenue in agg.items()]
+
+
+def _revenue_geography_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live geographic revenue from fmp_cached and shape it.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_revenue_geography_rows(symbol)
+    shaped = _shape_revenue_geography(rows)
+    if not shaped:
+        logger.warning(
+            "revenue-geography fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -284,6 +359,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("equity/price-history", "fmp_cached", _price_history_fmp_cached)
     register("equity/price-performance", "fmp_cached", _price_performance_fmp_cached)
     register("equity/management-team", "fmp_cached", _management_team_fmp_cached)
+    register("equity/revenue-geography", "fmp_cached", _revenue_geography_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports
