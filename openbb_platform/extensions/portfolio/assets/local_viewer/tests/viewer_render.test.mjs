@@ -49,7 +49,8 @@ function extractFn(src, name) {
 // Build a sandbox with the pure helpers under test.
 function loadHelpers() {
   const src = scriptBody(HTML);
-  const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "metricModel", "inlineOptionsHtml"];
+  const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "metricModel", "inlineOptionsHtml",
+    "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ") + " };";
   const ctx = {};
@@ -304,4 +305,75 @@ test("inlineOptionsHtml tolerates bare-string options and empty input (#1886)", 
   assert.match(H.inlineOptionsHtml(["PASS", "FAIL"], "FAIL"), /<option value="FAIL" selected>FAIL<\/option>/);
   assert.equal(H.inlineOptionsHtml(undefined, ""), "");
   assert.equal(H.inlineOptionsHtml([], ""), "");
+});
+
+// --------------------------------------------------------------------------
+// #1890 — app switcher moves into a left sidebar (nav buttons, active marked)
+// --------------------------------------------------------------------------
+test("sidebarAppsHtml builds one nav button per app, marks the active one (#1890)", () => {
+  const html = H.sidebarAppsHtml(
+    [{ name: "Overview" }, { name: "Terminal" }, { name: "Techtrade" }],
+    1,
+  );
+  assert.equal((html.match(/data-app=/g) || []).length, 3, "one nav entry per app");
+  assert.match(html, /data-app="0"[^>]*>Overview</);
+  // the active index (1) carries the active class
+  assert.match(html, /class="[^"]*active[^"]*"[^>]*data-app="1"[^>]*>Terminal</);
+  // non-active entries must NOT be marked active
+  assert.doesNotMatch(html, /class="[^"]*active[^"]*"[^>]*data-app="0"/);
+});
+
+test("sidebarAppsHtml escapes app names and loud-empties on no apps (#1890)", () => {
+  assert.match(H.sidebarAppsHtml([{ name: "<x>&\"" }], 0), /&lt;x&gt;&amp;&quot;/);
+  assert.equal(H.sidebarAppsHtml([], 0), "");
+  assert.equal(H.sidebarAppsHtml(undefined, 0), "");
+});
+
+// --------------------------------------------------------------------------
+// #1893 / #1892 — floating grid math: px<->grid snap, clamp, style, merge
+// --------------------------------------------------------------------------
+test("pxToGridRect rounds pixel rect to grid units (#1893)", () => {
+  const geom = { colW: 10, rowH: 30 };
+  // left=98 -> 10, top=61 -> 2, width=201 -> 20, height=89 -> 3
+  assert.deepEqual(
+    { ...H.pxToGridRect({ left: 98, top: 61, width: 201, height: 89 }, geom) },
+    { x: 10, y: 2, w: 20, h: 3 },
+  );
+});
+
+test("clampGridItem enforces min size, column bounds, and no negatives (#1892)", () => {
+  const opts = { cols: 40, minW: 8, minH: 4 };
+  // w below min -> minW; h below min -> minH; negative x -> 0
+  assert.deepEqual({ ...H.clampGridItem({ x: -5, y: -3, w: 2, h: 1 }, opts) }, { x: 0, y: 0, w: 8, h: 4 });
+  // x pushed so x+w would exceed cols -> x clamped to cols-w
+  assert.deepEqual({ ...H.clampGridItem({ x: 39, y: 5, w: 20, h: 9 }, opts) }, { x: 20, y: 5, w: 20, h: 9 });
+  // w wider than the grid -> clamped to cols, x -> 0
+  assert.deepEqual({ ...H.clampGridItem({ x: 3, y: 0, w: 99, h: 9 }, opts) }, { x: 0, y: 0, w: 40, h: 9 });
+});
+
+test("gridItemStyle maps grid units to pixel box (#1893)", () => {
+  const geom = { colW: 12, rowH: 30 };
+  assert.deepEqual(
+    { ...H.gridItemStyle({ x: 2, y: 3, w: 20, h: 9 }, geom) },
+    { left: 24, top: 90, width: 240, height: 270 },
+  );
+});
+
+test("mergeLayout applies saved per-id overrides over apps.json defaults (#1893)", () => {
+  const def = [
+    { i: "a", x: 0, y: 0, w: 20, h: 9 },
+    { i: "b", x: 20, y: 0, w: 20, h: 9 },
+  ];
+  const merged = H.mergeLayout(def, { b: { x: 0, y: 9, w: 40, h: 12 } });
+  const a = merged.find((m) => m.i === "a");
+  const b = merged.find((m) => m.i === "b");
+  assert.deepEqual({ x: a.x, y: a.y, w: a.w, h: a.h }, { x: 0, y: 0, w: 20, h: 9 }, "unoverridden default unchanged");
+  assert.deepEqual({ x: b.x, y: b.y, w: b.w, h: b.h }, { x: 0, y: 9, w: 40, h: 12 }, "override applied");
+  // must not mutate the input defaults
+  assert.equal(def[1].x, 20, "mergeLayout must not mutate the default layout");
+});
+
+test("mergeLayout loud-empties gracefully on missing inputs (#1893)", () => {
+  assert.equal(H.mergeLayout(undefined, undefined).length, 0);
+  assert.equal(H.mergeLayout([{ i: "a", x: 1, y: 2, w: 3, h: 4 }], undefined).length, 1);
 });

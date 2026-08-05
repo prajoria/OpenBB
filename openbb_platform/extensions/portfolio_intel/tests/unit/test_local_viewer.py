@@ -39,6 +39,10 @@ def test_viewer_route_is_mounted_on_6120():
 def test_viewer_reuses_canonical_asset_with_new_renderers():
     """The served page is the shared SPA with the #1805 renderers + app
     switcher (proves reuse of the canonical asset, not a stale copy).
+
+    The app switcher moved from a top-bar ``<select id="app-select">`` into a
+    collapsible left sidebar (``<nav id="app-nav">``, #1890); assert the new
+    marker so the test tracks the current switcher location.
     """
     pytest.importorskip("openbb_portfolio")
     body = _client.get("/viewer").text
@@ -46,7 +50,8 @@ def test_viewer_reuses_canonical_asset_with_new_renderers():
         "function renderChart",
         "function renderMarkdown",
         "function renderMetric",
-        'id="app-select"',
+        'id="app-nav"',
+        "function sidebarAppsHtml",
         "/widgets.json",
         "/apps.json",
     ):

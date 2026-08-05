@@ -34,13 +34,46 @@
     button:hover:not(:disabled) { border-color: var(--accent); }
     button:disabled { opacity: .5; cursor: not-allowed; }
     .main { flex: 1; display: flex; min-height: 0; }
+    /* Left sidebar app switcher (#1890) — collapsible, persisted */
+    .sidebar {
+      width: 210px; flex-shrink: 0; display: flex; flex-direction: column;
+      border-right: 1px solid var(--border); background: var(--panel);
+      transition: width .15s ease; overflow: hidden;
+    }
+    .sidebar .side-head {
+      padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    .app-nav { display: flex; flex-direction: column; gap: 4px; padding: 8px; overflow: auto; }
+    .app-nav-item {
+      text-align: left; background: transparent; border: 1px solid transparent;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .app-nav-item:hover { border-color: var(--border); }
+    .app-nav-item.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    body.side-collapsed .sidebar { width: 0; border-right: 0; }
     .dashboard { flex: 1; display: flex; flex-direction: column; min-width: 0; }
     .tabs { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); overflow-x: auto; }
     .tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .grid { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+    /* Floating grid canvas (#1893) — widgets are absolutely positioned tiles */
+    .grid { flex: 1; overflow: auto; padding: 12px; position: relative; }
+    .canvas { position: relative; width: 100%; }
     .widget {
+      position: absolute; display: flex; flex-direction: column;
       background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
     }
+    .widget.dragging, .widget.resizing { z-index: 5; box-shadow: 0 6px 22px rgba(0,0,0,.45); opacity: .96; }
+    .widget > .whead { cursor: move; user-select: none; }
+    .widget > .whead .params { cursor: default; }
+    /* bottom-right resize grip (#1892) */
+    .widget .rz {
+      position: absolute; right: 2px; bottom: 2px; width: 15px; height: 15px;
+      cursor: nwse-resize; z-index: 6;
+      background:
+        linear-gradient(135deg, transparent 0 55%, var(--muted) 55% 62%, transparent 62% 74%, var(--muted) 74% 82%, transparent 82%);
+      opacity: .6;
+    }
+    .widget .rz:hover { opacity: 1; }
     .widget > .whead {
       display: flex; align-items: center; gap: 10px; padding: 8px 12px;
       border-bottom: 1px solid var(--border); background: var(--panel2); flex-wrap: wrap;
@@ -48,7 +81,7 @@
     .widget > .whead .wname { font-weight: 600; }
     .widget > .whead .params { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
     .widget > .whead label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
-    .wbody { padding: 0; max-height: 460px; overflow: auto; }
+    .wbody { padding: 0; flex: 1; min-height: 0; overflow: auto; }
     .state { padding: 16px; color: var(--muted); font-size: 13px; }
     .state.err { color: var(--red); }
     table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
@@ -98,14 +131,19 @@
 </head>
 <body>
   <header>
+    <button id="side-toggle" title="Toggle app sidebar" aria-label="Toggle app sidebar">☰</button>
     <h1>Local Workspace Viewer</h1>
-    <select id="app-select" title="Switch app"></select>
     <span class="badge" id="app-badge">loading…</span>
     <span class="badge" title="This viewer is served same-origin and renders /apps.json + /widgets.json">local &middot; offline</span>
     <div class="spacer"></div>
+    <button id="reset-layout" title="Reset this tab's widget layout to defaults">⤢ Reset layout</button>
     <button id="refresh-btn" title="Reload all widgets in the active tab">↻ Refresh</button>
   </header>
   <div class="main">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-head">Apps</div>
+      <nav class="app-nav" id="app-nav"></nav>
+    </aside>
     <div class="dashboard">
       <div class="tabs" id="tabs"></div>
       <div class="grid" id="grid"><div class="state">Loading dashboard…</div></div>
@@ -599,10 +637,177 @@
     }).join("");
   }
 
+  //--------------------------------------------------------------------------
+  // Left sidebar app switcher (#1890) + floating grid layout (#1893, #1892).
+  // The apps.json layout already carries {i,x,y,w,h} on a 40-column grid; the
+  // viewer previously ignored it and stacked widgets vertically. These pure
+  // helpers turn those coords into a draggable/resizable canvas and are
+  // unit-tested in tests/viewer_render.test.mjs.
+  //--------------------------------------------------------------------------
+  const GRID_COLS = 40;   // OpenBB-Workspace grid width (x in [0..40])
+  const GRID_ROW = 30;    // px per row unit (h=9 -> ~270px tile)
+  const MIN_W = 8;        // smallest tile width in grid columns
+  const MIN_H = 4;        // smallest tile height in grid rows
+
+  // Sidebar nav markup: one button per app, active index highlighted (#1890).
+  function sidebarAppsHtml(apps, activeIdx) {
+    if (!Array.isArray(apps) || !apps.length) return "";
+    return apps.map((a, i) => {
+      const name = escapeHtml((a && a.name) || ("App " + (i + 1)));
+      const cls = i === activeIdx ? "app-nav-item active" : "app-nav-item";
+      return `<button class="${cls}" data-app="${i}" title="${name}">${name}</button>`;
+    }).join("");
+  }
+
+  // Snap a pixel rect to whole grid units (used by drag + resize) (#1893).
+  function pxToGridRect(px, geom) {
+    return {
+      x: Math.round(px.left / geom.colW),
+      y: Math.round(px.top / geom.rowH),
+      w: Math.round(px.width / geom.colW),
+      h: Math.round(px.height / geom.rowH),
+    };
+  }
+
+  // Keep a grid item within the canvas + above the minimum size (#1892).
+  function clampGridItem(item, opts) {
+    const w = Math.max(opts.minW, Math.min(opts.cols, item.w));
+    const h = Math.max(opts.minH, item.h);
+    const x = Math.max(0, Math.min(opts.cols - w, item.x));
+    const y = Math.max(0, item.y);
+    return { x, y, w, h };
+  }
+
+  // Grid units -> absolute pixel box for the tile (#1893).
+  function gridItemStyle(item, geom) {
+    return {
+      left: item.x * geom.colW,
+      top: item.y * geom.rowH,
+      width: item.w * geom.colW,
+      height: item.h * geom.rowH,
+    };
+  }
+
+  // Layer saved per-widget overrides over the apps.json default layout (#1893).
+  // Returns fresh objects — never mutates the defaults.
+  function mergeLayout(defaultLayout, overrides) {
+    const ov = overrides || {};
+    return (defaultLayout || []).map((it) => {
+      const o = ov[it.i];
+      return o ? { ...it, x: o.x, y: o.y, w: o.w, h: o.h } : { ...it };
+    });
+  }
+
+  // --- impure glue (DOM / localStorage), verified via Playwright ------------
+  let LAYOUT = [];         // working copy of the active tab's layout items
+
+  function gridGeom() {
+    const c = $("canvas");
+    const w = c ? c.clientWidth : Math.max(1, $("grid").clientWidth - 24);
+    return { colW: Math.max(1, w / GRID_COLS), rowH: GRID_ROW };
+  }
+
+  function layoutKey(appName, tabId) { return `viewer:layout:${appName}:${tabId}`; }
+  function loadOverrides(appName, tabId) {
+    try { return JSON.parse(localStorage.getItem(layoutKey(appName, tabId)) || "{}"); }
+    catch (_) { return {}; }
+  }
+  function saveOverride(appName, tabId, item) {
+    const ov = loadOverrides(appName, tabId);
+    ov[item.i] = { x: item.x, y: item.y, w: item.w, h: item.h };
+    try { localStorage.setItem(layoutKey(appName, tabId), JSON.stringify(ov)); } catch (_) { /* quota */ }
+  }
+  function clearOverrides(appName, tabId) {
+    try { localStorage.removeItem(layoutKey(appName, tabId)); } catch (_) { /* ignore */ }
+  }
+
+  // Extend the canvas scroll height to the lowest tile bottom.
+  function fitCanvas(canvas, layout, geom) {
+    const bottom = layout.reduce((mx, it) => Math.max(mx, (it.y + it.h) * geom.rowH), 0);
+    canvas.style.height = (bottom + 6) + "px";
+  }
+
+  function positionCard(card, item, geom) {
+    const st = gridItemStyle(item, geom);
+    card.style.left = st.left + "px";
+    card.style.top = st.top + "px";
+    card.style.width = st.width + "px";
+    card.style.height = st.height + "px";
+  }
+
+  // Drag a tile by its header (#1893). Ignore drags that start on a param
+  // control so the dropdowns/inputs stay usable.
+  function startDrag(card, item, e) {
+    if (e.button !== 0 || e.target.closest(".params")) return;
+    e.preventDefault();
+    const geom = gridGeom();
+    const sx = e.clientX, sy = e.clientY;
+    const ox = item.x * geom.colW, oy = item.y * geom.rowH;
+    card.classList.add("dragging");
+    const move = (ev) => {
+      card.style.left = Math.max(0, ox + (ev.clientX - sx)) + "px";
+      card.style.top = Math.max(0, oy + (ev.clientY - sy)) + "px";
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      card.classList.remove("dragging");
+      const px = { left: parseFloat(card.style.left), top: parseFloat(card.style.top),
+        width: item.w * geom.colW, height: item.h * geom.rowH };
+      const snap = clampGridItem(pxToGridRect(px, geom), { cols: GRID_COLS, minW: MIN_W, minH: MIN_H });
+      item.x = snap.x; item.y = snap.y;
+      positionCard(card, item, geom);
+      saveOverride(APP.name, ACTIVE_TAB, item);
+      fitCanvas($("canvas"), LAYOUT, geom);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  }
+
+  // Resize a tile from its bottom-right grip (#1892).
+  function startResize(card, item, e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const geom = gridGeom();
+    const sx = e.clientX, sy = e.clientY;
+    const ow = item.w * geom.colW, oh = item.h * geom.rowH;
+    card.classList.add("resizing");
+    const move = (ev) => {
+      card.style.width = Math.max(MIN_W * geom.colW, ow + (ev.clientX - sx)) + "px";
+      card.style.height = Math.max(MIN_H * geom.rowH, oh + (ev.clientY - sy)) + "px";
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      card.classList.remove("resizing");
+      const px = { left: item.x * geom.colW, top: item.y * geom.rowH,
+        width: parseFloat(card.style.width), height: parseFloat(card.style.height) };
+      const snap = clampGridItem(pxToGridRect(px, geom), { cols: GRID_COLS, minW: MIN_W, minH: MIN_H });
+      item.x = snap.x; item.y = snap.y; item.w = snap.w; item.h = snap.h;
+      positionCard(card, item, geom);
+      saveOverride(APP.name, ACTIVE_TAB, item);
+      fitCanvas($("canvas"), LAYOUT, geom);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  }
+
+  function renderSidebar(activeIdx) {
+    const nav = $("app-nav");
+    if (!nav) return;
+    nav.innerHTML = sidebarAppsHtml(APPS, activeIdx);
+    for (const b of nav.querySelectorAll(".app-nav-item")) {
+      b.addEventListener("click", () => selectApp(Number(b.dataset.app)));
+    }
+  }
+
   function renderWidget(gridEl, layoutItem) {
     const def = WIDGETS[layoutItem.i];
     const card = document.createElement("div");
     card.className = "widget";
+    card.dataset.i = layoutItem.i;
+    positionCard(card, layoutItem, gridGeom());
     if (!def) {
       card.innerHTML = `<div class="whead"><span class="wname">${escapeHtml(layoutItem.i)}</span></div>`
         + `<div class="state err">Unknown widget id "${escapeHtml(layoutItem.i)}" — not in /widgets.json.</div>`;
@@ -649,8 +854,14 @@
       paramsWrap.appendChild(label);
     }
     head.appendChild(paramsWrap);
+    head.addEventListener("pointerdown", (e) => startDrag(card, layoutItem, e));
     card.appendChild(head);
     card.appendChild(body);
+    const grip = document.createElement("div");
+    grip.className = "rz";
+    grip.title = "Drag to resize";
+    grip.addEventListener("pointerdown", (e) => startResize(card, layoutItem, e));
+    card.appendChild(grip);
     gridEl.appendChild(card);
     loadWidgetData(body, def, params); // async — each widget loads independently
   }
@@ -666,8 +877,17 @@
       grid.innerHTML = '<div class="state">This tab has no widgets.</div>';
       return;
     }
-    const ordered = [...tab.layout].sort((a, b) => (a.y - b.y) || (a.x - b.x));
-    for (const item of ordered) renderWidget(grid, item);
+    // Floating grid canvas (#1893): honor each widget's {x,y,w,h} on the
+    // 40-col grid, layering any saved drag/resize overrides over the apps.json
+    // defaults. Widgets are absolutely positioned children of #canvas so the
+    // canvas owns the scroll extent.
+    const canvas = document.createElement("div");
+    canvas.className = "canvas";
+    canvas.id = "canvas";
+    grid.appendChild(canvas);
+    LAYOUT = mergeLayout(tab.layout, loadOverrides(APP.name, tabId));
+    for (const item of LAYOUT) renderWidget(canvas, item);
+    fitCanvas(canvas, LAYOUT, gridGeom());
   }
 
   let ACTIVE_TAB = null;
@@ -690,8 +910,7 @@
 
   function selectApp(idx) {
     APP = APPS[idx] || APPS[0] || null;
-    const sel = $("app-select");
-    if (sel) sel.value = String(idx);
+    renderSidebar(idx);
     $("app-badge").textContent = (APP && APP.name) || "app";
     if (!APP) { $("grid").innerHTML = '<div class="state err">No apps in /apps.json.</div>'; return; }
     renderTabs();
@@ -707,18 +926,36 @@
       $("app-badge").textContent = "error";
       return;
     }
-    // Multi-app switcher (#1805): list every app served by this backend and
-    // let the user switch. Terminal has ~12 tabs; Techtrade is a separate app.
-    const sel = $("app-select");
-    sel.innerHTML = APPS.map((a, i) =>
-      `<option value="${i}">${escapeHtml(a.name || ("App " + (i + 1)))}</option>`
-    ).join("");
-    sel.style.display = APPS.length > 1 ? "" : "none";
-    sel.addEventListener("change", () => selectApp(Number(sel.value)));
+    // Multi-app switcher lives in the left sidebar now (#1890): list every app
+    // served by this backend as a nav button. Terminal has ~12 tabs; Techtrade
+    // is a separate app. selectApp() -> renderSidebar() marks the active one.
     selectApp(0);
   }
 
+  // Left sidebar collapse (#1890) — persisted across reloads. Re-render the
+  // active tab on toggle so the grid recomputes column width for the new space.
+  function applySideCollapsed(v) { document.body.classList.toggle("side-collapsed", v); }
+  applySideCollapsed(localStorage.getItem("viewer:sideCollapsed") === "1");
+  $("side-toggle").addEventListener("click", () => {
+    const v = !document.body.classList.contains("side-collapsed");
+    applySideCollapsed(v);
+    try { localStorage.setItem("viewer:sideCollapsed", v ? "1" : "0"); } catch (_) { /* ignore */ }
+    requestAnimationFrame(() => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); });
+  });
+
+  // Reset the active tab's layout to the apps.json defaults (#1893).
+  $("reset-layout").addEventListener("click", () => {
+    if (APP && ACTIVE_TAB) { clearOverrides(APP.name, ACTIVE_TAB); renderTab(ACTIVE_TAB); }
+  });
+
   $("refresh-btn").addEventListener("click", () => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); });
+
+  // Reflow the grid when the window (and thus column width) changes.
+  let _rzT = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(_rzT);
+    _rzT = setTimeout(() => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); }, 150);
+  });
 
   //--------------------------------------------------------------------------
   // Chat pane: POST /query and stream copilotMessageChunk SSE frames.
