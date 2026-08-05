@@ -26,6 +26,7 @@ Wiring status
 - ``equity/stock-splits`` -> ``fmp_cached`` (full-wiring of stub #1664, #1916)
 - ``charting`` -> ``fmp_cached`` (full-wiring of stub #1655, #1918)
 - ``equity/statements`` -> ``fmp_cached`` (full-wiring of stub #1653, #1920)
+- ``equity/peer-multiples`` -> ``fmp_cached`` (full-wiring of stub #1657, #1923)
 """
 
 from __future__ import annotations
@@ -1101,6 +1102,108 @@ def _statements_fmp_cached(*, symbol: str, period: str = "annual") -> list[dict]
 
 
 # ---------------------------------------------------------------------------
+# peer-multiples / competitors (#1923 — full-wiring of #1657)
+# ---------------------------------------------------------------------------
+#
+# A valuation matrix over the ticker + its peers. Fetches the peer list
+# (equity.compare.peers) and, per symbol, the latest valuation ratios/metrics,
+# emitting {symbol, pe_ttm, pe_fwd, ev_ebitda, ps_ttm}. ``pe_fwd`` is None
+# pending an fmp_cached forward-P/E source (gh #1922, area:fmp-cached-gap);
+# the trailing multiples are live.
+
+#: Max peers appended after the self symbol (bounds the fan-out cost).
+_PEER_CAP = 4
+
+
+def _as_float(value: Any) -> float | None:
+    """Coerce a numeric-ish value to float, or None when absent/non-numeric."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fetch_peer_symbols(symbol: str) -> list[str]:
+    """Return ``[symbol, *peers]`` (deduped, self first, capped at _PEER_CAP)."""
+    res = _obb().equity.compare.peers(symbol=symbol, provider="fmp_cached")
+    rows = getattr(res, "results", res)
+    peers: list[str] = []
+    for r in rows:
+        sym = getattr(r, "symbol", None)
+        if sym is None and isinstance(r, dict):
+            sym = r.get("symbol")
+        if sym:
+            peers.append(str(sym).upper())
+    out: list[str] = [symbol]
+    for p in peers:
+        if p not in out:
+            out.append(p)
+        if len(out) >= _PEER_CAP + 1:
+            break
+    return out
+
+
+def _fetch_valuation(sym: str) -> tuple[dict, dict]:
+    """Fetch the latest ratios + metrics rows for ``sym`` as plain dicts.
+
+    Each may be ``{}`` when the provider returns nothing for that symbol.
+    """
+
+    def _latest(kind: str) -> dict:
+        fetch = getattr(_obb().equity.fundamental, kind)
+        res = fetch(symbol=sym, provider="fmp_cached", limit=1)
+        rows = getattr(res, "results", res)
+        if not rows:
+            return {}
+        r = rows[0]
+        if hasattr(r, "model_dump"):
+            return r.model_dump()
+        if isinstance(r, dict):
+            return r
+        return dict(r)
+
+    return _latest("ratios"), _latest("metrics")
+
+
+def _shape_peer_row(symbol: str, ratios: dict, metrics: dict) -> dict:
+    """Map one symbol's ratios/metrics to the widget row (pure, no I/O).
+
+    ``pe_fwd`` is always None until an fmp_cached forward-P/E source lands
+    (gh #1922). The remaining multiples come from live provider fields.
+    """
+    return {
+        "symbol": symbol,
+        "pe_ttm": _as_float(ratios.get("price_to_earnings")),
+        "pe_fwd": None,
+        "ev_ebitda": _as_float(metrics.get("ev_to_ebitda")),
+        "ps_ttm": _as_float(ratios.get("price_to_sales")),
+    }
+
+
+def _peer_multiples_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: build the self+peers valuation matrix from fmp_cached.
+
+    Empty output (no peer symbols resolved) is loud (WARNING) and returned as
+    ``[]`` so the chain transitions to the next tier / the endpoint stub.
+    """
+    symbols = _fetch_peer_symbols(symbol)
+    if not symbols:
+        logger.warning(
+            "peer-multiples fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+        return []
+    out: list[dict] = []
+    for sym in symbols:
+        ratios, metrics = _fetch_valuation(sym)
+        out.append(_shape_peer_row(sym, ratios, metrics))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -1128,6 +1231,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("equity/stock-splits", "fmp_cached", _stock_splits_fmp_cached)
     register("charting", "fmp_cached", _charting_fmp_cached)
     register("equity/statements", "fmp_cached", _statements_fmp_cached)
+    register("equity/peer-multiples", "fmp_cached", _peer_multiples_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports

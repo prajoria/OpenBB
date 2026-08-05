@@ -2060,14 +2060,20 @@ def equity_charting(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_peer_multiples(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float]]:
-    """Return Peer Multiples rows (#1657) — self + peers valuation matrix (table)."""
+) -> list[dict[str, str | float | None]]:
+    """Return Peer Multiples rows (#1657) — self + peers valuation matrix (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/peer-multiples`` tier call
+    (#1923): fetches the peer list and per-symbol valuation ratios/metrics.
+    ``pe_fwd`` is None pending an fmp_cached forward-P/E source (gh #1922).
+    This stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     sym = _validate_symbol(symbol)
-    # TODO(gh-1657): wire to FMPCachedPeersFetcher + fan out key-metrics.
     return [
         {
             "symbol": sym,
