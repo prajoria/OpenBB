@@ -19,6 +19,7 @@ Wiring status
 - ``equity/management-team`` -> ``fmp_cached`` (full-wiring of stub #1648, #1902)
 - ``equity/revenue-geography`` -> ``fmp_cached`` (full-wiring of stub #1649, #1904)
 - ``equity/revenue-business-line`` -> ``fmp_cached`` (full-wiring of stub #1650, #1906)
+- ``equity/dividend-payment`` -> ``fmp_cached`` (full-wiring of stub #1665, #1908)
 """
 
 from __future__ import annotations
@@ -44,6 +45,20 @@ def _obb() -> Any:
     from openbb import obb  # pylint: disable=import-outside-toplevel
 
     return obb
+
+
+def _iso_date(value: Any) -> str | None:
+    """Coerce a date-like value to an ISO ``YYYY-MM-DD`` string (or ``None``).
+
+    ``model_dump`` yields ``datetime.date`` for date fields; some provider
+    extras arrive as strings or ``None``. Returns ``None`` unchanged, calls
+    ``.isoformat()`` when available, else falls back to ``str``.
+    """
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
 
 
 def _fetch_price_history_rows(symbol: str) -> list[dict]:
@@ -423,6 +438,78 @@ def _revenue_business_line_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# dividend-payment (#1908 — full-wiring of #1665)
+# ---------------------------------------------------------------------------
+#
+# ``obb.equity.fundamental.dividends(provider="fmp_cached")`` returns
+# ``HistoricalDividendsData`` (standard fields ``symbol, ex_dividend_date,
+# amount``; ``payment_date`` is an FMP provider extra). The widget is a table
+# with the contract ``[{ex_date, payment_date, amount}]`` showing recent
+# dividends newest-first — so we sort by ex-date descending, cap to the latest
+# 12, and ISO-stringify the date columns.
+
+_DIVIDENDS_LIMIT = 12
+
+
+def _fetch_dividend_rows(symbol: str) -> list[dict]:
+    """Fetch historical dividend rows for ``symbol`` from ``fmp_cached``.
+
+    Returns a list of plain dicts (``model_dump`` per row). Errors propagate
+    to the caller, which the chain classifies as a tier transition.
+    """
+    res = _obb().equity.fundamental.dividends(symbol=symbol, provider="fmp_cached")
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _shape_dividends(rows: list[dict]) -> list[dict]:
+    """Shape dividend rows to ``[{ex_date, payment_date, amount}]``, newest-first.
+
+    Sorts by ``ex_dividend_date`` descending (rows with no ex-date sink to the
+    end), caps to the latest ``_DIVIDENDS_LIMIT``, ISO-stringifies both date
+    columns, and maps ``ex_dividend_date`` -> ``ex_date``. Rows with a null
+    ``amount`` are skipped. Pure (no I/O).
+    """
+    kept = [r for r in rows if r.get("amount") is not None]
+    kept.sort(key=lambda r: _iso_date(r.get("ex_dividend_date")) or "", reverse=True)
+    out: list[dict] = []
+    for r in kept[:_DIVIDENDS_LIMIT]:
+        out.append(
+            {
+                "ex_date": _iso_date(r.get("ex_dividend_date")),
+                "payment_date": _iso_date(r.get("payment_date")),
+                "amount": r.get("amount"),
+            }
+        )
+    return out
+
+
+def _dividend_payment_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live dividends from fmp_cached and shape them.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_dividend_rows(symbol)
+    shaped = _shape_dividends(rows)
+    if not shaped:
+        logger.warning(
+            "dividend-payment fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -443,6 +530,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
         "fmp_cached",
         _revenue_business_line_fmp_cached,
     )
+    register("equity/dividend-payment", "fmp_cached", _dividend_payment_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports

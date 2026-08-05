@@ -796,3 +796,161 @@ def test_revenue_business_line_fmp_cached_live() -> None:
     assert shaped, "no segments in latest period — shaper produced empty"
     assert set(shaped[0]) == {"segment", "revenue"}
     assert isinstance(shaped[0]["revenue"], (int, float))
+
+
+# ---------------------------------------------------------------------------
+# dividend-payment (#1908 — full-wiring of #1665)
+# ---------------------------------------------------------------------------
+
+
+def _div_rows() -> list[dict]:
+    """Realistic fmp_cached dividend dump, deliberately out of order.
+
+    Real ``HistoricalDividendsData`` carries ``symbol, ex_dividend_date,
+    amount`` plus the FMP ``payment_date`` extra (both dates are
+    ``datetime.date`` after model_dump). Includes an out-of-order sequence
+    (to exercise newest-first sorting) and a null-amount row (skip).
+    """
+    return [
+        {
+            "symbol": "AAPL",
+            "ex_dividend_date": _dt.date(2025, 11, 10),
+            "payment_date": _dt.date(2025, 11, 16),
+            "amount": 0.24,
+        },
+        {
+            "symbol": "AAPL",
+            "ex_dividend_date": _dt.date(2026, 5, 10),
+            "payment_date": _dt.date(2026, 5, 16),
+            "amount": 0.25,
+        },
+        {
+            "symbol": "AAPL",
+            "ex_dividend_date": _dt.date(2026, 2, 9),
+            "payment_date": _dt.date(2026, 2, 15),
+            "amount": 0.24,
+        },
+        {
+            "symbol": "AAPL",
+            "ex_dividend_date": _dt.date(2020, 1, 1),
+            "payment_date": None,
+            "amount": None,
+        },
+    ]
+
+
+def test_shape_dividends_sorts_desc_and_iso_stringifies() -> None:
+    """Newest-first; dates -> ISO strings; ex_dividend_date -> ex_date; null amount skipped."""
+    out = tier_calls._shape_dividends(_div_rows())
+    assert out == [
+        {"ex_date": "2026-05-10", "payment_date": "2026-05-16", "amount": 0.25},
+        {"ex_date": "2026-02-09", "payment_date": "2026-02-15", "amount": 0.24},
+        {"ex_date": "2025-11-10", "payment_date": "2025-11-16", "amount": 0.24},
+    ]
+
+
+def test_shape_dividends_caps_to_limit() -> None:
+    """No more than _DIVIDENDS_LIMIT rows are returned (newest kept)."""
+    many = [
+        {
+            "ex_dividend_date": _dt.date(2000 + i // 4, (i % 4) * 3 + 1, 1),
+            "payment_date": None,
+            "amount": 0.1,
+        }
+        for i in range(40)
+    ]
+    out = tier_calls._shape_dividends(many)
+    assert len(out) == tier_calls._DIVIDENDS_LIMIT
+    # Newest row must be present; the very oldest must be dropped.
+    dates = [r["ex_date"] for r in out]
+    assert dates == sorted(dates, reverse=True)
+
+
+def test_div_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes fetch + shape into contract rows."""
+    monkeypatch.setattr(tier_calls, "_fetch_dividend_rows", lambda symbol: _div_rows())
+    call = _TIER_CALLS[("equity/dividend-payment", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert out[0] == {
+        "ex_date": "2026-05-10",
+        "payment_date": "2026-05-16",
+        "amount": 0.25,
+    }
+
+
+def test_div_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
+    monkeypatch.setattr(tier_calls, "_fetch_dividend_rows", lambda symbol: [])
+    call = _TIER_CALLS[("equity/dividend-payment", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_dividend_payment() -> None:
+    """The production registration wires the fmp_cached dividend tier."""
+    assert ("equity/dividend-payment", "fmp_cached") in _TIER_CALLS
+
+
+def test_div_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint returns the tier's shaped rows.
+
+    The fixture yields exactly 3 rows; the stub yields 4 (it has an extra
+    2025-08-11 row the fixture lacks). Assert both to prove the tier served.
+    """
+    monkeypatch.setattr(tier_calls, "_fetch_dividend_rows", lambda symbol: _div_rows())
+    resp = _client.get("/pi/equity/dividend-payment?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 3, f"expected 3 fixture rows, got {len(rows)} (stub has 4)"
+    assert not any(r["ex_date"] == "2025-08-11" for r in rows), "served the stub!"
+
+
+def test_div_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _div_rows()
+
+    monkeypatch.setattr(tier_calls, "_fetch_dividend_rows", _capture)
+    resp = _client.get("/pi/equity/dividend-payment?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_div_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(tier_calls, "_fetch_dividend_rows", lambda symbol: _div_rows())
+    resp = _client.get("/pi/equity/dividend-payment?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_dividend_payment_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real dividends the shaper can consume.
+
+    Not ``plan_limited`` — ``equity.fundamental.dividends`` is covered by our
+    current FMP key (verified during the #1908 probe).
+    """
+    rows = tier_calls._fetch_dividend_rows("AAPL")
+    assert rows, "fmp_cached returned no AAPL dividends — wiring broken"
+    shaped = tier_calls._shape_dividends(rows)
+    assert shaped, "shaper produced empty"
+    assert set(shaped[0]) == {"ex_date", "payment_date", "amount"}
+    assert isinstance(shaped[0]["amount"], (int, float))
+    # Newest-first ordering holds on live data.
+    ex_dates = [r["ex_date"] for r in shaped]
+    assert ex_dates == sorted(ex_dates, reverse=True)

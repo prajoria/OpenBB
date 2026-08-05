@@ -1704,14 +1704,18 @@ def equity_stock_splits(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_dividend_payment(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Return Dividend Payment rows (#1665) — recent dividends (table)."""
+    """Return Dividend Payment rows (#1665) — recent dividends (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/dividend-payment`` tier
+    call (#1908); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1665): wire to FMPCachedHistoricalDividendsFetcher.
     return [
         {"ex_date": "2026-05-10", "payment_date": "2026-05-16", "amount": 0.25},
         {"ex_date": "2026-02-09", "payment_date": "2026-02-15", "amount": 0.24},
