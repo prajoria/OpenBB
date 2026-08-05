@@ -660,3 +660,139 @@ def test_revenue_geography_fmp_cached_live() -> None:
     assert shaped, "no regions in latest period — shaper produced empty"
     assert set(shaped[0]) == {"region", "revenue"}
     assert isinstance(shaped[0]["revenue"], (int, float))
+
+
+# ---------------------------------------------------------------------------
+# revenue-business-line (#1906 — full-wiring of #1650)
+# ---------------------------------------------------------------------------
+
+
+def _seg_rows() -> list[dict]:
+    """Realistic fmp_cached revenue-by-segment dump spanning two periods.
+
+    Real ``RevenueBusinessLineData`` rows carry ``period_ending, fiscal_period,
+    fiscal_year, filing_date, business_line, revenue``. Two periods are present
+    (latest-period selection); the latest period splits ``iPhone`` across two
+    rows (per-segment aggregation) and includes a null-business_line row (skip).
+    """
+    old = _dt.date(2025, 9, 30)
+    new = _dt.date(2026, 9, 30)
+    return [
+        {"period_ending": old, "business_line": "iPhone", "revenue": 190_000},
+        {"period_ending": old, "business_line": "Services", "revenue": 80_000},
+        {"period_ending": new, "business_line": "iPhone", "revenue": 200_000},
+        {"period_ending": new, "business_line": "iPhone", "revenue": 3_000},
+        {"period_ending": new, "business_line": "Services", "revenue": 96_000},
+        {"period_ending": new, "business_line": None, "revenue": 1_000},
+    ]
+
+
+def test_shape_revenue_business_line_latest_period_renames_and_aggregates() -> None:
+    """Latest period only; revenue summed per segment; business_line->segment."""
+    out = tier_calls._shape_revenue_business_line(_seg_rows())
+    assert out == [
+        {"segment": "iPhone", "revenue": 203_000},
+        {"segment": "Services", "revenue": 96_000},
+    ]
+
+
+def test_shape_revenue_business_line_empty_when_no_periods() -> None:
+    """Rows lacking period_ending yield [] (nothing to anchor 'latest' on)."""
+    assert (
+        tier_calls._shape_revenue_business_line([{"business_line": "X", "revenue": 1}])
+        == []
+    )
+
+
+def test_seg_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes fetch + shape into contract rows."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_revenue_business_line_rows", lambda symbol: _seg_rows()
+    )
+    call = _TIER_CALLS[("equity/revenue-business-line", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert out == [
+        {"segment": "iPhone", "revenue": 203_000},
+        {"segment": "Services", "revenue": 96_000},
+    ]
+
+
+def test_seg_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_revenue_business_line_rows", lambda symbol: []
+    )
+    call = _TIER_CALLS[("equity/revenue-business-line", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_revenue_business_line() -> None:
+    """The production registration wires the fmp_cached business-line tier."""
+    assert ("equity/revenue-business-line", "fmp_cached") in _TIER_CALLS
+
+
+def test_seg_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint returns the tier's shaped rows.
+
+    The stub emits iPhone=200583; the fixture's latest period yields
+    iPhone=203000. Asserting the fixture value proves the tier served.
+    """
+    monkeypatch.setattr(
+        tier_calls, "_fetch_revenue_business_line_rows", lambda symbol: _seg_rows()
+    )
+    resp = _client.get("/pi/equity/revenue-business-line?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert {"segment": "iPhone", "revenue": 203_000} in rows
+    assert not any(r["revenue"] == 200583 for r in rows), "served the stub!"
+
+
+def test_seg_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _seg_rows()
+
+    monkeypatch.setattr(tier_calls, "_fetch_revenue_business_line_rows", _capture)
+    resp = _client.get("/pi/equity/revenue-business-line?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_seg_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_revenue_business_line_rows", lambda symbol: _seg_rows()
+    )
+    resp = _client.get("/pi/equity/revenue-business-line?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_revenue_business_line_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real business-line revenue the shaper consumes.
+
+    Not ``plan_limited`` — ``equity.fundamental.revenue_per_segment`` is
+    covered by our current FMP key (verified during the #1906 probe).
+    """
+    rows = tier_calls._fetch_revenue_business_line_rows("AAPL")
+    assert rows, "fmp_cached returned no AAPL segment revenue — wiring broken"
+    shaped = tier_calls._shape_revenue_business_line(rows)
+    assert shaped, "no segments in latest period — shaper produced empty"
+    assert set(shaped[0]) == {"segment", "revenue"}
+    assert isinstance(shaped[0]["revenue"], (int, float))
