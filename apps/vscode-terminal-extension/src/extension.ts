@@ -31,6 +31,7 @@ import { registerGoldenCommands } from "./golden/command";
 import { registerWidgetBrowser } from "./widget-browser/browser";
 import { getFixtureWidgetsManifest } from "./layouts/registry";
 import { PerfHarness } from "./perf/harness";
+import { isSafeApiBaseUrl } from "./security/validation";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -71,11 +72,45 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(outputChannel);
 
   const cfg = vscode.workspace.getConfiguration("openbb");
-  const pythonPath = cfg.get<string>("pythonPath", "");
+  let pythonPath = cfg.get<string>("pythonPath", "");
   const apiPort = cfg.get<number>("apiPort", 6900);
-  const apiBase = cfg.get<string>("apiBaseUrl", `http://127.0.0.1:${apiPort}`);
-  const autoStart = cfg.get<boolean>("autoStartBackend", false);
-  const userSettingsPath = cfg.get<string>("userSettingsPath", "");
+  let apiBase = cfg.get<string>("apiBaseUrl", `http://127.0.0.1:${apiPort}`);
+  let autoStart = cfg.get<boolean>("autoStartBackend", false);
+  let userSettingsPath = cfg.get<string>("userSettingsPath", "");
+
+  // #1856 — workspace-trust hardening. Validate apiBase; on failure log
+  // and fall back to loopback. Clear machine-scoped path settings that
+  // slipped through as workspace overrides in untrusted workspaces, and
+  // refuse to auto-spawn the backend without workspace trust.
+  const apiBaseCheck = isSafeApiBaseUrl(apiBase);
+  if (!apiBaseCheck.ok) {
+    console.warn(
+      `[security] rejected apiBaseUrl "${apiBase}": ${apiBaseCheck.reason}. ` +
+        `Falling back to http://127.0.0.1:${apiPort}.`,
+    );
+    apiBase = `http://127.0.0.1:${apiPort}`;
+  }
+  if (!vscode.workspace.isTrusted) {
+    if (pythonPath.length > 0) {
+      console.warn(
+        `[security] ignoring workspace-scoped openbb.pythonPath in untrusted workspace: "${pythonPath}"`,
+      );
+      pythonPath = "";
+    }
+    if (userSettingsPath.length > 0) {
+      console.warn(
+        `[security] ignoring workspace-scoped openbb.userSettingsPath in untrusted workspace: "${userSettingsPath}"`,
+      );
+      userSettingsPath = "";
+    }
+    if (autoStart === true) {
+      console.warn(
+        `[security] refusing to auto-start backend in untrusted workspace`,
+      );
+      autoStart = false;
+    }
+  }
+
   const apiKeyManager = new ApiKeyManager({ userSettingsPath });
   const autoRestartOnError = cfg.get<boolean>("autoRestartBackend", false);
   const autoRestartMaxAttempts = cfg.get<number>("autoRestartMaxAttempts", 3);

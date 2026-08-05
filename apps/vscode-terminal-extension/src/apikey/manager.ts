@@ -25,6 +25,12 @@ export interface ApiKeyManagerConfig {
   userSettingsPath?: string;
   fsPromises?: typeof nodeFs;
   homedir?: () => string;
+  /**
+   * When true (default), successful `writeSettings` calls delete the
+   * `.bak` file after the new write completes. Tests may set this to
+   * false to inspect the backup content.
+   */
+  deleteBak?: boolean;
 }
 
 export interface ReadSettingsResult {
@@ -37,6 +43,7 @@ export class ApiKeyManager {
   private readonly override?: string;
   private readonly fs: typeof nodeFs;
   private readonly homedir: () => string;
+  private readonly deleteBak: boolean;
 
   constructor(config: ApiKeyManagerConfig = {}) {
     this.override =
@@ -45,6 +52,7 @@ export class ApiKeyManager {
         : undefined;
     this.fs = config.fsPromises ?? nodeFs;
     this.homedir = config.homedir ?? os.homedir;
+    this.deleteBak = config.deleteBak !== false;
   }
 
   resolvePath(): string {
@@ -76,9 +84,19 @@ export class ApiKeyManager {
 
   async writeSettings(content: string): Promise<void> {
     const p = this.resolvePath();
+    const bakPath = `${p}.bak`;
+    let hadPrior = false;
     try {
       await this.fs.access(p);
-      await this.fs.rename(p, `${p}.bak`);
+      await this.fs.rename(p, bakPath);
+      hadPrior = true;
+      try {
+        await this.fs.chmod(bakPath, 0o600);
+      } catch (e) {
+        console.warn(
+          `[apikey] failed to chmod 0600 on ${bakPath}: ${String(e)}`,
+        );
+      }
     } catch {
       // no existing file — no backup needed
     }
@@ -88,7 +106,20 @@ export class ApiKeyManager {
     } catch {
       // ignore
     }
-    await this.fs.writeFile(p, content, "utf8");
+    // #1856 — credentials file is user-scope only; enforce 0600.
+    await this.fs.writeFile(p, content, { mode: 0o600, encoding: "utf8" });
+    try {
+      await this.fs.chmod(p, 0o600);
+    } catch (e) {
+      console.warn(`[apikey] failed to chmod 0600 on ${p}: ${String(e)}`);
+    }
+    if (hadPrior && this.deleteBak) {
+      try {
+        await this.fs.unlink(bakPath);
+      } catch (e) {
+        console.warn(`[apikey] failed to delete ${bakPath}: ${String(e)}`);
+      }
+    }
   }
 
   async openInEditor(

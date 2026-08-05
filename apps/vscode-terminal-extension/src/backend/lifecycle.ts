@@ -204,6 +204,14 @@ export class BackendLifecycle implements vscode.Disposable {
     }
 
     const bin = this.resolveOpenbbApi();
+    if (!vscode.workspace.isTrusted) {
+      const msg =
+        `[security] backend spawn refused: workspace not trusted. ` +
+        `Open the workspace via "File > Preferences > Trust This Workspace" to enable.`;
+      this.log(msg);
+      this.dispatch({ type: "SPAWN_FAILED", error: "workspace not trusted" });
+      return;
+    }
     this.log(`spawning ${bin} --host 127.0.0.1 --port ${this.cfg.port}`);
 
     let child: childProcess.ChildProcess;

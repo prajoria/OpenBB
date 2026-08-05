@@ -77,12 +77,8 @@ export function registerCommands(
   vscodeApi: VsCodeApi = vscodeReal as unknown as VsCodeApi,
   analysisRunner?: AnalysisRunnerLike,
   _layoutManager?: unknown,
-<<<<<<< HEAD
   paperOrderHandler?: PaperOrderHandlerLike,
-=======
-  _paperOrderHandler?: unknown,
   apiKeyManager?: ApiKeyManager,
->>>>>>> 05376ae4d (feat(vscode-terminal): guided setApiKey quick-pick + editor (#1836))
 ): { dispose(): void }[] {
   const disposables: { dispose(): void }[] = [];
 
