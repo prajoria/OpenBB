@@ -18,6 +18,7 @@ Wiring status
 - ``equity/price-performance`` -> ``fmp_cached`` (full-wiring of stub #1645, #1900)
 - ``equity/management-team`` -> ``fmp_cached`` (full-wiring of stub #1648, #1902)
 - ``equity/revenue-geography`` -> ``fmp_cached`` (full-wiring of stub #1649, #1904)
+- ``equity/revenue-business-line`` -> ``fmp_cached`` (full-wiring of stub #1650, #1906)
 """
 
 from __future__ import annotations
@@ -345,6 +346,83 @@ def _revenue_geography_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# revenue-business-line (#1906 — full-wiring of #1650)
+# ---------------------------------------------------------------------------
+#
+# ``obb.equity.fundamental.revenue_per_segment(provider="fmp_cached")`` returns
+# ``RevenueBusinessLineData`` — one row per ``(period_ending, business_line)``
+# across many fiscal periods. The widget is a pie chart with the contract
+# ``[{segment, revenue}]`` (note the ``business_line`` -> ``segment`` key
+# rename), so we select the latest ``period_ending`` and aggregate revenue by
+# business line within it.
+
+
+def _fetch_revenue_business_line_rows(symbol: str) -> list[dict]:
+    """Fetch revenue-by-segment rows for ``symbol`` from ``fmp_cached``.
+
+    Returns a list of plain dicts (``model_dump`` per row). Errors propagate
+    to the caller, which the chain classifies as a tier transition.
+    """
+    res = _obb().equity.fundamental.revenue_per_segment(
+        symbol=symbol, provider="fmp_cached"
+    )
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _shape_revenue_business_line(rows: list[dict]) -> list[dict]:
+    """Shape business-line revenue rows to the pie contract ``[{segment, revenue}]``.
+
+    Selects the single latest ``period_ending`` present, aggregates ``revenue``
+    by ``business_line`` within that period, and renames ``business_line`` ->
+    ``segment`` (the widget's contract key). Rows with a null business line or
+    null revenue are ignored. Insertion order (first seen in the latest period)
+    is preserved. Pure (no I/O).
+    """
+    dated = [r for r in rows if r.get("period_ending") is not None]
+    if not dated:
+        return []
+    latest = max(r["period_ending"] for r in dated)
+    agg: dict[str, float] = {}
+    for r in dated:
+        if r["period_ending"] != latest:
+            continue
+        segment = r.get("business_line")
+        revenue = r.get("revenue")
+        if not segment or revenue is None:
+            continue
+        agg[segment] = agg.get(segment, 0) + revenue
+    return [
+        {"segment": segment, "revenue": revenue} for segment, revenue in agg.items()
+    ]
+
+
+def _revenue_business_line_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live business-line revenue from fmp_cached and shape it.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_revenue_business_line_rows(symbol)
+    shaped = _shape_revenue_business_line(rows)
+    if not shaped:
+        logger.warning(
+            "revenue-business-line fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -360,6 +438,11 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("equity/price-performance", "fmp_cached", _price_performance_fmp_cached)
     register("equity/management-team", "fmp_cached", _management_team_fmp_cached)
     register("equity/revenue-geography", "fmp_cached", _revenue_geography_fmp_cached)
+    register(
+        "equity/revenue-business-line",
+        "fmp_cached",
+        _revenue_business_line_fmp_cached,
+    )
 
 
 # Fire the registrations on import for the running backend (main.py imports
