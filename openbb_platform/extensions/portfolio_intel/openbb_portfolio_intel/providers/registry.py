@@ -49,9 +49,10 @@ TRACK_B_DEFAULT: tuple[str, ...] = (
 _EQUITY_A: tuple[str, ...] = TRACK_A_DEFAULT
 _EQUITY_B: tuple[str, ...] = TRACK_B_DEFAULT
 
-# Filings are SEC-only in both tracks — a full 5-tier chain would be
-# misleading here.
-_FILINGS_A: tuple[str, ...] = ("sec",)
+# Filings: fmp_cached serves SEC filings directly (verified live, #1914) —
+# prefer it on the paid track, then live fmp, then SEC as the public
+# fallback. The free track stays SEC-only.
+_FILINGS_A: tuple[str, ...] = ("fmp_cached", "fmp", "sec")
 _FILINGS_B: tuple[str, ...] = ("sec",)
 
 # News / sentiment: fmp_cached carries news; fallback to yfinance news.
