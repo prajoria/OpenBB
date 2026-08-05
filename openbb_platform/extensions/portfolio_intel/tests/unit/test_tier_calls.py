@@ -1518,3 +1518,160 @@ def test_company_filings_fmp_cached_live() -> None:
         "filing_url",
     }
     assert shaped[0]["report_url"].startswith("http")
+
+
+# ---------------------------------------------------------------------------
+# stock-splits (#1916 — full-wiring of #1664)
+# ---------------------------------------------------------------------------
+
+
+def _split_rows() -> list[dict]:
+    """Realistic fmp_cached historical-splits dump, out of order.
+
+    fmp yields float numerator/denominator (e.g. 4.0) and a null
+    ``split_ratio``. Includes an out-of-order sequence, a null-date row
+    (must be skipped), and a null-denominator row (must be skipped).
+    """
+    return [
+        {
+            "date": _dt.date(2014, 6, 9),
+            "numerator": 7.0,
+            "denominator": 1.0,
+            "split_ratio": None,
+            "symbol": "AAPL",
+            "splitType": "stock-split",
+        },
+        {
+            "date": _dt.date(2020, 8, 31),
+            "numerator": 4.0,
+            "denominator": 1.0,
+            "split_ratio": None,
+            "symbol": "AAPL",
+            "splitType": "stock-split",
+        },
+        {
+            "date": None,
+            "numerator": 2.0,
+            "denominator": 1.0,
+            "split_ratio": None,
+            "symbol": "AAPL",
+            "splitType": "stock-split",
+        },
+        {
+            "date": _dt.date(2005, 2, 28),
+            "numerator": 2.0,
+            "denominator": None,
+            "split_ratio": None,
+            "symbol": "AAPL",
+            "splitType": "stock-split",
+        },
+    ]
+
+
+def test_shape_stock_splits_derives_ratio_coerces_and_sorts() -> None:
+    """int-coerced num/den; ratio derived; null date/den skipped; sort DESC."""
+    out = tier_calls._shape_stock_splits(_split_rows())
+    assert out == [
+        {"date": "2020-08-31", "numerator": 4, "denominator": 1, "ratio": "4:1"},
+        {"date": "2014-06-09", "numerator": 7, "denominator": 1, "ratio": "7:1"},
+    ]
+
+
+def test_shape_stock_splits_caps_to_limit() -> None:
+    """No more than _SPLITS_LIMIT rows are returned (newest kept)."""
+    many = [
+        {
+            "date": _dt.date(1990 + i, 1, 1),
+            "numerator": 2.0,
+            "denominator": 1.0,
+            "split_ratio": None,
+        }
+        for i in range(30)
+    ]
+    out = tier_calls._shape_stock_splits(many)
+    assert len(out) == tier_calls._SPLITS_LIMIT
+
+
+def test_stock_splits_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes fetch + shape into contract rows."""
+    monkeypatch.setattr(tier_calls, "_fetch_splits_rows", lambda symbol: _split_rows())
+    call = _TIER_CALLS[("equity/stock-splits", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert out[0]["date"] == "2020-08-31"
+    assert out[0]["ratio"] == "4:1"
+
+
+def test_stock_splits_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
+    monkeypatch.setattr(tier_calls, "_fetch_splits_rows", lambda symbol: [])
+    call = _TIER_CALLS[("equity/stock-splits", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_stock_splits() -> None:
+    """The production registration wires the fmp_cached stock-splits tier."""
+    assert ("equity/stock-splits", "fmp_cached") in _TIER_CALLS
+
+
+def test_stock_splits_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint returns the tier's shaped rows.
+
+    The fixture's 2020 7:1-then-4:1 ordering and derived-ratio come from the
+    shaper; the stub's oldest row is a 1987 2:1 that the fixture never yields,
+    so its absence proves the tier served.
+    """
+    monkeypatch.setattr(tier_calls, "_fetch_splits_rows", lambda symbol: _split_rows())
+    resp = _client.get("/pi/equity/stock-splits?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows[0]["date"] == "2020-08-31", "served the stub!"
+    assert not any(r["date"] == "1987-06-16" for r in rows), "served the stub!"
+
+
+def test_stock_splits_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _split_rows()
+
+    monkeypatch.setattr(tier_calls, "_fetch_splits_rows", _capture)
+    resp = _client.get("/pi/equity/stock-splits?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_stock_splits_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(tier_calls, "_fetch_splits_rows", lambda symbol: _split_rows())
+    resp = _client.get("/pi/equity/stock-splits?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_stock_splits_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real historical splits the shaper can consume.
+
+    Not ``plan_limited`` — ``equity.fundamental.historical_splits`` is covered
+    by our current FMP key (verified during the #1916 probe).
+    """
+    rows = tier_calls._fetch_splits_rows("AAPL")
+    assert rows, "fmp_cached returned no AAPL splits — wiring broken"
+    shaped = tier_calls._shape_stock_splits(rows)
+    assert shaped, "shaper produced empty"
+    assert set(shaped[0]) == {"date", "numerator", "denominator", "ratio"}
+    assert ":" in shaped[0]["ratio"]
