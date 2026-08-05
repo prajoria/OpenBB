@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.34 - User guide + refreshed README (#1896)
+
+- Add `docs/user-guide.md` — end-user reference covering prerequisites,
+  install paths, first run, all 27 commands, 7 default keybindings,
+  built-in + golden layouts, symbol-context priority, paper trading,
+  Analysis integration, configuration, theming, security posture,
+  troubleshooting, and pointers to `docs/perf.md` / `docs/qa-matrix.md`
+  / `docs/testing-strategy.md`.
+- Rewrite `README.md` — replaces the "Phase 1 scaffold" placeholder
+  with a short install/develop entry point that links the user guide,
+  PRD, and three Phase-0 ADRs.
+
 ## 0.0.33 - User-defined layouts CRUD + workspace export (#1831)
 
 - New `src/layouts/manager.ts` — `LayoutManager` persists user layouts in
