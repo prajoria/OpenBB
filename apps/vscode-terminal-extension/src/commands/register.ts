@@ -10,6 +10,16 @@ import { openTerminalPanel } from "../webview/panel";
 import { openPreviewPanel } from "../preview/panel";
 import { getFixtureWidgetsManifest } from "../layouts/registry";
 import type { WidgetMeta } from "../layouts/types";
+import { ApiKeyManager, KNOWN_KEYS, type KnownKey } from "../apikey/manager";
+
+const KEY_LABELS: Record<KnownKey, string> = {
+  fmp_api_key: "FMP API key",
+  fmp_cached_api_key: "FMP Cached API key",
+  fred_api_key: "FRED API key",
+  polygon_api_key: "Polygon API key",
+  intrinio_api_key: "Intrinio API key",
+  tiingo_api_key: "Tiingo API key",
+};
 
 interface PreviewQuickPickItem {
   label: string;
@@ -67,7 +77,12 @@ export function registerCommands(
   vscodeApi: VsCodeApi = vscodeReal as unknown as VsCodeApi,
   analysisRunner?: AnalysisRunnerLike,
   _layoutManager?: unknown,
+<<<<<<< HEAD
   paperOrderHandler?: PaperOrderHandlerLike,
+=======
+  _paperOrderHandler?: unknown,
+  apiKeyManager?: ApiKeyManager,
+>>>>>>> 05376ae4d (feat(vscode-terminal): guided setApiKey quick-pick + editor (#1836))
 ): { dispose(): void }[] {
   const disposables: { dispose(): void }[] = [];
 
@@ -136,8 +151,33 @@ export function registerCommands(
   });
 
   reg("openbb.setApiKey", async () => {
+    interface KeyPickItem {
+      label: string;
+      description: string;
+      key: KnownKey;
+    }
+    const items: KeyPickItem[] = KNOWN_KEYS.map((k) => ({
+      label: KEY_LABELS[k],
+      description: k,
+      key: k,
+    }));
+    const picked = (await vscodeApi.window.showQuickPick(items, {
+      placeHolder: "Select which API key to configure",
+      matchOnDescription: true,
+    })) as KeyPickItem | undefined;
+    if (!picked) {
+      return;
+    }
+    const mgr = apiKeyManager ?? new ApiKeyManager();
+    const existing = await mgr.readSettings();
+    if (existing.content === "") {
+      await mgr.writeSettings(
+        JSON.stringify({ credentials: {} }, null, 2) + "\n",
+      );
+    }
+    await mgr.openInEditor(vscodeReal);
     await vscodeApi.window.showInformationMessage(
-      "API key configuration ships in #1836",
+      `Edit the value for "${picked.key}" in the opened settings.json, then save.`,
     );
   });
 
