@@ -22,6 +22,7 @@ Wiring status
 - ``equity/dividend-payment`` -> ``fmp_cached`` (full-wiring of stub #1665, #1908)
 - ``equity/insider-trading`` -> ``fmp_cached`` (full-wiring of stub #1661, #1910)
 - ``equity/earnings-history`` -> ``fmp_cached`` (full-wiring of stub #1663, #1912)
+- ``equity/company-filings`` -> ``fmp_cached`` (full-wiring of stub #1666, #1914)
 """
 
 from __future__ import annotations
@@ -706,6 +707,76 @@ def _earnings_history_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# company-filings (#1914 — full-wiring of #1666)
+# ---------------------------------------------------------------------------
+
+
+_FILINGS_LIMIT = 30
+
+
+def _fetch_filings_rows(symbol: str) -> list[dict]:
+    """Fetch recent SEC filing rows for ``symbol`` from ``fmp_cached``.
+
+    Returns a list of plain dicts (``model_dump`` per row). Errors propagate
+    to the caller, which the chain classifies as a tier transition.
+    """
+    res = _obb().equity.fundamental.filings(symbol=symbol, provider="fmp_cached")
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _shape_company_filings(rows: list[dict]) -> list[dict]:
+    """Shape filing rows to ``[{filing_date, report_type, report_url, filing_url}]``.
+
+    ``filing_date`` is ISO-stringified. Rows with no ``filing_date`` or no
+    ``report_url`` (the report link is the whole point of the widget) are
+    skipped. Sorted by filing date newest-first, capped to ``_FILINGS_LIMIT``.
+    Pure (no I/O).
+    """
+    kept: list[dict] = []
+    for r in rows:
+        filing_date = _iso_date(r.get("filing_date"))
+        report_url = r.get("report_url")
+        if filing_date is None or not report_url:
+            continue
+        kept.append(
+            {
+                "filing_date": filing_date,
+                "report_type": r.get("report_type"),
+                "report_url": report_url,
+                "filing_url": r.get("filing_url"),
+            }
+        )
+    kept.sort(key=lambda r: r["filing_date"], reverse=True)
+    return kept[:_FILINGS_LIMIT]
+
+
+def _company_filings_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live company filings from fmp_cached and shape them.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_filings_rows(symbol)
+    shaped = _shape_company_filings(rows)
+    if not shaped:
+        logger.warning(
+            "company-filings fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -729,6 +800,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("equity/dividend-payment", "fmp_cached", _dividend_payment_fmp_cached)
     register("equity/insider-trading", "fmp_cached", _insider_trading_fmp_cached)
     register("equity/earnings-history", "fmp_cached", _earnings_history_fmp_cached)
+    register("equity/company-filings", "fmp_cached", _company_filings_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports

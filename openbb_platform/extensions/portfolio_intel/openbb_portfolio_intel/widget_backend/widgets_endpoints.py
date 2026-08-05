@@ -1739,14 +1739,19 @@ def equity_dividend_payment(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_company_filings(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str]]:
-    """Return Company Filings rows (#1666) — recent SEC filings (table)."""
+) -> list[dict[str, str | None]]:
+    """Return Company Filings rows (#1666) — recent SEC filings (table).
+
+    Live data is served by the ``equity/company-filings`` fmp_cached tier
+    call (:mod:`.tier_calls`); this stub body is the loud fallback the chain
+    returns to only when the live tier fails or yields nothing.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1666): wire to FMPCachedCompanyFilingsFetcher.
     return [
         {
             "date": "2026-05-01",

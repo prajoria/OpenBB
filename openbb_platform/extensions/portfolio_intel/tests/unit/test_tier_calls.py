@@ -1341,3 +1341,180 @@ def test_earnings_history_fmp_cached_live() -> None:
         "surprise_pct",
     }
     assert isinstance(shaped[0]["eps_actual"], (int, float))
+
+
+# ---------------------------------------------------------------------------
+# company-filings (#1914 — full-wiring of #1666)
+# ---------------------------------------------------------------------------
+
+
+def _filing_rows() -> list[dict]:
+    """Realistic fmp_cached company-filings dump, out of order.
+
+    Includes an out-of-order sequence, a row with null report_url (must be
+    skipped — the report link is the whole point), and a null-filing_date
+    row (also skipped).
+    """
+    return [
+        {
+            "filing_date": _dt.date(2024, 5, 2),
+            "report_type": "10-Q",
+            "report_url": "https://sec.gov/r/q2.htm",
+            "filing_url": "https://sec.gov/i/q2-index.htm",
+            "symbol": "AAPL",
+            "cik": "0000320193",
+        },
+        {
+            "filing_date": _dt.date(2024, 8, 1),
+            "report_type": "8-K",
+            "report_url": "https://sec.gov/r/8k.htm",
+            "filing_url": "https://sec.gov/i/8k-index.htm",
+            "symbol": "AAPL",
+            "cik": "0000320193",
+        },
+        {
+            "filing_date": _dt.date(2024, 2, 1),
+            "report_type": "10-K",
+            "report_url": None,
+            "filing_url": "https://sec.gov/i/10k-index.htm",
+            "symbol": "AAPL",
+            "cik": "0000320193",
+        },
+        {
+            "filing_date": None,
+            "report_type": "4",
+            "report_url": "https://sec.gov/r/form4.xml",
+            "filing_url": "https://sec.gov/i/form4-index.htm",
+            "symbol": "AAPL",
+            "cik": "0000320193",
+        },
+    ]
+
+
+def test_shape_company_filings_maps_iso_sorts_and_skips() -> None:
+    """ISO dates; null report_url / null filing_date skipped; sorted DESC."""
+    out = tier_calls._shape_company_filings(_filing_rows())
+    assert out == [
+        {
+            "filing_date": "2024-08-01",
+            "report_type": "8-K",
+            "report_url": "https://sec.gov/r/8k.htm",
+            "filing_url": "https://sec.gov/i/8k-index.htm",
+        },
+        {
+            "filing_date": "2024-05-02",
+            "report_type": "10-Q",
+            "report_url": "https://sec.gov/r/q2.htm",
+            "filing_url": "https://sec.gov/i/q2-index.htm",
+        },
+    ]
+
+
+def test_shape_company_filings_caps_to_limit() -> None:
+    """No more than _FILINGS_LIMIT rows are returned (newest kept)."""
+    many = [
+        {
+            "filing_date": _dt.date(2010 + i // 12, (i % 12) + 1, 1),
+            "report_type": "8-K",
+            "report_url": f"https://sec.gov/r/{i}.htm",
+            "filing_url": f"https://sec.gov/i/{i}.htm",
+        }
+        for i in range(80)
+    ]
+    out = tier_calls._shape_company_filings(many)
+    assert len(out) == tier_calls._FILINGS_LIMIT
+
+
+def test_company_filings_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes fetch + shape into contract rows."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_filings_rows", lambda symbol: _filing_rows()
+    )
+    call = _TIER_CALLS[("equity/company-filings", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert out[0]["filing_date"] == "2024-08-01"
+    assert out[0]["report_type"] == "8-K"
+
+
+def test_company_filings_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
+    monkeypatch.setattr(tier_calls, "_fetch_filings_rows", lambda symbol: [])
+    call = _TIER_CALLS[("equity/company-filings", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_company_filings() -> None:
+    """The production registration wires the fmp_cached company-filings tier."""
+    assert ("equity/company-filings", "fmp_cached") in _TIER_CALLS
+
+
+def test_company_filings_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint returns the tier's shaped rows.
+
+    Fixture uses a ``report_url`` key the stub (``date/filing_type/description``)
+    never contains, so its presence proves the tier served.
+    """
+    monkeypatch.setattr(
+        tier_calls, "_fetch_filings_rows", lambda symbol: _filing_rows()
+    )
+    resp = _client.get("/pi/equity/company-filings?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert all("report_url" in r for r in rows), "served the stub!"
+    assert not any("description" in r for r in rows), "served the stub!"
+
+
+def test_company_filings_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _filing_rows()
+
+    monkeypatch.setattr(tier_calls, "_fetch_filings_rows", _capture)
+    resp = _client.get("/pi/equity/company-filings?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_company_filings_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_filings_rows", lambda symbol: _filing_rows()
+    )
+    resp = _client.get("/pi/equity/company-filings?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_company_filings_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real SEC filings the shaper can consume.
+
+    Not ``plan_limited`` — ``equity.fundamental.filings`` is covered by our
+    current FMP key (verified during the #1914 probe).
+    """
+    rows = tier_calls._fetch_filings_rows("AAPL")
+    assert rows, "fmp_cached returned no AAPL filings — wiring broken"
+    shaped = tier_calls._shape_company_filings(rows)
+    assert shaped, "shaper produced empty"
+    assert set(shaped[0]) == {
+        "filing_date",
+        "report_type",
+        "report_url",
+        "filing_url",
+    }
+    assert shaped[0]["report_url"].startswith("http")
