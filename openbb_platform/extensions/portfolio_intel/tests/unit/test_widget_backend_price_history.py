@@ -19,10 +19,33 @@ from pathlib import Path
 
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
+import pytest
 from fastapi.testclient import TestClient
+from openbb_portfolio_intel.providers.retrofit import _TIER_CALLS
 from openbb_portfolio_intel.widget_backend.main import app
 
 _client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _force_stub_path():
+    """Keep these endpoint tests hermetic (network-free).
+
+    Since #1898 wired an ``fmp_cached`` live tier for ``equity/price-history``,
+    hitting the endpoint would otherwise dispatch a real ``obb`` call through
+    the provider chain. These tests assert the endpoint's own shape/validation
+    contract (which holds for both the live and stub paths), so we clear the
+    dispatch table to force the chain to exhaust to the stub — matching the
+    original "unit tests never touch the network" intent. Live-tier behavior
+    is covered by ``test_tier_calls.py`` (shaping unit tests + integration).
+    """
+    saved = dict(_TIER_CALLS)
+    _TIER_CALLS.clear()
+    try:
+        yield
+    finally:
+        _TIER_CALLS.clear()
+        _TIER_CALLS.update(saved)
 
 
 def _manifest() -> dict:

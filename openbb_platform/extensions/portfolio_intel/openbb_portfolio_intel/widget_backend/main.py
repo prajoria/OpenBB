@@ -229,7 +229,12 @@ def attribution(
 # effects; every function in that module registers a route on `app`.
 # Import at bottom so `app` is already defined.
 # pylint: disable=wrong-import-position,unused-import
-from openbb_portfolio_intel.widget_backend import (  # noqa: E402, F401
+# Live provider tier-call registrations (#1898 onward) — imported for side
+# effects; registering ``(family, "fmp_cached")`` calls makes the provider
+# chain serve live data for wired widgets, falling back to each endpoint's
+# stub on exhaustion. Import after widgets_endpoints so the families exist.
+from openbb_portfolio_intel.widget_backend import (  # noqa: E402, F401  # noqa: E402, F401
+    tier_calls as _tier_calls,
     widgets_endpoints as _widgets_endpoints,
 )
 
