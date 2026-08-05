@@ -1906,27 +1906,73 @@ def equity_statements(
     ]
 
 
+#: Allowed charting windows (resolved at call time by the validate hook).
+_CHARTING_WINDOWS = ("1M", "3M", "6M", "YTD", "1Y")
+
+
+def _charting_kwargs(
+    *_args: object,
+    symbol: str = "AAPL",
+    window: str = "3M",
+    **_kwargs: object,
+) -> dict:
+    """Forward the normalized ``symbol`` + ``window`` to the charting tier.
+
+    The default ``kwargs_from`` forwards only the raw ``symbol``; the live
+    tier needs ``window`` too (to slice the series) and the *normalized*
+    ticker (strip + upper) so an unnormalized ``" aapl "`` cannot reach the
+    provider verbatim, return empty, and silently fall to the demo stub.
+    """
+    return {"symbol": _validate_symbol(symbol), "window": window}
+
+
+def _validate_charting_from_call(
+    *_args: object,
+    symbol: str = "AAPL",
+    window: str = "3M",
+    **_kwargs: object,
+) -> None:
+    """Validate ``symbol`` AND ``window`` before any tier is dispatched.
+
+    Both checks must run pre-dispatch: once a live tier serves the request the
+    stub body (with its own inline window check) is bypassed, so validation
+    living only there would let an invalid ``window`` reach the shaper.
+    """
+    _validate_symbol(symbol)
+    if window not in _CHARTING_WINDOWS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"window must be one of {_CHARTING_WINDOWS}, got {window!r}",
+        )
+
+
 @app.get("/pi/equity/charting")
 @with_chain(
     endpoint="pi/equity/charting",
     family="charting",
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
-    validate_kwargs=_validate_symbol_from_call,
+    validate_kwargs=_validate_charting_from_call,
+    kwargs_from=_charting_kwargs,
 )
 def equity_charting(
     request: Request, symbol: str = "AAPL", window: str = "3M"
-) -> list[dict[str, str | float]]:
-    """Return Charting rows (#1655) — OHLC + indicator overlays (chart)."""
+) -> list[dict[str, str | float | int | None]]:
+    """Return Charting rows (#1655) — OHLC + indicator overlays (chart).
+
+    Live-served from ``fmp_cached`` via the ``charting`` tier call (#1918):
+    reuses the price-history fetch and computes SMA20/SMA50/RSI14 over the
+    full series, sliced to ``window``. This stub body is the loud fallback
+    when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    if window not in {"1M", "3M", "6M", "YTD", "1Y"}:
+    if window not in _CHARTING_WINDOWS:
         raise HTTPException(
             status_code=400,
-            detail=f"window must be one of 1M/3M/6M/YTD/1Y, got {window!r}",
+            detail=f"window must be one of {_CHARTING_WINDOWS}, got {window!r}",
         )
-    # TODO(gh-1655): wire to FMPCachedHistoricalPriceFetcher + compute
-    # SMA/RSI overlays in a shared indicators module.
+    # Stub fallback rows (served only when no live tier answers).
     return [
         {
             "date": "2026-04-01",

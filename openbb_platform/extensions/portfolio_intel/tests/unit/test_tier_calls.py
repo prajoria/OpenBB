@@ -1675,3 +1675,195 @@ def test_stock_splits_fmp_cached_live() -> None:
     assert shaped, "shaper produced empty"
     assert set(shaped[0]) == {"date", "numerator", "denominator", "ratio"}
     assert ":" in shaped[0]["ratio"]
+
+
+# ---------------------------------------------------------------------------
+# charting / technicals (#1918 — full-wiring of #1655)
+# ---------------------------------------------------------------------------
+
+
+def _charting_rows(
+    n: int,
+    *,
+    anchor: _dt.date = _dt.date(2023, 6, 30),
+    start: float = 100.0,
+    step: float = 1.0,
+) -> list[dict]:
+    """Generate ``n`` daily OHLCV bars ending at ``anchor``, ascending by date.
+
+    ``close`` moves by ``step`` per bar (monotonic-up for ``step>0``), so SMA
+    and RSI are hand-verifiable. Dates are ``datetime.date`` (fmp_cached shape).
+    """
+    rows: list[dict] = []
+    for i in range(n):
+        d = anchor - _dt.timedelta(days=n - 1 - i)
+        c = start + step * i
+        rows.append(
+            {
+                "date": d,
+                "open": c - 0.5,
+                "high": c + 1.0,
+                "low": c - 1.0,
+                "close": c,
+                "volume": 1000 + i,
+            }
+        )
+    return rows
+
+
+def test_shape_charting_computes_sma_over_full_series() -> None:
+    """SMA20 = mean of the trailing 20 closes; SMA50 None with <50 bars."""
+    out = tier_calls._shape_charting(_charting_rows(25), "3M")
+    assert len(out) == 25
+    # closes are 100..124; trailing-20 mean at the last bar = mean(105..124).
+    assert out[-1]["sma20"] == 114.5
+    assert out[-1]["sma50"] is None
+    assert out[0]["sma20"] is None  # not enough lookback on the first bar
+
+
+def test_shape_charting_rsi_direction() -> None:
+    """RSI is 100 for a monotonic-up series and 0 for a monotonic-down one."""
+    up = tier_calls._shape_charting(_charting_rows(40, step=1.0), "3M")
+    down = tier_calls._shape_charting(
+        _charting_rows(40, start=200.0, step=-1.0), "3M"
+    )
+    assert up[-1]["rsi14"] == 100.0
+    assert down[-1]["rsi14"] == 0.0
+
+
+def test_shape_charting_slices_to_window() -> None:
+    """The 1M window keeps only bars within 30 calendar days of the last bar."""
+    out = tier_calls._shape_charting(_charting_rows(200), "1M")
+    assert len(out) == 31  # anchor-30d .. anchor inclusive, 1 bar/day
+    assert out[0]["date"] == "2023-05-31"
+    assert out[-1]["date"] == "2023-06-30"
+
+
+def test_shape_charting_ytd_window() -> None:
+    """The YTD window cuts off at Jan 1 of the last bar's year."""
+    out = tier_calls._shape_charting(_charting_rows(200), "YTD")
+    assert all(row["date"] >= "2023-01-01" for row in out)
+    assert out[0]["date"] == "2023-01-01"
+
+
+def test_shape_charting_skips_null_close_and_date() -> None:
+    """Rows lacking a usable date or close are dropped before indicators."""
+    rows = _charting_rows(5)
+    rows.append({"date": None, "close": 500.0})
+    rows.append({"date": _dt.date(2023, 6, 29), "close": None})
+    out = tier_calls._shape_charting(rows, "3M")
+    assert len(out) == 5
+    assert all(r["close"] is not None for r in out)
+
+
+def test_charting_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes the price fetch + charting shape."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_history_rows", lambda symbol: _charting_rows(60)
+    )
+    call = _TIER_CALLS[("charting", "fmp_cached")]
+    out = call(symbol="AAPL", window="3M")
+    assert out, "tier call returned empty"
+    assert set(out[0]) >= {"date", "open", "high", "low", "close", "sma20", "rsi14"}
+
+
+def test_charting_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_history_rows", lambda symbol: []
+    )
+    call = _TIER_CALLS[("charting", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL", window="3M")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_charting() -> None:
+    """The production registration wires the fmp_cached charting tier."""
+    assert ("charting", "fmp_cached") in _TIER_CALLS
+
+
+def test_charting_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint serves computed indicator rows.
+
+    The stub's dates are 2026-04-01.., which the fixture never yields, so their
+    absence (and the presence of an ``sma20`` key) proves the tier served.
+    """
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_history_rows", lambda symbol: _charting_rows(60)
+    )
+    resp = _client.get("/pi/equity/charting?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows, "empty response"
+    assert "sma20" in rows[0], "served the stub!"
+    assert not any(r["date"].startswith("2026") for r in rows), "served the stub!"
+
+
+def test_charting_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _charting_rows(60)
+
+    monkeypatch.setattr(tier_calls, "_fetch_price_history_rows", _capture)
+    resp = _client.get("/pi/equity/charting?symbol=+aapl+&window=6M")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_charting_endpoint_rejects_bad_window_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Window validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_history_rows", lambda symbol: _charting_rows(60)
+    )
+    resp = _client.get("/pi/equity/charting?symbol=AAPL&window=2D")
+    assert resp.status_code == 400
+
+
+def test_charting_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_history_rows", lambda symbol: _charting_rows(60)
+    )
+    resp = _client.get("/pi/equity/charting?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_charting_fmp_cached_live() -> None:
+    """Live: fmp_cached price history yields enough bars for real indicators.
+
+    Reuses the price-history fetch (not plan_limited); with >50 daily bars the
+    3M window still has SMA20 populated on its later bars.
+    """
+    rows = tier_calls._fetch_price_history_rows("AAPL")
+    assert rows, "fmp_cached returned no AAPL price history — wiring broken"
+    shaped = tier_calls._shape_charting(rows, "3M")
+    assert shaped, "shaper produced empty"
+    assert set(shaped[0]) == {
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "sma20",
+        "sma50",
+        "rsi14",
+    }
+    assert any(r["sma20"] is not None for r in shaped), "no SMA20 computed"

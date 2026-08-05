@@ -24,6 +24,7 @@ Wiring status
 - ``equity/earnings-history`` -> ``fmp_cached`` (full-wiring of stub #1663, #1912)
 - ``equity/company-filings`` -> ``fmp_cached`` (full-wiring of stub #1666, #1914)
 - ``equity/stock-splits`` -> ``fmp_cached`` (full-wiring of stub #1664, #1916)
+- ``charting`` -> ``fmp_cached`` (full-wiring of stub #1655, #1918)
 """
 
 from __future__ import annotations
@@ -861,6 +862,137 @@ def _stock_splits_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# charting / technicals (#1918 — full-wiring of #1655)
+# ---------------------------------------------------------------------------
+#
+# Reuses the proven price-history fetch (``equity.price.historical`` via
+# ``fmp_cached``) and computes SMA20 / SMA50 / RSI14 locally over the *full*
+# close series so the slower-moving averages have enough lookback, then slices
+# the display to the requested ``window``. Indicators are ``None`` on bars that
+# lack enough preceding history. Output shape matches the shipped stub:
+# ``{date, open, high, low, close, sma20, sma50, rsi14}``.
+
+import datetime as _dt  # noqa: E402
+
+#: Trailing calendar-day span for each fixed window (YTD handled separately).
+_CHART_WINDOW_DAYS: dict[str, int] = {"1M": 30, "3M": 91, "6M": 182, "1Y": 365}
+
+
+def _as_date(value: Any) -> _dt.date | None:
+    """Coerce a date-ish value to a ``datetime.date`` (or ``None``)."""
+    if value is None:
+        return None
+    if isinstance(value, _dt.datetime):
+        return value.date()
+    if isinstance(value, _dt.date):
+        return value
+    try:
+        return _dt.date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _sma(values: list[float], period: int) -> list[float | None]:
+    """Return the simple moving average; ``None`` until ``period`` bars exist."""
+    out: list[float | None] = [None] * len(values)
+    for i in range(period - 1, len(values)):
+        window = values[i - period + 1 : i + 1]
+        out[i] = round(sum(window) / period, 2)
+    return out
+
+
+def _rsi(values: list[float], period: int = 14) -> list[float | None]:
+    """Relative Strength Index over ``period`` deltas (simple averaging).
+
+    ``None`` until ``period + 1`` bars exist. A monotonic-up series yields
+    ``100.0``; a monotonic-down series yields ``0.0``.
+    """
+    out: list[float | None] = [None] * len(values)
+    for i in range(period, len(values)):
+        gains = 0.0
+        losses = 0.0
+        for j in range(i - period + 1, i + 1):
+            delta = values[j] - values[j - 1]
+            if delta >= 0:
+                gains += delta
+            else:
+                losses -= delta
+        avg_gain = gains / period
+        avg_loss = losses / period
+        if avg_loss == 0:
+            out[i] = 100.0 if avg_gain > 0 else 50.0
+        else:
+            rs = avg_gain / avg_loss
+            out[i] = round(100 - 100 / (1 + rs), 1)
+    return out
+
+
+def _window_cutoff(anchor: _dt.date, window: str) -> _dt.date:
+    """Earliest display date for ``window`` anchored on the last bar's date."""
+    if window == "YTD":
+        return _dt.date(anchor.year, 1, 1)
+    days = _CHART_WINDOW_DAYS.get(window, 91)
+    return anchor - _dt.timedelta(days=days)
+
+
+def _shape_charting(rows: list[dict], window: str) -> list[dict]:
+    """Shape raw OHLCV rows to ``{date, OHLC, sma20, sma50, rsi14}``.
+
+    Indicators are computed over the full ascending series (so SMA50 has
+    lookback) and the output is sliced to ``window``. Pure (no I/O).
+    """
+    parsed: list[tuple[_dt.date, dict]] = []
+    for r in rows:
+        d = _as_date(r.get("date"))
+        if d is None or r.get("close") is None:
+            continue
+        parsed.append((d, r))
+    parsed.sort(key=lambda t: t[0])
+    if not parsed:
+        return []
+    closes = [float(r.get("close")) for _, r in parsed]
+    sma20 = _sma(closes, 20)
+    sma50 = _sma(closes, 50)
+    rsi14 = _rsi(closes, 14)
+    cutoff = _window_cutoff(parsed[-1][0], window)
+    out: list[dict] = []
+    for idx, (d, r) in enumerate(parsed):
+        if d < cutoff:
+            continue
+        out.append(
+            {
+                "date": d.isoformat(),
+                "open": r.get("open"),
+                "high": r.get("high"),
+                "low": r.get("low"),
+                "close": r.get("close"),
+                "sma20": sma20[idx],
+                "sma50": sma50[idx],
+                "rsi14": rsi14[idx],
+            }
+        )
+    return out
+
+
+def _charting_fmp_cached(*, symbol: str, window: str = "3M") -> list[dict]:
+    """Tier call: fetch live price history from fmp_cached, add indicators.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_price_history_rows(symbol)
+    shaped = _shape_charting(rows, window)
+    if not shaped:
+        logger.warning(
+            "charting fmp_cached returned 0 rows for %s (window=%s) "
+            "— chain will transition to the next tier/stub",
+            symbol,
+            window,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -886,6 +1018,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("equity/earnings-history", "fmp_cached", _earnings_history_fmp_cached)
     register("equity/company-filings", "fmp_cached", _company_filings_fmp_cached)
     register("equity/stock-splits", "fmp_cached", _stock_splits_fmp_cached)
+    register("charting", "fmp_cached", _charting_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports
