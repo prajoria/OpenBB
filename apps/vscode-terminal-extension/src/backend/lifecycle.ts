@@ -19,6 +19,7 @@ import {
   initialState,
   transition,
 } from "./state";
+import { RestartController } from "./restart";
 
 export interface BackendConfig {
   pythonPath?: string;
@@ -26,6 +27,8 @@ export interface BackendConfig {
   apiBase: string;
   onStateChange: (state: BackendState) => void;
   outputChannel: vscode.OutputChannel;
+  autoRestartOnError?: boolean;
+  autoRestartMaxAttempts?: number;
 }
 
 const READINESS_TIMEOUT_MS = 60_000;
@@ -34,6 +37,8 @@ const HEALTH_POLL_MS = 10_000;
 const STOP_GRACE_MS = 3_000;
 const SPAWNED_STATE_KEY = "openbb.backend.spawnedByUs";
 const SPAWNED_PID_KEY = "openbb.backend.pid";
+const DEFAULT_BACKOFF_MS = [2000, 4000, 8000];
+const RESTART_STABLE_RESET_MS = 30_000;
 
 export class BackendLifecycle implements vscode.Disposable {
   private readonly context: vscode.ExtensionContext;
@@ -41,11 +46,37 @@ export class BackendLifecycle implements vscode.Disposable {
   private child: childProcess.ChildProcess | undefined;
   private state: BackendState;
   private readonly listeners: Array<(s: BackendState) => void> = [];
+  private readonly restartController: RestartController | undefined;
+  private restartResetTimer: NodeJS.Timeout | undefined;
 
   constructor(context: vscode.ExtensionContext, config: BackendConfig) {
     this.context = context;
     this.cfg = config;
     this.state = initialState(config.port);
+    if (config.autoRestartOnError) {
+      const maxAttempts = config.autoRestartMaxAttempts ?? 3;
+      this.restartController = new RestartController({
+        maxAttempts,
+        backoffMs: DEFAULT_BACKOFF_MS,
+        log: (msg) => this.log(msg),
+        onRetry: async () => {
+          await this.stop();
+          await this.start();
+        },
+        onGiveUp: () => {
+          void vscode.window
+            .showErrorMessage(
+              `OpenBB backend failed to auto-restart after ${maxAttempts} attempts. Click for logs.`,
+              "Show Logs",
+            )
+            .then((sel) => {
+              if (sel === "Show Logs") {
+                this.cfg.outputChannel.show();
+              }
+            });
+        },
+      });
+    }
   }
 
   getState(): BackendState {
@@ -69,6 +100,7 @@ export class BackendLifecycle implements vscode.Disposable {
   }
 
   private dispatch(event: BackendEvent): void {
+    const prev = this.state;
     this.state = transition(this.state, event);
     try {
       this.cfg.onStateChange(this.state);
@@ -81,6 +113,37 @@ export class BackendLifecycle implements vscode.Disposable {
       } catch (err) {
         this.log(`listener threw: ${String(err)}`);
       }
+    }
+    if (
+      this.restartController &&
+      event.type === "HEALTH_FAILED" &&
+      prev.status !== "error" &&
+      this.state.status === "error"
+    ) {
+      void this.restartController.attemptRestart().catch((err) => {
+        this.log(`auto-restart threw: ${String(err)}`);
+      });
+    }
+    if (
+      this.restartController &&
+      this.state.status === "running" &&
+      this.restartController.attemptCount > 0 &&
+      this.restartResetTimer === undefined
+    ) {
+      this.restartResetTimer = setTimeout(() => {
+        if (this.state.status === "running") {
+          this.restartController?.reset();
+          this.log("[auto-restart] running stable >=30s; attempts reset");
+        }
+        this.restartResetTimer = undefined;
+      }, RESTART_STABLE_RESET_MS);
+    }
+    if (
+      this.state.status !== "running" &&
+      this.restartResetTimer !== undefined
+    ) {
+      clearTimeout(this.restartResetTimer);
+      this.restartResetTimer = undefined;
     }
   }
 
