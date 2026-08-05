@@ -225,3 +225,159 @@ def test_endpoint_forwards_normalized_symbol_to_tier(
         "live tier must be queried with the normalized ticker, not the raw "
         f"input; got {seen['symbol']!r}"
     )
+
+
+# ===========================================================================
+# price-performance (#1900 — full-wiring of #1645)
+# ===========================================================================
+
+
+def _perf_row(**overrides: object) -> dict:
+    """Return a realistic one-row fmp_cached price-performance dump (fractions)."""
+    row = {
+        "symbol": "AAPL",
+        "one_day": -0.0013414,
+        "wtd": None,
+        "one_week": 0.0136314,
+        "mtd": None,
+        "one_month": -0.0118179,
+        "qtd": None,
+        "three_month": 0.0872158,
+        "six_month": 0.201,
+        "ytd": 0.1844,
+        "one_year": 0.241,
+        "two_year": None,
+        "three_year": 0.8231,
+        "four_year": None,
+        "five_year": 2.456,
+        "ten_year": None,
+        "max": 12.3,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_shape_price_performance_maps_and_percent_converts() -> None:
+    """Horizons map to labels; fractions convert to percent (2 dp)."""
+    out = tier_calls._shape_price_performance(_perf_row())
+    by_period = {r["period"]: r["return_pct"] for r in out}
+    assert by_period["1D"] == -0.13
+    assert by_period["1W"] == 1.36
+    assert by_period["3M"] == 8.72
+    assert by_period["1Y"] == 24.1
+    assert by_period["5Y"] == 245.6
+    # Order + coverage: 9 horizons, in declared order.
+    assert [r["period"] for r in out] == [
+        "1D",
+        "1W",
+        "1M",
+        "3M",
+        "6M",
+        "YTD",
+        "1Y",
+        "3Y",
+        "5Y",
+    ]
+
+
+def test_shape_price_performance_omits_none_horizons() -> None:
+    """A ``None`` source horizon is omitted, not emitted with a fake value."""
+    out = tier_calls._shape_price_performance(_perf_row(six_month=None, one_year=None))
+    periods = {r["period"] for r in out}
+    assert "6M" not in periods and "1Y" not in periods
+    assert "1D" in periods  # non-null horizons still present
+
+
+def test_perf_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call fetches then shapes into period rows."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_performance_row", lambda symbol: _perf_row()
+    )
+    call = _TIER_CALLS[("equity/price-performance", "fmp_cached")]
+    rows = call(symbol="AAPL")
+    assert {"period", "return_pct"} == set(rows[0])
+    assert rows[0] == {"period": "1D", "return_pct": -0.13}
+
+
+def test_perf_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """All-None row -> WARNING + ``[]`` (chain transitions to stub)."""
+    empty = {k: None for k in _perf_row()}
+    empty["symbol"] = "ZZZZ"
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_performance_row", lambda symbol: empty
+    )
+    call = _TIER_CALLS[("equity/price-performance", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger="openbb_portfolio_intel"):
+        out = call(symbol="ZZZZ")
+    assert out == []
+    hits = [r for r in caplog.records if "0 rows" in r.getMessage()]
+    assert len(hits) == 1, "loud-empty WARNING must fire exactly once"
+
+
+def test_register_all_wires_price_performance() -> None:
+    """The production registration wires the fmp_cached price-performance tier."""
+    assert ("equity/price-performance", "fmp_cached") in _TIER_CALLS
+
+
+def test_perf_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint returns the tier's shaped rows.
+
+    The stub emits fixed values (1D=0.54); the fixture yields 1D=-0.13.
+    Asserting the fixture-derived value proves the fmp_cached tier served.
+    """
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_performance_row", lambda symbol: _perf_row()
+    )
+    resp = _client.get("/pi/equity/price-performance?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert {"period": "1D", "return_pct": -0.13} in rows
+    assert not any(r["return_pct"] == 0.54 for r in rows), "served the stub!"
+
+
+def test_perf_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> dict:
+        seen["symbol"] = symbol
+        return _perf_row()
+
+    monkeypatch.setattr(tier_calls, "_fetch_price_performance_row", _capture)
+    resp = _client.get("/pi/equity/price-performance?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_perf_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_performance_row", lambda symbol: _perf_row()
+    )
+    resp = _client.get("/pi/equity/price-performance?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_price_performance_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real trailing returns the shaper can consume.
+
+    Not ``plan_limited`` — ``equity.price.performance`` is covered by our
+    current FMP key (verified during the #1900 feasibility gate).
+    """
+    row = tier_calls._fetch_price_performance_row("AAPL")
+    assert row, "fmp_cached returned no AAPL price performance — wiring broken"
+    shaped = tier_calls._shape_price_performance(row)
+    assert shaped, "no non-null horizons — shaper produced empty"
+    assert {"period", "return_pct"} == set(shaped[0])
+    assert isinstance(shaped[0]["return_pct"], float)

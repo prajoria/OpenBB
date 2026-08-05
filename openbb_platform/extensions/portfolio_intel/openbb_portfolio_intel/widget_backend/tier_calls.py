@@ -15,6 +15,7 @@ offline-safe, and lets tests monkeypatch :func:`_fetch_price_history_rows`.
 Wiring status
 -------------
 - ``equity/price-history`` -> ``fmp_cached`` (full-wiring of stub #1702, #1898)
+- ``equity/price-performance`` -> ``fmp_cached`` (full-wiring of stub #1645, #1900)
 """
 
 from __future__ import annotations
@@ -118,6 +119,84 @@ def _price_history_fmp_cached(*, symbol: str, chart_type: str = "line") -> list[
 
 
 # ---------------------------------------------------------------------------
+# price-performance (#1900 — full-wiring of #1645)
+# ---------------------------------------------------------------------------
+#
+# ``obb.equity.price.performance(provider="fmp_cached")`` returns ONE row of
+# trailing returns as *fractions* (e.g. ``one_day=-0.00134`` == -0.134%). The
+# widget's shipped stub contract is ``[{period, return_pct}]`` with the
+# horizon labels below and ``return_pct`` in *percent*, so the shaper maps
+# fields -> labels and multiplies by 100.
+
+#: Widget horizon label -> provider field. Order defines row order.
+_PRICE_PERF_PERIODS: tuple[tuple[str, str], ...] = (
+    ("1D", "one_day"),
+    ("1W", "one_week"),
+    ("1M", "one_month"),
+    ("3M", "three_month"),
+    ("6M", "six_month"),
+    ("YTD", "ytd"),
+    ("1Y", "one_year"),
+    ("3Y", "three_year"),
+    ("5Y", "five_year"),
+)
+
+
+def _fetch_price_performance_row(symbol: str) -> dict:
+    """Fetch the single trailing-returns row for ``symbol`` from ``fmp_cached``.
+
+    Returns a plain dict (the provider model's ``model_dump``). An absent
+    result yields ``{}`` so the shaper produces an empty list and the tier
+    call transitions the chain. Network/quota errors propagate to the caller.
+    """
+    res = _obb().equity.price.performance(symbol=symbol, provider="fmp_cached")
+    rows = getattr(res, "results", res)
+    if not rows:
+        return {}
+    first = rows[0]
+    if hasattr(first, "model_dump"):
+        return first.model_dump()
+    if isinstance(first, dict):
+        return first
+    return dict(first)
+
+
+def _shape_price_performance(row: dict) -> list[dict]:
+    """Shape one trailing-returns row to ``[{period, return_pct}]``.
+
+    Fractions are converted to percent (``*100``, rounded to 2 dp). A period
+    whose source value is ``None`` (provider has no data for that horizon) is
+    **omitted** rather than emitted with a fabricated value — partial real
+    data beats fake completeness. Pure (no I/O).
+    """
+    out: list[dict] = []
+    for label, field in _PRICE_PERF_PERIODS:
+        val = row.get(field)
+        if val is None:
+            continue
+        out.append({"period": label, "return_pct": round(float(val) * 100.0, 2)})
+    return out
+
+
+def _price_performance_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live trailing returns from fmp_cached and shape them.
+
+    Empty output (no non-null horizons) is loud (WARNING) and returned as
+    ``[]`` so the chain transitions to the next tier / the endpoint stub
+    rather than silently serving nothing.
+    """
+    row = _fetch_price_performance_row(symbol)
+    shaped = _shape_price_performance(row)
+    if not shaped:
+        logger.warning(
+            "price-performance fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -130,6 +209,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     dispatch table.
     """
     register("equity/price-history", "fmp_cached", _price_history_fmp_cached)
+    register("equity/price-performance", "fmp_cached", _price_performance_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports

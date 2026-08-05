@@ -130,6 +130,18 @@ def _account_kwargs(
     return {"account_id": account_id}
 
 
+def _symbol_kwargs(*_args: object, symbol: str = "AAPL", **_kwargs: object) -> dict:
+    """Forward the *normalized* ``symbol`` to a symbol-only tier call.
+
+    The default ``kwargs_from`` forwards the raw ``symbol``; a live tier must
+    receive the same normalized ticker (strip + upper) the stub body would
+    use, otherwise a valid-but-unnormalized input like ``" aapl "`` reaches
+    the provider verbatim, returns empty, and silently falls through the chain
+    to the demo stub — fabricated data masquerading as live (PR #1899 review).
+    """
+    return {"symbol": _validate_symbol(symbol)}
+
+
 def _price_history_kwargs(
     *_args: object,
     symbol: str = "AAPL",
@@ -1378,6 +1390,7 @@ def equity_price_history(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_price_performance(
     request: Request, symbol: str = "AAPL"
@@ -1385,7 +1398,8 @@ def equity_price_performance(
     """Return Price Performance rows (#1645) — trailing return by horizon (table)."""
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1645): wire to FMPPricePerformanceFetcher via fmp_cached.
+    # Live-served via fmp_cached tier (#1900, register_all in tier_calls.py);
+    # this stub body is the loud fallback when the live tier is empty/errors.
     return [
         {"period": "1D", "return_pct": 0.54},
         {"period": "1W", "return_pct": 1.82},
