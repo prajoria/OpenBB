@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.0.29 - Testing strategy scaffold — integration + snapshots + fixture harness + QA matrix (#1840)
+
+- New `tests/integration/` — `@vscode/test-electron` bootstrap
+  (`runner.js` + Mocha `suite.js`) with three test files:
+  `openTerminal.test.js`, `commandRegistration.test.js`,
+  `settings.test.js`. Gated on `RUN_INTEGRATION=1` — default `npm`
+  invocations do not download VS Code.
+- New `tests/snapshots/` — deterministic webview HTML snapshots for
+  the terminal panel and preview panel (fixed nonce, checked-in
+  golden files). `UPDATE_SNAPSHOTS=1` regenerates.
+- New `tests/fixture-harness/roundtrip.test.js` — validates every
+  layout + widgets fixture shape and confirms every layout `widgetId`
+  resolves against `widgets.sample.json`.
+- New `docs/qa-matrix.md` — 5 layouts × 3 themes × 2 modes = 30-cell
+  pre-release checklist with signature line.
+- New `docs/testing-strategy.md` — four-tier testing doctrine
+  cross-referenced from PRD §17.
+- `package.json`: bumped to `0.0.29`, added `test:integration`,
+  `test:snapshots`, `test:fixture-harness`, `test:all`, plus `mocha`
+  + `@types/mocha` devDependencies.
+
 ## 0.0.28 - Performance NFR gate + harness (#1839)
 
 - New `src/perf/budget.ts` — `NFR_BUDGETS` registry seeded from §17.1
