@@ -16,6 +16,7 @@ Wiring status
 -------------
 - ``equity/price-history`` -> ``fmp_cached`` (full-wiring of stub #1702, #1898)
 - ``equity/price-performance`` -> ``fmp_cached`` (full-wiring of stub #1645, #1900)
+- ``equity/management-team`` -> ``fmp_cached`` (full-wiring of stub #1648, #1902)
 """
 
 from __future__ import annotations
@@ -197,6 +198,78 @@ def _price_performance_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# management-team (#1902 — full-wiring of #1648)
+# ---------------------------------------------------------------------------
+#
+# ``obb.equity.fundamental.management(provider="fmp_cached")`` returns key
+# executives with fields ``name, title, pay, year_born, gender, currency_pay``.
+# The widget's shipped stub contract is ``[{name, title, pay_usd, tenure_years}]``.
+# fmp_cached has no tenure field, so ``tenure_years`` is emitted as ``None``
+# (the stub's tenure value was fabricated) — the key is kept so the table's
+# columns stay stable across the live/stub paths.
+
+
+def _fetch_management_rows(symbol: str) -> list[dict]:
+    """Fetch key-executive rows for ``symbol`` from ``fmp_cached``.
+
+    Returns a list of plain dicts (``model_dump`` per row). Network/quota
+    errors propagate to the caller, which the chain classifies as a tier
+    transition.
+    """
+    res = _obb().equity.fundamental.management(symbol=symbol, provider="fmp_cached")
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _shape_management(rows: list[dict]) -> list[dict]:
+    """Shape key-executive rows to ``[{name, title, pay_usd, tenure_years}]``.
+
+    ``pay`` -> ``pay_usd``; ``tenure_years`` is always ``None`` (no source
+    field). A row with no ``name`` is skipped (can't render a nameless
+    executive). Pure (no I/O).
+    """
+    out: list[dict] = []
+    for r in rows:
+        name = r.get("name")
+        if not name:
+            continue
+        out.append(
+            {
+                "name": name,
+                "title": r.get("title"),
+                "pay_usd": r.get("pay"),
+                "tenure_years": None,
+            }
+        )
+    return out
+
+
+def _management_team_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live key executives from fmp_cached and shape them.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_management_rows(symbol)
+    shaped = _shape_management(rows)
+    if not shaped:
+        logger.warning(
+            "management-team fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -210,6 +283,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     """
     register("equity/price-history", "fmp_cached", _price_history_fmp_cached)
     register("equity/price-performance", "fmp_cached", _price_performance_fmp_cached)
+    register("equity/management-team", "fmp_cached", _management_team_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports

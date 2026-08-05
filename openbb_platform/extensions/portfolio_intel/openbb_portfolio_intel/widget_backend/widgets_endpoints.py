@@ -1420,14 +1420,18 @@ def equity_price_performance(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_management_team(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | None]]:
-    """Return Management Team rows (#1648) — key executives (table)."""
+    """Return Management Team rows (#1648) — key executives (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/management-team`` tier
+    call (#1902); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1648): wire to FMPKeyExecutivesFetcher via fmp_cached.
     return [
         {
             "name": "Timothy D. Cook",

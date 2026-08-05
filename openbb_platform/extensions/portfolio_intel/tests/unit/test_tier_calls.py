@@ -381,3 +381,150 @@ def test_price_performance_fmp_cached_live() -> None:
     assert shaped, "no non-null horizons — shaper produced empty"
     assert {"period", "return_pct"} == set(shaped[0])
     assert isinstance(shaped[0]["return_pct"], float)
+
+
+# ---------------------------------------------------------------------------
+# management-team (#1902 — full-wiring of #1648)
+# ---------------------------------------------------------------------------
+
+
+def _mgmt_rows() -> list[dict]:
+    """Realistic-shape fmp_cached key-executive dump (extras the shaper drops).
+
+    Real ``obb.equity.fundamental.management(provider="fmp_cached")`` rows
+    carry ``name, title, pay, year_born, gender, currency_pay`` — no tenure.
+    Includes a ``pay=None`` row and a nameless row so the shaper's None and
+    skip branches are exercised.
+    """
+    return [
+        {
+            "name": "Jane Q. Public",
+            "title": "Chief Executive Officer",
+            "pay": 12_345_678,
+            "year_born": 1968,
+            "gender": "female",
+            "currency_pay": "USD",
+        },
+        {
+            "name": "John Roe",
+            "title": "Chief Financial Officer",
+            "pay": None,
+            "year_born": 1975,
+            "gender": "male",
+            "currency_pay": "USD",
+        },
+        {
+            "name": "",
+            "title": "Unnamed Director",
+            "pay": 999,
+        },
+    ]
+
+
+def test_shape_management_maps_and_nulls_tenure() -> None:
+    """Pay -> pay_usd; tenure_years always None; nameless row skipped."""
+    out = tier_calls._shape_management(_mgmt_rows())
+    assert out == [
+        {
+            "name": "Jane Q. Public",
+            "title": "Chief Executive Officer",
+            "pay_usd": 12_345_678,
+            "tenure_years": None,
+        },
+        {
+            "name": "John Roe",
+            "title": "Chief Financial Officer",
+            "pay_usd": None,
+            "tenure_years": None,
+        },
+    ]
+
+
+def test_mgmt_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes fetch + shape into contract rows."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_management_rows", lambda symbol: _mgmt_rows()
+    )
+    call = _TIER_CALLS[("equity/management-team", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert out[0]["name"] == "Jane Q. Public"
+    assert set(out[0]) == {"name", "title", "pay_usd", "tenure_years"}
+
+
+def test_mgmt_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
+    monkeypatch.setattr(tier_calls, "_fetch_management_rows", lambda symbol: [])
+    call = _TIER_CALLS[("equity/management-team", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_management_team() -> None:
+    """The production registration wires the fmp_cached management tier."""
+    assert ("equity/management-team", "fmp_cached") in _TIER_CALLS
+
+
+def test_mgmt_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint returns the tier's shaped rows.
+
+    The stub emits Timothy D. Cook / CEO; the fixture yields Jane Q. Public.
+    Asserting the fixture-derived name proves the fmp_cached tier served.
+    """
+    monkeypatch.setattr(
+        tier_calls, "_fetch_management_rows", lambda symbol: _mgmt_rows()
+    )
+    resp = _client.get("/pi/equity/management-team?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows[0]["name"] == "Jane Q. Public"
+    assert not any(r["name"] == "Timothy D. Cook" for r in rows), "served the stub!"
+
+
+def test_mgmt_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _mgmt_rows()
+
+    monkeypatch.setattr(tier_calls, "_fetch_management_rows", _capture)
+    resp = _client.get("/pi/equity/management-team?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_mgmt_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_management_rows", lambda symbol: _mgmt_rows()
+    )
+    resp = _client.get("/pi/equity/management-team?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_management_team_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real key executives the shaper can consume.
+
+    Not ``plan_limited`` — ``equity.fundamental.management`` is covered by our
+    current FMP key (verified during the #1902 feasibility probe).
+    """
+    rows = tier_calls._fetch_management_rows("AAPL")
+    assert rows, "fmp_cached returned no AAPL management — wiring broken"
+    shaped = tier_calls._shape_management(rows)
+    assert shaped, "no named executives — shaper produced empty"
+    assert set(shaped[0]) == {"name", "title", "pay_usd", "tenure_years"}
+    assert shaped[0]["tenure_years"] is None
