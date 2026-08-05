@@ -3,7 +3,7 @@
   "displayName": "OpenBB Terminal",
   "description": "OpenBB Trading Terminal inside VS Code \u2014 layouts, widgets, and a local API bridge.",
   "publisher": "prajoria",
-  "version": "0.0.33",
+  "version": "0.0.34",
   "engines": {
     "vscode": "^1.85.0"
   },
