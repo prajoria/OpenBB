@@ -130,6 +130,45 @@ def _account_kwargs(
     return {"account_id": account_id}
 
 
+def _price_history_kwargs(
+    *_args: object,
+    symbol: str = "AAPL",
+    chart_type: str = "line",
+    **_kwargs: object,
+) -> dict:
+    """Extract ``symbol`` + ``chart_type`` for the price-history tier call.
+
+    The default ``kwargs_from`` forwards only ``symbol``; price-history's
+    live tier needs ``chart_type`` too so it can shape line vs candle rows.
+    """
+    return {"symbol": symbol, "chart_type": chart_type}
+
+
+def _validate_price_history_from_call(
+    *_args: object,
+    symbol: str = "AAPL",
+    chart_type: str = "line",
+    **_kwargs: object,
+) -> None:
+    """Validate ``symbol`` AND ``chart_type`` before any tier is dispatched.
+
+    Both checks MUST run in this pre-dispatch hook (not only in the stub
+    body): once a live tier serves the request the stub body is bypassed,
+    so validation living only there would let an invalid ``chart_type``
+    reach the shaper and silently return candle rows (the #1898 bug). The
+    ``_ALLOWED_CHART_TYPES`` global is resolved at call time.
+    """
+    _validate_symbol(symbol)
+    if chart_type not in _ALLOWED_CHART_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"chart_type must be one of {_ALLOWED_CHART_TYPES}; "
+                f"got {chart_type!r}. Use ``line`` or ``candle``."
+            ),
+        )
+
+
 # ---------------------------------------------------------------------------
 # X-Ray widgets (#529, #530)
 # ---------------------------------------------------------------------------
@@ -1258,8 +1297,9 @@ def _demo_ohlc_series(symbol: str, days: int = 20) -> list[dict]:
     endpoint="pi/equity/price-history",
     family="equity/price-history",
     record_tier_used=record_tier_used,
+    kwargs_from=_price_history_kwargs,
     require_auth=_require_auth_from_call,
-    validate_kwargs=_validate_symbol_from_call,
+    validate_kwargs=_validate_price_history_from_call,
 )
 def equity_price_history(
     request: Request,
@@ -1296,11 +1336,12 @@ def equity_price_history(
             ),
         )
 
-    # TODO(gh-1702): swap the demo generator for
-    # ``obb.equity.price.historical(symbol=sym, provider='fmp_cached')`` once
-    # the widget-level integration test in the pi_widgets Playwright harness
-    # is green. Keeping the demo hermetic today so the shape contract can
-    # ship independently of provider-quota-sensitive tests.
+    # Live data is served by the ``fmp_cached`` tier registered in
+    # ``widget_backend.tier_calls`` (full-wiring #1898), routed through the
+    # provider chain by the ``@with_chain`` decorator above. This stub body
+    # is the chain-exhaustion fallback only: it runs when fmp_cached (and any
+    # lower tier) is unavailable/empty, keeping the widget renderable offline
+    # and in hermetic tests. Shape here MUST match the tier call's shaper.
     bars = _demo_ohlc_series(sym)
 
     if chart_type == "line":
