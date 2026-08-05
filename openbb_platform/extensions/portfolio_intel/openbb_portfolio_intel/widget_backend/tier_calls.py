@@ -20,6 +20,7 @@ Wiring status
 - ``equity/revenue-geography`` -> ``fmp_cached`` (full-wiring of stub #1649, #1904)
 - ``equity/revenue-business-line`` -> ``fmp_cached`` (full-wiring of stub #1650, #1906)
 - ``equity/dividend-payment`` -> ``fmp_cached`` (full-wiring of stub #1665, #1908)
+- ``equity/insider-trading`` -> ``fmp_cached`` (full-wiring of stub #1661, #1910)
 """
 
 from __future__ import annotations
@@ -510,6 +511,95 @@ def _dividend_payment_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# insider-trading (#1910 — full-wiring of #1661)
+# ---------------------------------------------------------------------------
+#
+# ``obb.equity.ownership.insider_trading(provider="fmp_cached")`` returns
+# ``InsiderTradingData``. Relevant fields: ``owner_name, transaction_date,
+# filing_date, securities_transacted (always POSITIVE), transaction_price,
+# transaction_type, acquisition_or_disposition`` (``A``=acquire, ``D``=dispose).
+# The widget contract is ``[{name, date, shares, transaction_type,
+# price_usd}]``, newest-first. We sign ``shares`` from the A/D flag so a sale
+# reads as a negative share count (matching the stub's convention).
+
+_INSIDER_LIMIT = 25
+
+
+def _fetch_insider_rows(symbol: str) -> list[dict]:
+    """Fetch recent insider-trading rows for ``symbol`` from ``fmp_cached``.
+
+    Returns a list of plain dicts (``model_dump`` per row). Errors propagate
+    to the caller, which the chain classifies as a tier transition.
+    """
+    res = _obb().equity.ownership.insider_trading(
+        symbol=symbol, provider="fmp_cached", limit=100
+    )
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _shape_insider_trading(rows: list[dict]) -> list[dict]:
+    """Shape insider rows to ``[{name, date, shares, transaction_type, price_usd}]``.
+
+    ``shares`` = ``securities_transacted`` signed by
+    ``acquisition_or_disposition`` (``D`` -> negative, anything else ->
+    positive). ``date`` prefers ``transaction_date``, falling back to
+    ``filing_date``, ISO-stringified. Rows with no owner name or no
+    ``securities_transacted`` are skipped. Sorted newest-first, capped to
+    ``_INSIDER_LIMIT``. Pure (no I/O).
+    """
+    kept: list[dict] = []
+    for r in rows:
+        name = r.get("owner_name")
+        qty = r.get("securities_transacted")
+        if not name or qty is None:
+            continue
+        shares = -abs(qty) if r.get("acquisition_or_disposition") == "D" else abs(qty)
+        date = r.get("transaction_date") or r.get("filing_date")
+        kept.append(
+            {
+                "name": name,
+                "date": _iso_date(date),
+                "shares": shares,
+                "transaction_type": r.get("transaction_type"),
+                "price_usd": r.get("transaction_price"),
+                "_sort": _iso_date(date) or "",
+            }
+        )
+    kept.sort(key=lambda r: r["_sort"], reverse=True)
+    out: list[dict] = []
+    for r in kept[:_INSIDER_LIMIT]:
+        r.pop("_sort", None)
+        out.append(r)
+    return out
+
+
+def _insider_trading_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live insider trades from fmp_cached and shape them.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_insider_rows(symbol)
+    shaped = _shape_insider_trading(rows)
+    if not shaped:
+        logger.warning(
+            "insider-trading fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -531,6 +621,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
         _revenue_business_line_fmp_cached,
     )
     register("equity/dividend-payment", "fmp_cached", _dividend_payment_fmp_cached)
+    register("equity/insider-trading", "fmp_cached", _insider_trading_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports

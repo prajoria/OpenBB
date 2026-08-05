@@ -954,3 +954,212 @@ def test_dividend_payment_fmp_cached_live() -> None:
     # Newest-first ordering holds on live data.
     ex_dates = [r["ex_date"] for r in shaped]
     assert ex_dates == sorted(ex_dates, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# insider-trading (#1910 — full-wiring of #1661)
+# ---------------------------------------------------------------------------
+
+
+def _insider_rows() -> list[dict]:
+    """Realistic fmp_cached insider dump: positive qty + A/D sign flag.
+
+    Deliberately out of order (to exercise sort), with a disposition (sell),
+    an acquisition (buy), a null-owner row (skip), and a null-qty row (skip).
+    ``securities_transacted`` is always positive; direction is the A/D flag.
+    """
+    return [
+        {
+            "owner_name": "COOK TIMOTHY",
+            "transaction_date": _dt.date(2026, 5, 1),
+            "filing_date": _dt.date(2026, 5, 3),
+            "securities_transacted": 223986.0,
+            "transaction_price": 173.45,
+            "transaction_type": "S-Sale",
+            "acquisition_or_disposition": "D",
+        },
+        {
+            "owner_name": "LEVINSON ARTHUR",
+            "transaction_date": _dt.date(2026, 6, 15),
+            "filing_date": _dt.date(2026, 6, 17),
+            "securities_transacted": 5000.0,
+            "transaction_price": 311.02,
+            "transaction_type": "P-Purchase",
+            "acquisition_or_disposition": "A",
+        },
+        {
+            "owner_name": None,
+            "transaction_date": _dt.date(2026, 7, 1),
+            "filing_date": _dt.date(2026, 7, 2),
+            "securities_transacted": 999.0,
+            "transaction_price": 1.0,
+            "transaction_type": "S-Sale",
+            "acquisition_or_disposition": "D",
+        },
+        {
+            "owner_name": "GHOST NOQTY",
+            "transaction_date": _dt.date(2026, 6, 20),
+            "filing_date": _dt.date(2026, 6, 22),
+            "securities_transacted": None,
+            "transaction_price": 1.0,
+            "transaction_type": "S-Sale",
+            "acquisition_or_disposition": "D",
+        },
+    ]
+
+
+def test_shape_insider_signs_shares_and_sorts_desc() -> None:
+    """D->negative, A->positive shares; newest-first; null owner/qty skipped."""
+    out = tier_calls._shape_insider_trading(_insider_rows())
+    assert out == [
+        {
+            "name": "LEVINSON ARTHUR",
+            "date": "2026-06-15",
+            "shares": 5000.0,
+            "transaction_type": "P-Purchase",
+            "price_usd": 311.02,
+        },
+        {
+            "name": "COOK TIMOTHY",
+            "date": "2026-05-01",
+            "shares": -223986.0,
+            "transaction_type": "S-Sale",
+            "price_usd": 173.45,
+        },
+    ]
+
+
+def test_shape_insider_falls_back_to_filing_date() -> None:
+    """When transaction_date is missing, filing_date is used for date/sort."""
+    rows = [
+        {
+            "owner_name": "NO TXN DATE",
+            "transaction_date": None,
+            "filing_date": _dt.date(2026, 2, 2),
+            "securities_transacted": 10.0,
+            "transaction_price": 5.0,
+            "transaction_type": "A-Award",
+            "acquisition_or_disposition": "A",
+        }
+    ]
+    out = tier_calls._shape_insider_trading(rows)
+    assert out[0]["date"] == "2026-02-02"
+
+
+def test_shape_insider_caps_to_limit() -> None:
+    """No more than _INSIDER_LIMIT rows are returned (newest kept)."""
+    many = [
+        {
+            "owner_name": f"OWNER {i}",
+            "transaction_date": _dt.date(2000 + i // 12, (i % 12) + 1, 1),
+            "filing_date": None,
+            "securities_transacted": 1.0,
+            "transaction_price": 1.0,
+            "transaction_type": "S-Sale",
+            "acquisition_or_disposition": "A",
+        }
+        for i in range(60)
+    ]
+    out = tier_calls._shape_insider_trading(many)
+    assert len(out) == tier_calls._INSIDER_LIMIT
+    dates = [r["date"] for r in out]
+    assert dates == sorted(dates, reverse=True)
+
+
+def test_insider_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes fetch + shape into contract rows."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_insider_rows", lambda symbol: _insider_rows()
+    )
+    call = _TIER_CALLS[("equity/insider-trading", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert out[0]["name"] == "LEVINSON ARTHUR"
+    assert out[0]["shares"] == 5000.0
+    assert out[1]["shares"] == -223986.0
+
+
+def test_insider_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An empty fetch logs a WARNING (0 rows) and returns [] (chain moves on)."""
+    monkeypatch.setattr(tier_calls, "_fetch_insider_rows", lambda symbol: [])
+    call = _TIER_CALLS[("equity/insider-trading", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_insider_trading() -> None:
+    """The production registration wires the fmp_cached insider tier."""
+    assert ("equity/insider-trading", "fmp_cached") in _TIER_CALLS
+
+
+def test_insider_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint returns the tier's shaped rows.
+
+    The fixture yields 2 rows (LEVINSON, COOK); the stub yields 4 and
+    contains 'Adams Katherine', which the fixture never does.
+    """
+    monkeypatch.setattr(
+        tier_calls, "_fetch_insider_rows", lambda symbol: _insider_rows()
+    )
+    resp = _client.get("/pi/equity/insider-trading?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 2, f"expected 2 fixture rows, got {len(rows)} (stub has 4)"
+    assert not any(r["name"] == "Adams Katherine" for r in rows), "served the stub!"
+
+
+def test_insider_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _insider_rows()
+
+    monkeypatch.setattr(tier_calls, "_fetch_insider_rows", _capture)
+    resp = _client.get("/pi/equity/insider-trading?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_insider_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_insider_rows", lambda symbol: _insider_rows()
+    )
+    resp = _client.get("/pi/equity/insider-trading?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_insider_trading_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real insider trades the shaper can consume.
+
+    Not ``plan_limited`` — ``equity.ownership.insider_trading`` is covered by
+    our current FMP key (verified during the #1910 probe).
+    """
+    rows = tier_calls._fetch_insider_rows("AAPL")
+    assert rows, "fmp_cached returned no AAPL insider trades — wiring broken"
+    shaped = tier_calls._shape_insider_trading(rows)
+    assert shaped, "shaper produced empty"
+    assert set(shaped[0]) == {
+        "name",
+        "date",
+        "shares",
+        "transaction_type",
+        "price_usd",
+    }
+    assert isinstance(shaped[0]["shares"], (int, float))
+    dates = [r["date"] for r in shaped]
+    assert dates == sorted(dates, reverse=True)
