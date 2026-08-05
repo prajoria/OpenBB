@@ -110,9 +110,7 @@ def test_tier_call_loud_empty(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Empty fetch -> WARNING logged + ``[]`` returned (chain transitions)."""
-    monkeypatch.setattr(
-        tier_calls, "_fetch_price_history_rows", lambda symbol: []
-    )
+    monkeypatch.setattr(tier_calls, "_fetch_price_history_rows", lambda symbol: [])
     call = _TIER_CALLS[("equity/price-history", "fmp_cached")]
     with caplog.at_level(logging.WARNING, logger="openbb_portfolio_intel"):
         out = call(symbol="ZZZZ", chart_type="line")
@@ -201,3 +199,29 @@ def test_endpoint_rejects_bad_symbol_with_tier_registered(
     )
     resp = _client.get("/pi/equity/price-history?symbol=<script>")
     assert resp.status_code == 400
+
+
+def test_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PR #1899 review: the live tier must receive the SAME normalized ticker
+    the stub body would use (``symbol.strip().upper()``).
+
+    Forwarding the raw symbol would let ``" aapl "`` reach fmp_cached verbatim,
+    return empty, and silently fall through the chain to the demo stub -
+    fabricated data masquerading as live prices. This test captures the symbol
+    the fetch actually receives and asserts it was normalized.
+    """
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _fixture_rows()
+
+    monkeypatch.setattr(tier_calls, "_fetch_price_history_rows", _capture)
+    resp = _client.get("/pi/equity/price-history?symbol=+aapl+&chart_type=line")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", (
+        "live tier must be queried with the normalized ticker, not the raw "
+        f"input; got {seen['symbol']!r}"
+    )

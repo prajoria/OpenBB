@@ -140,8 +140,15 @@ def _price_history_kwargs(
 
     The default ``kwargs_from`` forwards only ``symbol``; price-history's
     live tier needs ``chart_type`` too so it can shape line vs candle rows.
+
+    The symbol is normalized via ``_validate_symbol`` (strip + upper) so the
+    live ``fmp_cached`` tier queries the *same* ticker the stub body would
+    (which re-normalizes at ``sym = symbol.strip().upper()``). Forwarding the
+    raw symbol would let ``" aapl "`` reach the provider verbatim, get an
+    empty result, and silently fall through the chain to the demo stub —
+    fabricated data masquerading as live prices (code-review PR #1899).
     """
-    return {"symbol": symbol, "chart_type": chart_type}
+    return {"symbol": _validate_symbol(symbol), "chart_type": chart_type}
 
 
 def _validate_price_history_from_call(
