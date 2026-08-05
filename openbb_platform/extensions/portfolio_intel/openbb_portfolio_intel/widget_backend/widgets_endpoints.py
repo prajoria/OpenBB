@@ -1826,14 +1826,16 @@ def equity_earnings_transcripts(request: Request, symbol: str = "AAPL") -> str:
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_price_target_history(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float]]:
+) -> list[dict[str, str | float | None]]:
     """Return Price Target vs. Close time series (#1669) — target evolution (chart)."""
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1669): wire to FMPCachedPriceTargetConsensusFetcher over time series.
+    # TODO(gh-1669): fallback stub — the live path is the fmp_cached tier call
+    # (equity/price-target-history) wired in tier_calls.py (#1926).
     return [
         {"date": "2025-11-01", "close": 152.20, "target": 175.00},
         {"date": "2026-01-15", "close": 168.35, "target": 185.00},
