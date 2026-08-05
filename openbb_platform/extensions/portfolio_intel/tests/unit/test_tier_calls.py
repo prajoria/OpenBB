@@ -2298,3 +2298,184 @@ def test_peer_multiples_fmp_cached_live() -> None:
         or row["ps_ttm"] is not None
         or row["ev_ebitda"] is not None
     ), "no live valuation multiple"
+
+
+# ---------------------------------------------------------------------------
+# price-target-history (#1926 — full-wiring of #1669)
+# ---------------------------------------------------------------------------
+
+
+def _target_rows() -> list[dict]:
+    """Unsorted analyst price-target rows (as ``model_dump`` would yield)."""
+    return [
+        {
+            "published_date": "2026-02-01",
+            "price_target": 190.0,
+            "price_when_posted": 172.10,
+        },
+        {
+            "published_date": "2026-05-01",
+            "price_target": 200.0,
+            "price_when_posted": 173.45,
+        },
+        {
+            "published_date": "2025-11-01",
+            "price_target": 175.0,
+            "price_when_posted": 152.20,
+        },
+    ]
+
+
+def test_shape_target_history_maps_and_sorts_ascending() -> None:
+    """Rows map to {date, close, target} and emit chronological ascending."""
+    out = tier_calls._shape_target_history(_target_rows())
+    assert [r["date"] for r in out] == ["2025-11-01", "2026-02-01", "2026-05-01"]
+    assert out[-1]["target"] == 200.0
+    assert out[-1]["close"] == 173.45
+    assert set(out[0]) == {"date", "close", "target"}
+
+
+def test_shape_target_history_skips_null_date_or_target() -> None:
+    """Rows without a usable date or target are dropped."""
+    rows = [
+        {"published_date": None, "price_target": 100.0, "price_when_posted": 90.0},
+        {
+            "published_date": "2026-01-01",
+            "price_target": None,
+            "price_when_posted": 90.0,
+        },
+        {
+            "published_date": "2026-02-01",
+            "price_target": 120.0,
+            "price_when_posted": None,
+        },
+    ]
+    out = tier_calls._shape_target_history(rows)
+    assert len(out) == 1
+    assert out[0]["date"] == "2026-02-01"
+    assert out[0]["target"] == 120.0
+    assert out[0]["close"] is None
+
+
+def test_shape_target_history_coerces_numeric_strings() -> None:
+    """Numeric-string target/close are coerced to float."""
+    rows = [
+        {
+            "published_date": "2026-03-01",
+            "price_target": "195.5",
+            "price_when_posted": "170.25",
+        }
+    ]
+    out = tier_calls._shape_target_history(rows)
+    assert out[0]["target"] == 195.5
+    assert out[0]["close"] == 170.25
+
+
+def test_shape_target_history_caps_most_recent() -> None:
+    """Only the most-recent _TARGET_CAP points are kept, in ascending order."""
+    rows = [
+        {"published_date": f"2{i:03d}-01-01", "price_target": float(i)}
+        for i in range(70)
+    ]
+    out = tier_calls._shape_target_history(rows)
+    assert len(out) == tier_calls._TARGET_CAP
+    # Most-recent 60 of 70 (i=10..69), returned ascending -> first is i=10.
+    assert out[0]["date"] == "2010-01-01"
+    assert out[0]["target"] == 10.0
+    assert out[-1]["date"] == "2069-01-01"
+
+
+def test_price_target_history_tier_call_composes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tier call fetches rows then shapes them to the chart series."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_target_rows", lambda symbol: _target_rows()
+    )
+    call = _TIER_CALLS[("equity/price-target-history", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert [r["date"] for r in out] == ["2025-11-01", "2026-02-01", "2026-05-01"]
+    assert out[-1]["target"] == 200.0
+
+
+def test_price_target_history_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When no usable rows resolve, WARN (0 rows) and return []."""
+    monkeypatch.setattr(tier_calls, "_fetch_price_target_rows", lambda symbol: [])
+    call = _TIER_CALLS[("equity/price-target-history", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_price_target_history() -> None:
+    """The production registration wires the fmp_cached price-target tier."""
+    assert ("equity/price-target-history", "fmp_cached") in _TIER_CALLS
+
+
+def test_price_target_history_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint serves live-shaped rows.
+
+    The stub's rows start at date 2025-11-01/target 175.0; the fixture yields
+    a single distinct row (2099-01-01/target 999.0), proving the tier served.
+    """
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_price_target_rows",
+        lambda symbol: [
+            {
+                "published_date": "2099-01-01",
+                "price_target": 999.0,
+                "price_when_posted": 111.0,
+            }
+        ],
+    )
+    resp = _client.get("/pi/equity/price-target-history?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows, "empty response"
+    assert rows[0]["date"] == "2099-01-01", "served the stub!"
+    assert rows[0]["target"] == 999.0, "served the stub!"
+
+
+def test_price_target_history_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return [{"published_date": "2026-01-01", "price_target": 1.0}]
+
+    monkeypatch.setattr(tier_calls, "_fetch_price_target_rows", _capture)
+    resp = _client.get("/pi/equity/price-target-history?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def test_price_target_history_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(tier_calls, "_fetch_price_target_rows", lambda symbol: [])
+    resp = _client.get("/pi/equity/price-target-history?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_price_target_history_fmp_cached_live() -> None:
+    """Live: fmp_cached resolves AAPL analyst price targets as a time series."""
+    rows = tier_calls._fetch_price_target_rows("AAPL")
+    assert rows, "no analyst targets returned — wiring broken"
+    out = tier_calls._shape_target_history(rows)
+    assert out, "shaped series empty on live data"
+    assert set(out[0]) == {"date", "close", "target"}
+    # Chronological ascending: dates non-decreasing.
+    dates = [r["date"] for r in out]
+    assert dates == sorted(dates), "series not chronological"
+    assert any(r["target"] is not None for r in out), "no live target value"

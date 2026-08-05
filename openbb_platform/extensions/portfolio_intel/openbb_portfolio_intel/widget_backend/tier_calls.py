@@ -27,6 +27,7 @@ Wiring status
 - ``charting`` -> ``fmp_cached`` (full-wiring of stub #1655, #1918)
 - ``equity/statements`` -> ``fmp_cached`` (full-wiring of stub #1653, #1920)
 - ``equity/peer-multiples`` -> ``fmp_cached`` (full-wiring of stub #1657, #1923)
+- ``equity/price-target-history`` -> ``fmp_cached`` (full-wiring of stub #1669, #1926)
 """
 
 from __future__ import annotations
@@ -1204,6 +1205,81 @@ def _peer_multiples_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# price-target-history (#1926 — full-wiring of #1669)
+# ---------------------------------------------------------------------------
+#
+# Analyst price-target evolution vs. the stock price at posting time, as a
+# {date, close, target} time series for the chart. Sourced from
+# equity.estimates.price_target (fmp_cached), which returns dated per-analyst
+# rows: published_date -> date, price_target -> target, price_when_posted ->
+# close. Rows without a usable date or target are dropped; the most-recent
+# _TARGET_CAP points are kept and emitted in chronological (ascending) order.
+
+#: Max most-recent target points kept for the chart (bounds payload size).
+_TARGET_CAP = 60
+
+
+def _fetch_price_target_rows(symbol: str) -> list[dict]:
+    """Fetch dated analyst price-target rows for ``symbol`` as plain dicts."""
+    res = _obb().equity.estimates.price_target(symbol=symbol, provider="fmp_cached")
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _shape_target_history(rows: list[dict]) -> list[dict]:
+    """Map raw analyst-target rows to ``{date, close, target}`` (pure, no I/O).
+
+    Rows without a usable ``published_date`` or ``price_target`` are dropped.
+    The most-recent :data:`_TARGET_CAP` rows are kept (sorted by date DESC)
+    and returned in chronological (ascending) order so the chart reads
+    left-to-right.
+    """
+    shaped: list[dict] = []
+    for r in rows:
+        date = _iso_date(r.get("published_date"))
+        target = _as_float(r.get("price_target"))
+        if date is None or target is None:
+            continue
+        shaped.append(
+            {
+                "date": date,
+                "close": _as_float(r.get("price_when_posted")),
+                "target": target,
+            }
+        )
+    shaped.sort(key=lambda row: row["date"], reverse=True)
+    kept = shaped[:_TARGET_CAP]
+    kept.reverse()
+    return kept
+
+
+def _price_target_history_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: build the price-target time series from fmp_cached.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_price_target_rows(symbol)
+    shaped = _shape_target_history(rows)
+    if not shaped:
+        logger.warning(
+            "price-target-history fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+        return []
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -1232,6 +1308,11 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("charting", "fmp_cached", _charting_fmp_cached)
     register("equity/statements", "fmp_cached", _statements_fmp_cached)
     register("equity/peer-multiples", "fmp_cached", _peer_multiples_fmp_cached)
+    register(
+        "equity/price-target-history",
+        "fmp_cached",
+        _price_target_history_fmp_cached,
+    )
 
 
 # Fire the registrations on import for the running backend (main.py imports
