@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.0.31 - Backend auto-restart + auto-start settings (#1838)
+
+- New `src/backend/restart.ts` — `RestartController` class with
+  injectable sleep, exponential backoff (2s/4s/8s default), attempt
+  counter, and `onRetry` / `onGiveUp` hooks.
+- `BackendLifecycle` accepts `autoRestartOnError` (default false) and
+  `autoRestartMaxAttempts` (default 3). On HEALTH_FAILED-driven error
+  transitions, the controller runs `stop()` then `start()` per attempt,
+  and after `maxAttempts` shows an error notification with a
+  "Show Logs" action.
+- Attempt counter auto-resets once the backend has been running
+  continuously for at least 30s post-restart.
+- New `openbb.autoRestartBackend` and `openbb.autoRestartMaxAttempts`
+  configuration properties, wired through `extension.ts`.
+- Node:test coverage in `src/backend/lifecycle-restart.test.js` — happy
+  path, give-up boundary, custom backoff order.
+
 ## 0.0.30 - Guided setApiKey command (#1836)
 
 - Add `src/apikey/manager.ts` — `ApiKeyManager` resolves the
