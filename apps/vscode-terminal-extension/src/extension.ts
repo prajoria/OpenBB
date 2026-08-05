@@ -29,7 +29,9 @@ import { attachDataModeToPanel } from "./data/mode-glue";
 import { AnalysisRunner } from "./analysis/runner";
 import { registerGoldenCommands } from "./golden/command";
 import { registerWidgetBrowser } from "./widget-browser/browser";
-import { getFixtureWidgetsManifest } from "./layouts/registry";
+import { getBuiltinLayouts, getFixtureWidgetsManifest } from "./layouts/registry";
+import { LayoutManager } from "./layouts/manager";
+import { registerLayoutsTree } from "./layouts/tree";
 import { PerfHarness } from "./perf/harness";
 import { isSafeApiBaseUrl } from "./security/validation";
 
@@ -227,19 +229,20 @@ export function activate(context: vscode.ExtensionContext): void {
     workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     outputChannel,
   });
-  registerCommands(context, undefined, analysisRunner, undefined, paperOrderHandler, apiKeyManager);
+  const layoutManager = new LayoutManager(context, {
+    getBuiltinLayouts: () => getBuiltinLayouts(context),
+    workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+  });
+  registerCommands(context, undefined, analysisRunner, layoutManager, paperOrderHandler, apiKeyManager);
   registerSelectionCodeAction(context);
   registerGoldenCommands(context, outputChannel);
 
-  const layoutsView = vscode.window.registerTreeDataProvider(
-    "openbbLayouts",
-    new PlaceholderTreeProvider("Coming in #1830"),
-  );
+  registerLayoutsTree(context, layoutManager);
   const backendView = vscode.window.registerTreeDataProvider(
     "openbbBackend",
     new PlaceholderTreeProvider("Coming in #1830"),
   );
-  context.subscriptions.push(layoutsView, backendView);
+  context.subscriptions.push(backendView);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("openbb.showPerfReport", async () => {

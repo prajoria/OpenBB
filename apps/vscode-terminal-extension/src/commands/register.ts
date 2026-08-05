@@ -11,6 +11,8 @@ import { openPreviewPanel } from "../preview/panel";
 import { getFixtureWidgetsManifest } from "../layouts/registry";
 import type { WidgetMeta } from "../layouts/types";
 import { ApiKeyManager, KNOWN_KEYS, type KnownKey } from "../apikey/manager";
+import type { LayoutManager } from "../layouts/manager";
+import type { Layout } from "../layouts/types";
 
 const KEY_LABELS: Record<KnownKey, string> = {
   fmp_api_key: "FMP API key",
@@ -44,13 +46,29 @@ export interface VsCodeApi {
         validateInput?: (v: string) => string | undefined;
       },
     ): Thenable<string | undefined>;
-    showInformationMessage(msg: string): Thenable<string | undefined>;
+    showInformationMessage(
+      msg: string,
+      ...items: string[]
+    ): Thenable<string | undefined>;
+    showInformationMessage(
+      msg: string,
+      options: { modal?: boolean },
+      ...items: string[]
+    ): Thenable<string | undefined>;
     showWarningMessage(msg: string): Thenable<string | undefined>;
     showErrorMessage(msg: string): Thenable<string | undefined>;
     showQuickPick<T extends { label: string }>(
       items: T[] | Thenable<T[]>,
       options?: { placeHolder?: string; matchOnDescription?: boolean; matchOnDetail?: boolean },
     ): Thenable<T | undefined>;
+    showOpenDialog(
+      opts?: {
+        canSelectMany?: boolean;
+        filters?: Record<string, string[]>;
+        openLabel?: string;
+      },
+    ): Thenable<vscodeReal.Uri[] | undefined>;
+    showTextDocument(uri: vscodeReal.Uri): Thenable<unknown>;
   };
 }
 
@@ -76,7 +94,7 @@ export function registerCommands(
   context: vscodeReal.ExtensionContext,
   vscodeApi: VsCodeApi = vscodeReal as unknown as VsCodeApi,
   analysisRunner?: AnalysisRunnerLike,
-  _layoutManager?: unknown,
+  layoutManager?: LayoutManager,
   paperOrderHandler?: PaperOrderHandlerLike,
   apiKeyManager?: ApiKeyManager,
 ): { dispose(): void }[] {
@@ -91,13 +109,69 @@ export function registerCommands(
     context.subscriptions.push(d as vscodeReal.Disposable);
   };
 
+  interface LayoutPickItem {
+    label: string;
+    description?: string;
+    id: string | undefined;
+  }
+
+  async function pickUserLayout(
+    placeholder: string,
+  ): Promise<Layout | undefined> {
+    if (!layoutManager) {
+      return undefined;
+    }
+    const all = await layoutManager.listAll();
+    if (all.user.length === 0) {
+      await vscodeApi.window.showInformationMessage("No user layouts yet.");
+      return undefined;
+    }
+    const items = all.user.map((l) => ({
+      label: l.name,
+      description: l.id,
+      id: l.id,
+    }));
+    const picked = (await vscodeApi.window.showQuickPick(items, {
+      placeHolder: placeholder,
+    })) as LayoutPickItem | undefined;
+    if (!picked || !picked.id) {
+      return undefined;
+    }
+    return all.user.find((l) => l.id === picked.id);
+  }
+
   reg("openbb.newLayout", async () => {
+    if (!layoutManager) {
+      await vscodeApi.window.showWarningMessage(
+        "Layout manager not wired — see extension activation",
+      );
+      return;
+    }
     const name = await vscodeApi.window.showInputBox({
       placeHolder: "Layout name",
     });
-    if (name) {
+    if (!name || !name.trim()) {
+      return;
+    }
+    const all = await layoutManager.listAll();
+    const templateItems: LayoutPickItem[] = [
+      { label: "Empty", id: undefined },
+      ...all.builtins.map((b) => ({ label: b.name, description: b.id, id: b.id })),
+    ];
+    const picked = (await vscodeApi.window.showQuickPick(templateItems, {
+      placeHolder: "Template (optional)",
+    })) as LayoutPickItem | undefined;
+    if (!picked) {
+      return;
+    }
+    try {
+      const layout = await layoutManager.createLayout(name.trim(), picked.id);
       await vscodeApi.window.showInformationMessage(
-        `Layout "${name}" saved (placeholder — persistence in #1831)`,
+        `Layout "${layout.name}" created`,
+      );
+    } catch (err) {
+      await vscodeApi.window.showErrorMessage(
+        `Create layout failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   });
@@ -253,16 +327,144 @@ export function registerCommands(
     );
   });
 
-  reg("openbb.exportLayout", async () => {
-    await vscodeApi.window.showInformationMessage(
-      "Layout export ships in #1831",
-    );
+  reg("openbb.exportLayout", async (...args: unknown[]) => {
+    if (!layoutManager) {
+      await vscodeApi.window.showWarningMessage(
+        "Layout manager not wired — see extension activation",
+      );
+      return;
+    }
+    const arg = args[0] as { layout?: { id: string } } | undefined;
+    let id = arg?.layout?.id;
+    if (!id) {
+      const picked = await pickUserLayout("Layout to export");
+      if (!picked) {
+        return;
+      }
+      id = picked.id;
+    }
+    try {
+      const uri = await layoutManager.exportToWorkspace(id);
+      await vscodeApi.window.showTextDocument(uri);
+      await vscodeApi.window.showInformationMessage(
+        `Exported layout to ${uri.fsPath}`,
+      );
+    } catch (err) {
+      await vscodeApi.window.showErrorMessage(
+        `Export failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   });
 
   reg("openbb.importLayout", async () => {
-    await vscodeApi.window.showInformationMessage(
-      "Layout import ships in #1831",
+    if (!layoutManager) {
+      await vscodeApi.window.showWarningMessage(
+        "Layout manager not wired — see extension activation",
+      );
+      return;
+    }
+    const picked = await vscodeApi.window.showOpenDialog({
+      canSelectMany: false,
+      filters: { "Layout JSON": ["json"] },
+      openLabel: "Import Layout",
+    });
+    if (!picked || picked.length === 0) {
+      return;
+    }
+    try {
+      const layout = await layoutManager.importFromFile(picked[0]);
+      await vscodeApi.window.showInformationMessage(
+        `Imported "${layout.name}"`,
+      );
+    } catch (err) {
+      await vscodeApi.window.showErrorMessage(
+        `Import failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  });
+
+  reg("openbb.renameLayout", async () => {
+    if (!layoutManager) {
+      await vscodeApi.window.showWarningMessage(
+        "Layout manager not wired — see extension activation",
+      );
+      return;
+    }
+    const picked = await pickUserLayout("Layout to rename");
+    if (!picked) {
+      return;
+    }
+    const newName = await vscodeApi.window.showInputBox({
+      placeHolder: "New name",
+      prompt: `Rename "${picked.name}"`,
+    });
+    if (!newName || !newName.trim()) {
+      return;
+    }
+    try {
+      await layoutManager.renameLayout(picked.id, newName.trim());
+      await vscodeApi.window.showInformationMessage(
+        `Renamed to "${newName.trim()}"`,
+      );
+    } catch (err) {
+      await vscodeApi.window.showErrorMessage(
+        `Rename failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  });
+
+  reg("openbb.duplicateLayout", async () => {
+    if (!layoutManager) {
+      await vscodeApi.window.showWarningMessage(
+        "Layout manager not wired — see extension activation",
+      );
+      return;
+    }
+    const picked = await pickUserLayout("Layout to duplicate");
+    if (!picked) {
+      return;
+    }
+    try {
+      const copy = await layoutManager.duplicateLayout(picked.id);
+      await vscodeApi.window.showInformationMessage(
+        `Duplicated as "${copy.name}"`,
+      );
+    } catch (err) {
+      await vscodeApi.window.showErrorMessage(
+        `Duplicate failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  });
+
+  reg("openbb.deleteLayout", async () => {
+    if (!layoutManager) {
+      await vscodeApi.window.showWarningMessage(
+        "Layout manager not wired — see extension activation",
+      );
+      return;
+    }
+    const picked = await pickUserLayout("Layout to delete");
+    if (!picked) {
+      return;
+    }
+    const confirmed = await vscodeApi.window.showInformationMessage(
+      `Delete "${picked.name}"?`,
+      { modal: true },
+      "Yes",
     );
+    if (confirmed !== "Yes") {
+      return;
+    }
+    try {
+      await layoutManager.deleteLayout(picked.id);
+      await vscodeApi.window.showInformationMessage(
+        `Deleted "${picked.name}"`,
+      );
+    } catch (err) {
+      await vscodeApi.window.showErrorMessage(
+        `Delete failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   });
 
   return disposables;
