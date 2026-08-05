@@ -101,15 +101,18 @@ if (!fs.existsSync(compiledPath)) {
     "openbb.runAnalysis",
     "openbb.exportLayout",
     "openbb.importLayout",
+    "openbb.renameLayout",
+    "openbb.duplicateLayout",
+    "openbb.deleteLayout",
   ];
 
-  test("registerCommands registers exactly 13 commands", () => {
+  test("registerCommands registers exactly 16 commands", () => {
     const fake = makeFakeVscode();
     const ctx = makeFakeContext();
     const disposables = registerCommands(ctx, fake.api);
-    assert.equal(disposables.length, 13);
-    assert.equal(fake.registered.length, 13);
-    assert.equal(ctx.subscriptions.length, 13);
+    assert.equal(disposables.length, 16);
+    assert.equal(fake.registered.length, 16);
+    assert.equal(ctx.subscriptions.length, 16);
   });
 
   test("registers the PRD §12.1 command IDs", () => {
@@ -156,14 +159,13 @@ if (!fs.existsSync(compiledPath)) {
     assert.equal(fake.warnMessages.length, 0);
   });
 
-  test("newLayout shows placeholder-persistence info on name", async () => {
+  test("newLayout warns when layoutManager missing", async () => {
     const fake = makeFakeVscode();
     registerCommands(makeFakeContext(), fake.api);
     const cmd = fake.registered.find((r) => r.id === "openbb.newLayout");
     fake.setNextInput("MyLayout");
     await cmd.handler();
-    assert.equal(fake.infoMessages.length, 1);
-    assert.match(fake.infoMessages[0], /MyLayout/);
-    assert.match(fake.infoMessages[0], /#1831/);
+    assert.equal(fake.warnMessages.length, 1);
+    assert.match(fake.warnMessages[0], /Layout manager not wired/);
   });
 }

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.0.33 - User-defined layouts CRUD + workspace export (#1831)
+
+- New `src/layouts/manager.ts` — `LayoutManager` persists user layouts in
+  `globalState["openbb.userLayouts"]` with `schemaVersion: 1`. CRUD:
+  `createLayout` (optionally from a built-in template), `renameLayout`,
+  `duplicateLayout` (name suffix ` (copy)`, fresh id), `deleteLayout`
+  (rejects built-ins), plus `exportToWorkspace` (writes
+  `.openbb/layouts/<slug>.json` via `vscode.workspace.fs`) and
+  `importFromFile` (JSON parse + `validateLayout` + fresh-id collision
+  avoidance). `toSlug` helper for stable filenames.
+- New `src/layouts/tree.ts` — `LayoutsTreeProvider` powering the OpenBB
+  sidebar Layouts view. Three sections: Built-in, User, Workspace.
+  Context values `openbbBuiltinLayout` / `openbbLayout` for menu wiring.
+- `src/commands/register.ts` — replaced placeholder handlers for
+  `openbb.newLayout`, `openbb.exportLayout`, `openbb.importLayout` with
+  live CRUD via `LayoutManager`. Added `openbb.renameLayout`,
+  `openbb.duplicateLayout`, `openbb.deleteLayout` (with modal confirm).
+  Command count: 13 → 16.
+- `src/extension.ts` — wires `LayoutManager` and `registerLayoutsTree`
+  into activation, replacing the old placeholder Layouts tree.
+- Tests: `src/layouts/manager.test.js` (12 assertions) covers create /
+  rename / duplicate / delete / list / export / import / slug.
+  `register.test.js` bumped to expect 16 commands.
+
 ## 0.0.32 - Workspace-trust hardening + credential-file perms (#1856)
 
 - Declare `capabilities.untrustedWorkspaces = { supported: "limited" }`
