@@ -14,6 +14,7 @@ Dual-mode browser test harness for the OpenBB Portfolio Intelligence Terminal (E
 - ✅ **B4 (#1726)** Fixture capture command + staleness enforcement tests
 - ✅ **B5 (#1727)** Manual guide generator with per-step screenshot embedding
 - ✅ **B6 (#1728)** Playwright workspace driver (persistent-context + CDP attach)
+- ✅ **#1789** Workspace-mode driver: random-port backend isolation — see [`docs/workspace-mode.md`](docs/workspace-mode.md)
 
 ## Still pending
 
@@ -87,3 +88,10 @@ Every step anchors to a specific notebook cell. See:
 - Techtrade: `notebooks/techtrade/01-foundations-techtrade-and-analysis.ipynb` → `…06-audit-and-replay.ipynb`
 
 The auto-generated manual guides at `guides/*.md` render the same story a human tester can walk.
+
+## Workspace mode
+
+Random-port backend spawn + persistent Chrome profile driving
+`pro.openbb.co`. Full contract, local run instructions, and debugging
+tips live in [`docs/workspace-mode.md`](docs/workspace-mode.md).
+Tracked in [#1789](https://github.com/prajoria/OpenBB/issues/1789).
