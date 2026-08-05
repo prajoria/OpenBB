@@ -49,7 +49,7 @@ function extractFn(src, name) {
 // Build a sandbox with the pure helpers under test.
 function loadHelpers() {
   const src = scriptBody(HTML);
-  const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "metricModel"];
+  const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "metricModel", "inlineOptionsHtml"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ") + " };";
   const ctx = {};
@@ -214,4 +214,94 @@ test("metricModel: multi numeric keys -> grid, negatives flagged", () => {
 
 test("metricModel loud-empty: {} -> no cards", () => {
   assert.equal(H.metricModel({}).cards.length, 0);
+});
+
+// --------------------------------------------------------------------------
+// #1885 — candle mode must NOT crush OHLC onto a shared axis with volume
+// --------------------------------------------------------------------------
+test("inferChartModel detects OHLC candle shape (not a 5-line collapse)", () => {
+  const rows = [
+    { date: "2026-06-01", open: 188, high: 191, low: 187, close: 190, volume: 1_000_000 },
+    { date: "2026-06-02", open: 190, high: 194, low: 189, close: 193, volume: 1_200_000 },
+    { date: "2026-06-03", open: 193, high: 195, low: 190, close: 191, volume: 900_000 },
+  ];
+  const m = H.inferChartModel(rows, undefined);
+  assert.equal(m.kind, "candle", "OHLCV rows must infer a candle model, not a line");
+  assert.equal(m.candles.length, 3);
+  assert.equal(m.candles[0].o, 188);
+  assert.equal(m.candles[0].c, 190);
+  // volume is carried separately so it never shares the price y-axis
+  assert.ok(m.volume, "volume series must be separated from the price axis");
+  assert.equal(m.volume.length, 3);
+});
+
+test("svgForChart candle: OHLC uses a PRICE-only y-axis (volume excluded)", () => {
+  const rows = [
+    { date: "d1", open: 188, high: 191, low: 187, close: 190, volume: 1_000_000 },
+    { date: "d2", open: 190, high: 194, low: 189, close: 193, volume: 1_200_000 },
+  ];
+  const svg = H.svgForChart(H.inferChartModel(rows, undefined));
+  assert.match(svg, /<svg/);
+  // candlesticks render as <rect> bodies (one per candle) + <line> wicks
+  assert.ok((svg.match(/<rect/g) || []).length >= 2, "expected candle body rects");
+  // The price axis labels must reflect PRICE magnitude (~1e2), NOT volume (~1e6).
+  // If volume shared the axis, the top label would be ~1,200,000.
+  const labelMatch = [...svg.matchAll(/font-size="10">([^<]+)<\/text>/g)].map((x) => x[1]);
+  assert.ok(labelMatch.length >= 2, "expected y-axis labels");
+  assert.ok(
+    labelMatch.every((t) => !/\d{7}/.test(t) && !/M$/.test(t)),
+    `price axis labels must be price-scale, got ${JSON.stringify(labelMatch)}`,
+  );
+});
+
+test("inferChartModel: numeric year column is the x-axis, not a plotted series (#1885)", () => {
+  const rows = [
+    { year: 2023, revenue: 383_000, net_income: 97_000 },
+    { year: 2024, revenue: 391_000, net_income: 94_000 },
+    { year: 2025, revenue: 400_000, net_income: 99_000 },
+  ];
+  const m = H.inferChartModel(rows, undefined);
+  assert.equal(m.kind, "line");
+  assert.equal(m.xKey, "year", "year must be treated as the x-axis");
+  const keys = m.series.map((s) => s.key).sort().join(",");
+  assert.equal(keys, "net_income,revenue", "year must not be a plotted series");
+});
+
+// --------------------------------------------------------------------------
+// #1887 — y-axis labels must not clip past the left edge (compact big numbers)
+// --------------------------------------------------------------------------
+test("svgForChart compacts large y-axis labels so they do not overflow (#1887)", () => {
+  const rows = [
+    { date: "d1", pnl: 103_060 },
+    { date: "d2", pnl: 118_500 },
+  ];
+  const svg = H.svgForChart(H.inferChartModel(rows, undefined));
+  const labels = [...svg.matchAll(/font-size="10">([^<]+)<\/text>/g)].map((x) => x[1]);
+  // large magnitudes must be compacted (k / M), never a raw 6+ digit run
+  assert.ok(
+    labels.some((t) => /[kMB]$/.test(t)),
+    `expected compacted axis label (k/M/B), got ${JSON.stringify(labels)}`,
+  );
+  assert.ok(
+    labels.every((t) => !/\d{6}/.test(t)),
+    `no raw 6+ digit label may remain, got ${JSON.stringify(labels)}`,
+  );
+});
+
+// --------------------------------------------------------------------------
+// #1886 — params with an inline options array must build a <select> dropdown
+// --------------------------------------------------------------------------
+test("inlineOptionsHtml builds selectable <option>s from an inline array (#1886)", () => {
+  const html = H.inlineOptionsHtml(
+    [{ value: "line", label: "Line" }, { value: "candle", label: "Candlestick" }],
+    "candle",
+  );
+  assert.match(html, /<option value="line">Line<\/option>/);
+  assert.match(html, /<option value="candle" selected>Candlestick<\/option>/);
+});
+
+test("inlineOptionsHtml tolerates bare-string options and empty input (#1886)", () => {
+  assert.match(H.inlineOptionsHtml(["PASS", "FAIL"], "FAIL"), /<option value="FAIL" selected>FAIL<\/option>/);
+  assert.equal(H.inlineOptionsHtml(undefined, ""), "");
+  assert.equal(H.inlineOptionsHtml([], ""), "");
 });

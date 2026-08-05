@@ -325,10 +325,38 @@
       rows.every((r) => r[k] === null || r[k] === undefined || typeof r[k] === "number") &&
       rows.some((r) => typeof r[k] === "number"));
     if (!numericKeys.length) return { kind: "empty" };
-    const xKey = keys.find((k) => !numericKeys.includes(k));
+
+    // Candlestick shape (#1885): rows carrying open/high/low/close (any case)
+    // render as candles on a PRICE-only axis with volume kept separate — never
+    // as 5 lines sharing one axis (volume ~1e6 crushes price ~1e2 to a flat
+    // line). Also pick an explicit x/index column (date/year/period…) even when
+    // it is numeric, so a fiscal-year column is the x-axis, not a plotted line.
+    const byLower = {};
+    keys.forEach((k) => { byLower[k.toLowerCase()] = k; });
+    const hasOHLC = ["open", "high", "low", "close"].every((k) => k in byLower);
+    const AXIS_HINT = /^(date|datetime|time|timestamp|year|fiscal_year|fiscalyear|period|quarter|label|name|x|index)$/i;
+    let xKey = keys.find((k) => !numericKeys.includes(k));
+    if (xKey == null) xKey = keys.find((k) => AXIS_HINT.test(k)) ?? null;
+    const xLabels = rows.map((r, idx) => String(xKey != null ? r[xKey] : idx));
+
+    if (hasOHLC) {
+      const num = (r, k) => (typeof r[k] === "number" ? r[k] : Number(r[k]));
+      const candles = rows.map((r, idx) => ({
+        x: idx,
+        o: num(r, byLower.open), h: num(r, byLower.high),
+        l: num(r, byLower.low), c: num(r, byLower.close),
+      })).filter((d) => [d.o, d.h, d.l, d.c].every(Number.isFinite));
+      if (candles.length) {
+        const volKey = byLower.volume;
+        const volume = volKey
+          ? rows.map((r, idx) => ({ x: idx, y: typeof r[volKey] === "number" ? r[volKey] : null }))
+          : null;
+        return { kind: "candle", xKey, candles, volume, xLabels };
+      }
+    }
+
     const seriesKeys = numericKeys.filter((k) => k !== xKey);
     if (!seriesKeys.length) return { kind: "empty" };
-    const xLabels = rows.map((r, idx) => String(xKey != null ? r[xKey] : idx));
     const series = seriesKeys.map((k) => ({
       key: k,
       points: rows.map((r, idx) => ({ x: idx, y: typeof r[k] === "number" ? r[k] : null })),
@@ -341,6 +369,16 @@
   function svgForChart(model) {
     if (!model || model.kind === "empty") return "";
     const colors = ["#2f81f7", "#3fb950", "#f85149", "#d29922", "#a371f7", "#39c5cf", "#db61a2", "#e3b341", "#8b949e", "#ff7b72"];
+    // Compact large magnitudes so y-axis labels never overflow the left pad
+    // (#1887): 1005720 -> "1.01M", 103060 -> "103.1k". Small values keep 2dp.
+    const fmtAxis = (v) => {
+      if (!Number.isFinite(v)) return "";
+      const a = Math.abs(v);
+      if (a >= 1e9) return (v / 1e9).toFixed(2) + "B";
+      if (a >= 1e6) return (v / 1e6).toFixed(2) + "M";
+      if (a >= 1e3) return (v / 1e3).toFixed(1) + "k";
+      return v.toFixed(2);
+    };
     if (model.kind === "pie") {
       const size = 220, cx = size / 2, cy = size / 2, r = size / 2 - 10;
       const total = model.total || 1;
@@ -360,24 +398,72 @@
       ).join("");
       return `<div class="chart"><svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="pie chart">${paths}</svg><div class="legend">${legend}</div></div>`;
     }
+    // candle (#1885) — OHLC candlesticks on a PRICE-only y-axis; volume, if
+    // present, is drawn as faint bars in a reserved bottom band on its OWN
+    // scale so it never crushes the price series.
+    if (model.kind === "candle") {
+      const W = 480, Hh = 240, pad = 28, padL = 52;
+      const cndls = model.candles || [];
+      if (!cndls.length) return "";
+      const prices = [];
+      cndls.forEach((d) => { prices.push(d.h, d.l); });
+      let ymin = Math.min(...prices), ymax = Math.max(...prices);
+      if (!(ymax > ymin)) { ymin -= 1; ymax += 1; }
+      const n = cndls.length;
+      const plotW = W - padL - pad;
+      const xAt = (i) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+      const hasVol = Array.isArray(model.volume) && model.volume.some((p) => p.y != null);
+      const volBand = hasVol ? 44 : 0;
+      const priceBot = Hh - pad - volBand;
+      const yAt = (v) => priceBot - ((v - ymin) / (ymax - ymin)) * (priceBot - pad);
+      const cw = Math.max(2, (plotW / Math.max(n, 1)) * 0.6);
+      const up = "#3fb950", down = "#f85149";
+      const bodies = cndls.map((d) => {
+        const x = xAt(d.x), col = d.c >= d.o ? up : down;
+        const yH = yAt(d.h), yL = yAt(d.l), yO = yAt(d.o), yC = yAt(d.c);
+        const top = Math.min(yO, yC), h = Math.max(1, Math.abs(yC - yO));
+        return `<line x1="${x.toFixed(1)}" y1="${yH.toFixed(1)}" x2="${x.toFixed(1)}" y2="${yL.toFixed(1)}" stroke="${col}" stroke-width="1"/>`
+          + `<rect x="${(x - cw / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${cw.toFixed(1)}" height="${h.toFixed(1)}" fill="${col}"/>`;
+      }).join("");
+      let volSvg = "";
+      if (hasVol) {
+        const vy = model.volume.map((p) => p.y).filter((v) => v != null);
+        const vmax = vy.length ? Math.max(...vy) : 1;
+        const vBot = Hh - pad, vTop = Hh - pad - volBand + 6;
+        volSvg = model.volume.map((p) => {
+          if (p.y == null || vmax <= 0) return "";
+          const x = xAt(p.x), h = (p.y / vmax) * (vBot - vTop);
+          return `<rect x="${(x - cw / 2).toFixed(1)}" y="${(vBot - h).toFixed(1)}" width="${cw.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" fill="#8b949e" opacity="0.45"/>`;
+        }).join("");
+      }
+      const axis = `<line x1="${padL}" y1="${priceBot}" x2="${W - pad}" y2="${priceBot}" stroke="#30363d"/>`
+        + `<line x1="${padL}" y1="${pad}" x2="${padL}" y2="${priceBot}" stroke="#30363d"/>`;
+      const yhi = `<text x="${padL - 4}" y="${pad + 4}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(ymax)}</text>`;
+      const ylo = `<text x="${padL - 4}" y="${priceBot}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(ymin)}</text>`;
+      const legend = `<div class="lg"><span class="sw" style="background:${up}"></span>Up</div>`
+        + `<div class="lg"><span class="sw" style="background:${down}"></span>Down</div>`
+        + (hasVol ? `<div class="lg"><span class="sw" style="background:#8b949e"></span>Volume</div>` : "");
+      return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="candlestick chart">${axis}${volSvg}${bodies}${yhi}${ylo}</svg><div class="legend">${legend}</div></div>`;
+    }
     // line
-    const W = 480, Hh = 240, pad = 28;
+    const W = 480, Hh = 240, pad = 28, padL = 52;
     const allY = [];
     model.series.forEach((s) => s.points.forEach((p) => { if (p.y != null) allY.push(p.y); }));
     if (!allY.length) return "";
     let ymin = Math.min(...allY), ymax = Math.max(...allY);
     if (ymin === ymax) { ymin -= 1; ymax += 1; }
     const n = model.series[0].points.length;
-    const xAt = (idx) => pad + (n <= 1 ? (W - 2 * pad) / 2 : (idx / (n - 1)) * (W - 2 * pad));
+    const plotW = W - padL - pad;
+    const xAt = (idx) => padL + (n <= 1 ? plotW / 2 : (idx / (n - 1)) * plotW);
     const yAt = (v) => Hh - pad - ((v - ymin) / (ymax - ymin)) * (Hh - 2 * pad);
     const polylines = model.series.map((s, idx) => {
       const pts = s.points.filter((p) => p.y != null).map((p) => `${xAt(p.x).toFixed(1)},${yAt(p.y).toFixed(1)}`).join(" ");
       return `<polyline fill="none" stroke="${colors[idx % colors.length]}" stroke-width="1.5" points="${pts}"><title>${escapeHtml(s.key)}</title></polyline>`;
     }).join("");
-    const axis = `<line x1="${pad}" y1="${Hh - pad}" x2="${W - pad}" y2="${Hh - pad}" stroke="#30363d"/>`
-      + `<line x1="${pad}" y1="${pad}" x2="${pad}" y2="${Hh - pad}" stroke="#30363d"/>`;
-    const yhi = `<text x="${pad - 4}" y="${pad + 4}" text-anchor="end" fill="#8b949e" font-size="10">${ymax.toFixed(2)}</text>`;
-    const ylo = `<text x="${pad - 4}" y="${Hh - pad}" text-anchor="end" fill="#8b949e" font-size="10">${ymin.toFixed(2)}</text>`;
+    const axis = `<line x1="${padL}" y1="${Hh - pad}" x2="${W - pad}" y2="${Hh - pad}" stroke="#30363d"/>`
+      + `<line x1="${padL}" y1="${pad}" x2="${padL}" y2="${Hh - pad}" stroke="#30363d"/>`;
+    const yhi = `<text x="${padL - 4}" y="${pad + 4}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(ymax)}</text>`;
+    const ylo = `<text x="${padL - 4}" y="${Hh - pad}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(ymin)}</text>`;
     const legend = model.series.map((s, idx) =>
       `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.key)}</div>`
     ).join("");
@@ -500,6 +586,19 @@
     }
   }
 
+  // Build <option> markup from an inline options array (#1886). Mirrors the
+  // endpoint-driven populateOptions() shaping so inline-options params render a
+  // real <select> instead of a free-text <input>. Pure + escaped -> unit-tested.
+  function inlineOptionsHtml(options, current) {
+    if (!Array.isArray(options)) return "";
+    return options.map((o) => {
+      const value = (o && typeof o === "object") ? (o.value ?? o.label ?? "") : o;
+      const label = (o && typeof o === "object") ? (o.label ?? o.value ?? "") : o;
+      const sel = String(value) === String(current ?? "") ? " selected" : "";
+      return `<option value="${escapeHtml(value)}"${sel}>${escapeHtml(label)}</option>`;
+    }).join("");
+  }
+
   function renderWidget(gridEl, layoutItem) {
     const def = WIDGETS[layoutItem.i];
     const card = document.createElement("div");
@@ -531,6 +630,11 @@
       if (p.type === "endpoint" && p.optionsEndpoint) {
         control = document.createElement("select");
         populateOptions(control, p.optionsEndpoint, params[p.paramName]);
+      } else if (Array.isArray(p.options) && p.options.length) {
+        // Inline options (#1886): render a real <select> dropdown so the
+        // declared choices are selectable, not typed by hand into an <input>.
+        control = document.createElement("select");
+        control.innerHTML = inlineOptionsHtml(p.options, params[p.paramName]);
       } else {
         control = document.createElement("input");
         control.type = (p.type === "date") ? "date" : "text";

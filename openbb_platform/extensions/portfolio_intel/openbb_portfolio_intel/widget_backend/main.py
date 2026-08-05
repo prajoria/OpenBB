@@ -244,6 +244,24 @@ from openbb_portfolio_intel.widget_backend.local_viewer import (  # noqa: E402
 
 app.include_router(_local_viewer_router)
 
+# Custom-copilot backend (#1881, originally PR #1795 / #1794): mount
+# ``/agents.json`` + ``/query`` so the /viewer chat pane works same-origin on
+# this backend, mirroring ``openbb_portfolio/launch.py``. The copilot router
+# streams answers from the local copilot-api proxy (:4141). Best-effort import
+# (same pattern as the viewer router above): if the sibling ``openbb_portfolio``
+# extension or its copilot deps (``openbb_ai``, ``openai``) are unavailable,
+# /viewer degrades to "chat disabled" instead of failing backend startup.
+try:
+    from openbb_portfolio.copilot import router as _copilot_router  # noqa: E402
+
+    app.include_router(_copilot_router)
+except ImportError as _copilot_exc:  # pragma: no cover - env-dependent
+    logger.warning(
+        "copilot backend unavailable (openbb_portfolio.copilot import failed: "
+        "%s) — /viewer chat pane disabled; /agents.json will 404",
+        _copilot_exc,
+    )
+
 # ---------------------------------------------------------------------------
 # Back-compat: existing tests reach into private attrs. Re-export.
 # ---------------------------------------------------------------------------
