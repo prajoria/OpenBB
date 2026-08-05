@@ -23,8 +23,10 @@ if (!fs.existsSync(compiledPath)) {
 
   function makeMemFs(initial = {}) {
     const store = new Map(Object.entries(initial));
+    const chmods = [];
     return {
       store,
+      chmods,
       async readFile(p) {
         if (!store.has(p)) {
           const err = new Error("ENOENT");
@@ -33,7 +35,7 @@ if (!fs.existsSync(compiledPath)) {
         }
         return store.get(p);
       },
-      async writeFile(p, content) {
+      async writeFile(p, content, _opts) {
         store.set(p, content);
       },
       async access(p) {
@@ -54,6 +56,12 @@ if (!fs.existsSync(compiledPath)) {
       },
       async mkdir() {
         // no-op
+      },
+      async chmod(p, mode) {
+        chmods.push({ path: p, mode });
+      },
+      async unlink(p) {
+        store.delete(p);
       },
     };
   }
@@ -106,7 +114,19 @@ if (!fs.existsSync(compiledPath)) {
     assert.ok(result.parsed.credentials);
   });
 
-  test("writeSettings creates a .bak before overwrite when file exists", async () => {
+  test("writeSettings creates a .bak before overwrite when file exists (deleteBak=false preserves it)", async () => {
+    const mem = makeMemFs({ "/x/us.json": '{"old":1}' });
+    const mgr = new ApiKeyManager({
+      userSettingsPath: "/x/us.json",
+      fsPromises: mem,
+      deleteBak: false,
+    });
+    await mgr.writeSettings('{"new":2}');
+    assert.equal(mem.store.get("/x/us.json"), '{"new":2}');
+    assert.equal(mem.store.get("/x/us.json.bak"), '{"old":1}');
+  });
+
+  test("writeSettings deletes .bak after successful write by default (#1856)", async () => {
     const mem = makeMemFs({ "/x/us.json": '{"old":1}' });
     const mgr = new ApiKeyManager({
       userSettingsPath: "/x/us.json",
@@ -114,7 +134,36 @@ if (!fs.existsSync(compiledPath)) {
     });
     await mgr.writeSettings('{"new":2}');
     assert.equal(mem.store.get("/x/us.json"), '{"new":2}');
-    assert.equal(mem.store.get("/x/us.json.bak"), '{"old":1}');
+    assert.equal(
+      mem.store.has("/x/us.json.bak"),
+      false,
+      ".bak should be removed after successful write",
+    );
+  });
+
+  test("writeSettings chmods the target file 0600 (#1856)", async () => {
+    const mem = makeMemFs();
+    const mgr = new ApiKeyManager({
+      userSettingsPath: "/x/us.json",
+      fsPromises: mem,
+    });
+    await mgr.writeSettings('{"first":1}');
+    const targetChmod = mem.chmods.find((c) => c.path === "/x/us.json");
+    assert.ok(targetChmod, "expected chmod on target");
+    assert.equal(targetChmod.mode, 0o600);
+  });
+
+  test("writeSettings chmods .bak 0600 before overwrite (#1856)", async () => {
+    const mem = makeMemFs({ "/x/us.json": '{"old":1}' });
+    const mgr = new ApiKeyManager({
+      userSettingsPath: "/x/us.json",
+      fsPromises: mem,
+      deleteBak: false,
+    });
+    await mgr.writeSettings('{"new":2}');
+    const bakChmod = mem.chmods.find((c) => c.path === "/x/us.json.bak");
+    assert.ok(bakChmod, "expected chmod on .bak");
+    assert.equal(bakChmod.mode, 0o600);
   });
 
   test("writeSettings does not create .bak if no prior file exists", async () => {
