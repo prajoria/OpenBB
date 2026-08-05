@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.32 - Workspace-trust hardening + credential-file perms (#1856)
+
+- Declare `capabilities.untrustedWorkspaces = { supported: "limited" }`
+  in `package.json`. Backend spawn is refused in untrusted workspaces
+  (attach to an already-running loopback backend still works); the
+  webview / widget browser continue to load.
+- Machine-scope the settings that were previously workspace-overridable:
+  `openbb.pythonPath`, `openbb.apiBaseUrl`, `openbb.userSettingsPath`,
+  `openbb.autoStartBackend`, `openbb.autoRestartBackend`,
+  `openbb.autoRestartMaxAttempts`.
+- New `src/security/validation.ts` — `isSafeApiBaseUrl`,
+  `isSafePythonPath`, `isLoopbackHost`, `isAbsolutePath`. `activate()`
+  rejects non-loopback / non-http(s) `apiBaseUrl` values with a
+  `[security]` warning and falls back to `http://127.0.0.1:${apiPort}`.
+- `activate()` clears `openbb.pythonPath` and `openbb.userSettingsPath`
+  and forces `autoStartBackend=false` in untrusted workspaces, each
+  with an explicit `[security]` log line.
+- `ApiKeyManager.writeSettings` now writes with `mode: 0o600`, chmods
+  the target and any `.bak`, and deletes the `.bak` after a successful
+  write (opt-out via `deleteBak: false` for tests).
+- `docs/security.md` documents the four remediations and the trust
+  matrix. Node:test coverage in
+  `src/security/validation.test.js` +
+  updated `src/apikey/manager.test.js`.
+
 ## 0.0.31 - Backend auto-restart + auto-start settings (#1838)
 
 - New `src/backend/restart.ts` — `RestartController` class with

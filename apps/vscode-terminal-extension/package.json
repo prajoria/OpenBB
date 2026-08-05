@@ -3,7 +3,7 @@
   "displayName": "OpenBB Terminal",
   "description": "OpenBB Trading Terminal inside VS Code \u2014 layouts, widgets, and a local API bridge.",
   "publisher": "prajoria",
-  "version": "0.0.31",
+  "version": "0.0.32",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -21,6 +21,12 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "OpenBB Terminal reads workspace settings for the Python interpreter and API base URL. In untrusted workspaces the extension falls back to user/machine-scoped values and never auto-spawns the backend."
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -164,6 +170,7 @@
         "openbb.pythonPath": {
           "type": "string",
           "default": "",
+          "scope": "machine",
           "description": "Absolute path to the Python interpreter that has openbb-api installed. Leave blank to use `python` from PATH. The extension resolves `openbb-api` from the interpreter's Scripts/ (Windows) or bin/ (POSIX) directory."
         },
         "openbb.apiPort": {
@@ -174,26 +181,31 @@
         "openbb.apiBaseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:6900",
+          "scope": "machine",
           "description": "Base URL used by the readiness probe and health poller. Loopback only \u00e2\u20ac\u201d never a public host."
         },
         "openbb.autoStartBackend": {
           "type": "boolean",
           "default": false,
+          "scope": "machine",
           "description": "If true, spawn (or attach to) the back-end on VS Code startup. Off by default so opening the workspace does not launch a Python process unexpectedly."
         },
         "openbb.userSettingsPath": {
           "type": "string",
           "default": "",
+          "scope": "machine",
           "description": "Override path to user_settings.json. Leave blank to use ~/.openbb_platform/user_settings.json."
         },
         "openbb.autoRestartBackend": {
           "type": "boolean",
           "default": false,
+          "scope": "machine",
           "description": "If true, automatically restart the back-end after a health-check failure. Uses exponential backoff (2s/4s/8s) up to openbb.autoRestartMaxAttempts."
         },
         "openbb.autoRestartMaxAttempts": {
           "type": "number",
           "default": 3,
+          "scope": "machine",
           "description": "Maximum number of auto-restart attempts before giving up and surfacing an error notification."
         }
       }
@@ -241,7 +253,7 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -watch -p .",
-    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js src/golden/loader.test.js src/preview/panel.test.js src/widget-browser/browser.test.js src/paper/handler.test.js src/theme/tokens.test-extended.js src/theme/audit.test.js src/perf/budget.test.js src/perf/harness.test.js src/apikey/manager.test.js src/backend/lifecycle-restart.test.js",
+    "test": "node --test src/webview/panel.test.js src/webview/csp.test.js src/backend/state.test.js src/symbol/validator.test.js src/commands/register.test.js src/layouts/all-layouts.test.js src/data/mode.test.js src/data/fetcher.test.js src/editor/codeAction.test.js src/analysis/runner.test.js src/notebook/watcher.test.js src/hover/regex.test.js src/hover/sparkline.test.js src/golden/loader.test.js src/preview/panel.test.js src/widget-browser/browser.test.js src/paper/handler.test.js src/theme/tokens.test-extended.js src/theme/audit.test.js src/perf/budget.test.js src/perf/harness.test.js src/apikey/manager.test.js src/backend/lifecycle-restart.test.js src/security/validation.test.js",
     "verify:invariants": "bash scripts/verify-auth-invariants.sh",
     "perf:check": "bash scripts/perf-check.sh",
     "test:integration": "node tests/integration/runner.js",
