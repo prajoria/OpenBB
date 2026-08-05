@@ -29,6 +29,7 @@ import { AnalysisRunner } from "./analysis/runner";
 import { registerGoldenCommands } from "./golden/command";
 import { registerWidgetBrowser } from "./widget-browser/browser";
 import { getFixtureWidgetsManifest } from "./layouts/registry";
+import { PerfHarness } from "./perf/harness";
 
 /**
  * Simple TreeItem-returning stub used for all three sidebar views until
@@ -61,6 +62,8 @@ class PlaceholderTreeProvider
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+  const perfHarness = new PerfHarness();
+  perfHarness.mark("activation");
   console.log("OpenBB Terminal activated");
 
   const outputChannel = vscode.window.createOutputChannel("OpenBB Terminal");
@@ -195,6 +198,24 @@ export function activate(context: vscode.ExtensionContext): void {
     new PlaceholderTreeProvider("Coming in #1830"),
   );
   context.subscriptions.push(layoutsView, backendView);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("openbb.showPerfReport", async () => {
+      const report = perfHarness.report();
+      outputChannel.appendLine("=== OpenBB Terminal — Perf Report ===");
+      for (const [k, v] of Object.entries(report)) {
+        outputChannel.appendLine(`  ${k}: ${v.toFixed(1)}ms`);
+      }
+      const results = await perfHarness.checkAll();
+      outputChannel.appendLine("--- Budget check ---");
+      for (const r of results) {
+        outputChannel.appendLine(`  ${r.pass ? "OK" : "FAIL"}  ${r.message}`);
+      }
+      outputChannel.show(true);
+    }),
+  );
+
+  perfHarness.measure("activation");
 }
 
 export function deactivate(): void {
