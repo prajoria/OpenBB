@@ -1,0 +1,32 @@
+name: browser-harness
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "openbb_platform/tools/browser_test_harness/**"
+
+jobs:
+  workspace-harness:
+    # Live workspace run — gated to workflow_dispatch only so it doesn't
+    # trigger on every push. Requires the OPENBB_WORKSPACE_URL secret.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      RUN_WORKSPACE_HARNESS: "1"
+      OPENBB_WORKSPACE_URL: ${{ secrets.OPENBB_WORKSPACE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install harness + playwright
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e openbb_platform/tools/browser_test_harness/[workspace]
+          python -m playwright install --with-deps chromium
+      - name: Run workspace-mode tests
+        run: |
+          pytest \
+            openbb_platform/tools/browser_test_harness/tests/test_workspace_driver.py \
+            -v
