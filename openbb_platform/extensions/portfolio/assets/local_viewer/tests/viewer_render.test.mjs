@@ -51,7 +51,8 @@ function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "inlineOptionsHtml",
-    "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString"];
+    "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
+    "helpText", "helpButtonHtml"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ") + " };";
   const ctx = {};
@@ -554,4 +555,38 @@ test("toLwcSeries line: maps {time,value} per series, drops nulls, sorted", () =
   // null close dropped; remaining sorted ascending
   assert.deepEqual(out.lines[0].data.map((p) => p.time), ["2026-06-01", "2026-06-02"]);
   assert.deepEqual(out.lines[0].data.map((p) => p.value), [188, 190]);
+});
+
+// --------------------------------------------------------------------------
+// helpText / helpButtonHtml (#1951) — the "?" widget-help affordance.
+// helpText resolves the manifest `help` field, falling back to `description`;
+// helpButtonHtml emits the button only when there is something to show.
+// --------------------------------------------------------------------------
+test("helpText prefers help field over description", () => {
+  assert.equal(H.helpText({ help: "read me", description: "one-liner" }), "read me");
+});
+
+test("helpText falls back to description when help absent", () => {
+  assert.equal(H.helpText({ description: "one-liner" }), "one-liner");
+});
+
+test("helpText is empty string when neither help nor description present", () => {
+  assert.equal(H.helpText({ name: "x" }), "");
+  assert.equal(H.helpText(null), "");
+});
+
+test("helpButtonHtml emits a ? button only when help text exists", () => {
+  const withHelp = H.helpButtonHtml({ help: "### How to read\n- x" });
+  assert.match(withHelp, /class="whelp"/);
+  assert.match(withHelp, />\?<\/button>/);
+  // Load-bearing: no button for an undocumented widget (keeps header clean).
+  assert.equal(H.helpButtonHtml({ name: "x" }), "");
+});
+
+test("helpButtonHtml renders through mdToHtml to real markup", () => {
+  // The popover body is mdToHtml(helpText(def)); prove the manifest help
+  // formats as headings + lists rather than raw text.
+  const html = H.mdToHtml(H.helpText({ help: "### How to read this chart\n\n- **x-axis** is time\n- **y-axis** is price" }));
+  assert.match(html, /<h3>How to read this chart<\/h3>/);
+  assert.match(html, /<li><strong>x-axis<\/strong> is time<\/li>/);
 });

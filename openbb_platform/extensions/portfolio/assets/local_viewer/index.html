@@ -91,6 +91,27 @@
     }
     .widget > .whead .wref:hover { color: var(--fg); border-color: var(--muted); }
     .widget > .whead .wref.copied { color: #7ee787; border-color: #7ee787; }
+    /* Help affordance (#1951): a "?" button that opens a popover explaining
+       how to read the widget. Circular, muted until hovered. */
+    .widget > .whead .whelp {
+      width: 18px; height: 18px; line-height: 16px; text-align: center;
+      font: 600 12px/16px ui-sans-serif, system-ui, sans-serif; padding: 0;
+      color: var(--muted); background: var(--panel); border: 1px solid var(--border);
+      border-radius: 50%; cursor: help; flex: none;
+    }
+    .widget > .whead .whelp:hover { color: var(--fg); border-color: var(--muted); }
+    .whelp-pop {
+      position: absolute; top: 40px; left: 12px; z-index: 40; max-width: 420px;
+      max-height: 60%; overflow: auto; padding: 4px 14px;
+      background: var(--panel2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45); font-size: 12.5px; line-height: 1.5;
+    }
+    .whelp-pop h1, .whelp-pop h2, .whelp-pop h3 { margin: 10px 0 6px; font-size: 13.5px; }
+    .whelp-pop p { margin: 6px 0; }
+    .whelp-pop ul, .whelp-pop ol { margin: 6px 0; padding-left: 20px; }
+    .whelp-pop li { margin: 3px 0; }
+    .whelp-pop code { background: var(--panel); padding: 0 4px; border-radius: 4px; }
     .widget > .whead .params { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
     .widget > .whead label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
     .wbody { padding: 0; flex: 1; min-height: 0; overflow: auto; }
@@ -1047,6 +1068,25 @@
     return `@${wid} (app: ${appName} | tab: ${tabLabel} | widget: ${wname})`;
   }
 
+  // Widget help text (#1951): the manifest may carry a rich `help` field
+  // ("how to read this widget") — fall back to the one-line `description` so
+  // every widget that documents itself at all gets a help affordance.
+  function helpText(def) {
+    if (!def) return "";
+    const h = def.help != null ? String(def.help).trim() : "";
+    if (h) return h;
+    return def.description != null ? String(def.description).trim() : "";
+  }
+
+  // Pure builder for the "?" help button in a widget header. Returns "" when
+  // the widget carries no help/description so the button is omitted entirely
+  // (keeps the header clean for undocumented widgets).
+  function helpButtonHtml(def) {
+    if (!helpText(def)) return "";
+    return '<button type="button" class="whelp" aria-label="How to read this widget" '
+      + 'title="How to read this widget">?</button>';
+  }
+
   // Copyable widget reference (#1894): build a stable, paste-friendly handle
   // the user can drop in chat to point the assistant at one specific widget.
   function copyWidgetRef(btn, wid, wname) {
@@ -1079,6 +1119,35 @@
     if (done) done();
   }
 
+  // Toggle a "how to read this widget" popover anchored to the "?" button
+  // (#1951). Renders the manifest help (markdown) via the shared mdToHtml so
+  // headings/lists/bold/code all format. Click the "?" again, click outside,
+  // or press Escape to dismiss.
+  function toggleHelpPopover(card, btn, def) {
+    const existing = card.querySelector(".whelp-pop");
+    if (existing) { existing.remove(); return; }
+    const pop = document.createElement("div");
+    pop.className = "whelp-pop";
+    pop.innerHTML = `<div class="whelp-pop-body">${mdToHtml(helpText(def))}</div>`;
+    // Keep interactions inside the popover from bubbling to header drag/close.
+    pop.addEventListener("pointerdown", (e) => e.stopPropagation());
+    card.appendChild(pop);
+    const onDocClick = (e) => {
+      if (!pop.contains(e.target) && e.target !== btn) dismiss();
+    };
+    const onKey = (e) => { if (e.key === "Escape") dismiss(); };
+    function dismiss() {
+      pop.remove();
+      document.removeEventListener("pointerdown", onDocClick, true);
+      document.removeEventListener("keydown", onKey, true);
+    }
+    // Defer so the click that opened the popover doesn't immediately close it.
+    setTimeout(() => {
+      document.addEventListener("pointerdown", onDocClick, true);
+      document.addEventListener("keydown", onKey, true);
+    }, 0);
+  }
+
   function renderWidget(gridEl, layoutItem) {
     const def = WIDGETS[layoutItem.i];
     const card = document.createElement("div");
@@ -1098,7 +1167,8 @@
     const head = document.createElement("div");
     head.className = "whead";
     head.innerHTML = `<span class="wname">${escapeHtml(def.name || layoutItem.i)}</span>`
-      + `<button type="button" class="wref" title="Click to copy a reference to this widget — paste it in chat to point me at it">@${escapeHtml(layoutItem.i)}</button>`;
+      + `<button type="button" class="wref" title="Click to copy a reference to this widget — paste it in chat to point me at it">@${escapeHtml(layoutItem.i)}</button>`
+      + helpButtonHtml(def);
     const refBtn = head.querySelector(".wref");
     if (refBtn) {
       // Keep the chip from starting a header drag; click copies the reference.
@@ -1106,6 +1176,15 @@
       refBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         copyWidgetRef(refBtn, layoutItem.i, def.name || layoutItem.i);
+      });
+    }
+    const helpBtn = head.querySelector(".whelp");
+    if (helpBtn) {
+      // Don't let the "?" start a header drag; click toggles a help popover.
+      helpBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+      helpBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleHelpPopover(card, helpBtn, def);
       });
     }
     const paramsWrap = document.createElement("div");
