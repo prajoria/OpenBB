@@ -1752,31 +1752,41 @@ def equity_company_filings(
     """
     _require_auth(request)
     _validate_symbol(symbol)
+    # Stub rows MUST use the SAME keys the live fmp_cached tier emits
+    # (``_shape_company_filings`` -> filing_date/report_type/report_url/
+    # filing_url). Keeping stub and live shapes identical makes the endpoint
+    # column-stable regardless of cache state and the shape test deterministic
+    # (anti-mock rule: stub shape == live shape).
     return [
         {
-            "date": "2026-05-01",
-            "filing_type": "10-Q",
-            "description": "Q2 2026 quarterly report",
+            "filing_date": "2026-05-01",
+            "report_type": "10-Q",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
         {
-            "date": "2026-04-15",
-            "filing_type": "8-K",
-            "description": "Material event: dividend declared",
+            "filing_date": "2026-04-15",
+            "report_type": "8-K",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
         {
-            "date": "2026-02-01",
-            "filing_type": "10-Q",
-            "description": "Q1 2026 quarterly report",
+            "filing_date": "2026-02-01",
+            "report_type": "10-Q",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
         {
-            "date": "2025-11-01",
-            "filing_type": "10-K",
-            "description": "FY 2025 annual report",
+            "filing_date": "2025-11-01",
+            "report_type": "10-K",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
         {
-            "date": "2025-10-27",
-            "filing_type": "8-K",
-            "description": "Earnings release Q4 2025",
+            "filing_date": "2025-10-27",
+            "report_type": "8-K",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
     ]
 

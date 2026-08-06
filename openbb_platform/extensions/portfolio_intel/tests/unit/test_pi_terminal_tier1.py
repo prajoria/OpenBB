@@ -153,11 +153,16 @@ def test_dividend_payment_shape() -> None:
 
 
 def test_company_filings_shape() -> None:
-    """#1666 — filing rows: date + filing_type + description."""
+    """#1666/#1914 — filing rows: filing_date + report_type + urls.
+
+    The endpoint returns the same keys whether served by the live
+    fmp_cached tier (``_shape_company_filings``) or the stub fallback, so
+    this assertion is deterministic across cache states (#1935).
+    """
     rows = _client.get("/pi/equity/company-filings?symbol=AAPL").json()
     assert rows
     for r in rows:
-        assert "date" in r and "filing_type" in r
+        assert "filing_date" in r and "report_type" in r
 
 
 def test_earnings_transcripts_returns_markdown() -> None:
