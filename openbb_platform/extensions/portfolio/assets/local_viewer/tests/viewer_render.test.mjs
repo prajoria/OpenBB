@@ -392,3 +392,42 @@ test("mergeLayout loud-empties gracefully on missing inputs (#1893)", () => {
   assert.equal(H.mergeLayout(undefined, undefined).length, 0);
   assert.equal(H.mergeLayout([{ i: "a", x: 1, y: 2, w: 3, h: 4 }], undefined).length, 1);
 });
+
+// --------------------------------------------------------------------------
+// VS Code-style dual side-panel toggles — both the left "Apps" sidebar and
+// the right "Copilot" panel must be collapsible, and Copilot defaults hidden.
+// These are DOM/localStorage glue (not pure fns) so we guard the contract at
+// the source level: a regression that drops a toggle or flips the default
+// back to "Copilot visible" fails here rather than silently in the browser.
+// --------------------------------------------------------------------------
+test("both side panels expose a header toggle AND an in-panel hide button", () => {
+  // Left "Apps" sidebar
+  assert.match(HTML, /id="side-toggle"/, "left sidebar header toggle must exist");
+  assert.match(HTML, /id="side-hide"/, "left sidebar in-panel hide (×) must exist");
+  // Right "Copilot" panel
+  assert.match(HTML, /id="chat-toggle"/, "Copilot header toggle must exist");
+  assert.match(HTML, /id="chat-hide"/, "Copilot in-panel hide (×) must exist");
+});
+
+test("both side panels have a collapse CSS rule that zeroes their width", () => {
+  assert.match(HTML, /body\.side-collapsed\s+\.sidebar\s*\{[^}]*width:\s*0/, "left collapse rule missing");
+  assert.match(HTML, /body\.chat-collapsed\s+\.chat\s*\{[^}]*width:\s*0/, "Copilot collapse rule missing");
+});
+
+test("Copilot panel is HIDDEN BY DEFAULT (collapsed unless the user opted in)", () => {
+  // The bootstrap must collapse chat whenever the stored pref is not exactly
+  // "0" (the only value that means "user pinned it open"). A regression to
+  // `=== "1"` (default open) would be caught here.
+  assert.match(
+    HTML,
+    /applyChatCollapsed\(\s*localStorage\.getItem\("viewer:chatCollapsed"\)\s*!==\s*"0"\s*\)/,
+    "Copilot must default to collapsed (getItem(...) !== \"0\")",
+  );
+  // The left sidebar keeps its original default-OPEN behavior (collapse only
+  // when the stored pref is exactly "1").
+  assert.match(
+    HTML,
+    /applySideCollapsed\(\s*localStorage\.getItem\("viewer:sideCollapsed"\)\s*===\s*"1"\s*\)/,
+    "left sidebar must default to open (=== \"1\" to collapse)",
+  );
+});
