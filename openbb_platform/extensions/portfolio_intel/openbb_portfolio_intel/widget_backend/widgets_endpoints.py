@@ -2698,19 +2698,128 @@ def tt_audit_journal(
     ]
 
 
-@app.get("/tt/engine/status")
-def tt_engine_status(request: Request) -> str:
-    """Return Engine Status markdown (#1700) — scheduler/signal/execution state."""
-    _require_auth(request)
-    # TODO(gh-1700): wire to openbb_techtrade.engine.status.
+# Capability matrix for the engine-status widget: (display label, module path
+# under ``openbb_techtrade``). Ordered so the operational surfaces the user
+# cares about (signals, execution) are visible early. Kept at module scope so
+# tests can assert the surfaces without re-declaring them.
+_TT_CAPABILITY_MODULES: tuple[tuple[str, str], ...] = (
+    ("scan", "engine.scan"),
+    ("screener", "engine.screener_router"),
+    ("signals", "engine.signals_router"),
+    ("plan", "engine.plan_router"),
+    ("execution", "engine.execution"),
+    ("validation", "validation.validate_router"),
+    ("tuning", "tuning.tune_router"),
+    ("reporting", "reporting.export_router"),
+    ("paper_engine", "execution.paper_engine"),
+)
+
+
+def _render_engine_status() -> str:
+    """Render honest, observable techtrade engine status as markdown (#1931).
+
+    Full-wiring of the #1700 stub, which fabricated live state (a running
+    scheduler, a fake "NVDA BREAKOUT" signal, a 98.2% cache hit-rate) that
+    does not exist — there is no ``openbb_techtrade.engine.status`` module.
+
+    Everything reported here is fast to compute (no network, no heavy
+    per-segment OHLCV scan) and reflects what is genuinely observable about
+    the installed engine:
+
+    * ``openbb_techtrade`` version + import health;
+    * a capability matrix (which engine routers import cleanly);
+    * the default confluence preset weights;
+    * paper-engine (``paper.db``) presence.
+
+    Degrades gracefully when ``openbb_techtrade`` is not installed — same
+    discipline as the wired ``/tt/execute/*`` endpoints.
+    """
+    # pylint: disable=import-outside-toplevel
+    try:
+        import openbb_techtrade  # noqa: PLC0415
+    except ImportError:
+        return (
+            "## Techtrade Engine Status\n\n"
+            "*Engine dependencies not installed. Install `openbb_techtrade` "
+            "editable to see live engine status.*"
+        )
+
+    import importlib  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    version = getattr(openbb_techtrade, "__version__", "unknown")
+
+    # Capability matrix — which engine routers import cleanly.
+    cap_lines: list[str] = []
+    available = 0
+    for label, mod in _TT_CAPABILITY_MODULES:
+        try:
+            importlib.import_module(f"openbb_techtrade.{mod}")
+            cap_lines.append(f"- **{label}:** AVAILABLE")
+            available += 1
+        except ImportError as exc:
+            cap_lines.append(f"- **{label}:** UNAVAILABLE ({type(exc).__name__})")
+    total = len(_TT_CAPABILITY_MODULES)
+
+    # Default confluence preset weights (fast, no network).
+    try:
+        from openbb_techtrade.engine.signals import resolve_preset  # noqa: PLC0415
+
+        weights = resolve_preset("trend_follow")
+        preset_line = (
+            f"- **Default preset (trend_follow):** trend={weights.trend}, "
+            f"momentum={weights.momentum}, volatility={weights.volatility}, "
+            f"volume={weights.volume}"
+        )
+    except (ImportError, AttributeError, ValueError):
+        preset_line = "- **Default preset (trend_follow):** unavailable"
+
+    # Paper-engine state — fast SQLite presence check (mirrors the wired T5
+    # /tt/execute/paper-status endpoints; no query, just existence).
+    db_path = Path(
+        os.environ.get(
+            "PI_PAPER_DB",
+            str(Path.home() / ".portfolio_intel" / "paper.db"),
+        )
+    )
+    if db_path.exists():
+        paper_line = (
+            f"- **Paper engine:** ACTIVE (`{db_path.name}` present — submit and "
+            "read via the Execute Bridge widgets)"
+        )
+    else:
+        paper_line = (
+            "- **Paper engine:** NO SESSION (no paper.db yet — submit a batch "
+            "via the Execute Bridge to start one)"
+        )
+
+    caps_block = "\n".join(cap_lines)
     return (
         "## Techtrade Engine Status\n\n"
-        "- **Scheduler:** RUNNING (next tick in 47s)\n"
-        "- **Signal engine:** READY (last signal: NVDA BREAKOUT at 09:32:14)\n"
-        "- **Execution engine:** IDLE (verdict gate: PASS)\n"
-        "- **Data feed:** LIVE (fmp_cached hit-rate 98.2%)\n\n"
-        "> Stub — real wiring calls openbb_techtrade.engine.status."
+        f"**openbb_techtrade** v{version} — "
+        f"{available}/{total} engine capabilities available.\n\n"
+        "### Capabilities\n\n"
+        f"{caps_block}\n\n"
+        "### Configuration\n\n"
+        f"{preset_line}\n"
+        f"{paper_line}\n\n"
+        "> Observable engine state (no network). Data-bearing scan / signal / "
+        "execution widgets require the async scan-snapshot layer (tracked "
+        "separately) before they can render live."
     )
+
+
+@app.get("/tt/engine/status")
+def tt_engine_status(request: Request) -> str:
+    """Return Engine Status markdown (#1931, full-wiring of #1700).
+
+    Honest, observable engine state — version, capability matrix, default
+    preset, paper-engine presence — computed without any network call. See
+    ``_render_engine_status`` for the rationale behind replacing the
+    fabricated stub.
+    """
+    _require_auth(request)
+    return _render_engine_status()
 
 
 @app.get("/tt/execute/bridge")
