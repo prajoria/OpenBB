@@ -154,14 +154,59 @@ def test_engine_status_widget_declared() -> None:
     assert w["endpoint"] == "tt/engine/status"
 
 
-def test_engine_status_returns_scheduler_state() -> None:
+def test_engine_status_returns_observable_state() -> None:
+    """#1931: honest status names the real operational surfaces.
+
+    The engine has no scheduler (that was fabricated in the #1700 stub);
+    the honest status names the capability matrix surfaces instead.
+    """
     r = _client.get("/tt/engine/status")
     assert r.status_code == 200
     body = r.json()
     assert isinstance(body, str)
-    # Must name the operational surfaces so a user knows what's up.
-    for surface in ("scheduler", "signal", "execution"):
+    # Real operational surfaces present in the capability matrix.
+    for surface in ("signals", "execution", "scan", "validation"):
         assert surface.lower() in body.lower(), f"missing {surface} in engine status"
+
+
+def test_engine_status_reports_version_and_capability_count() -> None:
+    """#1931: reports the real package version + an N/M capability count.
+
+    Discriminating vs the #1700 stub, which had neither a version line nor a
+    capability count — this test FAILS on the old fabricated stub.
+    """
+    body = _client.get("/tt/engine/status").json()
+    assert "openbb_techtrade" in body
+    assert "capabilities available" in body.lower()
+    # "N/M engine capabilities available" — M is the fixed matrix size (9).
+    import re as _re
+
+    m = _re.search(r"(\d+)\s*/\s*(\d+)\s+engine capabilities", body, _re.IGNORECASE)
+    assert m, f"no N/M capability count in body: {body[:200]!r}"
+    n_avail, n_total = int(m.group(1)), int(m.group(2))
+    assert n_total == 9, f"expected 9 total capabilities, got {n_total}"
+    assert 0 <= n_avail <= n_total
+
+
+def test_engine_status_has_no_fabricated_state() -> None:
+    """#1931 (reverse-verification anchor): the fabricated tokens are GONE.
+
+    The #1700 stub invented a running scheduler ("next tick in 47s"), a fake
+    signal ("NVDA BREAKOUT at 09:32:14"), and a fake cache hit-rate ("98.2%").
+    None of these are observable, so the honest wiring must not emit them.
+    This test PASSES on the honest wiring and FAILS on the old stub.
+    """
+    body = _client.get("/tt/engine/status").json().lower()
+    for fabricated in ("next tick", "nvda breakout", "98.2%", "hit-rate"):
+        assert fabricated not in body, f"fabricated token still present: {fabricated!r}"
+
+
+def test_engine_status_reports_preset_and_paper_state() -> None:
+    """#1931: honest status surfaces the default preset weights + paper state."""
+    body = _client.get("/tt/engine/status").json()
+    assert "trend_follow" in body
+    assert "trend=" in body  # confluence weight, from resolve_preset
+    assert "Paper engine" in body
 
 
 def test_execute_bridge_widget_declared() -> None:
