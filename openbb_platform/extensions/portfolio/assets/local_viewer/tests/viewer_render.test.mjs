@@ -49,7 +49,8 @@ function extractFn(src, name) {
 // Build a sandbox with the pure helpers under test.
 function loadHelpers() {
   const src = scriptBody(HTML);
-  const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "metricModel", "inlineOptionsHtml",
+  const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
+    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ") + " };";
@@ -430,4 +431,127 @@ test("Copilot panel is HIDDEN BY DEFAULT (collapsed unless the user opted in)", 
     /applySideCollapsed\(\s*localStorage\.getItem\("viewer:sideCollapsed"\)\s*===\s*"1"\s*\)/,
     "left sidebar must default to open (=== \"1\" to collapse)",
   );
+});
+
+// --------------------------------------------------------------------------
+// x-axis date labels — line/candle charts previously drew only the y-axis
+// (price) labels, leaving the x-axis (dates) blank so the series had "nothing
+// on the x-axis" (user report on pi_equity_price_history). Both renderers must
+// now emit x-axis tick <text> labels sourced from model.xLabels. The x-axis
+// labels use font-size="9" (y-axis price labels use font-size="10") so the two
+// axes are distinguishable in these assertions.
+// --------------------------------------------------------------------------
+function xAxisLabelTexts(svg) {
+  // Collect the text content of every x-axis tick label (font-size="9").
+  return [...svg.matchAll(/font-size="9"[^>]*>([^<]+)<\/text>/g)].map((m) => m[1]);
+}
+
+test("svgForChart line: renders x-axis date labels from xLabels", () => {
+  const rows = [
+    { date: "2026-06-01", close: 188 },
+    { date: "2026-06-02", close: 190 },
+    { date: "2026-06-03", close: 191 },
+    { date: "2026-06-04", close: 193 },
+  ];
+  const model = H.inferChartModel(rows, undefined);
+  assert.equal(model.kind, "line");
+  const svg = H.svgForChart(model);
+  const xLabels = xAxisLabelTexts(svg);
+  // The first and last dates must appear as x-axis tick labels (endpoints
+  // are always shown so the reader can bound the time domain).
+  assert.ok(xLabels.includes("2026-06-01"), `first date missing from x-axis; got ${JSON.stringify(xLabels)}`);
+  assert.ok(xLabels.includes("2026-06-04"), `last date missing from x-axis; got ${JSON.stringify(xLabels)}`);
+});
+
+test("svgForChart candle: renders x-axis date labels from xLabels", () => {
+  const rows = [
+    { date: "2026-06-01", open: 188, high: 191, low: 187, close: 190, volume: 1_000_000 },
+    { date: "2026-06-02", open: 190, high: 194, low: 189, close: 193, volume: 1_200_000 },
+    { date: "2026-06-03", open: 193, high: 195, low: 190, close: 191, volume: 900_000 },
+  ];
+  const model = H.inferChartModel(rows, undefined);
+  assert.equal(model.kind, "candle");
+  const svg = H.svgForChart(model);
+  const xLabels = xAxisLabelTexts(svg);
+  assert.ok(xLabels.includes("2026-06-01"), `first date missing from candle x-axis; got ${JSON.stringify(xLabels)}`);
+  assert.ok(xLabels.includes("2026-06-03"), `last date missing from candle x-axis; got ${JSON.stringify(xLabels)}`);
+});
+
+test("svgForChart x-axis: dense series is thinned (<= 6 tick labels, endpoints kept)", () => {
+  // 30-day daily series must not print 30 overlapping x-axis labels.
+  const rows = Array.from({ length: 30 }, (_, i) => ({
+    date: `2026-06-${String(i + 1).padStart(2, "0")}`,
+    close: 100 + i,
+  }));
+  const svg = H.svgForChart(H.inferChartModel(rows, undefined));
+  const xLabels = xAxisLabelTexts(svg);
+  assert.ok(xLabels.length >= 2, `expected at least the two endpoints, got ${xLabels.length}`);
+  assert.ok(xLabels.length <= 6, `x-axis labels must be thinned to <= 6, got ${xLabels.length}: ${JSON.stringify(xLabels)}`);
+  assert.ok(xLabels.includes("2026-06-01"), "first date must be kept");
+  assert.ok(xLabels.includes("2026-06-30"), "last date must be kept");
+});
+
+// --------------------------------------------------------------------------
+// TradingView Lightweight Charts data mapping — the viewer's PRIMARY
+// time-series renderer. inferChartModel(candle|line) must convert into
+// LWC-ready {time, open/high/low/close} / {time, value} arrays sourced from
+// xLabels, sorted ascending, nulls dropped. These are pure (no DOM), so the
+// mapping is fully unit-testable; the DOM wrapper stays thin.
+// --------------------------------------------------------------------------
+test("isTimeSeriesModel: true for ISO-date candle/line, false for categorical", () => {
+  const candle = H.inferChartModel(
+    [
+      { date: "2026-06-01", open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 },
+      { date: "2026-06-02", open: 1.5, high: 2.5, low: 1, close: 2, volume: 12 },
+    ],
+    undefined,
+  );
+  assert.equal(H.isTimeSeriesModel(candle), true);
+  // Categorical x-axis (sector names) must NOT route to LWC.
+  const cat = H.inferChartModel([{ sector: "Tech", a: 1 }, { sector: "Energy", a: 2 }], undefined);
+  assert.equal(H.isTimeSeriesModel(cat), false);
+});
+
+test("toLwcSeries candle: maps OHLC+volume from xLabels, sorted ascending", () => {
+  // Deliberately supply rows in DESCENDING date order to prove the mapper sorts.
+  const model = H.inferChartModel(
+    [
+      { date: "2026-06-03", open: 193, high: 195, low: 190, close: 191, volume: 900 },
+      { date: "2026-06-02", open: 190, high: 194, low: 189, close: 193, volume: 1200 },
+      { date: "2026-06-01", open: 188, high: 191, low: 187, close: 190, volume: 1000 },
+    ],
+    undefined,
+  );
+  const out = H.toLwcSeries(model);
+  assert.equal(out.kind, "candle");
+  assert.equal(out.candles.length, 3);
+  // Ascending by time
+  assert.deepEqual(out.candles.map((c) => c.time), ["2026-06-01", "2026-06-02", "2026-06-03"]);
+  // First bar's OHLC comes from the 2026-06-01 row
+  assert.deepEqual(
+    { o: out.candles[0].open, h: out.candles[0].high, l: out.candles[0].low, c: out.candles[0].close },
+    { o: 188, h: 191, l: 187, c: 190 },
+  );
+  // Volume histogram is separate, colored up/down by that bar's close>=open
+  assert.equal(out.volume.length, 3);
+  assert.equal(out.volume[0].time, "2026-06-01");
+  assert.equal(out.volume[0].value, 1000);
+  assert.equal(out.volume[0].color, "#3fb950"); // 190 close >= 188 open -> up
+});
+
+test("toLwcSeries line: maps {time,value} per series, drops nulls, sorted", () => {
+  const model = H.inferChartModel(
+    [
+      { date: "2026-06-02", close: 190 },
+      { date: "2026-06-01", close: 188 },
+      { date: "2026-06-03", close: null },
+    ],
+    undefined,
+  );
+  const out = H.toLwcSeries(model);
+  assert.equal(out.kind, "line");
+  assert.equal(out.lines.length, 1);
+  // null close dropped; remaining sorted ascending
+  assert.deepEqual(out.lines[0].data.map((p) => p.time), ["2026-06-01", "2026-06-02"]);
+  assert.deepEqual(out.lines[0].data.map((p) => p.value), [188, 190]);
 });
