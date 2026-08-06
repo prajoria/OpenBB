@@ -21,8 +21,9 @@ import math
 import os
 import re
 import time
+from datetime import date, timedelta
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Query, Request
 
 from openbb_portfolio_intel.basket_resolver import (
     BasketNotFoundError,
@@ -146,12 +147,20 @@ def _price_history_kwargs(
     *_args: object,
     symbol: str = "AAPL",
     chart_type: str = "line",
+    range_: str = "6M",
     **_kwargs: object,
 ) -> dict:
-    """Extract ``symbol`` + ``chart_type`` for the price-history tier call.
+    """Extract ``symbol`` + ``chart_type`` + ``range`` for the tier call.
 
     The default ``kwargs_from`` forwards only ``symbol``; price-history's
-    live tier needs ``chart_type`` too so it can shape line vs candle rows.
+    live tier needs ``chart_type`` (to shape line vs candle rows) and
+    ``range`` (to slice the display window) too.
+
+    ``range`` is forwarded to the *tier wrapper* (``_price_history_fmp_cached``),
+    NOT to the underlying ``fmp_cached`` fetcher — the fetcher still receives
+    only ``symbol`` and the wrapper slices the returned series locally. This
+    keeps the provider call signature untouched while making the range control
+    functional in live mode (#1950).
 
     The symbol is normalized via ``_validate_symbol`` (strip + upper) so the
     live ``fmp_cached`` tier queries the *same* ticker the stub body would
@@ -160,22 +169,32 @@ def _price_history_kwargs(
     empty result, and silently fall through the chain to the demo stub —
     fabricated data masquerading as live prices (code-review PR #1899).
     """
-    return {"symbol": _validate_symbol(symbol), "chart_type": chart_type}
+    return {
+        "symbol": _validate_symbol(symbol),
+        "chart_type": chart_type,
+        "range_": range_,
+    }
 
 
 def _validate_price_history_from_call(
     *_args: object,
     symbol: str = "AAPL",
     chart_type: str = "line",
+    range_: str = "6M",
     **_kwargs: object,
 ) -> None:
-    """Validate ``symbol`` AND ``chart_type`` before any tier is dispatched.
+    """Validate ``symbol``, ``chart_type`` AND ``range`` before any dispatch.
 
-    Both checks MUST run in this pre-dispatch hook (not only in the stub
+    All checks MUST run in this pre-dispatch hook (not only in the stub
     body): once a live tier serves the request the stub body is bypassed,
-    so validation living only there would let an invalid ``chart_type``
-    reach the shaper and silently return candle rows (the #1898 bug). The
-    ``_ALLOWED_CHART_TYPES`` global is resolved at call time.
+    so validation living only there would let an invalid ``chart_type`` or
+    ``range`` reach the shaper and silently return wrong rows (the #1898
+    bug). The ``_ALLOWED_CHART_TYPES`` / ``_ALLOWED_RANGES`` globals are
+    resolved at call time.
+
+    ``range_`` is bound from the ``range`` query param via the endpoint's
+    ``Query(alias="range")`` — FastAPI passes it through ``**fn_kwargs`` to
+    this hook under the Python name ``range_``.
     """
     _validate_symbol(symbol)
     if chart_type not in _ALLOWED_CHART_TYPES:
@@ -185,6 +204,11 @@ def _validate_price_history_from_call(
                 f"chart_type must be one of {_ALLOWED_CHART_TYPES}; "
                 f"got {chart_type!r}. Use ``line`` or ``candle``."
             ),
+        )
+    if range_ not in _ALLOWED_RANGES:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"range must be one of {_ALLOWED_RANGES}; got {range_!r}."),
         )
 
 
@@ -1275,32 +1299,90 @@ def equity_competitors(
 
 _ALLOWED_CHART_TYPES = ("line", "candle")
 
+# Time-range control (#1950). The demo/stub series is sized by a selectable
+# window so the chart reads as a genuine multi-month trend rather than a
+# 3-week sine-wave. Counts are ~trading days (≈21/month, ≈252/year); ``YTD``
+# is computed from the fixed anchor. Longer windows show a proportionally
+# larger drift so the slope stays realistic across ranges.
+_ALLOWED_RANGES = ("1M", "3M", "6M", "YTD", "1Y", "5Y")
+_DEFAULT_RANGE = "6M"
+_RANGE_TO_DAYS = {"1M": 21, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260}
 
-def _demo_ohlc_series(symbol: str, days: int = 20) -> list[dict]:
-    """Return a deterministic OHLC series keyed off the symbol hash.
+# Fixed anchor so the offline demo stays hermetic/deterministic (never reads
+# the wall clock — matches the "hashes stable across runs" contract). Bump
+# this constant if the demo dates start to feel stale; the live fmp_cached
+# tier supplies real, current dates when it is available.
+_DEMO_SERIES_END = date(2026, 8, 1)
+# Annualized drift used to shape the demo trend (~+30%/yr), scaled by the
+# window length so 1M is gently sloped and 5Y clearly trends.
+_DEMO_ANNUAL_DRIFT = 0.30
 
-    Uses a simple sinusoid + linear drift, seeded by the symbol so different
-    tickers get visibly different (but reproducible) curves. Kept dependency-
-    free so the unit tests never touch the network.
+
+def _business_days_back(end: date, n: int) -> list[date]:
+    """Return ``n`` weekday (Mon–Fri) dates ending at ``end``, ascending."""
+    out: list[date] = []
+    d = end
+    while len(out) < n:
+        if d.weekday() < 5:  # skip Sat/Sun
+            out.append(d)
+        d -= timedelta(days=1)
+    return list(reversed(out))
+
+
+def _ytd_business_days(anchor: date) -> int:
+    """Count weekday dates from Jan 1 of the anchor's year through ``anchor``."""
+    d = date(anchor.year, 1, 1)
+    n = 0
+    while d <= anchor:
+        if d.weekday() < 5:
+            n += 1
+        d += timedelta(days=1)
+    return n
+
+
+def _range_to_days(range_: str) -> int:
+    """Map a range token to a trading-day count (``YTD`` computed from anchor)."""
+    if range_ == "YTD":
+        return _ytd_business_days(_DEMO_SERIES_END)
+    return _RANGE_TO_DAYS[range_]
+
+
+def _demo_ohlc_series(symbol: str, days: int = 126) -> list[dict]:
+    """Return a deterministic, trend-dominant OHLC series for ``symbol``.
+
+    The path is a linear drift (seeded per symbol, scaled so the annualized
+    slope is range-independent) plus a small sinusoid and deterministic noise
+    for texture — drift dominates so the line reads as a real price *trend*,
+    not the short valley the old 20-point sine-wave produced (#1950). Dates
+    are real business days ending at ``_DEMO_SERIES_END`` (ascending, unique),
+    so Workspace/LWC can render a proper time axis with day/month granularity.
+    Kept dependency-free and clock-free so unit tests never touch the network
+    and hashes stay stable across runs.
     """
-    # Deterministic seed per symbol — never uses time.
     seed = sum(ord(c) for c in symbol.upper())
-    base = 100.0 + (seed % 200)
+    base = 80.0 + (seed % 120)  # per-symbol start in 80..199
+    # Total drift over the whole window, scaled by its length in years.
+    total_drift = base * _DEMO_ANNUAL_DRIFT * (days / 252.0)
+    dates = _business_days_back(_DEMO_SERIES_END, days)
     out: list[dict] = []
-    for i in range(days):
-        drift = i * 0.5
-        wave = math.sin((seed + i) / 3.0) * 2.5
-        close = round(base + drift + wave, 2)
-        # Build a realistic bar around ``close``.
-        open_ = round(close - math.cos((seed + i) / 3.0) * 1.0, 2)
-        high = round(max(open_, close) + abs(math.sin((seed + i) / 2.0)) * 1.2, 2)
-        low = round(min(open_, close) - abs(math.cos((seed + i) / 2.0)) * 1.2, 2)
+    for i, d in enumerate(dates):
+        frac = i / max(1, days - 1)
+        trend = total_drift * frac
+        wave = math.sin((seed + i) / 9.0) * (base * 0.015)  # ±1.5% texture
+        # Deterministic pseudo-noise in [-0.5, 0.5) — no RNG, no clock.
+        noise = ((seed * 9301 + i * 49297) % 233280) / 233280.0 - 0.5
+        close = round(base + trend + wave + noise * (base * 0.006), 2)
+        open_ = round(close - math.cos((seed + i) / 7.0) * (base * 0.006), 2)
+        high = round(
+            max(open_, close) + abs(math.sin((seed + i) / 5.0)) * (base * 0.008), 2
+        )
+        low = round(
+            min(open_, close) - abs(math.cos((seed + i) / 5.0)) * (base * 0.008), 2
+        )
         volume = int(1_000_000 + (seed * (i + 1)) % 5_000_000)
         out.append(
             {
-                # Trailing "T00:00:00" makes the date parse-friendly in
-                # Workspace's chart renderer without pinning a timezone.
-                "date": f"2026-06-{(i % 28) + 1:02d}",
+                "date": d.isoformat(),
                 "open": open_,
                 "high": high,
                 "low": low,
@@ -1324,17 +1406,20 @@ def equity_price_history(
     request: Request,
     symbol: str = "AAPL",
     chart_type: str = "line",
+    range_: str = Query(_DEFAULT_RANGE, alias="range"),
 ) -> list[dict]:
     """Return a price-history series in either line or candlestick shape.
 
     * ``chart_type=line`` (default): rows are ``{date, close}``.
     * ``chart_type=candle``: rows are ``{date, open, high, low, close, volume}``.
+    * ``range`` (``1M``/``3M``/``6M``/``YTD``/``1Y``/``5Y``, default ``6M``)
+      sizes the window so users can pick a time range (#1950).
 
-    Any other ``chart_type`` value is a 400 — no silent fallback to line,
-    because that would hide a UI wiring bug where the widget sent us a
-    typo (which was #1633's failure mode: the chart-mapping silently
-    normalized bad values). Loud rejection surfaces the mismatch at PR
-    time via the manifest ↔ endpoint parity test.
+    Any other ``chart_type`` or ``range`` value is a 400 — no silent fallback,
+    because that would hide a UI wiring bug where the widget sent us a typo
+    (which was #1633's failure mode: the chart-mapping silently normalized bad
+    values). Loud rejection surfaces the mismatch at PR time via the manifest ↔
+    endpoint parity test.
     """
     require_auth(request)
     sym = symbol.strip().upper()
@@ -1354,6 +1439,11 @@ def equity_price_history(
                 f"got {chart_type!r}. Use ``line`` or ``candle``."
             ),
         )
+    if range_ not in _ALLOWED_RANGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"range must be one of {_ALLOWED_RANGES}; got {range_!r}.",
+        )
 
     # Live data is served by the ``fmp_cached`` tier registered in
     # ``widget_backend.tier_calls`` (full-wiring #1898), routed through the
@@ -1361,7 +1451,7 @@ def equity_price_history(
     # is the chain-exhaustion fallback only: it runs when fmp_cached (and any
     # lower tier) is unavailable/empty, keeping the widget renderable offline
     # and in hermetic tests. Shape here MUST match the tier call's shaper.
-    bars = _demo_ohlc_series(sym)
+    bars = _demo_ohlc_series(sym, days=_range_to_days(range_))
 
     if chart_type == "line":
         return [{"date": b["date"], "close": b["close"]} for b in bars]

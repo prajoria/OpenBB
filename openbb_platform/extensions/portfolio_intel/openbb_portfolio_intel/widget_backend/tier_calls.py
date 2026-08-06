@@ -125,8 +125,15 @@ def _shape_price_history(rows: list[dict], chart_type: str) -> list[dict]:
     return out
 
 
-def _price_history_fmp_cached(*, symbol: str, chart_type: str = "line") -> list[dict]:
-    """Tier call: fetch live price history from fmp_cached and shape it.
+def _price_history_fmp_cached(
+    *, symbol: str, chart_type: str = "line", range_: str = "6M"
+) -> list[dict]:
+    """Tier call: fetch live price history from fmp_cached, shape and slice it.
+
+    ``range_`` slices the shaped series to the requested display window
+    (anchored on the most recent bar) so the widget's Range dropdown is
+    functional in live mode (#1950). The provider fetch itself is unchanged
+    (``symbol`` only); slicing happens locally on the returned rows.
 
     An empty result is loud (WARNING) and returned as ``[]`` so the chain
     transitions to the next tier / the endpoint stub instead of silently
@@ -134,12 +141,15 @@ def _price_history_fmp_cached(*, symbol: str, chart_type: str = "line") -> list[
     """
     rows = _fetch_price_history_rows(symbol)
     shaped = _shape_price_history(rows, chart_type)
+    shaped = _slice_rows_to_range(shaped, range_)
     if not shaped:
         logger.warning(
             "price-history fmp_cached returned 0 rows for %s "
-            "(chart_type=%s) — chain will transition to the next tier/stub",
+            "(chart_type=%s range=%s) — chain will transition to the "
+            "next tier/stub",
             symbol,
             chart_type,
+            range_,
         )
     return shaped
 
@@ -936,6 +946,39 @@ def _window_cutoff(anchor: _dt.date, window: str) -> _dt.date:
         return _dt.date(anchor.year, 1, 1)
     days = _CHART_WINDOW_DAYS.get(window, 91)
     return anchor - _dt.timedelta(days=days)
+
+
+#: Trailing calendar-day span for each price-history range (YTD separate).
+_RANGE_CAL_DAYS: dict[str, int] = {
+    "1M": 30,
+    "3M": 91,
+    "6M": 182,
+    "1Y": 365,
+    "5Y": 1825,
+}
+
+
+def _slice_rows_to_range(rows: list[dict], range_: str) -> list[dict]:
+    """Slice already-shaped price rows to ``range_``, anchored on the last bar.
+
+    ``rows`` are ``{date, ...}`` dicts sorted ascending by date (as produced by
+    the provider). Rows older than the range cutoff are dropped. Unknown /
+    unparseable dates are kept (never silently discarded), and an all-unparseable
+    input returns ``rows`` unchanged so a date-format drift degrades to "show
+    everything" rather than "show nothing" (loud-empty avoidance, #1950).
+    """
+    if not rows:
+        return rows
+    dated = [(_as_date(r.get("date")), r) for r in rows]
+    parseable = [d for d, _ in dated if d is not None]
+    if not parseable:
+        return rows
+    anchor = max(parseable)
+    if range_ == "YTD":
+        cutoff = _dt.date(anchor.year, 1, 1)
+    else:
+        cutoff = anchor - _dt.timedelta(days=_RANGE_CAL_DAYS.get(range_, 182))
+    return [r for d, r in dated if d is None or d >= cutoff]
 
 
 def _shape_charting(rows: list[dict], window: str) -> list[dict]:

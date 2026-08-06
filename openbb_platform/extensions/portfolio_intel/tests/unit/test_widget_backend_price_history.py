@@ -117,6 +117,81 @@ def test_price_history_symbol_validation() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Time-range control (#1950) — the series must span a selectable range and
+# read as a genuine trend, not a 3-week sine-wave stub.
+# ---------------------------------------------------------------------------
+
+
+def test_price_history_default_range_spans_months() -> None:
+    """Default series is a multi-month window (6M ≈ 126 business days).
+
+    Regression for the "no way to say time range / doesn't look like a trend"
+    report: the old stub emitted only 20 rows over 3 weeks, which rendered as
+    a short valley rather than a price trend.
+    """
+    rows = _client.get("/pi/equity/price-history?symbol=AAPL").json()
+    assert len(rows) >= 100, f"default range should span months, got {len(rows)} rows"
+    # Dates strictly ascending and unique (LWC requires ascending unique time).
+    dates = [r["date"] for r in rows]
+    assert dates == sorted(dates), "dates must be ascending"
+    assert len(set(dates)) == len(dates), "dates must be unique"
+    # First → last spans well over a single calendar month.
+    from datetime import date as _date
+
+    span = (_date.fromisoformat(dates[-1]) - _date.fromisoformat(dates[0])).days
+    assert span > 120, f"6M window should span >120 calendar days, got {span}"
+
+
+def test_price_history_range_controls_length() -> None:
+    """1M < 3M < 1Y < 5Y in row count — the range param sizes the series."""
+    def _n(rng: str) -> int:
+        return len(_client.get(f"/pi/equity/price-history?symbol=AAPL&range={rng}").json())
+
+    n1m, n3m, n1y, n5y = _n("1M"), _n("3M"), _n("1Y"), _n("5Y")
+    assert n1m < n3m < n1y < n5y, f"expected monotonic growth, got {n1m},{n3m},{n1y},{n5y}"
+    assert 15 <= n1m <= 25, f"1M ≈ 21 business days, got {n1m}"
+    assert 240 <= n1y <= 260, f"1Y ≈ 252 business days, got {n1y}"
+
+
+def test_price_history_range_dates_are_business_days() -> None:
+    """Every date is a weekday (Mon–Fri) — no weekend bars in the series."""
+    from datetime import date as _date
+
+    rows = _client.get("/pi/equity/price-history?symbol=AAPL&range=3M").json()
+    for r in rows:
+        wd = _date.fromisoformat(r["date"]).weekday()
+        assert wd < 5, f"{r['date']} is a weekend (weekday={wd})"
+
+
+def test_price_history_reads_as_upward_trend() -> None:
+    """Net close change dominates local wiggle → a visible trend, not a sine.
+
+    Asserts the last close is materially above the first (drift-dominant),
+    which is the property that makes the line "look like a trend line".
+    """
+    rows = _client.get("/pi/equity/price-history?symbol=AAPL&range=1Y").json()
+    closes = [r["close"] for r in rows]
+    assert closes[-1] > closes[0] * 1.10, (
+        f"1Y series should trend up >10% (first={closes[0]}, last={closes[-1]})"
+    )
+
+
+def test_price_history_rejects_invalid_range() -> None:
+    """Unknown ``range`` returns 400 with a discriminating error."""
+    resp = _client.get("/pi/equity/price-history?symbol=AAPL&range=10Y")
+    assert resp.status_code == 400
+    detail = resp.json().get("detail", "")
+    assert "range" in detail.lower()
+
+
+def test_price_history_candle_range_row_count_matches_line() -> None:
+    """Candle and line honor the same range window (same row count)."""
+    line = _client.get("/pi/equity/price-history?symbol=AAPL&range=3M&chart_type=line").json()
+    candle = _client.get("/pi/equity/price-history?symbol=AAPL&range=3M&chart_type=candle").json()
+    assert len(line) == len(candle), "line and candle must span the same range"
+
+
+# ---------------------------------------------------------------------------
 # Widget-manifest tests — widgets.json must declare the toggle param
 # ---------------------------------------------------------------------------
 
@@ -143,3 +218,18 @@ def test_manifest_price_history_has_chart_type_param() -> None:
     values = {o.get("value") for o in opts}
     assert values == {"line", "candle"}, f"expected line+candle options, got {values}"
     assert p.get("value") == "line", "default should be line for backward compat"
+
+
+def test_manifest_price_history_has_range_param() -> None:
+    """The widget declares a ``range`` dropdown so users can pick a window."""
+    m = _manifest()
+    w = m["pi_equity_price_history"]
+    params = {p["paramName"]: p for p in w.get("params", [])}
+    assert "range" in params, "range param missing from widget (#1950)"
+    p = params["range"]
+    values = {o.get("value") for o in (p.get("options") or [])}
+    assert values == {"1M", "3M", "6M", "YTD", "1Y", "5Y"}, (
+        f"expected standard range options, got {values}"
+    )
+    assert p.get("value") == "6M", "default range should be 6M"
+

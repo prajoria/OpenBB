@@ -363,7 +363,8 @@
     "source": "portfolio-intel",
     "params": [
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
-      { "paramName": "chart_type", "value": "line", "label": "Chart type", "type": "text", "description": "Line (close-only) or candlestick (OHLC).", "options": [ { "value": "line", "label": "Line" }, { "value": "candle", "label": "Candlestick" } ] }
+      { "paramName": "chart_type", "value": "line", "label": "Chart type", "type": "text", "description": "Line (close-only) or candlestick (OHLC).", "options": [ { "value": "line", "label": "Line" }, { "value": "candle", "label": "Candlestick" } ] },
+      { "paramName": "range", "value": "6M", "label": "Range", "type": "text", "description": "Time window for the series.", "options": [ { "value": "1M", "label": "1M" }, { "value": "3M", "label": "3M" }, { "value": "6M", "label": "6M" }, { "value": "YTD", "label": "YTD" }, { "value": "1Y", "label": "1Y" }, { "value": "5Y", "label": "5Y" } ] }
     ]
   },
   "pi_price_performance": {

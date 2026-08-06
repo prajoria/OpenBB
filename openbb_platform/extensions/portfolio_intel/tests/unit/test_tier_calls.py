@@ -124,6 +124,55 @@ def test_register_all_wires_price_history() -> None:
     assert ("equity/price-history", "fmp_cached") in _TIER_CALLS
 
 
+def _long_line_rows(n: int) -> list[dict]:
+    """``n`` ascending daily ``{date, close}`` rows ending at a fixed anchor."""
+    end = _dt.date(2026, 8, 1)
+    out: list[dict] = []
+    d = end - _dt.timedelta(days=n - 1)
+    close = 100.0
+    while d <= end:
+        out.append({"date": d.isoformat(), "close": round(close, 2)})
+        d += _dt.timedelta(days=1)
+        close += 0.1
+    return out
+
+
+def test_slice_rows_to_range_narrows_shorter_window() -> None:
+    """A shorter range keeps fewer trailing rows than a longer one."""
+    rows = _long_line_rows(800)  # ~2.2 years of calendar days
+    n1m = len(tier_calls._slice_rows_to_range(rows, "1M"))
+    n6m = len(tier_calls._slice_rows_to_range(rows, "6M"))
+    n1y = len(tier_calls._slice_rows_to_range(rows, "1Y"))
+    assert n1m < n6m < n1y <= len(rows), f"{n1m},{n6m},{n1y},{len(rows)}"
+    # 1M ≈ 30 calendar days (inclusive of anchor) -> ~31 rows.
+    assert 28 <= n1m <= 33, f"1M ≈ 30 calendar days, got {n1m}"
+
+
+def test_slice_rows_to_range_keeps_last_bar() -> None:
+    """The most recent bar always survives any range slice (anchor kept)."""
+    rows = _long_line_rows(400)
+    for rng in ("1M", "3M", "6M", "YTD", "1Y", "5Y"):
+        sliced = tier_calls._slice_rows_to_range(rows, rng)
+        assert sliced[-1] == rows[-1], f"{rng} dropped the latest bar"
+
+
+def test_slice_rows_to_range_passthrough_when_unparseable() -> None:
+    """All-unparseable dates -> return unchanged (degrade to show-everything)."""
+    rows = [{"date": "not-a-date", "close": 1.0}, {"date": None, "close": 2.0}]
+    assert tier_calls._slice_rows_to_range(rows, "1M") == rows
+
+
+def test_tier_call_honors_range(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The registered tier call slices live rows to the requested range."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_price_history_rows", lambda symbol: _long_line_rows(800)
+    )
+    call = _TIER_CALLS[("equity/price-history", "fmp_cached")]
+    short = call(symbol="AAPL", chart_type="line", range_="1M")
+    long = call(symbol="AAPL", chart_type="line", range_="1Y")
+    assert len(short) < len(long), "range=1M must return fewer rows than range=1Y"
+
+
 @pytest.mark.integration
 def test_price_history_fmp_cached_live() -> None:
     """Live: fmp_cached returns real OHLCV rows the shaper can consume.
@@ -154,7 +203,8 @@ def test_price_history_fmp_cached_live() -> None:
 def test_endpoint_serves_from_tier_not_stub(monkeypatch: pytest.MonkeyPatch) -> None:
     """With the tier registered, the endpoint returns the tier's rows.
 
-    The stub (``_demo_ohlc_series``) emits 20 rows dated ``2026-06-DD``; the
+    The stub (``_demo_ohlc_series``) emits a multi-month business-day series
+    (≈126 rows for the default 6M range, ending at the fixed demo anchor); the
     fixture has 2 rows dated ``2026-06-01/02``. Asserting the 2-row fixture
     comes back proves the fmp_cached tier served, not the stub fallback.
     """
