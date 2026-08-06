@@ -78,7 +78,18 @@
       display: flex; align-items: center; gap: 10px; padding: 8px 12px;
       border-bottom: 1px solid var(--border); background: var(--panel2); flex-wrap: wrap;
     }
-    .widget > .whead .wname { font-weight: 600; }
+    .widget > .whead .wname { font-weight: 600; cursor: text; user-select: text; }
+    /* Copyable widget-reference chip (#1894): a stable @id handle the user can
+       click to copy so they can refer to a specific widget when reporting a
+       UX issue or asking a question. Selectable on screen too. */
+    .widget > .whead .wref {
+      font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--muted); background: var(--panel); border: 1px solid var(--border);
+      border-radius: 5px; padding: 1px 6px; cursor: copy; user-select: text;
+      white-space: nowrap;
+    }
+    .widget > .whead .wref:hover { color: var(--fg); border-color: var(--muted); }
+    .widget > .whead .wref.copied { color: #7ee787; border-color: #7ee787; }
     .widget > .whead .params { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
     .widget > .whead label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
     .wbody { padding: 0; flex: 1; min-height: 0; overflow: auto; }
@@ -802,6 +813,44 @@
     }
   }
 
+  // Pure: build the paste-friendly reference string. Unit-tested in
+  // tests/viewer_render.test.mjs so its format stays stable.
+  function widgetRefString(wid, appName, tabLabel, wname) {
+    return `@${wid} (app: ${appName} | tab: ${tabLabel} | widget: ${wname})`;
+  }
+
+  // Copyable widget reference (#1894): build a stable, paste-friendly handle
+  // the user can drop in chat to point the assistant at one specific widget.
+  function copyWidgetRef(btn, wid, wname) {
+    const appName = (APP && APP.name) || "app";
+    const tab = (APP && APP.tabs && APP.tabs[ACTIVE_TAB]) || {};
+    const tabLabel = tab.name || ACTIVE_TAB || "tab";
+    const ref = widgetRefString(wid, appName, tabLabel, wname);
+    const original = btn.textContent;
+    const flash = () => {
+      btn.classList.add("copied");
+      btn.textContent = "copied \u2713";
+      setTimeout(() => { btn.classList.remove("copied"); btn.textContent = original; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ref).then(flash).catch(() => fallbackCopy(ref, flash));
+    } else {
+      fallbackCopy(ref, flash);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (_) { /* best-effort */ }
+    document.body.removeChild(ta);
+    if (done) done();
+  }
+
   function renderWidget(gridEl, layoutItem) {
     const def = WIDGETS[layoutItem.i];
     const card = document.createElement("div");
@@ -820,7 +869,17 @@
     const params = initialParams(def, layoutItem.state);
     const head = document.createElement("div");
     head.className = "whead";
-    head.innerHTML = `<span class="wname">${escapeHtml(def.name || layoutItem.i)}</span>`;
+    head.innerHTML = `<span class="wname">${escapeHtml(def.name || layoutItem.i)}</span>`
+      + `<button type="button" class="wref" title="Click to copy a reference to this widget — paste it in chat to point me at it">@${escapeHtml(layoutItem.i)}</button>`;
+    const refBtn = head.querySelector(".wref");
+    if (refBtn) {
+      // Keep the chip from starting a header drag; click copies the reference.
+      refBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+      refBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        copyWidgetRef(refBtn, layoutItem.i, def.name || layoutItem.i);
+      });
+    }
     const paramsWrap = document.createElement("div");
     paramsWrap.className = "params";
 

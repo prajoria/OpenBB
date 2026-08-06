@@ -50,7 +50,7 @@ function extractFn(src, name) {
 function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "metricModel", "inlineOptionsHtml",
-    "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout"];
+    "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ") + " };";
   const ctx = {};
@@ -338,6 +338,21 @@ test("pxToGridRect rounds pixel rect to grid units (#1893)", () => {
   assert.deepEqual(
     { ...H.pxToGridRect({ left: 98, top: 61, width: 201, height: 89 }, geom) },
     { x: 10, y: 2, w: 20, h: 3 },
+  );
+});
+
+// --------------------------------------------------------------------------
+// #1894 — copyable widget reference string (click-to-copy header chip)
+// --------------------------------------------------------------------------
+test("widgetRefString builds a stable, paste-friendly @id reference (#1894)", () => {
+  assert.equal(
+    H.widgetRefString(
+      "pi_equity_profile",
+      "Portfolio Intelligence - Terminal",
+      "F1 Overview",
+      "Equity Profile",
+    ),
+    "@pi_equity_profile (app: Portfolio Intelligence - Terminal | tab: F1 Overview | widget: Equity Profile)",
   );
 });
 
