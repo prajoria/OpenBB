@@ -209,6 +209,39 @@ def test_engine_status_reports_preset_and_paper_state() -> None:
     assert "Paper engine" in body
 
 
+def test_engine_status_mysql_backend_not_no_session(monkeypatch) -> None:
+    """#1931 regression: MySQL-default backend must NOT show SQLite "NO SESSION".
+
+    ``get_default_engine`` defaults ``PI_PAPER_ENGINE=mysql``. The pre-fix
+    status code stat'd ``~/.portfolio_intel/paper.db`` unconditionally, so a
+    default MySQL deployment with no local file always rendered
+    "NO SESSION" — even with an active MySQL paper engine. The backend-aware
+    wiring reports the configured MySQL backend instead. This test FAILS on
+    the old SQLite-only code and PASSES on the fix.
+    """
+    monkeypatch.setenv("PI_PAPER_ENGINE", "mysql")
+    body = _client.get("/tt/engine/status").json()
+    assert "MySQL backend configured" in body
+    assert "NO SESSION" not in body
+
+
+def test_engine_status_sqlite_backend_reports_file_state(monkeypatch, tmp_path) -> None:
+    """#1931: with ``PI_PAPER_ENGINE=sqlite`` the status does the meaningful
+    on-disk presence check against ``PI_PAPER_DB`` — absent file → NO SESSION,
+    present file → ACTIVE. Mirrors ``get_default_engine``'s SQLite branch.
+    """
+    monkeypatch.setenv("PI_PAPER_ENGINE", "sqlite")
+    db_file = tmp_path / "paper.db"
+    monkeypatch.setenv("PI_PAPER_DB", str(db_file))
+
+    body_absent = _client.get("/tt/engine/status").json()
+    assert "SQLite NO SESSION" in body_absent
+
+    db_file.write_text("", encoding="utf-8")
+    body_present = _client.get("/tt/engine/status").json()
+    assert "SQLite ACTIVE" in body_present
+
+
 def test_execute_bridge_widget_declared() -> None:
     w = _widgets().get("tt_execute_bridge")
     assert w and w["type"] == "markdown"

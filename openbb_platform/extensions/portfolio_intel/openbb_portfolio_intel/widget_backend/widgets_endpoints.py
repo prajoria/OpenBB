@@ -2729,7 +2729,7 @@ def _render_engine_status() -> str:
     * ``openbb_techtrade`` version + import health;
     * a capability matrix (which engine routers import cleanly);
     * the default confluence preset weights;
-    * paper-engine (``paper.db``) presence.
+    * the configured paper-engine backend (``PI_PAPER_ENGINE``).
 
     Degrades gracefully when ``openbb_techtrade`` is not installed — same
     discipline as the wired ``/tt/execute/*`` endpoints.
@@ -2774,24 +2774,41 @@ def _render_engine_status() -> str:
     except (ImportError, AttributeError, ValueError):
         preset_line = "- **Default preset (trend_follow):** unavailable"
 
-    # Paper-engine state — fast SQLite presence check (mirrors the wired T5
-    # /tt/execute/paper-status endpoints; no query, just existence).
-    db_path = Path(
-        os.environ.get(
-            "PI_PAPER_DB",
-            str(Path.home() / ".portfolio_intel" / "paper.db"),
-        )
-    )
-    if db_path.exists():
+    # Paper-engine state — report the CONFIGURED backend, mirroring
+    # get_default_engine's ``PI_PAPER_ENGINE`` selector (#1790): only the
+    # value ``mysql`` (the default) uses MysqlPaperEngine; every other value
+    # uses the file-backed SqlitePaperEngine. We deliberately do NOT
+    # instantiate the engine here — that would open the shared fmp_cache
+    # MySQL pool (and can create accounts), violating this widget's fast,
+    # no-network, side-effect-free contract. For the SQLite file backend a
+    # cheap on-disk presence check is meaningful; for the MySQL default there
+    # is no local file to stat, so we report the configured backend rather
+    # than the misleading "NO SESSION" a bare paper.db check produced on
+    # MySQL deployments.
+    backend = os.environ.get("PI_PAPER_ENGINE", "mysql").strip().lower()
+    if backend == "mysql":
         paper_line = (
-            f"- **Paper engine:** ACTIVE (`{db_path.name}` present — submit and "
-            "read via the Execute Bridge widgets)"
+            "- **Paper engine:** MySQL backend configured "
+            f"(`PI_PAPER_ENGINE={backend}`, shared fmp_cache pool) — submit and "
+            "read via the Execute Bridge widgets"
         )
     else:
-        paper_line = (
-            "- **Paper engine:** NO SESSION (no paper.db yet — submit a batch "
-            "via the Execute Bridge to start one)"
+        db_path = Path(
+            os.environ.get(
+                "PI_PAPER_DB",
+                str(Path.home() / ".portfolio_intel" / "paper.db"),
+            )
         )
+        if db_path.exists():
+            paper_line = (
+                f"- **Paper engine:** SQLite ACTIVE (`{db_path.name}` present — "
+                "submit and read via the Execute Bridge widgets)"
+            )
+        else:
+            paper_line = (
+                "- **Paper engine:** SQLite NO SESSION (no paper.db yet — submit "
+                "a batch via the Execute Bridge to start one)"
+            )
 
     caps_block = "\n".join(cap_lines)
     return (
