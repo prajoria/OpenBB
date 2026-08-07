@@ -1369,17 +1369,35 @@ def _demo_ohlc_series(symbol: str, days: int = 126) -> list[dict]:
         frac = i / max(1, days - 1)
         trend = total_drift * frac
         wave = math.sin((seed + i) / 9.0) * (base * 0.015)  # ±1.5% texture
-        # Deterministic pseudo-noise in [-0.5, 0.5) — no RNG, no clock.
-        noise = ((seed * 9301 + i * 49297) % 233280) / 233280.0 - 0.5
-        close = round(base + trend + wave + noise * (base * 0.006), 2)
-        open_ = round(close - math.cos((seed + i) / 7.0) * (base * 0.006), 2)
-        high = round(
-            max(open_, close) + abs(math.sin((seed + i) / 5.0)) * (base * 0.008), 2
-        )
-        low = round(
-            min(open_, close) - abs(math.cos((seed + i) / 5.0)) * (base * 0.008), 2
-        )
-        volume = int(1_000_000 + (seed * (i + 1)) % 5_000_000)
+        # Three independent deterministic pseudo-uniforms in [0, 1) — no RNG,
+        # no clock, so hashes stay stable across runs and unit tests never
+        # touch randomness.
+        u1 = ((seed * 9301 + i * 49297) % 233280) / 233280.0
+        u2 = ((seed * 4021 + i * 63551 + 12345) % 233280) / 233280.0
+        u3 = ((seed * 7919 + i * 104729 + 777) % 233280) / 233280.0
+        close = round(base + trend + wave + (u1 - 0.5) * (base * 0.006), 2)
+        # Per-day "activity" is right-skewed (u3²) so most days are quiet and a
+        # few are decisive — a real tape has both big and small candles. The
+        # body direction alternates deterministically so up/down days interleave
+        # instead of every candle looking identical (#1952).
+        activity = u3 * u3
+        direction = 1.0 if ((seed * 31 + i * 17) % 2 == 0) else -1.0
+        body_amp = base * (0.0008 + 0.03 * activity)
+        open_ = round(close - direction * body_amp, 2)
+        # Wicks vary independently so the high/low range is not a fixed band.
+        wick_hi = abs(math.sin((seed + i) / 5.0)) * (base * (0.002 + 0.02 * u2))
+        wick_lo = abs(math.cos((seed + i) / 6.0)) * (base * (0.002 + 0.02 * (1.0 - u2)))
+        high = round(max(open_, close) + wick_hi, 2)
+        low = round(min(open_, close) - wick_lo, 2)
+        # Spiky, mean-reverting volume: a per-symbol base scaled by right-skewed
+        # daily noise with occasional high-volume spikes. Bar height now carries
+        # real day-to-day signal (#1952) instead of the old near-flat monotonic
+        # ramp (which made every volume bar render the same height).
+        base_vol = 5_000_000 + (seed % 7) * 3_000_000
+        vol_factor = 0.5 + 1.2 * u2
+        if (seed * 13 + i * 29) % 13 == 0:
+            vol_factor *= 2.5  # earnings/news-style spike day
+        volume = int(base_vol * vol_factor)
         out.append(
             {
                 "date": d.isoformat(),
