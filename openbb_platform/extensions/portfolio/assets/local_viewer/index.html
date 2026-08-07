@@ -91,6 +91,17 @@
     }
     .widget > .whead .wref:hover { color: var(--fg); border-color: var(--muted); }
     .widget > .whead .wref.copied { color: #7ee787; border-color: #7ee787; }
+    /* Data-provenance badge (#1953): shows whether the widget's data came from
+       a live provider tier (green "live") or the offline demo/stub fallback
+       (amber "demo"), so testing against real data is verifiable at a glance. */
+    .widget > .whead .wsrc {
+      font: 600 9.5px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .04em;
+      text-transform: uppercase; padding: 2px 6px; border-radius: 999px;
+      border: 1px solid var(--border); flex: none; cursor: help; user-select: none;
+    }
+    .widget > .whead .wsrc[hidden] { display: none; }
+    .widget > .whead .wsrc.wsrc-live { color: #7ee787; border-color: #2ea04366; background: #2ea04322; }
+    .widget > .whead .wsrc.wsrc-demo { color: #e3b341; border-color: #bb800966; background: #bb800922; }
     /* Help affordance (#1951): a "?" button that opens a popover explaining
        how to read the widget. Circular, muted until hovered. */
     .widget > .whead .whelp {
@@ -345,6 +356,18 @@
     const resp = await fetch(url, opts);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
     return resp.json();
+  }
+
+  // Like fetchJSON but also returns the ``X-PI-Data-Source`` header (the
+  // provider tier that served the response) so callers can render a
+  // live-vs-demo provenance badge (#1953). ``source`` is null when the
+  // endpoint did not stamp the header.
+  async function fetchJSONWithSource(url, opts) {
+    const resp = await fetch(url, opts);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+    const source = resp.headers.get("X-PI-Data-Source");
+    const data = await resp.json();
+    return { data, source };
   }
 
   // Resolve a possibly-dotted dataKey and coerce the payload into an array of
@@ -852,7 +875,8 @@
   async function loadWidgetData(bodyEl, widgetDef, params) {
     bodyEl.innerHTML = '<div class="state">Loading…</div>';
     try {
-      const resp = await fetchJSON(widgetDef.endpoint + buildQuery(params));
+      const { data: resp, source } = await fetchJSONWithSource(widgetDef.endpoint + buildQuery(params));
+      applyDataSourceBadge(bodyEl, source);
       const type = widgetDef.type || "table";
       if (type === "markdown") { renderMarkdown(bodyEl, resp); return; }
       if (type === "metric") { renderMetric(bodyEl, resp); return; }
@@ -1087,6 +1111,50 @@
       + 'title="How to read this widget">?</button>';
   }
 
+  // Pure classifier for the data-provenance badge (#1953). Maps the
+  // ``X-PI-Data-Source`` response header (the provider tier that served the
+  // widget's data) to a small badge descriptor. ``stub``/``demo`` -> amber
+  // "demo" (offline fallback, NOT live); any other non-empty tier -> green
+  // "live". Returns null when no source header was present (badge hidden),
+  // e.g. a non-retrofitted widget endpoint.
+  function dataSourceBadge(source) {
+    if (!source) return null;
+    const s = String(source).trim().toLowerCase();
+    if (!s) return null;
+    if (s === "stub" || s === "demo") {
+      return {
+        text: "demo",
+        cls: "wsrc-demo",
+        title: "Offline demo / fallback data — NOT live. The provider chain "
+          + "exhausted every tier and served the built-in stub.",
+      };
+    }
+    return {
+      text: "live",
+      cls: "wsrc-live",
+      title: "Live data served by provider tier: " + source,
+    };
+  }
+
+  // Apply the provenance badge to a widget's header. ``bodyEl`` is the widget
+  // ``.wbody``; its sibling ``.wsrc`` span in the header is updated in place.
+  // Hidden when the source is unknown so undecorated widgets stay clean.
+  function applyDataSourceBadge(bodyEl, source) {
+    const card = bodyEl && bodyEl.parentElement;
+    const el = card && card.querySelector(".whead .wsrc");
+    if (!el) return;
+    const badge = dataSourceBadge(source);
+    if (!badge) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = badge.text;
+    el.title = badge.title;
+    el.className = "wsrc " + badge.cls;
+  }
+
   // Copyable widget reference (#1894): build a stable, paste-friendly handle
   // the user can drop in chat to point the assistant at one specific widget.
   function copyWidgetRef(btn, wid, wname) {
@@ -1167,6 +1235,7 @@
     const head = document.createElement("div");
     head.className = "whead";
     head.innerHTML = `<span class="wname">${escapeHtml(def.name || layoutItem.i)}</span>`
+      + `<span class="wsrc" hidden></span>`
       + `<button type="button" class="wref" title="Click to copy a reference to this widget — paste it in chat to point me at it">@${escapeHtml(layoutItem.i)}</button>`
       + helpButtonHtml(def);
     const refBtn = head.querySelector(".wref");

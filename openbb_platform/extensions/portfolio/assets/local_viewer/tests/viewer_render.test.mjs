@@ -52,7 +52,7 @@ function loadHelpers() {
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
-    "helpText", "helpButtonHtml"];
+    "helpText", "helpButtonHtml", "dataSourceBadge"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ") + " };";
   const ctx = {};
@@ -589,4 +589,39 @@ test("helpButtonHtml renders through mdToHtml to real markup", () => {
   const html = H.mdToHtml(H.helpText({ help: "### How to read this chart\n\n- **x-axis** is time\n- **y-axis** is price" }));
   assert.match(html, /<h3>How to read this chart<\/h3>/);
   assert.match(html, /<li><strong>x-axis<\/strong> is time<\/li>/);
+});
+
+// dataSourceBadge (#1953) — the live-vs-demo provenance badge. Maps the
+// X-PI-Data-Source response header (serving provider tier) to a badge
+// descriptor; null when no source is known so the badge stays hidden.
+test("dataSourceBadge maps stub to an amber demo badge", () => {
+  const b = H.dataSourceBadge("stub");
+  assert.equal(b.text, "demo");
+  assert.equal(b.cls, "wsrc-demo");
+  assert.match(b.title, /NOT live/);
+});
+
+test("dataSourceBadge maps a live provider tier to a green live badge", () => {
+  const b = H.dataSourceBadge("fmp_cached");
+  assert.equal(b.text, "live");
+  assert.equal(b.cls, "wsrc-live");
+  assert.match(b.title, /fmp_cached/);
+});
+
+test("dataSourceBadge treats 'demo' alias like stub (amber, not live)", () => {
+  // Guard the stub/demo branch: a mutation collapsing it to the live branch
+  // would flip cls to wsrc-live and fail here.
+  assert.equal(H.dataSourceBadge("demo").cls, "wsrc-demo");
+  assert.equal(H.dataSourceBadge("DEMO").cls, "wsrc-demo");
+});
+
+test("dataSourceBadge is null when source header is absent", () => {
+  assert.equal(H.dataSourceBadge(null), null);
+  assert.equal(H.dataSourceBadge(undefined), null);
+  assert.equal(H.dataSourceBadge(""), null);
+  assert.equal(H.dataSourceBadge("   "), null);
+});
+
+test("dataSourceBadge is case-insensitive for tier names", () => {
+  assert.equal(H.dataSourceBadge("FMP_Cached").text, "live");
 });
