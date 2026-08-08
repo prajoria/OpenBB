@@ -52,7 +52,7 @@ function loadHelpers() {
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
-    "helpText", "helpButtonHtml", "dataSourceBadge"];
+    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ") + " };";
   const ctx = {};
@@ -624,4 +624,46 @@ test("dataSourceBadge is null when source header is absent", () => {
 
 test("dataSourceBadge is case-insensitive for tier names", () => {
   assert.equal(H.dataSourceBadge("FMP_Cached").text, "live");
+});
+
+// resolveParams / contextParamLabel (#1954) — the app-level shared context bar.
+// A single symbol selection must drive every widget declaring `symbol`, so the
+// global value wins over per-widget saved state and widget defaults.
+const PH_DEF = { params: [{ paramName: "symbol", value: "AAPL" }, { paramName: "chart_type", value: "line" }] };
+
+test("resolveParams: app-level global wins over saved state and default", () => {
+  const out = H.resolveParams(PH_DEF.params, { symbol: "TSLA" }, { symbol: "NVDA" });
+  assert.equal(out.symbol, "NVDA");        // global beats the saved TSLA
+  assert.equal(out.chart_type, "line");    // untouched -> default
+});
+
+test("resolveParams: saved state used when no global for that key", () => {
+  const out = H.resolveParams(PH_DEF.params, { symbol: "TSLA" }, {});
+  assert.equal(out.symbol, "TSLA");
+});
+
+test("resolveParams: widget default used when neither global nor state", () => {
+  const out = H.resolveParams(PH_DEF.params, {}, {});
+  assert.equal(out.symbol, "AAPL");
+  assert.equal(out.chart_type, "line");
+});
+
+test("resolveParams: global key the widget does NOT declare never leaks in", () => {
+  // A book-scoped widget (only account_id) must not receive the global symbol.
+  const bookDef = { params: [{ paramName: "account_id", value: "demo" }] };
+  const out = H.resolveParams(bookDef.params, {}, { symbol: "NVDA", account_id: "acct-7" });
+  assert.equal(out.account_id, "acct-7");
+  assert.ok(!("symbol" in out), "symbol must not appear on a widget that does not declare it");
+});
+
+test("resolveParams: empty-string global override is honored (not skipped)", () => {
+  const out = H.resolveParams(PH_DEF.params, { symbol: "TSLA" }, { symbol: "" });
+  assert.equal(out.symbol, "");
+});
+
+test("contextParamLabel maps known shared params and title-cases the rest", () => {
+  assert.equal(H.contextParamLabel("symbol"), "Symbol");
+  assert.equal(H.contextParamLabel("account_id"), "Account");
+  assert.equal(H.contextParamLabel("benchmark_symbol"), "Benchmark");
+  assert.equal(H.contextParamLabel("some_other_key"), "Some Other Key");
 });

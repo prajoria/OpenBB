@@ -56,6 +56,21 @@
     .dashboard { flex: 1; display: flex; flex-direction: column; min-width: 0; }
     .tabs { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); overflow-x: auto; }
     .tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    /* App-level shared context bar (#1954): a single Symbol/Account selector
+       that drives every widget in the app declaring that param, so the
+       11-tab single-symbol story is selected once, not per-widget. */
+    .context-bar {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel2);
+    }
+    .context-bar[hidden] { display: none; }
+    .context-bar .ctx-lead {
+      font: 600 10.5px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--muted);
+    }
+    .context-bar .ctx-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+    .context-bar .ctx-field input { width: 100px; text-transform: uppercase; }
+    .context-bar .ctx-hint { font-size: 11px; color: var(--muted); opacity: .8; margin-left: auto; }
     /* Floating grid canvas (#1893) — widgets are absolutely positioned tiles */
     .grid { flex: 1; overflow: auto; padding: 12px; position: relative; }
     .canvas { position: relative; width: 100%; }
@@ -211,6 +226,7 @@
     </aside>
     <div class="dashboard">
       <div class="tabs" id="tabs"></div>
+      <div class="context-bar" id="context-bar" hidden></div>
       <div class="grid" id="grid"><div class="state">Loading dashboard…</div></div>
     </div>
     <aside class="chat">
@@ -851,16 +867,41 @@
   //--------------------------------------------------------------------------
   let APP = null;          // the active app object from /apps.json
   let WIDGETS = {};        // widgetId -> definition from /widgets.json
+  let GLOBAL_PARAMS = {};  // app-level shared context (e.g. {symbol, account_id}) (#1954)
 
-  function initialParams(widgetDef, layoutState) {
-    // Precedence: layout state.params > widget default value > "".
+  // Pure param resolver (#1954). Precedence for each param the widget declares:
+  //   app-level shared context (globalParams) > saved layout state > widget default.
+  // App-level context wins so selecting the symbol ONCE updates every widget in
+  // the app that declares that param — the Terminal is one symbol's 11-tab story,
+  // not 30 independent symbol boxes. Only keys the widget actually declares are
+  // returned, so a global `symbol` never leaks into a book-scoped widget.
+  function resolveParams(defParams, stateParams, globalParams) {
     const out = {};
-    const stateParams = (layoutState && layoutState.params) || {};
-    for (const p of (widgetDef.params || [])) {
-      out[p.paramName] = (p.paramName in stateParams) ? stateParams[p.paramName]
-        : (p.value !== undefined && p.value !== null ? p.value : "");
+    const sp = stateParams || {};
+    const gp = globalParams || {};
+    for (const p of (defParams || [])) {
+      const name = p.paramName;
+      if (name in gp) {
+        out[name] = gp[name];
+      } else if (name in sp) {
+        out[name] = sp[name];
+      } else {
+        out[name] = (p.value !== undefined && p.value !== null) ? p.value : "";
+      }
     }
     return out;
+  }
+
+  // Pretty label for an app-level context field (#1954). Known shared params get
+  // curated labels; anything else is title-cased from snake_case.
+  function contextParamLabel(name) {
+    const map = { symbol: "Symbol", account_id: "Account", benchmark_symbol: "Benchmark" };
+    if (map[name]) return map[name];
+    return String(name || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function initialParams(widgetDef, layoutState) {
+    return resolveParams(widgetDef.params, (layoutState && layoutState.params) || {}, GLOBAL_PARAMS);
   }
 
   function buildQuery(params) {
@@ -1264,6 +1305,9 @@
 
     for (const p of (def.params || [])) {
       if (p.show === false) continue;
+      // Params managed by the app-level context bar (#1954) are hidden here so
+      // the symbol/account is selected ONCE for the whole app, not per widget.
+      if (p.paramName in GLOBAL_PARAMS) continue;
       const label = document.createElement("label");
       label.textContent = p.label || p.paramName;
       let control;
@@ -1349,7 +1393,75 @@
     renderSidebar(idx);
     $("app-badge").textContent = (APP && APP.name) || "app";
     if (!APP) { $("grid").innerHTML = '<div class="state err">No apps in /apps.json.</div>'; return; }
+    // Seed the app-level shared context (#1954) from apps.json `params`, layering
+    // any per-app persisted selection over it. Apps without a `params` block get
+    // an empty context (no bar) and keep the legacy per-widget behavior.
+    GLOBAL_PARAMS = loadGlobalParams(APP.params || {});
+    renderContextBar();
     renderTabs();
+  }
+
+  // Persist the app-level context selection per app so a reload keeps the symbol.
+  function globalParamsKey() { return "viewer:ctx:" + ((APP && APP.name) || "app"); }
+  function persistGlobalParams() {
+    try { localStorage.setItem(globalParamsKey(), JSON.stringify(GLOBAL_PARAMS)); }
+    catch (_) { /* ignore */ }
+  }
+  function loadGlobalParams(base) {
+    const out = { ...(base || {}) };
+    try {
+      const raw = localStorage.getItem(globalParamsKey());
+      if (raw) {
+        const saved = JSON.parse(raw);
+        for (const k of Object.keys(out)) {
+          if (saved && k in saved && saved[k] != null && saved[k] !== "") out[k] = saved[k];
+        }
+      }
+    } catch (_) { /* ignore */ }
+    return out;
+  }
+
+  // Render the app-level context bar (#1954): one control per shared param.
+  // Changing a value updates every widget (across all tabs) that declares it.
+  function renderContextBar() {
+    const bar = $("context-bar");
+    if (!bar) return;
+    bar.innerHTML = "";
+    const keys = Object.keys(GLOBAL_PARAMS);
+    if (!keys.length) { bar.hidden = true; return; }
+    bar.hidden = false;
+    const lead = document.createElement("span");
+    lead.className = "ctx-lead";
+    lead.textContent = "Context";
+    bar.appendChild(lead);
+    for (const key of keys) {
+      const label = document.createElement("label");
+      label.className = "ctx-field";
+      const span = document.createElement("span");
+      span.textContent = contextParamLabel(key);
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = GLOBAL_PARAMS[key] ?? "";
+      input.dataset.key = key;
+      input.title = "Drives every " + contextParamLabel(key).toLowerCase()
+        + "-scoped widget in this app";
+      const commit = () => {
+        const v = input.value.trim();
+        if (v === (GLOBAL_PARAMS[key] ?? "")) return;
+        GLOBAL_PARAMS[key] = v;
+        persistGlobalParams();
+        if (ACTIVE_TAB) renderTab(ACTIVE_TAB);
+      };
+      input.addEventListener("change", commit);
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
+      label.appendChild(span);
+      label.appendChild(input);
+      bar.appendChild(label);
+    }
+    const hint = document.createElement("span");
+    hint.className = "ctx-hint";
+    hint.textContent = "Set once — every tab updates";
+    bar.appendChild(hint);
   }
 
   async function initDashboard() {
