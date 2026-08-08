@@ -977,11 +977,18 @@ def equity_key_stats(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_financials(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, float | str]]:
-    """Equity Profile section 3 — 5-yr financials (chart raw)."""
+    """Equity Profile section 3 — 5-yr financials (chart raw).
+
+    Live-served from ``fmp_cached`` via the ``equity/financials`` tier call
+    (#1955): fetches annual income statements and shapes each period to
+    ``{year, revenue_b, net_income_b, net_margin_pct}``. This stub body is the
+    loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
     years = [2021, 2022, 2023, 2024, 2025]

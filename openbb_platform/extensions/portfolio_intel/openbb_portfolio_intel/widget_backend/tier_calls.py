@@ -1146,6 +1146,109 @@ def _statements_fmp_cached(*, symbol: str, period: str = "annual") -> list[dict]
 
 
 # ---------------------------------------------------------------------------
+# financials (F2 chart) — full-wiring of stub #1955
+# ---------------------------------------------------------------------------
+#
+# The F2 Financials chart (pi_equity_financial_charts -> pi/equity/financials)
+# renders 5 years of revenue / net income + net margin. Fetches annual income
+# statements from fmp_cached and shapes each period to the widget contract
+# ``{year, revenue_b, net_income_b, net_margin_pct}`` — matching the shipped
+# stub so the chart renders identically. Amounts are scaled from absolute
+# currency units to billions. Loud-empty falls to the endpoint stub.
+
+#: Number of annual periods the financials chart shows.
+_FINANCIALS_YEARS = 5
+
+
+def _fetch_income_annual(symbol: str) -> list[dict]:
+    """Fetch up to ``_FINANCIALS_YEARS`` annual income statements (fmp_cached).
+
+    Rows are normalized to plain dicts. Order is not guaranteed here; the
+    shaper sorts by fiscal year ascending.
+    """
+    res = _obb().equity.fundamental.income(
+        symbol=symbol,
+        provider="fmp_cached",
+        period="annual",
+        limit=_FINANCIALS_YEARS,
+    )
+    rows = getattr(res, "results", res)
+    out: list[dict] = []
+    for r in rows:
+        if hasattr(r, "model_dump"):
+            out.append(r.model_dump())
+        elif isinstance(r, dict):
+            out.append(r)
+        else:
+            out.append(dict(r))
+    return out
+
+
+def _year_of(period_ending: Any) -> int | None:
+    """Extract the fiscal year from a date-ish ``period_ending`` (or None)."""
+    if period_ending is None:
+        return None
+    if hasattr(period_ending, "year"):
+        return int(period_ending.year)
+    text = str(period_ending)
+    if len(text) >= 4 and text[:4].isdigit():
+        return int(text[:4])
+    return None
+
+
+def _shape_financials(rows: list[dict]) -> list[dict]:
+    """Map raw annual income rows to the chart contract, oldest-first.
+
+    Pure (no I/O). Each row -> ``{year, revenue_b, net_income_b,
+    net_margin_pct}``. Amounts are scaled to billions. A row missing a fiscal
+    year or a positive revenue is dropped (revenue anchors the year axis and
+    the margin denominator). ``net_income_b`` / ``net_margin_pct`` are ``None``
+    when net income is absent.
+    """
+    shaped: list[dict] = []
+    for r in rows:
+        year = _year_of(r.get("period_ending"))
+        revenue = _as_float(r.get("revenue"))
+        if year is None or not revenue:
+            continue
+        net_income = _as_float(r.get("bottom_line_net_income"))
+        if net_income is None:
+            net_income = _as_float(r.get("net_income"))
+        net_income_b = None if net_income is None else round(net_income / 1e9, 3)
+        revenue_b = round(revenue / 1e9, 3)
+        net_margin_pct = (
+            None if net_income is None else round(net_income / revenue * 100, 2)
+        )
+        shaped.append(
+            {
+                "year": year,
+                "revenue_b": revenue_b,
+                "net_income_b": net_income_b,
+                "net_margin_pct": net_margin_pct,
+            }
+        )
+    shaped.sort(key=lambda d: d["year"])
+    return shaped
+
+
+def _financials_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: fetch live annual income from fmp_cached and shape it.
+
+    Empty output is loud (WARNING) and returned as ``[]`` so the chain
+    transitions to the next tier / the endpoint stub.
+    """
+    rows = _fetch_income_annual(symbol)
+    shaped = _shape_financials(rows)
+    if not shaped:
+        logger.warning(
+            "financials fmp_cached returned 0 rows for %s "
+            "— chain will transition to the next tier/stub",
+            symbol,
+        )
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # peer-multiples / competitors (#1923 — full-wiring of #1657)
 # ---------------------------------------------------------------------------
 #
@@ -1350,6 +1453,7 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
     register("equity/stock-splits", "fmp_cached", _stock_splits_fmp_cached)
     register("charting", "fmp_cached", _charting_fmp_cached)
     register("equity/statements", "fmp_cached", _statements_fmp_cached)
+    register("equity/financials", "fmp_cached", _financials_fmp_cached)
     register("equity/peer-multiples", "fmp_cached", _peer_multiples_fmp_cached)
     register(
         "equity/price-target-history",

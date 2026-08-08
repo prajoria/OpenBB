@@ -2178,6 +2178,177 @@ def test_statements_fmp_cached_live() -> None:
 
 
 # ---------------------------------------------------------------------------
+# financials (F2 chart) — full-wiring of stub #1955
+# ---------------------------------------------------------------------------
+#
+# The F2 Financials chart (pi_equity_financial_charts -> pi/equity/financials)
+# had no live tier registered, so every symbol fell to the demo stub's
+# hardcoded AAPL numbers. These tests drive the live fmp_cached income wiring.
+
+
+def _income_fixtures() -> list[dict]:
+    """Realistic-shape fmp_cached annual income rows (unsorted on purpose).
+
+    Keys mirror the provider (``revenue``, ``bottom_line_net_income``,
+    ``period_ending`` as a ``datetime.date``) plus extras the shaper ignores.
+    """
+    return [
+        {
+            "period_ending": _dt.date(2023, 9, 30),
+            "revenue": 383_285_000_000,
+            "bottom_line_net_income": 96_995_000_000,
+            "gross_profit": 169_148_000_000,
+        },
+        {
+            "period_ending": _dt.date(2025, 9, 27),
+            "revenue": 416_161_000_000,
+            "bottom_line_net_income": 112_010_000_000,
+            "gross_profit": 190_000_000_000,
+        },
+        {
+            "period_ending": _dt.date(2024, 9, 28),
+            "revenue": 391_035_000_000,
+            "bottom_line_net_income": 93_736_000_000,
+            "gross_profit": 180_683_000_000,
+        },
+    ]
+
+
+def test_shape_financials_sorts_year_ascending_and_scales_to_billions() -> None:
+    """Rows come out oldest-first with revenue/net income in billions."""
+    out = tier_calls._shape_financials(_income_fixtures())
+    assert [r["year"] for r in out] == [2023, 2024, 2025]
+    first = out[0]
+    assert first["revenue_b"] == pytest.approx(383.285, abs=1e-3)
+    assert first["net_income_b"] == pytest.approx(96.995, abs=1e-3)
+
+
+def test_shape_financials_computes_net_margin_pct() -> None:
+    """net_margin_pct = net_income / revenue * 100, rounded to 2dp."""
+    out = tier_calls._shape_financials(_income_fixtures())
+    by = {r["year"]: r for r in out}
+    assert by[2025]["net_margin_pct"] == pytest.approx(26.92, abs=0.01)
+
+
+def test_shape_financials_skips_rows_missing_revenue_or_date() -> None:
+    """A row with no revenue or no period_ending is dropped (not 0-division)."""
+    rows = [
+        {"period_ending": _dt.date(2024, 9, 28), "revenue": None},
+        {"period_ending": None, "revenue": 100_000_000_000},
+        {
+            "period_ending": _dt.date(2025, 9, 27),
+            "revenue": 400_000_000_000,
+            "bottom_line_net_income": 100_000_000_000,
+        },
+    ]
+    out = tier_calls._shape_financials(rows)
+    assert [r["year"] for r in out] == [2025]
+
+
+def test_shape_financials_net_margin_none_when_net_income_missing() -> None:
+    """Missing net income yields net_income_b=None and net_margin_pct=None."""
+    rows = [
+        {
+            "period_ending": _dt.date(2025, 9, 27),
+            "revenue": 400_000_000_000,
+            "bottom_line_net_income": None,
+        }
+    ]
+    out = tier_calls._shape_financials(rows)
+    assert out[0]["net_income_b"] is None
+    assert out[0]["net_margin_pct"] is None
+
+
+def test_financials_tier_call_composes_fetch_and_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The registered tier call composes the income fetch + shape."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_income_annual", lambda symbol: _income_fixtures()
+    )
+    call = _TIER_CALLS[("equity/financials", "fmp_cached")]
+    out = call(symbol="AAPL")
+    assert [r["year"] for r in out] == [2023, 2024, 2025]
+
+
+def test_financials_tier_call_loud_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When the fetch returns nothing, WARN (0 rows) and return []."""
+    monkeypatch.setattr(tier_calls, "_fetch_income_annual", lambda symbol: [])
+    call = _TIER_CALLS[("equity/financials", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="AAPL")
+    assert out == []
+    assert any("0 rows" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_financials() -> None:
+    """The production registration wires the fmp_cached financials tier."""
+    assert ("equity/financials", "fmp_cached") in _TIER_CALLS
+
+
+def test_financials_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint serves live-shaped rows.
+
+    The stub's first row is year 2021 revenue_b 365.8; the fixture's oldest
+    year is 2023, so the absence of 2021 proves the tier served (not the stub).
+    """
+    monkeypatch.setattr(
+        tier_calls, "_fetch_income_annual", lambda symbol: _income_fixtures()
+    )
+    resp = _client.get("/pi/equity/financials?symbol=AAPL")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert rows, "empty response"
+    years = [r["year"] for r in rows]
+    assert 2021 not in years, "served the stub!"
+    assert years == [2023, 2024, 2025]
+
+
+def test_financials_endpoint_forwards_normalized_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (strip + upper)."""
+    seen: dict[str, str] = {}
+
+    def _capture(symbol: str) -> list[dict]:
+        seen["symbol"] = symbol
+        return _income_fixtures()
+
+    monkeypatch.setattr(tier_calls, "_fetch_income_annual", _capture)
+    resp = _client.get("/pi/equity/financials?symbol=+aapl+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "AAPL", f"raw symbol leaked: {seen.get('symbol')!r}"
+
+
+def test_financials_endpoint_rejects_bad_symbol_with_tier_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbol validation runs pre-dispatch (not bypassed by the live tier)."""
+    monkeypatch.setattr(
+        tier_calls, "_fetch_income_annual", lambda symbol: _income_fixtures()
+    )
+    resp = _client.get("/pi/equity/financials?symbol=<script>")
+    assert resp.status_code == 400
+
+
+@pytest.mark.integration
+def test_financials_fmp_cached_live() -> None:
+    """Live: fmp_cached returns real annual income for AAPL (5 years)."""
+    rows = tier_calls._fetch_income_annual("AAPL")
+    assert rows, "fmp_cached returned no income statements — wiring broken"
+    shaped = tier_calls._shape_financials(rows)
+    assert shaped, "shaper dropped every live row"
+    assert all(r["revenue_b"] and r["revenue_b"] > 0 for r in shaped)
+    # Years must be strictly ascending.
+    yrs = [r["year"] for r in shaped]
+    assert yrs == sorted(yrs)
+
+
+# ---------------------------------------------------------------------------
 # peer-multiples / competitors (#1923 — full-wiring of #1657)
 # ---------------------------------------------------------------------------
 
