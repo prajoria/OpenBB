@@ -28,6 +28,8 @@ Wiring status
 - ``equity/statements`` -> ``fmp_cached`` (full-wiring of stub #1653, #1920)
 - ``equity/peer-multiples`` -> ``fmp_cached`` (full-wiring of stub #1657, #1923)
 - ``equity/price-target-history`` -> ``fmp_cached`` (full-wiring of stub #1669, #1926)
+- ``equity/header`` -> ``fmp_cached`` (full-wiring of stub #1685, #1958)
+- ``equity/key-stats`` -> ``fmp_cached`` (full-wiring of stub #1685, #1958)
 """
 
 from __future__ import annotations
@@ -1426,6 +1428,247 @@ def _price_target_history_fmp_cached(*, symbol: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# equity/header + equity/key-stats (#1958 — full-wiring of #1685 profile stubs)
+# ---------------------------------------------------------------------------
+#
+# equity/header renders a markdown profile card; equity/key-stats a
+# {metric, value} grid. Both compose live fmp_cached ``equity.profile`` +
+# ``equity.price.quote`` (key-stats also folds in ``fundamental.metrics`` and
+# ``fundamental.ratios``). Provider conventions (verified live 2026-08-08):
+#   * ``quote.change_percent`` is a FRACTION (0.00026 == 0.026%); the day-change
+#     percent is computed from ``change / prev_close`` so it is agnostic to that
+#     convention.
+#   * ``ratios.dividend_yield`` is a FRACTION (0.00712 == 0.71%); shown ``*100``.
+# header RAISES on an all-empty fetch — a non-empty ``str`` is NOT caught by the
+# chain's ``_is_empty``, so returning ``""`` would be mis-read as a successful
+# live serve (blank card). key-stats returns ``[]`` (loud-empty) so the chain
+# transitions to the endpoint stub.
+
+
+def _first_row_dump(res: Any) -> dict:
+    """Return the first result row of an obb response as a plain dict ({} if none)."""
+    rows = getattr(res, "results", res)
+    if isinstance(rows, list):
+        if not rows:
+            return {}
+        row = rows[0]
+    else:
+        row = rows
+    if hasattr(row, "model_dump"):
+        return row.model_dump()
+    if isinstance(row, dict):
+        return row
+    return {}
+
+
+def _safe_first_row(fetch: Callable[[], Any], *, label: str, symbol: str) -> dict:
+    """Fetch + dump the first row; a provider failure degrades to ``{}``.
+
+    Used for the *enrichment* sources (metrics/ratios) so a single endpoint
+    hiccup (e.g. a plan-limited 402) never blanks the whole grid — the core
+    profile/quote data still renders live.
+    """
+    try:
+        return _first_row_dump(fetch())
+    except Exception:  # noqa: BLE001 - enrichment source is best-effort
+        logger.warning(
+            "key-stats %s fetch failed for %s — omitting those fields",
+            label,
+            symbol,
+        )
+        return {}
+
+
+def _human_usd(value: Any) -> str | None:
+    """Format a USD magnitude as $X.XXT / $XXX.XB / $XXX.XM / $N (or None)."""
+    n = _as_float(value)
+    if n is None:
+        return None
+    a = abs(n)
+    if a >= 1e12:
+        return f"${n / 1e12:.2f}T"
+    if a >= 1e9:
+        return f"${n / 1e9:.1f}B"
+    if a >= 1e6:
+        return f"${n / 1e6:.1f}M"
+    return f"${n:,.0f}"
+
+
+def _human_int(value: Any) -> str | None:
+    """Format a count as X.XB / X.XM / XXXK / N (or None)."""
+    n = _as_float(value)
+    if n is None:
+        return None
+    a = abs(n)
+    if a >= 1e9:
+        return f"{n / 1e9:.1f}B"
+    if a >= 1e6:
+        return f"{n / 1e6:.1f}M"
+    if a >= 1e3:
+        return f"{n / 1e3:.0f}K"
+    return f"{n:,.0f}"
+
+
+def _fetch_profile(symbol: str) -> dict:
+    """Fetch the fmp_cached company profile row for ``symbol`` (or {})."""
+    return _first_row_dump(_obb().equity.profile(symbol=symbol, provider="fmp_cached"))
+
+
+def _fetch_quote(symbol: str) -> dict:
+    """Fetch the fmp_cached live quote row for ``symbol`` (or {})."""
+    return _first_row_dump(
+        _obb().equity.price.quote(symbol=symbol, provider="fmp_cached")
+    )
+
+
+def _change_percent(quote: dict) -> float | None:
+    """Compute day change % from ``change / prev_close`` (provider-agnostic)."""
+    change = _as_float(quote.get("change"))
+    prev_close = _as_float(quote.get("prev_close"))
+    if change is None or not prev_close:
+        return None
+    return change / prev_close * 100
+
+
+def _shape_header(symbol: str, profile: dict, quote: dict) -> str:
+    """Compose the header markdown card from profile + quote (pure, no I/O)."""
+    name = profile.get("name") or quote.get("name") or symbol
+    exchange = quote.get("exchange") or profile.get("stock_exchange") or "—"
+    sector = profile.get("sector") or "—"
+    industry = profile.get("industry_group") or profile.get("industry_category") or "—"
+    price = _as_float(quote.get("last_price"))
+    if price is None:
+        price = _as_float(profile.get("last_price"))
+    change = _as_float(quote.get("change"))
+    change_pct = _change_percent(quote)
+    market_cap = _human_usd(profile.get("market_cap") or quote.get("market_cap"))
+    year_high = _as_float(profile.get("year_high") or quote.get("year_high"))
+    year_low = _as_float(profile.get("year_low") or quote.get("year_low"))
+
+    price_line = "—" if price is None else f"${price:,.2f}"
+    change_line = (
+        "—"
+        if change is None or change_pct is None
+        else f"{change:+,.2f} ({change_pct:+.2f}%)"
+    )
+    range_line = (
+        "—"
+        if year_high is None or year_low is None
+        else f"${year_low:,.2f} – ${year_high:,.2f}"
+    )
+    return "\n".join(
+        [
+            f"## {symbol} — {name}",
+            "",
+            f"- **Exchange:** {exchange}",
+            f"- **Sector / Industry:** {sector} / {industry}",
+            f"- **Price:** {price_line}",
+            f"- **Day Change:** {change_line}",
+            f"- **Market Cap:** {market_cap or '—'}",
+            f"- **52-Week Range:** {range_line}",
+        ]
+    )
+
+
+def _header_fmp_cached(*, symbol: str) -> str:
+    """Tier call: live equity header markdown from fmp_cached profile + quote.
+
+    Raises ``ValueError`` when BOTH sources are empty so the chain transitions
+    to the endpoint stub (the chain's ``_is_empty`` does not treat a non-empty
+    string as empty — returning ``""`` would be mis-read as a live serve).
+    """
+    profile = _fetch_profile(symbol)
+    quote = _fetch_quote(symbol)
+    if not profile and not quote:
+        logger.warning(
+            "header fmp_cached: empty profile+quote for %s — chain -> stub",
+            symbol,
+        )
+        raise ValueError(f"no fmp_cached profile/quote for {symbol}")
+    return _shape_header(symbol, profile, quote)
+
+
+def _shape_key_stats(
+    symbol: str, profile: dict, quote: dict, metrics: dict, ratios: dict
+) -> list[dict]:
+    """Compose the key-stats {metric, value} grid (pure, no I/O).
+
+    Emits only fields fmp_cached sources live — never fabricates. The Symbol
+    row is always appended but is NOT counted as a data row by the caller's
+    loud-empty check. Fields with no fmp_cached source (forward P/E, short
+    interest, insider ownership, shares float, next earnings) are dropped
+    rather than faked (area:fmp-cached-gap follow-up).
+    """
+    out: list[dict] = []
+
+    def add(metric: str, value: Any) -> None:
+        if value is not None:
+            out.append({"metric": metric, "value": value})
+
+    add("Market Cap", _human_usd(profile.get("market_cap") or quote.get("market_cap")))
+    pe = _as_float(ratios.get("price_to_earnings"))
+    add("P/E (TTM)", None if pe is None else round(pe, 2))
+    ev_ebitda = _as_float(metrics.get("ev_to_ebitda"))
+    add("EV/EBITDA", None if ev_ebitda is None else round(ev_ebitda, 2))
+    ps = _as_float(ratios.get("price_to_sales"))
+    add("P/S (TTM)", None if ps is None else round(ps, 2))
+    eps = _as_float(ratios.get("net_income_per_share"))
+    add("EPS (TTM)", None if eps is None else round(eps, 2))
+    beta = _as_float(profile.get("beta"))
+    add("Beta", None if beta is None else round(beta, 2))
+    div_yield = _as_float(ratios.get("dividend_yield"))
+    add("Dividend Yield", None if div_yield is None else f"{div_yield * 100:.2f}%")
+    add("Volume", _human_int(quote.get("volume")))
+    yh = _as_float(profile.get("year_high") or quote.get("year_high"))
+    add("52-Week High", None if yh is None else round(yh, 2))
+    yl = _as_float(profile.get("year_low") or quote.get("year_low"))
+    add("52-Week Low", None if yl is None else round(yl, 2))
+    out.append({"metric": "Symbol", "value": symbol})
+    return out
+
+
+def _fetch_metrics(symbol: str) -> dict:
+    """Fetch the latest fmp_cached key-metrics row for ``symbol`` (best-effort {})."""
+    return _safe_first_row(
+        lambda: _obb().equity.fundamental.metrics(symbol=symbol, provider="fmp_cached"),
+        label="metrics",
+        symbol=symbol,
+    )
+
+
+def _fetch_ratios(symbol: str) -> dict:
+    """Fetch the latest fmp_cached ratios row for ``symbol`` (best-effort {})."""
+    return _safe_first_row(
+        lambda: _obb().equity.fundamental.ratios(
+            symbol=symbol, provider="fmp_cached", limit=1
+        ),
+        label="ratios",
+        symbol=symbol,
+    )
+
+
+def _key_stats_fmp_cached(*, symbol: str) -> list[dict]:
+    """Tier call: live key-stats grid from fmp_cached profile/quote/metrics/ratios.
+
+    Loud-empty: when no live data row (other than Symbol) can be built, returns
+    ``[]`` so the chain transitions to the next tier / the endpoint stub.
+    """
+    profile = _fetch_profile(symbol)
+    quote = _fetch_quote(symbol)
+    metrics = _fetch_metrics(symbol)
+    ratios = _fetch_ratios(symbol)
+    shaped = _shape_key_stats(symbol, profile, quote, metrics, ratios)
+    data_rows = [r for r in shaped if r["metric"] != "Symbol"]
+    if not data_rows:
+        logger.warning(
+            "key-stats fmp_cached: no live metrics for %s — chain -> stub",
+            symbol,
+        )
+        return []
+    return shaped
+
+
+# ---------------------------------------------------------------------------
 # Registration entry point
 # ---------------------------------------------------------------------------
 
@@ -1460,6 +1703,8 @@ def register_all(register: Callable[[str, str, Callable[..., Any]], None]) -> No
         "fmp_cached",
         _price_target_history_fmp_cached,
     )
+    register("equity/header", "fmp_cached", _header_fmp_cached)
+    register("equity/key-stats", "fmp_cached", _key_stats_fmp_cached)
 
 
 # Fire the registrations on import for the running backend (main.py imports

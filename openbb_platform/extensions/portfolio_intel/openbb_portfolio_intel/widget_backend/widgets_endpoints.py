@@ -917,6 +917,7 @@ def pi_backtest_oneclick(request: Request, account_id: str = "demo") -> str:
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_header(request: Request, symbol: str = "AAPL") -> str:
     """Equity Profile section 1 — header + live price ticker (markdown)."""
@@ -942,30 +943,35 @@ def equity_header(request: Request, symbol: str = "AAPL") -> str:
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_key_stats(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Equity Profile section 2 — key stats grid (table)."""
+    """Equity Profile section 2 — key stats grid (table).
+
+    Offline preview shape MATCHES the live fmp_cached tier
+    (``tier_calls._shape_key_stats``): only fields with a real fmp_cached
+    source are emitted. Fabricated stub-only rows (Forward P/E, Shares Float,
+    Short Interest, Insider Ownership, Revenue/Net Income FY, 30d avg volume,
+    Next Earnings) were removed — they had no provider source and served the
+    same canned number for every symbol (area:fmp-cached-gap #1959). Aligning
+    the stub to the live shape keeps the widget's columns stable regardless of
+    cache state (anti-mock: stub shape == live shape -> deterministic).
+    """
     _require_auth(request)
     sym = _validate_symbol(symbol)
     return [
         {"metric": "Market Cap", "value": "$3.47T"},
         {"metric": "P/E (TTM)", "value": 32.1},
-        {"metric": "Forward P/E", "value": 29.4},
         {"metric": "EV/EBITDA", "value": 24.8},
         {"metric": "P/S (TTM)", "value": 8.7},
         {"metric": "EPS (TTM)", "value": 6.51},
-        {"metric": "Revenue (FY)", "value": "$391B"},
-        {"metric": "Net Income (FY)", "value": "$93B"},
-        {"metric": "Shares Float", "value": "15.2B"},
-        {"metric": "Short Interest", "value": "0.68%"},
-        {"metric": "Insider Ownership", "value": "0.07%"},
-        {"metric": "Beta (1Y)", "value": 1.20},
+        {"metric": "Beta", "value": 1.20},
         {"metric": "Dividend Yield", "value": "0.42%"},
-        {"metric": "Volume (today)", "value": "48M"},
-        {"metric": "Volume (30d avg)", "value": "52M"},
-        {"metric": "Next Earnings", "value": "2026-07-25 (Q3 2026)"},
+        {"metric": "Volume", "value": "48M"},
+        {"metric": "52-Week High", "value": 260.1},
+        {"metric": "52-Week Low", "value": 164.08},
         {"metric": "Symbol", "value": sym},
     ]
 

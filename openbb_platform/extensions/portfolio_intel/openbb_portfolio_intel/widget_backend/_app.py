@@ -9,10 +9,12 @@ onto it without importing each other.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+import os
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
+import anyio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import MutableHeaders
@@ -26,6 +28,54 @@ _ALLOWED_ORIGINS = ["https://pro.openbb.co"]
 # (e.g. ``fmp_cached`` vs ``stub``) so the local viewer can render a
 # live-vs-demo badge (#1953).
 _DATA_SOURCE_HEADER = "x-pi-data-source"
+
+
+def _default_openbb_builder() -> None:
+    """Build + prime the generated ``openbb`` package (the real warmup work).
+
+    ``openbb.build()`` regenerates ``core/openbb/package/`` on disk;
+    touching ``obb.equity`` then forces the lazy attribute tree to
+    materialize so the first request pays no import cost. Isolated from
+    :func:`_warm_openbb` so unit tests can inject a fake builder.
+    """
+    import openbb  # pylint: disable=import-outside-toplevel
+
+    openbb.build()
+    from openbb import obb  # pylint: disable=import-outside-toplevel
+
+    _ = obb.equity
+
+
+def _warm_openbb(builder: Callable[[], None] | None = None) -> None:
+    """Build/prime the generated ``openbb`` package before serving (#1957).
+
+    A cold backend whose generated package under ``core/openbb/package/`` is
+    not yet built fails *every* live tier call inside the request handler:
+    ``from openbb import obb`` triggers a multi-second ``openbb.build()`` the
+    first time, and until it finishes the ChainedFetcher's tier dispatch
+    raises, the chain exhausts, and the endpoint falls back to ``stub``. That
+    is the recurring "everything says stub" symptom on a freshly-started
+    backend — the Provider Health strip faithfully reports it. Building at
+    startup (before uvicorn accepts requests) guarantees the first real
+    request finds a built, importable package and serves live.
+
+    Best-effort: any failure is logged and swallowed so a build hiccup never
+    blocks server startup (widgets simply keep serving stub as before).
+    Set ``PI_WIDGET_BACKEND_SKIP_WARMUP`` to skip (fast dev restarts when the
+    package is known-built). ``builder`` is injectable for hermetic tests.
+    """
+    if os.environ.get("PI_WIDGET_BACKEND_SKIP_WARMUP"):
+        logger.info("openbb warmup skipped (PI_WIDGET_BACKEND_SKIP_WARMUP set)")
+        return
+    try:
+        (builder or _default_openbb_builder)()
+        logger.info("openbb warmup complete — live-wired widgets ready to serve")
+    except Exception:  # noqa: BLE001 - startup must not die on warmup
+        logger.warning(
+            "openbb warmup (build/prime) failed; live-wired widgets may serve "
+            "stub until the generated package is built",
+            exc_info=True,
+        )
 
 
 def _register_health_probers() -> None:
@@ -57,7 +107,12 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     used in the unit suite does NOT run lifespan, so the prober registry stays
     empty there and ``provider_health`` returns an instant 'unknown' — keeping
     unit tests hermetic (no network).
+
+    The ``openbb`` package is warmed FIRST (offloaded to a worker thread so the
+    multi-second cold build doesn't block the event loop) so the first real
+    request finds a built package and serves live instead of stub (#1957).
     """
+    await anyio.to_thread.run_sync(_warm_openbb)
     _register_health_probers()
     try:
         yield

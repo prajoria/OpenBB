@@ -2700,3 +2700,307 @@ def test_price_target_history_fmp_cached_live() -> None:
     dates = [r["date"] for r in out]
     assert dates == sorted(dates), "series not chronological"
     assert any(r["target"] is not None for r in out), "no live target value"
+
+
+# ---------------------------------------------------------------------------
+# equity/header + equity/key-stats (#1958 — full-wiring of profile stubs #1685)
+# ---------------------------------------------------------------------------
+
+
+def _header_profile() -> dict:
+    """Realistic fmp_cached profile row (subset the shaper reads)."""
+    return {
+        "symbol": "MSFT",
+        "name": "Microsoft Corporation",
+        "stock_exchange": "NASDAQ",
+        "sector": "Technology",
+        "industry_group": None,
+        "industry_category": "Software - Infrastructure",
+        "market_cap": 3_715_000_000_000.0,
+        "last_price": 499.99,
+        "year_high": 553.72,
+        "year_low": 349.2,
+        "beta": 1.13,
+    }
+
+
+def _header_quote() -> dict:
+    """Realistic fmp_cached quote row. ``change_percent`` is deliberately a
+    bogus 999.0 to prove the shaper computes the percent from change/prev_close
+    rather than trusting the provider's field."""
+    return {
+        "exchange": "NASDAQ",
+        "last_price": 499.99,
+        "change": 2.28,
+        "change_percent": 999.0,
+        "prev_close": 497.71,
+        "volume": 24_137_816,
+        "market_cap": 3_715_000_000_000.0,
+        "year_high": 553.72,
+        "year_low": 349.2,
+    }
+
+
+def test_shape_header_composes_live_card() -> None:
+    """Header markdown carries name/exchange/sector/price/cap — no stub markers."""
+    out = tier_calls._shape_header("MSFT", _header_profile(), _header_quote())
+    assert "Microsoft Corporation" in out
+    assert "NASDAQ" in out
+    assert "Technology" in out
+    # industry_group is None -> falls back to industry_category.
+    assert "Software - Infrastructure" in out
+    assert "$499.99" in out
+    assert "$3.71T" in out  # market cap humanized
+    assert "$349.20 – $553.72" in out
+    assert "(stub)" not in out
+
+
+def test_shape_header_change_percent_from_prev_close_not_provider_field() -> None:
+    """Day-change % is computed from change/prev_close (provider-agnostic).
+
+    2.28 / 497.71 * 100 == 0.46%. The provider ``change_percent`` field is a
+    bogus 999.0; if the shaper trusted it the output would read +999. This is
+    the reverse-verified guard against the 100x fraction-vs-percent bug.
+    """
+    out = tier_calls._shape_header("MSFT", _header_profile(), _header_quote())
+    assert "+2.28 (+0.46%)" in out
+    assert "999" not in out
+
+
+def test_shape_header_missing_price_and_change_dash() -> None:
+    """Empty quote -> price/change/range degrade to em-dash, never crash."""
+    out = tier_calls._shape_header("MSFT", {}, {})
+    assert "**Price:** —" in out
+    assert "**Day Change:** —" in out
+    assert "**Market Cap:** —" in out
+
+
+def test_header_tier_call_composes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The tier call fetches profile+quote then shapes them to markdown."""
+    monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: _header_profile())
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
+    call = _TIER_CALLS[("equity/header", "fmp_cached")]
+    out = call(symbol="MSFT")
+    assert "Microsoft Corporation" in out
+    assert "(stub)" not in out
+
+
+def test_header_tier_call_raises_on_all_empty(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Both sources empty -> WARN + raise (NOT return "").
+
+    A non-empty string is not treated as empty by the chain's ``_is_empty``,
+    so returning ``""`` would be mis-read as a successful serve (blank card).
+    The tier must raise so the chain transitions to the stub. Reverse-verified:
+    changing the raise to ``return ""`` makes this test fail.
+    """
+    monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: {})
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: {})
+    call = _TIER_CALLS[("equity/header", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        with pytest.raises(ValueError):
+            call(symbol="MSFT")
+    assert any("empty profile+quote" in r.getMessage() for r in caplog.records)
+
+
+def test_register_all_wires_header() -> None:
+    """The production registration wires the fmp_cached header tier."""
+    assert ("equity/header", "fmp_cached") in _TIER_CALLS
+
+
+def test_header_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint serves the live card, not stub.
+
+    The stub body contains ``(stub)`` markers; the live card never does.
+    """
+    monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: _header_profile())
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
+    resp = _client.get("/pi/equity/header?symbol=MSFT")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "(stub)" not in body, "served the stub!"
+    assert "Microsoft Corporation" in body
+
+
+def test_header_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture_profile(symbol: str) -> dict:
+        seen["symbol"] = symbol
+        return _header_profile()
+
+    monkeypatch.setattr(tier_calls, "_fetch_profile", _capture_profile)
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
+    resp = _client.get("/pi/equity/header?symbol=+msft+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "MSFT", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+def _ks_ratios() -> dict:
+    """Realistic fmp_cached ratios row (dividend_yield is a FRACTION)."""
+    return {
+        "price_to_earnings": 27.77,
+        "price_to_sales": 11.18,
+        "net_income_per_share": 18.0,
+        "dividend_yield": 0.00712,
+    }
+
+
+def _ks_metrics() -> dict:
+    """Realistic fmp_cached key-metrics row."""
+    return {"ev_to_ebitda": 18.41}
+
+
+def test_shape_key_stats_only_sourced_fields() -> None:
+    """Only fields with a live source are emitted; unsourced ones dropped."""
+    rows = tier_calls._shape_key_stats(
+        "MSFT", _header_profile(), _header_quote(), _ks_metrics(), _ks_ratios()
+    )
+    metrics = {r["metric"] for r in rows}
+    assert {"Market Cap", "P/E (TTM)", "EV/EBITDA", "Beta", "Symbol"} <= metrics
+    # Fabricated stub-only fields must NOT appear (no fmp_cached source).
+    assert "Forward P/E" not in metrics
+    assert "Short Interest" not in metrics
+    assert "Insider Ownership" not in metrics
+
+
+def test_shape_key_stats_dividend_yield_is_fraction_times_100() -> None:
+    """dividend_yield 0.00712 (fraction) renders as 0.71% (reverse-verified).
+
+    Dropping the ``*100`` would render 0.01% — this test discriminates.
+    """
+    rows = tier_calls._shape_key_stats(
+        "MSFT", _header_profile(), _header_quote(), _ks_metrics(), _ks_ratios()
+    )
+    dy = next(r["value"] for r in rows if r["metric"] == "Dividend Yield")
+    assert dy == "0.71%"
+
+
+def test_shape_key_stats_symbol_row_not_counted_as_data() -> None:
+    """An all-empty fetch yields ONLY the Symbol row (used by loud-empty guard)."""
+    rows = tier_calls._shape_key_stats("MSFT", {}, {}, {}, {})
+    assert rows == [{"metric": "Symbol", "value": "MSFT"}]
+
+
+def test_key_stats_tier_call_composes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The tier call folds profile+quote+metrics+ratios into the grid."""
+    monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: _header_profile())
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
+    monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda s: _ks_metrics())
+    monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda s: _ks_ratios())
+    call = _TIER_CALLS[("equity/key-stats", "fmp_cached")]
+    rows = call(symbol="MSFT")
+    metrics = {r["metric"] for r in rows}
+    assert "EV/EBITDA" in metrics
+    assert "Dividend Yield" in metrics
+
+
+def test_key_stats_tier_call_loud_empty_returns_list(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """No live data (only the Symbol row) -> WARN + return [] (chain -> stub)."""
+    monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: {})
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: {})
+    monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda s: {})
+    monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda s: {})
+    call = _TIER_CALLS[("equity/key-stats", "fmp_cached")]
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
+        out = call(symbol="MSFT")
+    assert out == []
+    assert any("no live metrics" in r.getMessage() for r in caplog.records)
+
+
+def test_key_stats_enrichment_failure_degrades_not_blanks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A metrics/ratios fetch raising must NOT blank the grid — core still serves."""
+
+    def _boom(symbol: str) -> dict:
+        raise RuntimeError("simulated 402")
+
+    monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: _header_profile())
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
+    # Use the real _safe_first_row via _fetch_metrics/_fetch_ratios by
+    # making the underlying obb call raise.
+    monkeypatch.setattr(
+        tier_calls,
+        "_obb",
+        lambda: (_ for _ in ()).throw(RuntimeError("simulated 402")),
+    )
+    call = _TIER_CALLS[("equity/key-stats", "fmp_cached")]
+    rows = call(symbol="MSFT")
+    metrics = {r["metric"] for r in rows}
+    # Core profile/quote fields survive; enrichment fields simply absent.
+    assert "Market Cap" in metrics
+    assert "Beta" in metrics
+
+
+def test_register_all_wires_key_stats() -> None:
+    """The production registration wires the fmp_cached key-stats tier."""
+    assert ("equity/key-stats", "fmp_cached") in _TIER_CALLS
+
+
+def test_key_stats_endpoint_serves_from_tier_not_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the tier registered, the endpoint serves the live grid, not stub.
+
+    The stub grid contains the fabricated ``Forward P/E`` row and ``$3.47T``
+    market cap; the live grid has neither.
+    """
+    monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: _header_profile())
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
+    monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda s: _ks_metrics())
+    monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda s: _ks_ratios())
+    resp = _client.get("/pi/equity/key-stats?symbol=MSFT")
+    assert resp.status_code == 200
+    rows = resp.json()
+    metrics = {r["metric"] for r in rows}
+    assert "Forward P/E" not in metrics, "served the stub!"
+    mc = next(r["value"] for r in rows if r["metric"] == "Market Cap")
+    assert mc != "$3.47T", "served the stub!"
+
+
+def test_key_stats_endpoint_forwards_normalized_symbol_to_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live tier must receive the normalized ticker (PR #1899 pattern)."""
+    seen: dict[str, str] = {}
+
+    def _capture_profile(symbol: str) -> dict:
+        seen["symbol"] = symbol
+        return _header_profile()
+
+    monkeypatch.setattr(tier_calls, "_fetch_profile", _capture_profile)
+    monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
+    monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda s: _ks_metrics())
+    monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda s: _ks_ratios())
+    resp = _client.get("/pi/equity/key-stats?symbol=+msft+")
+    assert resp.status_code == 200
+    assert seen["symbol"] == "MSFT", f"raw symbol leaked: {seen['symbol']!r}"
+
+
+@pytest.mark.integration
+def test_header_fmp_cached_live() -> None:
+    """Live: fmp_cached profile+quote compose a real header card for MSFT."""
+    out = tier_calls._header_fmp_cached(symbol="MSFT")
+    assert "(stub)" not in out
+    assert "MSFT" in out
+    assert "$" in out  # a real price/cap rendered
+
+
+@pytest.mark.integration
+def test_key_stats_fmp_cached_live() -> None:
+    """Live: fmp_cached composes a real key-stats grid for MSFT."""
+    rows = tier_calls._key_stats_fmp_cached(symbol="MSFT")
+    assert rows, "empty live grid — wiring broken"
+    metrics = {r["metric"] for r in rows}
+    assert "Market Cap" in metrics
+    assert "Forward P/E" not in metrics  # no fmp_cached source
+    assert {"metric", "value"} == set(rows[0])
