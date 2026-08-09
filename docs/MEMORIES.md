@@ -1320,3 +1320,27 @@ on the 6120 `portfolio_intel` backend. Closes #1805.
   security-review agents for convergence.
 - PR #1841 base `portfolio` (fork-internal), OPEN not merged
   (conservative profile). Both review agents clean; all CI green.
+
+## portfolio-intel: F2 header + key-stats live-wired (2026-08-08, commit 46e3a049e, #1957+#1958)
+
+F2 Financials Company Header + Key Stats served the hardcoded stub for every
+symbol even after #1955 fixed financials. Two root causes, both fixed and
+pushed direct to `portfolio_validations`:
+- #1957 cold-boot: unbuilt openbb package -> ~60s build() inside first request
+  -> chain exhausts -> stub. Fixed by warming openbb at FastAPI lifespan
+  startup (anyio.to_thread) before uvicorn accepts requests. Injectable
+  builder; PI_WIDGET_BACKEND_SKIP_WARMUP escape hatch for fast dev restarts.
+- #1958 genuine gap: equity/header + equity/key-stats were in registry.py but
+  had NO tier CALL in tier_calls.register_all -> NotImplementedError every
+  tier -> always stub. Registered both -> fmp_cached (profile+quote+metrics+
+  ratios). CRITICAL: chain _is_empty does NOT treat a non-empty string as
+  empty, so a header returning "" would wrongly "succeed" as a blank card ->
+  header MUST raise on all-empty; key-stats (list) returns [] loud-empty.
+Conventions locked: day-change% = change/prev_close*100 (provider-agnostic,
+avoids the 100x fraction-vs-percent trap); dividend_yield rendered *100 (fmp
+returns a fraction 0.0071 not 0.71). Anti-mock: realigned the key-stats
+endpoint stub to the live sourced shape (dropped fabricated Forward P/E,
+Shares Float, Short Interest, Insider Ownership) so columns are cache-state
+independent; no-source fields tracked as fmp-cached-gap #1959 (open).
+Live-verified :6130: MSFT+AAPL distinct real data, no stub; health
+"Currently serving" shows all 4 F2 endpoints -> fmp_cached.
