@@ -2381,36 +2381,46 @@ def _store_health(track: str, tiers: list) -> None:
     }
 
 
-async def _probe_track(track_tiers: tuple[str, ...], budget_s: float) -> list:
-    """Probe every tier concurrently, bounded by ``budget_s`` wall-clock.
+async def _probe_tiers_map(
+    tiers: tuple[str, ...], budget_s: float
+) -> dict[str, TierHealth]:
+    """Probe every DISTINCT tier once, concurrently, bounded by ``budget_s``.
+
+    Returns ``{tier: TierHealth}``. Deduping is the #1960 fix: ``cboe`` and
+    ``sec`` appear in BOTH fallback tracks, so probing per-track pinged them
+    twice per render on the shared httpx client — one probe could time out
+    while the other succeeded, rendering the same tier ● in one track and ✕ in
+    the other. Probing the union once guarantees a single, consistent verdict
+    per tier and halves the concurrent cold burst.
 
     Uses ``asyncio.gather(..., return_exceptions=True)`` per spec §3 T12.1
-    P0-1: a single hanging tier CANNOT block the widget. Each individual
-    probe already has its own 2s timeout (default in probe_tier); the
-    outer budget is defence-in-depth.
+    P0-1: a single hanging tier CANNOT block the widget. Each probe already
+    has its own 2s timeout (default in ``probe_tier``); the outer budget is
+    defence-in-depth.
     """
-    coros = [probe_tier(t) for t in track_tiers]
+    distinct = tuple(dict.fromkeys(tiers))
+    coros = [probe_tier(t) for t in distinct]
     try:
         results = await asyncio.wait_for(
             asyncio.gather(*coros, return_exceptions=True), timeout=budget_s
         )
     except asyncio.TimeoutError:
-        # Overall budget exceeded — return unknown-marked entries for
-        # every tier so the widget shows the cold-cache state loudly.
-        return [
-            TierHealth(name=t, status="unknown", latency_ms=0, note="timeout")
-            for t in track_tiers
-        ]
+        # Overall budget exceeded — mark every tier unknown so the widget
+        # shows the cold-cache state loudly.
+        return {
+            t: TierHealth(name=t, status="unknown", latency_ms=0, note="timeout")
+            for t in distinct
+        }
 
-    healths: list = []
-    for tier, res in zip(track_tiers, results):
+    healths: dict[str, TierHealth] = {}
+    for tier, res in zip(distinct, results):
         if isinstance(res, TierHealth):
-            healths.append(res)
+            healths[tier] = res
         else:
             # An exception escaped probe_tier (shouldn't — it catches
             # everything internally — but be defensive).
-            healths.append(
-                TierHealth(name=tier, status="down", latency_ms=0, note="unknown_error")
+            healths[tier] = TierHealth(
+                name=tier, status="down", latency_ms=0, note="unknown_error"
             )
     return healths
 
@@ -2448,21 +2458,22 @@ async def provider_health(request: Request) -> str:
     track_a = _cached_health("A")
     track_b = _cached_health("B")
     if track_a is None or track_b is None:
-        # Probe both tracks concurrently, bounded by an overall budget so
-        # cold-cache never blocks the widget for long. This endpoint is an
-        # async route, so we AWAIT the probes on the running event loop —
-        # do NOT use asyncio.run() here (#1871): asyncio.run() raises
-        # RuntimeError inside uvicorn's running loop *before* the gather
-        # runs, which leaks the un-awaited _probe_track coroutines and
-        # forces every call onto the cold-cache 'unknown' fallback.
+        # Probe the UNION of both tracks' tiers once (deduped), then map the
+        # shared verdict back to each track. This is the #1960 fix: cboe/sec
+        # live in both tracks, so per-track probing pinged them twice and could
+        # render contradictory status. This endpoint is an async route, so we
+        # AWAIT the probes on the running event loop — do NOT use asyncio.run()
+        # here (#1871): asyncio.run() raises RuntimeError inside uvicorn's
+        # running loop *before* the gather runs, which leaks the un-awaited
+        # coroutines and forces every call onto the cold-cache 'unknown'
+        # fallback.
         try:
-            probed_a, probed_b = await asyncio.wait_for(
-                asyncio.gather(
-                    _probe_track(TRACK_A_DEFAULT, budget_s=2.5),
-                    _probe_track(TRACK_B_DEFAULT, budget_s=2.5),
-                ),
+            health_map = await asyncio.wait_for(
+                _probe_tiers_map(TRACK_A_DEFAULT + TRACK_B_DEFAULT, budget_s=2.5),
                 timeout=3.0,
             )
+            probed_a = [health_map[t] for t in TRACK_A_DEFAULT]
+            probed_b = [health_map[t] for t in TRACK_B_DEFAULT]
             _store_health("A", probed_a)
             _store_health("B", probed_b)
             track_a = probed_a

@@ -163,14 +163,46 @@ async def probe_tier(
 
 
 def _classify_probe_exception(exc: Exception) -> str:
-    """Map an exception to a note from :data:`ALLOWED_NOTES`."""
+    """Map an exception to a note from :data:`ALLOWED_NOTES`.
+
+    Classifies by exception *type* first, then message text. Type-first
+    matters because several real probe exceptions carry an EMPTY message —
+    notably ``httpx.ConnectTimeout()`` whose ``str()`` is ``''`` — so a
+    message-only classifier silently mislabels them ``unknown_error``. That
+    was the live cause of the ``✕ cboe (0ms) (unknown_error)`` strip (#1960):
+    a slow TLS handshake tripping the socket timeout raised an empty-message
+    ``ConnectTimeout`` that matched no substring branch.
+
+    We inspect the exception's class hierarchy names (module-qualified) so the
+    probe engine stays transport-agnostic — no ``httpx`` import here — while
+    still recognising timeout / connection / transport failures by type. Only
+    allowlist notes are ever returned, so a raw exception string (possibly
+    carrying PII) can never leak into the widget markdown.
+    """
+    type_blob = " ".join(
+        f"{klass.__module__}.{klass.__qualname__}" for klass in type(exc).__mro__
+    ).lower()
     msg = str(exc).lower()
+    hay = f"{type_blob} {msg}"
+
+    # Timeouts first: a *connect* timeout is both a timeout and a transport
+    # error; label it the more actionable "timeout".
+    if "timeout" in hay or "timedout" in hay:
+        return "timeout"
     if "401" in msg or "unauthor" in msg or "forbidden" in msg or "api key" in msg:
         return "auth_failed"
     if "429" in msg or "rate limit" in msg or "too many" in msg:
         return "rate_limited"
     if "500" in msg or "502" in msg or "503" in msg or "504" in msg:
         return "http_5xx"
-    if "network" in msg or "connection" in msg or "dns" in msg:
+    if (
+        "network" in hay
+        or "connect" in hay  # httpx.ConnectError / builtin ConnectionError
+        or "dns" in msg
+        or "resolve" in hay
+        or "transport" in hay  # httpx.TransportError base
+        or "protocol" in hay  # httpx.RemoteProtocolError
+        or "readerror" in type_blob  # httpx.ReadError
+    ):
         return "network"
     return "unknown_error"
