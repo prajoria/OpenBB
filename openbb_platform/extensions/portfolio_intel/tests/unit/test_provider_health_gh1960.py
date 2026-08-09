@@ -148,9 +148,13 @@ def test_shared_tier_probed_once_per_render() -> None:
 
 
 def test_shared_tier_identical_status_across_tracks() -> None:
-    """A shared tier must render the SAME badge in Track A and Track B. With
-    per-track probing a flaky tier could show ● in one and ✕ in the other; the
-    shared single probe makes that impossible.
+    """#1960 intent under the #1961 single-track UX: a healthy tier renders a
+    single consistent badge with no contradictory ``✕`` for the same tier.
+
+    Pre-#1960 a flaky shared tier could show ● in one track and ✕ in the other.
+    Post-#1961 the strip renders Track A only, so the contradiction is
+    structurally impossible — assert the single Track A row shows ``● cboe`` and
+    the body never carries a contradictory ``✕ cboe``.
     """
     for t in _ALL_TIERS:
 
@@ -165,8 +169,8 @@ def test_shared_tier_identical_status_across_tracks() -> None:
             unregister_prober(t)
 
     a_line = next(ln for ln in body.splitlines() if ln.startswith("**Track A"))
-    b_line = next(ln for ln in body.splitlines() if ln.startswith("**Track B"))
     assert "● cboe" in a_line, a_line
-    assert "● cboe" in b_line, b_line
+    # #1961: no Track B row is rendered at all.
+    assert "Track B" not in body, body
     # And never a contradictory down badge for the same tier.
     assert "✕ cboe" not in body, body

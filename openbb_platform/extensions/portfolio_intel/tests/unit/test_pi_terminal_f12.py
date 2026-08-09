@@ -68,14 +68,14 @@ def test_provider_health_widget_declared() -> None:
 
 
 def test_provider_health_endpoint_returns_shape() -> None:
-    """/pi/health/providers returns markdown with Track A + Track B tier info."""
+    """/pi/health/providers returns markdown with Track A tier info (#1961)."""
     r = _client.get("/pi/health/providers")
     assert r.status_code == 200
     body = r.json()
     assert isinstance(body, str)
-    # Markdown widget must name both tracks.
+    # #1961: the strip renders Track A only — no Track B row.
     assert "Track A" in body
-    assert "Track B" in body
+    assert "Track B" not in body
     # Every tier name from the 5-tier chain (Track A) shows up.
     for name in ("fmp_cached", "fmp", "cboe", "sec", "yfinance"):
         assert name in body, f"missing tier {name!r} in health strip"

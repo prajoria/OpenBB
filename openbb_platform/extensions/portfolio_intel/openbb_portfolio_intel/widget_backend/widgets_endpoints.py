@@ -32,7 +32,6 @@ from openbb_portfolio_intel.basket_resolver import (
 from openbb_portfolio_intel.providers.probe import TierHealth, probe_tier
 from openbb_portfolio_intel.providers.registry import (
     TRACK_A_DEFAULT,
-    TRACK_B_DEFAULT,
 )
 from openbb_portfolio_intel.providers.retrofit import with_chain
 from openbb_portfolio_intel.widget_backend._app import app
@@ -2427,7 +2426,7 @@ async def _probe_tiers_map(
 
 @app.get("/pi/health/providers")
 async def provider_health(request: Request) -> str:
-    """Return Provider Health strip markdown (#1685 + #1715 + #1956).
+    """Return Provider Health strip markdown (#1685 + #1715 + #1956 + #1961).
 
     Spec §3 T12.1: non-blocking cold cache (returns 'unknown' immediately),
     60s TTL, exception notes from the allowlist only, never raw exception
@@ -2440,6 +2439,15 @@ async def provider_health(request: Request) -> str:
     at server startup (see :func:`._app._register_health_probers`), and the
     inline cold-cache probe budget was widened from 0.4s/0.5s to 2.5s/3.0s so
     those real HTTP HEADs can actually complete and populate the 60s cache.
+
+    #1961: the strip now renders **Track A only**. Every data widget already
+    fetches via Track A (``with_chain`` / ``route_through_chain`` default to
+    ``track="A"`` and no endpoint overrides to ``"B"``), so a second
+    ``Track B (free)`` row was pure confusion during test/verification — a
+    tester could not tell which chain served a widget, and a shared tier
+    (cboe/sec) shown in both rows read like two independent signals. The
+    Track B chain infrastructure (registry ``:B`` keys) stays as a dormant
+    no-credentials fallback; it is simply no longer surfaced in the UX.
     """
     _require_auth(request)
 
@@ -2456,33 +2464,26 @@ async def provider_health(request: Request) -> str:
         ]
 
     track_a = _cached_health("A")
-    track_b = _cached_health("B")
-    if track_a is None or track_b is None:
-        # Probe the UNION of both tracks' tiers once (deduped), then map the
-        # shared verdict back to each track. This is the #1960 fix: cboe/sec
-        # live in both tracks, so per-track probing pinged them twice and could
-        # render contradictory status. This endpoint is an async route, so we
-        # AWAIT the probes on the running event loop — do NOT use asyncio.run()
-        # here (#1871): asyncio.run() raises RuntimeError inside uvicorn's
-        # running loop *before* the gather runs, which leaks the un-awaited
-        # coroutines and forces every call onto the cold-cache 'unknown'
-        # fallback.
+    if track_a is None:
+        # Probe the Track A tiers once (#1961: Track A only). This endpoint is
+        # an async route, so we AWAIT the probes on the running event loop — do
+        # NOT use asyncio.run() here (#1871): asyncio.run() raises RuntimeError
+        # inside uvicorn's running loop *before* the gather runs, which leaks
+        # the un-awaited coroutines and forces every call onto the cold-cache
+        # 'unknown' fallback. ``_probe_tiers_map`` still dedupes (#1960) so a
+        # tier repeated within the track is never pinged twice.
         try:
             health_map = await asyncio.wait_for(
-                _probe_tiers_map(TRACK_A_DEFAULT + TRACK_B_DEFAULT, budget_s=2.5),
+                _probe_tiers_map(TRACK_A_DEFAULT, budget_s=2.5),
                 timeout=3.0,
             )
             probed_a = [health_map[t] for t in TRACK_A_DEFAULT]
-            probed_b = [health_map[t] for t in TRACK_B_DEFAULT]
             _store_health("A", probed_a)
-            _store_health("B", probed_b)
             track_a = probed_a
-            track_b = probed_b
         except asyncio.TimeoutError:
             # Overall budget exceeded — render the cold-cache 'unknown'
             # strip loudly and try again on the next call (within TTL).
             track_a = track_a or _unknown_strip(TRACK_A_DEFAULT)
-            track_b = track_b or _unknown_strip(TRACK_B_DEFAULT)
 
     def _render_tier(h: object) -> str:
         badge = {"healthy": "●", "degraded": "⚠", "down": "✕", "unknown": "?"}.get(
@@ -2495,7 +2496,6 @@ async def provider_health(request: Request) -> str:
         return f"{badge} {name} ({ms}ms){suffix}"
 
     a_str = "  ".join(_render_tier(t) for t in track_a)
-    b_str = "  ".join(_render_tier(t) for t in track_b)
 
     # Optional "currently in-use" summary — only rendered if any endpoint
     # has actually gone through a ChainedFetcher yet. Sorted for
@@ -2508,11 +2508,10 @@ async def provider_health(request: Request) -> str:
         in_use_lines = f"\n\n**Currently serving:**\n{summary}"
 
     return (
-        "**Track A (paid):**  " + a_str + "  \n"
-        "**Track B (free):**  " + b_str + in_use_lines + "\n\n"
+        "**Track A:**  " + a_str + in_use_lines + "\n\n"
         "> Provider-health strip (#1685) with 5-tier probing + tier-in-use "
-        "ledger (#1715). 60s cache, 2s per-tier timeout, 3s overall "
-        "cold-cache probe budget (#1956)."
+        "ledger (#1715). Track A only (#1961). 60s cache, 2s per-tier timeout, "
+        "3s overall cold-cache probe budget (#1956)."
     )
 
 
