@@ -1344,3 +1344,28 @@ Shares Float, Short Interest, Insider Ownership) so columns are cache-state
 independent; no-source fields tracked as fmp-cached-gap #1959 (open).
 Live-verified :6130: MSFT+AAPL distinct real data, no stub; health
 "Currently serving" shows all 4 F2 endpoints -> fmp_cached.
+
+## portfolio-intel: provider-health strip shared-tier fix (2026-08-08, commit 8b9ce59a4, #1960)
+
+The Provider Health Strip (F2) intermittently showed `✕ cboe (0ms)
+(unknown_error)` in Track A while Track B showed `● cboe` healthy — same tier,
+two probes, contradicting within one render. Two root causes, both fixed:
+- Misclassification: probe._classify_probe_exception matched only str(exc).
+  httpx.ConnectTimeout() has an EMPTY message (str(e)==''), so cboe's slow-TLS
+  socket-timeout fell through to unknown_error. Fix: classify by exception TYPE
+  (walk type(exc).__mro__ names) BEFORE message text -> empty-message timeouts
+  become "timeout", connect/transport errors become "network". Still returns
+  only ALLOWED_NOTES (no raw-exception/PII leak). Key lesson: httpx timeout
+  exceptions carry empty messages — never classify transport errors by string
+  alone.
+- Double-probe: cboe + sec are in BOTH TRACK_A_DEFAULT and TRACK_B_DEFAULT, so
+  each render probed them twice concurrently on the shared client; one probe
+  could time out while the other succeeded. Fix: _probe_tiers_map probes each
+  DISTINCT tier once (union of both tracks) and maps the shared verdict back to
+  each track — identical latency in both tracks now proves a single shared
+  probe. Halves the concurrent burst (8->6), relieving the timeout pressure.
+Harness-verified :6130 across 3 cache cycles: cboe identical in both tracks
+(155/155, 234/234, 125/125 ms), zero unknown_error. 7 hermetic tests, both
+behaviours mutation-verified. Note: the full portfolio_intel sweep has one
+UNRELATED live failure (test_risk_router::test_live_concentration_spy_via_obb
+— SPY ETF-holdings tiers exhausted upstream, @pytest.mark.integration).
