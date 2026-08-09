@@ -1369,3 +1369,30 @@ Harness-verified :6130 across 3 cache cycles: cboe identical in both tracks
 behaviours mutation-verified. Note: the full portfolio_intel sweep has one
 UNRELATED live failure (test_risk_router::test_live_concentration_spy_via_obb
 — SPY ETF-holdings tiers exhausted upstream, @pytest.mark.integration).
+
+## portfolio-intel: provider-health strip Track-A-only (2026-08-08, commit d99ae119f, #1961)
+
+UX simplification for test/verification clarity: the Provider Health Strip
+(pi_provider_health, F1/F2) now renders a SINGLE Track A row. The old two-row
+`Track A (paid)` + `Track B (free)` strip was confusing — a tester could not
+tell which chain served a widget, and shared tiers (cboe/sec) appearing in both
+rows read like two independent signals.
+
+Key architectural fact worth remembering: EVERY data widget already fetches via
+Track A. Both with_chain(...) and route_through_chain(...) in providers/retrofit.py
+default to track="A", and NO endpoint anywhere overrides to "B" (verified by
+grep for `track="B"` → zero hits). So Track B was never actually used to serve
+widget data — it was only surfaced (misleadingly) in the health strip. "Cleanup
+all widgets to follow Track A" therefore reduced to a single-widget change: make
+provider_health probe/render Track A only. The Track B chain infrastructure
+(registry `:B` keys, free no-credentials fallback) stays in place, dormant, just
+no longer surfaced in the UX.
+
+Change: provider_health probes TRACK_A_DEFAULT only (union-probe + Track B cache
+slot + probed_b dropped); footnote reads "Track A only (#1961)". ruff pruned the
+now-unused TRACK_B_DEFAULT import. Tests: test_provider_health_gh1961.py (4 new
+hermetic, RED→GREEN mutation-verified — pre-fix rendered a Track B row + probed
+the Track-B-exclusive yfinance); test_pi_terminal_f12 shape test asserts Track B
+absent; gh1960 cross-track consistency test reframed to single-track (its #1960
+classification protection is unchanged). Affected suites 30+187 green.
+Harness-verified :6130 across a cache-expiry cycle.
