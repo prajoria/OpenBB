@@ -8,11 +8,16 @@ onto it without importing each other.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import MutableHeaders
+
+logger = logging.getLogger(__name__)
 
 # CORS: only pro.openbb.co reaches this backend.
 _ALLOWED_ORIGINS = ["https://pro.openbb.co"]
@@ -23,6 +28,52 @@ _ALLOWED_ORIGINS = ["https://pro.openbb.co"]
 _DATA_SOURCE_HEADER = "x-pi-data-source"
 
 
+def _register_health_probers() -> None:
+    """Register the default provider-health reachability probers (#1956).
+
+    Extracted from the lifespan so it can be unit-tested directly. Best-effort:
+    a failure here must never abort server startup — the health strip simply
+    keeps showing 'unknown' for any tier whose prober failed to register.
+    """
+    try:
+        from openbb_portfolio_intel.providers.health_probers import (
+            register_default_probers,
+        )
+
+        register_default_probers()
+    except Exception:  # noqa: BLE001 - startup must not die on probe wiring
+        logger.warning(
+            "provider-health prober registration failed; strip will show "
+            "'unknown' until probers are available",
+            exc_info=True,
+        )
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Server lifespan — registers real provider-health probers on boot (#1956).
+
+    This runs when uvicorn (the real server) starts. A bare ``TestClient(app)``
+    used in the unit suite does NOT run lifespan, so the prober registry stays
+    empty there and ``provider_health`` returns an instant 'unknown' — keeping
+    unit tests hermetic (no network).
+    """
+    _register_health_probers()
+    try:
+        yield
+    finally:
+        # Best-effort teardown of the pooled probe client so httpx doesn't warn
+        # about an unclosed client at interpreter shutdown.
+        try:
+            from openbb_portfolio_intel.providers.health_probers import (
+                aclose_shared_client,
+            )
+
+            await aclose_shared_client()
+        except Exception:  # noqa: BLE001 - shutdown must not raise
+            logger.debug("provider-health probe client close failed", exc_info=True)
+
+
 app = FastAPI(
     title="OpenBB Portfolio Intelligence — Workspace backend",
     description=(
@@ -31,6 +82,7 @@ app = FastAPI(
         "consumable HTTP endpoints."
     ),
     version="0.1.0",
+    lifespan=_lifespan,
 )
 
 

@@ -2411,12 +2411,19 @@ async def _probe_track(track_tiers: tuple[str, ...], budget_s: float) -> list:
 
 @app.get("/pi/health/providers")
 async def provider_health(request: Request) -> str:
-    """Return Provider Health strip markdown (#1685 + #1715).
+    """Return Provider Health strip markdown (#1685 + #1715 + #1956).
 
     Spec §3 T12.1: non-blocking cold cache (returns 'unknown' immediately),
     60s TTL, exception notes from the allowlist only, never raw exception
     strings. #1715 adds the ``in-use: <tier>`` annotation per endpoint,
     driven by :func:`record_tier_used` calls from retrofitted endpoints.
+
+    #1956: the strip used to show every tier as ``probe_failed_cold_cache``
+    forever because no probers were ever registered on the server (only tests
+    called ``register_prober``). Real reachability probers are now registered
+    at server startup (see :func:`._app._register_health_probers`), and the
+    inline cold-cache probe budget was widened from 0.4s/0.5s to 2.5s/3.0s so
+    those real HTTP HEADs can actually complete and populate the 60s cache.
     """
     _require_auth(request)
 
@@ -2445,10 +2452,10 @@ async def provider_health(request: Request) -> str:
         try:
             probed_a, probed_b = await asyncio.wait_for(
                 asyncio.gather(
-                    _probe_track(TRACK_A_DEFAULT, budget_s=0.4),
-                    _probe_track(TRACK_B_DEFAULT, budget_s=0.4),
+                    _probe_track(TRACK_A_DEFAULT, budget_s=2.5),
+                    _probe_track(TRACK_B_DEFAULT, budget_s=2.5),
                 ),
-                timeout=0.5,
+                timeout=3.0,
             )
             _store_health("A", probed_a)
             _store_health("B", probed_b)
@@ -2487,8 +2494,8 @@ async def provider_health(request: Request) -> str:
         "**Track A (paid):**  " + a_str + "  \n"
         "**Track B (free):**  " + b_str + in_use_lines + "\n\n"
         "> Provider-health strip (#1685) with 5-tier probing + tier-in-use "
-        "ledger (#1715). 60s cache, 2s per-tier timeout, 500ms overall "
-        "cold-cache budget."
+        "ledger (#1715). 60s cache, 2s per-tier timeout, 3s overall "
+        "cold-cache probe budget (#1956)."
     )
 
 
