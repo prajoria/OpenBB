@@ -14,10 +14,36 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-import anyio
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.datastructures import MutableHeaders
+# Disable openbb's import-time ``auto_build`` BEFORE openbb is ever imported in
+# this process (#1962). ``openbb/__init__.py`` calls
+# ``_PackageBuilder(_this_dir).auto_build()`` at import; when the committed
+# ``reference.json`` differs from the installed extensions it triggers a
+# multi-minute ``openbb.build()``. That build (a) is slow on every cold boot
+# and (b) calls ``signal.signal(SIGTERM)`` which raises on any non-main thread
+# (the lifespan warms up on an anyio worker thread) — a delete-then-fail that
+# CORRUPTS the on-disk package and makes every widget serve ``stub``. The
+# committed generated package already serves the live tier calls WITHOUT a
+# rebuild, so the backend disables auto-build and simply primes it. ``setdefault``
+# lets an operator force ``OPENBB_AUTO_BUILD=true`` back on if they really want a
+# boot-time rebuild.
+_AUTO_BUILD_ENV = "OPENBB_AUTO_BUILD"
+
+
+def _default_auto_build_off() -> None:
+    """Default ``OPENBB_AUTO_BUILD`` to ``false`` unless an operator overrode it.
+
+    Called once at module import (before any ``import openbb``). Idempotent and
+    directly unit-testable without reloading the module.
+    """
+    os.environ.setdefault(_AUTO_BUILD_ENV, "false")
+
+
+_default_auto_build_off()
+
+import anyio  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from starlette.datastructures import MutableHeaders  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -30,39 +56,58 @@ _ALLOWED_ORIGINS = ["https://pro.openbb.co"]
 _DATA_SOURCE_HEADER = "x-pi-data-source"
 
 
-def _default_openbb_builder() -> None:
-    """Build + prime the generated ``openbb`` package (the real warmup work).
+def _prime_openbb() -> None:
+    """Import + touch ``obb.equity`` so the lazy attribute tree materializes.
 
-    ``openbb.build()`` regenerates ``core/openbb/package/`` on disk;
-    touching ``obb.equity`` then forces the lazy attribute tree to
-    materialize so the first request pays no import cost. Isolated from
-    :func:`_warm_openbb` so unit tests can inject a fake builder.
+    With ``OPENBB_AUTO_BUILD=false`` (set at module load, see top of file) this
+    ``import openbb`` does NOT trigger a build — openbb's import-time
+    ``auto_build`` is short-circuited by ``Env().AUTO_BUILD``. The committed
+    generated package under ``core/openbb/package/`` already wires the live tier
+    providers (``fmp_cached`` et al.), so priming is a fast, main-thread-signal-
+    free import that materializes ``obb.equity`` and makes the first real request
+    pay no import cost. Safe to run on the lifespan's worker thread precisely
+    because no ``signal.signal`` call happens (no build).
     """
-    import openbb  # pylint: disable=import-outside-toplevel
-
-    openbb.build()
     from openbb import obb  # pylint: disable=import-outside-toplevel
 
     _ = obb.equity
 
 
+def _default_openbb_builder() -> None:
+    """Prime the generated ``openbb`` package (the real warmup work).
+
+    No build happens: the committed package is functional and ``auto_build`` is
+    disabled (#1962). This just imports ``obb`` and touches ``obb.equity`` so the
+    first request finds a materialized, live-wired package instead of paying the
+    import cost mid-request (which used to exhaust the ChainedFetcher and serve
+    ``stub``). Isolated from :func:`_warm_openbb` so unit tests can inject a fake
+    builder.
+    """
+    _prime_openbb()
+
+
 def _warm_openbb(builder: Callable[[], None] | None = None) -> None:
-    """Build/prime the generated ``openbb`` package before serving (#1957).
+    """Prime the generated ``openbb`` package before serving (#1957, #1962).
 
-    A cold backend whose generated package under ``core/openbb/package/`` is
-    not yet built fails *every* live tier call inside the request handler:
-    ``from openbb import obb`` triggers a multi-second ``openbb.build()`` the
-    first time, and until it finishes the ChainedFetcher's tier dispatch
-    raises, the chain exhausts, and the endpoint falls back to ``stub``. That
-    is the recurring "everything says stub" symptom on a freshly-started
-    backend — the Provider Health strip faithfully reports it. Building at
-    startup (before uvicorn accepts requests) guarantees the first real
-    request finds a built, importable package and serves live.
+    A cold backend whose generated package under ``core/openbb/package/`` is not
+    yet materialized in-process pays a multi-second ``import openbb`` on the
+    first live tier call inside the request handler; until it finishes the
+    ChainedFetcher's tier dispatch raises, the chain exhausts, and the endpoint
+    falls back to ``stub``. That is the recurring "everything says stub" symptom
+    on a freshly-started backend — the Provider Health strip faithfully reports
+    it. Priming at startup (before uvicorn accepts requests) guarantees the first
+    real request finds a materialized, live-wired package and serves live.
 
-    Best-effort: any failure is logged and swallowed so a build hiccup never
+    No ``openbb.build()`` runs: ``OPENBB_AUTO_BUILD`` is disabled at module load
+    (see top of file) because the committed package already wires the live tier
+    providers. This avoids the slow cold-boot rebuild AND the worker-thread
+    ``signal.signal`` failure that used to corrupt the package and force stub
+    (#1962).
+
+    Best-effort: any failure is logged and swallowed so a prime hiccup never
     blocks server startup (widgets simply keep serving stub as before).
-    Set ``PI_WIDGET_BACKEND_SKIP_WARMUP`` to skip (fast dev restarts when the
-    package is known-built). ``builder`` is injectable for hermetic tests.
+    Set ``PI_WIDGET_BACKEND_SKIP_WARMUP`` to skip (fast dev restarts). ``builder``
+    is injectable for hermetic tests.
     """
     if os.environ.get("PI_WIDGET_BACKEND_SKIP_WARMUP"):
         logger.info("openbb warmup skipped (PI_WIDGET_BACKEND_SKIP_WARMUP set)")
@@ -72,8 +117,8 @@ def _warm_openbb(builder: Callable[[], None] | None = None) -> None:
         logger.info("openbb warmup complete — live-wired widgets ready to serve")
     except Exception:  # noqa: BLE001 - startup must not die on warmup
         logger.warning(
-            "openbb warmup (build/prime) failed; live-wired widgets may serve "
-            "stub until the generated package is built",
+            "openbb warmup (prime) failed; live-wired widgets may serve "
+            "stub until the generated package is importable",
             exc_info=True,
         )
 
@@ -108,9 +153,14 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     empty there and ``provider_health`` returns an instant 'unknown' — keeping
     unit tests hermetic (no network).
 
-    The ``openbb`` package is warmed FIRST (offloaded to a worker thread so the
-    multi-second cold build doesn't block the event loop) so the first real
-    request finds a built package and serves live instead of stub (#1957).
+    The ``openbb`` package is warmed FIRST so the first real request finds a
+    materialized package and serves live instead of stub (#1957). No
+    ``openbb.build()`` runs — ``OPENBB_AUTO_BUILD`` is disabled at module load
+    and the committed package already wires the live tiers; the prior
+    boot-time rebuild both slowed cold starts AND corrupted the package via a
+    worker-thread ``signal.signal`` failure that forced stub (#1962). Priming is
+    offloaded via ``anyio.to_thread`` to keep the event loop responsive during
+    the import.
     """
     await anyio.to_thread.run_sync(_warm_openbb)
     _register_health_probers()
