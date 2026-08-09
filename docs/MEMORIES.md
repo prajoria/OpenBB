@@ -1396,3 +1396,29 @@ the Track-B-exclusive yfinance); test_pi_terminal_f12 shape test asserts Track B
 absent; gh1960 cross-track consistency test reframed to single-track (its #1960
 classification protection is unchanged). Affected suites 30+187 green.
 Harness-verified :6130 across a cache-expiry cycle.
+
+## portfolio-intel: cold-boot F2-serves-stub fixed by disabling openbb auto_build (2026-08, #1962)
+The widget backend served `stub` for F2 endpoints (financials/header/key-stats/
+price-history) on a freshly-started backend. Root cause (corrected from the
+original #1962 title): openbb's IMPORT-TIME `auto_build` (openbb/__init__.py ->
+`_PackageBuilder(_this_dir).auto_build()`, gated by `Env().AUTO_BUILD`, default
+true) sees the committed `assets/reference.json` differ from the installed
+extension set and kicks off a multi-minute `openbb.build()` on `import openbb`.
+On the lifespan's anyio WORKER thread that build's `signal.signal(SIGTERM)`
+raises `ValueError: signal only works in main thread` mid-build — a
+delete-then-fail that CORRUPTS the on-disk generated package, so every widget
+then falls to stub. KEY FACT proven by direct tier-call invocation with
+`OPENBB_AUTO_BUILD=false`: the COMMITTED generated package (core/openbb/package/
++ reference.json = 77215 lines) ALREADY wires the live tiers and serves all four
+F2 endpoints LIVE without any rebuild. So the fix is to NOT rebuild at boot:
+`widget_backend/_app.py` now defaults `OPENBB_AUTO_BUILD=false` (via
+`_default_auto_build_off()` -> `os.environ.setdefault`, called before any
+`import openbb`), and the lifespan warmup PRIMES only (`import openbb` + touch
+`obb.equity`). Removed the earlier subprocess-build attempt (was ~5 min cold
+start + a system-Python corruption risk). GOTCHA: `package/__init__.py` is a
+legitimate ~2-line loader — never judge "built vs stub" by its line count; the
+real generated code is in sibling `package/*.py` + reference.json.
+Harness-verified :6130 from clean committed state (first requests, zero rebuild):
+all four F2 -> `x-pi-data-source: fmp_cached` with real MSFT figures; Provider
+Health "Currently serving" lists all four -> fmp_cached. Shipped 484b310bd on
+portfolio_validations (direct-commit, PUSHED f82b9b05c..484b310bd); #1962 CLOSED.
