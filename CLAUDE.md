@@ -561,7 +561,7 @@ python -m venv .venv_portfolio
 .\.venv_portfolio\Scripts\Activate.ps1
 ```
 
-**Editable-install ordering (after #1971 A1 dep declaration).**
+**Editable-install ordering (after #1971 (Phase A1 — declare openbb-techtrade dep)).**
 `portfolio_intel/pyproject.toml` declares `openbb-techtrade` as a Poetry
 `{ path = "../techtrade", develop = true }` dependency. When
 `portfolio_intel` is installed via **pip** (not Poetry), pip ignores
@@ -580,7 +580,7 @@ a pyproject change), follow it with:
 .venv_portfolio\Scripts\python.exe -m pip install -e openbb_platform/extensions/techtrade
 ```
 
-Longer-term fix tracked in #1973.
+Longer-term fix tracked in #1973 (Follow-up from #1971: pip install -e portfolio_intel clobbers editable techtrade install).
 
 **Legacy `.venv_win` note:** older instructions and scripts (`openbb.sh`,
 `start_desktop_dev.ps1`) still reference

@@ -1,15 +1,16 @@
 """Guard that ``portfolio_intel`` declares ``openbb-techtrade`` as a real dep.
 
-Regression coverage for #1971 (Phase A1 of the as-of snapshot cache design;
-spec §9 D1 / §10 Phase A). ``portfolio_intel`` imports ``openbb_techtrade``
-at runtime for segments / scan / signals / plan / movers / execution surfaces
-(all lazily wrapped), but before A1 the ``pyproject.toml`` did not list
-``openbb-techtrade`` in its dependencies at all — ``.venv_portfolio`` only
-worked because the sibling ``openbb-techtrade`` happened to be
-editable-installed alongside it. This test file is the durable contract that
-the install-time seam stays honest.
+Regression coverage for #1971 (Phase A1 — declare openbb-techtrade dep in
+portfolio_intel/pyproject.toml; spec §9 D1 / §10 Phase A).
+``portfolio_intel`` imports ``openbb_techtrade`` at runtime for segments /
+scan / signals / plan / movers / execution surfaces (all lazily wrapped),
+but before A1 the ``pyproject.toml`` did not list ``openbb-techtrade`` in
+its dependencies at all — ``.venv_portfolio`` only worked because the
+sibling ``openbb-techtrade`` happened to be editable-installed alongside
+it. This test file is the durable contract that the install-time seam
+stays honest.
 
-Two discriminating checks (per repo rule R7 — fixtures must fail on the
+Three discriminating checks (per repo rule R7 — fixtures must fail on the
 reverted primitive):
 
 * ``test_pyproject_declares_openbb_techtrade`` parses the tracked
@@ -17,15 +18,13 @@ reverted primitive):
   fail even in an environment where ``openbb_techtrade`` is coincidentally
   importable from a sibling install — because the *declaration* is what
   documents the seam, not the environment happening to have it.
+* ``test_openbb_techtrade_dep_is_path_develop_not_version_pin`` guards the
+  ``{ path = "../techtrade", develop = true }`` shape per spec §10 Phase A
+  A1 review item #8 — there is no ``openbb-techtrade`` wheel on any index,
+  so a version pin (``^0.1.0``) would break every fresh ``.venv_portfolio``.
 * ``test_openbb_techtrade_is_importable`` runs the actual import as a smoke
-  test — catches a future accidental undeclare + a missing package on a
+  test — catches a future accidental undeclare or a missing package on a
   clean venv.
-
-The A1 DoD also stipulates that the dep is expressed as a Poetry
-path/develop dependency (not a version pin like ``^0.1.0``), because there
-is no ``openbb-techtrade`` wheel on any index. The third test guards that
-shape so a well-meaning "let's normalize this to a version" refactor does
-not silently break ``.venv_portfolio``.
 """
 
 from __future__ import annotations
@@ -35,7 +34,26 @@ import sys
 from pathlib import Path
 
 import pytest
-import tomllib
+
+# ``tomllib`` is stdlib on Python 3.11+; fall back to the third-party
+# ``tomli`` (which is API-compatible with ``tomllib``) on 3.10 so this
+# test collects on every supported interpreter. portfolio_intel's
+# pyproject.toml declares ``python = ">=3.10,<3.14"`` — using ``tomllib``
+# unconditionally would ImportError at collection time on 3.10. On 3.10
+# without ``tomli`` present in the env, we skip the module rather than
+# fail to collect (importorskip converts the ImportError into a
+# module-level skip with a clear reason).
+if sys.version_info >= (3, 11):
+    import tomllib  # type: ignore[import-not-found]
+else:  # pragma: no cover — only exercised on Python 3.10
+    tomllib = pytest.importorskip(
+        "tomli",
+        reason=(
+            "Python 3.10 requires the third-party 'tomli' package to parse "
+            "pyproject.toml; install with `pip install tomli` or run the "
+            "suite on Python 3.11+ where tomllib is stdlib."
+        ),
+    )
 
 # Path to the tracked pyproject.toml — resolve from this test file's location
 # (works regardless of pytest invocation cwd).
@@ -62,7 +80,8 @@ def test_pyproject_declares_openbb_techtrade() -> None:
     assert "openbb-techtrade" in deps, (
         "openbb-techtrade must be declared in "
         "openbb_platform/extensions/portfolio_intel/pyproject.toml "
-        "[tool.poetry.dependencies] — see #1971 / spec §9 D1. "
+        "[tool.poetry.dependencies] — see #1971 (Phase A1 — declare "
+        "openbb-techtrade dep) / spec §9 D1. "
         f"Current deps: {sorted(deps)}"
     )
 
@@ -95,9 +114,10 @@ def test_openbb_techtrade_dep_is_path_develop_not_version_pin() -> None:
 
 
 def test_openbb_techtrade_is_importable() -> None:
-    """Smoke: ``import openbb_techtrade`` must succeed in-process (#1971 DoD).
+    """Smoke: ``import openbb_techtrade`` must succeed in-process.
 
-    Complements the pyproject check: catches the case where the dep is
+    Complements the pyproject check (#1971 — Phase A1 — declare
+    openbb-techtrade dep DoD): catches the case where the dep is
     declared but the sibling extension is broken / uninstalled in the
     current interpreter. If either half of the seam fails, portfolio_intel
     surfaces that lazy-wrap techtrade will fail at first use — the
@@ -113,7 +133,8 @@ def test_openbb_techtrade_is_importable() -> None:
             "openbb_techtrade is not importable in the current interpreter. "
             "portfolio_intel's segments/scan/signals/plan/movers surfaces "
             "lazy-wrap this module; a fresh .venv_portfolio must install "
-            "the sibling extension. See #1971 / spec §10 Phase A A1. "
+            "the sibling extension. See #1971 (Phase A1 — declare "
+            "openbb-techtrade dep) / spec §10 Phase A A1. "
             f"ImportError: {exc}"
         )
     # Basic sanity: the module has *something* under it, i.e. we didn't
