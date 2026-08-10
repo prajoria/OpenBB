@@ -67,9 +67,13 @@ Consequences (these *simplify* the build):
 - **No intraday refresh.** Cadence is **once per trading day, after the close**
   (or a single pre-open run against the completed prior session) for *every*
   dataset. The "every 15–30 min during market hours" branch is **out of scope**.
-- **Staleness is measured in trading sessions, not minutes:** green = last
-  completed close, amber = 1 session stale (weekend/holiday-adjacent), red = job
-  hasn't run in ≥ 2 trading days.
+- **Staleness is measured against the trading calendar, not wall-clock days**
+  (review item #5): **green** = `as_of_session == last_completed_session` (so a
+  Friday-close snapshot is green *all weekend* — it is the freshest possible
+  artifact for Monday planning); **amber** = the job missed exactly one
+  *completed* session; **red** = the job has missed ≥ 2 completed sessions (or
+  hasn't run). "A weekend/holiday passed" is **not** staleness and must never
+  show amber — that would cry wolf and train the user to ignore the badge.
 - **Corporate actions / earnings are between-session events** the next post-close
   run naturally absorbs; they are a *display annotation* on the planning view,
   not an intraday cache-invalidation race.
@@ -131,10 +135,18 @@ first schema, because every later phase depends on them:
   `partial` run writes a *newer* row; a naive "latest row wins" query would
   serve the partial and silently violate keep-last-good. The read path must
   resolve LIVE through a state/pointer set **only on a clean promote**.
-- **12.3 #8 — split the timestamp concepts and store dates as ISO-8601 text.**
-  `as_of_session` = the **trading day the answer is about** (a `DATE`);
-  `created_at` = wall-clock **UTC** of the write (`TIMESTAMP`). In SQLite, dates
-  must be stored as ISO-8601 strings or the `... DESC` index misorders.
+- **12.3 #8 — split the timestamp concepts; store native date/time types per
+  dialect.** `as_of_session` = the **trading day the answer is about** (a `DATE`);
+  `created_at` = wall-clock **UTC** of the write (`TIMESTAMP`/`DATETIME(6)`). The
+  `SnapshotStore` Protocol always returns `datetime.date` / tz-aware
+  `datetime.datetime` regardless of backend, so the storage representation is a
+  per-dialect detail hidden behind the abstraction:
+  - **SQLite** has no real date type — store both as **ISO-8601 strings**
+    (`YYYY-MM-DD` and UTC ISO-8601) or the `... DESC` index misorders. This is a
+    SQLite workaround, **not** a cross-dialect mandate.
+  - **MySQL** stores them as native **`DATE`** + **`DATETIME(6)`** so sorting,
+    validation, and index behavior are the engine's own — do **not** force the
+    SQLite ISO-text representation onto MySQL (review item #2).
 
 ### 3.1 Core table (SQLite dialect shown; MySQL mirrors it)
 
@@ -159,12 +171,26 @@ CREATE TABLE pi_snapshot (
 );
 CREATE INDEX ix_pi_snapshot_live   ON pi_snapshot(dataset, entity_key, state);
 CREATE INDEX ix_pi_snapshot_latest ON pi_snapshot(dataset, entity_key, as_of_session DESC, created_at DESC);
+
+-- Enforce "exactly one live row per key" at the DB level, not only in promote()
+-- (review item #1). Dialect difference is REQUIRED — do not skip on MySQL:
+--   SQLite (partial index — supported):
+CREATE UNIQUE INDEX ux_pi_snapshot_live
+    ON pi_snapshot(dataset, entity_key) WHERE state = 'live';
+--   MySQL 8 (NO filtered unique indexes) — use a generated NULL-collapsing column:
+--     ALTER TABLE pi_snapshot ADD COLUMN live_key VARCHAR(512)
+--       GENERATED ALWAYS AS (IF(state='live', CONCAT(dataset,'\x1f',entity_key), NULL)) STORED,
+--       ADD UNIQUE KEY ux_pi_snapshot_live (live_key);
+--   (UNIQUE ignores NULLs in both engines, so only live rows are constrained.)
 ```
 
 **LIVE resolution:** the single row with `state='live'` for a `(dataset,
-entity_key)`. Exactly one LIVE row per key is an invariant enforced by
-`promote()` (it flips the prior LIVE → `superseded` inside the same
-transaction). Readers never run `MAX()`.
+entity_key)`. Exactly one LIVE row per key is enforced **at two layers**:
+(1) `promote()` flips the prior LIVE → `superseded` and sets the new LIVE inside
+one `_tx()` transaction; (2) the **partial/collapsing unique index above** makes
+the invariant a hard DB constraint, so a crash between the two writes, or a
+future second writer, **cannot** leave zero or two live rows — the second `live`
+insert fails rather than corrupting the pointer. Readers never run `MAX()`.
 
 ### 3.2 Job bookkeeping tables (#1967)
 
@@ -241,7 +267,28 @@ class SnapshotRow:
     payload_schema_version: str | None = None
 ```
 
-### 4.2 Default validation gate
+### 4.2 Key canonicalization (review item #4 — required for a shared store)
+
+`dataset` and `entity_key` are free text. In a **shared** store, two writers
+emitting `Information Technology` vs `Information_Technology` vs
+`INFORMATION TECHNOLOGY` produce split-brain LIVE rows the reader can't
+reconcile. A single canonicalizer, called by **both writer and reader** on every
+`dataset`/`entity_key` before it touches the store, closes this gap:
+
+```python
+def canonical_key(raw: str) -> str:
+    """Normalize a dataset or entity_key to a single canonical form.
+    Both writer and reader MUST call this before any store operation.
+    Rules: strip; collapse internal whitespace to single spaces; casefold the
+    label half of 'field=Label' pairs (keep the field name verbatim); normalize
+    separators. Deterministic and idempotent: canonical_key(canonical_key(x)) == canonical_key(x)."""
+```
+
+Every Protocol method treats its `dataset`/`entity_key` args as already-canonical
+(the store may assert `canonical_key(x) == x` in debug builds). Canonicalization
+is a contract obligation of the caller layer, applied once at the boundary.
+
+### 4.3 Default validation gate
 
 ```python
 def default_validator(row: SnapshotRow) -> ValidationResult:
@@ -250,7 +297,7 @@ def default_validator(row: SnapshotRow) -> ValidationResult:
     (row_count within X% of last run, no all-null columns, prices > 0, ...)."""
 ```
 
-### 4.3 Protocol
+### 4.4 Protocol
 
 ```python
 class SnapshotStore(Protocol):
@@ -279,6 +326,13 @@ class SnapshotStore(Protocol):
 
     def should_skip(self, dataset, entity_key, input_hash) -> bool: ...
         # True iff LIVE row already carries this input_hash (idempotent rerun).
+        # NOTE: a skip must NOT strand the staleness badge — see §4.6 + §6.
+
+    def restamp_live(self, dataset, entity_key, as_of_session, job_run_id) -> bool: ...
+        # cheap "re-stamp promote" (review item #3, option a): when should_skip is
+        # True for a NEW session, advance the LIVE pointer's as_of_session to the
+        # new session WITHOUT recomputing payload, so the badge reads green.
+        # Writes a superseded history row for audit; returns True on success.
 
     def prune(self, policy: RetentionPolicy | None = None) -> int: ...
         # apply retention; return #rows removed (default policy -> 0, keep-all).
@@ -286,7 +340,27 @@ class SnapshotStore(Protocol):
     def close(self) -> None: ...
 ```
 
-### 4.4 Backend selector (mirror `get_default_engine`)
+### 4.5 `should_skip` must not strand the staleness badge (review item #3)
+
+`input_hash` includes `engine_version` but **not** the session, so on a genuine
+new session an illiquid entity whose inputs are byte-identical to yesterday's
+would `should_skip → True`, the job would skip, and the LIVE row's
+`as_of_session` would stay on the *older* session — making the
+session-staleness badge (safeguard #4 / #1966) go amber/red even though the job
+ran cleanly. This spec resolves the interaction **both** ways so implementers
+have a clear default:
+
+- **Primary (option a):** on a skip for a new session, the job calls
+  `restamp_live(...)` to advance the LIVE pointer's `as_of_session` to the new
+  completed session without recomputing the payload. The read stays green.
+- **Backstop (option b):** the badge classifier (#1966) keys off the **last
+  successful `snapshot_job` run for the dataset**, not the `as_of_session` of the
+  LIVE row. Even if a re-stamp is missed, a clean job run keeps the badge green.
+
+Implementers MUST wire option (a) as the primary path; option (b) is the
+defense-in-depth so a missed re-stamp never silently cries "stale".
+
+### 4.6 Backend selector (mirror `get_default_engine`)
 
 ```python
 def get_default_snapshot_store() -> SnapshotStore:
@@ -364,8 +438,13 @@ Even under EOD-only scope, these remain real and the defenses are **in scope**:
   shows a confident number. Defense: mandatory session-date badge, red when the
   job hasn't run in ≥ 2 trading days.
 - **Corporate actions / earnings (§5.3, 12.4 #10):** between-session events the
-  next post-close run absorbs; surface **earnings-before-next-open** as a
-  planning annotation on the view. Add delist/halt to the trigger set so a cached
+  next post-close run absorbs. Surface an **earnings annotation** on the planning
+  view — but define it as **"reported since this snapshot's session close,"** not
+  merely "reports before next open" (review item #6). The sharper trap is a name
+  that reports **just after** the close the snapshot was computed on (e.g. 4:00pm
+  close snapshot, 4:05pm earnings print): that snapshot is already stale on the
+  single most important axis before the next session even opens, and the
+  annotation must flag it loudly. Add delist/halt to the trigger set so a cached
   segment/peers set doesn't silently skew movers with an acquired/halted name.
 - **Survivorship in validate/tune/audit (§5.6, 12.4 #11):** baking in *current*
   universe membership yields a tuned parameter set that backtests beautifully and
@@ -426,6 +505,11 @@ centralize ownership).
 - **A1 (new) — declare techtrade dep (D1).** DoD: `openbb-techtrade` in
   `portfolio_intel/pyproject.toml`; fresh `.venv_portfolio` install pulls it;
   lazy-import graceful-degrade paths unchanged; import smoke test green.
+  **Note (review item #8):** for this intra-fork monorepo where both extensions
+  are editable-installed into `.venv_portfolio`, prefer a **path / develop
+  dependency** (e.g. Poetry `{ path = "../techtrade", develop = true }`) over a
+  published version pin like `^0.1.0`, so the local techtrade is used rather than
+  a wheel that may not exist on any index.
 - **A2 (new) — centralize `PI_*` config (D4).** DoD: `openbb_techtrade/config.py`
   with typed getters; snapshot + paper selectors read from it; existing behavior
   preserved (same env vars, same defaults); unit tests for each getter's
@@ -435,10 +519,12 @@ centralize ownership).
 
 - **#1963 — store skeleton.** `SnapshotStore` Protocol + `SqliteSnapshotStore` +
   `MysqlSnapshotStore` + `get_default_snapshot_store()`; stage→validate→promote;
-  keep-last-good; `as_of_session`/`created_at` split; `should_skip`; retention
-  hook. **DoD:** the RED-test contract in §11 passes (11 tests, each
-  reverse-verified); `black --check` + `ruff check` clean; store homed in
-  `openbb_techtrade/snapshot/`.
+  keep-last-good; `as_of_session`/`created_at` split (native types per dialect,
+  §3); `canonical_key` applied at the boundary; **DB-level single-live index**
+  (partial unique on SQLite / generated-column unique on MySQL, §3);
+  `should_skip` + `restamp_live`; retention hook. **DoD:** the RED-test contract
+  in §11 passes (13 tests, each reverse-verified); `black --check` +
+  `ruff check` clean; store homed in `openbb_techtrade/snapshot/`.
 - **#1964 — LIVE-pointer reconciliation & provenance columns.** `state`-based
   LIVE pointer with instant rollback; `engine_version`, `payload_schema_version`,
   `snapshot_job_error` in schema; `input_hash` incorporates `engine_version`.
@@ -450,10 +536,14 @@ centralize ownership).
   **DoD:** a test proving an in-repo `PI_SNAPSHOT_DB` raises; a test proving an
   account-scoped dataset write is refused.
 - **#1966 — EOD as-of semantics + staleness badge.** `as_of` = session date;
-  session-granularity badge (green/amber/red); standing "EOD planning snapshot —
-  not a live/intraday quote" disclaimer. **DoD:** badge classifier unit tests
-  (last-close→green, 1-session→amber, ≥2-session→red); disclaimer present on a
-  snapshot-backed widget.
+  **calendar-anchored** badge (review item #5): green =
+  `as_of_session == last_completed_session` (green all weekend/holiday, since a
+  Friday close is the freshest artifact for Monday), amber = missed exactly one
+  *completed* session, red = missed ≥ 2; standing "EOD planning snapshot — not a
+  live/intraday quote" disclaimer. **DoD:** badge classifier unit tests driven by
+  a trading calendar (Friday-snapshot-viewed-Saturday→green, missed-one-completed-
+  session→amber, missed-≥2→red); a weekend-passing test proving it does **not**
+  go amber; disclaimer present on a snapshot-backed widget.
 - **#1967 — job orchestration.** External post-close process; single-flight lock;
   `snapshot_job`/`snapshot_job_error` bookkeeping; targeted retry;
   `refresh(dataset, entity_key)` on-demand per-symbol trigger. **DoD:** a job run
@@ -487,12 +577,21 @@ hand-off; noted so the store shape doesn't need rework later.)
 
 ## 11. Test contract for #1963 (the RED spec the store must satisfy)
 
-The store skeleton must satisfy these 11 behaviors. Every load-bearing test must
+The store skeleton must satisfy these 13 behaviors. Every load-bearing test must
 be **reverse-verified**: revert the primitive it guards and confirm the test
 FAILS (per the repo's R7 "fixtures must discriminate" rule). Tests drive the
 real store with a **fake compute fn** — no live provider, no MySQL infra. Import
 from `openbb_techtrade.snapshot.store`; `caplog` logger name
 `openbb_techtrade.snapshot.store`.
+
+**Safeguard coverage (review item #7):** these 13 tests cover 11 of the 13
+safeguards in §5. The two **not** covered here are out of the skeleton's scope
+and owned by later issues: safeguard #12 (single-flight job lock) belongs to the
+**job runner (#1967)**, and the provenance-**replay** half of safeguard #13
+(`payload_schema_version` renderer selection) belongs to **#1964**. The
+skeleton does add the `payload_schema_version` column and the DB-level
+single-live constraint, so those columns/indices exist before their behaviors
+are exercised downstream.
 
 1. `get_live` on a fresh store ⇒ `None` (compute-free; no live scan).
 2. clean stage→validate→promote ⇒ row becomes LIVE with correct payload /
@@ -507,13 +606,26 @@ from `openbb_techtrade.snapshot.store`; `caplog` logger name
    exactly one `state='live'` row for the key.
 8. `as_of_session` is a `date`; `created_at` is tz-aware UTC (offset 0) — the two
    concepts are distinct.
-9. `should_skip(input_hash)` ⇒ True for the LIVE row's hash, False otherwise.
+9. `should_skip(input_hash)` ⇒ True for the LIVE row's hash, False otherwise;
+   plus `restamp_live` on a new session advances the LIVE `as_of_session` without
+   recomputing payload (reverse-verify: skip without re-stamp leaves the pointer
+   on the old session).
 10. `prune()` default policy keeps all (returns 0); `RetentionPolicy(keep_sessions=1)`
     is a configurable hook.
 11. selector: `PI_SNAPSHOT_ENGINE=sqlite` ⇒ `SqliteSnapshotStore`;
     `=mysql` with `_make_mysql_store` monkeypatched to raise ⇒ WARNING
     "falling back to SQLite" + `SqliteSnapshotStore` (reverse-verify: the caplog
     WARNING fires only from the fallback branch).
+12. **DB-level single-live constraint:** attempting to insert/flip a second
+    `state='live'` row for the same `(dataset, entity_key)` (bypassing `promote()`)
+    raises an integrity error — the partial/collapsing unique index holds even if
+    `promote()`'s in-transaction flip is circumvented (reverse-verify: drop the
+    unique index → the second live row inserts and the invariant breaks).
+13. **canonicalization:** `stage`+`promote` under `entity_key='Information Technology'`
+    then `get_live('Information_Technology')` (or a differently-cased variant)
+    resolves the **same** LIVE row via `canonical_key`; `canonical_key` is
+    idempotent (reverse-verify: bypass canonicalization → the reader misses the
+    row / a split-brain second LIVE appears).
 
 ---
 
@@ -527,6 +639,10 @@ from `openbb_techtrade.snapshot.store`; `caplog` logger name
 - **Deleting either paper system (D3)** — investigation only, gated on a diff.
 - **Multi-exchange `as_of` labelling** — US-equity calendar for v1; note the ADR
   / dual-listed gap so the badge isn't quietly wrong for non-US names later.
+  When Phase E fans out to a mixed holdings universe (review item #9), the badge
+  copy for a non-US / ADR name must **not** imply a US-session date — either
+  resolve its own exchange calendar or label the session neutrally until
+  per-exchange calendars land.
 - **Job queue (RQ/Celery) / in-backend APScheduler** — external scheduled
   process is the v1 runner; queue infra is future.
 
