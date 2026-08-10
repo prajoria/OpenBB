@@ -16,7 +16,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from openbb_browser_test_harness.drivers.standalone_driver import StandaloneDriver
 from openbb_browser_test_harness.stories import STORIES
 
@@ -53,6 +52,38 @@ _NONDETERMINISTIC_STEP_IDS: frozenset[str] = frozenset(
         # with a controlled env; this drift check just proves the
         # endpoint responds 200 without touching state.
         "T5.paper-status-empty",
+        # --- Live-wired / environment-dependent endpoints (#1878) ---
+        # These four were originally deterministic stubs, but the recent
+        # widget-wiring cycles made them serve real, environment-dependent
+        # content. Their body no longer has a single frozen value that holds
+        # across dev / CI / prod, so — like ``CX.equity-analyst-forecasts``
+        # above — the drift check guarantees only that the endpoint is
+        # callable (status 200); the response *shape* is asserted by each
+        # story step's expected_status + the endpoint's own unit tests.
+        #
+        # W0.provider-health: since #1956 the server registers real
+        # reachability probers at startup, so the strip renders live per-tier
+        # HTTP-HEAD latencies (e.g. ``fmp_cached (436ms)``) that vary every
+        # run. #1961 also dropped the Track B row. Body is inherently
+        # nondeterministic.
+        "W0.provider-health",
+        # W1.key-stats: live-wired to fmp_cached (#1958). Values (market cap,
+        # P/E, volume, next-earnings date) drift with the server clock and
+        # market data; the fabricated stub fields it replaced no longer exist.
+        "W1.key-stats",
+        # CX.equity-price-history: live-wired to fmp_cached. The OHLC series
+        # ends at the latest trading session, so it drifts with the clock.
+        "CX.equity-price-history",
+        # CX.company-filings: live-wired to fmp_cached (#1914/#1935). New
+        # filings appear over time and the shape was realigned to the live
+        # tier, so the body is not a frozen value.
+        "CX.company-filings",
+        # T5.engine-status: full-wired to observable engine state (#1931) —
+        # openbb_techtrade version + capability matrix + configured paper
+        # backend (PI_PAPER_ENGINE). The body depends on whether the engine
+        # is installed and which backend is configured, i.e. it drifts across
+        # deploy environments (CI has no openbb_techtrade → import fallback).
+        "T5.engine-status",
     }
 )
 

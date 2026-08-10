@@ -49,7 +49,10 @@ function extractFn(src, name) {
 // Build a sandbox with the pure helpers under test.
 function loadHelpers() {
   const src = scriptBody(HTML);
-  const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "metricModel"];
+  const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
+    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "inlineOptionsHtml",
+    "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
+    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ") + " };";
   const ctx = {};
@@ -214,4 +217,453 @@ test("metricModel: multi numeric keys -> grid, negatives flagged", () => {
 
 test("metricModel loud-empty: {} -> no cards", () => {
   assert.equal(H.metricModel({}).cards.length, 0);
+});
+
+// --------------------------------------------------------------------------
+// #1885 — candle mode must NOT crush OHLC onto a shared axis with volume
+// --------------------------------------------------------------------------
+test("inferChartModel detects OHLC candle shape (not a 5-line collapse)", () => {
+  const rows = [
+    { date: "2026-06-01", open: 188, high: 191, low: 187, close: 190, volume: 1_000_000 },
+    { date: "2026-06-02", open: 190, high: 194, low: 189, close: 193, volume: 1_200_000 },
+    { date: "2026-06-03", open: 193, high: 195, low: 190, close: 191, volume: 900_000 },
+  ];
+  const m = H.inferChartModel(rows, undefined);
+  assert.equal(m.kind, "candle", "OHLCV rows must infer a candle model, not a line");
+  assert.equal(m.candles.length, 3);
+  assert.equal(m.candles[0].o, 188);
+  assert.equal(m.candles[0].c, 190);
+  // volume is carried separately so it never shares the price y-axis
+  assert.ok(m.volume, "volume series must be separated from the price axis");
+  assert.equal(m.volume.length, 3);
+});
+
+test("svgForChart candle: OHLC uses a PRICE-only y-axis (volume excluded)", () => {
+  const rows = [
+    { date: "d1", open: 188, high: 191, low: 187, close: 190, volume: 1_000_000 },
+    { date: "d2", open: 190, high: 194, low: 189, close: 193, volume: 1_200_000 },
+  ];
+  const svg = H.svgForChart(H.inferChartModel(rows, undefined));
+  assert.match(svg, /<svg/);
+  // candlesticks render as <rect> bodies (one per candle) + <line> wicks
+  assert.ok((svg.match(/<rect/g) || []).length >= 2, "expected candle body rects");
+  // The price axis labels must reflect PRICE magnitude (~1e2), NOT volume (~1e6).
+  // If volume shared the axis, the top label would be ~1,200,000.
+  const labelMatch = [...svg.matchAll(/font-size="10">([^<]+)<\/text>/g)].map((x) => x[1]);
+  assert.ok(labelMatch.length >= 2, "expected y-axis labels");
+  assert.ok(
+    labelMatch.every((t) => !/\d{7}/.test(t) && !/M$/.test(t)),
+    `price axis labels must be price-scale, got ${JSON.stringify(labelMatch)}`,
+  );
+});
+
+test("inferChartModel: numeric year column is the x-axis, not a plotted series (#1885)", () => {
+  const rows = [
+    { year: 2023, revenue: 383_000, net_income: 97_000 },
+    { year: 2024, revenue: 391_000, net_income: 94_000 },
+    { year: 2025, revenue: 400_000, net_income: 99_000 },
+  ];
+  const m = H.inferChartModel(rows, undefined);
+  assert.equal(m.kind, "line");
+  assert.equal(m.xKey, "year", "year must be treated as the x-axis");
+  const keys = m.series.map((s) => s.key).sort().join(",");
+  assert.equal(keys, "net_income,revenue", "year must not be a plotted series");
+});
+
+// --------------------------------------------------------------------------
+// #1887 — y-axis labels must not clip past the left edge (compact big numbers)
+// --------------------------------------------------------------------------
+test("svgForChart compacts large y-axis labels so they do not overflow (#1887)", () => {
+  const rows = [
+    { date: "d1", pnl: 103_060 },
+    { date: "d2", pnl: 118_500 },
+  ];
+  const svg = H.svgForChart(H.inferChartModel(rows, undefined));
+  const labels = [...svg.matchAll(/font-size="10">([^<]+)<\/text>/g)].map((x) => x[1]);
+  // large magnitudes must be compacted (k / M), never a raw 6+ digit run
+  assert.ok(
+    labels.some((t) => /[kMB]$/.test(t)),
+    `expected compacted axis label (k/M/B), got ${JSON.stringify(labels)}`,
+  );
+  assert.ok(
+    labels.every((t) => !/\d{6}/.test(t)),
+    `no raw 6+ digit label may remain, got ${JSON.stringify(labels)}`,
+  );
+});
+
+// --------------------------------------------------------------------------
+// #1886 — params with an inline options array must build a <select> dropdown
+// --------------------------------------------------------------------------
+test("inlineOptionsHtml builds selectable <option>s from an inline array (#1886)", () => {
+  const html = H.inlineOptionsHtml(
+    [{ value: "line", label: "Line" }, { value: "candle", label: "Candlestick" }],
+    "candle",
+  );
+  assert.match(html, /<option value="line">Line<\/option>/);
+  assert.match(html, /<option value="candle" selected>Candlestick<\/option>/);
+});
+
+test("inlineOptionsHtml tolerates bare-string options and empty input (#1886)", () => {
+  assert.match(H.inlineOptionsHtml(["PASS", "FAIL"], "FAIL"), /<option value="FAIL" selected>FAIL<\/option>/);
+  assert.equal(H.inlineOptionsHtml(undefined, ""), "");
+  assert.equal(H.inlineOptionsHtml([], ""), "");
+});
+
+// --------------------------------------------------------------------------
+// #1890 — app switcher moves into a left sidebar (nav buttons, active marked)
+// --------------------------------------------------------------------------
+test("sidebarAppsHtml builds one nav button per app, marks the active one (#1890)", () => {
+  const html = H.sidebarAppsHtml(
+    [{ name: "Overview" }, { name: "Terminal" }, { name: "Techtrade" }],
+    1,
+  );
+  assert.equal((html.match(/data-app=/g) || []).length, 3, "one nav entry per app");
+  assert.match(html, /data-app="0"[^>]*>Overview</);
+  // the active index (1) carries the active class
+  assert.match(html, /class="[^"]*active[^"]*"[^>]*data-app="1"[^>]*>Terminal</);
+  // non-active entries must NOT be marked active
+  assert.doesNotMatch(html, /class="[^"]*active[^"]*"[^>]*data-app="0"/);
+});
+
+test("sidebarAppsHtml escapes app names and loud-empties on no apps (#1890)", () => {
+  assert.match(H.sidebarAppsHtml([{ name: "<x>&\"" }], 0), /&lt;x&gt;&amp;&quot;/);
+  assert.equal(H.sidebarAppsHtml([], 0), "");
+  assert.equal(H.sidebarAppsHtml(undefined, 0), "");
+});
+
+// --------------------------------------------------------------------------
+// #1893 / #1892 — floating grid math: px<->grid snap, clamp, style, merge
+// --------------------------------------------------------------------------
+test("pxToGridRect rounds pixel rect to grid units (#1893)", () => {
+  const geom = { colW: 10, rowH: 30 };
+  // left=98 -> 10, top=61 -> 2, width=201 -> 20, height=89 -> 3
+  assert.deepEqual(
+    { ...H.pxToGridRect({ left: 98, top: 61, width: 201, height: 89 }, geom) },
+    { x: 10, y: 2, w: 20, h: 3 },
+  );
+});
+
+// --------------------------------------------------------------------------
+// #1894 — copyable widget reference string (click-to-copy header chip)
+// --------------------------------------------------------------------------
+test("widgetRefString builds a stable, paste-friendly @id reference (#1894)", () => {
+  assert.equal(
+    H.widgetRefString(
+      "pi_equity_profile",
+      "Portfolio Intelligence - Terminal",
+      "F1 Overview",
+      "Equity Profile",
+    ),
+    "@pi_equity_profile (app: Portfolio Intelligence - Terminal | tab: F1 Overview | widget: Equity Profile)",
+  );
+});
+
+test("clampGridItem enforces min size, column bounds, and no negatives (#1892)", () => {
+  const opts = { cols: 40, minW: 8, minH: 4 };
+  // w below min -> minW; h below min -> minH; negative x -> 0
+  assert.deepEqual({ ...H.clampGridItem({ x: -5, y: -3, w: 2, h: 1 }, opts) }, { x: 0, y: 0, w: 8, h: 4 });
+  // x pushed so x+w would exceed cols -> x clamped to cols-w
+  assert.deepEqual({ ...H.clampGridItem({ x: 39, y: 5, w: 20, h: 9 }, opts) }, { x: 20, y: 5, w: 20, h: 9 });
+  // w wider than the grid -> clamped to cols, x -> 0
+  assert.deepEqual({ ...H.clampGridItem({ x: 3, y: 0, w: 99, h: 9 }, opts) }, { x: 0, y: 0, w: 40, h: 9 });
+});
+
+test("gridItemStyle maps grid units to pixel box (#1893)", () => {
+  const geom = { colW: 12, rowH: 30 };
+  assert.deepEqual(
+    { ...H.gridItemStyle({ x: 2, y: 3, w: 20, h: 9 }, geom) },
+    { left: 24, top: 90, width: 240, height: 270 },
+  );
+});
+
+test("mergeLayout applies saved per-id overrides over apps.json defaults (#1893)", () => {
+  const def = [
+    { i: "a", x: 0, y: 0, w: 20, h: 9 },
+    { i: "b", x: 20, y: 0, w: 20, h: 9 },
+  ];
+  const merged = H.mergeLayout(def, { b: { x: 0, y: 9, w: 40, h: 12 } });
+  const a = merged.find((m) => m.i === "a");
+  const b = merged.find((m) => m.i === "b");
+  assert.deepEqual({ x: a.x, y: a.y, w: a.w, h: a.h }, { x: 0, y: 0, w: 20, h: 9 }, "unoverridden default unchanged");
+  assert.deepEqual({ x: b.x, y: b.y, w: b.w, h: b.h }, { x: 0, y: 9, w: 40, h: 12 }, "override applied");
+  // must not mutate the input defaults
+  assert.equal(def[1].x, 20, "mergeLayout must not mutate the default layout");
+});
+
+test("mergeLayout loud-empties gracefully on missing inputs (#1893)", () => {
+  assert.equal(H.mergeLayout(undefined, undefined).length, 0);
+  assert.equal(H.mergeLayout([{ i: "a", x: 1, y: 2, w: 3, h: 4 }], undefined).length, 1);
+});
+
+// --------------------------------------------------------------------------
+// VS Code-style dual side-panel toggles — both the left "Apps" sidebar and
+// the right "Copilot" panel must be collapsible, and Copilot defaults hidden.
+// These are DOM/localStorage glue (not pure fns) so we guard the contract at
+// the source level: a regression that drops a toggle or flips the default
+// back to "Copilot visible" fails here rather than silently in the browser.
+// --------------------------------------------------------------------------
+test("both side panels expose a header toggle AND an in-panel hide button", () => {
+  // Left "Apps" sidebar
+  assert.match(HTML, /id="side-toggle"/, "left sidebar header toggle must exist");
+  assert.match(HTML, /id="side-hide"/, "left sidebar in-panel hide (×) must exist");
+  // Right "Copilot" panel
+  assert.match(HTML, /id="chat-toggle"/, "Copilot header toggle must exist");
+  assert.match(HTML, /id="chat-hide"/, "Copilot in-panel hide (×) must exist");
+});
+
+test("both side panels have a collapse CSS rule that zeroes their width", () => {
+  assert.match(HTML, /body\.side-collapsed\s+\.sidebar\s*\{[^}]*width:\s*0/, "left collapse rule missing");
+  assert.match(HTML, /body\.chat-collapsed\s+\.chat\s*\{[^}]*width:\s*0/, "Copilot collapse rule missing");
+});
+
+test("Copilot panel is HIDDEN BY DEFAULT (collapsed unless the user opted in)", () => {
+  // The bootstrap must collapse chat whenever the stored pref is not exactly
+  // "0" (the only value that means "user pinned it open"). A regression to
+  // `=== "1"` (default open) would be caught here.
+  assert.match(
+    HTML,
+    /applyChatCollapsed\(\s*localStorage\.getItem\("viewer:chatCollapsed"\)\s*!==\s*"0"\s*\)/,
+    "Copilot must default to collapsed (getItem(...) !== \"0\")",
+  );
+  // The left sidebar keeps its original default-OPEN behavior (collapse only
+  // when the stored pref is exactly "1").
+  assert.match(
+    HTML,
+    /applySideCollapsed\(\s*localStorage\.getItem\("viewer:sideCollapsed"\)\s*===\s*"1"\s*\)/,
+    "left sidebar must default to open (=== \"1\" to collapse)",
+  );
+});
+
+// --------------------------------------------------------------------------
+// x-axis date labels — line/candle charts previously drew only the y-axis
+// (price) labels, leaving the x-axis (dates) blank so the series had "nothing
+// on the x-axis" (user report on pi_equity_price_history). Both renderers must
+// now emit x-axis tick <text> labels sourced from model.xLabels. The x-axis
+// labels use font-size="9" (y-axis price labels use font-size="10") so the two
+// axes are distinguishable in these assertions.
+// --------------------------------------------------------------------------
+function xAxisLabelTexts(svg) {
+  // Collect the text content of every x-axis tick label (font-size="9").
+  return [...svg.matchAll(/font-size="9"[^>]*>([^<]+)<\/text>/g)].map((m) => m[1]);
+}
+
+test("svgForChart line: renders x-axis date labels from xLabels", () => {
+  const rows = [
+    { date: "2026-06-01", close: 188 },
+    { date: "2026-06-02", close: 190 },
+    { date: "2026-06-03", close: 191 },
+    { date: "2026-06-04", close: 193 },
+  ];
+  const model = H.inferChartModel(rows, undefined);
+  assert.equal(model.kind, "line");
+  const svg = H.svgForChart(model);
+  const xLabels = xAxisLabelTexts(svg);
+  // The first and last dates must appear as x-axis tick labels (endpoints
+  // are always shown so the reader can bound the time domain).
+  assert.ok(xLabels.includes("2026-06-01"), `first date missing from x-axis; got ${JSON.stringify(xLabels)}`);
+  assert.ok(xLabels.includes("2026-06-04"), `last date missing from x-axis; got ${JSON.stringify(xLabels)}`);
+});
+
+test("svgForChart candle: renders x-axis date labels from xLabels", () => {
+  const rows = [
+    { date: "2026-06-01", open: 188, high: 191, low: 187, close: 190, volume: 1_000_000 },
+    { date: "2026-06-02", open: 190, high: 194, low: 189, close: 193, volume: 1_200_000 },
+    { date: "2026-06-03", open: 193, high: 195, low: 190, close: 191, volume: 900_000 },
+  ];
+  const model = H.inferChartModel(rows, undefined);
+  assert.equal(model.kind, "candle");
+  const svg = H.svgForChart(model);
+  const xLabels = xAxisLabelTexts(svg);
+  assert.ok(xLabels.includes("2026-06-01"), `first date missing from candle x-axis; got ${JSON.stringify(xLabels)}`);
+  assert.ok(xLabels.includes("2026-06-03"), `last date missing from candle x-axis; got ${JSON.stringify(xLabels)}`);
+});
+
+test("svgForChart x-axis: dense series is thinned (<= 6 tick labels, endpoints kept)", () => {
+  // 30-day daily series must not print 30 overlapping x-axis labels.
+  const rows = Array.from({ length: 30 }, (_, i) => ({
+    date: `2026-06-${String(i + 1).padStart(2, "0")}`,
+    close: 100 + i,
+  }));
+  const svg = H.svgForChart(H.inferChartModel(rows, undefined));
+  const xLabels = xAxisLabelTexts(svg);
+  assert.ok(xLabels.length >= 2, `expected at least the two endpoints, got ${xLabels.length}`);
+  assert.ok(xLabels.length <= 6, `x-axis labels must be thinned to <= 6, got ${xLabels.length}: ${JSON.stringify(xLabels)}`);
+  assert.ok(xLabels.includes("2026-06-01"), "first date must be kept");
+  assert.ok(xLabels.includes("2026-06-30"), "last date must be kept");
+});
+
+// --------------------------------------------------------------------------
+// TradingView Lightweight Charts data mapping — the viewer's PRIMARY
+// time-series renderer. inferChartModel(candle|line) must convert into
+// LWC-ready {time, open/high/low/close} / {time, value} arrays sourced from
+// xLabels, sorted ascending, nulls dropped. These are pure (no DOM), so the
+// mapping is fully unit-testable; the DOM wrapper stays thin.
+// --------------------------------------------------------------------------
+test("isTimeSeriesModel: true for ISO-date candle/line, false for categorical", () => {
+  const candle = H.inferChartModel(
+    [
+      { date: "2026-06-01", open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 },
+      { date: "2026-06-02", open: 1.5, high: 2.5, low: 1, close: 2, volume: 12 },
+    ],
+    undefined,
+  );
+  assert.equal(H.isTimeSeriesModel(candle), true);
+  // Categorical x-axis (sector names) must NOT route to LWC.
+  const cat = H.inferChartModel([{ sector: "Tech", a: 1 }, { sector: "Energy", a: 2 }], undefined);
+  assert.equal(H.isTimeSeriesModel(cat), false);
+});
+
+test("toLwcSeries candle: maps OHLC+volume from xLabels, sorted ascending", () => {
+  // Deliberately supply rows in DESCENDING date order to prove the mapper sorts.
+  const model = H.inferChartModel(
+    [
+      { date: "2026-06-03", open: 193, high: 195, low: 190, close: 191, volume: 900 },
+      { date: "2026-06-02", open: 190, high: 194, low: 189, close: 193, volume: 1200 },
+      { date: "2026-06-01", open: 188, high: 191, low: 187, close: 190, volume: 1000 },
+    ],
+    undefined,
+  );
+  const out = H.toLwcSeries(model);
+  assert.equal(out.kind, "candle");
+  assert.equal(out.candles.length, 3);
+  // Ascending by time
+  assert.deepEqual(out.candles.map((c) => c.time), ["2026-06-01", "2026-06-02", "2026-06-03"]);
+  // First bar's OHLC comes from the 2026-06-01 row
+  assert.deepEqual(
+    { o: out.candles[0].open, h: out.candles[0].high, l: out.candles[0].low, c: out.candles[0].close },
+    { o: 188, h: 191, l: 187, c: 190 },
+  );
+  // Volume histogram is separate, colored up/down by that bar's close>=open
+  assert.equal(out.volume.length, 3);
+  assert.equal(out.volume[0].time, "2026-06-01");
+  assert.equal(out.volume[0].value, 1000);
+  assert.equal(out.volume[0].color, "#3fb950"); // 190 close >= 188 open -> up
+});
+
+test("toLwcSeries line: maps {time,value} per series, drops nulls, sorted", () => {
+  const model = H.inferChartModel(
+    [
+      { date: "2026-06-02", close: 190 },
+      { date: "2026-06-01", close: 188 },
+      { date: "2026-06-03", close: null },
+    ],
+    undefined,
+  );
+  const out = H.toLwcSeries(model);
+  assert.equal(out.kind, "line");
+  assert.equal(out.lines.length, 1);
+  // null close dropped; remaining sorted ascending
+  assert.deepEqual(out.lines[0].data.map((p) => p.time), ["2026-06-01", "2026-06-02"]);
+  assert.deepEqual(out.lines[0].data.map((p) => p.value), [188, 190]);
+});
+
+// --------------------------------------------------------------------------
+// helpText / helpButtonHtml (#1951) — the "?" widget-help affordance.
+// helpText resolves the manifest `help` field, falling back to `description`;
+// helpButtonHtml emits the button only when there is something to show.
+// --------------------------------------------------------------------------
+test("helpText prefers help field over description", () => {
+  assert.equal(H.helpText({ help: "read me", description: "one-liner" }), "read me");
+});
+
+test("helpText falls back to description when help absent", () => {
+  assert.equal(H.helpText({ description: "one-liner" }), "one-liner");
+});
+
+test("helpText is empty string when neither help nor description present", () => {
+  assert.equal(H.helpText({ name: "x" }), "");
+  assert.equal(H.helpText(null), "");
+});
+
+test("helpButtonHtml emits a ? button only when help text exists", () => {
+  const withHelp = H.helpButtonHtml({ help: "### How to read\n- x" });
+  assert.match(withHelp, /class="whelp"/);
+  assert.match(withHelp, />\?<\/button>/);
+  // Load-bearing: no button for an undocumented widget (keeps header clean).
+  assert.equal(H.helpButtonHtml({ name: "x" }), "");
+});
+
+test("helpButtonHtml renders through mdToHtml to real markup", () => {
+  // The popover body is mdToHtml(helpText(def)); prove the manifest help
+  // formats as headings + lists rather than raw text.
+  const html = H.mdToHtml(H.helpText({ help: "### How to read this chart\n\n- **x-axis** is time\n- **y-axis** is price" }));
+  assert.match(html, /<h3>How to read this chart<\/h3>/);
+  assert.match(html, /<li><strong>x-axis<\/strong> is time<\/li>/);
+});
+
+// dataSourceBadge (#1953) — the live-vs-demo provenance badge. Maps the
+// X-PI-Data-Source response header (serving provider tier) to a badge
+// descriptor; null when no source is known so the badge stays hidden.
+test("dataSourceBadge maps stub to an amber demo badge", () => {
+  const b = H.dataSourceBadge("stub");
+  assert.equal(b.text, "demo");
+  assert.equal(b.cls, "wsrc-demo");
+  assert.match(b.title, /NOT live/);
+});
+
+test("dataSourceBadge maps a live provider tier to a green live badge", () => {
+  const b = H.dataSourceBadge("fmp_cached");
+  assert.equal(b.text, "live");
+  assert.equal(b.cls, "wsrc-live");
+  assert.match(b.title, /fmp_cached/);
+});
+
+test("dataSourceBadge treats 'demo' alias like stub (amber, not live)", () => {
+  // Guard the stub/demo branch: a mutation collapsing it to the live branch
+  // would flip cls to wsrc-live and fail here.
+  assert.equal(H.dataSourceBadge("demo").cls, "wsrc-demo");
+  assert.equal(H.dataSourceBadge("DEMO").cls, "wsrc-demo");
+});
+
+test("dataSourceBadge is null when source header is absent", () => {
+  assert.equal(H.dataSourceBadge(null), null);
+  assert.equal(H.dataSourceBadge(undefined), null);
+  assert.equal(H.dataSourceBadge(""), null);
+  assert.equal(H.dataSourceBadge("   "), null);
+});
+
+test("dataSourceBadge is case-insensitive for tier names", () => {
+  assert.equal(H.dataSourceBadge("FMP_Cached").text, "live");
+});
+
+// resolveParams / contextParamLabel (#1954) — the app-level shared context bar.
+// A single symbol selection must drive every widget declaring `symbol`, so the
+// global value wins over per-widget saved state and widget defaults.
+const PH_DEF = { params: [{ paramName: "symbol", value: "AAPL" }, { paramName: "chart_type", value: "line" }] };
+
+test("resolveParams: app-level global wins over saved state and default", () => {
+  const out = H.resolveParams(PH_DEF.params, { symbol: "TSLA" }, { symbol: "NVDA" });
+  assert.equal(out.symbol, "NVDA");        // global beats the saved TSLA
+  assert.equal(out.chart_type, "line");    // untouched -> default
+});
+
+test("resolveParams: saved state used when no global for that key", () => {
+  const out = H.resolveParams(PH_DEF.params, { symbol: "TSLA" }, {});
+  assert.equal(out.symbol, "TSLA");
+});
+
+test("resolveParams: widget default used when neither global nor state", () => {
+  const out = H.resolveParams(PH_DEF.params, {}, {});
+  assert.equal(out.symbol, "AAPL");
+  assert.equal(out.chart_type, "line");
+});
+
+test("resolveParams: global key the widget does NOT declare never leaks in", () => {
+  // A book-scoped widget (only account_id) must not receive the global symbol.
+  const bookDef = { params: [{ paramName: "account_id", value: "demo" }] };
+  const out = H.resolveParams(bookDef.params, {}, { symbol: "NVDA", account_id: "acct-7" });
+  assert.equal(out.account_id, "acct-7");
+  assert.ok(!("symbol" in out), "symbol must not appear on a widget that does not declare it");
+});
+
+test("resolveParams: empty-string global override is honored (not skipped)", () => {
+  const out = H.resolveParams(PH_DEF.params, { symbol: "TSLA" }, { symbol: "" });
+  assert.equal(out.symbol, "");
+});
+
+test("contextParamLabel maps known shared params and title-cases the rest", () => {
+  assert.equal(H.contextParamLabel("symbol"), "Symbol");
+  assert.equal(H.contextParamLabel("account_id"), "Account");
+  assert.equal(H.contextParamLabel("benchmark_symbol"), "Benchmark");
+  assert.equal(H.contextParamLabel("some_other_key"), "Some Other Key");
 });

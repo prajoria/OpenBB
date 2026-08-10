@@ -1320,3 +1320,105 @@ on the 6120 `portfolio_intel` backend. Closes #1805.
   security-review agents for convergence.
 - PR #1841 base `portfolio` (fork-internal), OPEN not merged
   (conservative profile). Both review agents clean; all CI green.
+
+## portfolio-intel: F2 header + key-stats live-wired (2026-08-08, commit 46e3a049e, #1957+#1958)
+
+F2 Financials Company Header + Key Stats served the hardcoded stub for every
+symbol even after #1955 fixed financials. Two root causes, both fixed and
+pushed direct to `portfolio_validations`:
+- #1957 cold-boot: unbuilt openbb package -> ~60s build() inside first request
+  -> chain exhausts -> stub. Fixed by warming openbb at FastAPI lifespan
+  startup (anyio.to_thread) before uvicorn accepts requests. Injectable
+  builder; PI_WIDGET_BACKEND_SKIP_WARMUP escape hatch for fast dev restarts.
+- #1958 genuine gap: equity/header + equity/key-stats were in registry.py but
+  had NO tier CALL in tier_calls.register_all -> NotImplementedError every
+  tier -> always stub. Registered both -> fmp_cached (profile+quote+metrics+
+  ratios). CRITICAL: chain _is_empty does NOT treat a non-empty string as
+  empty, so a header returning "" would wrongly "succeed" as a blank card ->
+  header MUST raise on all-empty; key-stats (list) returns [] loud-empty.
+Conventions locked: day-change% = change/prev_close*100 (provider-agnostic,
+avoids the 100x fraction-vs-percent trap); dividend_yield rendered *100 (fmp
+returns a fraction 0.0071 not 0.71). Anti-mock: realigned the key-stats
+endpoint stub to the live sourced shape (dropped fabricated Forward P/E,
+Shares Float, Short Interest, Insider Ownership) so columns are cache-state
+independent; no-source fields tracked as fmp-cached-gap #1959 (open).
+Live-verified :6130: MSFT+AAPL distinct real data, no stub; health
+"Currently serving" shows all 4 F2 endpoints -> fmp_cached.
+
+## portfolio-intel: provider-health strip shared-tier fix (2026-08-08, commit 8b9ce59a4, #1960)
+
+The Provider Health Strip (F2) intermittently showed `✕ cboe (0ms)
+(unknown_error)` in Track A while Track B showed `● cboe` healthy — same tier,
+two probes, contradicting within one render. Two root causes, both fixed:
+- Misclassification: probe._classify_probe_exception matched only str(exc).
+  httpx.ConnectTimeout() has an EMPTY message (str(e)==''), so cboe's slow-TLS
+  socket-timeout fell through to unknown_error. Fix: classify by exception TYPE
+  (walk type(exc).__mro__ names) BEFORE message text -> empty-message timeouts
+  become "timeout", connect/transport errors become "network". Still returns
+  only ALLOWED_NOTES (no raw-exception/PII leak). Key lesson: httpx timeout
+  exceptions carry empty messages — never classify transport errors by string
+  alone.
+- Double-probe: cboe + sec are in BOTH TRACK_A_DEFAULT and TRACK_B_DEFAULT, so
+  each render probed them twice concurrently on the shared client; one probe
+  could time out while the other succeeded. Fix: _probe_tiers_map probes each
+  DISTINCT tier once (union of both tracks) and maps the shared verdict back to
+  each track — identical latency in both tracks now proves a single shared
+  probe. Halves the concurrent burst (8->6), relieving the timeout pressure.
+Harness-verified :6130 across 3 cache cycles: cboe identical in both tracks
+(155/155, 234/234, 125/125 ms), zero unknown_error. 7 hermetic tests, both
+behaviours mutation-verified. Note: the full portfolio_intel sweep has one
+UNRELATED live failure (test_risk_router::test_live_concentration_spy_via_obb
+— SPY ETF-holdings tiers exhausted upstream, @pytest.mark.integration).
+
+## portfolio-intel: provider-health strip Track-A-only (2026-08-08, commit d99ae119f, #1961)
+
+UX simplification for test/verification clarity: the Provider Health Strip
+(pi_provider_health, F1/F2) now renders a SINGLE Track A row. The old two-row
+`Track A (paid)` + `Track B (free)` strip was confusing — a tester could not
+tell which chain served a widget, and shared tiers (cboe/sec) appearing in both
+rows read like two independent signals.
+
+Key architectural fact worth remembering: EVERY data widget already fetches via
+Track A. Both with_chain(...) and route_through_chain(...) in providers/retrofit.py
+default to track="A", and NO endpoint anywhere overrides to "B" (verified by
+grep for `track="B"` → zero hits). So Track B was never actually used to serve
+widget data — it was only surfaced (misleadingly) in the health strip. "Cleanup
+all widgets to follow Track A" therefore reduced to a single-widget change: make
+provider_health probe/render Track A only. The Track B chain infrastructure
+(registry `:B` keys, free no-credentials fallback) stays in place, dormant, just
+no longer surfaced in the UX.
+
+Change: provider_health probes TRACK_A_DEFAULT only (union-probe + Track B cache
+slot + probed_b dropped); footnote reads "Track A only (#1961)". ruff pruned the
+now-unused TRACK_B_DEFAULT import. Tests: test_provider_health_gh1961.py (4 new
+hermetic, RED→GREEN mutation-verified — pre-fix rendered a Track B row + probed
+the Track-B-exclusive yfinance); test_pi_terminal_f12 shape test asserts Track B
+absent; gh1960 cross-track consistency test reframed to single-track (its #1960
+classification protection is unchanged). Affected suites 30+187 green.
+Harness-verified :6130 across a cache-expiry cycle.
+
+## portfolio-intel: cold-boot F2-serves-stub fixed by disabling openbb auto_build (2026-08, #1962)
+The widget backend served `stub` for F2 endpoints (financials/header/key-stats/
+price-history) on a freshly-started backend. Root cause (corrected from the
+original #1962 title): openbb's IMPORT-TIME `auto_build` (openbb/__init__.py ->
+`_PackageBuilder(_this_dir).auto_build()`, gated by `Env().AUTO_BUILD`, default
+true) sees the committed `assets/reference.json` differ from the installed
+extension set and kicks off a multi-minute `openbb.build()` on `import openbb`.
+On the lifespan's anyio WORKER thread that build's `signal.signal(SIGTERM)`
+raises `ValueError: signal only works in main thread` mid-build — a
+delete-then-fail that CORRUPTS the on-disk generated package, so every widget
+then falls to stub. KEY FACT proven by direct tier-call invocation with
+`OPENBB_AUTO_BUILD=false`: the COMMITTED generated package (core/openbb/package/
++ reference.json = 77215 lines) ALREADY wires the live tiers and serves all four
+F2 endpoints LIVE without any rebuild. So the fix is to NOT rebuild at boot:
+`widget_backend/_app.py` now defaults `OPENBB_AUTO_BUILD=false` (via
+`_default_auto_build_off()` -> `os.environ.setdefault`, called before any
+`import openbb`), and the lifespan warmup PRIMES only (`import openbb` + touch
+`obb.equity`). Removed the earlier subprocess-build attempt (was ~5 min cold
+start + a system-Python corruption risk). GOTCHA: `package/__init__.py` is a
+legitimate ~2-line loader — never judge "built vs stub" by its line count; the
+real generated code is in sibling `package/*.py` + reference.json.
+Harness-verified :6130 from clean committed state (first requests, zero rebuild):
+all four F2 -> `x-pi-data-source: fmp_cached` with real MSFT figures; Provider
+Health "Currently serving" lists all four -> fmp_cached. Shipped 484b310bd on
+portfolio_validations (direct-commit, PUSHED f82b9b05c..484b310bd); #1962 CLOSED.

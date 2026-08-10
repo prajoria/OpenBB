@@ -355,6 +355,7 @@
   "pi_equity_price_history": {
     "name": "Equity Price History (line / candle)",
     "description": "Historical price series with a runtime line/candle toggle (#1702). Line mode returns date/close; candle mode returns full OHLC.",
+    "help": "### How to read this chart\n\nThis shows the **historical market price** of the selected ticker over time. The **x-axis is time** (older on the left, most recent on the right); the **y-axis is price** in the stock's currency.\n\n**Controls**\n- **Symbol** — the ticker to plot (e.g. `AAPL`).\n- **Chart type** — `Line` draws a single line of the daily *closing* price; `Candlestick` draws one bar per day showing the full trading range.\n- **Range** — the time window: `1M`, `3M`, `6M`, `YTD` (Jan 1 → today), `1Y`, `5Y`. A wider range shows more history and a longer-term trend.\n\n**Line mode** — the line connects each day's closing price. An upward slope means the price rose over the window; a downward slope means it fell. Read it as the overall *trend*.\n\n**Candlestick mode** — each candle is one trading day:\n- The thick **body** spans the **open** and **close**. **Green** = closed higher than it opened (up day); **red** = closed lower (down day).\n- The thin **wicks** above/below the body reach the day's **high** and **low**.\n- Tall candles = a big daily move; small candles = a quiet day.\n\n**Hover** anywhere on the chart to see the exact values for that day (O/H/L/C and volume) in the legend at the top-left. The lower **volume** pane shows how many shares traded that day — spikes often mark important news or events.\n\nData comes from the live `fmp_cached` provider when available; if the provider is offline you'll see a deterministic demo series so the widget still renders.",
     "category": "Equity Profile",
     "type": "chart",
     "endpoint": "pi/equity/price-history",
@@ -363,7 +364,8 @@
     "source": "portfolio-intel",
     "params": [
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
-      { "paramName": "chart_type", "value": "line", "label": "Chart type", "type": "text", "description": "Line (close-only) or candlestick (OHLC).", "options": [ { "value": "line", "label": "Line" }, { "value": "candle", "label": "Candlestick" } ] }
+      { "paramName": "chart_type", "value": "line", "label": "Chart type", "type": "text", "description": "Line (close-only) or candlestick (OHLC).", "options": [ { "value": "line", "label": "Line" }, { "value": "candle", "label": "Candlestick" } ] },
+      { "paramName": "range", "value": "6M", "label": "Range", "type": "text", "description": "Time window for the series.", "options": [ { "value": "1M", "label": "1M" }, { "value": "3M", "label": "3M" }, { "value": "6M", "label": "6M" }, { "value": "YTD", "label": "YTD" }, { "value": "1Y", "label": "1Y" }, { "value": "5Y", "label": "5Y" } ] }
     ]
   },
   "pi_price_performance": {

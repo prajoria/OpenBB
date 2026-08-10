@@ -21,8 +21,9 @@ import math
 import os
 import re
 import time
+from datetime import date, timedelta
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Query, Request
 
 from openbb_portfolio_intel.basket_resolver import (
     BasketNotFoundError,
@@ -31,7 +32,6 @@ from openbb_portfolio_intel.basket_resolver import (
 from openbb_portfolio_intel.providers.probe import TierHealth, probe_tier
 from openbb_portfolio_intel.providers.registry import (
     TRACK_A_DEFAULT,
-    TRACK_B_DEFAULT,
 )
 from openbb_portfolio_intel.providers.retrofit import with_chain
 from openbb_portfolio_intel.widget_backend._app import app
@@ -128,6 +128,87 @@ def _account_kwargs(
 ) -> dict:
     """Extract ``account_id`` for ChainedFetcher kwargs."""
     return {"account_id": account_id}
+
+
+def _symbol_kwargs(*_args: object, symbol: str = "AAPL", **_kwargs: object) -> dict:
+    """Forward the *normalized* ``symbol`` to a symbol-only tier call.
+
+    The default ``kwargs_from`` forwards the raw ``symbol``; a live tier must
+    receive the same normalized ticker (strip + upper) the stub body would
+    use, otherwise a valid-but-unnormalized input like ``" aapl "`` reaches
+    the provider verbatim, returns empty, and silently falls through the chain
+    to the demo stub — fabricated data masquerading as live (PR #1899 review).
+    """
+    return {"symbol": _validate_symbol(symbol)}
+
+
+def _price_history_kwargs(
+    *_args: object,
+    symbol: str = "AAPL",
+    chart_type: str = "line",
+    range_: str = "6M",
+    **_kwargs: object,
+) -> dict:
+    """Extract ``symbol`` + ``chart_type`` + ``range`` for the tier call.
+
+    The default ``kwargs_from`` forwards only ``symbol``; price-history's
+    live tier needs ``chart_type`` (to shape line vs candle rows) and
+    ``range`` (to slice the display window) too.
+
+    ``range`` is forwarded to the *tier wrapper* (``_price_history_fmp_cached``),
+    NOT to the underlying ``fmp_cached`` fetcher — the fetcher still receives
+    only ``symbol`` and the wrapper slices the returned series locally. This
+    keeps the provider call signature untouched while making the range control
+    functional in live mode (#1950).
+
+    The symbol is normalized via ``_validate_symbol`` (strip + upper) so the
+    live ``fmp_cached`` tier queries the *same* ticker the stub body would
+    (which re-normalizes at ``sym = symbol.strip().upper()``). Forwarding the
+    raw symbol would let ``" aapl "`` reach the provider verbatim, get an
+    empty result, and silently fall through the chain to the demo stub —
+    fabricated data masquerading as live prices (code-review PR #1899).
+    """
+    return {
+        "symbol": _validate_symbol(symbol),
+        "chart_type": chart_type,
+        "range_": range_,
+    }
+
+
+def _validate_price_history_from_call(
+    *_args: object,
+    symbol: str = "AAPL",
+    chart_type: str = "line",
+    range_: str = "6M",
+    **_kwargs: object,
+) -> None:
+    """Validate ``symbol``, ``chart_type`` AND ``range`` before any dispatch.
+
+    All checks MUST run in this pre-dispatch hook (not only in the stub
+    body): once a live tier serves the request the stub body is bypassed,
+    so validation living only there would let an invalid ``chart_type`` or
+    ``range`` reach the shaper and silently return wrong rows (the #1898
+    bug). The ``_ALLOWED_CHART_TYPES`` / ``_ALLOWED_RANGES`` globals are
+    resolved at call time.
+
+    ``range_`` is bound from the ``range`` query param via the endpoint's
+    ``Query(alias="range")`` — FastAPI passes it through ``**fn_kwargs`` to
+    this hook under the Python name ``range_``.
+    """
+    _validate_symbol(symbol)
+    if chart_type not in _ALLOWED_CHART_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"chart_type must be one of {_ALLOWED_CHART_TYPES}; "
+                f"got {chart_type!r}. Use ``line`` or ``candle``."
+            ),
+        )
+    if range_ not in _ALLOWED_RANGES:
+        raise HTTPException(
+            status_code=400,
+            detail=(f"range must be one of {_ALLOWED_RANGES}; got {range_!r}."),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -835,6 +916,7 @@ def pi_backtest_oneclick(request: Request, account_id: str = "demo") -> str:
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_header(request: Request, symbol: str = "AAPL") -> str:
     """Equity Profile section 1 — header + live price ticker (markdown)."""
@@ -860,30 +942,35 @@ def equity_header(request: Request, symbol: str = "AAPL") -> str:
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_key_stats(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Equity Profile section 2 — key stats grid (table)."""
+    """Equity Profile section 2 — key stats grid (table).
+
+    Offline preview shape MATCHES the live fmp_cached tier
+    (``tier_calls._shape_key_stats``): only fields with a real fmp_cached
+    source are emitted. Fabricated stub-only rows (Forward P/E, Shares Float,
+    Short Interest, Insider Ownership, Revenue/Net Income FY, 30d avg volume,
+    Next Earnings) were removed — they had no provider source and served the
+    same canned number for every symbol (area:fmp-cached-gap #1959). Aligning
+    the stub to the live shape keeps the widget's columns stable regardless of
+    cache state (anti-mock: stub shape == live shape -> deterministic).
+    """
     _require_auth(request)
     sym = _validate_symbol(symbol)
     return [
         {"metric": "Market Cap", "value": "$3.47T"},
         {"metric": "P/E (TTM)", "value": 32.1},
-        {"metric": "Forward P/E", "value": 29.4},
         {"metric": "EV/EBITDA", "value": 24.8},
         {"metric": "P/S (TTM)", "value": 8.7},
         {"metric": "EPS (TTM)", "value": 6.51},
-        {"metric": "Revenue (FY)", "value": "$391B"},
-        {"metric": "Net Income (FY)", "value": "$93B"},
-        {"metric": "Shares Float", "value": "15.2B"},
-        {"metric": "Short Interest", "value": "0.68%"},
-        {"metric": "Insider Ownership", "value": "0.07%"},
-        {"metric": "Beta (1Y)", "value": 1.20},
+        {"metric": "Beta", "value": 1.20},
         {"metric": "Dividend Yield", "value": "0.42%"},
-        {"metric": "Volume (today)", "value": "48M"},
-        {"metric": "Volume (30d avg)", "value": "52M"},
-        {"metric": "Next Earnings", "value": "2026-07-25 (Q3 2026)"},
+        {"metric": "Volume", "value": "48M"},
+        {"metric": "52-Week High", "value": 260.1},
+        {"metric": "52-Week Low", "value": 164.08},
         {"metric": "Symbol", "value": sym},
     ]
 
@@ -895,11 +982,18 @@ def equity_key_stats(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_financials(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, float | str]]:
-    """Equity Profile section 3 — 5-yr financials (chart raw)."""
+    """Equity Profile section 3 — 5-yr financials (chart raw).
+
+    Live-served from ``fmp_cached`` via the ``equity/financials`` tier call
+    (#1955): fetches annual income statements and shapes each period to
+    ``{year, revenue_b, net_income_b, net_margin_pct}``. This stub body is the
+    loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
     years = [2021, 2022, 2023, 2024, 2025]
@@ -1217,32 +1311,108 @@ def equity_competitors(
 
 _ALLOWED_CHART_TYPES = ("line", "candle")
 
+# Time-range control (#1950). The demo/stub series is sized by a selectable
+# window so the chart reads as a genuine multi-month trend rather than a
+# 3-week sine-wave. Counts are ~trading days (≈21/month, ≈252/year); ``YTD``
+# is computed from the fixed anchor. Longer windows show a proportionally
+# larger drift so the slope stays realistic across ranges.
+_ALLOWED_RANGES = ("1M", "3M", "6M", "YTD", "1Y", "5Y")
+_DEFAULT_RANGE = "6M"
+_RANGE_TO_DAYS = {"1M": 21, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260}
 
-def _demo_ohlc_series(symbol: str, days: int = 20) -> list[dict]:
-    """Return a deterministic OHLC series keyed off the symbol hash.
+# Fixed anchor so the offline demo stays hermetic/deterministic (never reads
+# the wall clock — matches the "hashes stable across runs" contract). Bump
+# this constant if the demo dates start to feel stale; the live fmp_cached
+# tier supplies real, current dates when it is available.
+_DEMO_SERIES_END = date(2026, 8, 1)
+# Annualized drift used to shape the demo trend (~+30%/yr), scaled by the
+# window length so 1M is gently sloped and 5Y clearly trends.
+_DEMO_ANNUAL_DRIFT = 0.30
 
-    Uses a simple sinusoid + linear drift, seeded by the symbol so different
-    tickers get visibly different (but reproducible) curves. Kept dependency-
-    free so the unit tests never touch the network.
+
+def _business_days_back(end: date, n: int) -> list[date]:
+    """Return ``n`` weekday (Mon–Fri) dates ending at ``end``, ascending."""
+    out: list[date] = []
+    d = end
+    while len(out) < n:
+        if d.weekday() < 5:  # skip Sat/Sun
+            out.append(d)
+        d -= timedelta(days=1)
+    return list(reversed(out))
+
+
+def _ytd_business_days(anchor: date) -> int:
+    """Count weekday dates from Jan 1 of the anchor's year through ``anchor``."""
+    d = date(anchor.year, 1, 1)
+    n = 0
+    while d <= anchor:
+        if d.weekday() < 5:
+            n += 1
+        d += timedelta(days=1)
+    return n
+
+
+def _range_to_days(range_: str) -> int:
+    """Map a range token to a trading-day count (``YTD`` computed from anchor)."""
+    if range_ == "YTD":
+        return _ytd_business_days(_DEMO_SERIES_END)
+    return _RANGE_TO_DAYS[range_]
+
+
+def _demo_ohlc_series(symbol: str, days: int = 126) -> list[dict]:
+    """Return a deterministic, trend-dominant OHLC series for ``symbol``.
+
+    The path is a linear drift (seeded per symbol, scaled so the annualized
+    slope is range-independent) plus a small sinusoid and deterministic noise
+    for texture — drift dominates so the line reads as a real price *trend*,
+    not the short valley the old 20-point sine-wave produced (#1950). Dates
+    are real business days ending at ``_DEMO_SERIES_END`` (ascending, unique),
+    so Workspace/LWC can render a proper time axis with day/month granularity.
+    Kept dependency-free and clock-free so unit tests never touch the network
+    and hashes stay stable across runs.
     """
-    # Deterministic seed per symbol — never uses time.
     seed = sum(ord(c) for c in symbol.upper())
-    base = 100.0 + (seed % 200)
+    base = 80.0 + (seed % 120)  # per-symbol start in 80..199
+    # Total drift over the whole window, scaled by its length in years.
+    total_drift = base * _DEMO_ANNUAL_DRIFT * (days / 252.0)
+    dates = _business_days_back(_DEMO_SERIES_END, days)
     out: list[dict] = []
-    for i in range(days):
-        drift = i * 0.5
-        wave = math.sin((seed + i) / 3.0) * 2.5
-        close = round(base + drift + wave, 2)
-        # Build a realistic bar around ``close``.
-        open_ = round(close - math.cos((seed + i) / 3.0) * 1.0, 2)
-        high = round(max(open_, close) + abs(math.sin((seed + i) / 2.0)) * 1.2, 2)
-        low = round(min(open_, close) - abs(math.cos((seed + i) / 2.0)) * 1.2, 2)
-        volume = int(1_000_000 + (seed * (i + 1)) % 5_000_000)
+    for i, d in enumerate(dates):
+        frac = i / max(1, days - 1)
+        trend = total_drift * frac
+        wave = math.sin((seed + i) / 9.0) * (base * 0.015)  # ±1.5% texture
+        # Three independent deterministic pseudo-uniforms in [0, 1) — no RNG,
+        # no clock, so hashes stay stable across runs and unit tests never
+        # touch randomness.
+        u1 = ((seed * 9301 + i * 49297) % 233280) / 233280.0
+        u2 = ((seed * 4021 + i * 63551 + 12345) % 233280) / 233280.0
+        u3 = ((seed * 7919 + i * 104729 + 777) % 233280) / 233280.0
+        close = round(base + trend + wave + (u1 - 0.5) * (base * 0.006), 2)
+        # Per-day "activity" is right-skewed (u3²) so most days are quiet and a
+        # few are decisive — a real tape has both big and small candles. The
+        # body direction alternates deterministically so up/down days interleave
+        # instead of every candle looking identical (#1952).
+        activity = u3 * u3
+        direction = 1.0 if ((seed * 31 + i * 17) % 2 == 0) else -1.0
+        body_amp = base * (0.0008 + 0.03 * activity)
+        open_ = round(close - direction * body_amp, 2)
+        # Wicks vary independently so the high/low range is not a fixed band.
+        wick_hi = abs(math.sin((seed + i) / 5.0)) * (base * (0.002 + 0.02 * u2))
+        wick_lo = abs(math.cos((seed + i) / 6.0)) * (base * (0.002 + 0.02 * (1.0 - u2)))
+        high = round(max(open_, close) + wick_hi, 2)
+        low = round(min(open_, close) - wick_lo, 2)
+        # Spiky, mean-reverting volume: a per-symbol base scaled by right-skewed
+        # daily noise with occasional high-volume spikes. Bar height now carries
+        # real day-to-day signal (#1952) instead of the old near-flat monotonic
+        # ramp (which made every volume bar render the same height).
+        base_vol = 5_000_000 + (seed % 7) * 3_000_000
+        vol_factor = 0.5 + 1.2 * u2
+        if (seed * 13 + i * 29) % 13 == 0:
+            vol_factor *= 2.5  # earnings/news-style spike day
+        volume = int(base_vol * vol_factor)
         out.append(
             {
-                # Trailing "T00:00:00" makes the date parse-friendly in
-                # Workspace's chart renderer without pinning a timezone.
-                "date": f"2026-06-{(i % 28) + 1:02d}",
+                "date": d.isoformat(),
                 "open": open_,
                 "high": high,
                 "low": low,
@@ -1258,24 +1428,28 @@ def _demo_ohlc_series(symbol: str, days: int = 20) -> list[dict]:
     endpoint="pi/equity/price-history",
     family="equity/price-history",
     record_tier_used=record_tier_used,
+    kwargs_from=_price_history_kwargs,
     require_auth=_require_auth_from_call,
-    validate_kwargs=_validate_symbol_from_call,
+    validate_kwargs=_validate_price_history_from_call,
 )
 def equity_price_history(
     request: Request,
     symbol: str = "AAPL",
     chart_type: str = "line",
+    range_: str = Query(_DEFAULT_RANGE, alias="range"),
 ) -> list[dict]:
     """Return a price-history series in either line or candlestick shape.
 
     * ``chart_type=line`` (default): rows are ``{date, close}``.
     * ``chart_type=candle``: rows are ``{date, open, high, low, close, volume}``.
+    * ``range`` (``1M``/``3M``/``6M``/``YTD``/``1Y``/``5Y``, default ``6M``)
+      sizes the window so users can pick a time range (#1950).
 
-    Any other ``chart_type`` value is a 400 — no silent fallback to line,
-    because that would hide a UI wiring bug where the widget sent us a
-    typo (which was #1633's failure mode: the chart-mapping silently
-    normalized bad values). Loud rejection surfaces the mismatch at PR
-    time via the manifest ↔ endpoint parity test.
+    Any other ``chart_type`` or ``range`` value is a 400 — no silent fallback,
+    because that would hide a UI wiring bug where the widget sent us a typo
+    (which was #1633's failure mode: the chart-mapping silently normalized bad
+    values). Loud rejection surfaces the mismatch at PR time via the manifest ↔
+    endpoint parity test.
     """
     require_auth(request)
     sym = symbol.strip().upper()
@@ -1295,13 +1469,19 @@ def equity_price_history(
                 f"got {chart_type!r}. Use ``line`` or ``candle``."
             ),
         )
+    if range_ not in _ALLOWED_RANGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"range must be one of {_ALLOWED_RANGES}; got {range_!r}.",
+        )
 
-    # TODO(gh-1702): swap the demo generator for
-    # ``obb.equity.price.historical(symbol=sym, provider='fmp_cached')`` once
-    # the widget-level integration test in the pi_widgets Playwright harness
-    # is green. Keeping the demo hermetic today so the shape contract can
-    # ship independently of provider-quota-sensitive tests.
-    bars = _demo_ohlc_series(sym)
+    # Live data is served by the ``fmp_cached`` tier registered in
+    # ``widget_backend.tier_calls`` (full-wiring #1898), routed through the
+    # provider chain by the ``@with_chain`` decorator above. This stub body
+    # is the chain-exhaustion fallback only: it runs when fmp_cached (and any
+    # lower tier) is unavailable/empty, keeping the widget renderable offline
+    # and in hermetic tests. Shape here MUST match the tier call's shaper.
+    bars = _demo_ohlc_series(sym, days=_range_to_days(range_))
 
     if chart_type == "line":
         return [{"date": b["date"], "close": b["close"]} for b in bars]
@@ -1330,6 +1510,7 @@ def equity_price_history(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_price_performance(
     request: Request, symbol: str = "AAPL"
@@ -1337,7 +1518,8 @@ def equity_price_performance(
     """Return Price Performance rows (#1645) — trailing return by horizon (table)."""
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1645): wire to FMPPricePerformanceFetcher via fmp_cached.
+    # Live-served via fmp_cached tier (#1900, register_all in tier_calls.py);
+    # this stub body is the loud fallback when the live tier is empty/errors.
     return [
         {"period": "1D", "return_pct": 0.54},
         {"period": "1W", "return_pct": 1.82},
@@ -1358,14 +1540,18 @@ def equity_price_performance(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_management_team(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | None]]:
-    """Return Management Team rows (#1648) — key executives (table)."""
+    """Return Management Team rows (#1648) — key executives (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/management-team`` tier
+    call (#1902); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1648): wire to FMPKeyExecutivesFetcher via fmp_cached.
     return [
         {
             "name": "Timothy D. Cook",
@@ -1407,14 +1593,18 @@ def equity_management_team(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_revenue_geography(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Return Revenue Per Geography rows (#1649) — region/revenue (chart raw)."""
+    """Return Revenue Per Geography rows (#1649) — region/revenue (chart raw).
+
+    Live-served from ``fmp_cached`` via the ``equity/revenue-geography`` tier
+    call (#1904); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1649): wire to FMPRevenueGeographicFetcher via fmp_cached.
     return [
         {"region": "Americas", "revenue": 162560},
         {"region": "Europe", "revenue": 94294},
@@ -1431,14 +1621,18 @@ def equity_revenue_geography(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_revenue_business_line(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Return Revenue Per Business Line rows (#1650) — segment/revenue (chart raw)."""
+    """Return Revenue Per Business Line rows (#1650) — segment/revenue (chart raw).
+
+    Live-served from ``fmp_cached`` via the ``equity/revenue-business-line``
+    tier call (#1906); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1650): wire to FMPRevenueBusinessLineFetcher via fmp_cached.
     return [
         {"segment": "iPhone", "revenue": 200583},
         {"segment": "Services", "revenue": 96169},
@@ -1510,14 +1704,18 @@ def equity_stock_ownership(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_insider_trading(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | int]]:
-    """Return Insider Trading rows (#1661) — recent transactions (table)."""
+    """Return Insider Trading rows (#1661) — recent transactions (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/insider-trading`` tier
+    call (#1910); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1661): wire to FMPCachedInsiderTradingFetcher.
     return [
         {
             "name": "Cook Timothy D",
@@ -1557,14 +1755,18 @@ def equity_insider_trading(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_earnings_history(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float]]:
-    """Return Earnings History rows (#1663) — EPS actual vs. estimate (table)."""
+) -> list[dict[str, str | float | None]]:
+    """Return Earnings History rows (#1663) — EPS actual vs. estimate (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/earnings-history`` tier
+    call (#1912); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1663): wire to FMPCachedCalendarEarningsFetcher (historical).
     return [
         {
             "quarter": "Q3 2026",
@@ -1606,14 +1808,18 @@ def equity_earnings_history(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_stock_splits(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float | int]]:
-    """Return Stock Splits rows (#1664) — historical split events (table)."""
+    """Return Stock Splits rows (#1664) — historical split events (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/stock-splits`` tier call
+    (#1916); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1664): wire to FMPCachedHistoricalSplitsFetcher.
     return [
         {"date": "2020-08-31", "numerator": 4, "denominator": 1, "ratio": "4:1"},
         {"date": "2014-06-09", "numerator": 7, "denominator": 1, "ratio": "7:1"},
@@ -1630,14 +1836,18 @@ def equity_stock_splits(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_dividend_payment(
     request: Request, symbol: str = "AAPL"
 ) -> list[dict[str, str | float]]:
-    """Return Dividend Payment rows (#1665) — recent dividends (table)."""
+    """Return Dividend Payment rows (#1665) — recent dividends (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/dividend-payment`` tier
+    call (#1908); this stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1665): wire to FMPCachedHistoricalDividendsFetcher.
     return [
         {"ex_date": "2026-05-10", "payment_date": "2026-05-16", "amount": 0.25},
         {"ex_date": "2026-02-09", "payment_date": "2026-02-15", "amount": 0.24},
@@ -1653,39 +1863,54 @@ def equity_dividend_payment(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_company_filings(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str]]:
-    """Return Company Filings rows (#1666) — recent SEC filings (table)."""
+) -> list[dict[str, str | None]]:
+    """Return Company Filings rows (#1666) — recent SEC filings (table).
+
+    Live data is served by the ``equity/company-filings`` fmp_cached tier
+    call (:mod:`.tier_calls`); this stub body is the loud fallback the chain
+    returns to only when the live tier fails or yields nothing.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1666): wire to FMPCachedCompanyFilingsFetcher.
+    # Stub rows MUST use the SAME keys the live fmp_cached tier emits
+    # (``_shape_company_filings`` -> filing_date/report_type/report_url/
+    # filing_url). Keeping stub and live shapes identical makes the endpoint
+    # column-stable regardless of cache state and the shape test deterministic
+    # (anti-mock rule: stub shape == live shape).
     return [
         {
-            "date": "2026-05-01",
-            "filing_type": "10-Q",
-            "description": "Q2 2026 quarterly report",
+            "filing_date": "2026-05-01",
+            "report_type": "10-Q",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
         {
-            "date": "2026-04-15",
-            "filing_type": "8-K",
-            "description": "Material event: dividend declared",
+            "filing_date": "2026-04-15",
+            "report_type": "8-K",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
         {
-            "date": "2026-02-01",
-            "filing_type": "10-Q",
-            "description": "Q1 2026 quarterly report",
+            "filing_date": "2026-02-01",
+            "report_type": "10-Q",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
         {
-            "date": "2025-11-01",
-            "filing_type": "10-K",
-            "description": "FY 2025 annual report",
+            "filing_date": "2025-11-01",
+            "report_type": "10-K",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
         {
-            "date": "2025-10-27",
-            "filing_type": "8-K",
-            "description": "Earnings release Q4 2025",
+            "filing_date": "2025-10-27",
+            "report_type": "8-K",
+            "report_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            "filing_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
         },
     ]
 
@@ -1721,14 +1946,16 @@ def equity_earnings_transcripts(request: Request, symbol: str = "AAPL") -> str:
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_price_target_history(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float]]:
+) -> list[dict[str, str | float | None]]:
     """Return Price Target vs. Close time series (#1669) — target evolution (chart)."""
     _require_auth(request)
     _validate_symbol(symbol)
-    # TODO(gh-1669): wire to FMPCachedPriceTargetConsensusFetcher over time series.
+    # TODO(gh-1669): fallback stub — the live path is the fmp_cached tier call
+    # (equity/price-target-history) wired in tier_calls.py (#1926).
     return [
         {"date": "2025-11-01", "close": 152.20, "target": 175.00},
         {"date": "2026-01-15", "close": 168.35, "target": 185.00},
@@ -1743,26 +1970,72 @@ def equity_price_target_history(
 # ---------------------------------------------------------------------------
 
 
+#: Allowed statement periods (widget-facing values, mapped in the tier call).
+_STATEMENT_PERIODS = ("annual", "quarterly")
+
+
+def _statements_kwargs(
+    *_args: object,
+    symbol: str = "AAPL",
+    period: str = "annual",
+    **_kwargs: object,
+) -> dict:
+    """Forward the normalized ``symbol`` + ``period`` to the statements tier.
+
+    The default ``kwargs_from`` forwards only the raw ``symbol``; the live tier
+    needs ``period`` too (to pick annual vs quarterly statements) and the
+    *normalized* ticker so an unnormalized ``" aapl "`` cannot reach the
+    provider verbatim, return empty, and silently fall to the demo stub.
+    """
+    return {"symbol": _validate_symbol(symbol), "period": period}
+
+
+def _validate_statements_from_call(
+    *_args: object,
+    symbol: str = "AAPL",
+    period: str = "annual",
+    **_kwargs: object,
+) -> None:
+    """Validate ``symbol`` AND ``period`` before any tier is dispatched.
+
+    Both checks must run pre-dispatch: once a live tier serves the request the
+    stub body (with its own inline period check) is bypassed, so validation
+    living only there would let an invalid ``period`` reach the tier call.
+    """
+    _validate_symbol(symbol)
+    if period not in _STATEMENT_PERIODS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"period must be 'annual' or 'quarterly', got {period!r}",
+        )
+
+
 @app.get("/pi/equity/statements")
 @with_chain(
     endpoint="pi/equity/statements",
     family="equity/statements",
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
-    validate_kwargs=_validate_symbol_from_call,
+    validate_kwargs=_validate_statements_from_call,
+    kwargs_from=_statements_kwargs,
 )
 def equity_statements(
     request: Request, symbol: str = "AAPL", period: str = "annual"
-) -> list[dict[str, str | float]]:
-    """Return Financial Statements rows (#1653) — IS/BS/CF (table)."""
+) -> list[dict[str, str | float | int | None]]:
+    """Return Financial Statements rows (#1653) — IS/BS/CF (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/statements`` tier call
+    (#1920): fetches income/balance/cash statements and maps nine canonical
+    line items to a 2-period comparison. This stub body is the loud fallback
+    when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    if period not in {"annual", "quarterly"}:
+    if period not in _STATEMENT_PERIODS:
         raise HTTPException(
             status_code=400,
             detail=f"period must be 'annual' or 'quarterly', got {period!r}",
         )
-    # TODO(gh-1653): wire to FMPCachedIncomeStatementFetcher etc via period.
     scale = 1.0 if period == "annual" else 0.25
     return [
         {
@@ -1801,27 +2074,73 @@ def equity_statements(
     ]
 
 
+#: Allowed charting windows (resolved at call time by the validate hook).
+_CHARTING_WINDOWS = ("1M", "3M", "6M", "YTD", "1Y")
+
+
+def _charting_kwargs(
+    *_args: object,
+    symbol: str = "AAPL",
+    window: str = "3M",
+    **_kwargs: object,
+) -> dict:
+    """Forward the normalized ``symbol`` + ``window`` to the charting tier.
+
+    The default ``kwargs_from`` forwards only the raw ``symbol``; the live
+    tier needs ``window`` too (to slice the series) and the *normalized*
+    ticker (strip + upper) so an unnormalized ``" aapl "`` cannot reach the
+    provider verbatim, return empty, and silently fall to the demo stub.
+    """
+    return {"symbol": _validate_symbol(symbol), "window": window}
+
+
+def _validate_charting_from_call(
+    *_args: object,
+    symbol: str = "AAPL",
+    window: str = "3M",
+    **_kwargs: object,
+) -> None:
+    """Validate ``symbol`` AND ``window`` before any tier is dispatched.
+
+    Both checks must run pre-dispatch: once a live tier serves the request the
+    stub body (with its own inline window check) is bypassed, so validation
+    living only there would let an invalid ``window`` reach the shaper.
+    """
+    _validate_symbol(symbol)
+    if window not in _CHARTING_WINDOWS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"window must be one of {_CHARTING_WINDOWS}, got {window!r}",
+        )
+
+
 @app.get("/pi/equity/charting")
 @with_chain(
     endpoint="pi/equity/charting",
     family="charting",
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
-    validate_kwargs=_validate_symbol_from_call,
+    validate_kwargs=_validate_charting_from_call,
+    kwargs_from=_charting_kwargs,
 )
 def equity_charting(
     request: Request, symbol: str = "AAPL", window: str = "3M"
-) -> list[dict[str, str | float]]:
-    """Return Charting rows (#1655) — OHLC + indicator overlays (chart)."""
+) -> list[dict[str, str | float | int | None]]:
+    """Return Charting rows (#1655) — OHLC + indicator overlays (chart).
+
+    Live-served from ``fmp_cached`` via the ``charting`` tier call (#1918):
+    reuses the price-history fetch and computes SMA20/SMA50/RSI14 over the
+    full series, sliced to ``window``. This stub body is the loud fallback
+    when no tier serves.
+    """
     _require_auth(request)
     _validate_symbol(symbol)
-    if window not in {"1M", "3M", "6M", "YTD", "1Y"}:
+    if window not in _CHARTING_WINDOWS:
         raise HTTPException(
             status_code=400,
-            detail=f"window must be one of 1M/3M/6M/YTD/1Y, got {window!r}",
+            detail=f"window must be one of {_CHARTING_WINDOWS}, got {window!r}",
         )
-    # TODO(gh-1655): wire to FMPCachedHistoricalPriceFetcher + compute
-    # SMA/RSI overlays in a shared indicators module.
+    # Stub fallback rows (served only when no live tier answers).
     return [
         {
             "date": "2026-04-01",
@@ -1863,14 +2182,20 @@ def equity_charting(
     record_tier_used=record_tier_used,
     require_auth=_require_auth_from_call,
     validate_kwargs=_validate_symbol_from_call,
+    kwargs_from=_symbol_kwargs,
 )
 def equity_peer_multiples(
     request: Request, symbol: str = "AAPL"
-) -> list[dict[str, str | float]]:
-    """Return Peer Multiples rows (#1657) — self + peers valuation matrix (table)."""
+) -> list[dict[str, str | float | None]]:
+    """Return Peer Multiples rows (#1657) — self + peers valuation matrix (table).
+
+    Live-served from ``fmp_cached`` via the ``equity/peer-multiples`` tier call
+    (#1923): fetches the peer list and per-symbol valuation ratios/metrics.
+    ``pe_fwd`` is None pending an fmp_cached forward-P/E source (gh #1922).
+    This stub body is the loud fallback when no tier serves.
+    """
     _require_auth(request)
     sym = _validate_symbol(symbol)
-    # TODO(gh-1657): wire to FMPCachedPeersFetcher + fan out key-metrics.
     return [
         {
             "symbol": sym,
@@ -2055,48 +2380,74 @@ def _store_health(track: str, tiers: list) -> None:
     }
 
 
-async def _probe_track(track_tiers: tuple[str, ...], budget_s: float) -> list:
-    """Probe every tier concurrently, bounded by ``budget_s`` wall-clock.
+async def _probe_tiers_map(
+    tiers: tuple[str, ...], budget_s: float
+) -> dict[str, TierHealth]:
+    """Probe every DISTINCT tier once, concurrently, bounded by ``budget_s``.
+
+    Returns ``{tier: TierHealth}``. Deduping is the #1960 fix: ``cboe`` and
+    ``sec`` appear in BOTH fallback tracks, so probing per-track pinged them
+    twice per render on the shared httpx client — one probe could time out
+    while the other succeeded, rendering the same tier ● in one track and ✕ in
+    the other. Probing the union once guarantees a single, consistent verdict
+    per tier and halves the concurrent cold burst.
 
     Uses ``asyncio.gather(..., return_exceptions=True)`` per spec §3 T12.1
-    P0-1: a single hanging tier CANNOT block the widget. Each individual
-    probe already has its own 2s timeout (default in probe_tier); the
-    outer budget is defence-in-depth.
+    P0-1: a single hanging tier CANNOT block the widget. Each probe already
+    has its own 2s timeout (default in ``probe_tier``); the outer budget is
+    defence-in-depth.
     """
-    coros = [probe_tier(t) for t in track_tiers]
+    distinct = tuple(dict.fromkeys(tiers))
+    coros = [probe_tier(t) for t in distinct]
     try:
         results = await asyncio.wait_for(
             asyncio.gather(*coros, return_exceptions=True), timeout=budget_s
         )
     except asyncio.TimeoutError:
-        # Overall budget exceeded — return unknown-marked entries for
-        # every tier so the widget shows the cold-cache state loudly.
-        return [
-            TierHealth(name=t, status="unknown", latency_ms=0, note="timeout")
-            for t in track_tiers
-        ]
+        # Overall budget exceeded — mark every tier unknown so the widget
+        # shows the cold-cache state loudly.
+        return {
+            t: TierHealth(name=t, status="unknown", latency_ms=0, note="timeout")
+            for t in distinct
+        }
 
-    healths: list = []
-    for tier, res in zip(track_tiers, results):
+    healths: dict[str, TierHealth] = {}
+    for tier, res in zip(distinct, results):
         if isinstance(res, TierHealth):
-            healths.append(res)
+            healths[tier] = res
         else:
             # An exception escaped probe_tier (shouldn't — it catches
             # everything internally — but be defensive).
-            healths.append(
-                TierHealth(name=tier, status="down", latency_ms=0, note="unknown_error")
+            healths[tier] = TierHealth(
+                name=tier, status="down", latency_ms=0, note="unknown_error"
             )
     return healths
 
 
 @app.get("/pi/health/providers")
-def provider_health(request: Request) -> str:
-    """Return Provider Health strip markdown (#1685 + #1715).
+async def provider_health(request: Request) -> str:
+    """Return Provider Health strip markdown (#1685 + #1715 + #1956 + #1961).
 
     Spec §3 T12.1: non-blocking cold cache (returns 'unknown' immediately),
     60s TTL, exception notes from the allowlist only, never raw exception
     strings. #1715 adds the ``in-use: <tier>`` annotation per endpoint,
     driven by :func:`record_tier_used` calls from retrofitted endpoints.
+
+    #1956: the strip used to show every tier as ``probe_failed_cold_cache``
+    forever because no probers were ever registered on the server (only tests
+    called ``register_prober``). Real reachability probers are now registered
+    at server startup (see :func:`._app._register_health_probers`), and the
+    inline cold-cache probe budget was widened from 0.4s/0.5s to 2.5s/3.0s so
+    those real HTTP HEADs can actually complete and populate the 60s cache.
+
+    #1961: the strip now renders **Track A only**. Every data widget already
+    fetches via Track A (``with_chain`` / ``route_through_chain`` default to
+    ``track="A"`` and no endpoint overrides to ``"B"``), so a second
+    ``Track B (free)`` row was pure confusion during test/verification — a
+    tester could not tell which chain served a widget, and a shared tier
+    (cboe/sec) shown in both rows read like two independent signals. The
+    Track B chain infrastructure (registry ``:B`` keys) stays as a dormant
+    no-credentials fallback; it is simply no longer surfaced in the UX.
     """
     _require_auth(request)
 
@@ -2113,33 +2464,26 @@ def provider_health(request: Request) -> str:
         ]
 
     track_a = _cached_health("A")
-    track_b = _cached_health("B")
-    if track_a is None or track_b is None:
-        # Kick off a real probe synchronously but with a small (0.5s)
-        # budget so cold-cache never blocks the widget for long. If it
-        # comes back in time, great; otherwise we render unknown and
-        # try again on the next call.
+    if track_a is None:
+        # Probe the Track A tiers once (#1961: Track A only). This endpoint is
+        # an async route, so we AWAIT the probes on the running event loop — do
+        # NOT use asyncio.run() here (#1871): asyncio.run() raises RuntimeError
+        # inside uvicorn's running loop *before* the gather runs, which leaks
+        # the un-awaited coroutines and forces every call onto the cold-cache
+        # 'unknown' fallback. ``_probe_tiers_map`` still dedupes (#1960) so a
+        # tier repeated within the track is never pinged twice.
         try:
-            probed_a, probed_b = asyncio.run(
-                asyncio.wait_for(
-                    asyncio.gather(
-                        _probe_track(TRACK_A_DEFAULT, budget_s=0.4),
-                        _probe_track(TRACK_B_DEFAULT, budget_s=0.4),
-                    ),
-                    timeout=0.5,
-                )
+            health_map = await asyncio.wait_for(
+                _probe_tiers_map(TRACK_A_DEFAULT, budget_s=2.5),
+                timeout=3.0,
             )
+            probed_a = [health_map[t] for t in TRACK_A_DEFAULT]
             _store_health("A", probed_a)
-            _store_health("B", probed_b)
             track_a = probed_a
-            track_b = probed_b
-        except (asyncio.TimeoutError, RuntimeError):
-            # RuntimeError catches "asyncio.run() cannot be called from
-            # a running event loop" — the FastAPI test client runs
-            # sync so this is fine, but if the endpoint is ever
-            # called from an async context we must fall back gracefully.
+        except asyncio.TimeoutError:
+            # Overall budget exceeded — render the cold-cache 'unknown'
+            # strip loudly and try again on the next call (within TTL).
             track_a = track_a or _unknown_strip(TRACK_A_DEFAULT)
-            track_b = track_b or _unknown_strip(TRACK_B_DEFAULT)
 
     def _render_tier(h: object) -> str:
         badge = {"healthy": "●", "degraded": "⚠", "down": "✕", "unknown": "?"}.get(
@@ -2152,7 +2496,6 @@ def provider_health(request: Request) -> str:
         return f"{badge} {name} ({ms}ms){suffix}"
 
     a_str = "  ".join(_render_tier(t) for t in track_a)
-    b_str = "  ".join(_render_tier(t) for t in track_b)
 
     # Optional "currently in-use" summary — only rendered if any endpoint
     # has actually gone through a ChainedFetcher yet. Sorted for
@@ -2165,11 +2508,10 @@ def provider_health(request: Request) -> str:
         in_use_lines = f"\n\n**Currently serving:**\n{summary}"
 
     return (
-        "**Track A (paid):**  " + a_str + "  \n"
-        "**Track B (free):**  " + b_str + in_use_lines + "\n\n"
+        "**Track A:**  " + a_str + in_use_lines + "\n\n"
         "> Provider-health strip (#1685) with 5-tier probing + tier-in-use "
-        "ledger (#1715). 60s cache, 2s per-tier timeout, 500ms overall "
-        "cold-cache budget."
+        "ledger (#1715). Track A only (#1961). 60s cache, 2s per-tier timeout, "
+        "3s overall cold-cache probe budget (#1956)."
     )
 
 
@@ -2493,19 +2835,145 @@ def tt_audit_journal(
     ]
 
 
-@app.get("/tt/engine/status")
-def tt_engine_status(request: Request) -> str:
-    """Return Engine Status markdown (#1700) — scheduler/signal/execution state."""
-    _require_auth(request)
-    # TODO(gh-1700): wire to openbb_techtrade.engine.status.
+# Capability matrix for the engine-status widget: (display label, module path
+# under ``openbb_techtrade``). Ordered so the operational surfaces the user
+# cares about (signals, execution) are visible early. Kept at module scope so
+# tests can assert the surfaces without redeclaring them.
+_TT_CAPABILITY_MODULES: tuple[tuple[str, str], ...] = (
+    ("scan", "engine.scan"),
+    ("screener", "engine.screener_router"),
+    ("signals", "engine.signals_router"),
+    ("plan", "engine.plan_router"),
+    ("execution", "engine.execution"),
+    ("validation", "validation.validate_router"),
+    ("tuning", "tuning.tune_router"),
+    ("reporting", "reporting.export_router"),
+    ("paper_engine", "execution.paper_engine"),
+)
+
+
+def _render_engine_status() -> str:
+    """Render honest, observable techtrade engine status as markdown (#1931).
+
+    Full-wiring of the #1700 stub, which fabricated live state (a running
+    scheduler, a fake "NVDA BREAKOUT" signal, a 98.2% cache hit-rate) that
+    does not exist — there is no ``openbb_techtrade.engine.status`` module.
+
+    Everything reported here is fast to compute (no network, no heavy
+    per-segment OHLCV scan) and reflects what is genuinely observable about
+    the installed engine:
+
+    * ``openbb_techtrade`` version + import health;
+    * a capability matrix (which engine routers import cleanly);
+    * the default confluence preset weights;
+    * the configured paper-engine backend (``PI_PAPER_ENGINE``).
+
+    Degrades gracefully when ``openbb_techtrade`` is not installed — same
+    discipline as the wired ``/tt/execute/*`` endpoints.
+    """
+    # pylint: disable=import-outside-toplevel
+    try:
+        import openbb_techtrade  # noqa: PLC0415
+    except ImportError:
+        return (
+            "## Techtrade Engine Status\n\n"
+            "*Engine dependencies not installed. Install `openbb_techtrade` "
+            "editable to see live engine status.*"
+        )
+
+    import importlib  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    version = getattr(openbb_techtrade, "__version__", "unknown")
+
+    # Capability matrix — which engine routers import cleanly.
+    cap_lines: list[str] = []
+    available = 0
+    for label, mod in _TT_CAPABILITY_MODULES:
+        try:
+            importlib.import_module(f"openbb_techtrade.{mod}")
+            cap_lines.append(f"- **{label}:** AVAILABLE")
+            available += 1
+        except ImportError as exc:
+            cap_lines.append(f"- **{label}:** UNAVAILABLE ({type(exc).__name__})")
+    total = len(_TT_CAPABILITY_MODULES)
+
+    # Default confluence preset weights (fast, no network).
+    try:
+        from openbb_techtrade.engine.signals import resolve_preset  # noqa: PLC0415
+
+        weights = resolve_preset("trend_follow")
+        preset_line = (
+            f"- **Default preset (trend_follow):** trend={weights.trend}, "
+            f"momentum={weights.momentum}, volatility={weights.volatility}, "
+            f"volume={weights.volume}"
+        )
+    except (ImportError, AttributeError, ValueError):
+        preset_line = "- **Default preset (trend_follow):** unavailable"
+
+    # Paper-engine state — report the CONFIGURED backend, mirroring
+    # get_default_engine's ``PI_PAPER_ENGINE`` selector (#1790): only the
+    # value ``mysql`` (the default) uses MysqlPaperEngine; every other value
+    # uses the file-backed SqlitePaperEngine. We deliberately do NOT
+    # instantiate the engine here — that would open the shared fmp_cache
+    # MySQL pool (and can create accounts), violating this widget's fast,
+    # no-network, side-effect-free contract. For the SQLite file backend a
+    # cheap on-disk presence check is meaningful; for the MySQL default there
+    # is no local file to stat, so we report the configured backend rather
+    # than the misleading "NO SESSION" a bare paper.db check produced on
+    # MySQL deployments.
+    backend = os.environ.get("PI_PAPER_ENGINE", "mysql").strip().lower()
+    if backend == "mysql":
+        paper_line = (
+            "- **Paper engine:** MySQL backend configured "
+            f"(`PI_PAPER_ENGINE={backend}`, shared fmp_cache pool) — submit and "
+            "read via the Execute Bridge widgets"
+        )
+    else:
+        db_path = Path(
+            os.environ.get(
+                "PI_PAPER_DB",
+                str(Path.home() / ".portfolio_intel" / "paper.db"),
+            )
+        )
+        if db_path.exists():
+            paper_line = (
+                f"- **Paper engine:** SQLite ACTIVE (`{db_path.name}` present — "
+                "submit and read via the Execute Bridge widgets)"
+            )
+        else:
+            paper_line = (
+                "- **Paper engine:** SQLite NO SESSION (no paper.db yet — submit "
+                "a batch via the Execute Bridge to start one)"
+            )
+
+    caps_block = "\n".join(cap_lines)
     return (
         "## Techtrade Engine Status\n\n"
-        "- **Scheduler:** RUNNING (next tick in 47s)\n"
-        "- **Signal engine:** READY (last signal: NVDA BREAKOUT at 09:32:14)\n"
-        "- **Execution engine:** IDLE (verdict gate: PASS)\n"
-        "- **Data feed:** LIVE (fmp_cached hit-rate 98.2%)\n\n"
-        "> Stub — real wiring calls openbb_techtrade.engine.status."
+        f"**openbb_techtrade** v{version} — "
+        f"{available}/{total} engine capabilities available.\n\n"
+        "### Capabilities\n\n"
+        f"{caps_block}\n\n"
+        "### Configuration\n\n"
+        f"{preset_line}\n"
+        f"{paper_line}\n\n"
+        "> Observable engine state (no network). Data-bearing scan / signal / "
+        "execution widgets require the async scan-snapshot layer (tracked "
+        "separately) before they can render live."
     )
+
+
+@app.get("/tt/engine/status")
+def tt_engine_status(request: Request) -> str:
+    """Return Engine Status markdown (#1931, full-wiring of #1700).
+
+    Honest, observable engine state — version, capability matrix, default
+    preset, paper-engine presence — computed without any network call. See
+    ``_render_engine_status`` for the rationale behind replacing the
+    fabricated stub.
+    """
+    _require_auth(request)
+    return _render_engine_status()
 
 
 @app.get("/tt/execute/bridge")

@@ -90,7 +90,11 @@ def test_overview_tab_contains_key_stats() -> None:
 
 
 # ---------------------------------------------------------------------------
-# #1647 — Share Statistics rows in key_stats
+# #1647 — Share Statistics rows: NO fmp_cached source (area:fmp-cached-gap
+# #1959). These were fabricated stub-only rows serving the same canned number
+# for every symbol; #1958 dropped them from BOTH the live tier and the stub so
+# the two shapes match (deterministic). These guards lock in that we do NOT
+# re-fabricate them until a real provider source lands.
 # ---------------------------------------------------------------------------
 
 
@@ -101,39 +105,41 @@ def _key_stats_metrics(symbol: str = "AAPL") -> dict[str, object]:
     return {row["metric"]: row["value"] for row in rows}
 
 
-def test_key_stats_includes_shares_float() -> None:
-    """#1647 — Shares Float must appear as a discrete row."""
+def test_key_stats_omits_shares_float_no_source() -> None:
+    """#1959 — Shares Float has no fmp_cached source; must NOT be fabricated."""
     m = _key_stats_metrics()
-    assert "Shares Float" in m, f"missing Shares Float row; got {list(m)!r}"
+    assert "Shares Float" not in m, f"re-fabricated Shares Float; got {list(m)!r}"
 
 
-def test_key_stats_includes_short_interest() -> None:
-    """#1647 — Short Interest is the "how crowded is the trade" signal."""
+def test_key_stats_omits_short_interest_no_source() -> None:
+    """#1959 — Short Interest has no fmp_cached source; must NOT be fabricated."""
     m = _key_stats_metrics()
-    assert "Short Interest" in m, f"missing Short Interest row; got {list(m)!r}"
+    assert "Short Interest" not in m, f"re-fabricated Short Interest; got {list(m)!r}"
 
 
-def test_key_stats_includes_insider_ownership() -> None:
-    """#1647 — Insider Ownership % gates 'skin in the game' reads."""
+def test_key_stats_omits_insider_ownership_no_source() -> None:
+    """#1959 — Insider Ownership has no fmp_cached source; must NOT be fabricated."""
     m = _key_stats_metrics()
     keys = {k.lower() for k in m}
-    assert any(
+    assert not any(
         "insider" in k for k in keys
-    ), f"missing an Insider Ownership row; got {list(m)!r}"
+    ), f"re-fabricated Insider Ownership; got {list(m)!r}"
 
 
 # ---------------------------------------------------------------------------
-# #1651 — Valuation Multiples rows in key_stats
+# #1651 — Valuation Multiples rows in key_stats. Forward P/E has no fmp_cached
+# source (area:fmp-cached-gap #1959); trailing multiples (P/E TTM, EV/EBITDA,
+# P/S) ARE sourced live and must stay.
 # ---------------------------------------------------------------------------
 
 
-def test_key_stats_includes_forward_pe() -> None:
-    """#1651 — Forward P/E is the primary earnings-multiple reader wants."""
+def test_key_stats_omits_forward_pe_no_source() -> None:
+    """#1959 — Forward P/E has no fmp_cached source; must NOT be fabricated."""
     m = _key_stats_metrics()
     keys = {k.lower() for k in m}
-    assert any(
+    assert not any(
         "forward p/e" in k or "p/e (fwd)" in k for k in keys
-    ), f"missing Forward P/E row; got {list(m)!r}"
+    ), f"re-fabricated Forward P/E; got {list(m)!r}"
 
 
 def test_key_stats_includes_ev_ebitda() -> None:
