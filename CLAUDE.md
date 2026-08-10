@@ -561,6 +561,27 @@ python -m venv .venv_portfolio
 .\.venv_portfolio\Scripts\Activate.ps1
 ```
 
+**Editable-install ordering (after #1971 A1 dep declaration).**
+`portfolio_intel/pyproject.toml` declares `openbb-techtrade` as a Poetry
+`{ path = "../techtrade", develop = true }` dependency. When
+`portfolio_intel` is installed via **pip** (not Poetry), pip ignores
+Poetry's `develop = true` and re-installs `openbb-techtrade` as a
+non-editable copy into `site-packages`. Consequence: any standalone
+`pip install -e openbb_platform/extensions/portfolio_intel` will clobber
+a previously-editable `openbb_techtrade` install.
+
+The batched command above (`pip install -e core -e backtest -e
+portfolio_intel -e fmp_cached -e fmp -e yfinance`) is safe as long as
+`techtrade` is installed **after** `portfolio_intel` — the last `-e`
+wins. If you run `pip install -e portfolio_intel` alone (e.g. to pick up
+a pyproject change), follow it with:
+
+```bash
+.venv_portfolio\Scripts\python.exe -m pip install -e openbb_platform/extensions/techtrade
+```
+
+Longer-term fix tracked in #1973.
+
 **Legacy `.venv_win` note:** older instructions and scripts (`openbb.sh`,
 `start_desktop_dev.ps1`) still reference
 `.venv_win`. Those paths remain valid for non-portfolio work, but portfolio
