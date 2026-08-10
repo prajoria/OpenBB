@@ -2838,7 +2838,7 @@ def tt_audit_journal(
 # Capability matrix for the engine-status widget: (display label, module path
 # under ``openbb_techtrade``). Ordered so the operational surfaces the user
 # cares about (signals, execution) are visible early. Kept at module scope so
-# tests can assert the surfaces without re-declaring them.
+# tests can assert the surfaces without redeclaring them.
 _TT_CAPABILITY_MODULES: tuple[tuple[str, str], ...] = (
     ("scan", "engine.scan"),
     ("screener", "engine.screener_router"),
