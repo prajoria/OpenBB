@@ -145,21 +145,28 @@ _RESEARCH_TABS = (
 )
 _PORTFOLIO_TABS = ("xray", "risk", "paper", "alerts")
 
+# Chrome widgets that are NOT per-context content: the provider-health
+# diagnostics table and the data-provenance strip (#1976). Excluded when
+# asserting which context bar is the first content slot on a tab.
+_CHROME_IDS = frozenset({"pi_provider_health", "pi_data_provenance"})
+
 
 def test_every_research_tab_starts_with_symbol_context() -> None:
     """F1..F7 tabs must include pi_symbol_context as the first NON-CHROME slot.
 
-    Updated for F12: pi_provider_health chrome now sits at y:0 on every tab
-    per spec §3 T12.1. The T0 context bar (symbol) is the first slot
-    BELOW the chrome — still first-among-per-context widgets.
+    Updated for #1976: chrome is now pi_data_provenance (thin top strip) plus
+    pi_provider_health (diagnostics table at the bottom). The T0 context bar
+    (symbol) is the first non-chrome content slot, directly below the
+    provenance strip.
     """
     tabs = _terminal().get("tabs", {})
     for tid in _RESEARCH_TABS:
         tab = tabs.get(tid, {})
         layout = tab.get("layout", [])
         assert layout, f"tab {tid!r} has empty layout"
-        # First non-chrome slot (top of tab excluding pi_provider_health).
-        non_chrome = [s for s in layout if s["i"] != "pi_provider_health"]
+        # First non-chrome slot (top of tab excluding chrome widgets:
+        # pi_provider_health diagnostics table + pi_data_provenance strip, #1976).
+        non_chrome = [s for s in layout if s["i"] not in _CHROME_IDS]
         assert non_chrome, f"tab {tid!r} has only chrome"
         top = min(non_chrome, key=lambda s: (s.get("y", 0), s.get("x", 0)))
         assert top["i"] == "pi_symbol_context", (
@@ -175,7 +182,7 @@ def test_every_portfolio_tab_starts_with_book_context() -> None:
         tab = tabs.get(tid, {})
         layout = tab.get("layout", [])
         assert layout, f"tab {tid!r} has empty layout"
-        non_chrome = [s for s in layout if s["i"] != "pi_provider_health"]
+        non_chrome = [s for s in layout if s["i"] not in _CHROME_IDS]
         assert non_chrome, f"tab {tid!r} has only chrome"
         top = min(non_chrome, key=lambda s: (s.get("y", 0), s.get("x", 0)))
         assert top["i"] == "pi_book_context", (

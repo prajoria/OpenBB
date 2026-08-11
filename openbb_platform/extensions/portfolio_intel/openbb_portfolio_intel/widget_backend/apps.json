@@ -73,11 +73,11 @@
         "name": "F1: Overview",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -85,9 +85,9 @@
           {
             "i": "pi_symbol_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "symbol": "AAPL"
@@ -97,7 +97,7 @@
           {
             "i": "pi_equity_profile_header",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 40,
             "h": 5,
             "state": {
@@ -109,7 +109,7 @@
           {
             "i": "pi_equity_key_stats",
             "x": 0,
-            "y": 9,
+            "y": 11,
             "w": 20,
             "h": 10,
             "state": {
@@ -121,7 +121,7 @@
           {
             "i": "pi_equity_price_history",
             "x": 20,
-            "y": 9,
+            "y": 11,
             "w": 20,
             "h": 10,
             "state": {
@@ -129,6 +129,16 @@
                 "symbol": "AAPL",
                 "chart_type": "line"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 21,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -138,11 +148,11 @@
         "name": "F2: Financials",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -150,9 +160,21 @@
           {
             "i": "pi_symbol_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_equity_key_stats",
+            "x": 0,
+            "y": 6,
+            "w": 20,
+            "h": 10,
             "state": {
               "params": {
                 "symbol": "AAPL"
@@ -161,14 +183,109 @@
           },
           {
             "i": "pi_equity_financial_charts",
-            "x": 0,
-            "y": 4,
-            "w": 40,
+            "x": 20,
+            "y": 6,
+            "w": 20,
             "h": 10,
             "state": {
               "params": {
                 "symbol": "AAPL"
               }
+            }
+          },
+          {
+            "i": "pi_financial_statements",
+            "x": 0,
+            "y": 16,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "period": "annual"
+              }
+            }
+          },
+          {
+            "i": "pi_peer_multiples",
+            "x": 0,
+            "y": 28,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_earnings_history",
+            "x": 20,
+            "y": 28,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_revenue_business_line",
+            "x": 0,
+            "y": 38,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_revenue_geography",
+            "x": 20,
+            "y": 38,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_price_target_history",
+            "x": 0,
+            "y": 48,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_dividend_payment",
+            "x": 20,
+            "y": 48,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL"
+              }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 58,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -178,11 +295,11 @@
         "name": "F3: Technicals",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -190,9 +307,9 @@
           {
             "i": "pi_symbol_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "symbol": "AAPL"
@@ -202,7 +319,7 @@
           {
             "i": "pi_equity_technicals",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 20,
             "h": 12,
             "state": {
@@ -214,7 +331,7 @@
           {
             "i": "pi_equity_price_history",
             "x": 20,
-            "y": 4,
+            "y": 6,
             "w": 20,
             "h": 12,
             "state": {
@@ -222,6 +339,16 @@
                 "symbol": "AAPL",
                 "chart_type": "candle"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 18,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -231,11 +358,11 @@
         "name": "F4: Comparison",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -243,9 +370,9 @@
           {
             "i": "pi_symbol_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "symbol": "AAPL"
@@ -255,7 +382,7 @@
           {
             "i": "pi_equity_competitors",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 40,
             "h": 6,
             "state": {
@@ -267,13 +394,23 @@
           {
             "i": "pi_equity_complementary",
             "x": 0,
-            "y": 10,
+            "y": 12,
             "w": 40,
             "h": 12,
             "state": {
               "params": {
                 "symbol": "AAPL"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 24,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -283,11 +420,11 @@
         "name": "F5: Ownership",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -295,9 +432,9 @@
           {
             "i": "pi_symbol_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "symbol": "AAPL"
@@ -307,13 +444,23 @@
           {
             "i": "pi_equity_key_stats",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 40,
             "h": 10,
             "state": {
               "params": {
                 "symbol": "AAPL"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 16,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -323,11 +470,11 @@
         "name": "F6: Calendar",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -335,9 +482,9 @@
           {
             "i": "pi_symbol_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "symbol": "AAPL"
@@ -347,7 +494,7 @@
           {
             "i": "pi_event_calendar",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 40,
             "h": 12,
             "state": {
@@ -355,6 +502,16 @@
                 "account_id": "demo",
                 "horizon_days": "30"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 18,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -364,11 +521,11 @@
         "name": "F7: Estimates",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -376,9 +533,9 @@
           {
             "i": "pi_symbol_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "symbol": "AAPL"
@@ -388,7 +545,7 @@
           {
             "i": "pi_equity_analyst_forecasts",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 40,
             "h": 12,
             "state": {
@@ -400,13 +557,23 @@
           {
             "i": "pi_basket_analyst_consensus",
             "x": 0,
-            "y": 16,
+            "y": 18,
             "w": 30,
             "h": 10,
             "state": {
               "params": {
                 "basket_id": "demo"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 28,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -416,11 +583,11 @@
         "name": "F8: X-Ray",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -428,9 +595,9 @@
           {
             "i": "pi_book_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "account_id": "demo"
@@ -440,7 +607,7 @@
           {
             "i": "pi_xray_sector",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 20,
             "h": 9,
             "state": {
@@ -452,7 +619,7 @@
           {
             "i": "pi_xray_country",
             "x": 20,
-            "y": 4,
+            "y": 6,
             "w": 20,
             "h": 9,
             "state": {
@@ -464,7 +631,7 @@
           {
             "i": "pi_concentration_gauge",
             "x": 0,
-            "y": 13,
+            "y": 15,
             "w": 12,
             "h": 6,
             "state": {
@@ -476,13 +643,23 @@
           {
             "i": "pi_lookthrough_top25",
             "x": 12,
-            "y": 13,
+            "y": 15,
             "w": 28,
             "h": 12,
             "state": {
               "params": {
                 "account_id": "demo"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 27,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -492,11 +669,11 @@
         "name": "F9: Risk & Attribution",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -504,9 +681,9 @@
           {
             "i": "pi_book_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "account_id": "demo"
@@ -516,7 +693,7 @@
           {
             "i": "pi_risk_dashboard",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 12,
             "h": 6,
             "state": {
@@ -528,7 +705,7 @@
           {
             "i": "pi_concentration_gauge",
             "x": 12,
-            "y": 4,
+            "y": 6,
             "w": 8,
             "h": 6,
             "state": {
@@ -540,7 +717,7 @@
           {
             "i": "pi_risk_vol_chart",
             "x": 20,
-            "y": 4,
+            "y": 6,
             "w": 20,
             "h": 8,
             "state": {
@@ -552,7 +729,7 @@
           {
             "i": "pi_brinson_attribution",
             "x": 0,
-            "y": 12,
+            "y": 14,
             "w": 40,
             "h": 9,
             "state": {
@@ -565,7 +742,7 @@
           {
             "i": "pi_whatif_card",
             "x": 0,
-            "y": 21,
+            "y": 23,
             "w": 20,
             "h": 10,
             "state": {
@@ -578,7 +755,7 @@
           {
             "i": "pi_whatif_diff",
             "x": 20,
-            "y": 21,
+            "y": 23,
             "w": 20,
             "h": 10,
             "state": {
@@ -586,6 +763,16 @@
                 "symbol": "AAPL",
                 "delta_shares": "100"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 33,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -595,11 +782,11 @@
         "name": "F10: Paper Trading",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -607,9 +794,9 @@
           {
             "i": "pi_book_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "account_id": "demo"
@@ -619,7 +806,7 @@
           {
             "i": "pi_paper_ticket",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 16,
             "h": 8,
             "state": {
@@ -635,7 +822,7 @@
           {
             "i": "pi_paper_perf_kpis",
             "x": 16,
-            "y": 4,
+            "y": 6,
             "w": 12,
             "h": 6,
             "state": {
@@ -647,7 +834,7 @@
           {
             "i": "pi_backtest_button",
             "x": 28,
-            "y": 4,
+            "y": 6,
             "w": 12,
             "h": 6,
             "state": {
@@ -659,7 +846,7 @@
           {
             "i": "pi_paper_performance",
             "x": 0,
-            "y": 12,
+            "y": 14,
             "w": 32,
             "h": 10,
             "state": {
@@ -671,13 +858,23 @@
           {
             "i": "pi_paper_blotter",
             "x": 0,
-            "y": 22,
+            "y": 24,
             "w": 32,
             "h": 10,
             "state": {
               "params": {
                 "account_id": "demo"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 34,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -687,11 +884,11 @@
         "name": "F11: Alerts & Catalysts",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -699,9 +896,9 @@
           {
             "i": "pi_book_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "account_id": "demo"
@@ -711,7 +908,7 @@
           {
             "i": "pi_alerts_panel",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 30,
             "h": 10,
             "state": {
@@ -723,7 +920,7 @@
           {
             "i": "pi_sentiment_gauge",
             "x": 30,
-            "y": 4,
+            "y": 6,
             "w": 10,
             "h": 6,
             "state": {
@@ -735,7 +932,7 @@
           {
             "i": "pi_event_calendar",
             "x": 0,
-            "y": 14,
+            "y": 16,
             "w": 30,
             "h": 10,
             "state": {
@@ -748,7 +945,7 @@
           {
             "i": "pi_smart_money_ribbon",
             "x": 0,
-            "y": 24,
+            "y": 26,
             "w": 40,
             "h": 8,
             "state": {
@@ -760,7 +957,7 @@
           {
             "i": "pi_news_ribbon",
             "x": 0,
-            "y": 32,
+            "y": 34,
             "w": 30,
             "h": 10,
             "state": {
@@ -768,6 +965,16 @@
                 "account_id": "demo",
                 "horizon_days": "7"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 44,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]
@@ -777,11 +984,11 @@
         "name": "Morning Review (W8)",
         "layout": [
           {
-            "i": "pi_provider_health",
+            "i": "pi_data_provenance",
             "x": 0,
             "y": 0,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {}
             }
@@ -789,9 +996,9 @@
           {
             "i": "pi_book_context",
             "x": 0,
-            "y": 2,
+            "y": 3,
             "w": 40,
-            "h": 2,
+            "h": 3,
             "state": {
               "params": {
                 "account_id": "demo"
@@ -801,7 +1008,7 @@
           {
             "i": "pi_concentration_gauge",
             "x": 0,
-            "y": 4,
+            "y": 6,
             "w": 8,
             "h": 6,
             "state": {
@@ -813,7 +1020,7 @@
           {
             "i": "pi_risk_dashboard",
             "x": 8,
-            "y": 4,
+            "y": 6,
             "w": 12,
             "h": 6,
             "state": {
@@ -825,7 +1032,7 @@
           {
             "i": "pi_paper_perf_kpis",
             "x": 20,
-            "y": 4,
+            "y": 6,
             "w": 12,
             "h": 6,
             "state": {
@@ -837,7 +1044,7 @@
           {
             "i": "pi_event_calendar",
             "x": 0,
-            "y": 10,
+            "y": 12,
             "w": 20,
             "h": 10,
             "state": {
@@ -850,13 +1057,23 @@
           {
             "i": "pi_alerts_panel",
             "x": 20,
-            "y": 10,
+            "y": 12,
             "w": 20,
             "h": 10,
             "state": {
               "params": {
                 "account_id": "demo"
               }
+            }
+          },
+          {
+            "i": "pi_provider_health",
+            "x": 0,
+            "y": 22,
+            "w": 40,
+            "h": 7,
+            "state": {
+              "params": {}
             }
           }
         ]

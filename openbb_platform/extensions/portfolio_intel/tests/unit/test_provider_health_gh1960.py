@@ -168,9 +168,10 @@ def test_shared_tier_identical_status_across_tracks() -> None:
         for t in _ALL_TIERS:
             unregister_prober(t)
 
-    a_line = next(ln for ln in body.splitlines() if ln.startswith("**Track A"))
-    assert "● cboe" in a_line, a_line
-    # #1961: no Track B row is rendered at all.
-    assert "Track B" not in body, body
-    # And never a contradictory down badge for the same tier.
-    assert "✕ cboe" not in body, body
+    row = next(r for r in body if r["tier"] == "cboe")
+    assert "healthy" in row["status"], row
+    # #1961: no Track B-exclusive tier row is rendered at all.
+    tiers = {r["tier"] for r in body}
+    assert "yfinance" not in tiers, tiers
+    # And never a contradictory down/unknown status for the shared tier.
+    assert "down" not in row["status"] and "unknown" not in row["status"], row

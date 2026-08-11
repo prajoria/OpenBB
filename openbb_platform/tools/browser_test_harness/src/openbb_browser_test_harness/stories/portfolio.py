@@ -21,14 +21,14 @@ _STEPS: tuple[Step, ...] = (
         action=ActionKind.OBSERVE,
         human_title="Step W0 — Look at the provider health strip",
         human_description=(
-            "Every tab of the terminal has a provider-health chrome strip at "
-            "the top showing the 5-tier data-sourcing chain (Track A paid, "
-            "Track B free)."
+            "Every tab of the terminal has a provider-health chrome table at "
+            "the bottom showing the 5-tier Track A data-sourcing chain, plus a "
+            "thin data-provenance strip at the top (#1976)."
         ),
         human_expected=(
-            "Two rows of tier-status badges: 'Track A (paid): fmp_cached / "
-            "fmp / cboe / sec / yfinance-snap' and 'Track B (free): cboe / "
-            "sec / yfinance', each tier tagged healthy / degraded / down."
+            "A sortable table with one row per Track A tier (fmp_cached / fmp / "
+            "cboe / sec / yfinance-snapshot) and columns Tier / Role / Status / "
+            "Latency / Serving, each tagged healthy / degraded / down."
         ),
         endpoint="pi/health/providers",
     ),
@@ -354,6 +354,16 @@ _COVERAGE_STEPS: tuple[Step, ...] = (
         Persona.PM,
         "Coverage — pi_book_context chrome bar",
         "Markdown badge echoing the account (demo).",
+    ),
+    _coverage(
+        "CX.data-provenance",
+        "financials",
+        "pi/context/provenance",
+        {},
+        "notebooks/portfolio/01-getting-started-and-providers.ipynb",
+        Persona.ANALYST,
+        "Coverage — pi_data_provenance chrome bar",
+        "Markdown strip: Data mode / Serving source / Providers health (#1976).",
     ),
     # --- F1 Overview extras ---
     _coverage(
@@ -713,9 +723,7 @@ def _reject(
     invariant_tag: str,
     what: str,
     persona: Persona = Persona.ANALYST,
-    notebook_ref: str = (
-        "notebooks/portfolio/01-getting-started-and-providers.ipynb"
-    ),
+    notebook_ref: str = ("notebooks/portfolio/01-getting-started-and-providers.ipynb"),
     expected_status: int = 400,
 ) -> Step:
     """Build an ASSERT step that expects a rejection status code."""

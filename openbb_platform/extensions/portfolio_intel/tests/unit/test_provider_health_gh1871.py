@@ -92,8 +92,9 @@ def test_provider_health_awaited_on_running_loop_renders_registered_status() -> 
     finally:
         unregister_prober("fmp_cached")
 
-    assert isinstance(body, str)
-    assert "● fmp_cached" in body, (
-        "fmp_cached should render healthy (● badge) after its prober ran — "
-        f"got cold-cache/unknown instead. Body:\n{body}"
+    assert isinstance(body, list)
+    row = next(r for r in body if r["tier"] == "fmp_cached")
+    assert "healthy" in row["status"], (
+        "fmp_cached should render healthy after its prober ran — "
+        f"got cold-cache/unknown instead. Row:\n{row}"
     )

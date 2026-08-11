@@ -68,27 +68,31 @@ def _render() -> str:
     return body
 
 
+def _tiers(body: object) -> set:
+    """Tier names present in the provider-health table rows (#1976)."""
+    assert isinstance(body, list), f"expected table rows, got {type(body)}"
+    return {row["tier"] for row in body}
+
+
 def test_strip_names_track_a() -> None:
-    """The single rendered row is Track A."""
-    body = _render()
-    assert "Track A" in body
+    """Every rendered row is a Track A tier."""
+    assert _tiers(_render()) <= set(TRACK_A_DEFAULT)
 
 
 def test_strip_omits_track_b() -> None:
-    """Track B row is gone — the reverse-verify of the pre-fix two-row strip.
+    """Track B-exclusive tiers are gone — the reverse-verify of the two-row strip.
 
-    Pre-fix the body carried a ``**Track B (free):**`` line, so this assertion
-    failed. Post-fix the strip renders a single Track A row.
+    Pre-fix the body carried a ``**Track B (free):**`` line; post-#1961/#1976 the
+    table renders Track A rows only, so ``yfinance`` (Track B-exclusive) is absent.
     """
-    body = _render()
-    assert "Track B" not in body
+    assert "yfinance" not in _tiers(_render())
 
 
 def test_strip_still_shows_all_track_a_tiers() -> None:
     """Dropping Track B must not drop any Track A tier."""
-    body = _render()
+    tiers = _tiers(_render())
     for name in TRACK_A_DEFAULT:
-        assert name in body, f"missing Track A tier {name!r} in health strip"
+        assert name in tiers, f"missing Track A tier {name!r} in health table"
 
 
 def test_strip_probes_only_track_a_tiers() -> None:

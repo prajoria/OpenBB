@@ -1,5 +1,46 @@
 {
-  "body": "**Track A (paid):**  ? fmp_cached (0ms) (probe_failed_cold_cache)  ? fmp (0ms) (probe_failed_cold_cache)  ? cboe (0ms) (probe_failed_cold_cache)  ? sec (0ms) (probe_failed_cold_cache)  ? yfinance-snapshot (0ms) (probe_failed_cold_cache)  \n**Track B (free):**  ? cboe (0ms) (probe_failed_cold_cache)  ? sec (0ms) (probe_failed_cold_cache)  ? yfinance (0ms) (probe_failed_cold_cache)\n\n> Provider-health strip (#1685) with 5-tier probing + tier-in-use ledger (#1715). 60s cache, 2s per-tier timeout, 500ms overall cold-cache budget.",
+  "body": [
+    {
+      "latency_ms": 750,
+      "note": "",
+      "role": "Primary (cache)",
+      "serving": "",
+      "status": "\ud83d\udfe2 healthy",
+      "tier": "fmp_cached"
+    },
+    {
+      "latency_ms": 438,
+      "note": "",
+      "role": "Live fallback",
+      "serving": "",
+      "status": "\ud83d\udfe2 healthy",
+      "tier": "fmp"
+    },
+    {
+      "latency_ms": 0,
+      "note": "timeout",
+      "role": "Public",
+      "serving": "",
+      "status": "\ud83d\udd34 down",
+      "tier": "cboe"
+    },
+    {
+      "latency_ms": 172,
+      "note": "",
+      "role": "Filings",
+      "serving": "",
+      "status": "\ud83d\udfe2 healthy",
+      "tier": "sec"
+    },
+    {
+      "latency_ms": 94,
+      "note": "",
+      "role": "Last-resort",
+      "serving": "",
+      "status": "\ud83d\udfe2 healthy",
+      "tier": "yfinance-snapshot"
+    }
+  ],
   "endpoint": "pi/health/providers",
   "params": {},
   "status_code": 200
