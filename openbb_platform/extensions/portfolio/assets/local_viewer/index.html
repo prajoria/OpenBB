@@ -461,6 +461,42 @@
       const total = slices.reduce((a, s) => a + Math.abs(s.value), 0);
       return { kind: "pie", slices, total };
     }
+    // Dual-axis combo (#1978): grouped bars on a LEFT axis + line(s) on a
+    // RIGHT axis. This is the analyst-standard fix for "series of very
+    // different magnitude on one axis" — e.g. Revenue/Net Income ($B) as bars
+    // and Net Margin (%) as a line, so the ~25% margin isn't crushed flat by a
+    // ~$390B revenue scale. Driven by an explicit config:
+    //   { type:"combo", x:"year",
+    //     bars:[{column,name}], lines:[{column,name}],
+    //     leftLabel, rightLabel }
+    if (cfg.type === "combo") {
+      const xKey = cfg.x != null ? cfg.x : null;
+      const num = (r, k) => {
+        const v = r[k];
+        if (v === null || v === undefined || v === "") return null;
+        if (typeof v === "number") return Number.isFinite(v) ? v : null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      const toSeries = (spec) => ({
+        key: spec.name || spec.column,
+        points: rows.map((r, idx) => ({ x: idx, y: num(r, spec.column) })),
+      });
+      const bars = (cfg.bars || []).map(toSeries);
+      const lines = (cfg.lines || []).map(toSeries);
+      const hasBarPt = bars.some((s) => s.points.some((p) => p.y != null));
+      const hasLinePt = lines.some((s) => s.points.some((p) => p.y != null));
+      if (!hasBarPt && !hasLinePt) return { kind: "empty" };
+      return {
+        kind: "combo",
+        xKey,
+        xLabels: rows.map((r, idx) => String(xKey != null ? r[xKey] : idx)),
+        bars,
+        lines,
+        leftLabel: cfg.leftLabel || "",
+        rightLabel: cfg.rightLabel || "",
+      };
+    }
     const keys = Object.keys(rows[0]);
     const numericKeys = keys.filter((k) =>
       rows.every((r) => r[k] === null || r[k] === undefined || typeof r[k] === "number") &&
@@ -666,6 +702,71 @@
         + `<div class="lg"><span class="sw" style="background:${down}"></span>Down</div>`
         + (hasVol ? `<div class="lg"><span class="sw" style="background:#8b949e"></span>Volume</div>` : "");
       return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="candlestick chart">${axis}${volSvg}${bodies}${yhi}${ylo}${xticks}</svg><div class="legend">${legend}</div></div>`;
+    }
+    // combo (#1978) — grouped bars on a LEFT axis + line(s) on a RIGHT axis.
+    // Each axis is scaled independently so a %-scale line and a $B-scale bar
+    // series coexist without one crushing the other. x-axis is categorical
+    // (fiscal years), bars are grouped per category.
+    if (model.kind === "combo") {
+      const W = 520, Hh = 240, pad = 28, padL = 52, padR = 52;
+      const bars = model.bars || [], lines = model.lines || [];
+      const n = (model.xLabels || []).length;
+      if (!n) return "";
+      const barColors = ["#2f81f7", "#3fb950", "#a371f7", "#39c5cf"];
+      const lineColors = ["#f85149", "#d29922", "#db61a2", "#e3b341"];
+      // Independent axis domains; include 0 so bars sit on a true baseline.
+      const domain = (series) => {
+        const ys = [];
+        series.forEach((s) => s.points.forEach((p) => { if (p.y != null) ys.push(p.y); }));
+        let mn = Math.min(0, ...(ys.length ? ys : [0]));
+        let mx = Math.max(...(ys.length ? ys : [1]));
+        if (!(mx > mn)) mx = mn + 1;
+        return [mn, mx];
+      };
+      const [lmin, lmax] = domain(bars);
+      const [rmin, rmax] = domain(lines);
+      const yBase = Hh - pad;
+      const plotW = W - padL - padR;
+      const lAt = (v) => yBase - ((v - lmin) / (lmax - lmin)) * (yBase - pad);
+      const rAt = (v) => yBase - ((v - rmin) / (rmax - rmin)) * (yBase - pad);
+      const groupW = plotW / Math.max(n, 1);
+      const groupPad = groupW * 0.18;
+      const nb = Math.max(bars.length, 1);
+      const bw = (groupW - 2 * groupPad) / nb;
+      const centerAt = (i) => padL + i * groupW + groupW / 2;
+      const barsSvg = bars.map((s, si) =>
+        s.points.map((p) => {
+          if (p.y == null) return "";
+          const x = padL + p.x * groupW + groupPad + si * bw;
+          const y = lAt(p.y), zero = lAt(0);
+          const top = Math.min(y, zero), h = Math.max(1, Math.abs(zero - y));
+          return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${h.toFixed(1)}" fill="${barColors[si % barColors.length]}"><title>${escapeHtml(s.key)}: ${p.y}</title></rect>`;
+        }).join("")
+      ).join("");
+      const linesSvg = lines.map((s, li) => {
+        const pts = s.points.filter((p) => p.y != null)
+          .map((p) => `${centerAt(p.x).toFixed(1)},${rAt(p.y).toFixed(1)}`).join(" ");
+        const dots = s.points.filter((p) => p.y != null)
+          .map((p) => `<circle cx="${centerAt(p.x).toFixed(1)}" cy="${rAt(p.y).toFixed(1)}" r="2.5" fill="${lineColors[li % lineColors.length]}"><title>${escapeHtml(s.key)}: ${p.y}</title></circle>`).join("");
+        return `<polyline fill="none" stroke="${lineColors[li % lineColors.length]}" stroke-width="2" points="${pts}"/>${dots}`;
+      }).join("");
+      const axis = `<line x1="${padL}" y1="${yBase}" x2="${W - padR}" y2="${yBase}" stroke="#30363d"/>`
+        + `<line x1="${padL}" y1="${pad}" x2="${padL}" y2="${yBase}" stroke="#30363d"/>`
+        + (lines.length ? `<line x1="${W - padR}" y1="${pad}" x2="${W - padR}" y2="${yBase}" stroke="#30363d"/>` : "");
+      const pct = (v) => fmtAxis(v) + "%";
+      const leftLbls = `<text x="${padL - 4}" y="${pad + 4}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(lmax)}</text>`
+        + `<text x="${padL - 4}" y="${yBase}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(lmin)}</text>`;
+      const rightLbls = lines.length
+        ? `<text x="${W - padR + 4}" y="${pad + 4}" text-anchor="start" fill="#8b949e" font-size="10">${pct(rmax)}</text>`
+          + `<text x="${W - padR + 4}" y="${yBase}" text-anchor="start" fill="#8b949e" font-size="10">${pct(rmin)}</text>`
+        : "";
+      const xticks = xAxisTicksSvg(model.xLabels, centerAt, Hh - 6, n);
+      const legend = bars.map((s, i) =>
+        `<div class="lg"><span class="sw" style="background:${barColors[i % barColors.length]}"></span>${escapeHtml(s.key)}</div>`
+      ).concat(lines.map((s, i) =>
+        `<div class="lg"><span class="sw" style="background:${lineColors[i % lineColors.length]}"></span>${escapeHtml(s.key)}</div>`
+      )).join("");
+      return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="combo bar and line chart">${axis}${barsSvg}${linesSvg}${leftLbls}${rightLbls}${xticks}</svg><div class="legend">${legend}</div></div>`;
     }
     // line
     const W = 480, Hh = 240, pad = 28, padL = 52;

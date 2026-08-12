@@ -42,10 +42,16 @@ def test_viewer_html_is_self_contained():
     """No external script/style CDNs — the viewer must work fully offline."""
     body = _client().get("/viewer").text.lower()
     assert "<script" in body  # it has inline JS
-    # No external network dependencies (would break the offline promise).
-    assert "http://" not in body.replace("http://127.0.0.1", "").replace(
-        "http://localhost", ""
+    # No external network dependencies (would break the offline promise). The
+    # loopback origins are same-host; ``http://www.w3.org/2000/svg`` is the SVG
+    # XML *namespace identifier* (used by the vendored TradingView charts +
+    # inline SVGs), not a network fetch, so it's whitelisted too.
+    neutralized = (
+        body.replace("http://127.0.0.1", "")
+        .replace("http://localhost", "")
+        .replace("http://www.w3.org/2000/svg", "")
     )
+    assert "http://" not in neutralized
     assert "https://cdn" not in body
     assert 'src="http' not in body
 
@@ -70,12 +76,15 @@ def test_viewer_renders_chart_markdown_metric_types():
 
 
 def test_viewer_has_multi_app_switcher():
-    """#1805: the viewer must expose an app selector and no longer hard-code
-    apps[0].
+    """#1805 + sidebar refactor: the viewer must expose an app switcher and no
+    longer hard-code apps[0]. The switcher moved from a ``<select
+    id="app-select">`` to a sidebar of ``data-app`` buttons rendered by
+    ``sidebarAppsHtml`` / ``renderSidebar`` and wired through ``selectApp``.
     """
     body = _client().get("/viewer").text
-    assert 'id="app-select"' in body
     assert "function selectApp" in body
+    assert "function sidebarAppsHtml" in body
+    assert "data-app=" in body
     assert "APP = Array.isArray(apps) ? apps[0]" not in body
 
 

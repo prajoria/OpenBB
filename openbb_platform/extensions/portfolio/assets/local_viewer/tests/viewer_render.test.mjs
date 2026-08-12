@@ -197,6 +197,64 @@ test("svgForChart draws one polyline per line series", () => {
 });
 
 // --------------------------------------------------------------------------
+// #1978 — dual-axis combo: bars on a LEFT axis + line(s) on a RIGHT axis so a
+// %-scale margin line isn't crushed flat by a $B-scale revenue series.
+// --------------------------------------------------------------------------
+const _COMBO_CFG = {
+  type: "combo",
+  x: "year",
+  bars: [
+    { column: "revenue_b", name: "Revenue ($B)" },
+    { column: "net_income_b", name: "Net Income ($B)" },
+  ],
+  lines: [{ column: "net_margin_pct", name: "Net Margin (%)" }],
+  leftLabel: "$B",
+  rightLabel: "%",
+};
+const _COMBO_ROWS = [
+  { year: 2023, revenue_b: 383.3, net_income_b: 97.0, net_margin_pct: 25.31 },
+  { year: 2024, revenue_b: 391.0, net_income_b: 93.0, net_margin_pct: 23.79 },
+  { year: 2025, revenue_b: 400.5, net_income_b: 102.3, net_margin_pct: 25.54 },
+];
+
+test("inferChartModel builds a combo model (bars + lines, own axes)", () => {
+  const m = H.inferChartModel(_COMBO_ROWS, _COMBO_CFG);
+  assert.equal(m.kind, "combo");
+  assert.equal(m.xKey, "year");
+  assert.deepEqual(m.xLabels, ["2023", "2024", "2025"]);
+  assert.equal(m.bars.length, 2);
+  assert.equal(m.lines.length, 1);
+  assert.equal(m.bars[0].key, "Revenue ($B)");
+  assert.equal(m.lines[0].key, "Net Margin (%)");
+  // the margin series values are kept intact (not rescaled into $B)
+  assert.equal(m.lines[0].points[0].y, 25.31);
+});
+
+test("svgForChart combo: grouped bars + line, dual axis, margin not crushed", () => {
+  const svg = H.svgForChart(H.inferChartModel(_COMBO_ROWS, _COMBO_CFG));
+  assert.match(svg, /<svg/);
+  // 2 bar series x 3 years = 6 bar rects
+  assert.equal((svg.match(/<rect/g) || []).length, 6, "expected grouped bar rects");
+  // exactly one margin polyline
+  assert.equal((svg.match(/<polyline/g) || []).length, 1, "expected one line series");
+  // RIGHT axis carries a percentage label (the margin scale), proving a second
+  // independent axis exists rather than one shared $B axis.
+  const labels = [...svg.matchAll(/font-size="10">([^<]+)<\/text>/g)].map((x) => x[1]);
+  assert.ok(labels.some((t) => /%$/.test(t)), `expected a %-axis label, got ${JSON.stringify(labels)}`);
+  // LEFT axis stays $B-scale (a label reflecting the ~400 magnitude).
+  assert.ok(labels.some((t) => !/%$/.test(t) && parseFloat(t) >= 100),
+    `expected a $B-scale left-axis label, got ${JSON.stringify(labels)}`);
+});
+
+test("inferChartModel combo loud-empty: all-null columns -> empty", () => {
+  const m = H.inferChartModel([{ year: 2024, revenue_b: null, net_margin_pct: null }], {
+    type: "combo", x: "year",
+    bars: [{ column: "revenue_b" }], lines: [{ column: "net_margin_pct" }],
+  });
+  assert.equal(m.kind, "empty");
+});
+
+// --------------------------------------------------------------------------
 // metricModel — single big card vs. multi-key grid, sign coloring
 // --------------------------------------------------------------------------
 test("metricModel: {value,label,note} -> one card", () => {
