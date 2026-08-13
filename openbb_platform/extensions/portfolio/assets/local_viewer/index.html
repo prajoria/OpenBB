@@ -567,31 +567,58 @@
   // unique time) and null values are dropped.
   function toLwcSeries(model) {
     const xLabels = Array.isArray(model.xLabels) ? model.xLabels : [];
-    const timeAt = (i) => xLabels[i];
+    // LWC times MUST be a plain ``yyyy-mm-dd`` day string, unique and ascending
+    // (#1982). Some feeds (e.g. analyst price targets) carry full ISO datetimes
+    // with a time+offset AND several rows per calendar day; passing those raw to
+    // ``setData`` makes LWC's time parser return null and throw an uncaught
+    // "Value is null" from an internal layout callback. Normalize to the day and
+    // dedupe (last row per day wins) so LWC always gets a clean series.
+    const dayOf = (t) => (typeof t === "string" ? t.slice(0, 10) : t);
+    const timeAt = (i) => dayOf(xLabels[i]);
     const byTime = (a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0);
+    // Sort ascending then collapse same-day rows in place (last row per day
+    // wins). Done in place — no fresh array literal — so the result keeps the
+    // caller's array realm (the unit tests compare across a vm sandbox and
+    // Node's deepEqual is realm-sensitive).
+    const dedupeByTime = (arr) => {
+      arr.sort(byTime);
+      let w = 0;
+      for (let r = 0; r < arr.length; r++) {
+        if (w > 0 && arr[r].time === arr[w - 1].time) {
+          arr[w - 1] = arr[r];
+        } else {
+          arr[w++] = arr[r];
+        }
+      }
+      arr.length = w;
+      return arr;
+    };
     const up = "#3fb950", down = "#f85149";
     if (model.kind === "candle") {
-      const candles = (model.candles || [])
-        .map((d) => ({ time: timeAt(d.x), open: d.o, high: d.h, low: d.l, close: d.c }))
-        .filter((d) => d.time != null && d.open != null && d.close != null)
-        .sort(byTime);
+      const candles = dedupeByTime(
+        (model.candles || [])
+          .map((d) => ({ time: timeAt(d.x), open: d.o, high: d.h, low: d.l, close: d.c }))
+          .filter((d) => d.time != null && d.open != null && d.close != null)
+      );
       const colorFor = (x) => {
         const c = (model.candles || []).find((k) => k.x === x);
         return c ? (c.c >= c.o ? up : down) : "#8b949e";
       };
-      const volume = (model.volume || [])
-        .filter((p) => p && p.y != null && timeAt(p.x) != null)
-        .map((p) => ({ time: timeAt(p.x), value: p.y, color: colorFor(p.x) }))
-        .sort(byTime);
+      const volume = dedupeByTime(
+        (model.volume || [])
+          .filter((p) => p && p.y != null && timeAt(p.x) != null)
+          .map((p) => ({ time: timeAt(p.x), value: p.y, color: colorFor(p.x) }))
+      );
       return { kind: "candle", candles, volume };
     }
     if (model.kind === "line") {
       const lines = (model.series || []).map((s) => ({
         key: s.key,
-        data: (s.points || [])
-          .filter((p) => p && p.y != null && timeAt(p.x) != null)
-          .map((p) => ({ time: timeAt(p.x), value: p.y }))
-          .sort(byTime),
+        data: dedupeByTime(
+          (s.points || [])
+            .filter((p) => p && p.y != null && timeAt(p.x) != null)
+            .map((p) => ({ time: timeAt(p.x), value: p.y }))
+        ),
       }));
       return { kind: "line", lines };
     }
@@ -712,8 +739,12 @@
       const bars = model.bars || [], lines = model.lines || [];
       const n = (model.xLabels || []).length;
       if (!n) return "";
-      const barColors = ["#2f81f7", "#3fb950", "#a371f7", "#39c5cf"];
-      const lineColors = ["#f85149", "#d29922", "#db61a2", "#e3b341"];
+      // Palette (#1982 feedback): calmer, higher-contrast bars and a warm gold
+      // margin line. Red is reserved for genuinely negative signals elsewhere,
+      // so a healthy net-margin line must NOT read as an alarm — gold/amber
+      // says "rate line", not "loss".
+      const barColors = ["#4c8dff", "#34d399", "#a78bfa", "#38bdf8"];
+      const lineColors = ["#fbbf24", "#fb923c", "#f472b6", "#facc15"];
       // Independent axis domains; include 0 so bars sit on a true baseline.
       const domain = (series) => {
         const ys = [];

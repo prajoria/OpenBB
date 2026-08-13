@@ -615,6 +615,47 @@ test("toLwcSeries line: maps {time,value} per series, drops nulls, sorted", () =
   assert.deepEqual(out.lines[0].data.map((p) => p.value), [188, 190]);
 });
 
+// #1982 — LWC requires plain unique ascending yyyy-mm-dd times. Feeds like
+// analyst price targets carry full ISO datetimes with several rows per day;
+// passing those raw makes LWC throw an uncaught "Value is null". toLwcSeries
+// must normalize to the day and dedupe (last row per day wins).
+test("toLwcSeries line: ISO datetimes normalize to unique ascending yyyy-mm-dd", () => {
+  const model = H.inferChartModel(
+    [
+      { date: "2025-10-31T11:31:29+00:00", target: 246.99 },
+      { date: "2025-10-31T13:28:11+00:00", target: 325.0 },
+      { date: "2025-10-20T11:04:40+00:00", target: 315.0 },
+      { date: "2025-11-03T11:39:17+00:00", target: 325.0 },
+    ],
+    undefined,
+  );
+  const out = H.toLwcSeries(model);
+  assert.equal(out.kind, "line");
+  const times = out.lines[0].data.map((p) => p.time);
+  // day-only, unique, ascending
+  assert.deepEqual(times, ["2025-10-20", "2025-10-31", "2025-11-03"]);
+  assert.equal(new Set(times).size, times.length, "times must be unique");
+  // last row of the duplicated day wins (325.0, not 246.99)
+  const oct31 = out.lines[0].data.find((p) => p.time === "2025-10-31");
+  assert.equal(oct31.value, 325.0);
+});
+
+test("toLwcSeries candle: duplicate-day intraday candles dedupe to unique days", () => {
+  const model = H.inferChartModel(
+    [
+      { date: "2026-06-01T09:30:00+00:00", open: 1, high: 2, low: 1, close: 1.5 },
+      { date: "2026-06-01T15:59:00+00:00", open: 1.5, high: 3, low: 1.4, close: 2.8 },
+      { date: "2026-06-02T10:00:00+00:00", open: 2.8, high: 3.2, low: 2.7, close: 3.0 },
+    ],
+    undefined,
+  );
+  const out = H.toLwcSeries(model);
+  assert.equal(out.kind, "candle");
+  assert.deepEqual(out.candles.map((c) => c.time), ["2026-06-01", "2026-06-02"]);
+  // last intraday candle of the day wins its close
+  assert.equal(out.candles[0].close, 2.8);
+});
+
 // --------------------------------------------------------------------------
 // helpText / helpButtonHtml (#1951) — the "?" widget-help affordance.
 // helpText resolves the manifest `help` field, falling back to `description`;
