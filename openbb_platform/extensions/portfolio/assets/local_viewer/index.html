@@ -434,7 +434,9 @@
     const body = rows.map((r) =>
       "<tr>" + cols.map((c) => {
         const v = r[c.field];
-        return `<td class="${cellClass(v, c)}">${escapeHtml(fmtCell(v, c))}</td>`;
+        const entry = (typeof v === "string") ? metricGlossaryForLabel(widget, v) : null;
+        const gloss = entry ? ` title="${escapeHtml(entry.summary)}" data-metric-glossary="${escapeHtml(entry.label)}"` : "";
+        return `<td class="${cellClass(v, c)}"${gloss}>${escapeHtml(fmtCell(v, c))}</td>`;
       }).join("") + "</tr>"
     ).join("");
     container.innerHTML = `<table><thead>${thead}</thead><tbody>${body}</tbody></table>`;
@@ -650,7 +652,7 @@
 
   // Render a chart model to an inline-SVG string (no CDN, no canvas). Labels
   // and series keys are escaped; numeric coordinates come from Number().
-  function svgForChart(model) {
+  function svgForChart(model, widgetDef) {
     if (!model || model.kind === "empty") return "";
     const colors = ["#2f81f7", "#3fb950", "#f85149", "#d29922", "#a371f7", "#39c5cf", "#db61a2", "#e3b341", "#8b949e", "#ff7b72"];
     // Compact large magnitudes so y-axis labels never overflow the left pad
@@ -678,7 +680,11 @@
         return `<path d="${d}" fill="${colors[idx % colors.length]}" stroke="#0d1117" stroke-width="1"><title>${escapeHtml(s.label)}: ${(frac * 100).toFixed(1)}%</title></path>`;
       }).join("");
       const legend = model.slices.map((s, idx) =>
-        `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.label)} <b>${((Math.abs(s.value) / total) * 100).toFixed(1)}%</b></div>`
+        (() => {
+          const entry = metricGlossaryForLabel(widgetDef, s.label);
+          const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
+          return `<div class="lg"${title}><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.label)} <b>${((Math.abs(s.value) / total) * 100).toFixed(1)}%</b></div>`;
+        })()
       ).join("");
       return `<div class="chart"><svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="pie chart">${paths}</svg><div class="legend">${legend}</div></div>`;
     }
@@ -793,9 +799,17 @@
         : "";
       const xticks = xAxisTicksSvg(model.xLabels, centerAt, Hh - 6, n);
       const legend = bars.map((s, i) =>
-        `<div class="lg"><span class="sw" style="background:${barColors[i % barColors.length]}"></span>${escapeHtml(s.key)}</div>`
+        (() => {
+          const entry = metricGlossaryForLabel(widgetDef, s.key);
+          const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
+          return `<div class="lg"${title}><span class="sw" style="background:${barColors[i % barColors.length]}"></span>${escapeHtml(s.key)}</div>`;
+        })()
       ).concat(lines.map((s, i) =>
-        `<div class="lg"><span class="sw" style="background:${lineColors[i % lineColors.length]}"></span>${escapeHtml(s.key)}</div>`
+        (() => {
+          const entry = metricGlossaryForLabel(widgetDef, s.key);
+          const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
+          return `<div class="lg"${title}><span class="sw" style="background:${lineColors[i % lineColors.length]}"></span>${escapeHtml(s.key)}</div>`;
+        })()
       )).join("");
       return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="combo bar and line chart">${axis}${barsSvg}${linesSvg}${leftLbls}${rightLbls}${xticks}</svg><div class="legend">${legend}</div></div>`;
     }
@@ -855,14 +869,18 @@
     container.appendChild(div);
   }
 
-  function renderMetric(container, obj) {
+  function renderMetric(container, obj, widgetDef) {
     const model = metricModel(obj);
     if (!model.cards.length) { container.innerHTML = '<div class="state">No metric value returned.</div>'; return; }
     const fmt = (v) => (typeof v === "number"
       ? (Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""))
       : String(v));
     const cards = model.cards.map((c) =>
-      `<div class="metric ${c.cls}"><div class="mlabel">${escapeHtml(c.label)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`
+      (() => {
+        const entry = metricGlossaryForLabel(widgetDef, c.label);
+        const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
+        return `<div class="metric ${c.cls}"><div class="mlabel"${title}>${escapeHtml(c.label)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`;
+      })()
     ).join("");
     const note = model.note ? `<div class="mnote">${escapeHtml(model.note)}</div>` : "";
     container.innerHTML = `<div class="metrics">${cards}</div>${note}`;
@@ -991,7 +1009,7 @@
       try { renderTradingViewChart(container, model, widgetDef); return; }
       catch (e) { tvDispose(container); /* fall through to SVG */ }
     }
-    container.innerHTML = svgForChart(model);
+    container.innerHTML = svgForChart(model, widgetDef);
   }
 
   //--------------------------------------------------------------------------
@@ -1052,7 +1070,7 @@
       applyDataSourceBadge(bodyEl, source);
       const type = widgetDef.type || "table";
       if (type === "markdown") { renderMarkdown(bodyEl, resp); return; }
-      if (type === "metric") { renderMetric(bodyEl, resp); return; }
+      if (type === "metric") { renderMetric(bodyEl, resp, widgetDef); return; }
       if (type === "chart") {
         const rows = extractRows(resp, widgetDef.data ? widgetDef.data.dataKey : "");
         renderChart(bodyEl, rows, widgetDef);
@@ -1307,6 +1325,95 @@
       cls: "wsrc-live",
       title: "Live data served by provider tier: " + source,
     };
+  }
+
+  function metricGlossaryData() {
+    return {
+    market_cap: Object.freeze({
+      label: "Market Cap",
+      summary: "The company’s total equity value at the current share price.",
+      definition: "Market capitalization multiplies the share price by the number of shares outstanding.",
+      interpretation: "Use it to compare company size; larger names are not automatically better or cheaper.",
+      source: "https://www.investopedia.com/terms/m/marketcapitalization.asp",
+    }),
+    pe_ttm: Object.freeze({
+      label: "P/E (TTM)",
+      summary: "Price divided by trailing twelve-month earnings per share.",
+      definition: "The price-to-earnings ratio compares the current share price with earnings generated over the most recent four reported quarters.",
+      interpretation: "Compare it with profitable peers and the company’s own history; it is not meaningful when trailing earnings are negative.",
+      source: "https://www.investopedia.com/terms/p/price-earningsratio.asp",
+    }),
+    ev_ebitda: Object.freeze({
+      label: "EV/EBITDA",
+      summary: "Enterprise value compared with operating cash earnings before depreciation and amortization.",
+      definition: "Enterprise value adds debt and subtracts cash from market cap, then divides by EBITDA.",
+      interpretation: "Lower values can signal a cheaper operating multiple, but the ratio works best when you compare similar businesses.",
+      source: "https://www.investopedia.com/terms/e/ev-ebitda.asp",
+    }),
+    ps_ttm: Object.freeze({
+      label: "P/S (TTM)",
+      summary: "Price divided by trailing twelve-month sales per share.",
+      definition: "The price-to-sales ratio compares the company’s market value with the revenue it generated over the last four quarters.",
+      interpretation: "It is useful when earnings are thin or volatile, but it should still be read alongside margins and growth.",
+      source: "https://www.investopedia.com/terms/p/price-to-salesratio.asp",
+    }),
+    eps_ttm: Object.freeze({
+      label: "EPS (TTM)",
+      summary: "Trailing twelve-month earnings available to each share.",
+      definition: "Earnings per share divides net income attributable to common shareholders by the weighted average share count.",
+      interpretation: "Higher EPS usually means more profit per share, but growth quality and share count changes still matter.",
+      source: "https://www.investopedia.com/terms/e/eps.asp",
+    }),
+    beta: Object.freeze({
+      label: "Beta",
+      summary: "A rough measure of how much the stock tends to move versus the market.",
+      definition: "Beta compares the stock’s historical returns with a benchmark such as the S&P 500.",
+      interpretation: "A beta above 1 usually means more day-to-day movement than the market; below 1 usually means less.",
+      source: "https://www.investopedia.com/terms/b/beta.asp",
+    }),
+    dividend_yield: Object.freeze({
+      label: "Dividend Yield",
+      summary: "Annual dividends as a percentage of the share price.",
+      definition: "Dividend yield divides the expected yearly cash dividend by the current stock price.",
+      interpretation: "Higher yield can mean more income, but check payout safety and whether the price has simply fallen.",
+      source: "https://www.investopedia.com/terms/d/dividendyield.asp",
+    }),
+    revenue_b: Object.freeze({
+      label: "Revenue ($B)",
+      summary: "Annual sales expressed in billions of dollars.",
+      definition: "Revenue is the top line: the money the company brought in before expenses are deducted.",
+      interpretation: "Look for steady growth and compare it with margin trends to see whether sales are improving efficiently.",
+      source: "https://www.investopedia.com/terms/r/revenue.asp",
+    }),
+    net_income_b: Object.freeze({
+      label: "Net Income ($B)",
+      summary: "Annual profit after expenses, taxes, and interest, shown in billions.",
+      definition: "Net income is the bottom line remaining after all operating and non-operating costs are subtracted from revenue.",
+      interpretation: "Rising net income usually signals improving profitability, but watch for one-off items and share-count effects.",
+      source: "https://www.investopedia.com/terms/n/netincome.asp",
+    }),
+    net_margin_pct: Object.freeze({
+      label: "Net Margin (%)",
+      summary: "Net income as a percentage of revenue.",
+      definition: "Net margin divides net income by revenue and converts the result to a percentage.",
+      interpretation: "A wider margin means the business keeps more profit from each sales dollar; compare it with peers and history.",
+      source: "https://www.investopedia.com/terms/n/netprofitmargin.asp",
+    }),
+    };
+  }
+
+  const METRIC_GLOSSARY = Object.freeze(metricGlossaryData());
+
+  function metricGlossaryEntry(key) {
+    const glossary = typeof METRIC_GLOSSARY !== "undefined" ? METRIC_GLOSSARY : metricGlossaryData();
+    const entry = glossary[String(key || "")];
+    return entry || null;
+  }
+
+  function metricGlossaryForLabel(widgetDef, label) {
+    const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+    if (!map) return null;
+    return metricGlossaryEntry(map[label]);
   }
 
   // Apply the provenance badge to a widget's header. ``bodyEl`` is the widget

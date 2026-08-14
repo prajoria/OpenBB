@@ -21,6 +21,9 @@ import vm from "node:vm";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HTML = readFileSync(join(__dirname, "..", "index.html"), "utf-8");
+const WIDGETS = JSON.parse(
+  readFileSync(join(__dirname, "..", "..", "..", "..", "..", "extensions", "portfolio_intel", "openbb_portfolio_intel", "widget_backend", "widgets.json"), "utf-8")
+);
 
 // Extract the inline <script> body.
 function scriptBody(html) {
@@ -50,7 +53,7 @@ function extractFn(src, name) {
 function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
-    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "inlineOptionsHtml",
+    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
     "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
@@ -275,6 +278,28 @@ test("metricModel: multi numeric keys -> grid, negatives flagged", () => {
 
 test("metricModel loud-empty: {} -> no cards", () => {
   assert.equal(H.metricModel({}).cards.length, 0);
+});
+
+// --------------------------------------------------------------------------
+// metricGlossaryEntry — curated F2 labels and safe unknowns
+// --------------------------------------------------------------------------
+test("metricGlossaryEntry returns a curated F2 record", () => {
+  const metric = H.metricGlossaryEntry("pe_ttm");
+  assert.equal(metric.label, "P/E (TTM)");
+  assert.match(metric.summary, /price.*earnings/i);
+});
+
+test("metricGlossaryEntry ignores an unknown key", () => {
+  assert.equal(H.metricGlossaryEntry("unreviewed_metric"), null);
+});
+
+test("F2 widgets declare glossary mappings for key stats and financial charts", () => {
+  const keyStats = WIDGETS.pi_equity_key_stats.data.metricGlossary;
+  const financials = WIDGETS.pi_equity_financial_charts.data.metricGlossary;
+  assert.equal(keyStats["P/E (TTM)"], "pe_ttm");
+  assert.equal(keyStats["Market Cap"], "market_cap");
+  assert.equal(financials["Revenue ($B)"], "revenue_b");
+  assert.equal(financials["Net Margin (%)"], "net_margin_pct");
 });
 
 // --------------------------------------------------------------------------

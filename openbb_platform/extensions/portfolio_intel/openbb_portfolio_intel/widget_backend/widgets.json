@@ -287,6 +287,17 @@
     "endpoint": "pi/equity/key-stats",
     "gridData": { "w": 20, "h": 10 },
     "source": "portfolio-intel",
+    "data": {
+      "metricGlossary": {
+        "Market Cap": "market_cap",
+        "P/E (TTM)": "pe_ttm",
+        "EV/EBITDA": "ev_ebitda",
+        "P/S (TTM)": "ps_ttm",
+        "EPS (TTM)": "eps_ttm",
+        "Beta": "beta",
+        "Dividend Yield": "dividend_yield"
+      }
+    },
     "params": [
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
     ]
@@ -301,6 +312,11 @@
     "gridData": { "w": 40, "h": 10 },
     "source": "portfolio-intel",
     "data": {
+      "metricGlossary": {
+        "Revenue ($B)": "revenue_b",
+        "Net Income ($B)": "net_income_b",
+        "Net Margin (%)": "net_margin_pct"
+      },
       "chart": {
         "type": "combo",
         "x": "year",
