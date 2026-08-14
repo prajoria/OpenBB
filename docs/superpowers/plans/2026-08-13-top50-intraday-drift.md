@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and run a reusable strategy script that measures how often current top-50 S&P 500 constituents rise from 9:00 AM to 1:00 PM Pacific over the latest six months.
+**Goal:** Build and run a reusable strategy script that measures how often current top-50 S&P 500 constituents rise from 9:00 AM to 1:00 PM Pacific over the requested window of available intraday data.
+
+> **Review correction (2026-08-13):** Yahoo Finance anchors intraday bars to the 09:30 ET open, so the 60-minute grid has **no 12:00 bar** and `hour == 12` silently selects 12:30 ET (09:30 PT). The study therefore uses `interval="30m"` with exact hour+minute matching. Yahoo also retains only ~60 days of 30m bars, so a six-month intraday window is **unobtainable** from this source: the default run must fail loudly and `--allow-partial-window` produces a clearly labelled best-effort result.
 
 **Architecture:** Keep timestamp normalization, session-price extraction, and aggregation in an importable strategy module. Keep constituent scraping, Yahoo Finance retrieval, CLI parsing, and console/CSV output in a thin example script so all financial calculations can be tested without network access.
 
@@ -12,7 +14,9 @@
 
 - "Top 50" is the first 50 holdings in the current S&P 500 weight table.
 - Pacific times use `America/Los_Angeles`; matching is performed after conversion to `America/New_York`.
-- Entry is the open of the 12:00 PM New York hourly bar; exit is the close of the 3:00 PM New York hourly bar.
+- Entry is the open of the **12:00 ET 30-minute bar**; exit is the close of the **15:30 ET 30-minute bar** (16:00 ET session close). Selection matches hour **and** minute exactly; `interval="30m"` is mandatory because the 09:30-aligned 60m grid contains no 12:00 bar.
+- A session whose exit interval has not finished as of an injected timezone-aware `now` is dropped (no currently-forming bars).
+- A run whose earliest returned session materially postdates the requested start (tolerance 7 calendar days) fails loudly unless `--allow-partial-window` is supplied.
 - A win requires `exit_price > entry_price`; ties are not wins.
 - Missing entry or exit bars are excluded and surfaced through coverage metrics.
 - Use adjusted OHLC data and disclose current-constituent/survivorship bias.
@@ -24,7 +28,7 @@
 
 - Create `openbb_platform/extensions/backtest/openbb_backtest/strategies/intraday_drift.py`: typed data model plus pure normalization, observation, and summary functions.
 - Create `openbb_platform/extensions/backtest/examples/top50_intraday_drift.py`: public-data adapters and executable CLI.
-- Create `openbb_platform/extensions/backtest/tests/unit/test_intraday_drift.py`: realistic hourly-frame regression tests.
+- Create `openbb_platform/extensions/backtest/tests/unit/test_intraday_drift.py`: realistic 09:30-aligned 30-minute-frame regression tests.
 - Modify `openbb_platform/extensions/backtest/README.md`: command and interpretation notes.
 
 ### Task 1: Pure intraday strategy calculations
@@ -39,7 +43,7 @@
 
 - [ ] **Step 1: Write failing extraction and summary tests**
 
-Create realistic timezone-aware hourly bars spanning winter and summer dates. Include one complete winner, one complete loser, and one missing-exit stock-day:
+Create realistic timezone-aware **09:30-aligned 30-minute** bars spanning winter and summer dates. Include one complete winner, one complete loser, and one missing-exit stock-day. Also include reverse-lock tests proving the 12:30 ET bar is never used as entry and that a 60-minute grid produces zero observations:
 
 ```python
 from datetime import datetime
@@ -52,20 +56,22 @@ from openbb_backtest.strategies.intraday_drift import (
     summarize_observations,
 )
 
+AS_OF = datetime(2026, 12, 31, 23, 59, tzinfo=ZoneInfo("America/New_York"))
 
-def test_build_observations_uses_noon_open_and_three_pm_close():
+
+def test_build_observations_uses_1200_open_and_1530_close():
     ny = ZoneInfo("America/New_York")
     bars = pd.DataFrame(
         [
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=ny), "symbol": "AAA", "open": 100.0, "close": 101.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=ny), "symbol": "AAA", "open": 104.0, "close": 105.0},
-            {"timestamp": datetime(2026, 7, 10, 12, tzinfo=ny), "symbol": "BBB", "open": 200.0, "close": 198.0},
-            {"timestamp": datetime(2026, 7, 10, 15, tzinfo=ny), "symbol": "BBB", "open": 197.0, "close": 196.0},
-            {"timestamp": datetime(2026, 7, 10, 12, tzinfo=ny), "symbol": "CCC", "open": 50.0, "close": 51.0},
+            {"timestamp": datetime(2026, 2, 10, 12, 0, tzinfo=ny), "symbol": "AAA", "open": 100.0, "close": 101.0},
+            {"timestamp": datetime(2026, 2, 10, 15, 30, tzinfo=ny), "symbol": "AAA", "open": 104.0, "close": 105.0},
+            {"timestamp": datetime(2026, 7, 10, 12, 0, tzinfo=ny), "symbol": "BBB", "open": 200.0, "close": 198.0},
+            {"timestamp": datetime(2026, 7, 10, 15, 30, tzinfo=ny), "symbol": "BBB", "open": 197.0, "close": 196.0},
+            {"timestamp": datetime(2026, 7, 10, 12, 0, tzinfo=ny), "symbol": "CCC", "open": 50.0, "close": 51.0},
         ]
     )
 
-    observations = build_observations(bars)
+    observations = build_observations(bars, now=AS_OF)
 
     assert observations[["symbol", "entry_price", "exit_price", "win"]].to_dict("records") == [
         {"symbol": "AAA", "entry_price": 100.0, "exit_price": 105.0, "win": True},
@@ -122,13 +128,23 @@ class DriftSummary:
     cumulative_basket_return_pct: float
 
 
-def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
+def build_observations(
+    bars: pd.DataFrame,
+    *,
+    now: datetime | None = None,
+    entry_hour: int = ENTRY_HOUR,
+    entry_minute: int = ENTRY_MINUTE,
+    exit_hour: int = EXIT_HOUR,
+    exit_minute: int = EXIT_MINUTE,
+) -> pd.DataFrame:
     required = {"timestamp", "symbol", "open", "close"}
     missing = required.difference(bars.columns)
     if missing:
         raise ValueError(f"bars missing required columns: {sorted(missing)}")
-    # Convert/localize timestamps to New York, select hour 12 open and hour 15
-    # close by symbol/session, inner-join them, and calculate return + strict win.
+    # Convert/localize timestamps to New York, select the entry bar by matching
+    # BOTH hour and minute (12:00) and the exit bar the same way (15:30) by
+    # symbol/session, inner-join them, calculate return + strict win, then drop
+    # sessions whose exit interval has not finished as of `now`.
 
 
 def summarize_observations(
@@ -205,14 +221,17 @@ Implement `fetch_top_symbols` using `pandas.read_html` against
 `https://www.slickcharts.com/sp500` with an explicit browser user agent. Validate
 that the source returns at least `count` distinct symbols.
 
-Implement `download_hourly_bars` with a lazy `import yfinance as yf` and:
+Implement `download_intraday_bars` with a lazy `import yfinance as yf`. Yahoo
+rejects any request whose *start* falls outside its ~60-day intraday retention,
+so split the range into **end-anchored** chunks of at most 59 days (newest
+first) and stop at the first empty chunk once data has been collected:
 
 ```python
 yf.download(
     tickers=symbols,
-    start=start.isoformat(),
-    end=(end + timedelta(days=1)).isoformat(),
-    interval="60m",
+    start=chunk_start.isoformat(),
+    end=chunk_end_exclusive.isoformat(),
+    interval="30m",          # 60m is 09:30-aligned and has NO 12:00 bar
     auto_adjust=True,
     group_by="ticker",
     threads=True,
@@ -232,8 +251,14 @@ complete observations, and print:
 - mean, median, and cumulative returns;
 - the survivorship-bias and no-transaction-cost warnings.
 
-Add `--top` (default `50`), `--months` (default `6`), and optional `--csv`
-arguments. Write only the derived observation rows, never raw downloaded bars.
+Add `--top` (default `50`), `--months` (default `6`), `--allow-partial-window`,
+and optional `--csv` arguments. Write only the derived observation rows, never
+raw downloaded bars. Before reporting, compare the requested window start with
+the earliest returned session: if the shortfall exceeds 7 calendar days, raise
+`RuntimeError` starting with `INCOMPLETE WINDOW:` unless `--allow-partial-window`
+was supplied, in which case the report is prefixed with
+`*** PARTIAL WINDOW -- BEST-EFFORT RESULT, NOT A SIX-MONTH ANSWER ***` and each
+headline percentage carries a `(PARTIAL WINDOW)` tag.
 
 - [ ] **Step 4: Test CLI without network access**
 
@@ -258,9 +283,13 @@ Add this usage to the backtest README:
 & ".venv_portfolio\Scripts\python.exe" openbb_platform/extensions/backtest/examples/top50_intraday_drift.py
 ```
 
-Run it against live data. Verify that 50 symbols were requested, at least one
-valid stock-day was produced for every observed symbol, the actual date span is
-approximately six months, and the report includes both accuracy percentages.
+Run it against live data. Verify that the default run **fails loudly** with
+`INCOMPLETE WINDOW` (because Yahoo cannot serve six months of 30m bars), and
+that `--allow-partial-window` produces a report clearly labelled
+`PARTIAL WINDOW` stating the actual first/last session, with 50 symbols
+requested, at least one valid stock-day for every observed symbol, and both
+accuracy percentages tagged as partial. A partial run must never be recorded as
+a six-month answer.
 
 - [ ] **Step 6: Run quality gates**
 

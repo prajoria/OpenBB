@@ -1,13 +1,36 @@
 """``intraday_drift`` — pure intraday strategy calculations.
 
-Consumes a long :class:`pandas.DataFrame` of hourly OHLC bars (columns:
+Consumes a long :class:`pandas.DataFrame` of **30-minute** OHLC bars (columns:
 ``timestamp``, ``symbol``, ``open``, ``close``) and produces per-stock-day
 observations plus a :class:`DriftSummary` rollup.
 
-Entry price  = ``open`` of the noon (12:00 America/New_York) bar.
-Exit price   = ``close`` of the 15:00 America/New_York bar.
-A stock-day is included only when **both** bars are present and every price
-is strictly positive.  Ties (exit == entry) are losses.
+Bar-alignment contract
+----------------------
+US equity intraday bars from Yahoo Finance (and most vendors) are aligned to
+the 09:30 America/New_York regular-session open, **not** to the top of the
+hour.  A 60-minute grid is therefore ``09:30, 10:30, 11:30, 12:30, …`` and a
+30-minute grid is ``09:30, 10:00, 10:30, …, 15:30``.  Selecting bars by hour
+alone (``timestamp.hour == 12``) picks the **12:30** bar on a 60-minute grid —
+09:30 Pacific, not the intended 09:00 Pacific.  This module therefore matches
+the **exact wall-clock hour *and* minute** of the bar.
+
+Entry price  = ``open`` of the bar stamped :data:`ENTRY_HOUR`:
+:data:`ENTRY_MINUTE` (12:00 America/New_York — the 12:00–12:30 bar, i.e.
+09:00 America/Los_Angeles).
+
+Exit price   = ``close`` of the bar stamped :data:`EXIT_HOUR`:
+:data:`EXIT_MINUTE` (15:30 America/New_York — the 15:30–16:00 bar, whose close
+is the 16:00 regular-session close, i.e. 13:00 America/Los_Angeles).
+
+A stock-day is included only when **both** bars are present and every price is
+strictly positive.  Ties (exit == entry) are losses.
+
+Currently-forming bars
+----------------------
+A session whose exit interval (``EXIT_HOUR:EXIT_MINUTE`` + :data:`BAR_MINUTES`)
+has **not yet elapsed** as of the caller-supplied ``now`` is dropped, so a
+partially-formed final bar can never be treated as a settled close.  See
+:func:`filter_incomplete_exit_sessions`.
 
 Input contract
 --------------
@@ -20,13 +43,28 @@ prices are on a consistent, comparable scale across the full history.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 _NY = "America/New_York"
-_ENTRY_HOUR = 12
-_EXIT_HOUR = 15
+
+#: Wall-clock (America/New_York) hour of the entry bar.
+ENTRY_HOUR = 12
+#: Wall-clock (America/New_York) minute of the entry bar.
+ENTRY_MINUTE = 0
+#: Wall-clock (America/New_York) hour of the exit bar.
+EXIT_HOUR = 15
+#: Wall-clock (America/New_York) minute of the exit bar.
+EXIT_MINUTE = 30
+#: Duration of one bar in minutes; used to decide whether the exit bar closed.
+BAR_MINUTES = 30
+
+
+def _fmt_clock(hour: int, minute: int) -> str:
+    """Return ``HH:MM`` for use in messages."""
+    return f"{hour:02d}:{minute:02d}"
 
 
 @dataclass(frozen=True)
@@ -47,7 +85,96 @@ class DriftSummary:
     cumulative_basket_return_pct: float
 
 
-def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
+def exit_interval_end(
+    session: date,
+    exit_hour: int = EXIT_HOUR,
+    exit_minute: int = EXIT_MINUTE,
+    bar_minutes: int = BAR_MINUTES,
+) -> pd.Timestamp:
+    """Return the America/New_York instant at which *session*'s exit bar closes.
+
+    Parameters
+    ----------
+    session:
+        Calendar session date.
+    exit_hour, exit_minute:
+        Wall-clock start of the exit bar in America/New_York.
+    bar_minutes:
+        Bar duration in minutes.
+
+    Returns
+    -------
+    pandas.Timestamp
+        Tz-aware (America/New_York) end of the exit interval.  Localisation is
+        per-session, so daylight-saving transitions are handled correctly.
+    """
+    start = pd.Timestamp(
+        datetime.combine(session, time(exit_hour, exit_minute))
+    ).tz_localize(_NY)
+    return start + pd.Timedelta(minutes=bar_minutes)
+
+
+def filter_incomplete_exit_sessions(
+    observations: pd.DataFrame,
+    now: datetime,
+    exit_hour: int = EXIT_HOUR,
+    exit_minute: int = EXIT_MINUTE,
+    bar_minutes: int = BAR_MINUTES,
+) -> pd.DataFrame:
+    """Drop sessions whose exit bar has not finished forming as of *now*.
+
+    A bar stamped ``15:30`` only represents a settled 16:00 close once
+    ``15:30 + bar_minutes`` has elapsed.  Accepting it earlier would mix a
+    partially-formed price into the study.
+
+    Parameters
+    ----------
+    observations:
+        Frame with a ``session`` column of :class:`datetime.date` values.
+    now:
+        **Timezone-aware** as-of instant.  Injected by the caller so the
+        decision is deterministic and testable; this function never reads the
+        system clock.
+    exit_hour, exit_minute, bar_minutes:
+        Exit-bar geometry; see :func:`exit_interval_end`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        *observations* with incomplete-exit sessions removed, index reset.
+
+    Raises
+    ------
+    ValueError
+        If *now* is naive (no timezone) or ``session`` is absent.
+    """
+    if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
+        raise ValueError(
+            "now must be timezone-aware so exit-bar completion is unambiguous"
+        )
+    if observations.empty:
+        return observations.reset_index(drop=True)
+    if "session" not in observations.columns:
+        raise ValueError("observations missing required columns: ['session']")
+
+    now_ny = pd.Timestamp(now).tz_convert(_NY)
+    ends = [
+        exit_interval_end(s, exit_hour, exit_minute, bar_minutes)
+        for s in observations["session"]
+    ]
+    complete = pd.Series(ends, index=observations.index) <= now_ny
+    return observations[complete].reset_index(drop=True)
+
+
+def build_observations(
+    bars: pd.DataFrame,
+    now: datetime | None = None,
+    entry_hour: int = ENTRY_HOUR,
+    entry_minute: int = ENTRY_MINUTE,
+    exit_hour: int = EXIT_HOUR,
+    exit_minute: int = EXIT_MINUTE,
+    bar_minutes: int = BAR_MINUTES,
+) -> pd.DataFrame:
     """Return one row per complete stock-day from *bars*.
 
     Parameters
@@ -63,12 +190,26 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
           America/New_York and localised directly with
           ``tz_localize("America/New_York")``.  No hour offset is applied.
         * **Tz-aware**: converted to America/New_York with
-          ``tz_convert("America/New_York")`` before hour selection, so bars
+          ``tz_convert("America/New_York")`` before bar selection, so bars
           originally stamped in any timezone (e.g. UTC, Pacific) are correctly
-          mapped to their New York hour.
+          mapped to their New York wall-clock time.
 
         ``open`` and ``close`` must be **adjusted** prices (split- and
         dividend-adjusted OHLC).  No further adjustment is applied here.
+    now:
+        **Timezone-aware** as-of instant used to discard sessions whose exit
+        bar is still forming.  ``None`` (default) reads the current
+        America/New_York time — the safe default for live runs.  Tests and
+        reproducible pipelines should inject an explicit value.
+    entry_hour, entry_minute:
+        Exact America/New_York wall-clock time of the entry bar.  Defaults
+        select the 12:00–12:30 bar (09:00 Pacific).
+    exit_hour, exit_minute:
+        Exact America/New_York wall-clock time of the exit bar.  Defaults
+        select the 15:30–16:00 bar, whose close is the 16:00 regular-session
+        close (13:00 Pacific).
+    bar_minutes:
+        Bar duration in minutes, used only for exit-bar completion.
 
     Returns
     -------
@@ -79,10 +220,18 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
     Raises
     ------
     ValueError
-        If any of the required columns are absent, or if duplicate hour-12 or
-        hour-15 bars exist for the same ``session × symbol`` pair (which would
-        otherwise silently inflate observations via a Cartesian join).
+        If any of the required columns are absent, if the bar geometry is
+        invalid, or if duplicate entry/exit bars exist for the same
+        ``session × symbol`` pair (which would otherwise silently inflate
+        observations via a Cartesian join).
     """
+    if not 0 <= entry_hour <= 23 or not 0 <= exit_hour <= 23:
+        raise ValueError("entry_hour and exit_hour must be in [0, 23]")
+    if not 0 <= entry_minute <= 59 or not 0 <= exit_minute <= 59:
+        raise ValueError("entry_minute and exit_minute must be in [0, 59]")
+    if bar_minutes <= 0:
+        raise ValueError("bar_minutes must be positive")
+
     required = {"timestamp", "symbol", "open", "close"}
     missing = required.difference(bars.columns)
     if missing:
@@ -97,31 +246,37 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
         df["timestamp"] = df["timestamp"].dt.tz_convert(_NY)
 
     df["_hour"] = df["timestamp"].dt.hour
+    df["_minute"] = df["timestamp"].dt.minute
     df["session"] = df["timestamp"].dt.date
 
     # Drop non-positive prices before splitting into entry/exit
     df = df[(df["open"] > 0) & (df["close"] > 0)]
 
-    entry = df[df["_hour"] == _ENTRY_HOUR][["session", "symbol", "open"]].rename(
+    entry_mask = (df["_hour"] == entry_hour) & (df["_minute"] == entry_minute)
+    exit_mask = (df["_hour"] == exit_hour) & (df["_minute"] == exit_minute)
+
+    entry = df[entry_mask][["session", "symbol", "open"]].rename(
         columns={"open": "entry_price"}
     )
-    exit_ = df[df["_hour"] == _EXIT_HOUR][["session", "symbol", "close"]].rename(
+    exit_ = df[exit_mask][["session", "symbol", "close"]].rename(
         columns={"close": "exit_price"}
     )
 
-    # Guard: duplicate bars for the same session×symbol×hour are a data error.
+    # Guard: duplicate bars for the same session×symbol×time are a data error.
     # Silently taking the first would Cartesian-inflate the join; raise loudly.
     dup_entry = entry[entry.duplicated(subset=["session", "symbol"], keep=False)]
     if not dup_entry.empty:
         pairs = sorted(set(zip(dup_entry["session"], dup_entry["symbol"])))
         raise ValueError(
-            f"duplicate hour-{_ENTRY_HOUR} bars detected for session/symbol pairs: {pairs}"
+            f"duplicate {_fmt_clock(entry_hour, entry_minute)} entry bars "
+            f"detected for session/symbol pairs: {pairs}"
         )
     dup_exit = exit_[exit_.duplicated(subset=["session", "symbol"], keep=False)]
     if not dup_exit.empty:
         pairs = sorted(set(zip(dup_exit["session"], dup_exit["symbol"])))
         raise ValueError(
-            f"duplicate hour-{_EXIT_HOUR} bars detected for session/symbol pairs: {pairs}"
+            f"duplicate {_fmt_clock(exit_hour, exit_minute)} exit bars "
+            f"detected for session/symbol pairs: {pairs}"
         )
 
     obs = entry.merge(exit_, on=["session", "symbol"], how="inner")
@@ -130,6 +285,15 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
 
     obs = obs[["session", "symbol", "entry_price", "exit_price", "return", "win"]]
     obs = obs.sort_values(["session", "symbol"]).reset_index(drop=True)
+
+    as_of = now if now is not None else datetime.now(tz=ZoneInfo(_NY))
+    obs = filter_incomplete_exit_sessions(
+        obs,
+        as_of,
+        exit_hour=exit_hour,
+        exit_minute=exit_minute,
+        bar_minutes=bar_minutes,
+    )
     return obs
 
 
