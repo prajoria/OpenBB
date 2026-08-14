@@ -1406,7 +1406,8 @@
 
   function metricGlossaryEntry(key) {
     const glossary = typeof METRIC_GLOSSARY !== "undefined" ? METRIC_GLOSSARY : metricGlossaryData();
-    const entry = glossary[String(key || "")];
+    const name = String(key || "");
+    const entry = Object.prototype.hasOwnProperty.call(glossary, name) ? glossary[name] : null;
     return entry || null;
   }
 

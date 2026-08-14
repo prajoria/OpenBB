@@ -293,6 +293,11 @@ test("metricGlossaryEntry ignores an unknown key", () => {
   assert.equal(H.metricGlossaryEntry("unreviewed_metric"), null);
 });
 
+test("metricGlossaryEntry ignores inherited object keys", () => {
+  assert.equal(H.metricGlossaryEntry("toString"), null);
+  assert.equal(H.metricGlossaryEntry("__proto__"), null);
+});
+
 test("F2 widgets declare glossary mappings for key stats and financial charts", () => {
   const keyStats = WIDGETS.pi_equity_key_stats.data.metricGlossary;
   const financials = WIDGETS.pi_equity_financial_charts.data.metricGlossary;
