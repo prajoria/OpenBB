@@ -119,13 +119,25 @@
     .widget > .whead .wsrc.wsrc-demo { color: #e3b341; border-color: #bb800966; background: #bb800922; }
     /* Help affordance (#1951): a "?" button that opens a popover explaining
        how to read the widget. Circular, muted until hovered. */
-    .widget > .whead .whelp {
+    .widget > .whead .whelp,
+    .mhelp {
       width: 18px; height: 18px; line-height: 16px; text-align: center;
       font: 600 12px/16px ui-sans-serif, system-ui, sans-serif; padding: 0;
       color: var(--muted); background: var(--panel); border: 1px solid var(--border);
       border-radius: 50%; cursor: help; flex: none;
+      display: inline-flex; align-items: center; justify-content: center;
     }
-    .widget > .whead .whelp:hover { color: var(--fg); border-color: var(--muted); }
+    .widget > .whead .whelp:hover,
+    .widget > .whead .whelp:focus-visible,
+    .mhelp:hover,
+    .mhelp:focus-visible {
+      color: var(--text); border-color: var(--muted);
+    }
+    .widget > .whead .whelp:focus-visible,
+    .mhelp:focus-visible {
+      outline: 2px solid rgba(47, 129, 247, 0.45);
+      outline-offset: 1px;
+    }
     .whelp-pop {
       position: absolute; top: 40px; left: 12px; z-index: 40; max-width: 420px;
       max-height: 60%; overflow: auto; padding: 4px 14px;
@@ -186,6 +198,7 @@
     .tvlegend .down, .tvlegend .down b { color: #f85149; }
     .legend .lg { display: flex; align-items: center; gap: 5px; }
     .legend .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    .metric-label, .legend-label { display: inline-flex; align-items: center; gap: 6px; }
     /* Chat pane — collapsible secondary panel with a VS Code-style toggle. */
     .chat { width: 360px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--panel); transition: width .15s ease; overflow: hidden; }
     .chat .chead { padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -427,19 +440,22 @@
   function renderTable(container, rows, widget) {
     if (!rows.length) { container.innerHTML = '<div class="state">No rows returned.</div>'; return; }
     const defs = widget && widget.data && widget.data.table && widget.data.table.columnsDefs;
+    const map = widget && widget.data && widget.data.metricGlossary;
     const cols = (defs && defs.length)
       ? defs.map((c) => ({ field: c.field, header: c.headerName || c.field, formatterFn: c.formatterFn, renderFn: c.renderFn }))
       : Object.keys(rows[0]).map((k) => ({ field: k, header: k }));
     const thead = "<tr>" + cols.map((c) => `<th>${escapeHtml(c.header)}</th>`).join("") + "</tr>";
     const body = rows.map((r) =>
-      "<tr>" + cols.map((c) => {
+      "<tr>" + cols.map((c, idx) => {
         const v = r[c.field];
-        const entry = (typeof v === "string") ? metricGlossaryForLabel(widget, v) : null;
-        const gloss = entry ? ` title="${escapeHtml(entry.summary)}" data-metric-glossary="${escapeHtml(entry.label)}"` : "";
-        return `<td class="${cellClass(v, c)}"${gloss}>${escapeHtml(fmtCell(v, c))}</td>`;
+        const key = idx === 0 && typeof v === "string" && map && Object.prototype.hasOwnProperty.call(map, v) ? map[v] : null;
+        const text = escapeHtml(fmtCell(v, c));
+        const label = key ? `<span class="metric-label">${text}${metricHelpButtonHtml(key)}</span>` : text;
+        return `<td class="${cellClass(v, c)}">${label}</td>`;
       }).join("") + "</tr>"
     ).join("");
     container.innerHTML = `<table><thead>${thead}</thead><tbody>${body}</tbody></table>`;
+    if (typeof bindMetricHelpButtons === "function") bindMetricHelpButtons(container);
   }
 
   //--------------------------------------------------------------------------
@@ -800,15 +816,19 @@
       const xticks = xAxisTicksSvg(model.xLabels, centerAt, Hh - 6, n);
       const legend = bars.map((s, i) =>
         (() => {
-          const entry = metricGlossaryForLabel(widgetDef, s.key);
-          const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
-          return `<div class="lg"${title}><span class="sw" style="background:${barColors[i % barColors.length]}"></span>${escapeHtml(s.key)}</div>`;
+          const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+          const key = map && Object.prototype.hasOwnProperty.call(map, s.key) ? map[s.key] : null;
+          const help = metricHelpButtonHtml(key);
+          const label = help ? `<span class="legend-label">${escapeHtml(s.key)}${help}</span>` : escapeHtml(s.key);
+          return `<div class="lg"><span class="sw" style="background:${barColors[i % barColors.length]}"></span>${label}</div>`;
         })()
       ).concat(lines.map((s, i) =>
         (() => {
-          const entry = metricGlossaryForLabel(widgetDef, s.key);
-          const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
-          return `<div class="lg"${title}><span class="sw" style="background:${lineColors[i % lineColors.length]}"></span>${escapeHtml(s.key)}</div>`;
+          const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+          const key = map && Object.prototype.hasOwnProperty.call(map, s.key) ? map[s.key] : null;
+          const help = metricHelpButtonHtml(key);
+          const label = help ? `<span class="legend-label">${escapeHtml(s.key)}${help}</span>` : escapeHtml(s.key);
+          return `<div class="lg"><span class="sw" style="background:${lineColors[i % lineColors.length]}"></span>${label}</div>`;
         })()
       )).join("");
       return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="combo bar and line chart">${axis}${barsSvg}${linesSvg}${leftLbls}${rightLbls}${xticks}</svg><div class="legend">${legend}</div></div>`;
@@ -1010,6 +1030,7 @@
       catch (e) { tvDispose(container); /* fall through to SVG */ }
     }
     container.innerHTML = svgForChart(model, widgetDef);
+    if (typeof bindMetricHelpButtons === "function") bindMetricHelpButtons(container);
   }
 
   //--------------------------------------------------------------------------
@@ -1293,6 +1314,13 @@
     return def.description != null ? String(def.description).trim() : "";
   }
 
+  function metricHelpButtonHtml(key) {
+    const entry = metricGlossaryEntry(key);
+    if (!entry) return "";
+    return `<button type="button" class="mhelp" data-metric-help="${escapeHtml(key)}" `
+      + `aria-label="Learn about ${escapeHtml(entry.label)}" title="${escapeHtml(entry.summary)}">?</button>`;
+  }
+
   // Pure builder for the "?" help button in a widget header. Returns "" when
   // the widget carries no help/description so the button is omitted entirely
   // (keeps the header clean for undocumented widgets).
@@ -1495,6 +1523,20 @@
       document.addEventListener("pointerdown", onDocClick, true);
       document.addEventListener("keydown", onKey, true);
     }, 0);
+  }
+
+  function bindMetricHelpButtons(root) {
+    if (!root || typeof root.querySelectorAll !== "function") return;
+    for (const btn of root.querySelectorAll(".mhelp")) {
+      btn.addEventListener("pointerdown", (e) => e.stopPropagation());
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const key = btn.dataset.metricHelp || "";
+        if (!key) return;
+        const url = "/viewer/help?metric=" + encodeURIComponent(key);
+        window.open(url, "_blank", "noopener");
+      });
+    }
   }
 
   function renderWidget(gridEl, layoutItem) {

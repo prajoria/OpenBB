@@ -53,7 +53,8 @@ function extractFn(src, name) {
 function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
-    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "inlineOptionsHtml",
+    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
+    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
     "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
@@ -298,6 +299,16 @@ test("metricGlossaryEntry ignores inherited object keys", () => {
   assert.equal(H.metricGlossaryEntry("__proto__"), null);
 });
 
+test("metricHelpButtonHtml labels a known metric accessibly", () => {
+  const html = H.metricHelpButtonHtml("market_cap");
+  assert.match(html, /aria-label="Learn about Market Cap"/);
+  assert.match(html, /data-metric-help="market_cap"/);
+});
+
+test("metricHelpButtonHtml omits unknown metrics", () => {
+  assert.equal(H.metricHelpButtonHtml("unreviewed_metric"), "");
+});
+
 test("F2 widgets declare glossary mappings for key stats and financial charts", () => {
   const keyStats = WIDGETS.pi_equity_key_stats.data.metricGlossary;
   const financials = WIDGETS.pi_equity_financial_charts.data.metricGlossary;
@@ -305,6 +316,27 @@ test("F2 widgets declare glossary mappings for key stats and financial charts", 
   assert.equal(keyStats["Market Cap"], "market_cap");
   assert.equal(financials["Revenue ($B)"], "revenue_b");
   assert.equal(financials["Net Margin (%)"], "net_margin_pct");
+});
+
+test("renderTable adds help only for mapped first-column metrics", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "Market Cap", value: 3_200_000_000_000 },
+    { metric: "Unmapped Metric", value: 42 },
+  ], WIDGETS.pi_equity_key_stats);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*data-metric-help="market_cap"/);
+  assert.match(container.innerHTML, />Unmapped Metric<\/td>/);
+  assert.doesNotMatch(container.innerHTML, /Unmapped Metric[\s\S]*data-metric-help=/);
+});
+
+test("svgForChart combo legend adds help buttons for mapped series", () => {
+  const svg = H.svgForChart(
+    H.inferChartModel(_COMBO_ROWS, _COMBO_CFG),
+    WIDGETS.pi_equity_financial_charts,
+  );
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help="revenue_b"/);
+  assert.match(svg, /Net Income \(\$B\)[\s\S]*data-metric-help="net_income_b"/);
+  assert.match(svg, /Net Margin \(%\)[\s\S]*data-metric-help="net_margin_pct"/);
 });
 
 // --------------------------------------------------------------------------
