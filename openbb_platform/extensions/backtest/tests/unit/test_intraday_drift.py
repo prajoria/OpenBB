@@ -102,7 +102,8 @@ def test_build_observations_tie_is_loss():
     )
     obs = build_observations(bars)
     assert len(obs) == 1
-    assert obs.iloc[0]["win"] is False or obs.iloc[0]["win"] == False  # noqa: E712
+    # Use bool() to coerce numpy.bool_ → Python bool before identity check.
+    assert bool(obs.iloc[0]["win"]) is False
 
 
 def test_build_observations_missing_exit_excluded():
@@ -173,6 +174,8 @@ def test_build_observations_pacific_time_converted_to_new_york():
 
 
 def test_summary_reports_stock_day_and_equal_weight_basket_rates():
+    from datetime import date as _date
+
     observations = pd.DataFrame(
         {
             "session": pd.to_datetime(["2026-08-10", "2026-08-10", "2026-08-11", "2026-08-11"]).date,
@@ -184,10 +187,46 @@ def test_summary_reports_stock_day_and_equal_weight_basket_rates():
 
     summary = summarize_observations(observations, expected_symbols=2)
 
+    # Rates and coverage
     assert summary.stock_day_win_rate_pct == pytest.approx(25.0)
     assert summary.basket_day_win_rate_pct == pytest.approx(50.0)
     assert summary.valid_stock_days == 4
     assert summary.coverage_pct == pytest.approx(100.0)
+    # Return statistics
+    # mean([0.02, -0.01, -0.02, -0.01]) = -0.005 → -0.5 %
+    assert summary.mean_stock_day_return_pct == pytest.approx(-0.5)
+    # median(sorted: -0.02, -0.01, -0.01, 0.02) = (-0.01 + -0.01)/2 = -0.01 → -1.0 %
+    assert summary.median_stock_day_return_pct == pytest.approx(-1.0)
+    # basket daily: 2026-08-10 = mean(0.02,-0.01)=0.005; 2026-08-11 = mean(-0.02,-0.01)=-0.015
+    # cumulative: (1.005)(0.985) - 1 = -0.010075 → -1.0075 %
+    assert summary.cumulative_basket_return_pct == pytest.approx(-1.0075, rel=1e-4)
+    # Session and symbol metadata
+    assert summary.start_session == _date(2026, 8, 10)
+    assert summary.end_session == _date(2026, 8, 11)
+    assert summary.sessions == 2
+    assert summary.symbols_observed == 2
+    assert summary.expected_stock_days == 4
+
+
+def test_summary_missing_columns_raises():
+    """observations lacking any of session/symbol/return/win must raise ValueError."""
+    obs_no_win = pd.DataFrame(
+        {
+            "session": pd.to_datetime(["2026-08-10"]).date,
+            "symbol": ["AAA"],
+            "return": [0.01],
+            # "win" deliberately omitted
+        }
+    )
+    with pytest.raises(ValueError, match="observations missing required columns"):
+        summarize_observations(obs_no_win, expected_symbols=1)
+
+
+def test_summary_missing_multiple_columns_names_all():
+    """Error message must name every missing column, not just the first."""
+    obs_bare = pd.DataFrame({"session": pd.to_datetime(["2026-08-10"]).date})
+    with pytest.raises(ValueError, match="observations missing required columns"):
+        summarize_observations(obs_bare, expected_symbols=1)
 
 
 def test_summary_empty_observations_raises():

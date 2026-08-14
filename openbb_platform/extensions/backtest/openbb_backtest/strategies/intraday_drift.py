@@ -54,8 +54,18 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
     ----------
     bars:
         Long DataFrame with columns ``timestamp``, ``symbol``, ``open``,
-        ``close``.  ``timestamp`` may be tz-aware or tz-naive; if tz-naive it
-        is assumed to already be in America/New_York.
+        ``close``.
+
+        **Timestamp handling** — ``timestamp`` may be either tz-naive or
+        tz-aware:
+
+        * **Tz-naive**: assumed to already represent wall-clock time in
+          America/New_York and localised directly with
+          ``tz_localize("America/New_York")``.  No hour offset is applied.
+        * **Tz-aware**: converted to America/New_York with
+          ``tz_convert("America/New_York")`` before hour selection, so bars
+          originally stamped in any timezone (e.g. UTC, Pacific) are correctly
+          mapped to their New York hour.
 
         ``open`` and ``close`` must be **adjusted** prices (split- and
         dividend-adjusted OHLC).  No further adjustment is applied here.
@@ -142,14 +152,23 @@ def summarize_observations(
     Raises
     ------
     ValueError
-        If *expected_symbols* is not positive, *observations* is empty, or
-        ``valid_stock_days`` exceeds ``expected_stock_days`` (which would
-        indicate duplicate stock-day rows or an incorrect *expected_symbols*).
+        If *expected_symbols* is not positive, *observations* is empty,
+        required columns (``session``, ``symbol``, ``return``, ``win``) are
+        absent, or ``valid_stock_days`` exceeds ``expected_stock_days`` (which
+        would indicate duplicate stock-day rows or an incorrect
+        *expected_symbols*).
     """
     if expected_symbols <= 0:
         raise ValueError("expected_symbols must be positive")
     if observations.empty:
         raise ValueError("no complete stock-days to summarize")
+
+    required_obs = {"session", "symbol", "return", "win"}
+    missing_obs = required_obs.difference(observations.columns)
+    if missing_obs:
+        raise ValueError(
+            f"observations missing required columns: {sorted(missing_obs)}"
+        )
 
     sessions_arr = sorted(observations["session"].unique())
     start_session: date = sessions_arr[0]
