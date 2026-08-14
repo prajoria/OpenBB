@@ -1,4 +1,4 @@
-"""Top-50 S&P 500 intraday-drift study — live data adapter and CLI.
+"""Top-50 S&P 500 intraday-drift study -- live data adapter and CLI.
 
 Usage
 -----
@@ -14,11 +14,12 @@ Usage
 
 Warnings
 --------
-* **Survivorship bias** — constituents are fetched at run-time (current
-  list), so the study excludes companies that left the S&P 500 during the
-  window and includes companies that joined after the window started.
-* **No transaction costs** — entry and exit prices are adjusted closes;
-  bid-ask spread, commission, and market-impact are not modelled.
+* **Survivorship bias** -- constituents are fetched at run-time (current
+  S&P 500 list).  Companies that *left* the index during the window are
+  excluded; companies that *joined* after the window started are included.
+* **No transaction costs** -- entry prices are adjusted opens; exit prices
+  are adjusted closes.  Bid-ask spread, commission, and market-impact are
+  not modelled.
 """
 
 from __future__ import annotations
@@ -34,78 +35,39 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 
 _SLICKCHARTS_URL = "https://www.slickcharts.com/sp500"
-_FALLBACK_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+_SLICKCHARTS_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
 
-# Transparent, checked fallback: top-50 S&P 500 constituents by weight as of
-# August 2026.  Used only when Slickcharts and Wikipedia both block automated
-# requests.  Order preserves approximate weight rank; dots converted to Yahoo
-# dashes.  Provenance: manually transcribed from
-# https://www.slickcharts.com/sp500 (public page, 2026-08-13).
-_FALLBACK_TOP50 = [
-    "AAPL",
-    "NVDA",
-    "MSFT",
-    "AMZN",
-    "META",
-    "GOOGL",
-    "GOOG",
-    "TSLA",
-    "BRK-B",
-    "AVGO",
-    "JPM",
-    "LLY",
-    "V",
-    "COST",
-    "UNH",
-    "MA",
-    "NFLX",
-    "XOM",
-    "WMT",
-    "ORCL",
-    "PG",
-    "ABBV",
-    "JNJ",
-    "HD",
-    "CRM",
-    "BAC",
-    "CVX",
-    "TMUS",
-    "AMD",
-    "MRK",
-    "KO",
-    "PEP",
-    "ACN",
-    "NOW",
-    "ADBE",
-    "IBM",
-    "WFC",
-    "PM",
-    "MS",
-    "GS",
-    "DIS",
-    "LIN",
-    "ISRG",
-    "TXN",
-    "MCD",
-    "GE",
-    "RTX",
-    "UBER",
-    "CAT",
-    "INTU",
-]
+
+def _parse_weight(val) -> float:
+    """Coerce a weight value to float.
+
+    Accepts numeric values and percentage strings such as ``"7.12%"``.
+    Returns ``-1.0`` for unparseable values so they sort last.
+    """
+    if isinstance(val, (int, float)):
+        return float(val)
+    try:
+        return float(str(val).rstrip("%").strip())
+    except (ValueError, AttributeError):
+        return -1.0
 
 
 def fetch_top_symbols(count: int = 50) -> list[str]:
-    """Return the top-*count* S&P 500 symbols ordered by index weight.
+    """Return the top-*count* S&P 500 symbols ordered by descending index weight.
 
-    Tries Slickcharts first, then Wikipedia, then a static fallback.  Any
-    dot in a ticker (e.g. ``BRK.B``) is replaced with a dash (``BRK-B``) so
-    the symbol is valid for Yahoo Finance.
+    Fetches the constituent table from Slickcharts using an explicit browser
+    User-Agent.  Parses the ``Weight`` column robustly (numeric or percentage
+    string), sorts descending, and deduplicates.  Dots in tickers are replaced
+    with dashes (e.g. ``BRK.B`` -> ``BRK-B``) for Yahoo Finance compatibility.
 
     Parameters
     ----------
     count:
-        Number of symbols to return (≥ 1).
+        Number of symbols to return (>= 1).
 
     Returns
     -------
@@ -114,85 +76,50 @@ def fetch_top_symbols(count: int = 50) -> list[str]:
 
     Raises
     ------
-    ValueError
-        If no source returns at least *count* distinct symbols.
+    RuntimeError
+        If Slickcharts cannot provide at least *count* distinct weighted
+        symbols.  No fallback is attempted; stale or unweighted sources
+        would silently bias the study.
     """
-    symbols = _try_slickcharts(count) or _try_wikipedia(count) or []
-    if len(symbols) < count:
-        print(
-            f"[warn] live sources returned {len(symbols)} symbol(s); "
-            f"padding from static fallback list (provenance: "
-            f"slickcharts.com 2026-08-13).",
-            file=sys.stderr,
-        )
-        seen = set(symbols)
-        for s in _FALLBACK_TOP50:
-            if s not in seen:
-                symbols.append(s)
-                seen.add(s)
-            if len(symbols) >= count:
-                break
-
-    if len(symbols) < count:
-        raise ValueError(
-            f"fetch_top_symbols: needed {count} symbols but only found "
-            f"{len(symbols)} across all sources"
-        )
-
-    return symbols[:count]
-
-
-def _try_slickcharts(count: int) -> list[str]:
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
     try:
         tables = pd.read_html(
-            _SLICKCHARTS_URL, storage_options={"User-Agent": headers["User-Agent"]}
+            _SLICKCHARTS_URL,
+            storage_options={"User-Agent": _SLICKCHARTS_UA},
         )
-        for tbl in tables:
-            if "Symbol" in tbl.columns and "Weight" in tbl.columns:
-                syms = [
-                    str(s).replace(".", "-") for s in tbl["Symbol"].dropna().tolist()
-                ]
-                if len(syms) >= count:
-                    print(
-                        f"[info] constituents sourced from {_SLICKCHARTS_URL}",
-                        file=sys.stderr,
-                    )
-                    return syms
-    except Exception as exc:  # noqa: BLE001
-        print(
-            f"[warn] Slickcharts unavailable ({exc}); trying Wikipedia.",
-            file=sys.stderr,
-        )
-    return []
+    except Exception as exc:
+        raise RuntimeError(
+            f"fetch_top_symbols: Slickcharts request failed ({exc}). "
+            f"Check network access or retry."
+        ) from exc
 
+    for tbl in tables:
+        if "Symbol" not in tbl.columns or "Weight" not in tbl.columns:
+            continue
 
-def _try_wikipedia(count: int) -> list[str]:
-    try:
-        tables = pd.read_html(_FALLBACK_URL)
-        for tbl in tables:
-            if "Symbol" in tbl.columns:
-                syms = [
-                    str(s).replace(".", "-") for s in tbl["Symbol"].dropna().tolist()
-                ]
-                if len(syms) >= count:
-                    print(
-                        f"[info] constituents sourced from {_FALLBACK_URL}",
-                        file=sys.stderr,
-                    )
-                    return syms
-    except Exception as exc:  # noqa: BLE001
-        print(
-            f"[warn] Wikipedia unavailable ({exc}); falling back to static list.",
-            file=sys.stderr,
-        )
-    return []
+        ranked = tbl[["Symbol", "Weight"]].dropna(subset=["Symbol"]).copy()
+        ranked["_w"] = ranked["Weight"].map(_parse_weight)
+        ranked = ranked.sort_values("_w", ascending=False)
+
+        # Deduplicate preserving weight order
+        seen: set[str] = set()
+        symbols: list[str] = []
+        for raw_sym in ranked["Symbol"]:
+            sym = str(raw_sym).replace(".", "-")
+            if sym not in seen:
+                seen.add(sym)
+                symbols.append(sym)
+
+        if len(symbols) >= count:
+            print(
+                f"[info] constituents sourced from {_SLICKCHARTS_URL}",
+                file=sys.stderr,
+            )
+            return symbols[:count]
+
+    raise RuntimeError(
+        f"fetch_top_symbols: Slickcharts returned fewer than {count} "
+        f"weighted symbols. Cannot proceed without a current weight-ordered list."
+    )
 
 
 def normalize_yfinance_bars(raw: pd.DataFrame) -> pd.DataFrame:
@@ -202,7 +129,7 @@ def normalize_yfinance_bars(raw: pd.DataFrame) -> pd.DataFrame:
     ----------
     raw:
         Wide DataFrame with a two-level ``MultiIndex`` on columns:
-        ``(price_field, symbol)`` or ``(symbol, price_field)`` — both
+        ``(price_field, symbol)`` or ``(symbol, price_field)`` -- both
         orderings are handled.  The index must be a ``DatetimeIndex``
         (tz-aware or tz-naive).
 
@@ -211,7 +138,12 @@ def normalize_yfinance_bars(raw: pd.DataFrame) -> pd.DataFrame:
     pandas.DataFrame
         Long frame with columns ``timestamp``, ``symbol``, ``open``, ``close``
         where ``open`` and ``close`` are adjusted prices and ``timestamp``
-        preserves the original timezone from yfinance (UTC).
+        preserves the original timezone from yfinance.
+
+    Raises
+    ------
+    ValueError
+        If *raw* does not have a ``MultiIndex`` on columns.
     """
     if not isinstance(raw.columns, pd.MultiIndex):
         raise ValueError(
@@ -220,14 +152,14 @@ def normalize_yfinance_bars(raw: pd.DataFrame) -> pd.DataFrame:
 
     lvl0 = list(raw.columns.get_level_values(0).unique())
 
-    # yfinance ≥0.2 returns (price_field, symbol); older versions and
+    # yfinance >=0.2 returns (price_field, symbol); older versions and
     # group_by="ticker" return (symbol, price_field)
     price_fields = {"Open", "High", "Low", "Close", "Volume"}
     if lvl0[0] in price_fields:
-        # (price_field, symbol) layout — stack symbols into a column
+        # (price_field, symbol) layout -- stack symbols into a column
         raw = raw.stack(level=1, future_stack=True).reset_index()
     else:
-        # (symbol, price_field) layout — stack price fields, symbols become column
+        # (symbol, price_field) layout -- stack symbols, price fields become columns
         raw = raw.stack(level=0, future_stack=True).reset_index()
 
     # Normalise all column names to lower-case
@@ -244,8 +176,7 @@ def normalize_yfinance_bars(raw: pd.DataFrame) -> pd.DataFrame:
         raw = raw.rename(columns={"level_0": "timestamp"})
 
     # Rename the symbol column.
-    # yfinance uses 'ticker'; fixtures produce 'level_1' (or 'level_0' if
-    # the symbol was the first stacked level).
+    # yfinance uses 'ticker'; fixtures produce 'level_1'.
     for _sym_candidate in ("ticker", "level_1"):
         if _sym_candidate in raw.columns and "symbol" not in raw.columns:
             raw = raw.rename(columns={_sym_candidate: "symbol"})
@@ -253,6 +184,35 @@ def normalize_yfinance_bars(raw: pd.DataFrame) -> pd.DataFrame:
     raw = raw[["timestamp", "symbol", "open", "close"]].copy()
     raw = raw.dropna(subset=["open", "close"])
     raw = raw.reset_index(drop=True)
+    return raw
+
+
+def _promote_single_ticker_columns(
+    raw: pd.DataFrame,
+    symbol: str,
+) -> pd.DataFrame:
+    """Promote a flat-column single-ticker yfinance result to a MultiIndex frame.
+
+    When ``yf.download`` is called with exactly one ticker, some yfinance
+    versions return a flat ``Index`` (e.g. ``['Open', 'High', ...]``) instead
+    of a ``MultiIndex``.  This helper wraps the flat columns into the expected
+    ``(symbol, price_field)`` two-level ``MultiIndex`` so that
+    :func:`normalize_yfinance_bars` can process it uniformly.
+
+    Parameters
+    ----------
+    raw:
+        DataFrame with a flat (non-multi) ``Index`` on columns.
+    symbol:
+        The ticker symbol to use as the outer level.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Same data with a two-level ``MultiIndex`` columns ``(symbol, price_field)``.
+    """
+    raw = raw.copy()
+    raw.columns = pd.MultiIndex.from_product([[symbol], raw.columns])
     return raw
 
 
@@ -285,7 +245,7 @@ def download_hourly_bars(
         import yfinance as yf  # noqa: PLC0415
     except ImportError as exc:
         raise RuntimeError(
-            "yfinance is required — install it with: pip install yfinance"
+            "yfinance is required -- install it with: pip install yfinance"
         ) from exc
 
     raw = yf.download(
@@ -300,6 +260,14 @@ def download_hourly_bars(
     )
     if raw.empty:
         return pd.DataFrame(columns=["timestamp", "symbol", "open", "close"])
+
+    # yfinance returns flat columns for a single-ticker download; promote to MultiIndex.
+    if not isinstance(raw.columns, pd.MultiIndex):
+        if len(symbols) != 1:
+            raise RuntimeError(
+                "download_hourly_bars: unexpected flat columns for a multi-ticker download"
+            )
+        raw = _promote_single_ticker_columns(raw, symbols[0])
 
     return normalize_yfinance_bars(raw)
 
@@ -329,11 +297,9 @@ def run_study(
 
         * *observations* is the long DataFrame from :func:`build_observations`,
         * *summary* is the :class:`~openbb_backtest.strategies.intraday_drift.DriftSummary`,
-        * *missing_symbols* is the list of requested symbols that produced
-          zero valid stock-days.
+        * *missing_symbols* is the list of requested symbols with zero valid stock-days.
     """
     import os
-    import sys
 
     # Make openbb_backtest importable when run as a script
     _backtest_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
@@ -346,7 +312,6 @@ def run_study(
     )
 
     end_date = date.today()
-    start_date = date(end_date.year, end_date.month, 1)
     # Subtract ~months calendar months
     m = end_date.month - months
     y = end_date.year
@@ -359,7 +324,9 @@ def run_study(
     bars = download_hourly_bars(symbols, start_date, end_date)
 
     if bars.empty:
-        raise RuntimeError("No bars downloaded — check network access and symbol list.")
+        raise RuntimeError(
+            "No bars downloaded -- check network access and symbol list."
+        )
 
     observations = build_observations(bars)
 
@@ -446,12 +413,14 @@ def main(argv: list[str] | None = None) -> int:
 
     print()
     print(
-        "  [!] SURVIVORSHIP BIAS -- constituents are the current S&P 500 list;"
-        " companies that left the index during the window are excluded."
+        "  [!] SURVIVORSHIP BIAS -- constituents are the current S&P 500 list."
+        " Companies that LEFT the index during the window are excluded;"
+        " companies that JOINED after the window started are included."
     )
     print(
-        "  [!] NO TRANSACTION COSTS -- entry/exit prices are adjusted closes;"
-        " spread, commission, and market-impact are not modelled."
+        "  [!] NO TRANSACTION COSTS -- entry price is the adjusted open at"
+        " noon ET; exit price is the adjusted close at 15:00 ET."
+        " Spread, commission, and market-impact are not modelled."
     )
 
     if args.csv:

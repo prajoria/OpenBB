@@ -68,10 +68,13 @@ Example:
 ```
 
 **Warnings:**
-- *Survivorship bias* — constituents are the current S&P 500 list; companies
-  that left during the window are excluded.
-- *No transaction costs* — entry/exit prices are split-and-dividend-adjusted
-  closes; spread, commission, and market-impact are not modelled.
+- *Survivorship bias* — constituents are the current S&P 500 list (fetched
+  at run-time from Slickcharts). Companies that **left** the index during the
+  study window are excluded; companies that **joined** after the window started
+  are included.
+- *No transaction costs* — entry price is the adjusted open at noon ET; exit
+  price is the adjusted close at 15:00 ET. Bid-ask spread, commission, and
+  market-impact are not modelled.
 
 ## Build (when ready)
 

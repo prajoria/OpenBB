@@ -14,6 +14,7 @@ from openbb_backtest.strategies.intraday_drift import (
 
 # Make the examples module importable without installation
 from top50_intraday_drift import (  # noqa: E402
+    _promote_single_ticker_columns,
     fetch_top_symbols,
     normalize_yfinance_bars,
     main as cli_main,
@@ -438,7 +439,7 @@ def test_summary_drift_summary_is_immutable():
 
 
 def test_normalize_yfinance_bars_returns_long_contract():
-    """Realistic two-symbol wide frame → long contract required by Task 1."""
+    """Realistic two-symbol (symbol, price_field) frame -> long contract."""
     index = pd.DatetimeIndex(["2026-08-10T16:00:00Z", "2026-08-10T19:00:00Z"])
     columns = pd.MultiIndex.from_product([["AAA", "BBB"], ["Open", "Close"]])
     raw = pd.DataFrame(
@@ -477,12 +478,48 @@ def test_normalize_yfinance_bars_non_multiindex_raises():
 
 
 # ---------------------------------------------------------------------------
+# _promote_single_ticker_columns
+# ---------------------------------------------------------------------------
+
+
+def test_promote_single_ticker_columns_builds_multiindex():
+    """Flat-column single-ticker result must be promoted to (symbol, price_field) MultiIndex."""
+    index = pd.DatetimeIndex(["2026-08-10T16:00:00Z", "2026-08-10T19:00:00Z"])
+    flat = pd.DataFrame(
+        {"Open": [100.0, 104.0], "Close": [101.0, 105.0]},
+        index=index,
+    )
+
+    promoted = _promote_single_ticker_columns(flat, "AAPL")
+
+    assert isinstance(promoted.columns, pd.MultiIndex)
+    assert list(promoted.columns.get_level_values(0).unique()) == ["AAPL"]
+    assert "Open" in promoted.columns.get_level_values(1)
+
+
+def test_promote_single_ticker_then_normalize_yields_long_contract():
+    """promote + normalize must produce the Task-1 long contract for a single ticker."""
+    index = pd.DatetimeIndex(["2026-08-10T16:00:00Z", "2026-08-10T19:00:00Z"])
+    flat = pd.DataFrame(
+        {"Open": [100.0, 104.0], "Close": [101.0, 105.0]},
+        index=index,
+    )
+    promoted = _promote_single_ticker_columns(flat, "AAPL")
+    result = normalize_yfinance_bars(promoted)
+
+    assert list(result.columns) == ["timestamp", "symbol", "open", "close"]
+    assert list(result["symbol"]) == ["AAPL", "AAPL"]
+
+
+# ---------------------------------------------------------------------------
 # fetch_top_symbols (monkeypatched)
 # ---------------------------------------------------------------------------
 
 
-def _make_weight_table(symbols):
-    return [pd.DataFrame({"Symbol": symbols, "Weight": range(len(symbols), 0, -1)})]
+def _make_weight_table(symbols, weights=None):
+    if weights is None:
+        weights = list(range(len(symbols), 0, -1))
+    return [pd.DataFrame({"Symbol": symbols, "Weight": weights})]
 
 
 def test_fetch_top_symbols_dot_becomes_dash(monkeypatch):
@@ -498,25 +535,71 @@ def test_fetch_top_symbols_dot_becomes_dash(monkeypatch):
     assert "BRK.B" not in result
 
 
-def test_fetch_top_symbols_preserves_order(monkeypatch):
-    """Order of symbols in the source table must be preserved."""
-    ordered = ["AAPL", "NVDA", "MSFT", "AMZN", "META"]
+def test_fetch_top_symbols_preserves_weight_order(monkeypatch):
+    """Symbols must be returned ordered by descending Weight, not source-table order."""
+    # Feed table in reverse weight order: AMZN=1, MSFT=2, NVDA=3, AAPL=4
     monkeypatch.setattr(
-        "pandas.read_html", lambda url, **kwargs: _make_weight_table(ordered)
+        "pandas.read_html",
+        lambda url, **kwargs: _make_weight_table(
+            ["AMZN", "MSFT", "NVDA", "AAPL"], weights=[1.0, 2.0, 3.0, 4.0]
+        ),
     )
 
-    result = fetch_top_symbols(5)
+    result = fetch_top_symbols(4)
 
-    assert result == ordered
+    assert result == ["AAPL", "NVDA", "MSFT", "AMZN"]
 
 
-def test_fetch_top_symbols_fewer_than_requested_raises(monkeypatch):
-    """If no source provides enough symbols, ValueError must be raised."""
+def test_fetch_top_symbols_percentage_string_weights(monkeypatch):
+    """Weight values supplied as percentage strings must be parsed correctly."""
     monkeypatch.setattr(
-        "pandas.read_html", lambda url, **kwargs: [pd.DataFrame({"other": [1]})]
+        "pandas.read_html",
+        lambda url, **kwargs: _make_weight_table(
+            ["AAPL", "NVDA", "MSFT"],
+            weights=["7.12%", "6.50%", "6.01%"],
+        ),
     )
 
-    with pytest.raises(ValueError, match="fetch_top_symbols"):
+    result = fetch_top_symbols(3)
+
+    assert result == ["AAPL", "NVDA", "MSFT"]
+
+
+def test_fetch_top_symbols_deduplicates(monkeypatch):
+    """Duplicate symbols in the source table must be deduplicated (first-seen kept)."""
+    monkeypatch.setattr(
+        "pandas.read_html",
+        lambda url, **kwargs: _make_weight_table(
+            ["AAPL", "NVDA", "AAPL"],
+            weights=[7.0, 6.0, 5.0],
+        ),
+    )
+
+    result = fetch_top_symbols(2)
+
+    assert result.count("AAPL") == 1
+    assert result == ["AAPL", "NVDA"]
+
+
+def test_fetch_top_symbols_slickcharts_fails_raises_runtime_error(monkeypatch):
+    """If Slickcharts raises, a RuntimeError with a clear message must be raised."""
+    monkeypatch.setattr(
+        "pandas.read_html",
+        lambda url, **kwargs: (_ for _ in ()).throw(OSError("connection refused")),
+    )
+
+    with pytest.raises(RuntimeError, match="Slickcharts"):
+        fetch_top_symbols(count=5)
+
+
+def test_fetch_top_symbols_insufficient_symbols_raises_runtime_error(monkeypatch):
+    """If Slickcharts returns fewer than count symbols, RuntimeError must be raised."""
+    monkeypatch.setattr(
+        "pandas.read_html",
+        lambda url, **kwargs: [pd.DataFrame({"other": [1]})],
+    )
+
+    with pytest.raises(RuntimeError, match="Slickcharts"):
         fetch_top_symbols(count=100)
 
 
@@ -527,8 +610,6 @@ def test_fetch_top_symbols_fewer_than_requested_raises(monkeypatch):
 
 def _make_deterministic_bars():
     """Two symbols, two sessions, bars at 12:00 and 15:00 ET."""
-    from zoneinfo import ZoneInfo
-
     NY = ZoneInfo("America/New_York")
     rows = []
     for sym, base in [("AAA", 100.0), ("BBB", 200.0)]:
@@ -571,11 +652,49 @@ def test_cli_exit_zero_and_labels_present(monkeypatch, capsys):
     assert "Basket-day accuracy" in captured.out
 
 
-def test_cli_fewer_symbols_exits_error(monkeypatch, capsys):
-    """If fetch_top_symbols raises, CLI must return non-zero."""
+def test_cli_survivorship_warning_mentions_leavers_and_joiners(monkeypatch, capsys):
+    """Survivorship warning must mention both leavers (LEFT) and joiners (JOINED)."""
+    monkeypatch.setattr(
+        "top50_intraday_drift.fetch_top_symbols",
+        lambda count: ["AAA", "BBB"][:count],
+    )
+    monkeypatch.setattr(
+        "top50_intraday_drift.download_hourly_bars",
+        lambda symbols, start, end: _make_deterministic_bars(),
+    )
+
+    cli_main(["--top", "2", "--months", "6"])
+
+    captured = capsys.readouterr()
+    assert "LEFT" in captured.out
+    assert "JOINED" in captured.out
+
+
+def test_cli_no_transaction_cost_warning_mentions_adjusted_open_and_close(
+    monkeypatch, capsys
+):
+    """Transaction-cost warning must note adjusted open (entry) and close (exit)."""
+    monkeypatch.setattr(
+        "top50_intraday_drift.fetch_top_symbols",
+        lambda count: ["AAA", "BBB"][:count],
+    )
+    monkeypatch.setattr(
+        "top50_intraday_drift.download_hourly_bars",
+        lambda symbols, start, end: _make_deterministic_bars(),
+    )
+
+    cli_main(["--top", "2", "--months", "6"])
+
+    captured = capsys.readouterr()
+    assert "adjusted open" in captured.out.lower()
+    assert "adjusted close" in captured.out.lower()
+
+
+def test_cli_slickcharts_failure_exits_error(monkeypatch, capsys):
+    """If fetch_top_symbols raises RuntimeError, CLI must return non-zero."""
 
     def _bad_fetch(count):
-        raise ValueError("only 1 symbol found")
+        raise RuntimeError("Slickcharts request failed")
 
     monkeypatch.setattr("top50_intraday_drift.fetch_top_symbols", _bad_fetch)
 
