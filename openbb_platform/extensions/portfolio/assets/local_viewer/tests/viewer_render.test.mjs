@@ -303,6 +303,8 @@ test("metricHelpButtonHtml labels a known metric accessibly", () => {
   const html = H.metricHelpButtonHtml("market_cap");
   assert.match(html, /aria-label="Learn about Market Cap"/);
   assert.match(html, /data-metric-help="market_cap"/);
+  assert.match(html, /aria-describedby="metric-help-summary-market_cap"/);
+  assert.match(html, /role="tooltip">The company[^<]*current share price\.<\/span>/);
 });
 
 test("metricHelpButtonHtml omits unknown metrics", () => {
@@ -325,6 +327,7 @@ test("renderTable adds help only for mapped first-column metrics", () => {
     { metric: "Unmapped Metric", value: 42 },
   ], WIDGETS.pi_equity_key_stats);
   assert.match(container.innerHTML, /Market Cap[\s\S]*data-metric-help="market_cap"/);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*metric-help-summary-market_cap[\s\S]*The company/);
   assert.match(container.innerHTML, />Unmapped Metric<\/td>/);
   assert.doesNotMatch(container.innerHTML, /Unmapped Metric[\s\S]*data-metric-help=/);
 });
@@ -337,6 +340,7 @@ test("svgForChart combo legend adds help buttons for mapped series", () => {
   assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help="revenue_b"/);
   assert.match(svg, /Net Income \(\$B\)[\s\S]*data-metric-help="net_income_b"/);
   assert.match(svg, /Net Margin \(%\)[\s\S]*data-metric-help="net_margin_pct"/);
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*role="tooltip">Annual sales expressed in billions of dollars\.<\/span>/);
 });
 
 // --------------------------------------------------------------------------

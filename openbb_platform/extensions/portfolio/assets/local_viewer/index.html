@@ -127,6 +127,7 @@
       border-radius: 50%; cursor: help; flex: none;
       display: inline-flex; align-items: center; justify-content: center;
     }
+    .mhelp-wrap { position: relative; display: inline-flex; align-items: center; }
     .widget > .whead .whelp:hover,
     .widget > .whead .whelp:focus-visible,
     .mhelp:hover,
@@ -137,6 +138,27 @@
     .mhelp:focus-visible {
       outline: 2px solid rgba(47, 129, 247, 0.45);
       outline-offset: 1px;
+    }
+    .mhelp-tip {
+      position: absolute; left: 50%; top: calc(100% + 8px); transform: translateX(-50%);
+      min-width: 200px; max-width: min(280px, 50vw); padding: 8px 10px;
+      background: var(--panel2); color: var(--fg); border: 1px solid var(--border);
+      border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.45);
+      font: 12px/1.45 ui-sans-serif, system-ui, sans-serif;
+      white-space: normal; text-align: left; opacity: 0; visibility: hidden;
+      pointer-events: none; z-index: 20;
+    }
+    .mhelp-tip::before {
+      content: ""; position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
+      border: 6px solid transparent; border-bottom-color: var(--border);
+    }
+    .mhelp-tip::after {
+      content: ""; position: absolute; left: 50%; bottom: calc(100% - 1px); transform: translateX(-50%);
+      border: 5px solid transparent; border-bottom-color: var(--panel2);
+    }
+    .mhelp-wrap:hover .mhelp-tip,
+    .mhelp-wrap:focus-within .mhelp-tip {
+      opacity: 1; visibility: visible;
     }
     .whelp-pop {
       position: absolute; top: 40px; left: 12px; z-index: 40; max-width: 420px;
@@ -1317,8 +1339,11 @@
   function metricHelpButtonHtml(key) {
     const entry = metricGlossaryEntry(key);
     if (!entry) return "";
-    return `<button type="button" class="mhelp" data-metric-help="${escapeHtml(key)}" `
-      + `aria-label="Learn about ${escapeHtml(entry.label)}" title="${escapeHtml(entry.summary)}">?</button>`;
+    const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "-");
+    const summaryId = `metric-help-summary-${safeKey}`;
+    return `<span class="mhelp-wrap"><button type="button" class="mhelp" data-metric-help="${escapeHtml(key)}" `
+      + `aria-label="Learn about ${escapeHtml(entry.label)}" aria-describedby="${summaryId}" title="${escapeHtml(entry.summary)}">?</button>`
+      + `<span class="mhelp-tip" id="${summaryId}" role="tooltip">${escapeHtml(entry.summary)}</span></span>`;
   }
 
   // Pure builder for the "?" help button in a widget header. Returns "" when
