@@ -28,17 +28,22 @@
 
 ## Validation
 - Command: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`
-  - Result: PASS (77 tests)
-- Command: `.venv_portfolio\Scripts\python.exe -m pytest openbb_platform/extensions/portfolio/tests/test_local_viewer.py -q`
-  - Result: PASS (8 tests)
+  - Result: PASS (79 tests)
+- Command: `.venv_portfolio\Scripts\python.exe -m pytest openbb_platform/extensions/portfolio/tests/test_local_viewer.py openbb_platform/extensions/portfolio_intel/tests/unit/test_local_viewer.py -q`
+  - Result: PASS (14 tests)
+
+## Review findings follow-up
+- Added route-specific shell serving so `/viewer/help` strips the BugContext loader while `/viewer` still serves it.
+- Mounted `/viewer/help` on the `portfolio_intel` 6120 backend and added focused contract coverage for both backends.
+- Added a focused Node guard that keeps the help-page HTML self-contained while the main viewer shell retains the loader.
 
 ## Self-review
 - Reviewed the scoped diff for the viewer asset, route, and focused tests.
 - Confirmed unrelated pre-existing changes in `openbb_platform/core/openbb/assets/reference.json` and `openbb_platform/core/openbb/package/__init__.py` were left untouched.
 
 ## Commit
-- Recorded in the latest commit on this branch.
-- Message: `feat(portfolio): add metric help documentation view`
+- Review-fix follow-up recorded in a dedicated commit on this branch.
+- Message: `fix(portfolio): tighten viewer help route`
 - Trailer: `Refs #1984`
 - Trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
 

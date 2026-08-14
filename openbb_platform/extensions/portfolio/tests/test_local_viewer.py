@@ -36,6 +36,8 @@ def test_viewer_help_route_returns_same_origin_html_shell():
     assert "function metricHelpPageHtml" in body
     assert 'pathname !== "/viewer/help"' in body
     assert 'new URLSearchParams((window.location && window.location.search) || "")' in body
+    assert "bugcontext.com/loader.js" not in body
+    assert "Bug Context feedback widget" not in body
 
 
 def test_viewer_html_references_contract_endpoints():
@@ -141,3 +143,10 @@ def test_viewer_embeds_bugcontext_feedback_widget():
     assert marker in body
     # It must sit before the closing body tag.
     assert body.index("bugcontext.com/loader.js") < body.rindex("</body>")
+
+
+def test_viewer_help_route_omits_bugcontext_feedback_widget():
+    """#1984: the help route must not include or fetch the external loader."""
+    body = _client().get("/viewer/help?metric=market_cap").text
+    assert "bugcontext.com/loader.js" not in body
+    assert "Bug Context feedback widget" not in body

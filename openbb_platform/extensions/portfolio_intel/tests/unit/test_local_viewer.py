@@ -36,6 +36,18 @@ def test_viewer_route_is_mounted_on_6120():
     assert resp.text.lstrip().lower().startswith("<!doctype html")
 
 
+def test_viewer_help_route_is_mounted_on_6120_without_bugcontext_loader():
+    """GET /viewer/help on the 6120 backend serves the help shell only."""
+    pytest.importorskip("openbb_portfolio")
+    resp = _client.get("/viewer/help?metric=pe_ttm")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert resp.text.lstrip().lower().startswith("<!doctype html")
+    assert "function metricHelpPageHtml" in resp.text
+    assert "bugcontext.com/loader.js" not in resp.text
+    assert "Bug Context feedback widget" not in resp.text
+
+
 def test_viewer_reuses_canonical_asset_with_new_renderers():
     """The served page is the shared SPA with the #1805 renderers + app
     switcher (proves reuse of the canonical asset, not a stale copy).
@@ -63,7 +75,15 @@ def test_viewer_degrades_to_503_when_asset_extension_absent(monkeypatch):
     """If ``openbb_portfolio`` can't be loaded, /viewer returns 503 with a
     clear message rather than 500 or a broken page.
     """
-    monkeypatch.setattr(local_viewer, "_load_viewer_html", lambda: None)
+    monkeypatch.setattr(local_viewer, "_load_viewer_html", lambda **_: None)
     resp = _client.get("/viewer")
+    assert resp.status_code == 503
+    assert "openbb_portfolio" in resp.text
+
+
+def test_viewer_help_degrades_to_503_when_asset_extension_absent(monkeypatch):
+    """If the shared asset is unavailable, /viewer/help returns the same 503."""
+    monkeypatch.setattr(local_viewer, "_load_viewer_html", lambda **_: None)
+    resp = _client.get("/viewer/help?metric=pe_ttm")
     assert resp.status_code == 503
     assert "openbb_portfolio" in resp.text

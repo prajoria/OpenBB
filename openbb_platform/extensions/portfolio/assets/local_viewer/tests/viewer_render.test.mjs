@@ -340,6 +340,17 @@ test("metricHelpPageHtml reports an unknown metric without interpolating it", ()
   assert.doesNotMatch(H.metricHelpPageHtml("<script>"), /<script>/);
 });
 
+test("metricHelpPageHtml stays self-contained and omits the Bug Context loader", () => {
+  const html = H.metricHelpPageHtml("net_margin");
+  assert.doesNotMatch(html, /bugcontext\.com\/loader\.js/i);
+  assert.doesNotMatch(html, /<script/i);
+});
+
+test("viewer shell still carries the Bug Context loader for /viewer", () => {
+  assert.match(HTML, /https:\/\/demo\.bugcontext\.com\/loader\.js/);
+  assert.match(HTML, /Bug Context feedback widget/);
+});
+
 test("metricHelpLayerPosition centers below and clamps within the viewport", () => {
   const pos = H.metricHelpLayerPosition(
     { left: 20, right: 36, top: 20, bottom: 38, width: 16, height: 18 },
