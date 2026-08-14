@@ -56,11 +56,11 @@ function loadHelpers() {
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
     "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
-    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
+    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "renderTab"];
   const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null;\n\n"
     + names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ")
-    + ", __setDocument: (doc) => { globalThis.document = doc; }, __setWindow: (win) => { globalThis.window = win; }, __setActiveMetricHelpBtn: (btn) => { ACTIVE_METRIC_HELP_BTN = btn; }, __getActiveMetricHelpBtn: () => ACTIVE_METRIC_HELP_BTN };";
+    + ", __setDocument: (doc) => { globalThis.document = doc; }, __setWindow: (win) => { globalThis.window = win; }, __setGlobals: (globals) => { Object.assign(globalThis, globals); }, __setActiveMetricHelpBtn: (btn) => { ACTIVE_METRIC_HELP_BTN = btn; }, __getActiveMetricHelpBtn: () => ACTIVE_METRIC_HELP_BTN };";
   const ctx = {
     document: { getElementById: () => null },
     window: { innerWidth: 1024, innerHeight: 768 },
@@ -393,6 +393,48 @@ test("renderTable hides an active floating metric tooltip before replacing widge
   assert.equal(H.__getActiveMetricHelpBtn(), null);
   assert.equal(layer.attrs["aria-hidden"], "true");
   assert.match(html, /data-metric-help="market_cap"/);
+});
+
+test("renderTab hides an active floating metric tooltip before clearing the widget grid", () => {
+  const layer = {
+    hidden: false,
+    attrs: {},
+    setAttribute(name, value) { this.attrs[name] = value; },
+  };
+  const activeBtn = {};
+  const calls = [];
+  H.__setDocument({
+    getElementById: (id) => (id === "metric-help-layer" ? layer : null),
+    querySelectorAll: () => [],
+  });
+  H.__setActiveMetricHelpBtn(activeBtn);
+  const grid = {
+    set innerHTML(value) {
+      calls.push(value);
+      assert.equal(layer.hidden, true, "tooltip layer should hide before grid replacement");
+    },
+    get innerHTML() { return ""; },
+  };
+  H.__setGlobals({
+    $: (id) => {
+      if (id === "grid") return grid;
+      if (id === "tabs") return { querySelectorAll: () => [] };
+      return null;
+    },
+    disposeTradingViewCharts: () => {},
+    APP: { tabs: { overview: { name: "Overview", layout: [] } } },
+    ACTIVE_TAB: "overview",
+    LAYOUT: [],
+    loadOverrides: () => [],
+    mergeLayout: () => [],
+    renderWidget: () => {},
+    gridGeom: () => ({}),
+    fitCanvas: () => {},
+  });
+  H.renderTab("overview");
+  assert.equal(H.__getActiveMetricHelpBtn(), null);
+  assert.equal(layer.attrs["aria-hidden"], "true");
+  assert.deepEqual(calls, ["", '<div class="state">This tab has no widgets.</div>']);
 });
 
 test("svgForChart combo legend adds help buttons for mapped series", () => {

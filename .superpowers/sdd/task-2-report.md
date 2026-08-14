@@ -52,3 +52,8 @@
 - Commit: `fix(portfolio): harden metric help tooltip refresh`
 - Trailer: `Refs #1984`
 - Trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+
+## Task 2 review follow-up
+- Added an early `hideMetricHelpLayer()` in `renderTab()` so tab switches / refreshes dismiss any active shared metric tooltip before the widget grid is cleared or replaced.
+- Added a focused regression test that exercises `renderTab()` and verifies the tooltip layer is hidden before the grid's `innerHTML` is reset.
+- Validation: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs` — PASS (75 tests).

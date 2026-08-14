@@ -1785,6 +1785,7 @@
       b.classList.toggle("active", b.dataset.tab === tabId);
     }
     const grid = $("grid");
+    hideMetricHelpLayer();
     disposeTradingViewCharts(); // free LWC canvases/observers before DOM teardown
     grid.innerHTML = "";
     const tab = APP.tabs[tabId];
