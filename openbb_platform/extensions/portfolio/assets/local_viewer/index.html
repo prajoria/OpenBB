@@ -473,6 +473,7 @@
   }
 
   function renderTable(container, rows, widget) {
+    hideMetricHelpLayerWithin(container);
     if (!rows.length) { container.innerHTML = '<div class="state">No rows returned.</div>'; return; }
     const defs = widget && widget.data && widget.data.table && widget.data.table.columnsDefs;
     const map = widget && widget.data && widget.data.metricGlossary;
@@ -915,6 +916,7 @@
   }
 
   function renderMarkdown(container, mdText) {
+    hideMetricHelpLayerWithin(container);
     const text = (typeof mdText === "string") ? mdText : (mdText == null ? "" : String(mdText));
     if (!text.trim()) { container.innerHTML = '<div class="state">No content returned.</div>'; return; }
     const div = document.createElement("div");
@@ -925,6 +927,7 @@
   }
 
   function renderMetric(container, obj, widgetDef) {
+    hideMetricHelpLayerWithin(container);
     const model = metricModel(obj);
     if (!model.cards.length) { container.innerHTML = '<div class="state">No metric value returned.</div>'; return; }
     const fmt = (v) => (typeof v === "number"
@@ -1049,6 +1052,7 @@
   }
 
   function renderChart(container, rows, widgetDef) {
+    hideMetricHelpLayerWithin(container);
     const cfg = widgetDef && widgetDef.data && widgetDef.data.chart;
     const model = inferChartModel(rows, cfg);
     if (model.kind === "empty") {
@@ -1120,6 +1124,7 @@
   }
 
   async function loadWidgetData(bodyEl, widgetDef, params) {
+    hideMetricHelpLayerWithin(bodyEl);
     bodyEl.innerHTML = '<div class="state">Loading…</div>';
     try {
       const { data: resp, source } = await fetchJSONWithSource(widgetDef.endpoint + buildQuery(params));
@@ -1349,11 +1354,14 @@
     return def.description != null ? String(def.description).trim() : "";
   }
 
+  let METRIC_HELP_ID_SEQ = 0;
+
   function metricHelpButtonHtml(key) {
     const entry = metricGlossaryEntry(key);
     if (!entry) return "";
     const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "-");
-    const summaryId = `metric-help-summary-${safeKey}`;
+    METRIC_HELP_ID_SEQ += 1;
+    const summaryId = `metric-help-summary-${safeKey}-${METRIC_HELP_ID_SEQ}`;
     return `<span class="mhelp-wrap"><button type="button" class="mhelp" data-metric-help="${escapeHtml(key)}" `
       + `data-metric-help-summary="${escapeHtml(entry.summary)}" aria-label="Learn about ${escapeHtml(entry.label)}" `
       + `aria-describedby="${summaryId}">?</button>`
@@ -1632,6 +1640,17 @@
     if (!layer) return;
     layer.hidden = true;
     layer.setAttribute("aria-hidden", "true");
+  }
+
+  function hideMetricHelpLayerWithin(root) {
+    if (!root || !ACTIVE_METRIC_HELP_BTN) return;
+    if (root === ACTIVE_METRIC_HELP_BTN) {
+      hideMetricHelpLayer();
+      return;
+    }
+    if (typeof root.contains === "function" && root.contains(ACTIVE_METRIC_HELP_BTN)) {
+      hideMetricHelpLayer();
+    }
   }
 
   function syncMetricHelpLayer() {

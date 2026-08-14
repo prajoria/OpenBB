@@ -42,3 +42,13 @@
   - Result: PASS (72 tests)
 - Command: inline Node parse of the viewer `<script>` block via `new Function(...)`
   - Result: PASS (`viewer script parses`)
+
+## Latest Task 2 findings follow-up
+- Updated `metricHelpButtonHtml` so every rendered summary uses a unique per-instance `id` suffix while keeping each button's `aria-describedby` pointed at its matching hidden `.mhelp-tip`.
+- Added `hideMetricHelpLayerWithin(root)` and call it before widget-body replacement paths (`loadWidgetData`, `renderTable`, `renderMarkdown`, `renderMetric`, `renderChart`) so an active floating tooltip is dismissed before its trigger is disconnected.
+- Extended the Node viewer suite to verify repeated help buttons for the same metric key no longer share an `aria-describedby` target and that table re-render hides the active floating tooltip before `innerHTML` replacement.
+- Command: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`
+  - Result: PASS (74 tests)
+- Commit: `fix(portfolio): harden metric help tooltip refresh`
+- Trailer: `Refs #1984`
+- Trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`

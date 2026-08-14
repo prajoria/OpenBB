@@ -54,12 +54,17 @@ function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
-    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricHelpLayerPosition", "inlineOptionsHtml",
+    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
     "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
-  const code = names.map((n) => extractFn(src, n)).join("\n\n") +
-    "\n;globalThis.__H = { " + names.join(", ") + " };";
-  const ctx = {};
+  const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null;\n\n"
+    + names.map((n) => extractFn(src, n)).join("\n\n") +
+    "\n;globalThis.__H = { " + names.join(", ")
+    + ", __setDocument: (doc) => { globalThis.document = doc; }, __setWindow: (win) => { globalThis.window = win; }, __setActiveMetricHelpBtn: (btn) => { ACTIVE_METRIC_HELP_BTN = btn; }, __getActiveMetricHelpBtn: () => ACTIVE_METRIC_HELP_BTN };";
+  const ctx = {
+    document: { getElementById: () => null },
+    window: { innerWidth: 1024, innerHeight: 768 },
+  };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(code, ctx);
@@ -304,8 +309,19 @@ test("metricHelpButtonHtml labels a known metric accessibly", () => {
   assert.match(html, /aria-label="Learn about Market Cap"/);
   assert.match(html, /data-metric-help="market_cap"/);
   assert.match(html, /data-metric-help-summary="The company/);
-  assert.match(html, /aria-describedby="metric-help-summary-market_cap"/);
-  assert.match(html, /id="metric-help-summary-market_cap">The company[^<]*current share price\.<\/span>/);
+  const id = html.match(/aria-describedby="([^"]+)"/)?.[1];
+  assert.ok(id, "expected aria-describedby id");
+  assert.match(id, /^metric-help-summary-market_cap-\d+$/);
+  assert.match(html, new RegExp(`id="${id}">The company[^<]*current share price\\.<\\/span>`));
+});
+
+test("metricHelpButtonHtml gives repeated metrics unique described-by ids", () => {
+  const first = H.metricHelpButtonHtml("market_cap");
+  const second = H.metricHelpButtonHtml("market_cap");
+  const firstId = first.match(/aria-describedby="([^"]+)"/)?.[1];
+  const secondId = second.match(/aria-describedby="([^"]+)"/)?.[1];
+  assert.ok(firstId && secondId, "expected ids on both help buttons");
+  assert.notEqual(firstId, secondId);
 });
 
 test("metricHelpButtonHtml omits unknown metrics", () => {
@@ -350,9 +366,33 @@ test("renderTable adds help only for mapped first-column metrics", () => {
     { metric: "Unmapped Metric", value: 42 },
   ], WIDGETS.pi_equity_key_stats);
   assert.match(container.innerHTML, /Market Cap[\s\S]*data-metric-help="market_cap"/);
-  assert.match(container.innerHTML, /Market Cap[\s\S]*metric-help-summary-market_cap[\s\S]*The company/);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*metric-help-summary-market_cap-\d+[\s\S]*The company/);
   assert.match(container.innerHTML, />Unmapped Metric<\/td>/);
   assert.doesNotMatch(container.innerHTML, /Unmapped Metric[\s\S]*data-metric-help=/);
+});
+
+test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
+  const layer = {
+    hidden: false,
+    attrs: {},
+    setAttribute(name, value) { this.attrs[name] = value; },
+  };
+  const activeBtn = {};
+  H.__setDocument({ getElementById: () => layer });
+  H.__setActiveMetricHelpBtn(activeBtn);
+  let html = "";
+  const container = {
+    contains(node) { return node === activeBtn; },
+    set innerHTML(value) {
+      assert.equal(layer.hidden, true, "tooltip layer should hide before body replacement");
+      html = value;
+    },
+    get innerHTML() { return html; },
+  };
+  H.renderTable(container, [{ metric: "Market Cap", value: 1 }], WIDGETS.pi_equity_key_stats);
+  assert.equal(H.__getActiveMetricHelpBtn(), null);
+  assert.equal(layer.attrs["aria-hidden"], "true");
+  assert.match(html, /data-metric-help="market_cap"/);
 });
 
 test("svgForChart combo legend adds help buttons for mapped series", () => {
@@ -364,7 +404,7 @@ test("svgForChart combo legend adds help buttons for mapped series", () => {
   assert.match(svg, /Net Income \(\$B\)[\s\S]*data-metric-help="net_income_b"/);
   assert.match(svg, /Net Margin \(%\)[\s\S]*data-metric-help="net_margin_pct"/);
   assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help-summary="Annual sales expressed in billions of dollars\."/);
-  assert.match(svg, /Revenue \(\$B\)[\s\S]*id="metric-help-summary-revenue_b">Annual sales expressed in billions of dollars\.<\/span>/);
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*id="metric-help-summary-revenue_b-\d+">Annual sales expressed in billions of dollars\.<\/span>/);
 });
 
 // --------------------------------------------------------------------------
