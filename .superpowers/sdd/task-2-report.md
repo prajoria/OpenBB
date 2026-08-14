@@ -32,7 +32,13 @@
 - The same-origin `/viewer/help` page is intentionally only linked here; its document view is Task 3.
 
 ## Accessibility follow-up
-- Replaced the metric-help button's title-only summary with an inline `.mhelp-tip` tooltip surface that is revealed on both hover and keyboard focus via `.mhelp-wrap:hover` / `.mhelp-wrap:focus-within`.
-- Associated each metric-help button with its short summary using `aria-describedby` + `role="tooltip"` so assistive tech can reach the same content without relying on browser title behavior.
-- Kept the existing click-through behavior to `/viewer/help?metric=...` and preserved the `pointerdown` stop-propagation guard so the hover/focus affordance still does not start widget dragging.
-- Regression coverage now asserts the rendered help HTML includes the associated summary surface and tooltip content in both table rows and combo-chart legends.
+- Moved the visible metric-help summary into a fixed `.mhelp-layer` appended to `document.body`, so widget/body overflow clipping no longer hides the hover/focus tooltip while `.widget`/`.wbody` scroll and resize behavior stay unchanged.
+- Kept each button's `aria-describedby` link to a hidden inline `.mhelp-tip` summary, preserving a stable accessible association independent of the visual layer.
+- Kept the existing click-through behavior to `/viewer/help?metric=...`, preserved the `pointerdown` stop-propagation guard, and now hide/reposition the floating summary on leave/blur/scroll/resize.
+- Regression coverage now asserts the rendered help HTML carries the summary data needed by the unclipped layer and that `metricHelpLayerPosition` clamps inward / flips above when viewport space is tight.
+
+## Additional test evidence
+- Command: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`
+  - Result: PASS (72 tests)
+- Command: inline Node parse of the viewer `<script>` block via `new Function(...)`
+  - Result: PASS (`viewer script parses`)

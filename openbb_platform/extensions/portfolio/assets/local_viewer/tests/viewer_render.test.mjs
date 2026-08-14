@@ -54,7 +54,7 @@ function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
-    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "inlineOptionsHtml",
+    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricHelpLayerPosition", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
     "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
   const code = names.map((n) => extractFn(src, n)).join("\n\n") +
@@ -303,12 +303,35 @@ test("metricHelpButtonHtml labels a known metric accessibly", () => {
   const html = H.metricHelpButtonHtml("market_cap");
   assert.match(html, /aria-label="Learn about Market Cap"/);
   assert.match(html, /data-metric-help="market_cap"/);
+  assert.match(html, /data-metric-help-summary="The company/);
   assert.match(html, /aria-describedby="metric-help-summary-market_cap"/);
-  assert.match(html, /role="tooltip">The company[^<]*current share price\.<\/span>/);
+  assert.match(html, /id="metric-help-summary-market_cap">The company[^<]*current share price\.<\/span>/);
 });
 
 test("metricHelpButtonHtml omits unknown metrics", () => {
   assert.equal(H.metricHelpButtonHtml("unreviewed_metric"), "");
+});
+
+test("metricHelpLayerPosition centers below and clamps within the viewport", () => {
+  const pos = H.metricHelpLayerPosition(
+    { left: 20, right: 36, top: 20, bottom: 38, width: 16, height: 18 },
+    { width: 220, height: 56 },
+    { left: 0, top: 0, right: 240, bottom: 180 },
+  );
+  assert.equal(pos.placement, "bottom");
+  assert.equal(pos.left, 8, "tooltip should clamp inward from the left edge");
+  assert.equal(pos.top, 48);
+  assert.ok(pos.arrowLeft >= 12 && pos.arrowLeft <= 208, `arrow inset must stay inside bubble, got ${pos.arrowLeft}`);
+});
+
+test("metricHelpLayerPosition flips above when there is no room below", () => {
+  const pos = H.metricHelpLayerPosition(
+    { left: 120, right: 136, top: 148, bottom: 166, width: 16, height: 18 },
+    { width: 180, height: 40 },
+    { left: 0, top: 0, right: 280, bottom: 180 },
+  );
+  assert.equal(pos.placement, "top");
+  assert.equal(pos.top, 98);
 });
 
 test("F2 widgets declare glossary mappings for key stats and financial charts", () => {
@@ -340,7 +363,8 @@ test("svgForChart combo legend adds help buttons for mapped series", () => {
   assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help="revenue_b"/);
   assert.match(svg, /Net Income \(\$B\)[\s\S]*data-metric-help="net_income_b"/);
   assert.match(svg, /Net Margin \(%\)[\s\S]*data-metric-help="net_margin_pct"/);
-  assert.match(svg, /Revenue \(\$B\)[\s\S]*role="tooltip">Annual sales expressed in billions of dollars\.<\/span>/);
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help-summary="Annual sales expressed in billions of dollars\."/);
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*id="metric-help-summary-revenue_b">Annual sales expressed in billions of dollars\.<\/span>/);
 });
 
 // --------------------------------------------------------------------------

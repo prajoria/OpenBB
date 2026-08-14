@@ -127,7 +127,7 @@
       border-radius: 50%; cursor: help; flex: none;
       display: inline-flex; align-items: center; justify-content: center;
     }
-    .mhelp-wrap { position: relative; display: inline-flex; align-items: center; }
+    .mhelp-wrap { display: inline-flex; align-items: center; }
     .widget > .whead .whelp:hover,
     .widget > .whead .whelp:focus-visible,
     .mhelp:hover,
@@ -140,25 +140,38 @@
       outline-offset: 1px;
     }
     .mhelp-tip {
-      position: absolute; left: 50%; top: calc(100% + 8px); transform: translateX(-50%);
-      min-width: 200px; max-width: min(280px, 50vw); padding: 8px 10px;
-      background: var(--panel2); color: var(--fg); border: 1px solid var(--border);
-      border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.45);
+      position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+      overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%);
+      border: 0; white-space: nowrap;
+    }
+    .mhelp-layer {
+      position: fixed; min-width: 200px; max-width: min(280px, calc(100vw - 16px));
+      padding: 8px 10px; background: var(--panel2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.45);
       font: 12px/1.45 ui-sans-serif, system-ui, sans-serif;
-      white-space: normal; text-align: left; opacity: 0; visibility: hidden;
-      pointer-events: none; z-index: 20;
+      white-space: normal; text-align: left; pointer-events: none; z-index: 60;
     }
-    .mhelp-tip::before {
-      content: ""; position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
-      border: 6px solid transparent; border-bottom-color: var(--border);
+    .mhelp-layer[hidden] { display: none; }
+    .mhelp-layer::before,
+    .mhelp-layer::after {
+      content: ""; position: absolute; left: var(--mhelp-arrow-left, 50%);
+      transform: translateX(-50%); border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
     }
-    .mhelp-tip::after {
-      content: ""; position: absolute; left: 50%; bottom: calc(100% - 1px); transform: translateX(-50%);
-      border: 5px solid transparent; border-bottom-color: var(--panel2);
+    .mhelp-layer[data-placement="bottom"]::before {
+      bottom: 100%; border-bottom: 6px solid var(--border);
     }
-    .mhelp-wrap:hover .mhelp-tip,
-    .mhelp-wrap:focus-within .mhelp-tip {
-      opacity: 1; visibility: visible;
+    .mhelp-layer[data-placement="bottom"]::after {
+      bottom: calc(100% - 1px); border-bottom: 5px solid var(--panel2);
+      border-left-width: 5px; border-right-width: 5px;
+    }
+    .mhelp-layer[data-placement="top"]::before {
+      top: 100%; border-top: 6px solid var(--border);
+    }
+    .mhelp-layer[data-placement="top"]::after {
+      top: calc(100% - 1px); border-top: 5px solid var(--panel2);
+      border-left-width: 5px; border-right-width: 5px;
     }
     .whelp-pop {
       position: absolute; top: 40px; left: 12px; z-index: 40; max-width: 420px;
@@ -1342,8 +1355,9 @@
     const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "-");
     const summaryId = `metric-help-summary-${safeKey}`;
     return `<span class="mhelp-wrap"><button type="button" class="mhelp" data-metric-help="${escapeHtml(key)}" `
-      + `aria-label="Learn about ${escapeHtml(entry.label)}" aria-describedby="${summaryId}" title="${escapeHtml(entry.summary)}">?</button>`
-      + `<span class="mhelp-tip" id="${summaryId}" role="tooltip">${escapeHtml(entry.summary)}</span></span>`;
+      + `data-metric-help-summary="${escapeHtml(entry.summary)}" aria-label="Learn about ${escapeHtml(entry.label)}" `
+      + `aria-describedby="${summaryId}">?</button>`
+      + `<span class="mhelp-tip" id="${summaryId}">${escapeHtml(entry.summary)}</span></span>`;
   }
 
   // Pure builder for the "?" help button in a widget header. Returns "" when
@@ -1550,12 +1564,107 @@
     }, 0);
   }
 
+  function metricHelpLayerPosition(anchorRect, tipRect, boundsRect) {
+    const gap = 10;
+    const pad = 8;
+    const bounds = boundsRect || { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    const tipWidth = Math.max(0, tipRect && tipRect.width ? tipRect.width : 0);
+    const tipHeight = Math.max(0, tipRect && tipRect.height ? tipRect.height : 0);
+    const anchor = anchorRect || { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
+    const centerX = anchor.left + ((anchor.width != null ? anchor.width : (anchor.right - anchor.left)) / 2);
+    const minLeft = bounds.left + pad;
+    const maxLeft = Math.max(minLeft, bounds.right - tipWidth - pad);
+    const left = Math.min(Math.max(centerX - (tipWidth / 2), minLeft), maxLeft);
+    const belowTop = anchor.bottom + gap;
+    const aboveTop = anchor.top - tipHeight - gap;
+    const fitsBelow = belowTop + tipHeight <= bounds.bottom - pad;
+    const fitsAbove = aboveTop >= bounds.top + pad;
+    const placement = (!fitsBelow && fitsAbove) ? "top" : "bottom";
+    const rawTop = placement === "top" ? aboveTop : belowTop;
+    const minTop = bounds.top + pad;
+    const maxTop = Math.max(minTop, bounds.bottom - tipHeight - pad);
+    const top = Math.min(Math.max(rawTop, minTop), maxTop);
+    const arrowLeft = Math.min(Math.max(centerX - left, 12), Math.max(12, tipWidth - 12));
+    return { left, top, placement, arrowLeft };
+  }
+
+  let ACTIVE_METRIC_HELP_BTN = null;
+
+  function metricHelpLayer() {
+    let layer = document.getElementById("metric-help-layer");
+    if (layer) return layer;
+    layer = document.createElement("div");
+    layer.id = "metric-help-layer";
+    layer.className = "mhelp-layer";
+    layer.hidden = true;
+    layer.setAttribute("role", "tooltip");
+    layer.setAttribute("aria-hidden", "true");
+    document.body.appendChild(layer);
+    return layer;
+  }
+
+  function showMetricHelpLayer(btn) {
+    if (!btn || typeof btn.getBoundingClientRect !== "function") return;
+    const summary = btn.dataset.metricHelpSummary || "";
+    if (!summary) return;
+    const layer = metricHelpLayer();
+    ACTIVE_METRIC_HELP_BTN = btn;
+    layer.textContent = summary;
+    layer.hidden = false;
+    layer.setAttribute("aria-hidden", "false");
+    layer.style.left = "0px";
+    layer.style.top = "0px";
+    const pos = metricHelpLayerPosition(
+      btn.getBoundingClientRect(),
+      layer.getBoundingClientRect(),
+      { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
+    );
+    layer.dataset.placement = pos.placement;
+    layer.style.left = `${pos.left}px`;
+    layer.style.top = `${pos.top}px`;
+    layer.style.setProperty("--mhelp-arrow-left", `${pos.arrowLeft}px`);
+  }
+
+  function hideMetricHelpLayer(btn) {
+    if (btn && ACTIVE_METRIC_HELP_BTN && btn !== ACTIVE_METRIC_HELP_BTN) return;
+    ACTIVE_METRIC_HELP_BTN = null;
+    const layer = document.getElementById("metric-help-layer");
+    if (!layer) return;
+    layer.hidden = true;
+    layer.setAttribute("aria-hidden", "true");
+  }
+
+  function syncMetricHelpLayer() {
+    if (!ACTIVE_METRIC_HELP_BTN || !ACTIVE_METRIC_HELP_BTN.isConnected) {
+      hideMetricHelpLayer();
+      return;
+    }
+    showMetricHelpLayer(ACTIVE_METRIC_HELP_BTN);
+  }
+
+  let METRIC_HELP_LAYER_BOUND = false;
+
+  function bindMetricHelpLayerEvents() {
+    if (METRIC_HELP_LAYER_BOUND) return;
+    METRIC_HELP_LAYER_BOUND = true;
+    window.addEventListener("resize", syncMetricHelpLayer);
+    document.addEventListener("scroll", syncMetricHelpLayer, true);
+  }
+
   function bindMetricHelpButtons(root) {
     if (!root || typeof root.querySelectorAll !== "function") return;
+    bindMetricHelpLayerEvents();
     for (const btn of root.querySelectorAll(".mhelp")) {
+      if (btn.dataset.metricHelpBound === "1") continue;
+      btn.dataset.metricHelpBound = "1";
       btn.addEventListener("pointerdown", (e) => e.stopPropagation());
+      btn.addEventListener("pointerenter", () => showMetricHelpLayer(btn));
+      btn.addEventListener("pointerleave", () => hideMetricHelpLayer(btn));
+      btn.addEventListener("focus", () => showMetricHelpLayer(btn));
+      btn.addEventListener("blur", () => hideMetricHelpLayer(btn));
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
+        hideMetricHelpLayer(btn);
         const key = btn.dataset.metricHelp || "";
         if (!key) return;
         const url = "/viewer/help?metric=" + encodeURIComponent(key);
