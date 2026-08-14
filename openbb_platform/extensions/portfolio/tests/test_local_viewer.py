@@ -26,6 +26,18 @@ def test_viewer_route_returns_html():
     assert resp.text.lstrip().lower().startswith("<!doctype html")
 
 
+def test_viewer_help_route_returns_same_origin_html_shell():
+    """GET /viewer/help returns the same SPA shell for help-route dispatch."""
+    resp = _client().get("/viewer/help?metric=pe_ttm")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    body = resp.text
+    assert body.lstrip().lower().startswith("<!doctype html")
+    assert "function metricHelpPageHtml" in body
+    assert 'pathname !== "/viewer/help"' in body
+    assert 'new URLSearchParams((window.location && window.location.search) || "")' in body
+
+
 def test_viewer_html_references_contract_endpoints():
     """The shell must wire every backend endpoint the JS depends on.
 

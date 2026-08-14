@@ -254,6 +254,54 @@
     .msg.note { align-self: stretch; background: transparent; color: var(--muted); font-size: 12px; text-align: center; }
     .composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
     .composer input { flex: 1; }
+    /* Standalone metric documentation page (#1984): same-origin, static, and
+       style-local so `/viewer/help?metric=...` never needs external assets. */
+    body.help-doc {
+      min-height: 100vh; height: auto; display: block;
+      background:
+        radial-gradient(circle at top, rgba(47,129,247,.12), transparent 34%),
+        var(--bg);
+    }
+    .help-doc-page {
+      width: min(840px, calc(100vw - 32px)); margin: 0 auto; padding: 32px 0 48px;
+    }
+    .help-doc-back {
+      display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px;
+      color: var(--accent); text-decoration: none; font-weight: 600;
+    }
+    .help-doc-back:hover,
+    .help-doc-back:focus-visible { text-decoration: underline; }
+    .help-doc-kicker {
+      margin: 0 0 10px; color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    }
+    .help-doc-page h1 { margin: 0 0 10px; font-size: 32px; line-height: 1.15; }
+    .help-doc-summary {
+      margin: 0 0 24px; max-width: 68ch; color: #c9d1d9; font-size: 16px;
+    }
+    .help-doc-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px; margin-bottom: 20px;
+    }
+    .help-doc-card {
+      padding: 18px; background: rgba(22, 27, 34, 0.88);
+      border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 14px 40px rgba(0,0,0,.18);
+    }
+    .help-doc-card h2 { margin: 0 0 10px; font-size: 14px; }
+    .help-doc-card p { margin: 0; color: #c9d1d9; }
+    .help-doc-source {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border-radius: 8px; text-decoration: none;
+      background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      font-weight: 600;
+    }
+    .help-doc-source:hover,
+    .help-doc-source:focus-visible { border-color: var(--accent); color: #fff; }
+    .help-doc-empty {
+      max-width: 56ch; padding: 18px; background: rgba(22, 27, 34, 0.88);
+      border: 1px solid var(--border); border-radius: 12px; color: #c9d1d9;
+    }
+    .help-doc-empty p { margin: 0; }
   </style>
 </head>
 <body>
@@ -1368,6 +1416,26 @@
       + `<span class="mhelp-tip" id="${summaryId}">${escapeHtml(entry.summary)}</span></span>`;
   }
 
+  function metricHelpPageHtml(key) {
+    const entry = metricGlossaryEntry(key);
+    if (!entry) {
+      return `<main class="help-doc-page"><a class="help-doc-back" href="/viewer">&larr; Back to viewer</a>`
+        + `<p class="help-doc-kicker">Metric glossary</p><h1>Metric documentation is unavailable</h1>`
+        + `<div class="help-doc-empty"><p>Return to the viewer and select a documented metric.</p></div></main>`;
+    }
+    const source = typeof entry.source === "string" && /^https?:\/\//i.test(entry.source) ? entry.source : "";
+    const sourceLink = source
+      ? `<p><a class="help-doc-source" href="${escapeHtml(source)}" target="_blank" rel="noopener noreferrer">`
+        + `Open external learning resource</a></p>`
+      : "";
+    return `<main class="help-doc-page"><a class="help-doc-back" href="/viewer">&larr; Back to viewer</a>`
+      + `<p class="help-doc-kicker">Metric glossary</p><h1>${escapeHtml(entry.label)}</h1>`
+      + `<p class="help-doc-summary">${escapeHtml(entry.summary)}</p><div class="help-doc-grid">`
+      + `<section class="help-doc-card"><h2>Definition</h2><p>${escapeHtml(entry.definition)}</p></section>`
+      + `<section class="help-doc-card"><h2>How to interpret it</h2><p>${escapeHtml(entry.interpretation)}</p></section>`
+      + `</div>${sourceLink}</main>`;
+  }
+
   // Pure builder for the "?" help button in a widget header. Returns "" when
   // the widget carries no help/description so the button is omitted entirely
   // (keeps the header clean for undocumented widgets).
@@ -1481,7 +1549,8 @@
 
   function metricGlossaryEntry(key) {
     const glossary = typeof METRIC_GLOSSARY !== "undefined" ? METRIC_GLOSSARY : metricGlossaryData();
-    const name = String(key || "");
+    const rawName = String(key || "");
+    const name = rawName === "net_margin" ? "net_margin_pct" : rawName;
     const entry = Object.prototype.hasOwnProperty.call(glossary, name) ? glossary[name] : null;
     return entry || null;
   }
@@ -1916,6 +1985,18 @@
     selectApp(0);
   }
 
+  function renderMetricHelpRoute() {
+    const pathname = String((window.location && window.location.pathname) || "").replace(/\/+$/, "");
+    if (pathname !== "/viewer/help") return false;
+    const params = new URLSearchParams((window.location && window.location.search) || "");
+    const key = params.get("metric") || "";
+    const entry = metricGlossaryEntry(key);
+    document.body.className = "help-doc";
+    document.body.innerHTML = metricHelpPageHtml(key);
+    document.title = (entry ? entry.label + " Help" : "Metric Help") + " - Local Workspace Viewer";
+    return true;
+  }
+
   // VS Code-style collapse for BOTH side panels — left "Apps" sidebar (#1890)
   // and right "Copilot" panel. State persists across reloads; header toggles
   // light up (.pin-on) while their panel is open. On any collapse the active
@@ -1936,34 +2017,35 @@
     try { localStorage.setItem("viewer:sideCollapsed", v ? "1" : "0"); } catch (_) { /* ignore */ }
     reflowActiveTab();
   }
-  applySideCollapsed(localStorage.getItem("viewer:sideCollapsed") === "1");
-  $("side-toggle").addEventListener("click", () => setSideCollapsed(!document.body.classList.contains("side-collapsed")));
-  $("side-hide").addEventListener("click", () => setSideCollapsed(true));
+  if (!renderMetricHelpRoute()) {
+    applySideCollapsed(localStorage.getItem("viewer:sideCollapsed") === "1");
+    $("side-toggle").addEventListener("click", () => setSideCollapsed(!document.body.classList.contains("side-collapsed")));
+    $("side-hide").addEventListener("click", () => setSideCollapsed(true));
 
-  function applyChatCollapsed(v) { document.body.classList.toggle("chat-collapsed", v); syncPanelToggles(); }
-  function setChatCollapsed(v) {
-    applyChatCollapsed(v);
-    try { localStorage.setItem("viewer:chatCollapsed", v ? "1" : "0"); } catch (_) { /* ignore */ }
-    reflowActiveTab();
-  }
-  // Copilot panel is HIDDEN BY DEFAULT (no stored preference -> collapsed).
-  applyChatCollapsed(localStorage.getItem("viewer:chatCollapsed") !== "0");
-  $("chat-toggle").addEventListener("click", () => setChatCollapsed(!document.body.classList.contains("chat-collapsed")));
-  $("chat-hide").addEventListener("click", () => setChatCollapsed(true));
+    function applyChatCollapsed(v) { document.body.classList.toggle("chat-collapsed", v); syncPanelToggles(); }
+    function setChatCollapsed(v) {
+      applyChatCollapsed(v);
+      try { localStorage.setItem("viewer:chatCollapsed", v ? "1" : "0"); } catch (_) { /* ignore */ }
+      reflowActiveTab();
+    }
+    // Copilot panel is HIDDEN BY DEFAULT (no stored preference -> collapsed).
+    applyChatCollapsed(localStorage.getItem("viewer:chatCollapsed") !== "0");
+    $("chat-toggle").addEventListener("click", () => setChatCollapsed(!document.body.classList.contains("chat-collapsed")));
+    $("chat-hide").addEventListener("click", () => setChatCollapsed(true));
 
-  // Reset the active tab's layout to the apps.json defaults (#1893).
-  $("reset-layout").addEventListener("click", () => {
-    if (APP && ACTIVE_TAB) { clearOverrides(APP.name, ACTIVE_TAB); renderTab(ACTIVE_TAB); }
-  });
+    // Reset the active tab's layout to the apps.json defaults (#1893).
+    $("reset-layout").addEventListener("click", () => {
+      if (APP && ACTIVE_TAB) { clearOverrides(APP.name, ACTIVE_TAB); renderTab(ACTIVE_TAB); }
+    });
 
-  $("refresh-btn").addEventListener("click", () => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); });
+    $("refresh-btn").addEventListener("click", () => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); });
 
-  // Reflow the grid when the window (and thus column width) changes.
-  let _rzT = null;
-  window.addEventListener("resize", () => {
-    clearTimeout(_rzT);
-    _rzT = setTimeout(() => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); }, 150);
-  });
+    // Reflow the grid when the window (and thus column width) changes.
+    let _rzT = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(_rzT);
+      _rzT = setTimeout(() => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); }, 150);
+    });
 
   //--------------------------------------------------------------------------
   // Chat pane: POST /query and stream copilotMessageChunk SSE frames.
@@ -2059,12 +2141,13 @@
     }
   }
 
-  $("chat-send").addEventListener("click", sendChat);
-  $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+    $("chat-send").addEventListener("click", sendChat);
+    $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
 
-  // Boot.
-  initDashboard();
-  initChat();
+    // Boot.
+    initDashboard();
+    initChat();
+  }
   </script>
 
   <!-- Bug Context feedback widget (CSP-friendly: no inline script) -->

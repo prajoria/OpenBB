@@ -54,7 +54,7 @@ function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
-    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
+    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricHelpPageHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
     "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "renderTab"];
   const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null;\n\n"
@@ -326,6 +326,18 @@ test("metricHelpButtonHtml gives repeated metrics unique described-by ids", () =
 
 test("metricHelpButtonHtml omits unknown metrics", () => {
   assert.equal(H.metricHelpButtonHtml("unreviewed_metric"), "");
+});
+
+test("metricHelpPageHtml renders a curated external resource safely", () => {
+  const html = H.metricHelpPageHtml("net_margin");
+  assert.match(html, /Net Margin/);
+  assert.match(html, /target="_blank"/);
+  assert.match(html, /rel="noopener noreferrer"/);
+});
+
+test("metricHelpPageHtml reports an unknown metric without interpolating it", () => {
+  assert.match(H.metricHelpPageHtml("<script>"), /Metric documentation is unavailable/);
+  assert.doesNotMatch(H.metricHelpPageHtml("<script>"), /<script>/);
 });
 
 test("metricHelpLayerPosition centers below and clamps within the viewport", () => {
