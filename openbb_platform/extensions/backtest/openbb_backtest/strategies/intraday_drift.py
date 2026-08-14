@@ -102,13 +102,11 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
     # Drop non-positive prices before splitting into entry/exit
     df = df[(df["open"] > 0) & (df["close"] > 0)]
 
-    entry = (
-        df[df["_hour"] == _ENTRY_HOUR][["session", "symbol", "open"]]
-        .rename(columns={"open": "entry_price"})
+    entry = df[df["_hour"] == _ENTRY_HOUR][["session", "symbol", "open"]].rename(
+        columns={"open": "entry_price"}
     )
-    exit_ = (
-        df[df["_hour"] == _EXIT_HOUR][["session", "symbol", "close"]]
-        .rename(columns={"close": "exit_price"})
+    exit_ = df[df["_hour"] == _EXIT_HOUR][["session", "symbol", "close"]].rename(
+        columns={"close": "exit_price"}
     )
 
     # Guard: duplicate bars for the same session×symbol×hour are a data error.

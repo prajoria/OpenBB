@@ -1,59 +1,107 @@
-# Task 2 Report
+# Task 2 Report — Top-50 S&P 500 Intraday Drift Study
 
-## Files changed
-- `openbb_platform/extensions/portfolio/assets/local_viewer/index.html`
-- `openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`
+**Date executed:** 2026-08-13  
+**Operator:** Copilot CLI (automated)  
+**Repository:** `H:\masterswork\git\OpenBB-Top50-Intraday-1986`
 
-## TDD
-- Failing run:
-  - Command: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`
-  - Result: FAIL — `function metricHelpButtonHtml not found in index.html`
-- Passing run:
-  - Command: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`
-  - Result: PASS (70 tests)
+---
 
-## Implementation
-- Added `metricHelpButtonHtml(key)` with accessible `aria-label`, tooltip summary, and `data-metric-help`.
-- Styled `.mhelp` to match the existing muted help affordance with hover and focus-visible states.
-- Updated table rendering to add help controls only for mapped first-column metric labels.
-- Updated combo-chart legend rendering to add help controls only for mapped series labels.
-- Bound shared metric-help click handling to open `/viewer/help?metric=<key>` without starting widget drag.
+## 1. Deliverables
 
-## Self-review
-- Reviewed the scoped diff with `git --no-pager diff -- openbb_platform/extensions/portfolio/assets/local_viewer/index.html openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`.
-- Confirmed only the two Task 2 code files changed; pre-existing generated core changes in `openbb_platform/core/openbb/assets/reference.json` and `openbb_platform/core/openbb/package/__init__.py` were left untouched.
+| File | Status |
+|---|---|
+| `openbb_platform/extensions/backtest/examples/top50_intraday_drift.py` | Created |
+| `openbb_platform/extensions/backtest/tests/unit/test_intraday_drift.py` | Extended (+9 tests) |
+| `openbb_platform/extensions/backtest/README.md` | Extended (usage section) |
+| `openbb_platform/extensions/backtest/conftest.py` | Extended (examples path injection) |
+| `ruff.toml` | Extended (per-file-ignores for examples/*.py) |
 
-## Commit
-- `5027c97b2` — `feat(portfolio): add contextual F2 metric help`
-- Trailer: `Refs #1984`
-- Trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+---
 
-## Concerns
-- The same-origin `/viewer/help` page is intentionally only linked here; its document view is Task 3.
+## 2. Live Study Results
 
-## Accessibility follow-up
-- Moved the visible metric-help summary into a fixed `.mhelp-layer` appended to `document.body`, so widget/body overflow clipping no longer hides the hover/focus tooltip while `.widget`/`.wbody` scroll and resize behavior stay unchanged.
-- Kept each button's `aria-describedby` link to a hidden inline `.mhelp-tip` summary, preserving a stable accessible association independent of the visual layer.
-- Kept the existing click-through behavior to `/viewer/help?metric=...`, preserved the `pointerdown` stop-propagation guard, and now hide/reposition the floating summary on leave/blur/scroll/resize.
-- Regression coverage now asserts the rendered help HTML carries the summary data needed by the unclipped layer and that `metricHelpLayerPosition` clamps inward / flips above when viewport space is tight.
+**Constituent source:** Slickcharts (`https://www.slickcharts.com/sp500`) — browser `User-Agent` header sent; Slickcharts returned the weight-ordered S&P 500 constituent table successfully on the first attempt.
 
-## Additional test evidence
-- Command: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`
-  - Result: PASS (72 tests)
-- Command: inline Node parse of the viewer `<script>` block via `new Function(...)`
-  - Result: PASS (`viewer script parses`)
+| Metric | Value |
+|---|---|
+| Actual first session | 2026-02-02 |
+| Actual last session | 2026-08-13 |
+| Sessions observed | 134 |
+| Symbols requested | 50 |
+| Symbols observed | 50 |
+| Valid stock-days | 6,700 |
+| Expected stock-days | 6,700 |
+| Coverage | 100.0% |
+| **Stock-day accuracy** | **50.24%** |
+| **Basket-day accuracy** | **50.00%** |
+| Mean stock-day return | +0.0240% |
+| Median stock-day return | +0.0064% |
+| Cumulative basket return | +3.1156% |
 
-## Latest Task 2 findings follow-up
-- Updated `metricHelpButtonHtml` so every rendered summary uses a unique per-instance `id` suffix while keeping each button's `aria-describedby` pointed at its matching hidden `.mhelp-tip`.
-- Added `hideMetricHelpLayerWithin(root)` and call it before widget-body replacement paths (`loadWidgetData`, `renderTable`, `renderMarkdown`, `renderMetric`, `renderChart`) so an active floating tooltip is dismissed before its trigger is disconnected.
-- Extended the Node viewer suite to verify repeated help buttons for the same metric key no longer share an `aria-describedby` target and that table re-render hides the active floating tooltip before `innerHTML` replacement.
-- Command: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs`
-  - Result: PASS (74 tests)
-- Commit: `fix(portfolio): harden metric help tooltip refresh`
-- Trailer: `Refs #1984`
-- Trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+**Missing symbols:** None — all 50 requested symbols produced at least one valid stock-day.
 
-## Task 2 review follow-up
-- Added an early `hideMetricHelpLayer()` in `renderTab()` so tab switches / refreshes dismiss any active shared metric tooltip before the widget grid is cleared or replaced.
-- Added a focused regression test that exercises `renderTab()` and verifies the tooltip layer is hidden before the grid's `innerHTML` is reset.
-- Validation: `node --test openbb_platform/extensions/portfolio/assets/local_viewer/tests/viewer_render.test.mjs` — PASS (75 tests).
+**Warnings printed at runtime:**
+- `[!] SURVIVORSHIP BIAS` — constituents are the current S&P 500 list; companies that left during the window are excluded.
+- `[!] NO TRANSACTION COSTS` — entry/exit prices are adjusted closes; spread, commission, and market-impact are not modelled.
+
+---
+
+## 3. Methodology
+
+- **Entry bar:** open of the 12:00 America/New_York hourly bar (calendar day).  
+- **Exit bar:** close of the 15:00 America/New_York hourly bar.  
+- **Win condition:** exit price strictly greater than entry price (ties count as losses).  
+- **Equal-weight basket:** mean return across all symbols for each session day; basket-day win = basket return > 0.  
+- **Data source:** Yahoo Finance via `yfinance 1.5.2`, `interval="60m"`, `auto_adjust=True`, `group_by="ticker"`.  
+- **Constituent list:** `pandas.read_html` against `slickcharts.com/sp500` with a browser `User-Agent`, sorted by weight descending; dots in tickers replaced with dashes (e.g. `BRK.B` → `BRK-B`).
+
+---
+
+## 4. Constituent Provenance
+
+Slickcharts was available during the run. The static fallback (`_FALLBACK_TOP50` in the script) was **not used** for this run. The fallback is manually transcribed from Slickcharts as of 2026-08-13 and is included as defense-in-depth only.
+
+---
+
+## 5. Quality Gates
+
+| Gate | Result |
+|---|---|
+| `pytest tests/unit/test_intraday_drift.py` (26 tests) | ✓ 26 passed |
+| `black --check` (3 files) | ✓ all unchanged |
+| `ruff check` (2 production files) | ✓ all checks passed |
+
+---
+
+## 6. Implementation Notes
+
+### `normalize_yfinance_bars` multi-index handling
+
+`yfinance 1.5.2` with `group_by="ticker"` returns a `(symbol, price_field)` MultiIndex (e.g. `('AAPL', 'Open')`), and the index is named `Datetime` (America/New_York tz-aware). After `stack(level=0).reset_index()`, the resulting columns are `['datetime', 'ticker', 'open', ...]`.
+
+The test fixtures use unnamed `DatetimeIndex` objects, which produce `['level_0', 'level_1', 'open', ...]` after the same stack/reset. The `normalize_yfinance_bars` function handles both by checking candidate column names in priority order:
+
+- Timestamp candidates: `datetime` → `date` → `level_0`
+- Symbol candidates: `ticker` → `level_1`
+
+### Windows console encoding
+
+The original script used `⚠` (U+26A0) in warning strings, which caused a `UnicodeEncodeError` on `cp1252` consoles. Replaced with plain-ASCII `[!]`.
+
+### `conftest.py` path injection
+
+`pytest --import-mode=importlib` (used project-wide) isolates test module imports from `sys.path` modifications made inside the test file itself. The `conftest.py` at the backtest-extension root is the correct place to inject the `examples/` directory into `sys.path` before collection.
+
+---
+
+## 7. Concerns
+
+1. **Basket-day accuracy at exactly 50.00%** — with 134 sessions, 50.00% means 67 basket-up days and 67 basket-down days. This is the theoretical null; the study shows no statistically meaningful edge in this six-month window.
+
+2. **Stock-day accuracy 50.24%** — marginally above the null but not statistically significant (n=6700 stock-days; two-sided binomial p ≈ 0.24 at 50.00% null).
+
+3. **Survivorship bias** — the top-50 list captured at run-time is current. Any constituent that left the index during Feb–Aug 2026 is absent; any addition after the window started is included. This likely flatters performance for mega-cap tech (no ex-index names in the denominator).
+
+4. **Data coverage is perfect (100%)** — 6,700 stock-days from 50 symbols × 134 sessions. Yahoo Finance delivered every noon-and-3pm pair for the entire six-month window with no gaps.
+
+5. **Static fallback accuracy** — `_FALLBACK_TOP50` (50 symbols) was compiled on 2026-08-13. It will drift as the index composition changes. It is defense-in-depth only and was not used for this run.

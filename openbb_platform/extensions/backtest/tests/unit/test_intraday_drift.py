@@ -1,4 +1,5 @@
-"""Unit tests for intraday_drift strategy calculations."""
+"""Unit tests for intraday_drift strategy calculations and top-50 adapters."""
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -9,6 +10,13 @@ from openbb_backtest.strategies.intraday_drift import (
     DriftSummary,
     build_observations,
     summarize_observations,
+)
+
+# Make the examples module importable without installation
+from top50_intraday_drift import (  # noqa: E402
+    fetch_top_symbols,
+    normalize_yfinance_bars,
+    main as cli_main,
 )
 
 NY = ZoneInfo("America/New_York")
@@ -23,17 +31,44 @@ PT = ZoneInfo("America/Los_Angeles")
 def test_build_observations_uses_noon_open_and_three_pm_close():
     bars = pd.DataFrame(
         [
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 100.0, "close": 101.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 104.0, "close": 105.0},
-            {"timestamp": datetime(2026, 7, 10, 12, tzinfo=NY), "symbol": "BBB", "open": 200.0, "close": 198.0},
-            {"timestamp": datetime(2026, 7, 10, 15, tzinfo=NY), "symbol": "BBB", "open": 197.0, "close": 196.0},
-            {"timestamp": datetime(2026, 7, 10, 12, tzinfo=NY), "symbol": "CCC", "open": 50.0, "close": 51.0},
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 100.0,
+                "close": 101.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 104.0,
+                "close": 105.0,
+            },
+            {
+                "timestamp": datetime(2026, 7, 10, 12, tzinfo=NY),
+                "symbol": "BBB",
+                "open": 200.0,
+                "close": 198.0,
+            },
+            {
+                "timestamp": datetime(2026, 7, 10, 15, tzinfo=NY),
+                "symbol": "BBB",
+                "open": 197.0,
+                "close": 196.0,
+            },
+            {
+                "timestamp": datetime(2026, 7, 10, 12, tzinfo=NY),
+                "symbol": "CCC",
+                "open": 50.0,
+                "close": 51.0,
+            },
         ]
     )
 
     observations = build_observations(bars)
 
-    assert observations[["symbol", "entry_price", "exit_price", "win"]].to_dict("records") == [
+    assert observations[["symbol", "entry_price", "exit_price", "win"]].to_dict(
+        "records"
+    ) == [
         {"symbol": "AAA", "entry_price": 100.0, "exit_price": 105.0, "win": True},
         {"symbol": "BBB", "entry_price": 200.0, "exit_price": 196.0, "win": False},
     ]
@@ -42,12 +77,29 @@ def test_build_observations_uses_noon_open_and_three_pm_close():
 def test_build_observations_output_columns():
     bars = pd.DataFrame(
         [
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 100.0, "close": 101.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 104.0, "close": 105.0},
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 100.0,
+                "close": 101.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 104.0,
+                "close": 105.0,
+            },
         ]
     )
     obs = build_observations(bars)
-    assert set(obs.columns) >= {"session", "symbol", "entry_price", "exit_price", "return", "win"}
+    assert set(obs.columns) >= {
+        "session",
+        "symbol",
+        "entry_price",
+        "exit_price",
+        "return",
+        "win",
+    }
 
 
 def test_build_observations_sorted_by_session_symbol():
@@ -55,16 +107,37 @@ def test_build_observations_sorted_by_session_symbol():
     bars = pd.DataFrame(
         [
             # BBB on July 10 fed first; AAA on Feb 10 fed second
-            {"timestamp": datetime(2026, 7, 10, 12, tzinfo=NY), "symbol": "BBB", "open": 200.0, "close": 198.0},
-            {"timestamp": datetime(2026, 7, 10, 15, tzinfo=NY), "symbol": "BBB", "open": 197.0, "close": 196.0},
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 100.0, "close": 101.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 104.0, "close": 105.0},
+            {
+                "timestamp": datetime(2026, 7, 10, 12, tzinfo=NY),
+                "symbol": "BBB",
+                "open": 200.0,
+                "close": 198.0,
+            },
+            {
+                "timestamp": datetime(2026, 7, 10, 15, tzinfo=NY),
+                "symbol": "BBB",
+                "open": 197.0,
+                "close": 196.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 100.0,
+                "close": 101.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 104.0,
+                "close": 105.0,
+            },
         ]
     )
     obs = build_observations(bars)
 
     # Exact structural check: earlier session comes first; within session, symbol ASC
     from datetime import date as _date
+
     assert obs.iloc[0]["session"] == _date(2026, 2, 10)
     assert obs.iloc[0]["symbol"] == "AAA"
     assert obs.iloc[1]["session"] == _date(2026, 7, 10)
@@ -73,7 +146,9 @@ def test_build_observations_sorted_by_session_symbol():
 
 
 def test_build_observations_missing_columns_raises():
-    bars = pd.DataFrame({"timestamp": [datetime(2026, 2, 10, 12, tzinfo=NY)], "symbol": ["AAA"]})
+    bars = pd.DataFrame(
+        {"timestamp": [datetime(2026, 2, 10, 12, tzinfo=NY)], "symbol": ["AAA"]}
+    )
     with pytest.raises(ValueError, match="bars missing required columns"):
         build_observations(bars)
 
@@ -81,10 +156,30 @@ def test_build_observations_missing_columns_raises():
 def test_build_observations_excludes_nonpositive_prices():
     bars = pd.DataFrame(
         [
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 0.0, "close": 101.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 104.0, "close": 105.0},
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "BBB", "open": 100.0, "close": 101.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "BBB", "open": 104.0, "close": 105.0},
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 0.0,
+                "close": 101.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 104.0,
+                "close": 105.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "BBB",
+                "open": 100.0,
+                "close": 101.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "BBB",
+                "open": 104.0,
+                "close": 105.0,
+            },
         ]
     )
     obs = build_observations(bars)
@@ -96,8 +191,18 @@ def test_build_observations_tie_is_loss():
     """exact tie (exit == entry) must produce win=False."""
     bars = pd.DataFrame(
         [
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "TIE", "open": 100.0, "close": 100.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "TIE", "open": 100.0, "close": 100.0},
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "TIE",
+                "open": 100.0,
+                "close": 100.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "TIE",
+                "open": 100.0,
+                "close": 100.0,
+            },
         ]
     )
     obs = build_observations(bars)
@@ -110,7 +215,12 @@ def test_build_observations_missing_exit_excluded():
     """Stock-days with no hour-15 bar are excluded."""
     bars = pd.DataFrame(
         [
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "CCC", "open": 50.0, "close": 51.0},
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "CCC",
+                "open": 50.0,
+                "close": 51.0,
+            },
         ]
     )
     obs = build_observations(bars)
@@ -121,9 +231,24 @@ def test_build_observations_duplicate_entry_bars_raises():
     """Two hour-12 bars for the same session/symbol must raise ValueError, not silently Cartesian-join."""
     bars = pd.DataFrame(
         [
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 100.0, "close": 101.0},
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 102.0, "close": 103.0},  # dup
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 104.0, "close": 105.0},
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 100.0,
+                "close": 101.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 102.0,
+                "close": 103.0,
+            },  # dup
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 104.0,
+                "close": 105.0,
+            },
         ]
     )
     with pytest.raises(ValueError, match="duplicate hour-12 bars"):
@@ -134,9 +259,24 @@ def test_build_observations_duplicate_exit_bars_raises():
     """Two hour-15 bars for the same session/symbol must raise ValueError."""
     bars = pd.DataFrame(
         [
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 100.0, "close": 101.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 104.0, "close": 105.0},
-            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 106.0, "close": 107.0},  # dup
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 100.0,
+                "close": 101.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 104.0,
+                "close": 105.0,
+            },
+            {
+                "timestamp": datetime(2026, 2, 10, 15, tzinfo=NY),
+                "symbol": "AAA",
+                "open": 106.0,
+                "close": 107.0,
+            },  # dup
         ]
     )
     with pytest.raises(ValueError, match="duplicate hour-15 bars"):
@@ -151,9 +291,19 @@ def test_build_observations_pacific_time_converted_to_new_york():
     bars = pd.DataFrame(
         [
             # 09:00 PT = 12:00 ET  → entry
-            {"timestamp": datetime(2026, 2, 10, 9, tzinfo=PT), "symbol": "ZZZ", "open": 50.0, "close": 51.0},
+            {
+                "timestamp": datetime(2026, 2, 10, 9, tzinfo=PT),
+                "symbol": "ZZZ",
+                "open": 50.0,
+                "close": 51.0,
+            },
             # 12:00 PT = 15:00 ET  → exit
-            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=PT), "symbol": "ZZZ", "open": 55.0, "close": 56.0},
+            {
+                "timestamp": datetime(2026, 2, 10, 12, tzinfo=PT),
+                "symbol": "ZZZ",
+                "open": 55.0,
+                "close": 56.0,
+            },
         ]
     )
     obs = build_observations(bars)
@@ -178,7 +328,9 @@ def test_summary_reports_stock_day_and_equal_weight_basket_rates():
 
     observations = pd.DataFrame(
         {
-            "session": pd.to_datetime(["2026-08-10", "2026-08-10", "2026-08-11", "2026-08-11"]).date,
+            "session": pd.to_datetime(
+                ["2026-08-10", "2026-08-10", "2026-08-11", "2026-08-11"]
+            ).date,
             "symbol": ["AAA", "BBB", "AAA", "BBB"],
             "return": [0.02, -0.01, -0.02, -0.01],
             "win": [True, False, False, False],
@@ -259,7 +411,9 @@ def test_summary_valid_stock_days_exceeds_expected_raises():
             "win": [True, True, True],
         }
     )
-    with pytest.raises(ValueError, match="valid_stock_days.*exceeds expected_stock_days"):
+    with pytest.raises(
+        ValueError, match="valid_stock_days.*exceeds expected_stock_days"
+    ):
         summarize_observations(observations, expected_symbols=2)
 
 
@@ -277,3 +431,172 @@ def test_summary_drift_summary_is_immutable():
     with pytest.raises((TypeError, AttributeError)):
         summary.sessions = 999  # type: ignore[misc]
 
+
+# ---------------------------------------------------------------------------
+# normalize_yfinance_bars
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_yfinance_bars_returns_long_contract():
+    """Realistic two-symbol wide frame → long contract required by Task 1."""
+    index = pd.DatetimeIndex(["2026-08-10T16:00:00Z", "2026-08-10T19:00:00Z"])
+    columns = pd.MultiIndex.from_product([["AAA", "BBB"], ["Open", "Close"]])
+    raw = pd.DataFrame(
+        [[100.0, 101.0, 200.0, 201.0], [104.0, 105.0, 196.0, 196.0]],
+        index=index,
+        columns=columns,
+    )
+
+    result = normalize_yfinance_bars(raw)
+
+    assert list(result.columns) == ["timestamp", "symbol", "open", "close"]
+    assert set(result["symbol"]) == {"AAA", "BBB"}
+
+
+def test_normalize_yfinance_bars_price_field_first_layout():
+    """yfinance >=0.2 uses (price_field, symbol) ordering -- should normalize correctly."""
+    index = pd.DatetimeIndex(["2026-08-10T16:00:00Z"])
+    columns = pd.MultiIndex.from_product([["Open", "Close"], ["AAA", "BBB"]])
+    raw = pd.DataFrame(
+        [[100.0, 200.0, 101.0, 201.0]],
+        index=index,
+        columns=columns,
+    )
+
+    result = normalize_yfinance_bars(raw)
+
+    assert list(result.columns) == ["timestamp", "symbol", "open", "close"]
+    assert set(result["symbol"]) == {"AAA", "BBB"}
+
+
+def test_normalize_yfinance_bars_non_multiindex_raises():
+    """Flat columns must raise ValueError."""
+    raw = pd.DataFrame({"open": [100.0], "close": [101.0]})
+    with pytest.raises(ValueError, match="MultiIndex"):
+        normalize_yfinance_bars(raw)
+
+
+# ---------------------------------------------------------------------------
+# fetch_top_symbols (monkeypatched)
+# ---------------------------------------------------------------------------
+
+
+def _make_weight_table(symbols):
+    return [pd.DataFrame({"Symbol": symbols, "Weight": range(len(symbols), 0, -1)})]
+
+
+def test_fetch_top_symbols_dot_becomes_dash(monkeypatch):
+    """Dots in ticker symbols must be converted to Yahoo dashes."""
+    monkeypatch.setattr(
+        "pandas.read_html",
+        lambda url, **kwargs: _make_weight_table(["AAPL", "BRK.B", "GOOGL"]),
+    )
+
+    result = fetch_top_symbols(3)
+
+    assert "BRK-B" in result
+    assert "BRK.B" not in result
+
+
+def test_fetch_top_symbols_preserves_order(monkeypatch):
+    """Order of symbols in the source table must be preserved."""
+    ordered = ["AAPL", "NVDA", "MSFT", "AMZN", "META"]
+    monkeypatch.setattr(
+        "pandas.read_html", lambda url, **kwargs: _make_weight_table(ordered)
+    )
+
+    result = fetch_top_symbols(5)
+
+    assert result == ordered
+
+
+def test_fetch_top_symbols_fewer_than_requested_raises(monkeypatch):
+    """If no source provides enough symbols, ValueError must be raised."""
+    monkeypatch.setattr(
+        "pandas.read_html", lambda url, **kwargs: [pd.DataFrame({"other": [1]})]
+    )
+
+    with pytest.raises(ValueError, match="fetch_top_symbols"):
+        fetch_top_symbols(count=100)
+
+
+# ---------------------------------------------------------------------------
+# CLI (monkeypatched -- no network)
+# ---------------------------------------------------------------------------
+
+
+def _make_deterministic_bars():
+    """Two symbols, two sessions, bars at 12:00 and 15:00 ET."""
+    from zoneinfo import ZoneInfo
+
+    NY = ZoneInfo("America/New_York")
+    rows = []
+    for sym, base in [("AAA", 100.0), ("BBB", 200.0)]:
+        for session_day in [10, 11]:
+            rows.append(
+                {
+                    "timestamp": datetime(2026, 2, session_day, 12, tzinfo=NY),
+                    "symbol": sym,
+                    "open": base,
+                    "close": base + 1,
+                }
+            )
+            rows.append(
+                {
+                    "timestamp": datetime(2026, 2, session_day, 15, tzinfo=NY),
+                    "symbol": sym,
+                    "open": base + 1,
+                    "close": base + 2,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def test_cli_exit_zero_and_labels_present(monkeypatch, capsys):
+    """CLI must exit 0 and print Stock-day accuracy and Basket-day accuracy."""
+    monkeypatch.setattr(
+        "top50_intraday_drift.fetch_top_symbols",
+        lambda count: ["AAA", "BBB"][:count],
+    )
+    monkeypatch.setattr(
+        "top50_intraday_drift.download_hourly_bars",
+        lambda symbols, start, end: _make_deterministic_bars(),
+    )
+
+    rc = cli_main(["--top", "2", "--months", "6"])
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "Stock-day accuracy" in captured.out
+    assert "Basket-day accuracy" in captured.out
+
+
+def test_cli_fewer_symbols_exits_error(monkeypatch, capsys):
+    """If fetch_top_symbols raises, CLI must return non-zero."""
+
+    def _bad_fetch(count):
+        raise ValueError("only 1 symbol found")
+
+    monkeypatch.setattr("top50_intraday_drift.fetch_top_symbols", _bad_fetch)
+
+    rc = cli_main(["--top", "2", "--months", "6"])
+
+    assert rc != 0
+
+
+def test_cli_empty_download_exits_error(monkeypatch, capsys):
+    """Empty bar download must cause CLI to return non-zero."""
+    monkeypatch.setattr(
+        "top50_intraday_drift.fetch_top_symbols",
+        lambda count: ["AAA", "BBB"][:count],
+    )
+    monkeypatch.setattr(
+        "top50_intraday_drift.download_hourly_bars",
+        lambda symbols, start, end: pd.DataFrame(
+            columns=["timestamp", "symbol", "open", "close"]
+        ),
+    )
+
+    rc = cli_main(["--top", "2", "--months", "6"])
+
+    assert rc != 0

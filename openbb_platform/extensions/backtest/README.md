@@ -39,8 +39,39 @@ Until the extension is installed editable (`dev_install.py -e`), unit tests run
 against the source tree via the `conftest.py` sys.path shim:
 
 ```powershell
-& ".venv_win\Scripts\python.exe" -m pytest openbb_platform/extensions/backtest/tests/unit -v
+& ".venv_portfolio\Scripts\python.exe" -m pytest openbb_platform/extensions/backtest/tests/unit -v
 ```
+
+## Top-50 Intraday Drift Study
+
+Run the latest six-month intraday-drift study against the top-50 S&P 500
+constituents by index weight:
+
+```powershell
+& ".venv_portfolio\Scripts\python.exe" openbb_platform/extensions/backtest/examples/top50_intraday_drift.py
+```
+
+Optional arguments:
+
+```
+--top N      Number of top-weighted S&P 500 symbols (default: 50)
+--months M   Look-back in calendar months (default: 6)
+--csv PATH   Write observation rows (not raw bars) to a CSV file
+```
+
+Example:
+
+```powershell
+& ".venv_portfolio\Scripts\python.exe" `
+    openbb_platform/extensions/backtest/examples/top50_intraday_drift.py `
+    --top 50 --months 6 --csv drift_observations.csv
+```
+
+**Warnings:**
+- *Survivorship bias* — constituents are the current S&P 500 list; companies
+  that left during the window are excluded.
+- *No transaction costs* — entry/exit prices are split-and-dividend-adjusted
+  closes; spread, commission, and market-impact are not modelled.
 
 ## Build (when ready)
 
