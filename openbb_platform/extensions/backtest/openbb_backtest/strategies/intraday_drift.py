@@ -8,6 +8,13 @@ Entry price  = ``open`` of the noon (12:00 America/New_York) bar.
 Exit price   = ``close`` of the 15:00 America/New_York bar.
 A stock-day is included only when **both** bars are present and every price
 is strictly positive.  Ties (exit == entry) are losses.
+
+Input contract
+--------------
+``open`` and ``close`` in *bars* must be **adjusted** prices (split- and
+dividend-adjusted OHLC as delivered by the data provider).  No further
+adjustment is applied here; the caller is responsible for ensuring the
+prices are on a consistent, comparable scale across the full history.
 """
 
 from __future__ import annotations
@@ -50,6 +57,9 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
         ``close``.  ``timestamp`` may be tz-aware or tz-naive; if tz-naive it
         is assumed to already be in America/New_York.
 
+        ``open`` and ``close`` must be **adjusted** prices (split- and
+        dividend-adjusted OHLC).  No further adjustment is applied here.
+
     Returns
     -------
     pandas.DataFrame
@@ -59,7 +69,9 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
     Raises
     ------
     ValueError
-        If any of the required columns are absent.
+        If any of the required columns are absent, or if duplicate hour-12 or
+        hour-15 bars exist for the same ``session × symbol`` pair (which would
+        otherwise silently inflate observations via a Cartesian join).
     """
     required = {"timestamp", "symbol", "open", "close"}
     missing = required.difference(bars.columns)
@@ -89,6 +101,21 @@ def build_observations(bars: pd.DataFrame) -> pd.DataFrame:
         .rename(columns={"close": "exit_price"})
     )
 
+    # Guard: duplicate bars for the same session×symbol×hour are a data error.
+    # Silently taking the first would Cartesian-inflate the join; raise loudly.
+    dup_entry = entry[entry.duplicated(subset=["session", "symbol"], keep=False)]
+    if not dup_entry.empty:
+        pairs = sorted(set(zip(dup_entry["session"], dup_entry["symbol"])))
+        raise ValueError(
+            f"duplicate hour-{_ENTRY_HOUR} bars detected for session/symbol pairs: {pairs}"
+        )
+    dup_exit = exit_[exit_.duplicated(subset=["session", "symbol"], keep=False)]
+    if not dup_exit.empty:
+        pairs = sorted(set(zip(dup_exit["session"], dup_exit["symbol"])))
+        raise ValueError(
+            f"duplicate hour-{_EXIT_HOUR} bars detected for session/symbol pairs: {pairs}"
+        )
+
     obs = entry.merge(exit_, on=["session", "symbol"], how="inner")
     obs["return"] = obs["exit_price"] / obs["entry_price"] - 1.0
     obs["win"] = obs["exit_price"] > obs["entry_price"]  # strict: ties are False
@@ -115,7 +142,9 @@ def summarize_observations(
     Raises
     ------
     ValueError
-        If *expected_symbols* is not positive or *observations* is empty.
+        If *expected_symbols* is not positive, *observations* is empty, or
+        ``valid_stock_days`` exceeds ``expected_stock_days`` (which would
+        indicate duplicate stock-day rows or an incorrect *expected_symbols*).
     """
     if expected_symbols <= 0:
         raise ValueError("expected_symbols must be positive")
@@ -129,21 +158,25 @@ def summarize_observations(
     symbols_observed = int(observations["symbol"].nunique())
     valid_stock_days = len(observations)
     expected_stock_days = n_sessions * expected_symbols
-    coverage_pct = round(100.0 * valid_stock_days / expected_stock_days, 10)
 
-    stock_day_win_rate_pct = round(100.0 * observations["win"].sum() / valid_stock_days, 10)
+    if valid_stock_days > expected_stock_days:
+        raise ValueError(
+            f"valid_stock_days ({valid_stock_days}) exceeds expected_stock_days "
+            f"({expected_stock_days}); check for duplicate rows or incorrect "
+            f"expected_symbols={expected_symbols}"
+        )
+
+    coverage_pct = 100.0 * valid_stock_days / expected_stock_days
+    stock_day_win_rate_pct = 100.0 * observations["win"].sum() / valid_stock_days
 
     # Equal-weight basket: mean return across symbols each session
     daily_basket = observations.groupby("session")["return"].mean()
     basket_wins = (daily_basket > 0).sum()
-    basket_day_win_rate_pct = round(100.0 * basket_wins / n_sessions, 10)
+    basket_day_win_rate_pct = 100.0 * basket_wins / n_sessions
 
-    mean_stock_day_return_pct = round(100.0 * observations["return"].mean(), 10)
-    median_stock_day_return_pct = round(100.0 * float(observations["return"].median()), 10)
-
-    cumulative_basket_return_pct = round(
-        100.0 * ((1.0 + daily_basket).prod() - 1.0), 10
-    )
+    mean_stock_day_return_pct = 100.0 * observations["return"].mean()
+    median_stock_day_return_pct = 100.0 * float(observations["return"].median())
+    cumulative_basket_return_pct = 100.0 * ((1.0 + daily_basket).prod() - 1.0)
 
     return DriftSummary(
         start_session=start_session,

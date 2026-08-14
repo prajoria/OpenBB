@@ -12,6 +12,7 @@ from openbb_backtest.strategies.intraday_drift import (
 )
 
 NY = ZoneInfo("America/New_York")
+PT = ZoneInfo("America/Los_Angeles")
 
 
 # ---------------------------------------------------------------------------
@@ -50,8 +51,10 @@ def test_build_observations_output_columns():
 
 
 def test_build_observations_sorted_by_session_symbol():
+    """Output must be sorted by (session ASC, symbol ASC) regardless of input order."""
     bars = pd.DataFrame(
         [
+            # BBB on July 10 fed first; AAA on Feb 10 fed second
             {"timestamp": datetime(2026, 7, 10, 12, tzinfo=NY), "symbol": "BBB", "open": 200.0, "close": 198.0},
             {"timestamp": datetime(2026, 7, 10, 15, tzinfo=NY), "symbol": "BBB", "open": 197.0, "close": 196.0},
             {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 100.0, "close": 101.0},
@@ -59,8 +62,14 @@ def test_build_observations_sorted_by_session_symbol():
         ]
     )
     obs = build_observations(bars)
-    symbols = obs["symbol"].tolist()
-    assert symbols == sorted(symbols) or obs["session"].iloc[0] <= obs["session"].iloc[-1]
+
+    # Exact structural check: earlier session comes first; within session, symbol ASC
+    from datetime import date as _date
+    assert obs.iloc[0]["session"] == _date(2026, 2, 10)
+    assert obs.iloc[0]["symbol"] == "AAA"
+    assert obs.iloc[1]["session"] == _date(2026, 7, 10)
+    assert obs.iloc[1]["symbol"] == "BBB"
+    assert len(obs) == 2
 
 
 def test_build_observations_missing_columns_raises():
@@ -107,6 +116,57 @@ def test_build_observations_missing_exit_excluded():
     assert len(obs) == 0
 
 
+def test_build_observations_duplicate_entry_bars_raises():
+    """Two hour-12 bars for the same session/symbol must raise ValueError, not silently Cartesian-join."""
+    bars = pd.DataFrame(
+        [
+            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 100.0, "close": 101.0},
+            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 102.0, "close": 103.0},  # dup
+            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 104.0, "close": 105.0},
+        ]
+    )
+    with pytest.raises(ValueError, match="duplicate hour-12 bars"):
+        build_observations(bars)
+
+
+def test_build_observations_duplicate_exit_bars_raises():
+    """Two hour-15 bars for the same session/symbol must raise ValueError."""
+    bars = pd.DataFrame(
+        [
+            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=NY), "symbol": "AAA", "open": 100.0, "close": 101.0},
+            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 104.0, "close": 105.0},
+            {"timestamp": datetime(2026, 2, 10, 15, tzinfo=NY), "symbol": "AAA", "open": 106.0, "close": 107.0},  # dup
+        ]
+    )
+    with pytest.raises(ValueError, match="duplicate hour-15 bars"):
+        build_observations(bars)
+
+
+def test_build_observations_pacific_time_converted_to_new_york():
+    """Bars timestamped in Pacific time (09:00 PT == 12:00 ET, 12:00 PT == 15:00 ET)
+    must be converted to New York before hour selection, so PT 09:00 becomes the
+    entry bar and PT 12:00 becomes the exit bar.
+    """
+    bars = pd.DataFrame(
+        [
+            # 09:00 PT = 12:00 ET  → entry
+            {"timestamp": datetime(2026, 2, 10, 9, tzinfo=PT), "symbol": "ZZZ", "open": 50.0, "close": 51.0},
+            # 12:00 PT = 15:00 ET  → exit
+            {"timestamp": datetime(2026, 2, 10, 12, tzinfo=PT), "symbol": "ZZZ", "open": 55.0, "close": 56.0},
+        ]
+    )
+    obs = build_observations(bars)
+
+    assert len(obs) == 1
+    row = obs.iloc[0]
+    assert row["symbol"] == "ZZZ"
+    # entry_price = open of the 12:00 ET bar (09:00 PT) = 50.0
+    assert row["entry_price"] == pytest.approx(50.0)
+    # exit_price  = close of the 15:00 ET bar (12:00 PT) = 56.0
+    assert row["exit_price"] == pytest.approx(56.0)
+    assert row["win"] == True  # noqa: E712  (numpy bool, not Python bool)
+
+
 # ---------------------------------------------------------------------------
 # summarize_observations
 # ---------------------------------------------------------------------------
@@ -124,10 +184,10 @@ def test_summary_reports_stock_day_and_equal_weight_basket_rates():
 
     summary = summarize_observations(observations, expected_symbols=2)
 
-    assert summary.stock_day_win_rate_pct == 25.0
-    assert summary.basket_day_win_rate_pct == 50.0
+    assert summary.stock_day_win_rate_pct == pytest.approx(25.0)
+    assert summary.basket_day_win_rate_pct == pytest.approx(50.0)
     assert summary.valid_stock_days == 4
-    assert summary.coverage_pct == 100.0
+    assert summary.coverage_pct == pytest.approx(100.0)
 
 
 def test_summary_empty_observations_raises():
@@ -149,6 +209,21 @@ def test_summary_nonpositive_expected_symbols_raises():
         summarize_observations(obs, expected_symbols=0)
 
 
+def test_summary_valid_stock_days_exceeds_expected_raises():
+    """valid_stock_days > n_sessions * expected_symbols must raise ValueError."""
+    observations = pd.DataFrame(
+        {
+            # 3 stock-days in 1 session but expected_symbols=2 → exceeds
+            "session": pd.to_datetime(["2026-08-10", "2026-08-10", "2026-08-10"]).date,
+            "symbol": ["AAA", "BBB", "CCC"],
+            "return": [0.01, 0.02, 0.03],
+            "win": [True, True, True],
+        }
+    )
+    with pytest.raises(ValueError, match="valid_stock_days.*exceeds expected_stock_days"):
+        summarize_observations(observations, expected_symbols=2)
+
+
 def test_summary_drift_summary_is_immutable():
     observations = pd.DataFrame(
         {
@@ -162,3 +237,4 @@ def test_summary_drift_summary_is_immutable():
     assert isinstance(summary, DriftSummary)
     with pytest.raises((TypeError, AttributeError)):
         summary.sessions = 999  # type: ignore[misc]
+
