@@ -466,7 +466,18 @@
         "type": "text",
         "description": "Signed share delta"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Symbol Weight": "symbol_weight",
+        "Sector Weight": "sector_weight",
+        "Cash Weight": "cash_weight",
+        "Beta vs SPY": "beta_vs_spy",
+        "Symbol Weight (%)": "symbol_weight",
+        "Sector Weight (%)": "sector_weight",
+        "Cash Weight (%)": "cash_weight"
+      }
+    }
   },
   "pi_brinson_attribution": {
     "name": "Brinson-Fachler Attribution",

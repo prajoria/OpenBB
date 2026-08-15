@@ -200,3 +200,15 @@ def test_2002_pi_brinson_attribution_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_2003_pi_whatif_card_terminology_contract() -> None:
+    widget = _widget("pi_whatif_card")
+    expected_fields = {}
+    expected_terms = ['Symbol Weight', 'Sector Weight', 'Cash Weight', 'Beta vs SPY']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
