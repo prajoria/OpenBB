@@ -152,3 +152,15 @@ def test_1998_pi_lookthrough_top25_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_1999_pi_concentration_gauge_terminology_contract() -> None:
+    widget = _widget("pi_concentration_gauge")
+    expected_fields = {'value': 'Concentration (HHI)'}
+    expected_terms = ['Herfindahl-Hirschman Index']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert data["metric"]["labels"] == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]

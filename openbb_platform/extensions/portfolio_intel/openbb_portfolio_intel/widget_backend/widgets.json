@@ -165,7 +165,20 @@
         "type": "text",
         "description": "Paper account id"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Herfindahl-Hirschman Index": "herfindahl_hirschman_index"
+      },
+      "metric": {
+        "labels": {
+          "value": "Concentration (HHI)"
+        },
+        "metricGlossary": {
+          "Concentration (HHI)": "herfindahl_hirschman_index"
+        }
+      }
+    }
   },
   "pi_event_calendar": {
     "name": "Event Calendar",
