@@ -576,7 +576,11 @@
         "Beta vs SPY": "beta_vs_spy",
         "Symbol Weight (%)": "symbol_weight",
         "Sector Weight (%)": "sector_weight",
-        "Cash Weight (%)": "cash_weight"
+        "Cash Weight (%)": "cash_weight",
+        "symbol_weight_%": "symbol_weight",
+        "sector_weight_%": "sector_weight",
+        "cash_%": "cash_weight",
+        "beta_spy": "beta_vs_spy"
       },
       "table": {
         "rowLabels": {
@@ -929,13 +933,27 @@
       },
       "table": {
         "rowLabels": {
-          "12-Month Price Target": "12-Month Price Target",
-          "Target Range": "Target Range",
-          "Upside vs Current Price": "Upside vs Current Price",
-          "Rating Distribution": "Rating Distribution",
-          "EPS Surprise": "EPS Surprise",
-          "Historical Revenue Estimate": "Historical Revenue Estimate"
-        }
+          "1Y target (consensus)": "12-Month Price Target",
+          "Target range": "Target Range",
+          "Upside vs current": "Upside vs Current Price"
+        },
+        "rowLabelPatterns": [
+          {
+            "pattern": "^Rating:",
+            "label": "Rating Distribution",
+            "glossaryKey": "rating_distribution"
+          },
+          {
+            "pattern": "EPS Surprise$",
+            "label": "EPS Surprise",
+            "glossaryKey": "eps_surprise"
+          },
+          {
+            "pattern": "^Historical rev estimate",
+            "label": "Historical Revenue Estimate",
+            "glossaryKey": "revenue_estimate"
+          }
+        ]
       }
     }
   },
@@ -1311,7 +1329,7 @@
         "Actual EPS": "actual_eps",
         "Estimated EPS": "estimated_eps",
         "Earnings Surprise": "earnings_surprise",
-        "Surprise (%)": "eps_surprise"
+        "Surprise (%)": "earnings_surprise"
       },
       "table": {
         "columnsDefs": [
@@ -1332,7 +1350,7 @@
           {
             "field": "surprise_pct",
             "headerName": "Surprise (%)",
-            "glossaryKey": "eps_surprise"
+            "glossaryKey": "earnings_surprise"
           }
         ]
       }

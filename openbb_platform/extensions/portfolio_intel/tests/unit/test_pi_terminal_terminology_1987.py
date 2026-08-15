@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlparse
+
+import pytest
 
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
@@ -86,23 +89,43 @@ def test_1993_technical_rows_match_actual_classic_pivot_strings() -> None:
         assert glossary[raw] == key
 
 
-def test_1996_forecast_endpoint_emits_canonical_glossary_backed_rows() -> None:
+def test_1996_forecast_endpoint_keeps_raw_contract_with_pattern_metadata() -> None:
     widget = _widget("pi_equity_analyst_forecasts")
     response = _CLIENT.get("/pi/equity/analyst-forecasts?symbol=AAPL")
     assert response.status_code == 200
     labels = {row["metric"] for row in response.json()}
-    expected = {
-        "12-Month Price Target": "twelve_month_price_target",
-        "Target Range": "target_range",
-        "Upside vs Current Price": "implied_upside",
-        "Rating Distribution": "rating_distribution",
-        "EPS Surprise": "eps_surprise",
-        "Historical Revenue Estimate": "revenue_estimate",
+    assert {
+        "1Y target (consensus)",
+        "Target range",
+        "Upside vs current",
+        "Rating: Strong Buy / Buy",
+        "Rating: Hold / Sell / Strong Sell",
+        "Q3 2025 EPS Surprise",
+        "Q2 2025 EPS Surprise",
+    } <= labels
+    table = widget["data"]["table"]
+    assert table["rowLabels"] == {
+        "1Y target (consensus)": "12-Month Price Target",
+        "Target range": "Target Range",
+        "Upside vs current": "Upside vs Current Price",
     }
-    assert set(expected) <= labels
-    glossary = widget["data"]["metricGlossary"]
-    assert glossary == expected
-    assert widget["data"]["table"]["rowLabels"] == {label: label for label in expected}
+    assert table["rowLabelPatterns"] == [
+        {
+            "pattern": "^Rating:",
+            "label": "Rating Distribution",
+            "glossaryKey": "rating_distribution",
+        },
+        {
+            "pattern": "EPS Surprise$",
+            "label": "EPS Surprise",
+            "glossaryKey": "eps_surprise",
+        },
+        {
+            "pattern": "^Historical rev estimate",
+            "label": "Historical Revenue Estimate",
+            "glossaryKey": "revenue_estimate",
+        },
+    ]
 
 
 def test_time_series_widgets_have_exact_labels_and_glossary_keys() -> None:
@@ -149,4 +172,288 @@ def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
             and "definition:" in record
             and "interpretation:" in record
         )
-        assert 'source: "https://www.investopedia.com/terms/' in record
+        assert 'source: "https://' in record
+
+
+@pytest.mark.parametrize(
+    ("widget_id", "labels", "glossary"),
+    [
+        (
+            "pi_equity_key_stats",
+            {},
+            {
+                "Volume": "volume",
+                "52-Week High": "fifty_two_week_high",
+                "52-Week Low": "fifty_two_week_low",
+            },
+        ),
+        (
+            "pi_financial_statements",
+            {
+                "line_item": "Line Item",
+                "period_1": "Latest Period",
+                "period_2": "Prior Period",
+            },
+            {"Revenue": "revenue", "Free Cash Flow": "free_cash_flow"},
+        ),
+        (
+            "pi_peer_multiples",
+            {
+                "symbol": "Symbol",
+                "pe_ttm": "P/E (TTM)",
+                "pe_fwd": "P/E (Forward)",
+                "ev_ebitda": "EV/EBITDA",
+                "ps_ttm": "P/S (TTM)",
+            },
+            {
+                "P/E (TTM)": "pe_ttm",
+                "P/E (Forward)": "pe_forward",
+                "EV/EBITDA": "ev_ebitda",
+                "P/S (TTM)": "ps_ttm",
+            },
+        ),
+        (
+            "pi_earnings_history",
+            {
+                "quarter": "Quarter",
+                "eps_actual": "Actual EPS",
+                "eps_estimate": "Estimated EPS",
+                "surprise_pct": "Surprise (%)",
+            },
+            {
+                "Actual EPS": "actual_eps",
+                "Estimated EPS": "estimated_eps",
+                "Surprise (%)": "earnings_surprise",
+            },
+        ),
+        (
+            "pi_price_target_history",
+            {
+                "date": "Date",
+                "close": "Closing Price",
+                "target": "Analyst Price Target",
+            },
+            {
+                "Closing Price": "closing_price",
+                "Analyst Price Target": "analyst_price_target",
+            },
+        ),
+        (
+            "pi_equity_technicals",
+            {
+                "Consensus": "Analyst Consensus",
+                "R3 (Classic)": "Resistance 3",
+                "P (Classic)": "Pivot",
+                "S3 (Classic)": "Support 3",
+            },
+            {
+                "R3 (Classic)": "resistance",
+                "P (Classic)": "pivot",
+                "S3 (Classic)": "support",
+            },
+        ),
+        (
+            "pi_equity_competitors",
+            {
+                "symbol": "Symbol",
+                "name": "Company",
+                "price": "Price",
+                "change_pct": "Change (%)",
+            },
+            {"Change (%)": "percentage_price_change"},
+        ),
+        (
+            "pi_equity_complementary",
+            {
+                "kind": "Asset Type",
+                "id": "Identifier",
+                "name": "Name",
+                "weight_pct": "Portfolio Weight (%)",
+                "value_usd": "Market Value ($)",
+            },
+            {
+                "Portfolio Weight (%)": "portfolio_weight",
+                "Market Value ($)": "market_value",
+            },
+        ),
+        (
+            "pi_equity_analyst_forecasts",
+            {
+                "1Y target (consensus)": "12-Month Price Target",
+                "Target range": "Target Range",
+                "Upside vs current": "Upside vs Current Price",
+            },
+            {
+                "Rating Distribution": "rating_distribution",
+                "EPS Surprise": "eps_surprise",
+                "Historical Revenue Estimate": "revenue_estimate",
+            },
+        ),
+        (
+            "pi_basket_analyst_consensus",
+            {
+                "symbol": "Symbol",
+                "avg_target": "Average Price Target",
+                "buy_hold_sell": "Buy/Hold/Sell Ratings",
+                "consensus": "Consensus Rating",
+            },
+            {
+                "Average Price Target": "average_price_target",
+                "Consensus Rating": "consensus_rating",
+            },
+        ),
+        (
+            "pi_lookthrough_top25",
+            {
+                "symbol": "Symbol",
+                "name": "Holding",
+                "effective_weight": "Effective Weight (%)",
+                "rank": "Rank",
+            },
+            {"Effective Weight (%)": "effective_weight"},
+        ),
+        (
+            "pi_concentration_gauge",
+            {"value": "Concentration (HHI)"},
+            {"Concentration (HHI)": "herfindahl_hirschman_index"},
+        ),
+        (
+            "pi_risk_dashboard",
+            {
+                "vol_annualized": "Annualized Volatility",
+                "var_95_1d": "1-Day VaR (95%)",
+                "beta_spy": "Beta vs SPY",
+            },
+            {
+                "Annualized Volatility": "annualized_volatility",
+                "1-Day VaR (95%)": "one_day_var_95",
+                "Beta vs SPY": "beta_vs_spy",
+            },
+        ),
+        (
+            "pi_risk_vol_chart",
+            {"vol_20d": "20-Day Volatility", "vol_60d": "60-Day Volatility"},
+            {
+                "20-Day Volatility": "twenty_day_volatility",
+                "60-Day Volatility": "sixty_day_volatility",
+            },
+        ),
+        (
+            "pi_brinson_attribution",
+            {
+                "sector": "Sector",
+                "allocation": "Allocation Effect",
+                "selection": "Selection Effect",
+                "interaction": "Interaction Effect",
+                "total": "Total Active Return",
+            },
+            {
+                "Allocation Effect": "allocation_effect",
+                "Selection Effect": "selection_effect",
+                "Interaction Effect": "interaction_effect",
+                "Total Active Return": "total_active_return",
+            },
+        ),
+        (
+            "pi_whatif_card",
+            {
+                "symbol_weight_%": "Symbol Weight (%)",
+                "sector_weight_%": "Sector Weight (%)",
+                "cash_%": "Cash Weight (%)",
+                "beta_spy": "Beta vs SPY",
+            },
+            {
+                "symbol_weight_%": "symbol_weight",
+                "sector_weight_%": "sector_weight",
+                "cash_%": "cash_weight",
+                "beta_spy": "beta_vs_spy",
+            },
+        ),
+        (
+            "pi_paper_perf_kpis",
+            {
+                "total_return_pct": "Total Return (%)",
+                "sharpe_annualized": "Annualized Sharpe Ratio",
+                "max_drawdown_pct": "Maximum Drawdown (%)",
+            },
+            {
+                "Total Return (%)": "total_return",
+                "Annualized Sharpe Ratio": "sharpe_ratio",
+                "Maximum Drawdown (%)": "maximum_drawdown",
+            },
+        ),
+        (
+            "pi_paper_performance",
+            {"date": "Date", "equity": "Portfolio Equity"},
+            {"Portfolio Equity": "portfolio_equity"},
+        ),
+        (
+            "pi_paper_blotter",
+            {
+                "time": "Time",
+                "symbol": "Symbol",
+                "side": "Side",
+                "qty": "Quantity",
+                "status": "Status",
+                "avg_price": "Average Execution Price",
+            },
+            {"Average Execution Price": "average_execution_price"},
+        ),
+        (
+            "pi_smart_money_ribbon",
+            {
+                "symbol": "Symbol",
+                "kind": "Activity Type",
+                "actor": "Actor",
+                "value_usd": "Transaction Value ($)",
+                "date": "Date",
+            },
+            {"Transaction Value ($)": "transaction_value"},
+        ),
+    ],
+)
+def test_all_20_widgets_have_exact_label_and_glossary_contracts(
+    widget_id: str, labels: dict[str, str], glossary: dict[str, str]
+) -> None:
+    widget = _widget(widget_id)
+    data = widget["data"]
+    if widget["type"] == "metric":
+        actual_labels = data["metric"]["labels"]
+        actual_glossary = data["metric"]["metricGlossary"]
+    elif widget["type"] == "chart":
+        actual_labels = data["chart"]["labels"]
+        actual_glossary = data["metricGlossary"]
+    elif "columnsDefs" in data.get("table", {}):
+        actual_labels = {
+            column["field"]: column["headerName"]
+            for column in data["table"]["columnsDefs"]
+        }
+        actual_glossary = data["metricGlossary"]
+    elif "rowLabels" in data.get("table", {}):
+        actual_labels = data["table"]["rowLabels"]
+        actual_glossary = data["metricGlossary"]
+    else:
+        actual_labels = {}
+        actual_glossary = data["metricGlossary"]
+    for raw, label in labels.items():
+        assert actual_labels[raw] == label
+    for label, key in glossary.items():
+        assert actual_glossary[label] == key
+
+
+def test_all_glossary_sources_are_https_non_generic_and_curated() -> None:
+    text = _VIEWER.read_text(encoding="utf-8")
+    sources = [
+        source for source in __import__("re").findall(r'source: "([^"]+)"', text)
+    ]
+    assert len(sources) >= 64
+    allowed_hosts = {
+        "www.investopedia.com",
+        "en.wikipedia.org",
+        "www.cfainstitute.org",
+    }
+    for source in sources:
+        parsed = urlparse(source)
+        assert parsed.scheme == "https"
+        assert parsed.netloc in allowed_hosts
+        assert "financial-term-dictionary" not in parsed.path

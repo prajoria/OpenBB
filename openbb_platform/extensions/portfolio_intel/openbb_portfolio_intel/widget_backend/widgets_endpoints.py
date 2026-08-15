@@ -1084,9 +1084,9 @@ def equity_analyst_forecasts(
     sym = _validate_symbol(symbol)
 
     rows: list[dict[str, str | float]] = [
-        {"metric": "12-Month Price Target", "value": 245.0, "note": "sample n=32"},
-        {"metric": "Target Range", "value": "215..280", "note": ""},
-        {"metric": "Upside vs Current Price", "value": "7.4%", "note": ""},
+        {"metric": "1Y target (consensus)", "value": 245.0, "note": "sample n=32"},
+        {"metric": "Target range", "value": "215..280", "note": ""},
+        {"metric": "Upside vs current", "value": "7.4%", "note": ""},
     ]
 
     # Rating distribution — live via #997
@@ -1103,16 +1103,15 @@ def equity_analyst_forecasts(
         rows.extend(
             [
                 {
-                    "metric": "Rating Distribution",
+                    "metric": "Rating: Strong Buy / Buy",
                     "value": f"{summary.strong_buy} / {summary.buy}",
-                    "note": f"Strong Buy / Buy; as of {summary.as_of}; n={summary.total} firms",
+                    "note": f"as of {summary.as_of}; n={summary.total} firms",
                 },
                 {
-                    "metric": "Rating Distribution",
+                    "metric": "Rating: Hold / Sell / Strong Sell",
                     "value": f"{summary.hold} / {summary.sell} / {summary.strong_sell}",
                     "note": (
-                        "Hold / Sell / Strong Sell; "
-                        + f"unknown_count={summary.unknown_count}"
+                        f"unknown_count={summary.unknown_count}"
                         if summary.unknown_count
                         else ""
                     ),
@@ -1129,14 +1128,14 @@ def equity_analyst_forecasts(
         rows.extend(
             [
                 {
-                    "metric": "Rating Distribution",
+                    "metric": "Rating: Strong Buy / Buy",
                     "value": "n/a",
-                    "note": "Strong Buy / Buy; fetch failed (see server logs)",
+                    "note": "fetch failed (see server logs)",
                 },
                 {
-                    "metric": "Rating Distribution",
+                    "metric": "Rating: Hold / Sell / Strong Sell",
                     "value": "n/a",
-                    "note": "Hold / Sell / Strong Sell; fetch failed",
+                    "note": "fetch failed",
                 },
             ]
         )
@@ -1144,14 +1143,14 @@ def equity_analyst_forecasts(
     rows.extend(
         [
             {
-                "metric": "EPS Surprise",
+                "metric": "Q3 2025 EPS Surprise",
                 "value": "+3.2%",
-                "note": "Q3 2025; actual 1.55 vs est 1.50",
+                "note": "actual 1.55 vs est 1.50",
             },
             {
-                "metric": "EPS Surprise",
+                "metric": "Q2 2025 EPS Surprise",
                 "value": "+1.9%",
-                "note": "Q2 2025; actual 1.52 vs est 1.49",
+                "note": "actual 1.52 vs est 1.49",
             },
         ]
     )
@@ -1185,7 +1184,7 @@ def equity_analyst_forecasts(
         if snap and snap.get("estimated_revenue_avg"):
             rows.append(
                 {
-                    "metric": "Historical Revenue Estimate",
+                    "metric": "Historical rev estimate",
                     "value": float(snap["estimated_revenue_avg"]),
                     "note": (
                         f"snapshot {snap.get('snapshot_date')}; "
@@ -1196,7 +1195,7 @@ def equity_analyst_forecasts(
         else:
             rows.append(
                 {
-                    "metric": "Historical Revenue Estimate",
+                    "metric": "Historical rev estimate",
                     "value": "insufficient history",
                     "note": (
                         "no snapshot in analyst_estimates_history yet; "
@@ -1211,7 +1210,7 @@ def equity_analyst_forecasts(
         # rationale above. Detail is in the WARN log.
         rows.append(
             {
-                "metric": "Historical Revenue Estimate",
+                "metric": "Historical rev estimate",
                 "value": "n/a",
                 "note": "lookup failed (see server logs)",
             }

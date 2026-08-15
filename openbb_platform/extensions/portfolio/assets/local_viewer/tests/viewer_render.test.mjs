@@ -459,13 +459,38 @@ test("technical row labels cover the actual Classic pivot strings with help", ()
 test("canonical analyst-forecast labels map to focused glossary help", () => {
   const container = { innerHTML: "" };
   H.renderTable(container, [
-    { metric: "Rating Distribution", value: "12 / 8", note: "Strong Buy / Buy" },
-    { metric: "EPS Surprise", value: "+3.2%", note: "Q3 2025" },
-    { metric: "Historical Revenue Estimate", value: "n/a", note: "unavailable" },
+    { metric: "Rating: Strong Buy / Buy", value: "12 / 8", note: "as of today" },
+    { metric: "Q3 2025 EPS Surprise", value: "+3.2%", note: "reported" },
+    { metric: "Historical rev estimate (last Q)", value: "n/a", note: "unavailable" },
   ], WIDGETS.pi_equity_analyst_forecasts);
   for (const key of ["rating_distribution", "eps_surprise", "revenue_estimate"]) {
     assert.match(container.innerHTML, new RegExp(`data-metric-help="${key}"`));
   }
+});
+
+test("What-If raw row identifiers resolve approved labels and glossary help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "symbol_weight_%", before: 4.8, after: 5.0, delta: 0.2 },
+    { metric: "sector_weight_%", before: 37.2, after: 37.4, delta: 0.2 },
+    { metric: "cash_%", before: 5, after: 4.8, delta: -0.2 },
+    { metric: "beta_spy", before: 1.08, after: 1.1, delta: 0.02 },
+  ], WIDGETS.pi_whatif_card);
+  for (const [label, key] of [
+    ["Symbol Weight (%)", "symbol_weight"],
+    ["Sector Weight (%)", "sector_weight"],
+    ["Cash Weight (%)", "cash_weight"],
+    ["Beta vs SPY", "beta_vs_spy"],
+  ]) {
+    assert.ok(container.innerHTML.includes(label));
+    assert.match(container.innerHTML, new RegExp(`data-metric-help="${key}"`));
+  }
+});
+
+test("earnings Surprise header uses the earnings-surprise glossary record", () => {
+  const column = WIDGETS.pi_earnings_history.data.table.columnsDefs
+    .find((item) => item.field === "surprise_pct");
+  assert.equal(column.glossaryKey, "earnings_surprise");
 });
 
 test("time-series legend labels expose help for price, volatility, and equity", () => {
