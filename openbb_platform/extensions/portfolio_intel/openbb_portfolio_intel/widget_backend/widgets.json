@@ -1007,6 +1007,20 @@
             "labelTemplate": "$1 EPS Surprise",
             "glossaryKey": "eps_surprise"
           }
+        ],
+        "columnsDefs": [
+          {
+            "field": "metric",
+            "headerName": "Forecast Measure"
+          },
+          {
+            "field": "value",
+            "headerName": "Value"
+          },
+          {
+            "field": "note",
+            "headerName": "Context"
+          }
         ]
       }
     }

@@ -584,3 +584,18 @@ def test_2012_event_calendar_columns_and_values_match_endpoint_shape() -> None:
         "form_8k": "Form 8-K",
     }
     assert {"ex_dividend", "form_8k"} <= {row["type"] for row in rows}
+
+
+def test_2013_forecast_columns_match_endpoint_shape() -> None:
+    """Forecast metadata must preserve the endpoint's metric/value/note rows."""
+    widget = _widget("pi_equity_analyst_forecasts")
+    response = _CLIENT.get("/pi/equity/analyst-forecasts?symbol=AAPL")
+    assert response.status_code == 200
+    rows = response.json()
+    columns = widget["data"]["table"]["columnsDefs"]
+    assert [(column["field"], column["headerName"]) for column in columns] == [
+        ("metric", "Forecast Measure"),
+        ("value", "Value"),
+        ("note", "Context"),
+    ]
+    assert rows and all({"metric", "value", "note"} <= set(row) for row in rows)

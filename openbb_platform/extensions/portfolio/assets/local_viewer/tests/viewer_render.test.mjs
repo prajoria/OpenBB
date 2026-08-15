@@ -640,6 +640,17 @@ test("2012 event calendar renders mapped event types and header help", () => {
   assert.doesNotMatch(container.innerHTML, /ex_dividend|form_8k/);
 });
 
+test("2013 forecasts render explicit forecast table headers", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "1Y target (consensus)", value: "$240", note: "12 months" },
+  ], WIDGETS.pi_equity_analyst_forecasts);
+  assert.match(container.innerHTML, /<th>Forecast Measure<\/th>/);
+  assert.match(container.innerHTML, /<th>Value<\/th>/);
+  assert.match(container.innerHTML, /<th>Context<\/th>/);
+  assert.match(container.innerHTML, /12-Month Price Target[\s\S]*data-metric-help="twelve_month_price_target"/);
+});
+
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
   const layer = {
     hidden: false,
