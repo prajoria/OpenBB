@@ -729,7 +729,33 @@
         "type": "text",
         "description": "Ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Percentage Price Change": "percentage_price_change",
+        "Change (%)": "percentage_price_change"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "name",
+            "headerName": "Company"
+          },
+          {
+            "field": "price",
+            "headerName": "Price"
+          },
+          {
+            "field": "change_pct",
+            "headerName": "Change (%)"
+          }
+        ]
+      }
+    }
   },
   "pi_equity_price_history": {
     "name": "Equity Price History (line / candle)",

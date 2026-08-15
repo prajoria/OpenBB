@@ -92,3 +92,15 @@ def test_1993_pi_equity_technicals_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_1994_pi_equity_competitors_terminology_contract() -> None:
+    widget = _widget("pi_equity_competitors")
+    expected_fields = {'symbol': 'Symbol', 'name': 'Company', 'price': 'Price', 'change_pct': 'Change (%)'}
+    expected_terms = ['Percentage Price Change']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
