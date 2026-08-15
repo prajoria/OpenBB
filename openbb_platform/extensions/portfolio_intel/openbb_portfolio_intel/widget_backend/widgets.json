@@ -410,7 +410,26 @@
         "type": "text",
         "description": "Paper account id"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Total Return": "total_return",
+        "Sharpe Ratio": "sharpe_ratio",
+        "Maximum Drawdown": "maximum_drawdown"
+      },
+      "metric": {
+        "labels": {
+          "total_return_pct": "Total Return (%)",
+          "sharpe_annualized": "Annualized Sharpe Ratio",
+          "max_drawdown_pct": "Maximum Drawdown (%)"
+        },
+        "metricGlossary": {
+          "Total Return (%)": "total_return",
+          "Annualized Sharpe Ratio": "sharpe_ratio",
+          "Maximum Drawdown (%)": "maximum_drawdown"
+        }
+      }
+    }
   },
   "pi_whatif_diff": {
     "name": "What-If - Trade Impact",

@@ -212,3 +212,15 @@ def test_2003_pi_whatif_card_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_2004_pi_paper_perf_kpis_terminology_contract() -> None:
+    widget = _widget("pi_paper_perf_kpis")
+    expected_fields = {'total_return_pct': 'Total Return (%)', 'sharpe_annualized': 'Annualized Sharpe Ratio', 'max_drawdown_pct': 'Maximum Drawdown (%)'}
+    expected_terms = ['Total Return', 'Sharpe Ratio', 'Maximum Drawdown']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert data["metric"]["labels"] == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
