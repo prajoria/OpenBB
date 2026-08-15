@@ -27,10 +27,12 @@ router = APIRouter()
 _VIEWER_HTML = (
     Path(__file__).resolve().parent.parent / "assets" / "local_viewer" / "index.html"
 )
-_BUGCONTEXT_LOADER_BLOCK = """
-  <!-- Bug Context feedback widget (CSP-friendly: no inline script) -->
-  <script src="https://demo.bugcontext.com/loader.js" data-project-key="pk_3a55167dc4b50c71f7886e58f40dab43efa859b0e7459bdf" defer></script>
-"""
+_BUGCONTEXT_LOADER_BLOCK = (
+    "\n  <!-- Bug Context feedback widget (CSP-friendly: no inline script) -->\n"
+    '  <script src="https://demo.bugcontext.com/loader.js"'
+    ' data-project-key="pk_3a55167dc4b50c71f7886e58f40dab43efa859b0e7459bdf"'
+    " defer></script>\n"
+)
 
 
 def read_viewer_html(*, include_bugcontext: bool = True) -> str:
