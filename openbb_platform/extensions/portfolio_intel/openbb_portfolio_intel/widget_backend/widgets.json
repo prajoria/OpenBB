@@ -1120,7 +1120,36 @@
           }
         ]
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Revenue": "revenue",
+        "Gross Profit": "gross_profit",
+        "Operating Income": "operating_income",
+        "Net Income": "net_income",
+        "Total Assets": "total_assets",
+        "Total Debt": "total_debt",
+        "Cash & Equivalents": "cash_and_equivalents",
+        "Operating Cash Flow": "operating_cash_flow",
+        "Free Cash Flow": "free_cash_flow"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "line_item",
+            "headerName": "Line Item"
+          },
+          {
+            "field": "period_1",
+            "headerName": "Prior Period"
+          },
+          {
+            "field": "period_2",
+            "headerName": "Latest Period"
+          }
+        ]
+      }
+    }
   },
   "pi_charting": {
     "name": "Charting (OHLC + Indicators)",

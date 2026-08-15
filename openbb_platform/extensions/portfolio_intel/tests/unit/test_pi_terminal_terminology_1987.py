@@ -32,3 +32,15 @@ def test_1988_key_stats_maps_only_approved_glossary_terms() -> None:
     viewer = _VIEWER.read_text(encoding="utf-8")
     for key in glossary.values():
         assert f"{key}: Object.freeze({{" in viewer
+
+
+def test_1989_pi_financial_statements_terminology_contract() -> None:
+    widget = _widget("pi_financial_statements")
+    expected_fields = {'line_item': 'Line Item', 'period_1': 'Prior Period', 'period_2': 'Latest Period'}
+    expected_terms = ['Revenue', 'Gross Profit', 'Operating Income', 'Net Income', 'Total Assets', 'Total Debt', 'Cash & Equivalents', 'Operating Cash Flow', 'Free Cash Flow']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
