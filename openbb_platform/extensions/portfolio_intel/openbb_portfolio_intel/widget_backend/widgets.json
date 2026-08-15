@@ -687,7 +687,22 @@
         "type": "text",
         "description": "Ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "12-Month Price Target": "twelve_month_price_target",
+        "Target Range": "target_range",
+        "Implied Upside": "implied_upside",
+        "Rating Distribution": "rating_distribution",
+        "EPS Surprise": "eps_surprise",
+        "Revenue Estimate": "revenue_estimate",
+        "1Y target": "twelve_month_price_target",
+        "Target range": "target_range",
+        "Upside vs current": "implied_upside",
+        "rating rows": "rating_distribution",
+        "Historical rev estimate": "revenue_estimate"
+      }
+    }
   },
   "pi_equity_complementary": {
     "name": "Equity Profile - Complementary Assets (bonds blocked on #1000)",
