@@ -1510,7 +1510,33 @@
         "type": "text",
         "description": "Named basket (demo only until #1714 lands)"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Average Price Target": "average_price_target",
+        "Consensus Rating": "consensus_rating"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "avg_target",
+            "headerName": "Average Price Target"
+          },
+          {
+            "field": "buy_hold_sell",
+            "headerName": "Buy/Hold/Sell Ratings"
+          },
+          {
+            "field": "consensus",
+            "headerName": "Consensus Rating"
+          }
+        ]
+      }
+    }
   },
   "tt_signal_card": {
     "name": "Techtrade - Signal Card",
