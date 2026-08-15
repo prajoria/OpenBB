@@ -78,6 +78,23 @@ def test_stock_splits_widget_declared() -> None:
 def test_dividend_payment_widget_declared() -> None:
     w = _widgets().get("pi_dividend_payment")
     assert w and w["type"] == "table"
+    table = w["data"]["table"]["columnsDefs"]
+    assert table == [
+        {
+            "field": "ex_date",
+            "headerName": "Ex-Dividend Date",
+            "glossaryKey": "ex_dividend_date",
+        },
+        {
+            "field": "payment_date",
+            "headerName": "Payment Date",
+        },
+        {
+            "field": "amount",
+            "headerName": "Dividend Amount ($/share)",
+            "glossaryKey": "dividend_amount_per_share",
+        },
+    ]
 
 
 def test_company_filings_widget_declared() -> None:
@@ -148,7 +165,7 @@ def test_dividend_payment_shape() -> None:
     rows = _client.get("/pi/equity/dividend-payment?symbol=AAPL").json()
     assert rows
     for r in rows:
-        assert "ex_date" in r and "amount" in r
+        assert "ex_date" in r and "payment_date" in r and "amount" in r
         assert isinstance(r["amount"], (int, float))
 
 

@@ -1397,7 +1397,31 @@
         "type": "text",
         "description": "Ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Ex-Dividend Date": "ex_dividend_date",
+        "Dividend Amount ($/share)": "dividend_amount_per_share"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "ex_date",
+            "headerName": "Ex-Dividend Date",
+            "glossaryKey": "ex_dividend_date"
+          },
+          {
+            "field": "payment_date",
+            "headerName": "Payment Date"
+          },
+          {
+            "field": "amount",
+            "headerName": "Dividend Amount ($/share)",
+            "glossaryKey": "dividend_amount_per_share"
+          }
+        ]
+      }
+    }
   },
   "pi_company_filings": {
     "name": "Company Filings",

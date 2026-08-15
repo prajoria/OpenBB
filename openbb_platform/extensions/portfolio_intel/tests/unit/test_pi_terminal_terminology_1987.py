@@ -223,6 +223,18 @@ def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
             },
         ),
         (
+            "pi_dividend_payment",
+            {
+                "ex_date": "Ex-Dividend Date",
+                "payment_date": "Payment Date",
+                "amount": "Dividend Amount ($/share)",
+            },
+            {
+                "Ex-Dividend Date": "ex_dividend_date",
+                "Dividend Amount ($/share)": "dividend_amount_per_share",
+            },
+        ),
+        (
             "pi_price_target_history",
             {
                 "date": "Date",
@@ -410,7 +422,7 @@ def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
         ),
     ],
 )
-def test_all_20_widgets_have_exact_label_and_glossary_contracts(
+def test_all_21_widgets_have_exact_label_and_glossary_contracts(
     widget_id: str, labels: dict[str, str], glossary: dict[str, str]
 ) -> None:
     widget = _widget(widget_id)
@@ -498,3 +510,26 @@ def test_all_glossary_sources_are_https_non_generic_and_curated() -> None:
         assert parsed.scheme == "https"
         assert parsed.netloc in allowed_hosts
         assert "financial-term-dictionary" not in parsed.path
+
+
+def test_dividend_payment_glossary_records_are_curated_and_https() -> None:
+    text = _VIEWER.read_text(encoding="utf-8")
+    for key, label, summary, source in (
+        (
+            "ex_dividend_date",
+            "Ex-Dividend Date",
+            "First trading day when a buyer is not entitled to the next dividend.",
+            "https://www.investopedia.com/terms/e/ex-dividend.asp",
+        ),
+        (
+            "dividend_amount_per_share",
+            "Dividend Amount per Share",
+            "Cash dividend declared for each share.",
+            "https://www.investopedia.com/terms/d/dividend.asp",
+        ),
+    ):
+        marker = f"{key}: Object.freeze({{"
+        record = text[text.index(marker) : text.index("    }),", text.index(marker))]
+        assert label in record
+        assert summary in record
+        assert f'source: "{source}"' in record

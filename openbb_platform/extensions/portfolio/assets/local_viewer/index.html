@@ -1630,6 +1630,13 @@
       interpretation: "GAAP versus adjusted earnings, share count, and estimates can make comparisons non-equivalent.",
       source: "https://en.wikipedia.org/wiki/Earnings_per_share",
     }),
+    ex_dividend_date: Object.freeze({
+      label: "Ex-Dividend Date",
+      summary: "First trading day when a buyer is not entitled to the next dividend.",
+      definition: "The ex-dividend date is the cutoff date used to determine which shareholder receives the next dividend payment; buyers on or after the ex-date do not receive that payment.",
+      interpretation: "Because stock trades settle later, the ex-date is usually one business day before the record date and the share price often adjusts downward by roughly the dividend amount on that day.",
+      source: "https://www.investopedia.com/terms/e/ex-dividend.asp",
+    }),
     estimated_eps: Object.freeze({
       label: "Estimated EPS",
       summary: "Analysts’ forecast earnings per share.",
@@ -1958,6 +1965,13 @@
       definition: "Dividend yield divides the expected yearly cash dividend by the current stock price.",
       interpretation: "Higher yield can mean more income, but check payout safety and whether the price has simply fallen.",
       source: "https://en.wikipedia.org/wiki/Rate_of_return",
+    }),
+    dividend_amount_per_share: Object.freeze({
+      label: "Dividend Amount per Share",
+      summary: "Cash dividend declared for each share.",
+      definition: "Dividend amount per share is the cash distribution a company declares for each share of stock in a dividend event.",
+      interpretation: "Compare the per-share amount with the ex-dividend date and payment date; special or irregular dividends can change the stated amount from one payout to the next.",
+      source: "https://www.investopedia.com/terms/d/dividend.asp",
     }),
     revenue_b: Object.freeze({
       label: "Revenue ($B)",

@@ -496,7 +496,7 @@ _COVERAGE_STEPS: tuple[Step, ...] = (
         "notebooks/portfolio/04-events-and-smart-money.ipynb",
         Persona.ANALYST,
         "Coverage — pi_dividend_payment",
-        "Recent dividend rows: ex-date, payment date, amount.",
+        "Recent dividend rows with Ex-Dividend Date, Payment Date, and Dividend Amount ($/share).",
     ),
     _coverage(
         "CX.company-filings",
