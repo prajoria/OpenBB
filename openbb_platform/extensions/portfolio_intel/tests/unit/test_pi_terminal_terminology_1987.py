@@ -104,3 +104,15 @@ def test_1994_pi_equity_competitors_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_1995_pi_equity_complementary_terminology_contract() -> None:
+    widget = _widget("pi_equity_complementary")
+    expected_fields = {'kind': 'Asset Type', 'id': 'Identifier', 'name': 'Name', 'weight_pct': 'Portfolio Weight (%)', 'value_usd': 'Market Value ($)'}
+    expected_terms = ['Portfolio Weight', 'Market Value']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]

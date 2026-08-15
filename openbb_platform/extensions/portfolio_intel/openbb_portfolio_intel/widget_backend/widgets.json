@@ -708,7 +708,39 @@
         "type": "text",
         "description": "Ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Portfolio Weight": "portfolio_weight",
+        "Market Value": "market_value",
+        "Portfolio Weight (%)": "portfolio_weight",
+        "Market Value ($)": "market_value"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "kind",
+            "headerName": "Asset Type"
+          },
+          {
+            "field": "id",
+            "headerName": "Identifier"
+          },
+          {
+            "field": "name",
+            "headerName": "Name"
+          },
+          {
+            "field": "weight_pct",
+            "headerName": "Portfolio Weight (%)"
+          },
+          {
+            "field": "value_usd",
+            "headerName": "Market Value ($)"
+          }
+        ]
+      }
+    }
   },
   "pi_equity_competitors": {
     "name": "Equity Profile - Competitor Strip",
