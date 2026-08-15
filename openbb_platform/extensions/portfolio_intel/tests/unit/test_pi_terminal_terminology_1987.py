@@ -433,14 +433,14 @@ def test_all_21_widgets_have_exact_label_and_glossary_contracts(
     elif widget["type"] == "chart":
         actual_labels = data["chart"]["labels"]
         actual_glossary = data["metricGlossary"]
+    elif "rowLabels" in data.get("table", {}):
+        actual_labels = data["table"]["rowLabels"]
+        actual_glossary = data["metricGlossary"]
     elif "columnsDefs" in data.get("table", {}):
         actual_labels = {
             column["field"]: column["headerName"]
             for column in data["table"]["columnsDefs"]
         }
-        actual_glossary = data["metricGlossary"]
-    elif "rowLabels" in data.get("table", {}):
-        actual_labels = data["table"]["rowLabels"]
         actual_glossary = data["metricGlossary"]
     else:
         actual_labels = {}
@@ -655,3 +655,20 @@ def test_2016_news_columns_match_endpoint_shape_without_glossary() -> None:
     ]
     assert all("glossaryKey" not in column for column in columns)
     assert rows and all({"symbol", "when", "title", "severity"} <= set(row) for row in rows)
+
+
+def test_2017_sentiment_label_and_glossary_match_endpoint_shape() -> None:
+    """Sentiment metadata must relabel, but not change, the endpoint value."""
+    widget = _widget("pi_sentiment_gauge")
+    response = _CLIENT.get("/pi/sentiment?account_id=demo")
+    assert response.status_code == 200
+    payload = response.json()
+    metric = widget["data"]["metric"]
+    assert metric == {
+        "labels": {"value": "News Sentiment Score (-1 to +1)"},
+        "metricGlossary": {
+            "News Sentiment Score (-1 to +1)": "news_sentiment_score"
+        },
+    }
+    assert payload["label"] == "Sentiment (-1..+1)"
+    assert -1 <= payload["value"] <= 1

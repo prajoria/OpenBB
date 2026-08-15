@@ -749,6 +749,16 @@
       "h": 6
     },
     "source": "portfolio-intel",
+    "data": {
+      "metric": {
+        "labels": {
+          "value": "News Sentiment Score (-1 to +1)"
+        },
+        "metricGlossary": {
+          "News Sentiment Score (-1 to +1)": "news_sentiment_score"
+        }
+      }
+    },
     "params": [
       {
         "paramName": "account_id",

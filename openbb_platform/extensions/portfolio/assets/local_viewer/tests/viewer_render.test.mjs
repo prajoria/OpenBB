@@ -688,6 +688,17 @@ test("2016 news ribbon renders operational headers without glossary controls", (
   assert.doesNotMatch(container.innerHTML, /data-metric-help=/);
 });
 
+test("2017 sentiment gauge renders its explicit label and glossary help", () => {
+  const container = { innerHTML: "" };
+  H.renderMetric(container, {
+    value: 0.62,
+    label: "Sentiment (-1..+1)",
+    note: "demo — 7d window",
+  }, WIDGETS.pi_sentiment_gauge);
+  assert.match(container.innerHTML, /News Sentiment Score \(-1 to \+1\)[\s\S]*data-metric-help="news_sentiment_score"/);
+  assert.doesNotMatch(container.innerHTML, /Sentiment \(-1\.\.\+1\)/);
+});
+
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
   const layer = {
     hidden: false,
