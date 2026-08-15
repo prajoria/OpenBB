@@ -1221,7 +1221,39 @@
         "type": "text",
         "description": "Ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "P/E (TTM)": "pe_ttm",
+        "P/E (Forward)": "pe_forward",
+        "EV/EBITDA": "ev_ebitda",
+        "P/S (TTM)": "ps_ttm"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "pe_ttm",
+            "headerName": "P/E (TTM)"
+          },
+          {
+            "field": "pe_fwd",
+            "headerName": "P/E (Forward)"
+          },
+          {
+            "field": "ev_ebitda",
+            "headerName": "EV/EBITDA"
+          },
+          {
+            "field": "ps_ttm",
+            "headerName": "P/S (TTM)"
+          }
+        ]
+      }
+    }
   },
   "tt_segment_movers": {
     "name": "Techtrade - Segment Movers",

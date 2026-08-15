@@ -44,3 +44,15 @@ def test_1989_pi_financial_statements_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_1990_pi_peer_multiples_terminology_contract() -> None:
+    widget = _widget("pi_peer_multiples")
+    expected_fields = {'symbol': 'Symbol', 'pe_ttm': 'P/E (TTM)', 'pe_fwd': 'P/E (Forward)', 'ev_ebitda': 'EV/EBITDA', 'ps_ttm': 'P/S (TTM)'}
+    expected_terms = ['P/E (TTM)', 'P/E (Forward)', 'EV/EBITDA', 'P/S (TTM)']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
