@@ -389,7 +389,18 @@
         "type": "text",
         "description": "Paper account id"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Portfolio Equity": "portfolio_equity"
+      },
+      "chart": {
+        "labels": {
+          "date": "Date",
+          "equity": "Portfolio Equity"
+        }
+      }
+    }
   },
   "pi_paper_perf_kpis": {
     "name": "Paper Performance KPIs (PAPER)",

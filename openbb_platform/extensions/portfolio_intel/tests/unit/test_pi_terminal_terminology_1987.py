@@ -224,3 +224,15 @@ def test_2004_pi_paper_perf_kpis_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_2005_pi_paper_performance_terminology_contract() -> None:
+    widget = _widget("pi_paper_performance")
+    expected_fields = {'date': 'Date', 'equity': 'Portfolio Equity'}
+    expected_terms = ['Portfolio Equity']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert data["chart"]["labels"] == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
