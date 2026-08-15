@@ -205,6 +205,17 @@ test("svgForChart draws one polyline per line series", () => {
   assert.equal((svg.match(/<polyline/g) || []).length, 2);
 });
 
+test("inferChartModel applies explicit chart-series labels", () => {
+  const model = H.inferChartModel(
+    [{ date: "2026-01-01", vol_20d: 0.2, vol_60d: 0.3 }],
+    { labels: { vol_20d: "20-Day Volatility", vol_60d: "60-Day Volatility" } },
+  );
+  assert.equal(
+    model.series.map((series) => series.key).join("|"),
+    "20-Day Volatility|60-Day Volatility",
+  );
+});
+
 // --------------------------------------------------------------------------
 // #1978 — dual-axis combo: bars on a LEFT axis + line(s) on a RIGHT axis so a
 // %-scale margin line isn't crushed flat by a $B-scale revenue series.

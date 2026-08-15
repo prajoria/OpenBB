@@ -525,6 +525,7 @@
     if (!rows.length) { container.innerHTML = '<div class="state">No rows returned.</div>'; return; }
     const defs = widget && widget.data && widget.data.table && widget.data.table.columnsDefs;
     const map = widget && widget.data && widget.data.metricGlossary;
+    const rowLabels = widget && widget.data && widget.data.table && widget.data.table.rowLabels;
     const cols = (defs && defs.length)
       ? defs.map((c) => ({
         field: c.field,
@@ -538,8 +539,10 @@
     const body = rows.map((r) =>
       "<tr>" + cols.map((c, idx) => {
         const v = r[c.field];
+        const display = idx === 0 && typeof v === "string" && rowLabels
+          && Object.prototype.hasOwnProperty.call(rowLabels, v) ? rowLabels[v] : v;
         const key = idx === 0 && typeof v === "string" && map && Object.prototype.hasOwnProperty.call(map, v) ? map[v] : null;
-        const label = metricLabelHtml(fmtCell(v, c), key);
+        const label = metricLabelHtml(fmtCell(display, c), key);
         return `<td class="${cellClass(v, c)}">${label}</td>`;
       }).join("") + "</tr>"
     ).join("");
@@ -605,6 +608,7 @@
       };
     }
     const keys = Object.keys(rows[0]);
+    const labels = cfg.labels && typeof cfg.labels === "object" ? cfg.labels : {};
     const numericKeys = keys.filter((k) =>
       rows.every((r) => r[k] === null || r[k] === undefined || typeof r[k] === "number") &&
       rows.some((r) => typeof r[k] === "number"));
@@ -642,7 +646,7 @@
     const seriesKeys = numericKeys.filter((k) => k !== xKey);
     if (!seriesKeys.length) return { kind: "empty" };
     const series = seriesKeys.map((k) => ({
-      key: k,
+      key: labels[k] || k,
       points: rows.map((r, idx) => ({ x: idx, y: typeof r[k] === "number" ? r[k] : null })),
     }));
     return { kind: "line", xKey: xKey != null ? xKey : null, series, xLabels };
@@ -942,9 +946,13 @@
     const yhi = `<text x="${padL - 4}" y="${pad + 4}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(ymax)}</text>`;
     const ylo = `<text x="${padL - 4}" y="${Hh - pad}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(ymin)}</text>`;
     const xticks = xAxisTicksSvg(model.xLabels, xAt, Hh - 6, n);
-    const legend = model.series.map((s, idx) =>
-      `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.key)}</div>`
-    ).join("");
+    const legend = model.series.map((s, idx) => {
+      const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+      const key = map && Object.prototype.hasOwnProperty.call(map, s.key) ? map[s.key] : null;
+      const help = metricHelpButtonHtml(key);
+      const label = help ? `<span class="legend-label">${escapeHtml(s.key)}${help}</span>` : escapeHtml(s.key);
+      return `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${label}</div>`;
+    }).join("");
     return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="line chart">${axis}${yhi}${ylo}${xticks}${polylines}</svg><div class="legend">${legend}</div></div>`;
   }
 

@@ -136,7 +136,8 @@
           },
           {
             "field": "effective_weight",
-            "headerName": "Effective Weight (%)"
+            "headerName": "Effective Weight (%)",
+            "glossaryKey": "effective_weight"
           },
           {
             "field": "rank",
@@ -249,7 +250,8 @@
           },
           {
             "field": "value_usd",
-            "headerName": "Transaction Value ($)"
+            "headerName": "Transaction Value ($)",
+            "glossaryKey": "transaction_value"
           },
           {
             "field": "date",
@@ -326,6 +328,12 @@
         "60-Day Volatility": "sixty_day_volatility",
         "vol_20d": "twenty_day_volatility",
         "vol_60d": "sixty_day_volatility"
+      },
+      "chart": {
+        "labels": {
+          "vol_20d": "20-Day Volatility",
+          "vol_60d": "60-Day Volatility"
+        }
       }
     }
   },
@@ -426,7 +434,8 @@
           },
           {
             "field": "avg_price",
-            "headerName": "Average Execution Price"
+            "headerName": "Average Execution Price",
+            "glossaryKey": "average_execution_price"
           }
         ]
       }
@@ -569,6 +578,14 @@
         "Symbol Weight (%)": "symbol_weight",
         "Sector Weight (%)": "sector_weight",
         "Cash Weight (%)": "cash_weight"
+      },
+      "table": {
+        "rowLabels": {
+          "symbol_weight_%": "Symbol Weight (%)",
+          "sector_weight_%": "Sector Weight (%)",
+          "cash_%": "Cash Weight (%)",
+          "beta_spy": "Beta vs SPY"
+        }
       }
     }
   },
@@ -852,6 +869,19 @@
         "S2": "support",
         "S3": "support",
         "ATM IV term structure": "atm_implied_volatility"
+      },
+      "table": {
+        "rowLabels": {
+          "Consensus": "Analyst Consensus",
+          "R3": "Resistance 3",
+          "R2": "Resistance 2",
+          "R1": "Resistance 1",
+          "P": "Pivot",
+          "S1": "Support 1",
+          "S2": "Support 2",
+          "S3": "Support 3",
+          "ATM IV term structure": "ATM Implied Volatility Term Structure"
+        }
       }
     }
   },
@@ -888,6 +918,16 @@
         "Upside vs current": "implied_upside",
         "rating rows": "rating_distribution",
         "Historical rev estimate": "revenue_estimate"
+      },
+      "table": {
+        "rowLabels": {
+          "1Y target": "12-Month Price Target",
+          "Target range": "Target Range",
+          "Upside vs current": "Upside vs Current Price",
+          "rating rows": "Rating Distribution",
+          "EPS Surprise": "EPS Surprise",
+          "Historical rev estimate": "Historical Revenue Estimate"
+        }
       }
     }
   },
@@ -934,11 +974,13 @@
           },
           {
             "field": "weight_pct",
-            "headerName": "Portfolio Weight (%)"
+            "headerName": "Portfolio Weight (%)",
+            "glossaryKey": "portfolio_weight"
           },
           {
             "field": "value_usd",
-            "headerName": "Market Value ($)"
+            "headerName": "Market Value ($)",
+            "glossaryKey": "market_value"
           }
         ]
       }
@@ -985,7 +1027,8 @@
           },
           {
             "field": "change_pct",
-            "headerName": "Change (%)"
+            "headerName": "Change (%)",
+            "glossaryKey": "percentage_price_change"
           }
         ]
       }
@@ -1270,15 +1313,18 @@
           },
           {
             "field": "eps_actual",
-            "headerName": "Actual EPS"
+            "headerName": "Actual EPS",
+            "glossaryKey": "actual_eps"
           },
           {
             "field": "eps_estimate",
-            "headerName": "Estimated EPS"
+            "headerName": "Estimated EPS",
+            "glossaryKey": "estimated_eps"
           },
           {
             "field": "surprise_pct",
-            "headerName": "Surprise (%)"
+            "headerName": "Surprise (%)",
+            "glossaryKey": "eps_surprise"
           }
         ]
       }
@@ -1556,19 +1602,23 @@
           },
           {
             "field": "pe_ttm",
-            "headerName": "P/E (TTM)"
+            "headerName": "P/E (TTM)",
+            "glossaryKey": "pe_ttm"
           },
           {
             "field": "pe_fwd",
-            "headerName": "P/E (Forward)"
+            "headerName": "P/E (Forward)",
+            "glossaryKey": "pe_forward"
           },
           {
             "field": "ev_ebitda",
-            "headerName": "EV/EBITDA"
+            "headerName": "EV/EBITDA",
+            "glossaryKey": "ev_ebitda"
           },
           {
             "field": "ps_ttm",
-            "headerName": "P/S (TTM)"
+            "headerName": "P/S (TTM)",
+            "glossaryKey": "ps_ttm"
           }
         ]
       }
@@ -1711,7 +1761,8 @@
           },
           {
             "field": "avg_target",
-            "headerName": "Average Price Target"
+            "headerName": "Average Price Target",
+            "glossaryKey": "average_price_target"
           },
           {
             "field": "buy_hold_sell",
@@ -1719,7 +1770,8 @@
           },
           {
             "field": "consensus",
-            "headerName": "Consensus Rating"
+            "headerName": "Consensus Rating",
+            "glossaryKey": "consensus_rating"
           }
         ]
       }
