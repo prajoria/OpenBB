@@ -140,3 +140,15 @@ def test_1997_pi_basket_analyst_consensus_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_1998_pi_lookthrough_top25_terminology_contract() -> None:
+    widget = _widget("pi_lookthrough_top25")
+    expected_fields = {'symbol': 'Symbol', 'name': 'Holding', 'effective_weight': 'Effective Weight (%)', 'rank': 'Rank'}
+    expected_terms = ['Effective Weight']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]

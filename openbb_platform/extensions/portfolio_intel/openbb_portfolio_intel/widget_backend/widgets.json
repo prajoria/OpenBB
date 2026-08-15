@@ -118,7 +118,33 @@
         "type": "text",
         "description": "Paper account id"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Effective Weight": "effective_weight",
+        "Effective Weight (%)": "effective_weight"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "name",
+            "headerName": "Holding"
+          },
+          {
+            "field": "effective_weight",
+            "headerName": "Effective Weight (%)"
+          },
+          {
+            "field": "rank",
+            "headerName": "Rank"
+          }
+        ]
+      }
+    }
   },
   "pi_concentration_gauge": {
     "name": "Concentration Gauge",
