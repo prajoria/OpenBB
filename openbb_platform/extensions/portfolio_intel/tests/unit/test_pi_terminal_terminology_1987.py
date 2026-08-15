@@ -188,3 +188,15 @@ def test_2001_pi_risk_vol_chart_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_2002_pi_brinson_attribution_terminology_contract() -> None:
+    widget = _widget("pi_brinson_attribution")
+    expected_fields = {'sector': 'Sector', 'allocation': 'Allocation Effect', 'selection': 'Selection Effect', 'interaction': 'Interaction Effect', 'total': 'Total Active Return'}
+    expected_terms = ['Allocation Effect', 'Selection Effect', 'Interaction Effect', 'Total Active Return']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert data["chart"]["labels"] == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]

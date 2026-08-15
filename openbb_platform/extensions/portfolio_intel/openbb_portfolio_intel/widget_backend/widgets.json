@@ -495,7 +495,24 @@
         "type": "text",
         "description": "Benchmark ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Allocation Effect": "allocation_effect",
+        "Selection Effect": "selection_effect",
+        "Interaction Effect": "interaction_effect",
+        "Total Active Return": "total_active_return"
+      },
+      "chart": {
+        "labels": {
+          "sector": "Sector",
+          "allocation": "Allocation Effect",
+          "selection": "Selection Effect",
+          "interaction": "Interaction Effect",
+          "total": "Total Active Return"
+        }
+      }
+    }
   },
   "pi_news_ribbon": {
     "name": "News - Held Symbols",
