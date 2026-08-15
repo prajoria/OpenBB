@@ -628,6 +628,18 @@ test("2011 technicals render explicit indicator table headers", () => {
   assert.match(container.innerHTML, /Resistance 3[\s\S]*data-metric-help="resistance"/);
 });
 
+test("2012 event calendar renders mapped event types and header help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { symbol: "AAPL", type: "ex_dividend", date: "2026-08-08", detail: "$0.24/sh" },
+    { symbol: "NVDA", type: "form_8k", date: "2026-07-22", detail: "Item 7.01" },
+  ], WIDGETS.pi_event_calendar);
+  assert.match(container.innerHTML, /<th><span class="metric-label">Event Type[\s\S]*data-metric-help="event_type"/);
+  assert.match(container.innerHTML, />Ex-Dividend<\/td>/);
+  assert.match(container.innerHTML, />Form 8-K<\/td>/);
+  assert.doesNotMatch(container.innerHTML, /ex_dividend|form_8k/);
+});
+
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
   const layer = {
     hidden: false,

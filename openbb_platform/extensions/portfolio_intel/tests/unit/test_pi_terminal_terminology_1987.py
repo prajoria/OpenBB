@@ -562,3 +562,25 @@ def test_2011_technicals_columns_match_endpoint_shape() -> None:
         ("note", "Interpretation"),
     ]
     assert rows and all({"metric", "value", "note"} <= set(row) for row in rows)
+
+
+def test_2012_event_calendar_columns_and_values_match_endpoint_shape() -> None:
+    """Calendar metadata must label the raw event types emitted by its endpoint."""
+    widget = _widget("pi_event_calendar")
+    response = _CLIENT.get("/pi/events/calendar?account_id=demo&horizon_days=14")
+    assert response.status_code == 200
+    rows = response.json()
+    columns = widget["data"]["table"]["columnsDefs"]
+    assert [(column["field"], column["headerName"]) for column in columns] == [
+        ("symbol", "Symbol"),
+        ("type", "Event Type"),
+        ("date", "Event Date"),
+        ("detail", "Details"),
+    ]
+    event_type = columns[1]
+    assert event_type["glossaryKey"] == "event_type"
+    assert event_type["valueLabels"] == {
+        "ex_dividend": "Ex-Dividend",
+        "form_8k": "Form 8-K",
+    }
+    assert {"ex_dividend", "form_8k"} <= {row["type"] for row in rows}

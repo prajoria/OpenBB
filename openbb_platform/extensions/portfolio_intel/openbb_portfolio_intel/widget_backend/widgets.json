@@ -193,6 +193,33 @@
       "h": 12
     },
     "source": "portfolio-intel",
+    "data": {
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "type",
+            "headerName": "Event Type",
+            "glossaryKey": "event_type",
+            "valueLabels": {
+              "ex_dividend": "Ex-Dividend",
+              "form_8k": "Form 8-K"
+            }
+          },
+          {
+            "field": "date",
+            "headerName": "Event Date"
+          },
+          {
+            "field": "detail",
+            "headerName": "Details"
+          }
+        ]
+      }
+    },
     "params": [
       {
         "paramName": "account_id",
