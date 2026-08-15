@@ -56,3 +56,15 @@ def test_1990_pi_peer_multiples_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_1991_pi_earnings_history_terminology_contract() -> None:
+    widget = _widget("pi_earnings_history")
+    expected_fields = {'quarter': 'Quarter', 'eps_actual': 'Actual EPS', 'eps_estimate': 'Estimated EPS', 'surprise_pct': 'Surprise (%)'}
+    expected_terms = ['Actual EPS', 'Estimated EPS', 'Earnings Surprise']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]

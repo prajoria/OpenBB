@@ -976,7 +976,35 @@
         "type": "text",
         "description": "Ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Actual EPS": "actual_eps",
+        "Estimated EPS": "estimated_eps",
+        "Earnings Surprise": "earnings_surprise",
+        "Surprise (%)": "eps_surprise"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "quarter",
+            "headerName": "Quarter"
+          },
+          {
+            "field": "eps_actual",
+            "headerName": "Actual EPS"
+          },
+          {
+            "field": "eps_estimate",
+            "headerName": "Estimated EPS"
+          },
+          {
+            "field": "surprise_pct",
+            "headerName": "Surprise (%)"
+          }
+        ]
+      }
+    }
   },
   "pi_stock_splits": {
     "name": "Stock Splits",
