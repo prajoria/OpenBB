@@ -9,10 +9,11 @@ domain terms must offer contextual help.
 
 ## Scope and Unit of Work
 
-The audit covers all 39 unique widgets used by the 12 Terminal tabs. Each
-widget is classified as either passing or deficient. Every deficient widget
-gets its own GitHub child issue under #1987 and is implemented, tested, and
-reviewed separately in tab order.
+The audit covers all 39 unique widgets used by the 12 Terminal tabs. Each widget is classified as either passing or deficient. Every deficient
+widget gets its own GitHub child issue under #1987 and is implemented, tested,
+and reviewed separately in tab order. The live sweep may overturn a static
+passing classification when inferred headers or runtime values expose API
+names; those widgets receive their own child issues before the audit closes.
 
 A widget passes when:
 

@@ -72,8 +72,17 @@ For each row, first claim the issue and set Project #4 to In Progress. Write a f
 | 18 | #2005 | `pi_paper_performance` | Date; Portfolio Equity | Portfolio Equity |
 | 19 | #2006 | `pi_paper_blotter` | Time; Symbol; Side; Quantity; Status; Average Execution Price | Average Execution Price |
 | 20 | #2007 | `pi_smart_money_ribbon` | Symbol; Activity Type; Actor; Transaction Value ($); Date | Transaction Value |
+| 21 | #2009 | `pi_dividend_payment` | Ex-Dividend Date; Payment Date; Dividend Amount ($/share) | Ex-Dividend Date; Dividend Amount per Share |
+| 22 | #2010 | `pi_equity_key_stats` | Financial Metric; Value | existing row glossary |
+| 23 | #2011 | `pi_equity_technicals` | Technical Indicator; Value; Interpretation | existing row glossary |
+| 24 | #2012 | `pi_event_calendar` | Symbol; Event Type; Event Date; Details; explicit event values | Event Type |
+| 25 | #2013 | `pi_equity_analyst_forecasts` | Forecast Measure; Value; Context | existing row glossary |
+| 26 | #2014 | `pi_whatif_card` | Portfolio Metric; Before Trade; After Trade; Change | existing row glossary |
+| 27 | #2015 | `pi_alerts_panel` | Severity; Alert Type; Symbol; Details; explicit alert values | Alert Type |
+| 28 | #2016 | `pi_news_ribbon` | Symbol; Published; Headline; Severity | none for operational fields |
+| 29 | #2017 | `pi_sentiment_gauge` | News Sentiment Score (-1 to +1) | News Sentiment Score |
 
-- [ ] Process rows 1–20 in order with one issue, focused test cycle, and commit per row.
+- [ ] Process rows 1–29 in order with one issue, focused test cycle, and commit per row.
 - [ ] After every fifth row, run the full terminology contract and Node viewer suite.
 - [ ] After row 20, run `.venv_portfolio\Scripts\python.exe -m pytest openbb_platform/extensions/portfolio_intel/tests/unit/test_pi_terminal_terminology_1987.py -q` and the Node viewer suite.
 
