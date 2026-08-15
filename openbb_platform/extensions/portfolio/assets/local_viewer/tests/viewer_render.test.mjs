@@ -441,6 +441,23 @@ test("look-through effective-weight formatter converts fractions to displayed pe
   assert.equal(H.fmtCell(0.078, col), "7.80%");
 });
 
+test("risk dashboard formats fraction metrics as signed percentages while beta stays a ratio", () => {
+  const metric = WIDGETS.pi_risk_dashboard.data.metric;
+  assert.deepEqual(metric.formatters, {
+    vol_annualized: "percentFraction",
+    var_95_1d: "percentFraction",
+  });
+  const container = { innerHTML: "" };
+  H.renderMetric(
+    container,
+    { vol_annualized: 0.184, var_95_1d: -0.021, beta_spy: 1.08 },
+    WIDGETS.pi_risk_dashboard,
+  );
+  assert.match(container.innerHTML, />18\.40%</);
+  assert.match(container.innerHTML, />-2\.10%</);
+  assert.match(container.innerHTML, />1\.08</);
+});
+
 test("single-value metric cards apply explicit labels and glossary metadata", () => {
   const model = H.metricModel(
     { value: 0.076, label: "HHI (0..1; higher = more concentrated)" },

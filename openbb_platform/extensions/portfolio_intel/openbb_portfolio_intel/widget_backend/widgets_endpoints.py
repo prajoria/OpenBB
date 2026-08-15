@@ -2048,8 +2048,8 @@ def equity_statements(
 
     Live-served from ``fmp_cached`` via the ``equity/statements`` tier call
     (#1920): fetches income/balance/cash statements and maps nine canonical
-    line items to a 2-period comparison. This stub body is the loud fallback
-    when no tier serves.
+    line items to a 2-period comparison in USD millions. This stub body is the
+    loud fallback when no tier serves and uses the same USD-millions unit.
     """
     _require_auth(request)
     _validate_symbol(symbol)

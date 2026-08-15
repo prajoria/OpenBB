@@ -205,8 +205,10 @@
             "headerName": "Event Type",
             "glossaryKey": "event_type",
             "valueLabels": {
+              "earnings": "Earnings",
               "ex_dividend": "Ex-Dividend",
-              "form_8k": "Form 8-K"
+              "form_8k": "Form 8-K",
+              "info": "Information"
             }
           },
           {
@@ -296,7 +298,7 @@
   },
   "pi_risk_dashboard": {
     "name": "Risk Dashboard",
-    "description": "Portfolio volatility, VaR, and beta metrics.",
+    "description": "Annualized volatility and 1-Day VaR are shown as signed percentages; beta is a unitless ratio.",
     "category": "Portfolio Intelligence",
     "type": "metric",
     "endpoint": "pi/risk/dashboard",
@@ -330,6 +332,10 @@
           "Annualized Volatility": "annualized_volatility",
           "1-Day VaR (95%)": "one_day_var_95",
           "Beta vs SPY": "beta_vs_spy"
+        },
+        "formatters": {
+          "vol_annualized": "percentFraction",
+          "var_95_1d": "percentFraction"
         }
       }
     }
@@ -1702,11 +1708,11 @@
           },
           {
             "field": "period_1",
-            "headerName": "Latest Period"
+            "headerName": "Latest Period ($M)"
           },
           {
             "field": "period_2",
-            "headerName": "Prior Period"
+            "headerName": "Prior Period ($M)"
           }
         ]
       }

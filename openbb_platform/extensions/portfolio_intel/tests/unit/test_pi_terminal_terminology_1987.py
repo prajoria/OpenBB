@@ -32,8 +32,8 @@ def test_1989_statement_period_headers_match_backend_semantics() -> None:
     columns = _widget("pi_financial_statements")["data"]["table"]["columnsDefs"]
     assert {column["field"]: column["headerName"] for column in columns} == {
         "line_item": "Line Item",
-        "period_1": "Latest Period",
-        "period_2": "Prior Period",
+        "period_1": "Latest Period ($M)",
+        "period_2": "Prior Period ($M)",
     }
 
 
@@ -187,8 +187,8 @@ def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
             "pi_financial_statements",
             {
                 "line_item": "Line Item",
-                "period_1": "Latest Period",
-                "period_2": "Prior Period",
+                "period_1": "Latest Period ($M)",
+                "period_2": "Prior Period ($M)",
             },
             {"Revenue": "revenue", "Free Cash Flow": "free_cash_flow"},
         ),
@@ -512,6 +512,25 @@ def test_all_glossary_sources_are_https_non_generic_and_curated() -> None:
         assert "financial-term-dictionary" not in parsed.path
 
 
+def test_1991_earnings_surprise_help_uses_the_displayed_percentage_formula() -> None:
+    """The help definition must match the calculation behind Surprise (%)."""
+    text = _VIEWER.read_text(encoding="utf-8")
+    marker = "earnings_surprise: Object.freeze({"
+    record = text[text.index(marker) : text.index("    }),", text.index(marker))]
+    assert (
+        'definition: "Earnings Surprise (%) = (actual EPS - estimated EPS) / '
+        'abs(estimated EPS) × 100."'
+    ) in record
+
+
+def test_2000_beta_glossary_uses_a_beta_specific_reference() -> None:
+    """Beta help must not cite the separate Value-at-Risk reference."""
+    text = _VIEWER.read_text(encoding="utf-8")
+    marker = "beta_vs_spy: Object.freeze({"
+    record = text[text.index(marker) : text.index("    }),", text.index(marker))]
+    assert 'source: "https://en.wikipedia.org/wiki/Beta_(finance)"' in record
+
+
 def test_dividend_payment_glossary_records_are_curated_and_https() -> None:
     text = _VIEWER.read_text(encoding="utf-8")
     for key, label, summary, source in (
@@ -580,10 +599,19 @@ def test_2012_event_calendar_columns_and_values_match_endpoint_shape() -> None:
     event_type = columns[1]
     assert event_type["glossaryKey"] == "event_type"
     assert event_type["valueLabels"] == {
+        "earnings": "Earnings",
         "ex_dividend": "Ex-Dividend",
         "form_8k": "Form 8-K",
+        "info": "Information",
     }
-    assert {"ex_dividend", "form_8k"} <= {row["type"] for row in rows}
+    for account_id in ("demo", "fixture"):
+        response = _CLIENT.get(
+            f"/pi/events/calendar?account_id={account_id}&horizon_days=14"
+        )
+        assert response.status_code == 200
+        assert {row["type"] for row in response.json()} <= set(
+            event_type["valueLabels"]
+        )
 
 
 def test_2013_forecast_columns_match_endpoint_shape() -> None:

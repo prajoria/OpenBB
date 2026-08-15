@@ -983,6 +983,9 @@
     const note = (typeof o.note === "string") ? o.note : "";
     const sign = (v) => (typeof v === "number" ? (v > 0 ? "pos" : v < 0 ? "neg" : "") : "");
     const labels = metricMeta && metricMeta.labels && typeof metricMeta.labels === "object" ? metricMeta.labels : null;
+    const formatters = metricMeta && metricMeta.formatters && typeof metricMeta.formatters === "object"
+      ? metricMeta.formatters
+      : null;
     const glossary = metricMeta && metricMeta.metricGlossary && typeof metricMeta.metricGlossary === "object"
       ? metricMeta.metricGlossary
       : null;
@@ -993,14 +996,30 @@
     if ("value" in o) {
       const rawLabel = (typeof o.label === "string" ? o.label : "");
       const label = labels && typeof labels.value === "string" ? labels.value : rawLabel;
-      return { cards: [{ label, value: o.value, cls: sign(o.value), glossaryKey: glossaryKeyForLabel(label) }], note };
+      return {
+        cards: [{
+          label,
+          value: o.value,
+          cls: sign(o.value),
+          glossaryKey: glossaryKeyForLabel(label),
+          formatterFn: formatters && typeof formatters.value === "string" ? formatters.value : null,
+        }],
+        note,
+      };
     }
     const cards = [];
     for (const [k, v] of Object.entries(o)) {
       if (k === "note" || k === "label") continue;
       if (typeof v === "number") {
         const label = labels && typeof labels[k] === "string" ? labels[k] : k;
-        cards.push({ label, rawKey: k, value: v, cls: sign(v), glossaryKey: glossaryKeyForLabel(label) });
+        cards.push({
+          label,
+          rawKey: k,
+          value: v,
+          cls: sign(v),
+          glossaryKey: glossaryKeyForLabel(label),
+          formatterFn: formatters && typeof formatters[k] === "string" ? formatters[k] : null,
+        });
       }
     }
     return { cards, note };
@@ -1022,15 +1041,18 @@
     const metricMeta = widgetDef && widgetDef.data && widgetDef.data.metric;
     const model = metricModel(obj, metricMeta);
     if (!model.cards.length) { container.innerHTML = '<div class="state">No metric value returned.</div>'; return; }
-    const fmt = (v) => (typeof v === "number"
-      ? (Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""))
-      : String(v));
+    const fmt = (v, formatterFn) => {
+      if (typeof v !== "number") return String(v);
+      if (formatterFn === "percent") return v.toFixed(2) + "%";
+      if (formatterFn === "percentFraction") return (v * 100).toFixed(2) + "%";
+      return Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    };
     const cards = model.cards.map((c) =>
       (() => {
         const entry = c.glossaryKey ? metricGlossaryEntry(c.glossaryKey) : metricGlossaryForLabel(widgetDef, c.label);
         const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
         const rawKey = c.rawKey ? ` data-metric-key="${escapeHtml(c.rawKey)}"` : "";
-        return `<div class="metric ${c.cls}"${rawKey}><div class="mlabel"${title}>${metricLabelHtml(c.label, c.glossaryKey)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`;
+        return `<div class="metric ${c.cls}"${rawKey}><div class="mlabel"${title}>${metricLabelHtml(c.label, c.glossaryKey)}</div><div class="mvalue">${escapeHtml(fmt(c.value, c.formatterFn))}</div></div>`;
       })()
     ).join("");
     const note = model.note ? `<div class="mnote">${escapeHtml(model.note)}</div>` : "";
@@ -1646,9 +1668,9 @@
     }),
     earnings_surprise: Object.freeze({
       label: "Earnings Surprise",
-      summary: "Reported EPS less the consensus EPS estimate.",
-      definition: "Earnings Surprise is a per-share earnings measure or comparison used in equity analysis.",
-      interpretation: "GAAP versus adjusted earnings, share count, and estimates can make comparisons non-equivalent.",
+      summary: "Percentage difference between reported EPS and estimated EPS.",
+      definition: "Earnings Surprise (%) = (actual EPS - estimated EPS) / abs(estimated EPS) × 100.",
+      interpretation: "Positive results beat the estimate and negative results miss it; a zero estimate has no defined percentage surprise.",
       source: "https://en.wikipedia.org/wiki/Earnings_per_share",
     }),
     closing_price: Object.freeze({
@@ -1801,7 +1823,7 @@
     one_day_var_95: Object.freeze({
       label: "1-Day VaR (95%)",
       summary: "Modeled one-day loss threshold at 95% confidence.",
-      definition: "One-day Value at Risk estimates a loss threshold that a model expects to exceed on about five percent of days.",
+      definition: "One-day Value at Risk estimates a loss threshold that a model expects to exceed on about five percent of days; this dashboard displays losses as signed percentages, so -2.10% denotes a 2.10% loss.",
       interpretation: "VaR does not describe the size of losses beyond the threshold and depends on its model assumptions.",
       source: "https://en.wikipedia.org/wiki/Value_at_risk",
     }),
@@ -1810,7 +1832,7 @@
       summary: "Historical sensitivity of returns to SPY.",
       definition: "Beta versus SPY estimates the historical relationship between the security or portfolio return and SPY return.",
       interpretation: "Beta is backward-looking and does not capture all sources of risk.",
-      source: "https://en.wikipedia.org/wiki/Value_at_risk",
+      source: "https://en.wikipedia.org/wiki/Beta_(finance)",
     }),
     twenty_day_volatility: Object.freeze({
       label: "20-Day Volatility",

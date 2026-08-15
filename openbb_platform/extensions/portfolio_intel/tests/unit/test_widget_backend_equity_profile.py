@@ -60,7 +60,9 @@ def test_equity_technicals_pivot_rows_math() -> None:
     assert iv_row["value"] == "BLOCKED" and "999" in iv_row["note"]
 
 
-def test_equity_analyst_forecasts_gaps_documented() -> None:
+def test_equity_analyst_forecasts_gaps_documented(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Section 5 — #997 + #998 both LIVE now (#1022 + #1025 shipped).
 
     Rating rows carry a live 'n=... firms' note (or 'fetch failed' on
@@ -68,6 +70,9 @@ def test_equity_analyst_forecasts_gaps_documented() -> None:
     actual snapshot value (once opportunistic snapshots accumulate) or
     the honest 'insufficient history' state, not a BLOCKED sentinel.
     """
+    from openbb_fmp_cached.models import analyst_estimates
+
+    monkeypatch.setattr(analyst_estimates, "get_estimate_as_of", lambda **_kwargs: None)
     resp = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL")
     assert resp.status_code == 200
     rows = resp.json()
