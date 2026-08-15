@@ -367,7 +367,40 @@
         "type": "text",
         "description": "Paper account id"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Average Execution Price": "average_execution_price"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "time",
+            "headerName": "Time"
+          },
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "side",
+            "headerName": "Side"
+          },
+          {
+            "field": "qty",
+            "headerName": "Quantity"
+          },
+          {
+            "field": "status",
+            "headerName": "Status"
+          },
+          {
+            "field": "avg_price",
+            "headerName": "Average Execution Price"
+          }
+        ]
+      }
+    }
   },
   "pi_paper_performance": {
     "name": "Paper Performance (PAPER)",

@@ -236,3 +236,15 @@ def test_2005_pi_paper_performance_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_2006_pi_paper_blotter_terminology_contract() -> None:
+    widget = _widget("pi_paper_blotter")
+    expected_fields = {'time': 'Time', 'symbol': 'Symbol', 'side': 'Side', 'qty': 'Quantity', 'status': 'Status', 'avg_price': 'Average Execution Price'}
+    expected_terms = ['Average Execution Price']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
