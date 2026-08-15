@@ -289,7 +289,15 @@
         "type": "text",
         "description": "Paper account id"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "20-Day Volatility": "twenty_day_volatility",
+        "60-Day Volatility": "sixty_day_volatility",
+        "vol_20d": "twenty_day_volatility",
+        "vol_60d": "sixty_day_volatility"
+      }
+    }
   },
   "pi_paper_ticket": {
     "name": "Paper Order Ticket (PAPER)",

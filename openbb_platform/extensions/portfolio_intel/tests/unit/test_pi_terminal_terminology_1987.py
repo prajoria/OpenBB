@@ -176,3 +176,15 @@ def test_2000_pi_risk_dashboard_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_2001_pi_risk_vol_chart_terminology_contract() -> None:
+    widget = _widget("pi_risk_vol_chart")
+    expected_fields = {}
+    expected_terms = ['20-Day Volatility', '60-Day Volatility']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert data["chart"]["labels"] == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
