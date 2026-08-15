@@ -85,7 +85,7 @@ def test_equity_analyst_forecasts_gaps_documented() -> None:
     #   "insufficient history" | "snapshot <date>" | "lookup failed"
     # It must NOT still say "BLOCKED gap 998" (that'd mean the wiring
     # didn't land).
-    rev_row = next(r for r in rows if "rev estimate" in r["metric"].lower())
+    rev_row = next(r for r in rows if r["metric"] == "Historical rev estimate (last Q)")
     rev_state = f"{rev_row['value']} {rev_row['note']}".lower()
     assert (
         "insufficient history" in rev_state
@@ -94,6 +94,25 @@ def test_equity_analyst_forecasts_gaps_documented() -> None:
     ), f"rev-estimate row still showing gap sentinel: {rev_row}"
     # And explicitly, the value must NOT be the old BLOCKED marker
     assert str(rev_row["value"]).upper() != "BLOCKED"
+
+
+def test_equity_analyst_forecasts_snapshot_uses_stable_raw_identifier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Snapshot success retains the identifier that manifest metadata translates."""
+    from openbb_fmp_cached.models import analyst_estimates
+
+    monkeypatch.setattr(
+        analyst_estimates,
+        "get_estimate_as_of",
+        lambda **_kwargs: {
+            "estimated_revenue_avg": 123_456.0,
+            "snapshot_date": "2026-08-01",
+        },
+    )
+    rows = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL").json()
+    snapshot_row = next(row for row in rows if row["value"] == 123_456.0)
+    assert snapshot_row["metric"] == "Historical rev estimate (last Q)"
 
 
 def test_equity_complementary_bond_gap_documented() -> None:

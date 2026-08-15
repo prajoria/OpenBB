@@ -1184,7 +1184,7 @@ def equity_analyst_forecasts(
         if snap and snap.get("estimated_revenue_avg"):
             rows.append(
                 {
-                    "metric": "Historical rev estimate",
+                    "metric": "Historical rev estimate (last Q)",
                     "value": float(snap["estimated_revenue_avg"]),
                     "note": (
                         f"snapshot {snap.get('snapshot_date')}; "
@@ -1195,7 +1195,7 @@ def equity_analyst_forecasts(
         else:
             rows.append(
                 {
-                    "metric": "Historical rev estimate",
+                    "metric": "Historical rev estimate (last Q)",
                     "value": "insufficient history",
                     "note": (
                         "no snapshot in analyst_estimates_history yet; "
@@ -1210,7 +1210,7 @@ def equity_analyst_forecasts(
         # rationale above. Detail is in the WARN log.
         rows.append(
             {
-                "metric": "Historical rev estimate",
+                "metric": "Historical rev estimate (last Q)",
                 "value": "n/a",
                 "note": "lookup failed (see server logs)",
             }

@@ -56,14 +56,15 @@ function loadHelpers() {
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
     "metricModel", "renderMetric", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricLabelHtml", "metricHelpPageHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
-    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "chartLegendLabelHtml", "renderTab"];
-  const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null;\n\n"
+    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "chartLegendLabelHtml", "renderTab",
+    "syncMetricHelpLayer", "bindMetricHelpLayerEvents", "bindMetricHelpButtons"];
+  const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null; let METRIC_HELP_LAYER_BOUND = false;\n\n"
     + names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ")
     + ", __setDocument: (doc) => { globalThis.document = doc; }, __setWindow: (win) => { globalThis.window = win; }, __setGlobals: (globals) => { Object.assign(globalThis, globals); }, __setActiveMetricHelpBtn: (btn) => { ACTIVE_METRIC_HELP_BTN = btn; }, __getActiveMetricHelpBtn: () => ACTIVE_METRIC_HELP_BTN };";
   const ctx = {
-    document: { getElementById: () => null },
-    window: { innerWidth: 1024, innerHeight: 768 },
+    document: { getElementById: () => null, addEventListener() {} },
+    window: { innerWidth: 1024, innerHeight: 768, addEventListener() {} },
   };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
@@ -460,12 +461,54 @@ test("canonical analyst-forecast labels map to focused glossary help", () => {
   const container = { innerHTML: "" };
   H.renderTable(container, [
     { metric: "Rating: Strong Buy / Buy", value: "12 / 8", note: "as of today" },
+    { metric: "Rating: Hold / Sell / Strong Sell", value: "3 / 2 / 1", note: "" },
     { metric: "Q3 2025 EPS Surprise", value: "+3.2%", note: "reported" },
+    { metric: "Q2 2025 EPS Surprise", value: "+1.9%", note: "reported" },
     { metric: "Historical rev estimate (last Q)", value: "n/a", note: "unavailable" },
   ], WIDGETS.pi_equity_analyst_forecasts);
   for (const key of ["rating_distribution", "eps_surprise", "revenue_estimate"]) {
     assert.match(container.innerHTML, new RegExp(`data-metric-help="${key}"`));
   }
+  assert.match(container.innerHTML, /Rating Distribution: Strong Buy \/ Buy/);
+  assert.match(container.innerHTML, /Rating Distribution: Hold \/ Sell \/ Strong Sell/);
+  assert.match(container.innerHTML, /Q3 2025 EPS Surprise/);
+  assert.match(container.innerHTML, /Q2 2025 EPS Surprise/);
+  assert.match(container.innerHTML, /Historical Revenue Estimate/);
+});
+
+test("explicit enum labels preserve API values without global humanization", () => {
+  const smartMoney = { innerHTML: "" };
+  H.renderTable(smartMoney, [
+    { symbol: "NVDA", kind: "insider_buy", actor: "CFO", value_usd: 1, date: "2026-08-15" },
+    { symbol: "AAPL", kind: "13F_increase", actor: "Fund", value_usd: 1, date: "2026-08-15" },
+    { symbol: "TSLA", kind: "insider_sell", actor: "Director", value_usd: 1, date: "2026-08-15" },
+  ], WIDGETS.pi_smart_money_ribbon);
+  for (const label of ["Insider Buy", "13F Increase", "Insider Sell"]) {
+    assert.match(smartMoney.innerHTML, new RegExp(`>${label}</td>`));
+  }
+  assert.doesNotMatch(smartMoney.innerHTML, /insider_buy|13F_increase|insider_sell/);
+
+  const consensus = { innerHTML: "" };
+  H.renderTable(consensus, [
+    { symbol: "MSFT", avg_target: 465, buy: 28, hold: 4, sell: 0, consensus: "STRONG_BUY" },
+  ], WIDGETS.pi_basket_analyst_consensus);
+  assert.match(consensus.innerHTML, /Strong Buy/);
+  assert.doesNotMatch(consensus.innerHTML, /STRONG_BUY/);
+});
+
+test("TradingView legend keeps chart gestures transparent but binds help controls", () => {
+  assert.match(HTML, /\.tvlegend\s*\{[^}]*pointer-events:\s*none;/s);
+  assert.match(HTML, /\.tvlegend \.mhelp-wrap, \.tvlegend \.mhelp \{\s*pointer-events:\s*auto;\s*\}/);
+  const btn = {
+    dataset: {},
+    listeners: {},
+    addEventListener(type, listener) { this.listeners[type] = listener; },
+  };
+  H.bindMetricHelpButtons({ querySelectorAll: (selector) => selector === ".mhelp" ? [btn] : [] });
+  for (const event of ["pointerdown", "pointerenter", "pointerleave", "focus", "blur", "click"]) {
+    assert.equal(typeof btn.listeners[event], "function", `${event} must be bound on legend help`);
+  }
+  assert.equal(btn.dataset.metricHelpBound, "1");
 });
 
 test("What-If raw row identifiers resolve approved labels and glossary help", () => {

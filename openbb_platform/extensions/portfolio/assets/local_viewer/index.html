@@ -227,6 +227,9 @@
       color: var(--muted); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
       text-shadow: 0 1px 2px rgba(0,0,0,.85);
     }
+    /* The legend itself must remain transparent to chart gestures, while its
+       glossary controls remain keyboard- and pointer-interactive. */
+    .tvlegend .mhelp-wrap, .tvlegend .mhelp { pointer-events: auto; }
     .tvlegend .tvname { font-weight: 600; color: var(--fg); }
     .tvlegend b { color: var(--fg); font-weight: 600; }
     .tvlegend .up, .tvlegend .up b { color: #3fb950; }
@@ -535,6 +538,7 @@
         glossaryKey: c.glossaryKey || null,
         formatterFn: c.formatterFn,
         renderFn: c.renderFn,
+        valueLabels: c.valueLabels || null,
       }))
       : Object.keys(rows[0]).map((k) => ({ field: k, header: k }));
     const thead = "<tr>" + cols.map((c) => `<th>${metricLabelHtml(c.header, c.glossaryKey)}</th>`).join("") + "</tr>";
@@ -547,7 +551,10 @@
           })
           : null;
         const display = idx === 0 && typeof v === "string" && rowLabels
-          && Object.prototype.hasOwnProperty.call(rowLabels, v) ? rowLabels[v] : (pattern && pattern.label) || v;
+          && Object.prototype.hasOwnProperty.call(rowLabels, v) ? rowLabels[v]
+          : (pattern && pattern.labelTemplate ? v.replace(new RegExp(pattern.pattern), pattern.labelTemplate)
+            : (pattern && pattern.label) || (c.valueLabels
+              && Object.prototype.hasOwnProperty.call(c.valueLabels, v) ? c.valueLabels[v] : v));
         const key = idx === 0 && typeof v === "string" && (
           (map && Object.prototype.hasOwnProperty.call(map, v) && map[v])
           || (map && Object.prototype.hasOwnProperty.call(map, display) && map[display])

@@ -108,22 +108,18 @@ def test_1996_forecast_endpoint_keeps_raw_contract_with_pattern_metadata() -> No
         "1Y target (consensus)": "12-Month Price Target",
         "Target range": "Target Range",
         "Upside vs current": "Upside vs Current Price",
+        "Historical rev estimate (last Q)": "Historical Revenue Estimate",
     }
     assert table["rowLabelPatterns"] == [
         {
-            "pattern": "^Rating:",
-            "label": "Rating Distribution",
+            "pattern": r"^Rating:\s*(.+)$",
+            "labelTemplate": "Rating Distribution: $1",
             "glossaryKey": "rating_distribution",
         },
         {
-            "pattern": "EPS Surprise$",
-            "label": "EPS Surprise",
+            "pattern": r"^(Q\d\s+\d{4})\s+EPS Surprise$",
+            "labelTemplate": "$1 EPS Surprise",
             "glossaryKey": "eps_surprise",
-        },
-        {
-            "pattern": "^Historical rev estimate",
-            "label": "Historical Revenue Estimate",
-            "glossaryKey": "revenue_estimate",
         },
     ]
 
@@ -294,7 +290,9 @@ def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
             {
                 "symbol": "Symbol",
                 "avg_target": "Average Price Target",
-                "buy_hold_sell": "Buy/Hold/Sell Ratings",
+                "buy": "Buy Ratings",
+                "hold": "Hold Ratings",
+                "sell": "Sell Ratings",
                 "consensus": "Consensus Rating",
             },
             {
@@ -439,6 +437,49 @@ def test_all_20_widgets_have_exact_label_and_glossary_contracts(
         assert actual_labels[raw] == label
     for label, key in glossary.items():
         assert actual_glossary[label] == key
+
+
+def test_1997_basket_consensus_columns_match_endpoint_shape() -> None:
+    """The renderer must request only fields emitted by the endpoint."""
+    widget = _widget("pi_basket_analyst_consensus")
+    response = _CLIENT.get("/pi/equity/basket-analyst-consensus?basket_id=demo")
+    assert response.status_code == 200
+    rows = response.json()
+    fields = {column["field"] for column in widget["data"]["table"]["columnsDefs"]}
+    assert fields == {"symbol", "avg_target", "buy", "hold", "sell", "consensus"}
+    assert all(fields <= set(row) for row in rows)
+    assert "buy_hold_sell" not in fields
+    consensus = next(
+        row["consensus"] for row in rows if row["consensus"] == "STRONG_BUY"
+    )
+    assert consensus == "STRONG_BUY"
+    mapping = next(
+        column["valueLabels"]
+        for column in widget["data"]["table"]["columnsDefs"]
+        if column["field"] == "consensus"
+    )
+    assert mapping == {"STRONG_BUY": "Strong Buy"}
+
+
+def test_2007_smart_money_activity_labels_are_explicit() -> None:
+    widget = _widget("pi_smart_money_ribbon")
+    response = _CLIENT.get("/pi/smart-money/ribbon?account_id=demo")
+    assert response.status_code == 200
+    assert {row["kind"] for row in response.json()} == {
+        "insider_buy",
+        "13F_increase",
+        "insider_sell",
+    }
+    kind_column = next(
+        column
+        for column in widget["data"]["table"]["columnsDefs"]
+        if column["field"] == "kind"
+    )
+    assert kind_column["valueLabels"] == {
+        "insider_buy": "Insider Buy",
+        "13F_increase": "13F Increase",
+        "insider_sell": "Insider Sell",
+    }
 
 
 def test_all_glossary_sources_are_https_non_generic_and_curated() -> None:

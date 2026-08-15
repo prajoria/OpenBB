@@ -243,7 +243,12 @@
           },
           {
             "field": "kind",
-            "headerName": "Activity Type"
+            "headerName": "Activity Type",
+            "valueLabels": {
+              "insider_buy": "Insider Buy",
+              "13F_increase": "13F Increase",
+              "insider_sell": "Insider Sell"
+            }
           },
           {
             "field": "actor",
@@ -935,23 +940,19 @@
         "rowLabels": {
           "1Y target (consensus)": "12-Month Price Target",
           "Target range": "Target Range",
-          "Upside vs current": "Upside vs Current Price"
+          "Upside vs current": "Upside vs Current Price",
+          "Historical rev estimate (last Q)": "Historical Revenue Estimate"
         },
         "rowLabelPatterns": [
           {
-            "pattern": "^Rating:",
-            "label": "Rating Distribution",
+            "pattern": "^Rating:\\s*(.+)$",
+            "labelTemplate": "Rating Distribution: $1",
             "glossaryKey": "rating_distribution"
           },
           {
-            "pattern": "EPS Surprise$",
-            "label": "EPS Surprise",
+            "pattern": "^(Q\\d\\s+\\d{4})\\s+EPS Surprise$",
+            "labelTemplate": "$1 EPS Surprise",
             "glossaryKey": "eps_surprise"
-          },
-          {
-            "pattern": "^Historical rev estimate",
-            "label": "Historical Revenue Estimate",
-            "glossaryKey": "revenue_estimate"
           }
         ]
       }
@@ -1791,13 +1792,24 @@
             "glossaryKey": "average_price_target"
           },
           {
-            "field": "buy_hold_sell",
-            "headerName": "Buy/Hold/Sell Ratings"
+            "field": "buy",
+            "headerName": "Buy Ratings"
+          },
+          {
+            "field": "hold",
+            "headerName": "Hold Ratings"
+          },
+          {
+            "field": "sell",
+            "headerName": "Sell Ratings"
           },
           {
             "field": "consensus",
             "headerName": "Consensus Rating",
-            "glossaryKey": "consensus_rating"
+            "glossaryKey": "consensus_rating",
+            "valueLabels": {
+              "STRONG_BUY": "Strong Buy"
+            }
           }
         ]
       }
