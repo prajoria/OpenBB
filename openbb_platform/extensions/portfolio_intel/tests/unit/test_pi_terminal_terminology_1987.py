@@ -614,7 +614,9 @@ def test_2014_whatif_columns_match_endpoint_shape() -> None:
         ("after", "After Trade"),
         ("delta", "Change"),
     ]
-    assert rows and all({"metric", "before", "after", "delta"} <= set(row) for row in rows)
+    assert rows and all(
+        {"metric", "before", "after", "delta"} <= set(row) for row in rows
+    )
 
 
 def test_2015_alert_columns_and_values_match_endpoint_shape() -> None:
@@ -654,7 +656,9 @@ def test_2016_news_columns_match_endpoint_shape_without_glossary() -> None:
         ("severity", "Severity"),
     ]
     assert all("glossaryKey" not in column for column in columns)
-    assert rows and all({"symbol", "when", "title", "severity"} <= set(row) for row in rows)
+    assert rows and all(
+        {"symbol", "when", "title", "severity"} <= set(row) for row in rows
+    )
 
 
 def test_2017_sentiment_label_and_glossary_match_endpoint_shape() -> None:
@@ -666,9 +670,7 @@ def test_2017_sentiment_label_and_glossary_match_endpoint_shape() -> None:
     metric = widget["data"]["metric"]
     assert metric == {
         "labels": {"value": "News Sentiment Score (-1 to +1)"},
-        "metricGlossary": {
-            "News Sentiment Score (-1 to +1)": "news_sentiment_score"
-        },
+        "metricGlossary": {"News Sentiment Score (-1 to +1)": "news_sentiment_score"},
     }
     assert payload["label"] == "Sentiment (-1..+1)"
     assert -1 <= payload["value"] <= 1
