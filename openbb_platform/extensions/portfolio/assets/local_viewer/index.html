@@ -526,15 +526,20 @@
     const defs = widget && widget.data && widget.data.table && widget.data.table.columnsDefs;
     const map = widget && widget.data && widget.data.metricGlossary;
     const cols = (defs && defs.length)
-      ? defs.map((c) => ({ field: c.field, header: c.headerName || c.field, formatterFn: c.formatterFn, renderFn: c.renderFn }))
+      ? defs.map((c) => ({
+        field: c.field,
+        header: c.headerName || c.field,
+        glossaryKey: c.glossaryKey || null,
+        formatterFn: c.formatterFn,
+        renderFn: c.renderFn,
+      }))
       : Object.keys(rows[0]).map((k) => ({ field: k, header: k }));
-    const thead = "<tr>" + cols.map((c) => `<th>${escapeHtml(c.header)}</th>`).join("") + "</tr>";
+    const thead = "<tr>" + cols.map((c) => `<th>${metricLabelHtml(c.header, c.glossaryKey)}</th>`).join("") + "</tr>";
     const body = rows.map((r) =>
       "<tr>" + cols.map((c, idx) => {
         const v = r[c.field];
         const key = idx === 0 && typeof v === "string" && map && Object.prototype.hasOwnProperty.call(map, v) ? map[v] : null;
-        const text = escapeHtml(fmtCell(v, c));
-        const label = key ? `<span class="metric-label">${text}${metricHelpButtonHtml(key)}</span>` : text;
+        const label = metricLabelHtml(fmtCell(v, c), key);
         return `<td class="${cellClass(v, c)}">${label}</td>`;
       }).join("") + "</tr>"
     ).join("");
@@ -947,18 +952,30 @@
   //  - {value,label,note}                 -> one prominent card
   //  - {vol_annualized,var_95_1d,...,note} -> one card per numeric key
   // Sign coloring: value > 0 -> pos, < 0 -> neg.
-  function metricModel(obj) {
+  function metricModel(obj, metricMeta) {
     const o = (obj && typeof obj === "object" && !Array.isArray(obj)) ? obj : {};
     const note = (typeof o.note === "string") ? o.note : "";
     const humanize = (k) => k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const sign = (v) => (typeof v === "number" ? (v > 0 ? "pos" : v < 0 ? "neg" : "") : "");
+    const labels = metricMeta && metricMeta.labels && typeof metricMeta.labels === "object" ? metricMeta.labels : null;
+    const glossary = metricMeta && metricMeta.metricGlossary && typeof metricMeta.metricGlossary === "object"
+      ? metricMeta.metricGlossary
+      : null;
+    const glossaryKeyForLabel = (label) => {
+      if (!glossary || typeof label !== "string") return null;
+      return Object.prototype.hasOwnProperty.call(glossary, label) ? glossary[label] : null;
+    };
     if ("value" in o) {
-      return { cards: [{ label: (typeof o.label === "string" ? o.label : ""), value: o.value, cls: sign(o.value) }], note };
+      const label = (typeof o.label === "string" ? o.label : "");
+      return { cards: [{ label, value: o.value, cls: sign(o.value), glossaryKey: glossaryKeyForLabel(label) }], note };
     }
     const cards = [];
     for (const [k, v] of Object.entries(o)) {
       if (k === "note" || k === "label") continue;
-      if (typeof v === "number") cards.push({ label: humanize(k), value: v, cls: sign(v) });
+      if (typeof v === "number") {
+        const label = labels && typeof labels[k] === "string" ? labels[k] : humanize(k);
+        cards.push({ label, value: v, cls: sign(v), glossaryKey: glossaryKeyForLabel(label) });
+      }
     }
     return { cards, note };
   }
@@ -976,20 +993,22 @@
 
   function renderMetric(container, obj, widgetDef) {
     hideMetricHelpLayerWithin(container);
-    const model = metricModel(obj);
+    const metricMeta = widgetDef && widgetDef.data && widgetDef.data.metric;
+    const model = metricModel(obj, metricMeta);
     if (!model.cards.length) { container.innerHTML = '<div class="state">No metric value returned.</div>'; return; }
     const fmt = (v) => (typeof v === "number"
       ? (Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""))
       : String(v));
     const cards = model.cards.map((c) =>
       (() => {
-        const entry = metricGlossaryForLabel(widgetDef, c.label);
+        const entry = c.glossaryKey ? metricGlossaryEntry(c.glossaryKey) : metricGlossaryForLabel(widgetDef, c.label);
         const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
-        return `<div class="metric ${c.cls}"><div class="mlabel"${title}>${escapeHtml(c.label)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`;
+        return `<div class="metric ${c.cls}"><div class="mlabel"${title}>${metricLabelHtml(c.label, c.glossaryKey)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`;
       })()
     ).join("");
     const note = model.note ? `<div class="mnote">${escapeHtml(model.note)}</div>` : "";
     container.innerHTML = `<div class="metrics">${cards}</div>${note}`;
+    if (typeof bindMetricHelpButtons === "function") bindMetricHelpButtons(container);
   }
 
   // --- TradingView Lightweight Charts DOM renderer (primary time-series) -----
@@ -1414,6 +1433,12 @@
       + `data-metric-help-summary="${escapeHtml(entry.summary)}" aria-label="Learn about ${escapeHtml(entry.label)}" `
       + `aria-describedby="${summaryId}">?</button>`
       + `<span class="mhelp-tip" id="${summaryId}">${escapeHtml(entry.summary)}</span></span>`;
+  }
+
+  function metricLabelHtml(label, glossaryKey) {
+    const text = escapeHtml(label == null ? "" : String(label));
+    const help = glossaryKey ? metricHelpButtonHtml(glossaryKey) : "";
+    return help ? `<span class="metric-label">${text}${help}</span>` : text;
   }
 
   function metricHelpPageHtml(key) {

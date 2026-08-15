@@ -54,7 +54,7 @@ function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
-    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricHelpPageHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
+    "metricModel", "renderMetric", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricLabelHtml", "metricHelpPageHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
     "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "renderTab"];
   const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null;\n\n"
@@ -282,6 +282,29 @@ test("metricModel: multi numeric keys -> grid, negatives flagged", () => {
   assert.equal(varCard.cls, "neg");
 });
 
+test("metricModel uses explicit metric labels and glossary keys when configured", () => {
+  const m = H.metricModel(
+    { market_cap: 3_200_000_000_000, opaque_field: 42, plain_metric: 7, note: "demo book" },
+    {
+      labels: {
+        market_cap: "Market Cap",
+        opaque_field: "Opaque Field",
+        plain_metric: "Plain Metric",
+      },
+      metricGlossary: {
+        "Market Cap": "market_cap",
+        "Opaque Field": "unreviewed_metric",
+      },
+    },
+  );
+  const marketCap = m.cards.find((c) => c.label === "Market Cap");
+  const opaque = m.cards.find((c) => c.label === "Opaque Field");
+  const plain = m.cards.find((c) => c.label === "Plain Metric");
+  assert.equal(marketCap.glossaryKey, "market_cap");
+  assert.equal(opaque.glossaryKey, "unreviewed_metric");
+  assert.equal(plain.glossaryKey, null);
+});
+
 test("metricModel loud-empty: {} -> no cards", () => {
   assert.equal(H.metricModel({}).cards.length, 0);
 });
@@ -392,6 +415,56 @@ test("renderTable adds help only for mapped first-column metrics", () => {
   assert.match(container.innerHTML, /Market Cap[\s\S]*metric-help-summary-market_cap-\d+[\s\S]*The company/);
   assert.match(container.innerHTML, />Unmapped Metric<\/td>/);
   assert.doesNotMatch(container.innerHTML, /Unmapped Metric[\s\S]*data-metric-help=/);
+});
+
+test("renderTable adds help buttons to configured glossary-backed headers only", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { market_cap: 3_200_000_000_000, opaque_field: 42, status: "active" },
+  ], {
+    data: {
+      table: {
+        columnsDefs: [
+          { field: "market_cap", headerName: "Market Cap", glossaryKey: "market_cap" },
+          { field: "opaque_field", headerName: "Opaque Field", glossaryKey: "unreviewed_metric" },
+          { field: "status", headerName: "Status" },
+        ],
+      },
+    },
+  });
+  assert.match(container.innerHTML, /<th><span class="metric-label">Market Cap[\s\S]*data-metric-help="market_cap"/);
+  assert.match(container.innerHTML, /<th>Opaque Field<\/th>/);
+  assert.doesNotMatch(container.innerHTML, /<th>Opaque Field[\s\S]*data-metric-help=/);
+  assert.match(container.innerHTML, /<th>Status<\/th>/);
+  assert.doesNotMatch(container.innerHTML, /<th>Status[\s\S]*data-metric-help=/);
+});
+
+test("renderMetric adds help buttons to configured metric-card labels only", () => {
+  const container = { innerHTML: "" };
+  H.renderMetric(container, {
+    market_cap: 3_200_000_000_000,
+    opaque_field: 42,
+    plain_metric: 7,
+  }, {
+    data: {
+      metric: {
+        labels: {
+          market_cap: "Market Cap",
+          opaque_field: "Opaque Field",
+          plain_metric: "Plain Metric",
+        },
+        metricGlossary: {
+          "Market Cap": "market_cap",
+          "Opaque Field": "unreviewed_metric",
+        },
+      },
+    },
+  });
+  assert.match(container.innerHTML, /<div class="mlabel"[^>]*><span class="metric-label">Market Cap[\s\S]*data-metric-help="market_cap"/);
+  assert.match(container.innerHTML, /<div class="mlabel"[^>]*>Opaque Field<\/div>/);
+  assert.doesNotMatch(container.innerHTML, /Opaque Field[\s\S]*data-metric-help=/);
+  assert.match(container.innerHTML, /<div class="mlabel"[^>]*>Plain Metric<\/div>/);
+  assert.doesNotMatch(container.innerHTML, /Plain Metric[\s\S]*data-metric-help=/);
 });
 
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
