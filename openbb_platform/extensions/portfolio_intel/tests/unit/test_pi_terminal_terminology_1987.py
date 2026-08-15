@@ -164,3 +164,15 @@ def test_1999_pi_concentration_gauge_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_2000_pi_risk_dashboard_terminology_contract() -> None:
+    widget = _widget("pi_risk_dashboard")
+    expected_fields = {'vol_annualized': 'Annualized Volatility', 'var_95_1d': '1-Day VaR (95%)', 'beta_spy': 'Beta vs SPY'}
+    expected_terms = ['Annualized Volatility', '1-Day VaR (95%)', 'Beta vs SPY']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert data["metric"]["labels"] == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]

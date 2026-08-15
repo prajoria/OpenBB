@@ -248,7 +248,26 @@
         "type": "text",
         "description": "Paper account id"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Annualized Volatility": "annualized_volatility",
+        "1-Day VaR (95%)": "one_day_var_95",
+        "Beta vs SPY": "beta_vs_spy"
+      },
+      "metric": {
+        "labels": {
+          "vol_annualized": "Annualized Volatility",
+          "var_95_1d": "1-Day VaR (95%)",
+          "beta_spy": "Beta vs SPY"
+        },
+        "metricGlossary": {
+          "Annualized Volatility": "annualized_volatility",
+          "1-Day VaR (95%)": "one_day_var_95",
+          "Beta vs SPY": "beta_vs_spy"
+        }
+      }
+    }
   },
   "pi_risk_vol_chart": {
     "name": "Risk - Rolling Volatility",
