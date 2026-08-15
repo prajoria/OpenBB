@@ -1497,6 +1497,27 @@
 
   function metricGlossaryData() {
     return {
+    volume: Object.freeze({
+      label: "Volume",
+      summary: "The number of shares traded during a period.",
+      definition: "Trading volume counts shares that changed hands during the stated period.",
+      interpretation: "Compare it with typical volume to judge whether price movement has broad participation.",
+      source: "https://www.investopedia.com/terms/v/volume.asp",
+    }),
+    fifty_two_week_high: Object.freeze({
+      label: "52-Week High",
+      summary: "The highest market price recorded over the past year.",
+      definition: "The 52-week high is the highest traded price during the preceding 52 weeks.",
+      interpretation: "It provides recent price context, not a forecast or valuation signal by itself.",
+      source: "https://www.investopedia.com/terms/1/52weekhighlow.asp",
+    }),
+    fifty_two_week_low: Object.freeze({
+      label: "52-Week Low",
+      summary: "The lowest market price recorded over the past year.",
+      definition: "The 52-week low is the lowest traded price during the preceding 52 weeks.",
+      interpretation: "It provides recent price context, not a forecast or valuation signal by itself.",
+      source: "https://www.investopedia.com/terms/1/52weekhighlow.asp",
+    }),
     market_cap: Object.freeze({
       label: "Market Cap",
       summary: "The company’s total equity value at the current share price.",
