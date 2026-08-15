@@ -599,3 +599,19 @@ def test_2013_forecast_columns_match_endpoint_shape() -> None:
         ("note", "Context"),
     ]
     assert rows and all({"metric", "value", "note"} <= set(row) for row in rows)
+
+
+def test_2014_whatif_columns_match_endpoint_shape() -> None:
+    """What-if presentation labels must preserve before/after endpoint values."""
+    widget = _widget("pi_whatif_card")
+    response = _CLIENT.get("/pi/whatif/card?symbol=AAPL&delta_shares=100")
+    assert response.status_code == 200
+    rows = response.json()
+    columns = widget["data"]["table"]["columnsDefs"]
+    assert [(column["field"], column["headerName"]) for column in columns] == [
+        ("metric", "Portfolio Metric"),
+        ("before", "Before Trade"),
+        ("after", "After Trade"),
+        ("delta", "Change"),
+    ]
+    assert rows and all({"metric", "before", "after", "delta"} <= set(row) for row in rows)

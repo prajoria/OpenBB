@@ -620,7 +620,25 @@
           "sector_weight_%": "Sector Weight (%)",
           "cash_%": "Cash Weight (%)",
           "beta_spy": "Beta vs SPY"
-        }
+        },
+        "columnsDefs": [
+          {
+            "field": "metric",
+            "headerName": "Portfolio Metric"
+          },
+          {
+            "field": "before",
+            "headerName": "Before Trade"
+          },
+          {
+            "field": "after",
+            "headerName": "After Trade"
+          },
+          {
+            "field": "delta",
+            "headerName": "Change"
+          }
+        ]
       }
     }
   },

@@ -651,6 +651,18 @@ test("2013 forecasts render explicit forecast table headers", () => {
   assert.match(container.innerHTML, /12-Month Price Target[\s\S]*data-metric-help="twelve_month_price_target"/);
 });
 
+test("2014 what-if card renders explicit before-and-after headers", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "symbol_weight_%", before: 4.8, after: 5.0, delta: 0.2 },
+  ], WIDGETS.pi_whatif_card);
+  assert.match(container.innerHTML, /<th>Portfolio Metric<\/th>/);
+  assert.match(container.innerHTML, /<th>Before Trade<\/th>/);
+  assert.match(container.innerHTML, /<th>After Trade<\/th>/);
+  assert.match(container.innerHTML, /<th>Change<\/th>/);
+  assert.match(container.innerHTML, /Symbol Weight \(%\)[\s\S]*data-metric-help="symbol_weight"/);
+});
+
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
   const layer = {
     hidden: false,
