@@ -663,6 +663,20 @@ test("2014 what-if card renders explicit before-and-after headers", () => {
   assert.match(container.innerHTML, /Symbol Weight \(%\)[\s\S]*data-metric-help="symbol_weight"/);
 });
 
+test("2015 alerts render mapped alert categories and header help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { severity: "warning", kind: "form_8k_for_held", symbol: "NVDA", detail: "Item 7.01" },
+    { severity: "info", kind: "earnings_upcoming", symbol: "AAPL", detail: "Earnings" },
+    { severity: "critical", kind: "news_material", symbol: "TSLA", detail: "Recall" },
+  ], WIDGETS.pi_alerts_panel);
+  assert.match(container.innerHTML, /<th><span class="metric-label">Alert Type[\s\S]*data-metric-help="alert_type"/);
+  for (const label of ["Held-Security Form 8-K", "Upcoming Earnings", "Material News"]) {
+    assert.match(container.innerHTML, new RegExp(`>${label}</td>`));
+  }
+  assert.doesNotMatch(container.innerHTML, /form_8k_for_held|earnings_upcoming|news_material/);
+});
+
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
   const layer = {
     hidden: false,

@@ -748,6 +748,34 @@
       "h": 10
     },
     "source": "portfolio-intel",
+    "data": {
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "severity",
+            "headerName": "Severity"
+          },
+          {
+            "field": "kind",
+            "headerName": "Alert Type",
+            "glossaryKey": "alert_type",
+            "valueLabels": {
+              "form_8k_for_held": "Held-Security Form 8-K",
+              "earnings_upcoming": "Upcoming Earnings",
+              "news_material": "Material News"
+            }
+          },
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "detail",
+            "headerName": "Details"
+          }
+        ]
+      }
+    },
     "params": [
       {
         "paramName": "account_id",

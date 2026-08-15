@@ -615,3 +615,26 @@ def test_2014_whatif_columns_match_endpoint_shape() -> None:
         ("delta", "Change"),
     ]
     assert rows and all({"metric", "before", "after", "delta"} <= set(row) for row in rows)
+
+
+def test_2015_alert_columns_and_values_match_endpoint_shape() -> None:
+    """Alert labels must map the endpoint's explicit alert category values."""
+    widget = _widget("pi_alerts_panel")
+    response = _CLIENT.get("/pi/alerts?account_id=demo")
+    assert response.status_code == 200
+    rows = response.json()
+    columns = widget["data"]["table"]["columnsDefs"]
+    assert [(column["field"], column["headerName"]) for column in columns] == [
+        ("severity", "Severity"),
+        ("kind", "Alert Type"),
+        ("symbol", "Symbol"),
+        ("detail", "Details"),
+    ]
+    alert_type = columns[1]
+    assert alert_type["glossaryKey"] == "alert_type"
+    assert alert_type["valueLabels"] == {
+        "form_8k_for_held": "Held-Security Form 8-K",
+        "earnings_upcoming": "Upcoming Earnings",
+        "news_material": "Material News",
+    }
+    assert set(alert_type["valueLabels"]) <= {row["kind"] for row in rows}
