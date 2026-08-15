@@ -68,3 +68,15 @@ def test_1991_pi_earnings_history_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_1992_pi_price_target_history_terminology_contract() -> None:
+    widget = _widget("pi_price_target_history")
+    expected_fields = {'date': 'Date', 'close': 'Closing Price', 'target': 'Analyst Price Target'}
+    expected_terms = ['Closing Price', 'Analyst Price Target']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert data["chart"]["labels"] == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]

@@ -1110,7 +1110,20 @@
         "type": "text",
         "description": "Ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Closing Price": "closing_price",
+        "Analyst Price Target": "analyst_price_target"
+      },
+      "chart": {
+        "labels": {
+          "date": "Date",
+          "close": "Closing Price",
+          "target": "Analyst Price Target"
+        }
+      }
+    }
   },
   "pi_financial_statements": {
     "name": "Financial Statements",
