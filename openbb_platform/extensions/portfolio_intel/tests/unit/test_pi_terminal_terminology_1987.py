@@ -547,3 +547,18 @@ def test_2010_key_stats_columns_match_endpoint_shape() -> None:
         ("value", "Value"),
     ]
     assert rows and all({"metric", "value"} <= set(row) for row in rows)
+
+
+def test_2011_technicals_columns_match_endpoint_shape() -> None:
+    """Technical rows retain their endpoint fields under explicit headers."""
+    widget = _widget("pi_equity_technicals")
+    response = _CLIENT.get("/pi/equity/technicals?symbol=AAPL")
+    assert response.status_code == 200
+    rows = response.json()
+    columns = widget["data"]["table"]["columnsDefs"]
+    assert [(column["field"], column["headerName"]) for column in columns] == [
+        ("metric", "Technical Indicator"),
+        ("value", "Value"),
+        ("note", "Interpretation"),
+    ]
+    assert rows and all({"metric", "value", "note"} <= set(row) for row in rows)

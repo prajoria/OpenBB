@@ -618,6 +618,16 @@ test("2010 key stats renders explicit financial table headers", () => {
   assert.match(container.innerHTML, /Market Cap[\s\S]*data-metric-help="market_cap"/);
 });
 
+test("2011 technicals render explicit indicator table headers", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [{ metric: "R3 (Classic)", value: 234.6, note: "Classic pivot" }],
+    WIDGETS.pi_equity_technicals);
+  assert.match(container.innerHTML, /<th>Technical Indicator<\/th>/);
+  assert.match(container.innerHTML, /<th>Value<\/th>/);
+  assert.match(container.innerHTML, /<th>Interpretation<\/th>/);
+  assert.match(container.innerHTML, /Resistance 3[\s\S]*data-metric-help="resistance"/);
+});
+
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
   const layer = {
     hidden: false,

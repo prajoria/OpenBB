@@ -915,7 +915,21 @@
           "S1 (Classic)": "Support 1",
           "S2 (Classic)": "Support 2",
           "S3 (Classic)": "Support 3"
-        }
+        },
+        "columnsDefs": [
+          {
+            "field": "metric",
+            "headerName": "Technical Indicator"
+          },
+          {
+            "field": "value",
+            "headerName": "Value"
+          },
+          {
+            "field": "note",
+            "headerName": "Interpretation"
+          }
+        ]
       }
     }
   },
