@@ -533,3 +533,17 @@ def test_dividend_payment_glossary_records_are_curated_and_https() -> None:
         assert label in record
         assert summary in record
         assert f'source: "{source}"' in record
+
+
+def test_2010_key_stats_columns_match_endpoint_shape() -> None:
+    """Key-stat labels must be explicit without changing the endpoint rows."""
+    widget = _widget("pi_equity_key_stats")
+    response = _CLIENT.get("/pi/equity/key-stats?symbol=AAPL")
+    assert response.status_code == 200
+    rows = response.json()
+    columns = widget["data"]["table"]["columnsDefs"]
+    assert [(column["field"], column["headerName"]) for column in columns] == [
+        ("metric", "Financial Metric"),
+        ("value", "Value"),
+    ]
+    assert rows and all({"metric", "value"} <= set(row) for row in rows)

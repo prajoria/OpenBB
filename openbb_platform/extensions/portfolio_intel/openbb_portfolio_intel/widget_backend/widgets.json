@@ -778,6 +778,18 @@
         "Volume": "volume",
         "52-Week High": "fifty_two_week_high",
         "52-Week Low": "fifty_two_week_low"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "metric",
+            "headerName": "Financial Metric"
+          },
+          {
+            "field": "value",
+            "headerName": "Value"
+          }
+        ]
       }
     },
     "params": [

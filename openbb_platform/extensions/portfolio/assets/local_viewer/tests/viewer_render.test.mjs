@@ -609,6 +609,15 @@ test("renderMetric adds help buttons to configured metric-card labels only", () 
   assert.doesNotMatch(container.innerHTML, /Plain Metric[\s\S]*data-metric-help=/);
 });
 
+test("2010 key stats renders explicit financial table headers", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [{ metric: "Market Cap", value: 3_200_000_000_000 }],
+    WIDGETS.pi_equity_key_stats);
+  assert.match(container.innerHTML, /<th>Financial Metric<\/th>/);
+  assert.match(container.innerHTML, /<th>Value<\/th>/);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*data-metric-help="market_cap"/);
+});
+
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
   const layer = {
     hidden: false,
