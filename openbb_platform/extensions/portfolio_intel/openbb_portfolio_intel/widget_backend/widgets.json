@@ -648,7 +648,25 @@
         "type": "text",
         "description": "Ticker"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Analyst Consensus": "analyst_consensus",
+        "Resistance": "resistance",
+        "Pivot": "pivot",
+        "Support": "support",
+        "ATM Implied Volatility": "atm_implied_volatility",
+        "Consensus": "analyst_consensus",
+        "R3": "resistance",
+        "R2": "resistance",
+        "R1": "resistance",
+        "P": "pivot",
+        "S1": "support",
+        "S2": "support",
+        "S3": "support",
+        "ATM IV term structure": "atm_implied_volatility"
+      }
+    }
   },
   "pi_equity_analyst_forecasts": {
     "name": "Equity Profile - Analyst Forecasts",

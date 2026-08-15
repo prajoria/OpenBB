@@ -80,3 +80,15 @@ def test_1992_pi_price_target_history_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_1993_pi_equity_technicals_terminology_contract() -> None:
+    widget = _widget("pi_equity_technicals")
+    expected_fields = {}
+    expected_terms = ['Analyst Consensus', 'Resistance', 'Pivot', 'Support', 'ATM Implied Volatility']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
