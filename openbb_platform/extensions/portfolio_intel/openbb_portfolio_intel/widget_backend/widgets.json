@@ -138,7 +138,7 @@
             "field": "effective_weight",
             "headerName": "Effective Weight (%)",
             "glossaryKey": "effective_weight",
-            "formatterFn": "percentFraction"
+            "formatterFn": "normalizedPercent"
           },
           {
             "field": "rank",
@@ -334,8 +334,8 @@
           "Beta vs SPY": "beta_vs_spy"
         },
         "formatters": {
-          "vol_annualized": "percentFraction",
-          "var_95_1d": "percentFraction"
+          "vol_annualized": "normalizedPercent",
+          "var_95_1d": "normalizedPercent"
         }
       }
     }
@@ -678,18 +678,18 @@
     ],
     "data": {
       "metricGlossary": {
-        "Allocation Effect": "allocation_effect",
-        "Selection Effect": "selection_effect",
-        "Interaction Effect": "interaction_effect",
-        "Total Active Return": "total_active_return"
+        "Allocation Effect (%)": "allocation_effect",
+        "Selection Effect (%)": "selection_effect",
+        "Interaction Effect (%)": "interaction_effect",
+        "Total Active Return (%)": "total_active_return"
       },
       "chart": {
         "labels": {
           "sector": "Sector",
-          "allocation": "Allocation Effect",
-          "selection": "Selection Effect",
-          "interaction": "Interaction Effect",
-          "total": "Total Active Return"
+          "allocation": "Allocation Effect (%)",
+          "selection": "Selection Effect (%)",
+          "interaction": "Interaction Effect (%)",
+          "total": "Total Active Return (%)"
         }
       }
     }

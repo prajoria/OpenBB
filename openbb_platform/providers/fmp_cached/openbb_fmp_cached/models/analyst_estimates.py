@@ -802,18 +802,20 @@ def get_estimate_as_of(
     return rows[0]
 
 
-def get_latest_estimate_before_cutoffs(
+def get_estimate_for_period_before_release(
     symbol: str,
-    fiscal_period_end_cutoff: date,
-    release_cutoff: date,
+    fiscal_period_end: date,
+    release_date: date,
     period: str = "quarter",
 ) -> dict | None:
-    """Return the latest issuer fiscal-period estimate available pre-release.
+    """Return an exact fiscal-period estimate available before its release.
 
-    ``date`` is the provider's issuer fiscal-period end, not a synthetic
-    calendar-quarter anchor. The selected snapshot must also have existed on
-    or before the provider earnings-release date, preventing post-release
-    revisions from being presented as a historical estimate.
+    ``date`` must equal the issuer's resolved fiscal-period end; this query
+    deliberately never falls back to an earlier period. The selected snapshot
+    must also have existed on or before the provider earnings-release date,
+    preventing post-release revisions from being presented as a historical
+    estimate. Returns ``None`` when that exact period has no pre-release
+    snapshot.
     """
     try:
         rows = execute_query(
@@ -826,16 +828,16 @@ def get_latest_estimate_before_cutoffs(
                 snapshot_date
             FROM analyst_estimates_history
             WHERE symbol = %s
-              AND date <= %s
+              AND date = %s
               AND period = %s
               AND snapshot_date <= %s
-            ORDER BY date DESC, snapshot_date DESC
+            ORDER BY snapshot_date DESC
             LIMIT 1
             """,
-            (symbol, fiscal_period_end_cutoff, period, release_cutoff),
+            (symbol, fiscal_period_end, period, release_date),
         )
     except Exception as exc:
-        logger.warning(f"get_latest_estimate_before_cutoffs query failed: {exc}")
+        logger.warning(f"get_estimate_for_period_before_release query failed: {exc}")
         return None
     if not rows:
         return None

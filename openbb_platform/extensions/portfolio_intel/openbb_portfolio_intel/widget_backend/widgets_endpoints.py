@@ -1078,7 +1078,9 @@ def _provider_date(value: object) -> date | None:
     return None
 
 
-def _latest_issuer_forecast_cutoffs(symbol: str) -> tuple[date, date] | None:
+def _latest_issuer_fiscal_period_and_release_date(
+    symbol: str,
+) -> tuple[date, date] | None:
     """Return ``(fiscal_period_end, earnings_release_date)`` from FMP data.
 
     Historical EPS supplies the provider earnings-release dates; the quarterly
@@ -1100,18 +1102,18 @@ def _latest_issuer_forecast_cutoffs(symbol: str) -> tuple[date, date] | None:
         ]
         if not release_dates:
             return None
-        release_cutoff = max(release_dates)
+        release_date = max(release_dates)
 
         fiscal_period_ends = [
             fiscal_period_end
             for row in _fetch_statement("income", symbol, "quarter")
             if (fiscal_period_end := _provider_date(row.get("period_ending")))
             is not None
-            and fiscal_period_end <= release_cutoff
+            and fiscal_period_end <= release_date
         ]
         if not fiscal_period_ends:
             return None
-        return max(fiscal_period_ends), release_cutoff
+        return max(fiscal_period_ends), release_date
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "analyst-forecasts: provider fiscal/release lookup failed for %s: %s",
@@ -1217,18 +1219,18 @@ def equity_analyst_forecasts(
     # pylint: disable=import-outside-toplevel,broad-exception-caught
     try:
         from openbb_fmp_cached.models.analyst_estimates import (
-            get_latest_estimate_before_cutoffs,
+            get_estimate_for_period_before_release,
         )
 
-        cutoffs = _latest_issuer_forecast_cutoffs(sym)
+        resolved_period = _latest_issuer_fiscal_period_and_release_date(sym)
         snap = (
-            get_latest_estimate_before_cutoffs(
+            get_estimate_for_period_before_release(
                 symbol=sym,
-                fiscal_period_end_cutoff=cutoffs[0],
-                release_cutoff=cutoffs[1],
+                fiscal_period_end=resolved_period[0],
+                release_date=resolved_period[1],
                 period="quarter",
             )
-            if cutoffs
+            if resolved_period
             else None
         )
         if snap and snap.get("estimated_revenue_avg"):

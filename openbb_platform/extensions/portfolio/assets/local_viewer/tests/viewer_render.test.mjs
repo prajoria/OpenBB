@@ -437,15 +437,15 @@ test("F2 widgets declare glossary mappings for key stats and financial charts", 
 test("look-through effective-weight formatter converts fractions to displayed percentages", () => {
   const col = WIDGETS.pi_lookthrough_top25.data.table.columnsDefs
     .find((item) => item.field === "effective_weight");
-  assert.equal(col.formatterFn, "percentFraction");
+  assert.equal(col.formatterFn, "normalizedPercent");
   assert.equal(H.fmtCell(0.078, col), "7.80%");
 });
 
 test("risk dashboard formats fraction metrics as signed percentages while beta stays a ratio", () => {
   const metric = WIDGETS.pi_risk_dashboard.data.metric;
   assert.deepEqual(metric.formatters, {
-    vol_annualized: "percentFraction",
-    var_95_1d: "percentFraction",
+    vol_annualized: "normalizedPercent",
+    var_95_1d: "normalizedPercent",
   });
   const container = { innerHTML: "" };
   H.renderMetric(
@@ -456,6 +456,20 @@ test("risk dashboard formats fraction metrics as signed percentages while beta s
   assert.match(container.innerHTML, />18\.40%</);
   assert.match(container.innerHTML, />-2\.10%</);
   assert.match(container.innerHTML, />1\.08</);
+});
+
+test("Brinson chart labels identify percentage-point series and retain help keys", () => {
+  const data = WIDGETS.pi_brinson_attribution.data;
+  const model = H.inferChartModel(
+    [{ sector: "Technology", allocation: 3.0, selection: -0.5, interaction: 0.1, total: 2.6 }],
+    data.chart,
+  );
+  assert.equal(
+    model.series.map((series) => series.key).join("|"),
+    "Allocation Effect (%)|Selection Effect (%)|Interaction Effect (%)|Total Active Return (%)",
+  );
+  assert.equal(data.metricGlossary["Allocation Effect (%)"], "allocation_effect");
+  assert.equal(data.metricGlossary["Total Active Return (%)"], "total_active_return");
 });
 
 test("single-value metric cards apply explicit labels and glossary metadata", () => {

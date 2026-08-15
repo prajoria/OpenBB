@@ -153,7 +153,10 @@ _STEPS: tuple[Step, ...] = (
         action=ActionKind.OBSERVE,
         human_title="Step W4 — Brinson attribution waterfall",
         human_description="Read pi_brinson_attribution.",
-        human_expected="Sector rows with allocation, selection, interaction, total.",
+        human_expected=(
+            "Sector rows with percentage-point allocation, selection, interaction, "
+            "and total active return."
+        ),
         endpoint="pi/attribution",
         params={"window": "1Y", "benchmark_symbol": "SPY"},
     ),

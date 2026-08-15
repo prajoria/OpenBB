@@ -108,19 +108,19 @@ observed**, not preemptively.
   a separate ops issue once the table starts landing rows;
   premature optimization otherwise.
 
-### 3.4 Query helper — `get_estimate_as_of`
+### 3.4 Exact-period query helper — `get_estimate_for_period_before_release`
 
 New public function in the model:
 
 ```python
-def get_estimate_as_of(
+def get_estimate_for_period_before_release(
     symbol: str,
     fiscal_period_end: date,
-    as_of_date: date,
+    release_date: date,
     period: str = "quarter",
 ) -> AnalystEstimatesData | None:
-    """Return the estimate for (symbol, fiscal_period_end) as it stood
-    on the LATEST snapshot_date <= as_of_date. None if no snapshot."""
+    """Return the estimate for this exact fiscal period as it stood on or
+    before its release date. None if no pre-release snapshot exists."""
     query = """
     SELECT * FROM analyst_estimates_history
     WHERE symbol = %s AND date = %s AND period = %s
@@ -131,8 +131,12 @@ def get_estimate_as_of(
     ...
 ```
 
-This is what §5C's widget calls with `as_of_date = earnings_release_date`
-to compute the pre-release consensus.
+The widget first resolves the issuer's actual latest fiscal-period end and
+earnings-release date from provider data, then calls this helper with those
+exact values. It **must not** replace a missing snapshot with the preceding
+fiscal period: returning `None` is the intentional loud state for a latest
+period without a pre-release snapshot. The lower-level `get_estimate_as_of`
+helper remains available for callers that already have an exact as-of date.
 
 ## 4. Migration plan
 
@@ -144,7 +148,7 @@ Zero-risk because it's a NEW table. Order:
 2. In `FMPCachedAnalystEstimatesFetcher.aextract_data`, wrap the
    existing `_store_in_cache` call so it ALSO calls
    `_store_history(symbol, fmp_data, snapshot_date=today)`.
-3. Ship `get_estimate_as_of()` helper.
+3. Ship `get_estimate_for_period_before_release()` helper.
 4. Wire Equity Profile §5C to compute real surprise% via #1026.
 
 No backfill: the history table is empty until first fetch after ship;

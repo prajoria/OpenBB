@@ -510,7 +510,7 @@
     const isNum = typeof value === "number";
     let text = value;
     if (col && col.formatterFn === "percent" && isNum) text = value.toFixed(2) + "%";
-    else if (col && col.formatterFn === "percentFraction" && isNum) text = (value * 100).toFixed(2) + "%";
+    else if (col && col.formatterFn === "normalizedPercent" && isNum) text = (value * 100).toFixed(2) + "%";
     else if (isNum) text = Number.isInteger(value) ? value : value.toFixed(2);
     return String(text);
   }
@@ -1044,7 +1044,7 @@
     const fmt = (v, formatterFn) => {
       if (typeof v !== "number") return String(v);
       if (formatterFn === "percent") return v.toFixed(2) + "%";
-      if (formatterFn === "percentFraction") return (v * 100).toFixed(2) + "%";
+      if (formatterFn === "normalizedPercent") return (v * 100).toFixed(2) + "%";
       return Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
     };
     const cards = model.cards.map((c) =>

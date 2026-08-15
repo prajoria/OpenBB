@@ -37,7 +37,7 @@ def test_1989_statement_period_headers_match_backend_semantics() -> None:
     }
 
 
-def test_1998_lookthrough_fraction_uses_explicit_percent_formatter() -> None:
+def test_1998_lookthrough_fraction_uses_workspace_percent_formatter() -> None:
     column = next(
         column
         for column in _widget("pi_lookthrough_top25")["data"]["table"]["columnsDefs"]
@@ -47,11 +47,31 @@ def test_1998_lookthrough_fraction_uses_explicit_percent_formatter() -> None:
         "field": "effective_weight",
         "headerName": "Effective Weight (%)",
         "glossaryKey": "effective_weight",
-        "formatterFn": "percentFraction",
+        "formatterFn": "normalizedPercent",
     }
     response = _CLIENT.get("/pi/lookthrough/top25?account_id=demo")
     assert response.status_code == 200
     assert response.json()[0]["effective_weight"] == 0.078
+
+
+def test_widget_formatter_metadata_uses_workspace_supported_names() -> None:
+    """Fractional values use normalizedPercent, never a viewer-only formatter."""
+
+    def formatter_names(value: object) -> set[str]:
+        if isinstance(value, dict):
+            names: set[str] = set()
+            for key, item in value.items():
+                if key == "formatterFn" and isinstance(item, str):
+                    names.add(item)
+                if key == "formatters" and isinstance(item, dict):
+                    names |= {name for name in item.values() if isinstance(name, str)}
+                names |= formatter_names(item)
+            return names
+        if isinstance(value, list):
+            return set().union(*(formatter_names(item) for item in value))
+        return set()
+
+    assert formatter_names(_widgets()) <= {"normalizedPercent", "percent"}
 
 
 def test_1999_single_value_concentration_card_has_label_and_help_mapping() -> None:
@@ -358,16 +378,16 @@ def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
             "pi_brinson_attribution",
             {
                 "sector": "Sector",
-                "allocation": "Allocation Effect",
-                "selection": "Selection Effect",
-                "interaction": "Interaction Effect",
-                "total": "Total Active Return",
+                "allocation": "Allocation Effect (%)",
+                "selection": "Selection Effect (%)",
+                "interaction": "Interaction Effect (%)",
+                "total": "Total Active Return (%)",
             },
             {
-                "Allocation Effect": "allocation_effect",
-                "Selection Effect": "selection_effect",
-                "Interaction Effect": "interaction_effect",
-                "Total Active Return": "total_active_return",
+                "Allocation Effect (%)": "allocation_effect",
+                "Selection Effect (%)": "selection_effect",
+                "Interaction Effect (%)": "interaction_effect",
+                "Total Active Return (%)": "total_active_return",
             },
         ),
         (
