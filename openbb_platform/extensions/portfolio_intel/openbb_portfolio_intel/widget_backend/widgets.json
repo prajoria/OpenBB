@@ -227,7 +227,37 @@
         "type": "text",
         "description": "Paper account id"
       }
-    ]
+    ],
+    "data": {
+      "metricGlossary": {
+        "Transaction Value": "transaction_value",
+        "Transaction Value ($)": "transaction_value"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "kind",
+            "headerName": "Activity Type"
+          },
+          {
+            "field": "actor",
+            "headerName": "Actor"
+          },
+          {
+            "field": "value_usd",
+            "headerName": "Transaction Value ($)"
+          },
+          {
+            "field": "date",
+            "headerName": "Date"
+          }
+        ]
+      }
+    }
   },
   "pi_risk_dashboard": {
     "name": "Risk Dashboard",

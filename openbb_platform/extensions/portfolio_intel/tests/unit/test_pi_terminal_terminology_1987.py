@@ -248,3 +248,15 @@ def test_2006_pi_paper_blotter_terminology_contract() -> None:
     glossary = data.get("metricGlossary", {})
     for term in expected_terms:
         assert glossary[term]
+
+
+def test_2007_pi_smart_money_ribbon_terminology_contract() -> None:
+    widget = _widget("pi_smart_money_ribbon")
+    expected_fields = {'symbol': 'Symbol', 'kind': 'Activity Type', 'actor': 'Actor', 'value_usd': 'Transaction Value ($)', 'date': 'Date'}
+    expected_terms = ['Transaction Value']
+    data = widget.get("data", {})
+    if expected_fields:
+        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
+    glossary = data.get("metricGlossary", {})
+    for term in expected_terms:
+        assert glossary[term]
