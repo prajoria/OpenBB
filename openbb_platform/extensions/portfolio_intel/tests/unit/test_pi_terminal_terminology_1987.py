@@ -638,3 +638,20 @@ def test_2015_alert_columns_and_values_match_endpoint_shape() -> None:
         "news_material": "Material News",
     }
     assert set(alert_type["valueLabels"]) <= {row["kind"] for row in rows}
+
+
+def test_2016_news_columns_match_endpoint_shape_without_glossary() -> None:
+    """News operational fields are explicit labels, not glossary concepts."""
+    widget = _widget("pi_news_ribbon")
+    response = _CLIENT.get("/pi/news?account_id=demo&horizon_days=7")
+    assert response.status_code == 200
+    rows = response.json()
+    columns = widget["data"]["table"]["columnsDefs"]
+    assert [(column["field"], column["headerName"]) for column in columns] == [
+        ("symbol", "Symbol"),
+        ("when", "Published"),
+        ("title", "Headline"),
+        ("severity", "Severity"),
+    ]
+    assert all("glossaryKey" not in column for column in columns)
+    assert rows and all({"symbol", "when", "title", "severity"} <= set(row) for row in rows)

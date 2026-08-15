@@ -699,6 +699,28 @@
       "h": 10
     },
     "source": "portfolio-intel",
+    "data": {
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "when",
+            "headerName": "Published"
+          },
+          {
+            "field": "title",
+            "headerName": "Headline"
+          },
+          {
+            "field": "severity",
+            "headerName": "Severity"
+          }
+        ]
+      }
+    },
     "params": [
       {
         "paramName": "account_id",

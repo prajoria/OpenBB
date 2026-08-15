@@ -677,6 +677,17 @@ test("2015 alerts render mapped alert categories and header help", () => {
   assert.doesNotMatch(container.innerHTML, /form_8k_for_held|earnings_upcoming|news_material/);
 });
 
+test("2016 news ribbon renders operational headers without glossary controls", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { symbol: "AAPL", when: "2026-07-19", title: "Apple beats estimates", severity: "material" },
+  ], WIDGETS.pi_news_ribbon);
+  for (const header of ["Symbol", "Published", "Headline", "Severity"]) {
+    assert.match(container.innerHTML, new RegExp(`<th>${header}</th>`));
+  }
+  assert.doesNotMatch(container.innerHTML, /data-metric-help=/);
+});
+
 test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
   const layer = {
     hidden: false,
