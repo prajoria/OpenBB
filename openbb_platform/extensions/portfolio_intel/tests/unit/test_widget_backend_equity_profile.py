@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
@@ -94,6 +95,12 @@ def test_equity_analyst_forecasts_gaps_documented() -> None:
     ), f"rev-estimate row still showing gap sentinel: {rev_row}"
     # And explicitly, the value must NOT be the old BLOCKED marker
     assert str(rev_row["value"]).upper() != "BLOCKED"
+    assert rev_row["value"] == "insufficient history"
+    assert rev_row["metric"] == "Historical rev estimate (last Q)"
+    assert "historical estimate snapshot" in str(rev_row["note"]).lower()
+    assert "revenue surprise" in str(rev_row["note"]).lower()
+    assert "#" not in str(rev_row["note"])
+    assert not re.search(r"\b[a-z]+(?:_[a-z0-9]+)+\b", str(rev_row["note"]))
 
 
 def test_equity_analyst_forecasts_snapshot_uses_stable_raw_identifier(

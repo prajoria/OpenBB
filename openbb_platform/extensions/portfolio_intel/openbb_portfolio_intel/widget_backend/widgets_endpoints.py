@@ -1198,9 +1198,9 @@ def equity_analyst_forecasts(
                     "metric": "Historical rev estimate (last Q)",
                     "value": "insufficient history",
                     "note": (
-                        "no snapshot in analyst_estimates_history yet; "
-                        "surprise% available once opportunistic snapshots "
-                        "accumulate (#998 / #1025)"
+                        "no historical estimate snapshot is available yet; "
+                        "revenue surprise will become available after "
+                        "snapshots accumulate"
                     ),
                 }
             )

@@ -222,6 +222,13 @@ Also consumer of `EtfHoldings` (#542 shipped) if we want to render the ETF's own
 
 ---
 
+## Validation evidence (2026-08-15)
+
+- `pi/equity/analyst-forecasts` now renders `value: "insufficient history"` with the analyst-facing note: `no historical estimate snapshot is available yet; revenue surprise will become available after snapshots accumulate`.
+- The endpoint contract now rejects snake_case/internal refs in that rendered note while preserving the raw metric identifier `Historical rev estimate (last Q)`.
+
+---
+
 ## Follow-up issues to file
 
 1. **7 per-section implementation issues** (children of #781):
