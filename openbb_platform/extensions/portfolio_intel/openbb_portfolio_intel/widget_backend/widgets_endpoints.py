@@ -22,7 +22,7 @@ import os
 import re
 import time
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException, Query, Request
 
@@ -1064,34 +1064,61 @@ def equity_technicals(
     ]
 
 
-def _last_completed_calendar_quarter_end(as_of: date) -> date:
-    """Return the calendar-quarter end strictly before ``as_of``.
+def _provider_date(value: object) -> date | None:
+    """Normalize a provider date value without inventing a calendar period."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
 
-    This is a calendar anchor, not a claim that the issuer has a matching
-    fiscal calendar. The estimate-history lookup can legitimately have no row
-    for issuers whose fiscal period does not end on this calendar date.
+
+def _latest_issuer_forecast_cutoffs(symbol: str) -> tuple[date, date] | None:
+    """Return ``(fiscal_period_end, earnings_release_date)`` from FMP data.
+
+    Historical EPS supplies the provider earnings-release dates; the quarterly
+    income statement supplies the issuer's actual fiscal period ends. Selecting
+    the latest period that ends on or before the latest release avoids assuming
+    calendar-quarter dates for issuers such as AAPL.
     """
-    if as_of.month <= 3:
-        return date(as_of.year - 1, 12, 31)
-    if as_of.month <= 6:
-        return date(as_of.year, 3, 31)
-    if as_of.month <= 9:
-        return date(as_of.year, 6, 30)
-    return date(as_of.year, 9, 30)
+    try:
+        from openbb_portfolio_intel.widget_backend.tier_calls import (
+            _fetch_earnings_rows,
+            _fetch_statement,
+        )
 
+        release_dates = [
+            release_date
+            for row in _fetch_earnings_rows(symbol)
+            if row.get("eps_actual") is not None
+            if (release_date := _provider_date(row.get("date"))) is not None
+        ]
+        if not release_dates:
+            return None
+        release_cutoff = max(release_dates)
 
-def _historical_forecast_lookup_kwargs(symbol: str, as_of: date) -> dict[str, object]:
-    """Build the exact historical-estimate lookup contract for a calendar anchor."""
-    calendar_quarter_end = _last_completed_calendar_quarter_end(as_of)
-    # The provider query requires a fiscal_period_end exact match. We use the
-    # completed calendar-quarter date as a neutral lookup anchor and limit
-    # snapshots to that date; this intentionally does not infer fiscal timing.
-    return {
-        "symbol": symbol,
-        "fiscal_period_end": calendar_quarter_end,
-        "as_of_date": calendar_quarter_end,
-        "period": "quarter",
-    }
+        fiscal_period_ends = [
+            fiscal_period_end
+            for row in _fetch_statement("income", symbol, "quarter")
+            if (fiscal_period_end := _provider_date(row.get("period_ending")))
+            is not None
+            and fiscal_period_end <= release_cutoff
+        ]
+        if not fiscal_period_ends:
+            return None
+        return max(fiscal_period_ends), release_cutoff
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "analyst-forecasts: provider fiscal/release lookup failed for %s: %s",
+            symbol,
+            exc,
+        )
+        return None
 
 
 @app.get("/pi/equity/analyst-forecasts")
@@ -1190,11 +1217,19 @@ def equity_analyst_forecasts(
     # pylint: disable=import-outside-toplevel,broad-exception-caught
     try:
         from openbb_fmp_cached.models.analyst_estimates import (
-            get_estimate_as_of,
+            get_latest_estimate_before_cutoffs,
         )
 
-        snap = get_estimate_as_of(
-            **_historical_forecast_lookup_kwargs(sym, date.today())
+        cutoffs = _latest_issuer_forecast_cutoffs(sym)
+        snap = (
+            get_latest_estimate_before_cutoffs(
+                symbol=sym,
+                fiscal_period_end_cutoff=cutoffs[0],
+                release_cutoff=cutoffs[1],
+                period="quarter",
+            )
+            if cutoffs
+            else None
         )
         if snap and snap.get("estimated_revenue_avg"):
             rows.append(

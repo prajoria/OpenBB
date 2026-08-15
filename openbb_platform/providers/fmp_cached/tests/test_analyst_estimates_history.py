@@ -192,3 +192,41 @@ def test_get_estimate_as_of_returns_None_on_query_failure(
         as_of_date=date(2026, 5, 1),
     )
     assert row is None
+
+
+def test_get_latest_estimate_before_cutoffs_uses_fiscal_and_release_dates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-calendar issuer period uses provider dates and a pre-release snapshot."""
+    from openbb_fmp_cached.models import analyst_estimates as m
+
+    fiscal_period_end = date(2026, 6, 27)
+    release_date = date(2026, 8, 1)
+
+    def fake_execute_query(sql: str, args: tuple):
+        assert "date <= %s" in sql
+        assert "snapshot_date <= %s" in sql
+        assert "ORDER BY date DESC, snapshot_date DESC" in sql
+        assert args == ("AAPL", fiscal_period_end, "quarter", release_date)
+        return [
+            {
+                "fiscal_period_end": fiscal_period_end,
+                "estimated_revenue_avg": 100_000_000.0,
+                "snapshot_date": date(2026, 7, 31),
+            }
+        ]
+
+    monkeypatch.setattr(m, "execute_query", fake_execute_query)
+
+    row = m.get_latest_estimate_before_cutoffs(
+        symbol="AAPL",
+        fiscal_period_end_cutoff=fiscal_period_end,
+        release_cutoff=release_date,
+        period="quarter",
+    )
+
+    assert row == {
+        "fiscal_period_end": fiscal_period_end,
+        "estimated_revenue_avg": 100_000_000.0,
+        "snapshot_date": date(2026, 7, 31),
+    }

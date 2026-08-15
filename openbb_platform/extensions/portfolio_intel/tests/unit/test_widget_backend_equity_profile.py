@@ -16,22 +16,68 @@ from openbb_portfolio_intel.widget_backend import widgets_endpoints
 _client = TestClient(app)
 
 
-@pytest.mark.parametrize(
-    ("symbol", "as_of", "calendar_quarter_end"),
-    [
-        ("AAPL", date(2026, 8, 15), date(2026, 6, 30)),
-        ("MSFT", date(2026, 4, 1), date(2026, 3, 31)),
-        ("NVDA", date(2026, 1, 1), date(2025, 12, 31)),
-    ],
-)
-def test_historical_forecast_lookup_uses_last_completed_calendar_quarter(
-    symbol: str, as_of: date, calendar_quarter_end: date
+def test_historical_forecast_uses_provider_fiscal_period_and_release_cutoff(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lookup arguments use a deterministic calendar anchor, including year rollover."""
-    assert widgets_endpoints._historical_forecast_lookup_kwargs(symbol, as_of) == {
-        "symbol": symbol,
-        "fiscal_period_end": calendar_quarter_end,
-        "as_of_date": calendar_quarter_end,
+    """AAPL-like fiscal dates never fall back to a calendar-quarter anchor."""
+    from openbb_fmp_cached.models import analyst_estimates
+    from openbb_portfolio_intel.widget_backend import tier_calls
+
+    fiscal_period_end = date(2026, 6, 27)
+    release_date = date(2026, 8, 1)
+    observed: dict[str, object] = {}
+
+    def fake_earnings_rows(symbol: str) -> list[dict]:
+        assert symbol == "AAPL"
+        return [
+            {"date": release_date, "eps_actual": 1.65},
+            {"date": date(2026, 5, 1), "eps_actual": 1.53},
+        ]
+
+    def fake_statement(kind: str, symbol: str, period: str) -> list[dict]:
+        assert (kind, symbol, period) == ("income", "AAPL", "quarter")
+        return [
+            {"period_ending": date(2026, 9, 26)},
+            {"period_ending": fiscal_period_end},
+            {"period_ending": date(2026, 3, 28)},
+        ]
+
+    def fake_estimate_lookup(
+        *,
+        symbol: str,
+        fiscal_period_end_cutoff: date,
+        release_cutoff: date,
+        period: str,
+    ) -> dict:
+        observed.update(
+            {
+                "symbol": symbol,
+                "fiscal_period_end_cutoff": fiscal_period_end_cutoff,
+                "release_cutoff": release_cutoff,
+                "period": period,
+            }
+        )
+        return {
+            "estimated_revenue_avg": 123_456.0,
+            "snapshot_date": date(2026, 7, 31),
+        }
+
+    monkeypatch.setattr(tier_calls, "_fetch_earnings_rows", fake_earnings_rows)
+    monkeypatch.setattr(tier_calls, "_fetch_statement", fake_statement)
+    monkeypatch.setattr(
+        analyst_estimates,
+        "get_latest_estimate_before_cutoffs",
+        fake_estimate_lookup,
+    )
+
+    rows = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL").json()
+    snapshot_row = next(row for row in rows if row["value"] == 123_456.0)
+
+    assert snapshot_row["metric"] == "Historical rev estimate (last Q)"
+    assert observed == {
+        "symbol": "AAPL",
+        "fiscal_period_end_cutoff": fiscal_period_end,
+        "release_cutoff": release_date,
         "period": "quarter",
     }
 
@@ -92,9 +138,16 @@ def test_equity_analyst_forecasts_gaps_documented(
     actual snapshot value (once opportunistic snapshots accumulate) or
     the honest 'insufficient history' state, not a BLOCKED sentinel.
     """
-    from openbb_fmp_cached.models import analyst_estimates
 
-    monkeypatch.setattr(analyst_estimates, "get_estimate_as_of", lambda **_kwargs: None)
+    def no_cutoffs(symbol: str) -> None:
+        assert symbol == "AAPL"
+        return None
+
+    monkeypatch.setattr(
+        widgets_endpoints,
+        "_latest_issuer_forecast_cutoffs",
+        no_cutoffs,
+    )
     resp = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL")
     assert resp.status_code == 200
     rows = resp.json()
@@ -136,13 +189,36 @@ def test_equity_analyst_forecasts_snapshot_uses_stable_raw_identifier(
     """Snapshot success retains the identifier that manifest metadata translates."""
     from openbb_fmp_cached.models import analyst_estimates
 
-    monkeypatch.setattr(
-        analyst_estimates,
-        "get_estimate_as_of",
-        lambda **_kwargs: {
+    fiscal_period_end = date(2026, 6, 27)
+    release_date = date(2026, 8, 1)
+
+    def cutoffs(symbol: str) -> tuple[date, date]:
+        assert symbol == "AAPL"
+        return fiscal_period_end, release_date
+
+    def snapshot(
+        *,
+        symbol: str,
+        fiscal_period_end_cutoff: date,
+        release_cutoff: date,
+        period: str,
+    ) -> dict:
+        assert (symbol, fiscal_period_end_cutoff, release_cutoff, period) == (
+            "AAPL",
+            fiscal_period_end,
+            release_date,
+            "quarter",
+        )
+        return {
             "estimated_revenue_avg": 123_456.0,
             "snapshot_date": "2026-08-01",
-        },
+        }
+
+    monkeypatch.setattr(widgets_endpoints, "_latest_issuer_forecast_cutoffs", cutoffs)
+    monkeypatch.setattr(
+        analyst_estimates,
+        "get_latest_estimate_before_cutoffs",
+        snapshot,
     )
     rows = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL").json()
     snapshot_row = next(row for row in rows if row["value"] == 123_456.0)
@@ -153,9 +229,16 @@ def test_equity_analyst_forecasts_compute_displayed_eps_surprises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Display values derive from the actual/estimate constants, not stale literals."""
-    from openbb_fmp_cached.models import analyst_estimates
 
-    monkeypatch.setattr(analyst_estimates, "get_estimate_as_of", lambda **_kwargs: None)
+    def no_cutoffs(symbol: str) -> None:
+        assert symbol == "AAPL"
+        return None
+
+    monkeypatch.setattr(
+        widgets_endpoints,
+        "_latest_issuer_forecast_cutoffs",
+        no_cutoffs,
+    )
     rows = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL").json()
     surprises = {
         row["metric"]: row["value"]
@@ -166,6 +249,28 @@ def test_equity_analyst_forecasts_compute_displayed_eps_surprises(
         "Q3 2025 EPS Surprise": "+3.3%",
         "Q2 2025 EPS Surprise": "+2.0%",
     }
+
+
+@pytest.mark.parametrize(
+    ("actual", "estimate", "expected"),
+    [
+        (1.0, -2.0, 150.0),
+        (1.0, 0.0, None),
+    ],
+)
+def test_earnings_surprise_uses_absolute_estimate_and_guards_zero(
+    actual: float,
+    estimate: float,
+    expected: float | None,
+) -> None:
+    """Negative estimates require abs(); a zero estimate has no defined percentage."""
+    from openbb_portfolio_intel.widget_backend import tier_calls
+
+    row = tier_calls._shape_earnings_history(
+        [{"date": date(2026, 8, 1), "eps_actual": actual, "eps_estimated": estimate}]
+    )[0]
+
+    assert row["surprise_pct"] == expected
 
 
 def test_equity_complementary_bond_gap_documented() -> None:

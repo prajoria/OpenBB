@@ -161,7 +161,7 @@ Legend:
 |---|---|---|---|---|
 | Reported EPS per quarter | fmp_cached | `historical_eps` | `eps_actual` | ✅ |
 | Estimated EPS per quarter | fmp_cached | `historical_eps` | `eps_estimated` | ✅ |
-| EPS surprise % | 🧮 | derived: `(actual - estimated) / estimated` | | 🧮 |
+| EPS surprise % | 🧮 | derived: `(actual - estimated) / abs(estimated)`; undefined when estimated EPS is zero | | 🧮 |
 | Reported Revenue per quarter | fmp_cached | `income_statement` (quarterly) | `revenue` | ✅ |
 | Estimated Revenue per quarter | 🟡 | `analyst_estimates` gives forward estimates; need to snapshot pre-earnings estimates historically — verify whether `analyst_estimates` returns historical estimates by fiscal quarter | | 🟡 |
 | Revenue surprise % | 🧮 | derived | | 🧮 |

@@ -1,34 +1,52 @@
 {
   "body": [
     {
-      "eps_actual": 1.65,
-      "eps_estimate": 1.6,
       "quarter": "Q3 2026",
-      "surprise_pct": 3.13
+      "eps_actual": 2.02,
+      "eps_estimate": 1.89,
+      "surprise_pct": 6.88
     },
     {
-      "eps_actual": 1.53,
-      "eps_estimate": 1.5,
       "quarter": "Q2 2026",
-      "surprise_pct": 2.0
+      "eps_actual": 2.01,
+      "eps_estimate": 1.95,
+      "surprise_pct": 3.08
     },
     {
-      "eps_actual": 2.18,
-      "eps_estimate": 2.1,
       "quarter": "Q1 2026",
-      "surprise_pct": 3.81
+      "eps_actual": 2.85,
+      "eps_estimate": 2.67,
+      "surprise_pct": 6.74
     },
     {
-      "eps_actual": 1.46,
-      "eps_estimate": 1.39,
       "quarter": "Q4 2025",
-      "surprise_pct": 5.04
+      "eps_actual": 1.85,
+      "eps_estimate": 1.73,
+      "surprise_pct": 6.94
     },
     {
-      "eps_actual": 1.4,
-      "eps_estimate": 1.35,
       "quarter": "Q3 2025",
-      "surprise_pct": 3.7
+      "eps_actual": 1.57,
+      "eps_estimate": 1.44,
+      "surprise_pct": 9.03
+    },
+    {
+      "quarter": "Q2 2025",
+      "eps_actual": 1.65,
+      "eps_estimate": 1.63,
+      "surprise_pct": 1.23
+    },
+    {
+      "quarter": "Q1 2025",
+      "eps_actual": 2.4,
+      "eps_estimate": 2.36,
+      "surprise_pct": 1.69
+    },
+    {
+      "quarter": "Q4 2024",
+      "eps_actual": 1.64,
+      "eps_estimate": 1.6,
+      "surprise_pct": 2.5
     }
   ],
   "endpoint": "pi/equity/earnings-history",
