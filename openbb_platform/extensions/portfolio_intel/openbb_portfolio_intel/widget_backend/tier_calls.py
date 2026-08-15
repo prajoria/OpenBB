@@ -1047,14 +1047,14 @@ def _charting_fmp_cached(*, symbol: str, window: str = "3M") -> list[dict]:
 # A 2-period comparison table over three statements. Fetches income, balance,
 # and cash statements (limit=2, latest-first) and maps nine canonical line
 # items to ``{line_item, period_1 (latest), period_2 (prior)}``. Values are
-# normalized from the provider's absolute currency units to USD millions,
+# normalized from the provider's absolute reporting-currency units to millions,
 # matching the fallback presentation; ``None`` remains ``None`` where a period
 # or field is missing. The widget's ``period`` (annual/quarterly) maps to the
 # provider's ``annual``/``quarter``.
 
 #: Widget ``period`` value -> provider ``period`` argument.
 _STATEMENT_PERIOD_MAP: dict[str, str] = {"annual": "annual", "quarterly": "quarter"}
-_USD_MILLION = 1_000_000
+_MILLION = 1_000_000
 
 #: (row label, statement source, provider field). Order defines row order and
 #: mirrors the shipped stub so the widget renders identically.
@@ -1117,7 +1117,7 @@ def _shape_statements(
         rows = src[source]
         if idx < len(rows):
             value = rows[idx].get(field)
-            return None if value is None else round(float(value) / _USD_MILLION, 2)
+            return None if value is None else round(float(value) / _MILLION, 2)
         return None
 
     out: list[dict] = []

@@ -4,14 +4,36 @@ from __future__ import annotations
 
 import os
 import re
+from datetime import date
 
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
 import pytest
 from fastapi.testclient import TestClient
 from openbb_portfolio_intel.widget_backend.main import app
+from openbb_portfolio_intel.widget_backend import widgets_endpoints
 
 _client = TestClient(app)
+
+
+@pytest.mark.parametrize(
+    ("symbol", "as_of", "calendar_quarter_end"),
+    [
+        ("AAPL", date(2026, 8, 15), date(2026, 6, 30)),
+        ("MSFT", date(2026, 4, 1), date(2026, 3, 31)),
+        ("NVDA", date(2026, 1, 1), date(2025, 12, 31)),
+    ],
+)
+def test_historical_forecast_lookup_uses_last_completed_calendar_quarter(
+    symbol: str, as_of: date, calendar_quarter_end: date
+) -> None:
+    """Lookup arguments use a deterministic calendar anchor, including year rollover."""
+    assert widgets_endpoints._historical_forecast_lookup_kwargs(symbol, as_of) == {
+        "symbol": symbol,
+        "fiscal_period_end": calendar_quarter_end,
+        "as_of_date": calendar_quarter_end,
+        "period": "quarter",
+    }
 
 
 def test_equity_header_returns_markdown() -> None:
@@ -125,6 +147,25 @@ def test_equity_analyst_forecasts_snapshot_uses_stable_raw_identifier(
     rows = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL").json()
     snapshot_row = next(row for row in rows if row["value"] == 123_456.0)
     assert snapshot_row["metric"] == "Historical rev estimate (last Q)"
+
+
+def test_equity_analyst_forecasts_compute_displayed_eps_surprises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Display values derive from the actual/estimate constants, not stale literals."""
+    from openbb_fmp_cached.models import analyst_estimates
+
+    monkeypatch.setattr(analyst_estimates, "get_estimate_as_of", lambda **_kwargs: None)
+    rows = _client.get("/pi/equity/analyst-forecasts?symbol=AAPL").json()
+    surprises = {
+        row["metric"]: row["value"]
+        for row in rows
+        if row["metric"].endswith("EPS Surprise")
+    }
+    assert surprises == {
+        "Q3 2025 EPS Surprise": "+3.3%",
+        "Q2 2025 EPS Surprise": "+2.0%",
+    }
 
 
 def test_equity_complementary_bond_gap_documented() -> None:

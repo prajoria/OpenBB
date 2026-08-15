@@ -550,15 +550,15 @@ def risk_dashboard(
 def risk_vol(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, float | str]]:
-    """Return rolling 20d / 60d realized volatility."""
+    """Return rolling 20d / 60d realized volatility in percentage points."""
     _require_auth(request)
     _validate_account(account_id)
     if account_id == "demo":
         return [
             {
                 "date": f"2026-06-{d:02d}",
-                "vol_20d": 0.16 + 0.02 * ((d % 5) - 2) / 3,
-                "vol_60d": 0.18 + 0.01 * ((d % 7) - 3) / 3,
+                "vol_20d": round((0.16 + 0.02 * ((d % 5) - 2) / 3) * 100, 2),
+                "vol_60d": round((0.18 + 0.01 * ((d % 7) - 3) / 3) * 100, 2),
             }
             for d in range(1, 31)
         ]
@@ -1064,6 +1064,36 @@ def equity_technicals(
     ]
 
 
+def _last_completed_calendar_quarter_end(as_of: date) -> date:
+    """Return the calendar-quarter end strictly before ``as_of``.
+
+    This is a calendar anchor, not a claim that the issuer has a matching
+    fiscal calendar. The estimate-history lookup can legitimately have no row
+    for issuers whose fiscal period does not end on this calendar date.
+    """
+    if as_of.month <= 3:
+        return date(as_of.year - 1, 12, 31)
+    if as_of.month <= 6:
+        return date(as_of.year, 3, 31)
+    if as_of.month <= 9:
+        return date(as_of.year, 6, 30)
+    return date(as_of.year, 9, 30)
+
+
+def _historical_forecast_lookup_kwargs(symbol: str, as_of: date) -> dict[str, object]:
+    """Build the exact historical-estimate lookup contract for a calendar anchor."""
+    calendar_quarter_end = _last_completed_calendar_quarter_end(as_of)
+    # The provider query requires a fiscal_period_end exact match. We use the
+    # completed calendar-quarter date as a neutral lookup anchor and limit
+    # snapshots to that date; this intentionally does not infer fiscal timing.
+    return {
+        "symbol": symbol,
+        "fiscal_period_end": calendar_quarter_end,
+        "as_of_date": calendar_quarter_end,
+        "period": "quarter",
+    }
+
+
 @app.get("/pi/equity/analyst-forecasts")
 @with_chain(
     endpoint="pi/equity/analyst-forecasts",
@@ -1140,20 +1170,18 @@ def equity_analyst_forecasts(
             ]
         )
 
-    rows.extend(
-        [
+    for quarter, actual, estimate in (
+        ("Q3 2025", 1.55, 1.50),
+        ("Q2 2025", 1.52, 1.49),
+    ):
+        surprise_pct = (actual - estimate) / abs(estimate) * 100
+        rows.append(
             {
-                "metric": "Q3 2025 EPS Surprise",
-                "value": "+3.2%",
-                "note": "actual 1.55 vs est 1.50",
-            },
-            {
-                "metric": "Q2 2025 EPS Surprise",
-                "value": "+1.9%",
-                "note": "actual 1.52 vs est 1.49",
-            },
-        ]
-    )
+                "metric": f"{quarter} EPS Surprise",
+                "value": f"{surprise_pct:+.1f}%",
+                "note": f"actual {actual:.2f} vs est {estimate:.2f}",
+            }
+        )
 
     # Revenue surprise (5C) — live via #998 opportunistic history
     # (#1025 / #1026). Only rendered when a historical snapshot exists;
@@ -1161,25 +1189,12 @@ def equity_analyst_forecasts(
     # the state honestly rather than fabricating a surprise%.
     # pylint: disable=import-outside-toplevel,broad-exception-caught
     try:
-        from datetime import (
-            date as _date,
-            timedelta as _td,
-        )
-
         from openbb_fmp_cached.models.analyst_estimates import (
             get_estimate_as_of,
         )
 
-        # Look up an estimate that was captured before the most recent
-        # earnings release. For the demo path we probe the last-completed
-        # quarter end (approximately today - 90 days).
-        today = _date.today()
-        approx_last_qend = today - _td(days=90)
         snap = get_estimate_as_of(
-            symbol=sym,
-            fiscal_period_end=approx_last_qend,
-            as_of_date=approx_last_qend,
-            period="quarter",
+            **_historical_forecast_lookup_kwargs(sym, date.today())
         )
         if snap and snap.get("estimated_revenue_avg"):
             rows.append(
@@ -1789,37 +1804,21 @@ def equity_earnings_history(
     """
     _require_auth(request)
     _validate_symbol(symbol)
+    fallback_rows = (
+        ("Q3 2026", 1.65, 1.60),
+        ("Q2 2026", 1.53, 1.50),
+        ("Q1 2026", 2.18, 2.10),
+        ("Q4 2025", 1.46, 1.39),
+        ("Q3 2025", 1.40, 1.35),
+    )
     return [
         {
-            "quarter": "Q3 2026",
-            "eps_actual": 1.65,
-            "eps_estimate": 1.60,
-            "surprise_pct": 3.13,
-        },
-        {
-            "quarter": "Q2 2026",
-            "eps_actual": 1.53,
-            "eps_estimate": 1.50,
-            "surprise_pct": 2.00,
-        },
-        {
-            "quarter": "Q1 2026",
-            "eps_actual": 2.18,
-            "eps_estimate": 2.10,
-            "surprise_pct": 3.81,
-        },
-        {
-            "quarter": "Q4 2025",
-            "eps_actual": 1.46,
-            "eps_estimate": 1.39,
-            "surprise_pct": 5.04,
-        },
-        {
-            "quarter": "Q3 2025",
-            "eps_actual": 1.40,
-            "eps_estimate": 1.35,
-            "surprise_pct": 3.70,
-        },
+            "quarter": quarter,
+            "eps_actual": actual,
+            "eps_estimate": estimate,
+            "surprise_pct": round((actual - estimate) / abs(estimate) * 100, 2),
+        }
+        for quarter, actual, estimate in fallback_rows
     ]
 
 
@@ -2048,8 +2047,8 @@ def equity_statements(
 
     Live-served from ``fmp_cached`` via the ``equity/statements`` tier call
     (#1920): fetches income/balance/cash statements and maps nine canonical
-    line items to a 2-period comparison in USD millions. This stub body is the
-    loud fallback when no tier serves and uses the same USD-millions unit.
+    line items to a 2-period comparison in reporting-currency millions. This
+    stub body is the loud fallback when no tier serves and uses the same scale.
     """
     _require_auth(request)
     _validate_symbol(symbol)

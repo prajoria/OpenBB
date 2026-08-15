@@ -208,12 +208,12 @@ test("svgForChart draws one polyline per line series", () => {
 
 test("inferChartModel applies explicit chart-series labels", () => {
   const model = H.inferChartModel(
-    [{ date: "2026-01-01", vol_20d: 0.2, vol_60d: 0.3 }],
-    { labels: { vol_20d: "20-Day Volatility", vol_60d: "60-Day Volatility" } },
+    [{ date: "2026-01-01", vol_20d: 20.0, vol_60d: 30.0 }],
+    { labels: { vol_20d: "20-Day Volatility (%)", vol_60d: "60-Day Volatility (%)" } },
   );
   assert.equal(
     model.series.map((series) => series.key).join("|"),
-    "20-Day Volatility|60-Day Volatility",
+    "20-Day Volatility (%)|60-Day Volatility (%)",
   );
 });
 
@@ -556,7 +556,7 @@ test("earnings Surprise header uses the earnings-surprise glossary record", () =
 test("time-series legend labels expose help for price, volatility, and equity", () => {
   for (const [widget, label, key] of [
     [WIDGETS.pi_price_target_history, "Closing Price", "closing_price"],
-    [WIDGETS.pi_risk_vol_chart, "20-Day Volatility", "twenty_day_volatility"],
+    [WIDGETS.pi_risk_vol_chart, "20-Day Volatility (%)", "twenty_day_volatility"],
     [WIDGETS.pi_paper_performance, "Portfolio Equity", "portfolio_equity"],
   ]) {
     const html = H.chartLegendLabelHtml(label, widget);

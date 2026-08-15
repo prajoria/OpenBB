@@ -1989,7 +1989,7 @@ def test_shape_statements_maps_nine_line_items_in_order() -> None:
 
 
 def test_shape_statements_period_1_is_latest_period_2_is_prior() -> None:
-    """Raw provider amounts are normalized to USD millions by period."""
+    """Raw provider amounts are normalized to reporting-currency millions by period."""
     income, balance, cash = _statement_fixtures()
     out = tier_calls._shape_statements(income, balance, cash)
     by = {r["line_item"]: r for r in out}
@@ -2004,8 +2004,8 @@ def test_shape_statements_period_1_is_latest_period_2_is_prior() -> None:
     assert by["Free Cash Flow"]["period_2"] == 111443
 
 
-def test_statements_live_and_fallback_values_use_usd_millions() -> None:
-    """A raw live amount and the fallback both render as 391,000 USD millions."""
+def test_statements_live_and_fallback_values_use_reporting_currency_millions() -> None:
+    """A raw live amount and fallback both render as 391,000 reporting-currency millions."""
     raw_revenue = 391_000_000_000
     live = tier_calls._shape_statements(
         [{"period_ending": _dt.date(2024, 9, 28), "revenue": raw_revenue}],

@@ -32,8 +32,8 @@ def test_1989_statement_period_headers_match_backend_semantics() -> None:
     columns = _widget("pi_financial_statements")["data"]["table"]["columnsDefs"]
     assert {column["field"]: column["headerName"] for column in columns} == {
         "line_item": "Line Item",
-        "period_1": "Latest Period ($M)",
-        "period_2": "Prior Period ($M)",
+        "period_1": "Latest Period (millions)",
+        "period_2": "Prior Period (millions)",
     }
 
 
@@ -138,10 +138,13 @@ def test_time_series_widgets_have_exact_labels_and_glossary_keys() -> None:
             },
         ),
         "pi_risk_vol_chart": (
-            {"vol_20d": "20-Day Volatility", "vol_60d": "60-Day Volatility"},
             {
-                "20-Day Volatility": "twenty_day_volatility",
-                "60-Day Volatility": "sixty_day_volatility",
+                "vol_20d": "20-Day Volatility (%)",
+                "vol_60d": "60-Day Volatility (%)",
+            },
+            {
+                "20-Day Volatility (%)": "twenty_day_volatility",
+                "60-Day Volatility (%)": "sixty_day_volatility",
             },
         ),
         "pi_paper_performance": (
@@ -187,8 +190,8 @@ def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
             "pi_financial_statements",
             {
                 "line_item": "Line Item",
-                "period_1": "Latest Period ($M)",
-                "period_2": "Prior Period ($M)",
+                "period_1": "Latest Period (millions)",
+                "period_2": "Prior Period (millions)",
             },
             {"Revenue": "revenue", "Free Cash Flow": "free_cash_flow"},
         ),
@@ -342,10 +345,13 @@ def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
         ),
         (
             "pi_risk_vol_chart",
-            {"vol_20d": "20-Day Volatility", "vol_60d": "60-Day Volatility"},
             {
-                "20-Day Volatility": "twenty_day_volatility",
-                "60-Day Volatility": "sixty_day_volatility",
+                "vol_20d": "20-Day Volatility (%)",
+                "vol_60d": "60-Day Volatility (%)",
+            },
+            {
+                "20-Day Volatility (%)": "twenty_day_volatility",
+                "60-Day Volatility (%)": "sixty_day_volatility",
             },
         ),
         (
@@ -513,22 +519,28 @@ def test_all_glossary_sources_are_https_non_generic_and_curated() -> None:
 
 
 def test_1991_earnings_surprise_help_uses_the_displayed_percentage_formula() -> None:
-    """The help definition must match the calculation behind Surprise (%)."""
+    """Both EPS-surprise help records must match the calculation behind Surprise (%)."""
     text = _VIEWER.read_text(encoding="utf-8")
-    marker = "earnings_surprise: Object.freeze({"
-    record = text[text.index(marker) : text.index("    }),", text.index(marker))]
-    assert (
-        'definition: "Earnings Surprise (%) = (actual EPS - estimated EPS) / '
-        'abs(estimated EPS) × 100."'
-    ) in record
+    for key, label in (
+        ("earnings_surprise", "Earnings Surprise"),
+        ("eps_surprise", "EPS Surprise"),
+    ):
+        marker = f"{key}: Object.freeze({{"
+        record = text[text.index(marker) : text.index("    }),", text.index(marker))]
+        assert (
+            f'definition: "{label} (%) = (actual EPS - estimated EPS) / '
+            'abs(estimated EPS) × 100."'
+        ) in record
 
 
-def test_2000_beta_glossary_uses_a_beta_specific_reference() -> None:
-    """Beta help must not cite the separate Value-at-Risk reference."""
+def test_2000_beta_glossary_uses_a_verified_beta_specific_reference() -> None:
+    """Key-stat and portfolio beta help must cite the same beta reference."""
     text = _VIEWER.read_text(encoding="utf-8")
-    marker = "beta_vs_spy: Object.freeze({"
-    record = text[text.index(marker) : text.index("    }),", text.index(marker))]
-    assert 'source: "https://en.wikipedia.org/wiki/Beta_(finance)"' in record
+    expected_url = "https://en.wikipedia.org/wiki/Beta_(finance)"
+    for key in ("beta", "beta_vs_spy"):
+        marker = f"{key}: Object.freeze({{"
+        record = text[text.index(marker) : text.index("    }),", text.index(marker))]
+        assert f'source: "{expected_url}"' in record
 
 
 def test_dividend_payment_glossary_records_are_curated_and_https() -> None:

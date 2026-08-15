@@ -363,13 +363,13 @@
     ],
     "data": {
       "metricGlossary": {
-        "20-Day Volatility": "twenty_day_volatility",
-        "60-Day Volatility": "sixty_day_volatility"
+        "20-Day Volatility (%)": "twenty_day_volatility",
+        "60-Day Volatility (%)": "sixty_day_volatility"
       },
       "chart": {
         "labels": {
-          "vol_20d": "20-Day Volatility",
-          "vol_60d": "60-Day Volatility"
+          "vol_20d": "20-Day Volatility (%)",
+          "vol_60d": "60-Day Volatility (%)"
         }
       }
     }
@@ -1708,11 +1708,11 @@
           },
           {
             "field": "period_1",
-            "headerName": "Latest Period ($M)"
+            "headerName": "Latest Period (millions)"
           },
           {
             "field": "period_2",
-            "headerName": "Prior Period ($M)"
+            "headerName": "Prior Period (millions)"
           }
         ]
       }

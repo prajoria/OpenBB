@@ -1774,8 +1774,8 @@
     eps_surprise: Object.freeze({
       label: "EPS Surprise",
       summary: "Actual EPS relative to its consensus estimate.",
-      definition: "EPS Surprise is a per-share earnings measure or comparison used in equity analysis.",
-      interpretation: "GAAP versus adjusted earnings, share count, and estimates can make comparisons non-equivalent.",
+      definition: "EPS Surprise (%) = (actual EPS - estimated EPS) / abs(estimated EPS) × 100.",
+      interpretation: "Positive results beat the estimate and negative results miss it; a zero estimate has no defined percentage surprise.",
       source: "https://en.wikipedia.org/wiki/Earnings_per_share",
     }),
     revenue_estimate: Object.freeze({
@@ -1835,14 +1835,14 @@
       source: "https://en.wikipedia.org/wiki/Beta_(finance)",
     }),
     twenty_day_volatility: Object.freeze({
-      label: "20-Day Volatility",
+      label: "20-Day Volatility (%)",
       summary: "Annualized volatility from a rolling 20-day window.",
       definition: "20-Day Volatility is calculated from the standard deviation of periodic returns and annualized; it measures variability rather than a maximum loss.",
       interpretation: "Historical volatility can change quickly and does not predict future volatility.",
       source: "https://en.wikipedia.org/wiki/Volatility_(finance)",
     }),
     sixty_day_volatility: Object.freeze({
-      label: "60-Day Volatility",
+      label: "60-Day Volatility (%)",
       summary: "Annualized volatility from a rolling 60-day window.",
       definition: "60-Day Volatility is calculated from the standard deviation of periodic returns and annualized; it measures variability rather than a maximum loss.",
       interpretation: "Historical volatility can change quickly and does not predict future volatility.",
@@ -2000,7 +2000,7 @@
       summary: "A rough measure of how much the stock tends to move versus the market.",
       definition: "Beta compares the stock’s historical returns with a benchmark such as the S&P 500.",
       interpretation: "A beta above 1 usually means more day-to-day movement than the market; below 1 usually means less.",
-      source: "https://en.wikipedia.org/wiki/Value_at_risk",
+      source: "https://en.wikipedia.org/wiki/Beta_(finance)",
     }),
     dividend_yield: Object.freeze({
       label: "Dividend Yield",

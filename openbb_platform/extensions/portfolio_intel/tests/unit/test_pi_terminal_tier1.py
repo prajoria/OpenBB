@@ -145,11 +145,18 @@ def test_insider_trading_shape() -> None:
 
 
 def test_earnings_history_shape() -> None:
-    """#1663 — earnings rows: quarter + eps_actual + eps_estimate + surprise_pct."""
+    """#1663 — surprise percentage follows actual/absolute-estimate formula."""
     rows = _client.get("/pi/equity/earnings-history?symbol=AAPL").json()
     assert rows
     for r in rows:
         assert "quarter" in r and "eps_actual" in r and "eps_estimate" in r
+        if r["eps_estimate"] in (None, 0):
+            assert r["surprise_pct"] is None
+        else:
+            assert r["surprise_pct"] == round(
+                (r["eps_actual"] - r["eps_estimate"]) / abs(r["eps_estimate"]) * 100,
+                2,
+            )
 
 
 def test_stock_splits_shape() -> None:
