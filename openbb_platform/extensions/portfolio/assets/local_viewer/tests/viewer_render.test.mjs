@@ -282,6 +282,23 @@ test("metricModel: multi numeric keys -> grid, negatives flagged", () => {
   assert.equal(varCard.cls, "neg");
 });
 
+test("metricModel keeps raw snake_case keys when labels are absent", () => {
+  const m = H.metricModel({ net_margin_pct: 0.215, beta_spy: 1.08 });
+  assert.equal(m.cards.length, 2);
+  assert.equal(m.cards[0].label, "net_margin_pct");
+  assert.equal(m.cards[0].rawKey, "net_margin_pct");
+  assert.equal(m.cards[1].label, "beta_spy");
+  assert.equal(m.cards[1].rawKey, "beta_spy");
+  assert.doesNotMatch(m.cards[0].label, /[A-Z ]/);
+  assert.doesNotMatch(m.cards[1].label, /[A-Z ]/);
+  const container = { innerHTML: "" };
+  H.renderMetric(container, { net_margin_pct: 0.215, beta_spy: 1.08 }, { data: { metric: {} } });
+  assert.match(container.innerHTML, /net_margin_pct/);
+  assert.match(container.innerHTML, /beta_spy/);
+  assert.doesNotMatch(container.innerHTML, /Net Margin Pct/);
+  assert.doesNotMatch(container.innerHTML, /Beta Spy/);
+});
+
 test("metricModel uses explicit metric labels and glossary keys when configured", () => {
   const m = H.metricModel(
     { market_cap: 3_200_000_000_000, opaque_field: 42, plain_metric: 7, note: "demo book" },
