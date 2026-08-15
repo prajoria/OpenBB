@@ -56,7 +56,7 @@ function loadHelpers() {
     "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
     "metricModel", "renderMetric", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricLabelHtml", "metricHelpPageHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
-    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "renderTab"];
+    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "chartLegendLabelHtml", "renderTab"];
   const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null;\n\n"
     + names.map((n) => extractFn(src, n)).join("\n\n") +
     "\n;globalThis.__H = { " + names.join(", ")
@@ -431,6 +431,52 @@ test("F2 widgets declare glossary mappings for key stats and financial charts", 
   assert.equal(keyStats["Market Cap"], "market_cap");
   assert.equal(financials["Revenue ($B)"], "revenue_b");
   assert.equal(financials["Net Margin (%)"], "net_margin_pct");
+});
+
+test("look-through effective-weight formatter converts fractions to displayed percentages", () => {
+  const col = WIDGETS.pi_lookthrough_top25.data.table.columnsDefs
+    .find((item) => item.field === "effective_weight");
+  assert.equal(col.formatterFn, "percentFraction");
+  assert.equal(H.fmtCell(0.078, col), "7.80%");
+});
+
+test("single-value metric cards apply explicit labels and glossary metadata", () => {
+  const model = H.metricModel(
+    { value: 0.076, label: "HHI (0..1; higher = more concentrated)" },
+    WIDGETS.pi_concentration_gauge.data.metric,
+  );
+  assert.equal(model.cards[0].label, "Concentration (HHI)");
+  assert.equal(model.cards[0].glossaryKey, "herfindahl_hirschman_index");
+});
+
+test("technical row labels cover the actual Classic pivot strings with help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [{ metric: "R3 (Classic)", value: 234.6, note: "" }],
+    WIDGETS.pi_equity_technicals);
+  assert.match(container.innerHTML, /Resistance 3[\s\S]*data-metric-help="resistance"/);
+});
+
+test("canonical analyst-forecast labels map to focused glossary help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "Rating Distribution", value: "12 / 8", note: "Strong Buy / Buy" },
+    { metric: "EPS Surprise", value: "+3.2%", note: "Q3 2025" },
+    { metric: "Historical Revenue Estimate", value: "n/a", note: "unavailable" },
+  ], WIDGETS.pi_equity_analyst_forecasts);
+  for (const key of ["rating_distribution", "eps_surprise", "revenue_estimate"]) {
+    assert.match(container.innerHTML, new RegExp(`data-metric-help="${key}"`));
+  }
+});
+
+test("time-series legend labels expose help for price, volatility, and equity", () => {
+  for (const [widget, label, key] of [
+    [WIDGETS.pi_price_target_history, "Closing Price", "closing_price"],
+    [WIDGETS.pi_risk_vol_chart, "20-Day Volatility", "twenty_day_volatility"],
+    [WIDGETS.pi_paper_performance, "Portfolio Equity", "portfolio_equity"],
+  ]) {
+    const html = H.chartLegendLabelHtml(label, widget);
+    assert.match(html, new RegExp(`data-metric-help="${key}"`));
+  }
 });
 
 test("renderTable adds help only for mapped first-column metrics", () => {

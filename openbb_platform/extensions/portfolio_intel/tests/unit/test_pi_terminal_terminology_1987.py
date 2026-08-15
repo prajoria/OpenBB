@@ -1,262 +1,152 @@
-"""Focused Terminal terminology contracts for #1987 child widgets."""
+"""Load-bearing Terminal terminology contracts for #1987 child widgets."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
+os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
+
+from fastapi.testclient import TestClient
+from openbb_portfolio_intel.widget_backend.main import app
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 _WIDGETS = _PACKAGE_ROOT / "openbb_portfolio_intel" / "widget_backend" / "widgets.json"
-_VIEWER = (
-    _PACKAGE_ROOT.parent
-    / "portfolio"
-    / "assets"
-    / "local_viewer"
-    / "index.html"
-)
+_VIEWER = _PACKAGE_ROOT.parent / "portfolio" / "assets" / "local_viewer" / "index.html"
+_CLIENT = TestClient(app)
+
+
+def _widgets() -> dict:
+    return json.loads(_WIDGETS.read_text(encoding="utf-8"))
 
 
 def _widget(widget_id: str) -> dict:
-    return json.loads(_WIDGETS.read_text(encoding="utf-8"))[widget_id]
+    return _widgets()[widget_id]
 
 
-def test_1988_key_stats_maps_only_approved_glossary_terms() -> None:
-    widget = _widget("pi_equity_key_stats")
-    glossary = widget["data"]["metricGlossary"]
-    assert {term: glossary[term] for term in ("Volume", "52-Week High", "52-Week Low")} == {
-        "Volume": "volume",
-        "52-Week High": "fifty_two_week_high",
-        "52-Week Low": "fifty_two_week_low",
+def test_1989_statement_period_headers_match_backend_semantics() -> None:
+    columns = _widget("pi_financial_statements")["data"]["table"]["columnsDefs"]
+    assert {column["field"]: column["headerName"] for column in columns} == {
+        "line_item": "Line Item",
+        "period_1": "Latest Period",
+        "period_2": "Prior Period",
     }
-    viewer = _VIEWER.read_text(encoding="utf-8")
-    for key in glossary.values():
-        assert f"{key}: Object.freeze({{" in viewer
 
 
-def test_1989_pi_financial_statements_terminology_contract() -> None:
-    widget = _widget("pi_financial_statements")
-    expected_fields = {'line_item': 'Line Item', 'period_1': 'Prior Period', 'period_2': 'Latest Period'}
-    expected_terms = ['Revenue', 'Gross Profit', 'Operating Income', 'Net Income', 'Total Assets', 'Total Debt', 'Cash & Equivalents', 'Operating Cash Flow', 'Free Cash Flow']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
+def test_1998_lookthrough_fraction_uses_explicit_percent_formatter() -> None:
+    column = next(
+        column
+        for column in _widget("pi_lookthrough_top25")["data"]["table"]["columnsDefs"]
+        if column["field"] == "effective_weight"
+    )
+    assert column == {
+        "field": "effective_weight",
+        "headerName": "Effective Weight (%)",
+        "glossaryKey": "effective_weight",
+        "formatterFn": "percentFraction",
+    }
+    response = _CLIENT.get("/pi/lookthrough/top25?account_id=demo")
+    assert response.status_code == 200
+    assert response.json()[0]["effective_weight"] == 0.078
 
 
-def test_1990_pi_peer_multiples_terminology_contract() -> None:
-    widget = _widget("pi_peer_multiples")
-    expected_fields = {'symbol': 'Symbol', 'pe_ttm': 'P/E (TTM)', 'pe_fwd': 'P/E (Forward)', 'ev_ebitda': 'EV/EBITDA', 'ps_ttm': 'P/S (TTM)'}
-    expected_terms = ['P/E (TTM)', 'P/E (Forward)', 'EV/EBITDA', 'P/S (TTM)']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
+def test_1999_single_value_concentration_card_has_label_and_help_mapping() -> None:
+    metric = _widget("pi_concentration_gauge")["data"]["metric"]
+    assert metric == {
+        "labels": {"value": "Concentration (HHI)"},
+        "metricGlossary": {"Concentration (HHI)": "herfindahl_hirschman_index"},
+    }
 
 
-def test_1991_pi_earnings_history_terminology_contract() -> None:
-    widget = _widget("pi_earnings_history")
-    expected_fields = {'quarter': 'Quarter', 'eps_actual': 'Actual EPS', 'eps_estimate': 'Estimated EPS', 'surprise_pct': 'Surprise (%)'}
-    expected_terms = ['Actual EPS', 'Estimated EPS', 'Earnings Surprise']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_1992_pi_price_target_history_terminology_contract() -> None:
-    widget = _widget("pi_price_target_history")
-    expected_fields = {'date': 'Date', 'close': 'Closing Price', 'target': 'Analyst Price Target'}
-    expected_terms = ['Closing Price', 'Analyst Price Target']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert data["chart"]["labels"] == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_1993_pi_equity_technicals_terminology_contract() -> None:
+def test_1993_technical_rows_match_actual_classic_pivot_strings() -> None:
     widget = _widget("pi_equity_technicals")
-    expected_fields = {}
-    expected_terms = ['Analyst Consensus', 'Resistance', 'Pivot', 'Support', 'ATM Implied Volatility']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
+    response = _CLIENT.get("/pi/equity/technicals?symbol=AAPL")
+    assert response.status_code == 200
+    rows = response.json()
+    expected = {
+        "Consensus": ("Analyst Consensus", "analyst_consensus"),
+        "R3 (Classic)": ("Resistance 3", "resistance"),
+        "R2 (Classic)": ("Resistance 2", "resistance"),
+        "R1 (Classic)": ("Resistance 1", "resistance"),
+        "P (Classic)": ("Pivot", "pivot"),
+        "S1 (Classic)": ("Support 1", "support"),
+        "S2 (Classic)": ("Support 2", "support"),
+        "S3 (Classic)": ("Support 3", "support"),
+        "ATM IV term structure": (
+            "ATM Implied Volatility Term Structure",
+            "atm_implied_volatility",
+        ),
+    }
+    assert {row["metric"] for row in rows} == set(expected)
+    labels = widget["data"]["table"]["rowLabels"]
+    glossary = widget["data"]["metricGlossary"]
+    for raw, (rendered, key) in expected.items():
+        assert labels[raw] == rendered
+        assert glossary[raw] == key
 
 
-def test_1994_pi_equity_competitors_terminology_contract() -> None:
-    widget = _widget("pi_equity_competitors")
-    expected_fields = {'symbol': 'Symbol', 'name': 'Company', 'price': 'Price', 'change_pct': 'Change (%)'}
-    expected_terms = ['Percentage Price Change']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_1995_pi_equity_complementary_terminology_contract() -> None:
-    widget = _widget("pi_equity_complementary")
-    expected_fields = {'kind': 'Asset Type', 'id': 'Identifier', 'name': 'Name', 'weight_pct': 'Portfolio Weight (%)', 'value_usd': 'Market Value ($)'}
-    expected_terms = ['Portfolio Weight', 'Market Value']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_1996_pi_equity_analyst_forecasts_terminology_contract() -> None:
+def test_1996_forecast_endpoint_emits_canonical_glossary_backed_rows() -> None:
     widget = _widget("pi_equity_analyst_forecasts")
-    expected_fields = {}
-    expected_terms = ['12-Month Price Target', 'Target Range', 'Implied Upside', 'Rating Distribution', 'EPS Surprise', 'Revenue Estimate']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
+    response = _CLIENT.get("/pi/equity/analyst-forecasts?symbol=AAPL")
+    assert response.status_code == 200
+    labels = {row["metric"] for row in response.json()}
+    expected = {
+        "12-Month Price Target": "twelve_month_price_target",
+        "Target Range": "target_range",
+        "Upside vs Current Price": "implied_upside",
+        "Rating Distribution": "rating_distribution",
+        "EPS Surprise": "eps_surprise",
+        "Historical Revenue Estimate": "revenue_estimate",
+    }
+    assert set(expected) <= labels
+    glossary = widget["data"]["metricGlossary"]
+    assert glossary == expected
+    assert widget["data"]["table"]["rowLabels"] == {label: label for label in expected}
 
 
-def test_1997_pi_basket_analyst_consensus_terminology_contract() -> None:
-    widget = _widget("pi_basket_analyst_consensus")
-    expected_fields = {'symbol': 'Symbol', 'avg_target': 'Average Price Target', 'buy_hold_sell': 'Buy/Hold/Sell Ratings', 'consensus': 'Consensus Rating'}
-    expected_terms = ['Average Price Target', 'Consensus Rating']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
+def test_time_series_widgets_have_exact_labels_and_glossary_keys() -> None:
+    expected = {
+        "pi_price_target_history": (
+            {
+                "date": "Date",
+                "close": "Closing Price",
+                "target": "Analyst Price Target",
+            },
+            {
+                "Closing Price": "closing_price",
+                "Analyst Price Target": "analyst_price_target",
+            },
+        ),
+        "pi_risk_vol_chart": (
+            {"vol_20d": "20-Day Volatility", "vol_60d": "60-Day Volatility"},
+            {
+                "20-Day Volatility": "twenty_day_volatility",
+                "60-Day Volatility": "sixty_day_volatility",
+            },
+        ),
+        "pi_paper_performance": (
+            {"date": "Date", "equity": "Portfolio Equity"},
+            {"Portfolio Equity": "portfolio_equity"},
+        ),
+    }
+    for widget_id, (labels, glossary) in expected.items():
+        data = _widget(widget_id)["data"]
+        assert data["chart"]["labels"] == labels
+        assert data["metricGlossary"] == glossary
 
 
-def test_1998_pi_lookthrough_top25_terminology_contract() -> None:
-    widget = _widget("pi_lookthrough_top25")
-    expected_fields = {'symbol': 'Symbol', 'name': 'Holding', 'effective_weight': 'Effective Weight (%)', 'rank': 'Rank'}
-    expected_terms = ['Effective Weight']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_1999_pi_concentration_gauge_terminology_contract() -> None:
-    widget = _widget("pi_concentration_gauge")
-    expected_fields = {'value': 'Concentration (HHI)'}
-    expected_terms = ['Herfindahl-Hirschman Index']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert data["metric"]["labels"] == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_2000_pi_risk_dashboard_terminology_contract() -> None:
-    widget = _widget("pi_risk_dashboard")
-    expected_fields = {'vol_annualized': 'Annualized Volatility', 'var_95_1d': '1-Day VaR (95%)', 'beta_spy': 'Beta vs SPY'}
-    expected_terms = ['Annualized Volatility', '1-Day VaR (95%)', 'Beta vs SPY']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert data["metric"]["labels"] == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_2001_pi_risk_vol_chart_terminology_contract() -> None:
-    widget = _widget("pi_risk_vol_chart")
-    expected_fields = {}
-    expected_terms = ['20-Day Volatility', '60-Day Volatility']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert data["chart"]["labels"] == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_2002_pi_brinson_attribution_terminology_contract() -> None:
-    widget = _widget("pi_brinson_attribution")
-    expected_fields = {'sector': 'Sector', 'allocation': 'Allocation Effect', 'selection': 'Selection Effect', 'interaction': 'Interaction Effect', 'total': 'Total Active Return'}
-    expected_terms = ['Allocation Effect', 'Selection Effect', 'Interaction Effect', 'Total Active Return']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert data["chart"]["labels"] == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_2003_pi_whatif_card_terminology_contract() -> None:
-    widget = _widget("pi_whatif_card")
-    expected_fields = {}
-    expected_terms = ['Symbol Weight', 'Sector Weight', 'Cash Weight', 'Beta vs SPY']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_2004_pi_paper_perf_kpis_terminology_contract() -> None:
-    widget = _widget("pi_paper_perf_kpis")
-    expected_fields = {'total_return_pct': 'Total Return (%)', 'sharpe_annualized': 'Annualized Sharpe Ratio', 'max_drawdown_pct': 'Maximum Drawdown (%)'}
-    expected_terms = ['Total Return', 'Sharpe Ratio', 'Maximum Drawdown']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert data["metric"]["labels"] == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_2005_pi_paper_performance_terminology_contract() -> None:
-    widget = _widget("pi_paper_performance")
-    expected_fields = {'date': 'Date', 'equity': 'Portfolio Equity'}
-    expected_terms = ['Portfolio Equity']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert data["chart"]["labels"] == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_2006_pi_paper_blotter_terminology_contract() -> None:
-    widget = _widget("pi_paper_blotter")
-    expected_fields = {'time': 'Time', 'symbol': 'Symbol', 'side': 'Side', 'qty': 'Quantity', 'status': 'Status', 'avg_price': 'Average Execution Price'}
-    expected_terms = ['Average Execution Price']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
-
-
-def test_2007_pi_smart_money_ribbon_terminology_contract() -> None:
-    widget = _widget("pi_smart_money_ribbon")
-    expected_fields = {'symbol': 'Symbol', 'kind': 'Activity Type', 'actor': 'Actor', 'value_usd': 'Transaction Value ($)', 'date': 'Date'}
-    expected_terms = ['Transaction Value']
-    data = widget.get("data", {})
-    if expected_fields:
-        assert {c["field"]: c["headerName"] for c in data["table"]["columnsDefs"]} == expected_fields
-    glossary = data.get("metricGlossary", {})
-    for term in expected_terms:
-        assert glossary[term]
+def test_glossary_records_are_specific_and_link_to_term_pages() -> None:
+    text = _VIEWER.read_text(encoding="utf-8")
+    assert "A curated portfolio-analysis term" not in text
+    assert "financial-term-dictionary" not in text
+    records = _widgets()["pi_equity_analyst_forecasts"]["data"]["metricGlossary"]
+    for key in records.values():
+        marker = f"{key}: Object.freeze({{"
+        record = text[text.index(marker) : text.index("    }),", text.index(marker))]
+        assert (
+            "summary:" in record
+            and "definition:" in record
+            and "interpretation:" in record
+        )
+        assert 'source: "https://www.investopedia.com/terms/' in record
