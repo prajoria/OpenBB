@@ -800,3 +800,45 @@ def get_estimate_as_of(
     if not rows:
         return None
     return rows[0]
+
+
+def get_estimate_for_period_before_release(
+    symbol: str,
+    fiscal_period_end: date,
+    release_date: date,
+    period: str = "quarter",
+) -> dict | None:
+    """Return an exact fiscal-period estimate available before its release.
+
+    ``date`` must equal the issuer's resolved fiscal-period end; this query
+    deliberately never falls back to an earlier period. The selected snapshot
+    must also have existed on or before the provider earnings-release date,
+    preventing post-release revisions from being presented as a historical
+    estimate. Returns ``None`` when that exact period has no pre-release
+    snapshot.
+    """
+    try:
+        rows = execute_query(
+            """
+            SELECT
+                date AS fiscal_period_end,
+                estimated_revenue_avg, estimated_revenue_low, estimated_revenue_high,
+                estimated_eps_avg, estimated_eps_low, estimated_eps_high,
+                number_analysts_estimated_revenue, number_analysts_estimated_eps,
+                snapshot_date
+            FROM analyst_estimates_history
+            WHERE symbol = %s
+              AND date = %s
+              AND period = %s
+              AND snapshot_date <= %s
+            ORDER BY snapshot_date DESC
+            LIMIT 1
+            """,
+            (symbol, fiscal_period_end, period, release_date),
+        )
+    except Exception as exc:
+        logger.warning(f"get_estimate_for_period_before_release query failed: {exc}")
+        return None
+    if not rows:
+        return None
+    return rows[0]

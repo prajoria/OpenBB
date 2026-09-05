@@ -22,7 +22,7 @@ import os
 import re
 import time
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException, Query, Request
 
@@ -550,15 +550,15 @@ def risk_dashboard(
 def risk_vol(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, float | str]]:
-    """Return rolling 20d / 60d realized volatility."""
+    """Return rolling 20d / 60d realized volatility in percentage points."""
     _require_auth(request)
     _validate_account(account_id)
     if account_id == "demo":
         return [
             {
                 "date": f"2026-06-{d:02d}",
-                "vol_20d": 0.16 + 0.02 * ((d % 5) - 2) / 3,
-                "vol_60d": 0.18 + 0.01 * ((d % 7) - 3) / 3,
+                "vol_20d": round((0.16 + 0.02 * ((d % 5) - 2) / 3) * 100, 2),
+                "vol_60d": round((0.18 + 0.01 * ((d % 7) - 3) / 3) * 100, 2),
             }
             for d in range(1, 31)
         ]
@@ -1064,6 +1064,65 @@ def equity_technicals(
     ]
 
 
+def _provider_date(value: object) -> date | None:
+    """Normalize a provider date value without inventing a calendar period."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _latest_issuer_fiscal_period_and_release_date(
+    symbol: str,
+) -> tuple[date, date] | None:
+    """Return ``(fiscal_period_end, earnings_release_date)`` from FMP data.
+
+    Historical EPS supplies the provider earnings-release dates; the quarterly
+    income statement supplies the issuer's actual fiscal period ends. Selecting
+    the latest period that ends on or before the latest release avoids assuming
+    calendar-quarter dates for issuers such as AAPL.
+    """
+    try:
+        from openbb_portfolio_intel.widget_backend.tier_calls import (
+            _fetch_earnings_rows,
+            _fetch_statement,
+        )
+
+        release_dates = [
+            release_date
+            for row in _fetch_earnings_rows(symbol)
+            if row.get("eps_actual") is not None
+            if (release_date := _provider_date(row.get("date"))) is not None
+        ]
+        if not release_dates:
+            return None
+        release_date = max(release_dates)
+
+        fiscal_period_ends = [
+            fiscal_period_end
+            for row in _fetch_statement("income", symbol, "quarter")
+            if (fiscal_period_end := _provider_date(row.get("period_ending")))
+            is not None
+            and fiscal_period_end <= release_date
+        ]
+        if not fiscal_period_ends:
+            return None
+        return max(fiscal_period_ends), release_date
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "analyst-forecasts: provider fiscal/release lookup failed for %s: %s",
+            symbol,
+            exc,
+        )
+        return None
+
+
 @app.get("/pi/equity/analyst-forecasts")
 @with_chain(
     endpoint="pi/equity/analyst-forecasts",
@@ -1140,20 +1199,18 @@ def equity_analyst_forecasts(
             ]
         )
 
-    rows.extend(
-        [
+    for quarter, actual, estimate in (
+        ("Q3 2025", 1.55, 1.50),
+        ("Q2 2025", 1.52, 1.49),
+    ):
+        surprise_pct = (actual - estimate) / abs(estimate) * 100
+        rows.append(
             {
-                "metric": "Q3 2025 EPS Surprise",
-                "value": "+3.2%",
-                "note": "actual 1.55 vs est 1.50",
-            },
-            {
-                "metric": "Q2 2025 EPS Surprise",
-                "value": "+1.9%",
-                "note": "actual 1.52 vs est 1.49",
-            },
-        ]
-    )
+                "metric": f"{quarter} EPS Surprise",
+                "value": f"{surprise_pct:+.1f}%",
+                "note": f"actual {actual:.2f} vs est {estimate:.2f}",
+            }
+        )
 
     # Revenue surprise (5C) — live via #998 opportunistic history
     # (#1025 / #1026). Only rendered when a historical snapshot exists;
@@ -1161,25 +1218,20 @@ def equity_analyst_forecasts(
     # the state honestly rather than fabricating a surprise%.
     # pylint: disable=import-outside-toplevel,broad-exception-caught
     try:
-        from datetime import (
-            date as _date,
-            timedelta as _td,
-        )
-
         from openbb_fmp_cached.models.analyst_estimates import (
-            get_estimate_as_of,
+            get_estimate_for_period_before_release,
         )
 
-        # Look up an estimate that was captured before the most recent
-        # earnings release. For the demo path we probe the last-completed
-        # quarter end (approximately today - 90 days).
-        today = _date.today()
-        approx_last_qend = today - _td(days=90)
-        snap = get_estimate_as_of(
-            symbol=sym,
-            fiscal_period_end=approx_last_qend,
-            as_of_date=approx_last_qend,
-            period="quarter",
+        resolved_period = _latest_issuer_fiscal_period_and_release_date(sym)
+        snap = (
+            get_estimate_for_period_before_release(
+                symbol=sym,
+                fiscal_period_end=resolved_period[0],
+                release_date=resolved_period[1],
+                period="quarter",
+            )
+            if resolved_period
+            else None
         )
         if snap and snap.get("estimated_revenue_avg"):
             rows.append(
@@ -1195,12 +1247,12 @@ def equity_analyst_forecasts(
         else:
             rows.append(
                 {
-                    "metric": "Historical rev estimate",
+                    "metric": "Historical rev estimate (last Q)",
                     "value": "insufficient history",
                     "note": (
-                        "no snapshot in analyst_estimates_history yet; "
-                        "surprise% available once opportunistic snapshots "
-                        "accumulate (#998 / #1025)"
+                        "no historical estimate snapshot is available yet; "
+                        "revenue surprise will become available after "
+                        "snapshots accumulate"
                     ),
                 }
             )
@@ -1210,7 +1262,7 @@ def equity_analyst_forecasts(
         # rationale above. Detail is in the WARN log.
         rows.append(
             {
-                "metric": "Historical rev estimate",
+                "metric": "Historical rev estimate (last Q)",
                 "value": "n/a",
                 "note": "lookup failed (see server logs)",
             }
@@ -1789,37 +1841,21 @@ def equity_earnings_history(
     """
     _require_auth(request)
     _validate_symbol(symbol)
+    fallback_rows = (
+        ("Q3 2026", 1.65, 1.60),
+        ("Q2 2026", 1.53, 1.50),
+        ("Q1 2026", 2.18, 2.10),
+        ("Q4 2025", 1.46, 1.39),
+        ("Q3 2025", 1.40, 1.35),
+    )
     return [
         {
-            "quarter": "Q3 2026",
-            "eps_actual": 1.65,
-            "eps_estimate": 1.60,
-            "surprise_pct": 3.13,
-        },
-        {
-            "quarter": "Q2 2026",
-            "eps_actual": 1.53,
-            "eps_estimate": 1.50,
-            "surprise_pct": 2.00,
-        },
-        {
-            "quarter": "Q1 2026",
-            "eps_actual": 2.18,
-            "eps_estimate": 2.10,
-            "surprise_pct": 3.81,
-        },
-        {
-            "quarter": "Q4 2025",
-            "eps_actual": 1.46,
-            "eps_estimate": 1.39,
-            "surprise_pct": 5.04,
-        },
-        {
-            "quarter": "Q3 2025",
-            "eps_actual": 1.40,
-            "eps_estimate": 1.35,
-            "surprise_pct": 3.70,
-        },
+            "quarter": quarter,
+            "eps_actual": actual,
+            "eps_estimate": estimate,
+            "surprise_pct": round((actual - estimate) / abs(estimate) * 100, 2),
+        }
+        for quarter, actual, estimate in fallback_rows
     ]
 
 
@@ -2048,8 +2084,8 @@ def equity_statements(
 
     Live-served from ``fmp_cached`` via the ``equity/statements`` tier call
     (#1920): fetches income/balance/cash statements and maps nine canonical
-    line items to a 2-period comparison. This stub body is the loud fallback
-    when no tier serves.
+    line items to a 2-period comparison in reporting-currency millions. This
+    stub body is the loud fallback when no tier serves and uses the same scale.
     """
     _require_auth(request)
     _validate_symbol(symbol)

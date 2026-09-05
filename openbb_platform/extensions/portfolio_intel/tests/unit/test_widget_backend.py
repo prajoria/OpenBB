@@ -378,7 +378,7 @@ def test_whatif_invalid_delta_shares_handled_gracefully() -> None:
 
 
 def test_attribution_returns_waterfall_rows() -> None:
-    """Chart with raw=true — records with allocation/selection/interaction/total."""
+    """Chart values are percent points with allocation/selection/interaction/total."""
     resp = _client.get("/pi/attribution?window=1Y&benchmark_symbol=SPY")
     assert resp.status_code == 200
     rows = resp.json()
@@ -391,6 +391,19 @@ def test_attribution_returns_waterfall_rows() -> None:
             abs(r["total"] - (r["allocation"] + r["selection"] + r["interaction"]))
             < 1e-12
         )
+    assert rows[0]["sector"] == "S0"
+    assert {
+        key: rows[0][key] for key in ("allocation", "selection", "interaction", "total")
+    } == (
+        pytest.approx(
+            {
+                "allocation": -0.06843181714558489,
+                "selection": -0.05476594628924076,
+                "interaction": 0.02539967271489473,
+                "total": -0.09779809071993094,
+            }
+        )
+    )
 
 
 def test_root_endpoint_returns_info_payload() -> None:

@@ -36,8 +36,8 @@
       "value": "+1.9%"
     },
     {
-      "metric": "Historical rev estimate",
-      "note": "no snapshot in analyst_estimates_history yet; surprise% available once opportunistic snapshots accumulate (#998 / #1025)",
+      "metric": "Historical rev estimate (last Q)",
+      "note": "no historical estimate snapshot is available yet; revenue surprise will become available after snapshots accumulate",
       "value": "insufficient history"
     }
   ],

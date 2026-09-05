@@ -153,7 +153,10 @@ _STEPS: tuple[Step, ...] = (
         action=ActionKind.OBSERVE,
         human_title="Step W4 — Brinson attribution waterfall",
         human_description="Read pi_brinson_attribution.",
-        human_expected="Sector rows with allocation, selection, interaction, total.",
+        human_expected=(
+            "Sector rows with percentage-point allocation, selection, interaction, "
+            "and total active return."
+        ),
         endpoint="pi/attribution",
         params={"window": "1Y", "benchmark_symbol": "SPY"},
     ),
@@ -496,7 +499,7 @@ _COVERAGE_STEPS: tuple[Step, ...] = (
         "notebooks/portfolio/04-events-and-smart-money.ipynb",
         Persona.ANALYST,
         "Coverage — pi_dividend_payment",
-        "Recent dividend rows: ex-date, payment date, amount.",
+        "Recent dividend rows with Ex-Dividend Date, Payment Date, and Dividend Amount ($/share).",
     ),
     _coverage(
         "CX.company-filings",

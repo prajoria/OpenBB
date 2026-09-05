@@ -192,3 +192,71 @@ def test_get_estimate_as_of_returns_None_on_query_failure(
         as_of_date=date(2026, 5, 1),
     )
     assert row is None
+
+
+def test_get_estimate_for_period_before_release_requires_exact_fiscal_period(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-calendar issuer period uses its exact date and a pre-release snapshot."""
+    from openbb_fmp_cached.models import analyst_estimates as m
+
+    fiscal_period_end = date(2026, 6, 27)
+    release_date = date(2026, 8, 1)
+
+    def fake_execute_query(sql: str, args: tuple):
+        assert "AND date = %s" in sql
+        assert "AND date <= %s" not in sql
+        assert "snapshot_date <= %s" in sql
+        assert "ORDER BY snapshot_date DESC" in sql
+        assert args == ("AAPL", fiscal_period_end, "quarter", release_date)
+        return [
+            {
+                "fiscal_period_end": fiscal_period_end,
+                "estimated_revenue_avg": 100_000_000.0,
+                "snapshot_date": date(2026, 7, 31),
+            }
+        ]
+
+    monkeypatch.setattr(m, "execute_query", fake_execute_query)
+
+    row = m.get_estimate_for_period_before_release(
+        symbol="AAPL",
+        fiscal_period_end=fiscal_period_end,
+        release_date=release_date,
+        period="quarter",
+    )
+
+    assert row == {
+        "fiscal_period_end": fiscal_period_end,
+        "estimated_revenue_avg": 100_000_000.0,
+        "snapshot_date": date(2026, 7, 31),
+    }
+
+
+def test_get_estimate_for_period_before_release_returns_none_without_exact_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A prior-period row cannot substitute for the latest issuer period."""
+    from openbb_fmp_cached.models import analyst_estimates as m
+
+    fiscal_period_end = date(2026, 6, 27)
+    release_date = date(2026, 8, 1)
+
+    def no_exact_pre_release_snapshot(sql: str, args: tuple) -> list[dict]:
+        assert "AND date = %s" in sql
+        assert args == ("AAPL", fiscal_period_end, "quarter", release_date)
+        # The database would have a March row, but the equality predicate
+        # excludes it instead of silently relabeling it as last quarter.
+        return []
+
+    monkeypatch.setattr(m, "execute_query", no_exact_pre_release_snapshot)
+
+    assert (
+        m.get_estimate_for_period_before_release(
+            symbol="AAPL",
+            fiscal_period_end=fiscal_period_end,
+            release_date=release_date,
+            period="quarter",
+        )
+        is None
+    )

@@ -5,10 +5,19 @@
     "category": "Portfolio Intelligence",
     "type": "markdown",
     "endpoint": "pi/context/symbol",
-    "gridData": { "w": 40, "h": 2 },
+    "gridData": {
+      "w": 40,
+      "h": 2
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker (allowlisted)" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker (allowlisted)"
+      }
     ]
   },
   "pi_book_context": {
@@ -17,10 +26,19 @@
     "category": "Portfolio Intelligence",
     "type": "markdown",
     "endpoint": "pi/context/book",
-    "gridData": { "w": 40, "h": 2 },
+    "gridData": {
+      "w": 40,
+      "h": 2
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id (allowlisted)" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id (allowlisted)"
+      }
     ]
   },
   "pi_xray_sector": {
@@ -30,11 +48,26 @@
     "type": "chart",
     "endpoint": "pi/xray/sector",
     "raw": true,
-    "gridData": { "w": 20, "h": 9 },
+    "gridData": {
+      "w": 20,
+      "h": 9
+    },
     "source": "portfolio-intel",
-    "data": { "chart": { "type": "pie", "labelColumn": "sector", "valueColumn": "weight" } },
+    "data": {
+      "chart": {
+        "type": "pie",
+        "labelColumn": "sector",
+        "valueColumn": "weight"
+      }
+    },
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
     ]
   },
   "pi_xray_country": {
@@ -44,11 +77,26 @@
     "type": "chart",
     "endpoint": "pi/xray/country",
     "raw": true,
-    "gridData": { "w": 20, "h": 9 },
+    "gridData": {
+      "w": 20,
+      "h": 9
+    },
     "source": "portfolio-intel",
-    "data": { "chart": { "type": "pie", "labelColumn": "country", "valueColumn": "weight" } },
+    "data": {
+      "chart": {
+        "type": "pie",
+        "labelColumn": "country",
+        "valueColumn": "weight"
+      }
+    },
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
     ]
   },
   "pi_lookthrough_top25": {
@@ -57,11 +105,48 @@
     "category": "Portfolio Intelligence",
     "type": "table",
     "endpoint": "pi/lookthrough/top25",
-    "gridData": { "w": 24, "h": 12 },
+    "gridData": {
+      "w": 24,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
-    ]
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Effective Weight": "effective_weight",
+        "Effective Weight (%)": "effective_weight"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "name",
+            "headerName": "Holding"
+          },
+          {
+            "field": "effective_weight",
+            "headerName": "Effective Weight (%)",
+            "glossaryKey": "effective_weight",
+            "formatterFn": "normalizedPercent"
+          },
+          {
+            "field": "rank",
+            "headerName": "Rank"
+          }
+        ]
+      }
+    }
   },
   "pi_concentration_gauge": {
     "name": "Concentration Gauge",
@@ -69,11 +154,33 @@
     "category": "Portfolio Intelligence",
     "type": "metric",
     "endpoint": "pi/concentration",
-    "gridData": { "w": 8, "h": 6 },
+    "gridData": {
+      "w": 8,
+      "h": 6
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
-    ]
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Herfindahl-Hirschman Index": "herfindahl_hirschman_index"
+      },
+      "metric": {
+        "labels": {
+          "value": "Concentration (HHI)"
+        },
+        "metricGlossary": {
+          "Concentration (HHI)": "herfindahl_hirschman_index"
+        }
+      }
+    }
   },
   "pi_event_calendar": {
     "name": "Event Calendar",
@@ -81,11 +188,55 @@
     "category": "Portfolio Intelligence",
     "type": "table",
     "endpoint": "pi/events/calendar",
-    "gridData": { "w": 30, "h": 12 },
+    "gridData": {
+      "w": 30,
+      "h": 12
+    },
     "source": "portfolio-intel",
+    "data": {
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "type",
+            "headerName": "Event Type",
+            "glossaryKey": "event_type",
+            "valueLabels": {
+              "earnings": "Earnings",
+              "ex_dividend": "Ex-Dividend",
+              "form_8k": "Form 8-K",
+              "info": "Information"
+            }
+          },
+          {
+            "field": "date",
+            "headerName": "Event Date"
+          },
+          {
+            "field": "detail",
+            "headerName": "Details"
+          }
+        ]
+      }
+    },
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" },
-      { "paramName": "horizon_days", "value": "14", "label": "Horizon (days)", "type": "text", "description": "Look-ahead window in days" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      },
+      {
+        "paramName": "horizon_days",
+        "value": "14",
+        "label": "Horizon (days)",
+        "type": "text",
+        "description": "Look-ahead window in days"
+      }
     ]
   },
   "pi_smart_money_ribbon": {
@@ -94,23 +245,100 @@
     "category": "Portfolio Intelligence",
     "type": "table",
     "endpoint": "pi/smart-money/ribbon",
-    "gridData": { "w": 40, "h": 8 },
+    "gridData": {
+      "w": 40,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
-    ]
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Transaction Value": "transaction_value",
+        "Transaction Value ($)": "transaction_value"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "kind",
+            "headerName": "Activity Type",
+            "valueLabels": {
+              "insider_buy": "Insider Buy",
+              "13F_increase": "13F Increase",
+              "insider_sell": "Insider Sell"
+            }
+          },
+          {
+            "field": "actor",
+            "headerName": "Actor"
+          },
+          {
+            "field": "value_usd",
+            "headerName": "Transaction Value ($)",
+            "glossaryKey": "transaction_value"
+          },
+          {
+            "field": "date",
+            "headerName": "Date"
+          }
+        ]
+      }
+    }
   },
   "pi_risk_dashboard": {
     "name": "Risk Dashboard",
-    "description": "Portfolio volatility, VaR, and beta metrics.",
+    "description": "Annualized volatility and 1-Day VaR are shown as signed percentages; beta is a unitless ratio.",
     "category": "Portfolio Intelligence",
     "type": "metric",
     "endpoint": "pi/risk/dashboard",
-    "gridData": { "w": 12, "h": 6 },
+    "gridData": {
+      "w": 12,
+      "h": 6
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
-    ]
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Annualized Volatility": "annualized_volatility",
+        "1-Day VaR (95%)": "one_day_var_95",
+        "Beta vs SPY": "beta_vs_spy"
+      },
+      "metric": {
+        "labels": {
+          "vol_annualized": "Annualized Volatility",
+          "var_95_1d": "1-Day VaR (95%)",
+          "beta_spy": "Beta vs SPY"
+        },
+        "metricGlossary": {
+          "Annualized Volatility": "annualized_volatility",
+          "1-Day VaR (95%)": "one_day_var_95",
+          "Beta vs SPY": "beta_vs_spy"
+        },
+        "formatters": {
+          "vol_annualized": "normalizedPercent",
+          "var_95_1d": "normalizedPercent"
+        }
+      }
+    }
   },
   "pi_risk_vol_chart": {
     "name": "Risk - Rolling Volatility",
@@ -119,11 +347,32 @@
     "type": "chart",
     "endpoint": "pi/risk/vol",
     "raw": true,
-    "gridData": { "w": 24, "h": 8 },
+    "gridData": {
+      "w": 24,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
-    ]
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "20-Day Volatility (%)": "twenty_day_volatility",
+        "60-Day Volatility (%)": "sixty_day_volatility"
+      },
+      "chart": {
+        "labels": {
+          "vol_20d": "20-Day Volatility (%)",
+          "vol_60d": "60-Day Volatility (%)"
+        }
+      }
+    }
   },
   "pi_paper_ticket": {
     "name": "Paper Order Ticket (PAPER)",
@@ -131,14 +380,47 @@
     "category": "Portfolio Intelligence",
     "type": "markdown",
     "endpoint": "pi/paper/ticket",
-    "gridData": { "w": 16, "h": 8 },
+    "gridData": {
+      "w": 16,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" },
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
-      { "paramName": "side", "value": "buy", "label": "Side", "type": "text", "description": "buy or sell" },
-      { "paramName": "quantity", "value": "100", "label": "Quantity", "type": "text", "description": "Share count" },
-      { "paramName": "confirm", "value": "false", "label": "Confirm", "type": "text", "description": "true to commit (two-step)" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      },
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      },
+      {
+        "paramName": "side",
+        "value": "buy",
+        "label": "Side",
+        "type": "text",
+        "description": "buy or sell"
+      },
+      {
+        "paramName": "quantity",
+        "value": "100",
+        "label": "Quantity",
+        "type": "text",
+        "description": "Share count"
+      },
+      {
+        "paramName": "confirm",
+        "value": "false",
+        "label": "Confirm",
+        "type": "text",
+        "description": "true to commit (two-step)"
+      }
     ]
   },
   "pi_paper_blotter": {
@@ -147,11 +429,54 @@
     "category": "Portfolio Intelligence",
     "type": "table",
     "endpoint": "pi/paper/blotter",
-    "gridData": { "w": 32, "h": 10 },
+    "gridData": {
+      "w": 32,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
-    ]
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Average Execution Price": "average_execution_price"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "time",
+            "headerName": "Time"
+          },
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "side",
+            "headerName": "Side"
+          },
+          {
+            "field": "qty",
+            "headerName": "Quantity"
+          },
+          {
+            "field": "status",
+            "headerName": "Status"
+          },
+          {
+            "field": "avg_price",
+            "headerName": "Average Execution Price",
+            "glossaryKey": "average_execution_price"
+          }
+        ]
+      }
+    }
   },
   "pi_paper_performance": {
     "name": "Paper Performance (PAPER)",
@@ -160,11 +485,31 @@
     "type": "chart",
     "endpoint": "pi/paper/performance",
     "raw": true,
-    "gridData": { "w": 32, "h": 10 },
+    "gridData": {
+      "w": 32,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
-    ]
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Portfolio Equity": "portfolio_equity"
+      },
+      "chart": {
+        "labels": {
+          "date": "Date",
+          "equity": "Portfolio Equity"
+        }
+      }
+    }
   },
   "pi_paper_perf_kpis": {
     "name": "Paper Performance KPIs (PAPER)",
@@ -172,11 +517,39 @@
     "category": "Portfolio Intelligence",
     "type": "metric",
     "endpoint": "pi/paper/perf-kpis",
-    "gridData": { "w": 12, "h": 6 },
+    "gridData": {
+      "w": 12,
+      "h": 6
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
-    ]
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Total Return": "total_return",
+        "Sharpe Ratio": "sharpe_ratio",
+        "Maximum Drawdown": "maximum_drawdown"
+      },
+      "metric": {
+        "labels": {
+          "total_return_pct": "Total Return (%)",
+          "sharpe_annualized": "Annualized Sharpe Ratio",
+          "max_drawdown_pct": "Maximum Drawdown (%)"
+        },
+        "metricGlossary": {
+          "Total Return (%)": "total_return",
+          "Annualized Sharpe Ratio": "sharpe_ratio",
+          "Maximum Drawdown (%)": "maximum_drawdown"
+        }
+      }
+    }
   },
   "pi_whatif_diff": {
     "name": "What-If - Trade Impact",
@@ -184,11 +557,26 @@
     "category": "Portfolio Intelligence",
     "type": "markdown",
     "endpoint": "pi/whatif",
-    "gridData": { "w": 12, "h": 6 },
+    "gridData": {
+      "w": 12,
+      "h": 6
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
-      { "paramName": "delta_shares", "value": "100", "label": "Delta shares", "type": "text", "description": "Signed share delta" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      },
+      {
+        "paramName": "delta_shares",
+        "value": "100",
+        "label": "Delta shares",
+        "type": "text",
+        "description": "Signed share delta"
+      }
     ]
   },
   "pi_whatif_card": {
@@ -197,12 +585,68 @@
     "category": "Portfolio Intelligence",
     "type": "table",
     "endpoint": "pi/whatif/card",
-    "gridData": { "w": 20, "h": 10 },
+    "gridData": {
+      "w": 20,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
-      { "paramName": "delta_shares", "value": "100", "label": "Delta shares", "type": "text", "description": "Signed share delta" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      },
+      {
+        "paramName": "delta_shares",
+        "value": "100",
+        "label": "Delta shares",
+        "type": "text",
+        "description": "Signed share delta"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Symbol Weight": "symbol_weight",
+        "Sector Weight": "sector_weight",
+        "Cash Weight": "cash_weight",
+        "Beta vs SPY": "beta_vs_spy",
+        "Symbol Weight (%)": "symbol_weight",
+        "Sector Weight (%)": "sector_weight",
+        "Cash Weight (%)": "cash_weight",
+        "symbol_weight_%": "symbol_weight",
+        "sector_weight_%": "sector_weight",
+        "cash_%": "cash_weight",
+        "beta_spy": "beta_vs_spy"
+      },
+      "table": {
+        "rowLabels": {
+          "symbol_weight_%": "Symbol Weight (%)",
+          "sector_weight_%": "Sector Weight (%)",
+          "cash_%": "Cash Weight (%)",
+          "beta_spy": "Beta vs SPY"
+        },
+        "columnsDefs": [
+          {
+            "field": "metric",
+            "headerName": "Portfolio Metric"
+          },
+          {
+            "field": "before",
+            "headerName": "Before Trade"
+          },
+          {
+            "field": "after",
+            "headerName": "After Trade"
+          },
+          {
+            "field": "delta",
+            "headerName": "Change"
+          }
+        ]
+      }
+    }
   },
   "pi_brinson_attribution": {
     "name": "Brinson-Fachler Attribution",
@@ -211,12 +655,44 @@
     "type": "chart",
     "endpoint": "pi/attribution",
     "raw": true,
-    "gridData": { "w": 40, "h": 9 },
+    "gridData": {
+      "w": 40,
+      "h": 9
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "window", "value": "1Y", "label": "Window", "type": "text", "description": "Attribution window: 1M, 3M, 6M, 1Y" },
-      { "paramName": "benchmark_symbol", "value": "SPY", "label": "Benchmark", "type": "text", "description": "Benchmark ticker" }
-    ]
+      {
+        "paramName": "window",
+        "value": "1Y",
+        "label": "Window",
+        "type": "text",
+        "description": "Attribution window: 1M, 3M, 6M, 1Y"
+      },
+      {
+        "paramName": "benchmark_symbol",
+        "value": "SPY",
+        "label": "Benchmark",
+        "type": "text",
+        "description": "Benchmark ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Allocation Effect (%)": "allocation_effect",
+        "Selection Effect (%)": "selection_effect",
+        "Interaction Effect (%)": "interaction_effect",
+        "Total Active Return (%)": "total_active_return"
+      },
+      "chart": {
+        "labels": {
+          "sector": "Sector",
+          "allocation": "Allocation Effect (%)",
+          "selection": "Selection Effect (%)",
+          "interaction": "Interaction Effect (%)",
+          "total": "Total Active Return (%)"
+        }
+      }
+    }
   },
   "pi_news_ribbon": {
     "name": "News - Held Symbols",
@@ -224,11 +700,48 @@
     "category": "Portfolio Intelligence",
     "type": "table",
     "endpoint": "pi/news",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
+    "data": {
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "when",
+            "headerName": "Published"
+          },
+          {
+            "field": "title",
+            "headerName": "Headline"
+          },
+          {
+            "field": "severity",
+            "headerName": "Severity"
+          }
+        ]
+      }
+    },
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" },
-      { "paramName": "horizon_days", "value": "7", "label": "Horizon (days)", "type": "text", "description": "Look-back days" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      },
+      {
+        "paramName": "horizon_days",
+        "value": "7",
+        "label": "Horizon (days)",
+        "type": "text",
+        "description": "Look-back days"
+      }
     ]
   },
   "pi_sentiment_gauge": {
@@ -237,10 +750,29 @@
     "category": "Portfolio Intelligence",
     "type": "metric",
     "endpoint": "pi/sentiment",
-    "gridData": { "w": 8, "h": 6 },
+    "gridData": {
+      "w": 8,
+      "h": 6
+    },
     "source": "portfolio-intel",
+    "data": {
+      "metric": {
+        "labels": {
+          "value": "News Sentiment Score (-1 to +1)"
+        },
+        "metricGlossary": {
+          "News Sentiment Score (-1 to +1)": "news_sentiment_score"
+        }
+      }
+    },
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
     ]
   },
   "pi_alerts_panel": {
@@ -249,10 +781,47 @@
     "category": "Portfolio Intelligence",
     "type": "table",
     "endpoint": "pi/alerts",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
+    "data": {
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "severity",
+            "headerName": "Severity"
+          },
+          {
+            "field": "kind",
+            "headerName": "Alert Type",
+            "glossaryKey": "alert_type",
+            "valueLabels": {
+              "form_8k_for_held": "Held-Security Form 8-K",
+              "earnings_upcoming": "Upcoming Earnings",
+              "news_material": "Material News"
+            }
+          },
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "detail",
+            "headerName": "Details"
+          }
+        ]
+      }
+    },
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
     ]
   },
   "pi_backtest_button": {
@@ -261,10 +830,19 @@
     "category": "Portfolio Intelligence",
     "type": "markdown",
     "endpoint": "pi/backtest/oneclick",
-    "gridData": { "w": 16, "h": 6 },
+    "gridData": {
+      "w": 16,
+      "h": 6
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "account_id", "value": "demo", "label": "Account", "type": "text", "description": "Paper account id" }
+      {
+        "paramName": "account_id",
+        "value": "demo",
+        "label": "Account",
+        "type": "text",
+        "description": "Paper account id"
+      }
     ]
   },
   "pi_equity_profile_header": {
@@ -273,10 +851,19 @@
     "category": "Equity Profile",
     "type": "markdown",
     "endpoint": "pi/equity/header",
-    "gridData": { "w": 40, "h": 4 },
+    "gridData": {
+      "w": 40,
+      "h": 4
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_equity_key_stats": {
@@ -285,7 +872,10 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/key-stats",
-    "gridData": { "w": 20, "h": 10 },
+    "gridData": {
+      "w": 20,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "data": {
       "metricGlossary": {
@@ -295,11 +885,32 @@
         "P/S (TTM)": "ps_ttm",
         "EPS (TTM)": "eps_ttm",
         "Beta": "beta",
-        "Dividend Yield": "dividend_yield"
+        "Dividend Yield": "dividend_yield",
+        "Volume": "volume",
+        "52-Week High": "fifty_two_week_high",
+        "52-Week Low": "fifty_two_week_low"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "metric",
+            "headerName": "Financial Metric"
+          },
+          {
+            "field": "value",
+            "headerName": "Value"
+          }
+        ]
       }
     },
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_equity_financial_charts": {
@@ -309,7 +920,10 @@
     "type": "chart",
     "endpoint": "pi/equity/financials",
     "raw": true,
-    "gridData": { "w": 40, "h": 10 },
+    "gridData": {
+      "w": 40,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "data": {
       "metricGlossary": {
@@ -321,18 +935,33 @@
         "type": "combo",
         "x": "year",
         "bars": [
-          { "column": "revenue_b", "name": "Revenue ($B)" },
-          { "column": "net_income_b", "name": "Net Income ($B)" }
+          {
+            "column": "revenue_b",
+            "name": "Revenue ($B)"
+          },
+          {
+            "column": "net_income_b",
+            "name": "Net Income ($B)"
+          }
         ],
         "lines": [
-          { "column": "net_margin_pct", "name": "Net Margin (%)" }
+          {
+            "column": "net_margin_pct",
+            "name": "Net Margin (%)"
+          }
         ],
         "leftLabel": "$B",
         "rightLabel": "%"
       }
     },
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_equity_technicals": {
@@ -341,11 +970,79 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/technicals",
-    "gridData": { "w": 30, "h": 12 },
+    "gridData": {
+      "w": 30,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Analyst Consensus": "analyst_consensus",
+        "Resistance": "resistance",
+        "Pivot": "pivot",
+        "Support": "support",
+        "ATM Implied Volatility": "atm_implied_volatility",
+        "Consensus": "analyst_consensus",
+        "R3": "resistance",
+        "R2": "resistance",
+        "R1": "resistance",
+        "P": "pivot",
+        "S1": "support",
+        "S2": "support",
+        "S3": "support",
+        "ATM IV term structure": "atm_implied_volatility",
+        "R3 (Classic)": "resistance",
+        "R2 (Classic)": "resistance",
+        "R1 (Classic)": "resistance",
+        "P (Classic)": "pivot",
+        "S1 (Classic)": "support",
+        "S2 (Classic)": "support",
+        "S3 (Classic)": "support"
+      },
+      "table": {
+        "rowLabels": {
+          "Consensus": "Analyst Consensus",
+          "R3": "Resistance 3",
+          "R2": "Resistance 2",
+          "R1": "Resistance 1",
+          "P": "Pivot",
+          "S1": "Support 1",
+          "S2": "Support 2",
+          "S3": "Support 3",
+          "ATM IV term structure": "ATM Implied Volatility Term Structure",
+          "R3 (Classic)": "Resistance 3",
+          "R2 (Classic)": "Resistance 2",
+          "R1 (Classic)": "Resistance 1",
+          "P (Classic)": "Pivot",
+          "S1 (Classic)": "Support 1",
+          "S2 (Classic)": "Support 2",
+          "S3 (Classic)": "Support 3"
+        },
+        "columnsDefs": [
+          {
+            "field": "metric",
+            "headerName": "Technical Indicator"
+          },
+          {
+            "field": "value",
+            "headerName": "Value"
+          },
+          {
+            "field": "note",
+            "headerName": "Interpretation"
+          }
+        ]
+      }
+    }
   },
   "pi_equity_analyst_forecasts": {
     "name": "Equity Profile - Analyst Forecasts",
@@ -353,11 +1050,64 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/analyst-forecasts",
-    "gridData": { "w": 30, "h": 12 },
+    "gridData": {
+      "w": 30,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "12-Month Price Target": "twelve_month_price_target",
+        "Target Range": "target_range",
+        "Upside vs Current Price": "implied_upside",
+        "Rating Distribution": "rating_distribution",
+        "EPS Surprise": "eps_surprise",
+        "Historical Revenue Estimate": "revenue_estimate"
+      },
+      "table": {
+        "rowLabels": {
+          "1Y target (consensus)": "12-Month Price Target",
+          "Target range": "Target Range",
+          "Upside vs current": "Upside vs Current Price",
+          "Historical rev estimate (last Q)": "Historical Revenue Estimate"
+        },
+        "rowLabelPatterns": [
+          {
+            "pattern": "^Rating:\\s*(.+)$",
+            "labelTemplate": "Rating Distribution: $1",
+            "glossaryKey": "rating_distribution"
+          },
+          {
+            "pattern": "^(Q\\d\\s+\\d{4})\\s+EPS Surprise$",
+            "labelTemplate": "$1 EPS Surprise",
+            "glossaryKey": "eps_surprise"
+          }
+        ],
+        "columnsDefs": [
+          {
+            "field": "metric",
+            "headerName": "Forecast Measure"
+          },
+          {
+            "field": "value",
+            "headerName": "Value"
+          },
+          {
+            "field": "note",
+            "headerName": "Context"
+          }
+        ]
+      }
+    }
   },
   "pi_equity_complementary": {
     "name": "Equity Profile - Complementary Assets (bonds blocked on #1000)",
@@ -365,11 +1115,54 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/complementary",
-    "gridData": { "w": 30, "h": 12 },
+    "gridData": {
+      "w": 30,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Portfolio Weight": "portfolio_weight",
+        "Market Value": "market_value",
+        "Portfolio Weight (%)": "portfolio_weight",
+        "Market Value ($)": "market_value"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "kind",
+            "headerName": "Asset Type"
+          },
+          {
+            "field": "id",
+            "headerName": "Identifier"
+          },
+          {
+            "field": "name",
+            "headerName": "Name"
+          },
+          {
+            "field": "weight_pct",
+            "headerName": "Portfolio Weight (%)",
+            "glossaryKey": "portfolio_weight"
+          },
+          {
+            "field": "value_usd",
+            "headerName": "Market Value ($)",
+            "glossaryKey": "market_value"
+          }
+        ]
+      }
+    }
   },
   "pi_equity_competitors": {
     "name": "Equity Profile - Competitor Strip",
@@ -377,26 +1170,119 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/competitors",
-    "gridData": { "w": 40, "h": 6 },
+    "gridData": {
+      "w": 40,
+      "h": 6
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Percentage Price Change": "percentage_price_change",
+        "Change (%)": "percentage_price_change"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "name",
+            "headerName": "Company"
+          },
+          {
+            "field": "price",
+            "headerName": "Price"
+          },
+          {
+            "field": "change_pct",
+            "headerName": "Change (%)",
+            "glossaryKey": "percentage_price_change"
+          }
+        ]
+      }
+    }
   },
   "pi_equity_price_history": {
     "name": "Equity Price History (line / candle)",
     "description": "Historical price series with a runtime line/candle toggle (#1702). Line mode returns date/close; candle mode returns full OHLC.",
-    "help": "### How to read this chart\n\nThis shows the **historical market price** of the selected ticker over time. The **x-axis is time** (older on the left, most recent on the right); the **y-axis is price** in the stock's currency.\n\n**Controls**\n- **Symbol** — the ticker to plot (e.g. `AAPL`).\n- **Chart type** — `Line` draws a single line of the daily *closing* price; `Candlestick` draws one bar per day showing the full trading range.\n- **Range** — the time window: `1M`, `3M`, `6M`, `YTD` (Jan 1 → today), `1Y`, `5Y`. A wider range shows more history and a longer-term trend.\n\n**Line mode** — the line connects each day's closing price. An upward slope means the price rose over the window; a downward slope means it fell. Read it as the overall *trend*.\n\n**Candlestick mode** — each candle is one trading day:\n- The thick **body** spans the **open** and **close**. **Green** = closed higher than it opened (up day); **red** = closed lower (down day).\n- The thin **wicks** above/below the body reach the day's **high** and **low**.\n- Tall candles = a big daily move; small candles = a quiet day.\n\n**Hover** anywhere on the chart to see the exact values for that day (O/H/L/C and volume) in the legend at the top-left. The lower **volume** pane shows how many shares traded that day — spikes often mark important news or events.\n\nData comes from the live `fmp_cached` provider when available; if the provider is offline you'll see a deterministic demo series so the widget still renders.",
+    "help": "### How to read this chart\n\nThis shows the **historical market price** of the selected ticker over time. The **x-axis is time** (older on the left, most recent on the right); the **y-axis is price** in the stock's currency.\n\n**Controls**\n- **Symbol** \u2014 the ticker to plot (e.g. `AAPL`).\n- **Chart type** \u2014 `Line` draws a single line of the daily *closing* price; `Candlestick` draws one bar per day showing the full trading range.\n- **Range** \u2014 the time window: `1M`, `3M`, `6M`, `YTD` (Jan 1 \u2192 today), `1Y`, `5Y`. A wider range shows more history and a longer-term trend.\n\n**Line mode** \u2014 the line connects each day's closing price. An upward slope means the price rose over the window; a downward slope means it fell. Read it as the overall *trend*.\n\n**Candlestick mode** \u2014 each candle is one trading day:\n- The thick **body** spans the **open** and **close**. **Green** = closed higher than it opened (up day); **red** = closed lower (down day).\n- The thin **wicks** above/below the body reach the day's **high** and **low**.\n- Tall candles = a big daily move; small candles = a quiet day.\n\n**Hover** anywhere on the chart to see the exact values for that day (O/H/L/C and volume) in the legend at the top-left. The lower **volume** pane shows how many shares traded that day \u2014 spikes often mark important news or events.\n\nData comes from the live `fmp_cached` provider when available; if the provider is offline you'll see a deterministic demo series so the widget still renders.",
     "category": "Equity Profile",
     "type": "chart",
     "endpoint": "pi/equity/price-history",
     "raw": true,
-    "gridData": { "w": 30, "h": 12 },
+    "gridData": {
+      "w": 30,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
-      { "paramName": "chart_type", "value": "line", "label": "Chart type", "type": "text", "description": "Line (close-only) or candlestick (OHLC).", "options": [ { "value": "line", "label": "Line" }, { "value": "candle", "label": "Candlestick" } ] },
-      { "paramName": "range", "value": "6M", "label": "Range", "type": "text", "description": "Time window for the series.", "options": [ { "value": "1M", "label": "1M" }, { "value": "3M", "label": "3M" }, { "value": "6M", "label": "6M" }, { "value": "YTD", "label": "YTD" }, { "value": "1Y", "label": "1Y" }, { "value": "5Y", "label": "5Y" } ] }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      },
+      {
+        "paramName": "chart_type",
+        "value": "line",
+        "label": "Chart type",
+        "type": "text",
+        "description": "Line (close-only) or candlestick (OHLC).",
+        "options": [
+          {
+            "value": "line",
+            "label": "Line"
+          },
+          {
+            "value": "candle",
+            "label": "Candlestick"
+          }
+        ]
+      },
+      {
+        "paramName": "range",
+        "value": "6M",
+        "label": "Range",
+        "type": "text",
+        "description": "Time window for the series.",
+        "options": [
+          {
+            "value": "1M",
+            "label": "1M"
+          },
+          {
+            "value": "3M",
+            "label": "3M"
+          },
+          {
+            "value": "6M",
+            "label": "6M"
+          },
+          {
+            "value": "YTD",
+            "label": "YTD"
+          },
+          {
+            "value": "1Y",
+            "label": "1Y"
+          },
+          {
+            "value": "5Y",
+            "label": "5Y"
+          }
+        ]
+      }
     ]
   },
   "pi_price_performance": {
@@ -405,10 +1291,19 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/price-performance",
-    "gridData": { "w": 20, "h": 10 },
+    "gridData": {
+      "w": 20,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_management_team": {
@@ -417,10 +1312,19 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/management-team",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_revenue_geography": {
@@ -430,11 +1334,26 @@
     "type": "chart",
     "endpoint": "pi/equity/revenue-geography",
     "raw": true,
-    "gridData": { "w": 20, "h": 10 },
+    "gridData": {
+      "w": 20,
+      "h": 10
+    },
     "source": "portfolio-intel",
-    "data": { "chart": { "type": "pie", "labelColumn": "region", "valueColumn": "revenue" } },
+    "data": {
+      "chart": {
+        "type": "pie",
+        "labelColumn": "region",
+        "valueColumn": "revenue"
+      }
+    },
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_revenue_business_line": {
@@ -444,11 +1363,26 @@
     "type": "chart",
     "endpoint": "pi/equity/revenue-business-line",
     "raw": true,
-    "gridData": { "w": 20, "h": 10 },
+    "gridData": {
+      "w": 20,
+      "h": 10
+    },
     "source": "portfolio-intel",
-    "data": { "chart": { "type": "pie", "labelColumn": "segment", "valueColumn": "revenue" } },
+    "data": {
+      "chart": {
+        "type": "pie",
+        "labelColumn": "segment",
+        "valueColumn": "revenue"
+      }
+    },
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_institutional_ownership": {
@@ -457,10 +1391,19 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/institutional-ownership",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_stock_ownership": {
@@ -470,11 +1413,26 @@
     "type": "chart",
     "endpoint": "pi/equity/stock-ownership",
     "raw": true,
-    "gridData": { "w": 20, "h": 10 },
+    "gridData": {
+      "w": 20,
+      "h": 10
+    },
     "source": "portfolio-intel",
-    "data": { "chart": { "type": "pie", "labelColumn": "bucket", "valueColumn": "pct" } },
+    "data": {
+      "chart": {
+        "type": "pie",
+        "labelColumn": "bucket",
+        "valueColumn": "pct"
+      }
+    },
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_insider_trading": {
@@ -483,10 +1441,19 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/insider-trading",
-    "gridData": { "w": 40, "h": 10 },
+    "gridData": {
+      "w": 40,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_earnings_history": {
@@ -495,11 +1462,51 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/earnings-history",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Actual EPS": "actual_eps",
+        "Estimated EPS": "estimated_eps",
+        "Earnings Surprise": "earnings_surprise",
+        "Surprise (%)": "earnings_surprise"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "quarter",
+            "headerName": "Quarter"
+          },
+          {
+            "field": "eps_actual",
+            "headerName": "Actual EPS",
+            "glossaryKey": "actual_eps"
+          },
+          {
+            "field": "eps_estimate",
+            "headerName": "Estimated EPS",
+            "glossaryKey": "estimated_eps"
+          },
+          {
+            "field": "surprise_pct",
+            "headerName": "Surprise (%)",
+            "glossaryKey": "earnings_surprise"
+          }
+        ]
+      }
+    }
   },
   "pi_stock_splits": {
     "name": "Stock Splits",
@@ -507,10 +1514,19 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/stock-splits",
-    "gridData": { "w": 20, "h": 10 },
+    "gridData": {
+      "w": 20,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_dividend_payment": {
@@ -519,11 +1535,44 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/dividend-payment",
-    "gridData": { "w": 20, "h": 10 },
+    "gridData": {
+      "w": 20,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Ex-Dividend Date": "ex_dividend_date",
+        "Dividend Amount ($/share)": "dividend_amount_per_share"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "ex_date",
+            "headerName": "Ex-Dividend Date",
+            "glossaryKey": "ex_dividend_date"
+          },
+          {
+            "field": "payment_date",
+            "headerName": "Payment Date"
+          },
+          {
+            "field": "amount",
+            "headerName": "Dividend Amount ($/share)",
+            "glossaryKey": "dividend_amount_per_share"
+          }
+        ]
+      }
+    }
   },
   "pi_company_filings": {
     "name": "Company Filings",
@@ -531,10 +1580,19 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/company-filings",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_earnings_transcripts": {
@@ -543,10 +1601,19 @@
     "category": "Equity Profile",
     "type": "markdown",
     "endpoint": "pi/equity/earnings-transcripts",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "pi_price_target_history": {
@@ -556,11 +1623,33 @@
     "type": "chart",
     "endpoint": "pi/equity/price-target-history",
     "raw": true,
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Closing Price": "closing_price",
+        "Analyst Price Target": "analyst_price_target"
+      },
+      "chart": {
+        "labels": {
+          "date": "Date",
+          "close": "Closing Price",
+          "target": "Analyst Price Target"
+        }
+      }
+    }
   },
   "pi_financial_statements": {
     "name": "Financial Statements",
@@ -568,12 +1657,66 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/statements",
-    "gridData": { "w": 30, "h": 12 },
+    "gridData": {
+      "w": 30,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
-      { "paramName": "period", "value": "annual", "label": "Period", "type": "text", "description": "annual or quarterly", "options": [ { "value": "annual", "label": "Annual" }, { "value": "quarterly", "label": "Quarterly" } ] }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      },
+      {
+        "paramName": "period",
+        "value": "annual",
+        "label": "Period",
+        "type": "text",
+        "description": "annual or quarterly",
+        "options": [
+          {
+            "value": "annual",
+            "label": "Annual"
+          },
+          {
+            "value": "quarterly",
+            "label": "Quarterly"
+          }
+        ]
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Revenue": "revenue",
+        "Gross Profit": "gross_profit",
+        "Operating Income": "operating_income",
+        "Net Income": "net_income",
+        "Total Assets": "total_assets",
+        "Total Debt": "total_debt",
+        "Cash & Equivalents": "cash_and_equivalents",
+        "Operating Cash Flow": "operating_cash_flow",
+        "Free Cash Flow": "free_cash_flow"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "line_item",
+            "headerName": "Line Item"
+          },
+          {
+            "field": "period_1",
+            "headerName": "Latest Period (millions)"
+          },
+          {
+            "field": "period_2",
+            "headerName": "Prior Period (millions)"
+          }
+        ]
+      }
+    }
   },
   "pi_charting": {
     "name": "Charting (OHLC + Indicators)",
@@ -582,11 +1725,48 @@
     "type": "chart",
     "endpoint": "pi/equity/charting",
     "raw": true,
-    "gridData": { "w": 40, "h": 12 },
+    "gridData": {
+      "w": 40,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" },
-      { "paramName": "window", "value": "3M", "label": "Window", "type": "text", "description": "1M/3M/6M/YTD/1Y", "options": [ { "value": "1M", "label": "1M" }, { "value": "3M", "label": "3M" }, { "value": "6M", "label": "6M" }, { "value": "YTD", "label": "YTD" }, { "value": "1Y", "label": "1Y" } ] }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      },
+      {
+        "paramName": "window",
+        "value": "3M",
+        "label": "Window",
+        "type": "text",
+        "description": "1M/3M/6M/YTD/1Y",
+        "options": [
+          {
+            "value": "1M",
+            "label": "1M"
+          },
+          {
+            "value": "3M",
+            "label": "3M"
+          },
+          {
+            "value": "6M",
+            "label": "6M"
+          },
+          {
+            "value": "YTD",
+            "label": "YTD"
+          },
+          {
+            "value": "1Y",
+            "label": "1Y"
+          }
+        ]
+      }
     ]
   },
   "pi_peer_multiples": {
@@ -595,11 +1775,56 @@
     "category": "Equity Profile",
     "type": "table",
     "endpoint": "pi/equity/peer-multiples",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
-    ]
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "P/E (TTM)": "pe_ttm",
+        "P/E (Forward)": "pe_forward",
+        "EV/EBITDA": "ev_ebitda",
+        "P/S (TTM)": "ps_ttm"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "pe_ttm",
+            "headerName": "P/E (TTM)",
+            "glossaryKey": "pe_ttm"
+          },
+          {
+            "field": "pe_fwd",
+            "headerName": "P/E (Forward)",
+            "glossaryKey": "pe_forward"
+          },
+          {
+            "field": "ev_ebitda",
+            "headerName": "EV/EBITDA",
+            "glossaryKey": "ev_ebitda"
+          },
+          {
+            "field": "ps_ttm",
+            "headerName": "P/S (TTM)",
+            "glossaryKey": "ps_ttm"
+          }
+        ]
+      }
+    }
   },
   "tt_segment_movers": {
     "name": "Techtrade - Segment Movers",
@@ -608,7 +1833,10 @@
     "type": "chart",
     "endpoint": "tt/scan/segment-movers",
     "raw": true,
-    "gridData": { "w": 20, "h": 8 },
+    "gridData": {
+      "w": 20,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": []
   },
@@ -618,10 +1846,19 @@
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/scan/table",
-    "gridData": { "w": 30, "h": 12 },
+    "gridData": {
+      "w": 30,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "segment", "value": "", "label": "Segment filter", "type": "text", "description": "Optional segment name to filter rows" }
+      {
+        "paramName": "segment",
+        "value": "",
+        "label": "Segment filter",
+        "type": "text",
+        "description": "Optional segment name to filter rows"
+      }
     ]
   },
   "tt_export_button": {
@@ -630,7 +1867,10 @@
     "category": "Techtrade",
     "type": "markdown",
     "endpoint": "tt/scan/export",
-    "gridData": { "w": 10, "h": 4 },
+    "gridData": {
+      "w": 10,
+      "h": 4
+    },
     "source": "portfolio-intel",
     "params": []
   },
@@ -640,17 +1880,38 @@
     "category": "Chrome",
     "type": "table",
     "endpoint": "pi/health/providers",
-    "gridData": { "w": 40, "h": 7 },
+    "gridData": {
+      "w": 40,
+      "h": 7
+    },
     "source": "portfolio-intel",
     "data": {
       "table": {
         "columnsDefs": [
-          { "field": "tier", "headerName": "Tier" },
-          { "field": "role", "headerName": "Role" },
-          { "field": "status", "headerName": "Status" },
-          { "field": "latency_ms", "headerName": "Latency (ms)" },
-          { "field": "serving", "headerName": "Serving" },
-          { "field": "note", "headerName": "Note" }
+          {
+            "field": "tier",
+            "headerName": "Tier"
+          },
+          {
+            "field": "role",
+            "headerName": "Role"
+          },
+          {
+            "field": "status",
+            "headerName": "Status"
+          },
+          {
+            "field": "latency_ms",
+            "headerName": "Latency (ms)"
+          },
+          {
+            "field": "serving",
+            "headerName": "Serving"
+          },
+          {
+            "field": "note",
+            "headerName": "Note"
+          }
         ]
       }
     },
@@ -662,7 +1923,10 @@
     "category": "Chrome",
     "type": "markdown",
     "endpoint": "pi/context/provenance",
-    "gridData": { "w": 40, "h": 3 },
+    "gridData": {
+      "w": 40,
+      "h": 3
+    },
     "source": "portfolio-intel",
     "params": []
   },
@@ -672,11 +1936,59 @@
     "category": "Portfolio Intelligence",
     "type": "table",
     "endpoint": "pi/equity/basket-analyst-consensus",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "basket_id", "value": "demo", "label": "Basket ID", "type": "text", "description": "Named basket (demo only until #1714 lands)" }
-    ]
+      {
+        "paramName": "basket_id",
+        "value": "demo",
+        "label": "Basket ID",
+        "type": "text",
+        "description": "Named basket (demo only until #1714 lands)"
+      }
+    ],
+    "data": {
+      "metricGlossary": {
+        "Average Price Target": "average_price_target",
+        "Consensus Rating": "consensus_rating"
+      },
+      "table": {
+        "columnsDefs": [
+          {
+            "field": "symbol",
+            "headerName": "Symbol"
+          },
+          {
+            "field": "avg_target",
+            "headerName": "Average Price Target",
+            "glossaryKey": "average_price_target"
+          },
+          {
+            "field": "buy",
+            "headerName": "Buy Ratings"
+          },
+          {
+            "field": "hold",
+            "headerName": "Hold Ratings"
+          },
+          {
+            "field": "sell",
+            "headerName": "Sell Ratings"
+          },
+          {
+            "field": "consensus",
+            "headerName": "Consensus Rating",
+            "glossaryKey": "consensus_rating",
+            "valueLabels": {
+              "STRONG_BUY": "Strong Buy"
+            }
+          }
+        ]
+      }
+    }
   },
   "tt_signal_card": {
     "name": "Techtrade - Signal Card",
@@ -684,10 +1996,19 @@
     "category": "Techtrade",
     "type": "markdown",
     "endpoint": "tt/position/signal-card",
-    "gridData": { "w": 15, "h": 8 },
+    "gridData": {
+      "w": 15,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "tt_plan_card": {
@@ -696,10 +2017,19 @@
     "category": "Techtrade",
     "type": "markdown",
     "endpoint": "tt/position/plan-card",
-    "gridData": { "w": 15, "h": 8 },
+    "gridData": {
+      "w": 15,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "tt_order_legs": {
@@ -708,10 +2038,19 @@
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/position/order-legs",
-    "gridData": { "w": 30, "h": 8 },
+    "gridData": {
+      "w": 30,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "tt_simulate_result": {
@@ -721,10 +2060,19 @@
     "type": "chart",
     "endpoint": "tt/position/simulate",
     "raw": true,
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "tt_validation_verdict": {
@@ -733,10 +2081,19 @@
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/validation/verdict",
-    "gridData": { "w": 20, "h": 8 },
+    "gridData": {
+      "w": 20,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "tt_tuning_report": {
@@ -745,10 +2102,19 @@
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/tuning/report",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "tt_audit_journal": {
@@ -757,10 +2123,19 @@
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/audit/journal",
-    "gridData": { "w": 30, "h": 10 },
+    "gridData": {
+      "w": 30,
+      "h": 10
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
+      {
+        "paramName": "symbol",
+        "value": "AAPL",
+        "label": "Symbol",
+        "type": "text",
+        "description": "Ticker"
+      }
     ]
   },
   "tt_engine_status": {
@@ -769,7 +2144,10 @@
     "category": "Techtrade",
     "type": "markdown",
     "endpoint": "tt/engine/status",
-    "gridData": { "w": 20, "h": 8 },
+    "gridData": {
+      "w": 20,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": []
   },
@@ -779,10 +2157,29 @@
     "category": "Techtrade",
     "type": "markdown",
     "endpoint": "tt/execute/bridge",
-    "gridData": { "w": 20, "h": 8 },
+    "gridData": {
+      "w": 20,
+      "h": 8
+    },
     "source": "portfolio-intel",
     "params": [
-      { "paramName": "verdict", "value": "PASS", "label": "Verdict", "type": "text", "description": "PASS or FAIL", "options": [ { "value": "PASS", "label": "PASS" }, { "value": "FAIL", "label": "FAIL" } ] }
+      {
+        "paramName": "verdict",
+        "value": "PASS",
+        "label": "Verdict",
+        "type": "text",
+        "description": "PASS or FAIL",
+        "options": [
+          {
+            "value": "PASS",
+            "label": "PASS"
+          },
+          {
+            "value": "FAIL",
+            "label": "FAIL"
+          }
+        ]
+      }
     ]
   },
   "tt_execute_paper_status": {
@@ -791,7 +2188,10 @@
     "category": "Techtrade",
     "type": "markdown",
     "endpoint": "tt/execute/paper-status/markdown",
-    "gridData": { "w": 20, "h": 12 },
+    "gridData": {
+      "w": 20,
+      "h": 12
+    },
     "source": "portfolio-intel",
     "params": []
   }

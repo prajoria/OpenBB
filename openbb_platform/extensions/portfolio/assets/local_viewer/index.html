@@ -227,6 +227,9 @@
       color: var(--muted); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
       text-shadow: 0 1px 2px rgba(0,0,0,.85);
     }
+    /* The legend itself must remain transparent to chart gestures, while its
+       glossary controls remain keyboard- and pointer-interactive. */
+    .tvlegend .mhelp-wrap, .tvlegend .mhelp { pointer-events: auto; }
     .tvlegend .tvname { font-weight: 600; color: var(--fg); }
     .tvlegend b { color: var(--fg); font-weight: 600; }
     .tvlegend .up, .tvlegend .up b { color: #3fb950; }
@@ -507,6 +510,7 @@
     const isNum = typeof value === "number";
     let text = value;
     if (col && col.formatterFn === "percent" && isNum) text = value.toFixed(2) + "%";
+    else if (col && col.formatterFn === "normalizedPercent" && isNum) text = (value * 100).toFixed(2) + "%";
     else if (isNum) text = Number.isInteger(value) ? value : value.toFixed(2);
     return String(text);
   }
@@ -525,16 +529,38 @@
     if (!rows.length) { container.innerHTML = '<div class="state">No rows returned.</div>'; return; }
     const defs = widget && widget.data && widget.data.table && widget.data.table.columnsDefs;
     const map = widget && widget.data && widget.data.metricGlossary;
+    const rowLabels = widget && widget.data && widget.data.table && widget.data.table.rowLabels;
+    const rowLabelPatterns = widget && widget.data && widget.data.table && widget.data.table.rowLabelPatterns;
     const cols = (defs && defs.length)
-      ? defs.map((c) => ({ field: c.field, header: c.headerName || c.field, formatterFn: c.formatterFn, renderFn: c.renderFn }))
+      ? defs.map((c) => ({
+        field: c.field,
+        header: c.headerName || c.field,
+        glossaryKey: c.glossaryKey || null,
+        formatterFn: c.formatterFn,
+        renderFn: c.renderFn,
+        valueLabels: c.valueLabels || null,
+      }))
       : Object.keys(rows[0]).map((k) => ({ field: k, header: k }));
-    const thead = "<tr>" + cols.map((c) => `<th>${escapeHtml(c.header)}</th>`).join("") + "</tr>";
+    const thead = "<tr>" + cols.map((c) => `<th>${metricLabelHtml(c.header, c.glossaryKey)}</th>`).join("") + "</tr>";
     const body = rows.map((r) =>
       "<tr>" + cols.map((c, idx) => {
         const v = r[c.field];
-        const key = idx === 0 && typeof v === "string" && map && Object.prototype.hasOwnProperty.call(map, v) ? map[v] : null;
-        const text = escapeHtml(fmtCell(v, c));
-        const label = key ? `<span class="metric-label">${text}${metricHelpButtonHtml(key)}</span>` : text;
+        const pattern = idx === 0 && typeof v === "string" && Array.isArray(rowLabelPatterns)
+          ? rowLabelPatterns.find((item) => {
+            try { return item && item.pattern && new RegExp(item.pattern).test(v); } catch (_) { return false; }
+          })
+          : null;
+        const display = idx === 0 && typeof v === "string" && rowLabels
+          && Object.prototype.hasOwnProperty.call(rowLabels, v) ? rowLabels[v]
+          : (pattern && pattern.labelTemplate ? v.replace(new RegExp(pattern.pattern), pattern.labelTemplate)
+            : (pattern && pattern.label) || (c.valueLabels
+              && Object.prototype.hasOwnProperty.call(c.valueLabels, v) ? c.valueLabels[v] : v));
+        const key = idx === 0 && typeof v === "string" && (
+          (map && Object.prototype.hasOwnProperty.call(map, v) && map[v])
+          || (map && Object.prototype.hasOwnProperty.call(map, display) && map[display])
+          || (pattern && pattern.glossaryKey)
+        );
+        const label = metricLabelHtml(fmtCell(display, c), key);
         return `<td class="${cellClass(v, c)}">${label}</td>`;
       }).join("") + "</tr>"
     ).join("");
@@ -600,6 +626,7 @@
       };
     }
     const keys = Object.keys(rows[0]);
+    const labels = cfg.labels && typeof cfg.labels === "object" ? cfg.labels : {};
     const numericKeys = keys.filter((k) =>
       rows.every((r) => r[k] === null || r[k] === undefined || typeof r[k] === "number") &&
       rows.some((r) => typeof r[k] === "number"));
@@ -637,7 +664,7 @@
     const seriesKeys = numericKeys.filter((k) => k !== xKey);
     if (!seriesKeys.length) return { kind: "empty" };
     const series = seriesKeys.map((k) => ({
-      key: k,
+      key: labels[k] || k,
       points: rows.map((r, idx) => ({ x: idx, y: typeof r[k] === "number" ? r[k] : null })),
     }));
     return { kind: "line", xKey: xKey != null ? xKey : null, series, xLabels };
@@ -937,9 +964,13 @@
     const yhi = `<text x="${padL - 4}" y="${pad + 4}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(ymax)}</text>`;
     const ylo = `<text x="${padL - 4}" y="${Hh - pad}" text-anchor="end" fill="#8b949e" font-size="10">${fmtAxis(ymin)}</text>`;
     const xticks = xAxisTicksSvg(model.xLabels, xAt, Hh - 6, n);
-    const legend = model.series.map((s, idx) =>
-      `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.key)}</div>`
-    ).join("");
+    const legend = model.series.map((s, idx) => {
+      const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+      const key = map && Object.prototype.hasOwnProperty.call(map, s.key) ? map[s.key] : null;
+      const help = metricHelpButtonHtml(key);
+      const label = help ? `<span class="legend-label">${escapeHtml(s.key)}${help}</span>` : escapeHtml(s.key);
+      return `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${label}</div>`;
+    }).join("");
     return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="line chart">${axis}${yhi}${ylo}${xticks}${polylines}</svg><div class="legend">${legend}</div></div>`;
   }
 
@@ -947,18 +978,49 @@
   //  - {value,label,note}                 -> one prominent card
   //  - {vol_annualized,var_95_1d,...,note} -> one card per numeric key
   // Sign coloring: value > 0 -> pos, < 0 -> neg.
-  function metricModel(obj) {
+  function metricModel(obj, metricMeta) {
     const o = (obj && typeof obj === "object" && !Array.isArray(obj)) ? obj : {};
     const note = (typeof o.note === "string") ? o.note : "";
-    const humanize = (k) => k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const sign = (v) => (typeof v === "number" ? (v > 0 ? "pos" : v < 0 ? "neg" : "") : "");
+    const labels = metricMeta && metricMeta.labels && typeof metricMeta.labels === "object" ? metricMeta.labels : null;
+    const formatters = metricMeta && metricMeta.formatters && typeof metricMeta.formatters === "object"
+      ? metricMeta.formatters
+      : null;
+    const glossary = metricMeta && metricMeta.metricGlossary && typeof metricMeta.metricGlossary === "object"
+      ? metricMeta.metricGlossary
+      : null;
+    const glossaryKeyForLabel = (label) => {
+      if (!glossary || typeof label !== "string") return null;
+      return Object.prototype.hasOwnProperty.call(glossary, label) ? glossary[label] : null;
+    };
     if ("value" in o) {
-      return { cards: [{ label: (typeof o.label === "string" ? o.label : ""), value: o.value, cls: sign(o.value) }], note };
+      const rawLabel = (typeof o.label === "string" ? o.label : "");
+      const label = labels && typeof labels.value === "string" ? labels.value : rawLabel;
+      return {
+        cards: [{
+          label,
+          value: o.value,
+          cls: sign(o.value),
+          glossaryKey: glossaryKeyForLabel(label),
+          formatterFn: formatters && typeof formatters.value === "string" ? formatters.value : null,
+        }],
+        note,
+      };
     }
     const cards = [];
     for (const [k, v] of Object.entries(o)) {
       if (k === "note" || k === "label") continue;
-      if (typeof v === "number") cards.push({ label: humanize(k), value: v, cls: sign(v) });
+      if (typeof v === "number") {
+        const label = labels && typeof labels[k] === "string" ? labels[k] : k;
+        cards.push({
+          label,
+          rawKey: k,
+          value: v,
+          cls: sign(v),
+          glossaryKey: glossaryKeyForLabel(label),
+          formatterFn: formatters && typeof formatters[k] === "string" ? formatters[k] : null,
+        });
+      }
     }
     return { cards, note };
   }
@@ -976,20 +1038,26 @@
 
   function renderMetric(container, obj, widgetDef) {
     hideMetricHelpLayerWithin(container);
-    const model = metricModel(obj);
+    const metricMeta = widgetDef && widgetDef.data && widgetDef.data.metric;
+    const model = metricModel(obj, metricMeta);
     if (!model.cards.length) { container.innerHTML = '<div class="state">No metric value returned.</div>'; return; }
-    const fmt = (v) => (typeof v === "number"
-      ? (Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""))
-      : String(v));
+    const fmt = (v, formatterFn) => {
+      if (typeof v !== "number") return String(v);
+      if (formatterFn === "percent") return v.toFixed(2) + "%";
+      if (formatterFn === "normalizedPercent") return (v * 100).toFixed(2) + "%";
+      return Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+    };
     const cards = model.cards.map((c) =>
       (() => {
-        const entry = metricGlossaryForLabel(widgetDef, c.label);
+        const entry = c.glossaryKey ? metricGlossaryEntry(c.glossaryKey) : metricGlossaryForLabel(widgetDef, c.label);
         const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
-        return `<div class="metric ${c.cls}"><div class="mlabel"${title}>${escapeHtml(c.label)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`;
+        const rawKey = c.rawKey ? ` data-metric-key="${escapeHtml(c.rawKey)}"` : "";
+        return `<div class="metric ${c.cls}"${rawKey}><div class="mlabel"${title}>${metricLabelHtml(c.label, c.glossaryKey)}</div><div class="mvalue">${escapeHtml(fmt(c.value, c.formatterFn))}</div></div>`;
       })()
     ).join("");
     const note = model.note ? `<div class="mnote">${escapeHtml(model.note)}</div>` : "";
     container.innerHTML = `<div class="metrics">${cards}</div>${note}`;
+    if (typeof bindMetricHelpButtons === "function") bindMetricHelpButtons(container);
   }
 
   // --- TradingView Lightweight Charts DOM renderer (primary time-series) -----
@@ -1021,6 +1089,13 @@
 
   function tvNum(v) {
     return v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  function chartLegendLabelHtml(label, widgetDef) {
+    const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+    const key = map && Object.prototype.hasOwnProperty.call(map, label) ? map[label] : null;
+    const help = metricHelpButtonHtml(key);
+    return help ? `<span class="legend-label">${escapeHtml(label)}${help}</span>` : escapeHtml(label);
   }
 
   function renderTradingViewChart(container, model, widgetDef) {
@@ -1082,9 +1157,10 @@
         const parts = series.map((it) => {
           const pt = (param && param.time && param.seriesData) ? param.seriesData.get(it.s) : null;
           const v = pt ? pt.value : (it.last ? it.last.value : null);
-          return `<span style="color:${it.color}">${escapeHtml(it.key)} <b>${tvNum(v)}</b></span>`;
+          return `<span style="color:${it.color}">${chartLegendLabelHtml(it.key, widgetDef)} <b>${tvNum(v)}</b></span>`;
         }).join("  ");
         legend.innerHTML = `<span class="tvname">${title}</span>${parts}`;
+        if (typeof bindMetricHelpButtons === "function") bindMetricHelpButtons(legend);
       };
       paint(null);
       chart.subscribeCrosshairMove(paint);
@@ -1416,6 +1492,12 @@
       + `<span class="mhelp-tip" id="${summaryId}">${escapeHtml(entry.summary)}</span></span>`;
   }
 
+  function metricLabelHtml(label, glossaryKey) {
+    const text = escapeHtml(label == null ? "" : String(label));
+    const help = glossaryKey ? metricHelpButtonHtml(glossaryKey) : "";
+    return help ? `<span class="metric-label">${text}${help}</span>` : text;
+  }
+
   function metricHelpPageHtml(key) {
     const entry = metricGlossaryEntry(key);
     if (!entry) {
@@ -1472,75 +1554,488 @@
 
   function metricGlossaryData() {
     return {
+    volume: Object.freeze({
+      label: "Volume",
+      summary: "The number of shares traded during a period.",
+      definition: "Trading volume counts shares that changed hands during the stated period.",
+      interpretation: "Compare it with typical volume to judge whether price movement has broad participation.",
+      source: "https://en.wikipedia.org/wiki/Technical_analysis",
+    }),
+    fifty_two_week_high: Object.freeze({
+      label: "52-Week High",
+      summary: "The highest market price recorded over the past year.",
+      definition: "The 52-week high is the highest traded price during the preceding 52 weeks.",
+      interpretation: "It provides recent price context, not a forecast or valuation signal by itself.",
+      source: "https://en.wikipedia.org/wiki/Technical_analysis",
+    }),
+    fifty_two_week_low: Object.freeze({
+      label: "52-Week Low",
+      summary: "The lowest market price recorded over the past year.",
+      definition: "The 52-week low is the lowest traded price during the preceding 52 weeks.",
+      interpretation: "It provides recent price context, not a forecast or valuation signal by itself.",
+      source: "https://en.wikipedia.org/wiki/Technical_analysis",
+    }),
+    revenue: Object.freeze({
+      label: "Revenue",
+      summary: "Sales recognized before expenses.",
+      definition: "Revenue is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Revenue",
+    }),
+    gross_profit: Object.freeze({
+      label: "Gross Profit",
+      summary: "Revenue less direct production costs.",
+      definition: "Gross Profit is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Gross_profit",
+    }),
+    operating_income: Object.freeze({
+      label: "Operating Income",
+      summary: "Profit from core operations before interest and tax.",
+      definition: "Operating Income is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Operating_income",
+    }),
+    net_income: Object.freeze({
+      label: "Net Income",
+      summary: "Profit after all expenses and taxes.",
+      definition: "Net Income is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Net_income",
+    }),
+    total_assets: Object.freeze({
+      label: "Total Assets",
+      summary: "Resources reported on the balance sheet.",
+      definition: "Total Assets is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Financial_statement",
+    }),
+    total_debt: Object.freeze({
+      label: "Total Debt",
+      summary: "Interest-bearing borrowings owed to lenders.",
+      definition: "Total Debt is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Debt",
+    }),
+    cash_and_equivalents: Object.freeze({
+      label: "Cash & Equivalents",
+      summary: "Highly liquid funds available to the company.",
+      definition: "Cash & Equivalents is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Financial_statement",
+    }),
+    operating_cash_flow: Object.freeze({
+      label: "Operating Cash Flow",
+      summary: "Cash generated by normal operating activities.",
+      definition: "Operating Cash Flow is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Cash_flow",
+    }),
+    free_cash_flow: Object.freeze({
+      label: "Free Cash Flow",
+      summary: "Operating cash flow remaining after capital expenditures.",
+      definition: "Free Cash Flow is a financial-statement measure reported or derived for a stated reporting period.",
+      interpretation: "Accounting policy, one-time items, and period timing should be reviewed before comparing companies.",
+      source: "https://en.wikipedia.org/wiki/Cash_flow",
+    }),
+    pe_forward: Object.freeze({
+      label: "P/E (Forward)",
+      summary: "Share price relative to forecast earnings per share.",
+      definition: "P/E (Forward) is a per-share earnings measure or comparison used in equity analysis.",
+      interpretation: "GAAP versus adjusted earnings, share count, and estimates can make comparisons non-equivalent.",
+      source: "https://en.wikipedia.org/wiki/Stock_valuation",
+    }),
+    actual_eps: Object.freeze({
+      label: "Actual EPS",
+      summary: "Reported earnings allocated to each common share.",
+      definition: "Actual EPS is a per-share earnings measure or comparison used in equity analysis.",
+      interpretation: "GAAP versus adjusted earnings, share count, and estimates can make comparisons non-equivalent.",
+      source: "https://en.wikipedia.org/wiki/Earnings_per_share",
+    }),
+    ex_dividend_date: Object.freeze({
+      label: "Ex-Dividend Date",
+      summary: "First trading day when a buyer is not entitled to the next dividend.",
+      definition: "The ex-dividend date is the cutoff date used to determine which shareholder receives the next dividend payment; buyers on or after the ex-date do not receive that payment.",
+      interpretation: "Because stock trades settle later, the ex-date is usually one business day before the record date and the share price often adjusts downward by roughly the dividend amount on that day.",
+      source: "https://www.investopedia.com/terms/e/ex-dividend.asp",
+    }),
+    estimated_eps: Object.freeze({
+      label: "Estimated EPS",
+      summary: "Analysts’ forecast earnings per share.",
+      definition: "Estimated EPS is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Earnings_per_share",
+    }),
+    earnings_surprise: Object.freeze({
+      label: "Earnings Surprise",
+      summary: "Percentage difference between reported EPS and estimated EPS.",
+      definition: "Earnings Surprise (%) = (actual EPS - estimated EPS) / abs(estimated EPS) × 100.",
+      interpretation: "Positive results beat the estimate and negative results miss it; a zero estimate has no defined percentage surprise.",
+      source: "https://en.wikipedia.org/wiki/Earnings_per_share",
+    }),
+    closing_price: Object.freeze({
+      label: "Closing Price",
+      summary: "Last regular-session traded price.",
+      definition: "Closing Price is a market-price or technical-analysis reference based on observed trading data.",
+      interpretation: "It is descriptive rather than a guarantee of a future price move.",
+      source: "https://en.wikipedia.org/wiki/Market_value",
+    }),
+    analyst_price_target: Object.freeze({
+      label: "Analyst Price Target",
+      summary: "Analyst forecast of a future share price.",
+      definition: "Analyst Price Target is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    analyst_consensus: Object.freeze({
+      label: "Analyst Consensus",
+      summary: "Aggregated view of covering analysts.",
+      definition: "Analyst Consensus is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    resistance: Object.freeze({
+      label: "Resistance",
+      summary: "Technical level where selling has previously emerged.",
+      definition: "Resistance is a market-price or technical-analysis reference based on observed trading data.",
+      interpretation: "It is descriptive rather than a guarantee of a future price move.",
+      source: "https://en.wikipedia.org/wiki/Technical_analysis",
+    }),
+    pivot: Object.freeze({
+      label: "Pivot",
+      summary: "Calculated reference level for support and resistance.",
+      definition: "Pivot is a market-price or technical-analysis reference based on observed trading data.",
+      interpretation: "It is descriptive rather than a guarantee of a future price move.",
+      source: "https://en.wikipedia.org/wiki/Technical_analysis",
+    }),
+    support: Object.freeze({
+      label: "Support",
+      summary: "Technical level where buying has previously emerged.",
+      definition: "Support is a market-price or technical-analysis reference based on observed trading data.",
+      interpretation: "It is descriptive rather than a guarantee of a future price move.",
+      source: "https://en.wikipedia.org/wiki/Technical_analysis",
+    }),
+    atm_implied_volatility: Object.freeze({
+      label: "ATM Implied Volatility",
+      summary: "Option-implied volatility near the current underlying price.",
+      definition: "At-the-money implied volatility is the annualized volatility expectation embedded in options near the underlying price.",
+      interpretation: "It reflects option pricing and supply-demand, not a forecast certainty.",
+      source: "https://en.wikipedia.org/wiki/Implied_volatility",
+    }),
+    percentage_price_change: Object.freeze({
+      label: "Percentage Price Change",
+      summary: "Price movement relative to a reference price.",
+      definition: "Percentage Price Change is a market-price or technical-analysis reference based on observed trading data.",
+      interpretation: "It is descriptive rather than a guarantee of a future price move.",
+      source: "https://en.wikipedia.org/wiki/Rate_of_return",
+    }),
+    portfolio_weight: Object.freeze({
+      label: "Portfolio Weight",
+      summary: "A holding’s proportion of portfolio value.",
+      definition: "Portfolio Weight expresses a market-value exposure as a fraction of total portfolio value.",
+      interpretation: "Definitions may differ over whether cash, derivatives, and unavailable look-through holdings are included.",
+      source: "https://en.wikipedia.org/wiki/Portfolio_(finance)",
+    }),
+    market_value: Object.freeze({
+      label: "Market Value",
+      summary: "Current value based on market prices.",
+      definition: "Market value is the current quoted price multiplied by the relevant quantity.",
+      interpretation: "Illiquid instruments may not have an observable or executable market price.",
+      source: "https://en.wikipedia.org/wiki/Market_value",
+    }),
+    twelve_month_price_target: Object.freeze({
+      label: "12-Month Price Target",
+      summary: "Analyst target price over the next twelve months.",
+      definition: "12-Month Price Target is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    target_range: Object.freeze({
+      label: "Target Range",
+      summary: "Low-to-high span of analyst target prices.",
+      definition: "Target Range is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    implied_upside: Object.freeze({
+      label: "Implied Upside",
+      summary: "Price change implied by a target versus the current price.",
+      definition: "Implied Upside is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    rating_distribution: Object.freeze({
+      label: "Rating Distribution",
+      summary: "Counts of analyst recommendations by rating.",
+      definition: "Rating Distribution is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    eps_surprise: Object.freeze({
+      label: "EPS Surprise",
+      summary: "Actual EPS relative to its consensus estimate.",
+      definition: "EPS Surprise (%) = (actual EPS - estimated EPS) / abs(estimated EPS) × 100.",
+      interpretation: "Positive results beat the estimate and negative results miss it; a zero estimate has no defined percentage surprise.",
+      source: "https://en.wikipedia.org/wiki/Earnings_per_share",
+    }),
+    revenue_estimate: Object.freeze({
+      label: "Revenue Estimate",
+      summary: "Analysts’ expected sales for a future period.",
+      definition: "Revenue Estimate is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    average_price_target: Object.freeze({
+      label: "Average Price Target",
+      summary: "Mean of available analyst target prices.",
+      definition: "Average Price Target is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    consensus_rating: Object.freeze({
+      label: "Consensus Rating",
+      summary: "Aggregate analyst buy, hold, or sell view.",
+      definition: "Consensus Rating is derived from equity-research analyst forecasts or recommendations rather than from a company filing.",
+      interpretation: "Coverage, estimate revisions, and provider methodology can materially change the measure.",
+      source: "https://en.wikipedia.org/wiki/Financial_analyst",
+    }),
+    effective_weight: Object.freeze({
+      label: "Effective Weight",
+      summary: "Look-through economic exposure as a portfolio share.",
+      definition: "Effective Weight expresses a market-value exposure as a fraction of total portfolio value.",
+      interpretation: "Definitions may differ over whether cash, derivatives, and unavailable look-through holdings are included.",
+      source: "https://en.wikipedia.org/wiki/Asset_allocation",
+    }),
+    herfindahl_hirschman_index: Object.freeze({
+      label: "Herfindahl-Hirschman Index",
+      summary: "Concentration measure formed from squared weights.",
+      definition: "The Herfindahl-Hirschman Index sums squared portfolio weights, so concentration rises as positions become less diversified.",
+      interpretation: "It depends on the population of holdings and does not measure correlation risk.",
+      source: "https://en.wikipedia.org/wiki/Asset_allocation",
+    }),
+    annualized_volatility: Object.freeze({
+      label: "Annualized Volatility",
+      summary: "Historical return dispersion scaled to one year.",
+      definition: "Annualized Volatility is calculated from the standard deviation of periodic returns and annualized; it measures variability rather than a maximum loss.",
+      interpretation: "Historical volatility can change quickly and does not predict future volatility.",
+      source: "https://en.wikipedia.org/wiki/Volatility_(finance)",
+    }),
+    one_day_var_95: Object.freeze({
+      label: "1-Day VaR (95%)",
+      summary: "Modeled one-day loss threshold at 95% confidence.",
+      definition: "One-day Value at Risk estimates a loss threshold that a model expects to exceed on about five percent of days; this dashboard displays losses as signed percentages, so -2.10% denotes a 2.10% loss.",
+      interpretation: "VaR does not describe the size of losses beyond the threshold and depends on its model assumptions.",
+      source: "https://en.wikipedia.org/wiki/Value_at_risk",
+    }),
+    beta_vs_spy: Object.freeze({
+      label: "Beta vs SPY",
+      summary: "Historical sensitivity of returns to SPY.",
+      definition: "Beta versus SPY estimates the historical relationship between the security or portfolio return and SPY return.",
+      interpretation: "Beta is backward-looking and does not capture all sources of risk.",
+      source: "https://en.wikipedia.org/wiki/Beta_(finance)",
+    }),
+    twenty_day_volatility: Object.freeze({
+      label: "20-Day Volatility (%)",
+      summary: "Annualized volatility from a rolling 20-day window.",
+      definition: "20-Day Volatility is calculated from the standard deviation of periodic returns and annualized; it measures variability rather than a maximum loss.",
+      interpretation: "Historical volatility can change quickly and does not predict future volatility.",
+      source: "https://en.wikipedia.org/wiki/Volatility_(finance)",
+    }),
+    sixty_day_volatility: Object.freeze({
+      label: "60-Day Volatility (%)",
+      summary: "Annualized volatility from a rolling 60-day window.",
+      definition: "60-Day Volatility is calculated from the standard deviation of periodic returns and annualized; it measures variability rather than a maximum loss.",
+      interpretation: "Historical volatility can change quickly and does not predict future volatility.",
+      source: "https://en.wikipedia.org/wiki/Volatility_(finance)",
+    }),
+    allocation_effect: Object.freeze({
+      label: "Allocation Effect",
+      summary: "Attribution from benchmark-relative segment weights.",
+      definition: "Allocation Effect is a Brinson-style benchmark-relative performance attribution measure.",
+      interpretation: "Its value depends on the selected benchmark, holdings classification, and attribution convention.",
+      source: "https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2024/portfolio-performance-evaluation",
+    }),
+    selection_effect: Object.freeze({
+      label: "Selection Effect",
+      summary: "Attribution from security selection within segments.",
+      definition: "Selection Effect is a Brinson-style benchmark-relative performance attribution measure.",
+      interpretation: "Its value depends on the selected benchmark, holdings classification, and attribution convention.",
+      source: "https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2024/portfolio-performance-evaluation",
+    }),
+    interaction_effect: Object.freeze({
+      label: "Interaction Effect",
+      summary: "Combined allocation and selection attribution effect.",
+      definition: "Interaction Effect is a Brinson-style benchmark-relative performance attribution measure.",
+      interpretation: "Its value depends on the selected benchmark, holdings classification, and attribution convention.",
+      source: "https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2024/portfolio-performance-evaluation",
+    }),
+    total_active_return: Object.freeze({
+      label: "Total Active Return",
+      summary: "Portfolio return minus benchmark return.",
+      definition: "Total Active Return is a Brinson-style benchmark-relative performance attribution measure.",
+      interpretation: "Its value depends on the selected benchmark, holdings classification, and attribution convention.",
+      source: "https://en.wikipedia.org/wiki/Active_return",
+    }),
+    symbol_weight: Object.freeze({
+      label: "Symbol Weight",
+      summary: "Portfolio share invested in one symbol.",
+      definition: "Symbol Weight expresses a market-value exposure as a fraction of total portfolio value.",
+      interpretation: "Definitions may differ over whether cash, derivatives, and unavailable look-through holdings are included.",
+      source: "https://en.wikipedia.org/wiki/Portfolio_(finance)",
+    }),
+    sector_weight: Object.freeze({
+      label: "Sector Weight",
+      summary: "Portfolio share assigned to a sector.",
+      definition: "Sector Weight expresses a market-value exposure as a fraction of total portfolio value.",
+      interpretation: "Definitions may differ over whether cash, derivatives, and unavailable look-through holdings are included.",
+      source: "https://en.wikipedia.org/wiki/Portfolio_(finance)",
+    }),
+    cash_weight: Object.freeze({
+      label: "Cash Weight",
+      summary: "Portfolio share held in cash-like assets.",
+      definition: "Cash Weight expresses a market-value exposure as a fraction of total portfolio value.",
+      interpretation: "Definitions may differ over whether cash, derivatives, and unavailable look-through holdings are included.",
+      source: "https://en.wikipedia.org/wiki/Portfolio_(finance)",
+    }),
+    total_return: Object.freeze({
+      label: "Total Return",
+      summary: "Price return plus income return.",
+      definition: "Total Return is a historical portfolio-performance statistic calculated over the displayed measurement period.",
+      interpretation: "Fees, taxes, cash flows, and the selected time window affect the reported result.",
+      source: "https://en.wikipedia.org/wiki/Rate_of_return",
+    }),
+    sharpe_ratio: Object.freeze({
+      label: "Sharpe Ratio",
+      summary: "Excess return per unit of volatility.",
+      definition: "Sharpe Ratio is a historical portfolio-performance statistic calculated over the displayed measurement period.",
+      interpretation: "Fees, taxes, cash flows, and the selected time window affect the reported result.",
+      source: "https://en.wikipedia.org/wiki/Sharpe_ratio",
+    }),
+    maximum_drawdown: Object.freeze({
+      label: "Maximum Drawdown",
+      summary: "Largest historical peak-to-trough portfolio loss.",
+      definition: "Maximum Drawdown is a historical portfolio-performance statistic calculated over the displayed measurement period.",
+      interpretation: "Fees, taxes, cash flows, and the selected time window affect the reported result.",
+      source: "https://en.wikipedia.org/wiki/Maximum_drawdown",
+    }),
+    portfolio_equity: Object.freeze({
+      label: "Portfolio Equity",
+      summary: "Net market value of the portfolio account.",
+      definition: "Portfolio equity is assets less liabilities using the prices and balances available to the account.",
+      interpretation: "Pending transactions, delayed prices, and margin treatment can change the value.",
+      source: "https://en.wikipedia.org/wiki/Equity_(finance)",
+    }),
+    average_execution_price: Object.freeze({
+      label: "Average Execution Price",
+      summary: "Quantity-weighted average price across fills.",
+      definition: "Average execution price is the quantity-weighted mean price of all fills for an order.",
+      interpretation: "It can differ from a displayed quote because of spread, fees, and market impact.",
+      source: "https://en.wikipedia.org/wiki/Market_value",
+    }),
+    transaction_value: Object.freeze({
+      label: "Transaction Value",
+      summary: "Dollar value represented by a transaction.",
+      definition: "Transaction value generally multiplies quantity by transaction price under the reporting source’s convention.",
+      interpretation: "Reported values can omit fees, derivatives, or related transactions.",
+      source: "https://en.wikipedia.org/wiki/Market_value",
+    }),
     market_cap: Object.freeze({
       label: "Market Cap",
       summary: "The company’s total equity value at the current share price.",
       definition: "Market capitalization multiplies the share price by the number of shares outstanding.",
       interpretation: "Use it to compare company size; larger names are not automatically better or cheaper.",
-      source: "https://www.investopedia.com/terms/m/marketcapitalization.asp",
+      source: "https://en.wikipedia.org/wiki/Market_value",
+    }),
+    event_type: Object.freeze({
+      label: "Event Type",
+      summary: "Classifies a scheduled company event, such as earnings, an ex-dividend date, or a Form 8-K filing.",
+      definition: "An event calendar groups dated company disclosures and corporate actions by the kind of event they represent.",
+      interpretation: "Use the category to distinguish results releases, dividend eligibility dates, and regulatory filings before assessing their details.",
+      source: "https://www.investopedia.com/terms/e/economic-calendar.asp",
+    }),
+    alert_type: Object.freeze({
+      label: "Alert Type",
+      summary: "Classifies the portfolio event that triggered an alert.",
+      definition: "An alert type identifies the monitored condition, such as a held-security filing, upcoming earnings, or material news.",
+      interpretation: "Use it to prioritize why the notification appeared; assess its severity and details separately.",
+      source: "https://www.investopedia.com/terms/e/economic-calendar.asp",
+    }),
+    news_sentiment_score: Object.freeze({
+      label: "News Sentiment Score",
+      summary: "A normalized measure of the tone of recent news, from -1 (negative) to +1 (positive).",
+      definition: "News sentiment analysis converts the language in a set of articles into a score that estimates whether its overall tone is negative, neutral, or positive.",
+      interpretation: "Treat the score as a directional summary of the selected news window, not a forecast or a substitute for reading the underlying coverage.",
+      source: "https://en.wikipedia.org/wiki/Sentiment_analysis",
     }),
     pe_ttm: Object.freeze({
       label: "P/E (TTM)",
       summary: "Price divided by trailing twelve-month earnings per share.",
       definition: "The price-to-earnings ratio compares the current share price with earnings generated over the most recent four reported quarters.",
       interpretation: "Compare it with profitable peers and the company’s own history; it is not meaningful when trailing earnings are negative.",
-      source: "https://www.investopedia.com/terms/p/price-earningsratio.asp",
+      source: "https://en.wikipedia.org/wiki/Stock_valuation",
     }),
     ev_ebitda: Object.freeze({
       label: "EV/EBITDA",
       summary: "Enterprise value compared with operating cash earnings before depreciation and amortization.",
       definition: "Enterprise value adds debt and subtracts cash from market cap, then divides by EBITDA.",
       interpretation: "Lower values can signal a cheaper operating multiple, but the ratio works best when you compare similar businesses.",
-      source: "https://www.investopedia.com/terms/e/ev-ebitda.asp",
+      source: "https://en.wikipedia.org/wiki/Stock_valuation",
     }),
     ps_ttm: Object.freeze({
       label: "P/S (TTM)",
       summary: "Price divided by trailing twelve-month sales per share.",
       definition: "The price-to-sales ratio compares the company’s market value with the revenue it generated over the last four quarters.",
       interpretation: "It is useful when earnings are thin or volatile, but it should still be read alongside margins and growth.",
-      source: "https://www.investopedia.com/terms/p/price-to-salesratio.asp",
+      source: "https://en.wikipedia.org/wiki/Stock_valuation",
     }),
     eps_ttm: Object.freeze({
       label: "EPS (TTM)",
       summary: "Trailing twelve-month earnings available to each share.",
       definition: "Earnings per share divides net income attributable to common shareholders by the weighted average share count.",
       interpretation: "Higher EPS usually means more profit per share, but growth quality and share count changes still matter.",
-      source: "https://www.investopedia.com/terms/e/eps.asp",
+      source: "https://en.wikipedia.org/wiki/Earnings_per_share",
     }),
     beta: Object.freeze({
       label: "Beta",
       summary: "A rough measure of how much the stock tends to move versus the market.",
       definition: "Beta compares the stock’s historical returns with a benchmark such as the S&P 500.",
       interpretation: "A beta above 1 usually means more day-to-day movement than the market; below 1 usually means less.",
-      source: "https://www.investopedia.com/terms/b/beta.asp",
+      source: "https://en.wikipedia.org/wiki/Beta_(finance)",
     }),
     dividend_yield: Object.freeze({
       label: "Dividend Yield",
       summary: "Annual dividends as a percentage of the share price.",
       definition: "Dividend yield divides the expected yearly cash dividend by the current stock price.",
       interpretation: "Higher yield can mean more income, but check payout safety and whether the price has simply fallen.",
-      source: "https://www.investopedia.com/terms/d/dividendyield.asp",
+      source: "https://en.wikipedia.org/wiki/Rate_of_return",
+    }),
+    dividend_amount_per_share: Object.freeze({
+      label: "Dividend Amount per Share",
+      summary: "Cash dividend declared for each share.",
+      definition: "Dividend amount per share is the cash distribution a company declares for each share of stock in a dividend event.",
+      interpretation: "Compare the per-share amount with the ex-dividend date and payment date; special or irregular dividends can change the stated amount from one payout to the next.",
+      source: "https://www.investopedia.com/terms/d/dividend.asp",
     }),
     revenue_b: Object.freeze({
       label: "Revenue ($B)",
       summary: "Annual sales expressed in billions of dollars.",
       definition: "Revenue is the top line: the money the company brought in before expenses are deducted.",
       interpretation: "Look for steady growth and compare it with margin trends to see whether sales are improving efficiently.",
-      source: "https://www.investopedia.com/terms/r/revenue.asp",
+      source: "https://en.wikipedia.org/wiki/Revenue",
     }),
     net_income_b: Object.freeze({
       label: "Net Income ($B)",
       summary: "Annual profit after expenses, taxes, and interest, shown in billions.",
       definition: "Net income is the bottom line remaining after all operating and non-operating costs are subtracted from revenue.",
       interpretation: "Rising net income usually signals improving profitability, but watch for one-off items and share-count effects.",
-      source: "https://www.investopedia.com/terms/n/netincome.asp",
+      source: "https://en.wikipedia.org/wiki/Net_income",
     }),
     net_margin_pct: Object.freeze({
       label: "Net Margin (%)",
       summary: "Net income as a percentage of revenue.",
       definition: "Net margin divides net income by revenue and converts the result to a percentage.",
       interpretation: "A wider margin means the business keeps more profit from each sales dollar; compare it with peers and history.",
-      source: "https://www.investopedia.com/terms/n/netprofitmargin.asp",
+      source: "https://en.wikipedia.org/wiki/Net_income",
     }),
     };
   }

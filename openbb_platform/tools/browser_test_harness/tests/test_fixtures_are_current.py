@@ -19,9 +19,20 @@ import pytest
 from openbb_browser_test_harness.drivers.standalone_driver import StandaloneDriver
 from openbb_browser_test_harness.stories import STORIES
 
-_FIXTURE_ROOT = (
-    Path(__file__).resolve().parents[1] / "fixtures" / "expected_responses"
-)
+_FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "expected_responses"
+
+
+def test_brinson_fixture_uses_percentage_points() -> None:
+    """Brinson's chart fixture is shaped for percentage-point presentation."""
+    fixture = json.loads(
+        (_FIXTURE_ROOT / "W4.brinson.json").read_text(encoding="utf-8")
+    )
+    first = fixture["body"][0]
+    assert first["sector"] == "S0"
+    assert first["allocation"] == pytest.approx(-0.06843181714558489)
+    assert first["selection"] == pytest.approx(-0.05476594628924076)
+    assert first["interaction"] == pytest.approx(0.02539967271489473)
+    assert first["total"] == pytest.approx(-0.09779809071993094)
 
 
 def _all_endpoint_steps() -> list:
@@ -115,9 +126,7 @@ async def test_fixtures_are_current() -> None:
                 continue
             assert driver.client is not None
             path = (
-                step.endpoint
-                if step.endpoint.startswith("/")
-                else f"/{step.endpoint}"
+                step.endpoint if step.endpoint.startswith("/") else f"/{step.endpoint}"
             )
             resp = await driver.client.get(path, params=step.params)
             # For nondeterministic steps: only check status_code equals fixture.

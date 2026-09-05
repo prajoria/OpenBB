@@ -161,7 +161,7 @@ Legend:
 |---|---|---|---|---|
 | Reported EPS per quarter | fmp_cached | `historical_eps` | `eps_actual` | ✅ |
 | Estimated EPS per quarter | fmp_cached | `historical_eps` | `eps_estimated` | ✅ |
-| EPS surprise % | 🧮 | derived: `(actual - estimated) / estimated` | | 🧮 |
+| EPS surprise % | 🧮 | derived: `(actual - estimated) / abs(estimated)`; undefined when estimated EPS is zero | | 🧮 |
 | Reported Revenue per quarter | fmp_cached | `income_statement` (quarterly) | `revenue` | ✅ |
 | Estimated Revenue per quarter | 🟡 | `analyst_estimates` gives forward estimates; need to snapshot pre-earnings estimates historically — verify whether `analyst_estimates` returns historical estimates by fiscal quarter | | 🟡 |
 | Revenue surprise % | 🧮 | derived | | 🧮 |
@@ -219,6 +219,13 @@ Also consumer of `EtfHoldings` (#542 shipped) if we want to render the ETF's own
 | 7 Competitor Strip | 4 | 0 | 0 | 0 |
 
 **Aggregate:** 53 direct-covered fields, 16 derived, 2 `area:fmp-cached-gap` items to verify, 2 hard provider gaps (options IV; corporate bonds).
+
+---
+
+## Validation evidence (2026-08-15)
+
+- `pi/equity/analyst-forecasts` resolves the issuer's actual latest fiscal period, queries only that exact period's pre-release snapshot, and renders `value: "insufficient history"` rather than relabeling an earlier period when no snapshot exists.
+- The endpoint contract now rejects snake_case/internal refs in that rendered note while preserving the raw metric identifier `Historical rev estimate (last Q)`.
 
 ---
 
