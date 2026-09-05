@@ -73,18 +73,23 @@ function unifiedDiff(expected, actual) {
   return lines.join("\n");
 }
 
+function normalizeLineEndings(value) {
+  return value.replace(/\r\n?/g, "\n");
+}
+
 function assertSnapshot(name, actual) {
   const p = path.join(SNAPSHOT_DIR, name);
+  const normalizedActual = normalizeLineEndings(actual);
   if (process.env.UPDATE_SNAPSHOTS === "1") {
     fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
-    fs.writeFileSync(p, actual, "utf8");
+    fs.writeFileSync(p, normalizedActual, "utf8");
     return;
   }
-  const expected = fs.readFileSync(p, "utf8");
-  if (expected !== actual) {
+  const expected = normalizeLineEndings(fs.readFileSync(p, "utf8"));
+  if (expected !== normalizedActual) {
     // eslint-disable-next-line no-console
-    console.error(unifiedDiff(expected, actual));
-    assert.equal(actual, expected, `snapshot mismatch: ${name}`);
+    console.error(unifiedDiff(expected, normalizedActual));
+    assert.equal(normalizedActual, expected, `snapshot mismatch: ${name}`);
   }
 }
 
