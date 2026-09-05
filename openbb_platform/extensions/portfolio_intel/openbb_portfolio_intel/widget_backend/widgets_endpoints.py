@@ -21,6 +21,7 @@ import math
 import os
 import re
 import time
+from collections import Counter
 from datetime import date, timedelta
 
 from fastapi import HTTPException, Query, Request
@@ -69,6 +70,27 @@ def record_tier_used(endpoint: str, tier: str) -> None:
     by tier Y". Kept module-level so the retrofit sites are one-liners.
     """
     _TIER_IN_USE[endpoint] = tier
+
+
+# Human-readable role for each Track A tier — rendered in the provider-health
+# table so an analyst reads the fallback *chain order* at a glance (#1976).
+# Keys match ``TRACK_A_DEFAULT`` in providers/registry.py.
+_TIER_ROLE: dict[str, str] = {
+    "fmp_cached": "Primary (cache)",
+    "fmp": "Live fallback",
+    "cboe": "Public",
+    "sec": "Filings",
+    "yfinance-snapshot": "Last-resort",
+}
+
+# Status → badge glyph for the provider-health table (#1976). Kept as text
+# (not HTML) so it renders identically in the offline viewer and Workspace.
+_STATUS_BADGE: dict[str, str] = {
+    "healthy": "🟢",
+    "degraded": "🟡",
+    "down": "🔴",
+    "unknown": "⚪",
+}
 
 
 def _validate_symbol(symbol: str) -> str:
@@ -2425,29 +2447,34 @@ async def _probe_tiers_map(
 
 
 @app.get("/pi/health/providers")
-async def provider_health(request: Request) -> str:
-    """Return Provider Health strip markdown (#1685 + #1715 + #1956 + #1961).
+async def provider_health(request: Request) -> list[dict[str, object]]:
+    """Return Provider Health as **table rows** (#1685 + #1715 + #1956 + #1961 + #1976).
+
+    #1976: the widget changed from a truncated ``markdown`` strip to a proper
+    ``table``. As an analyst-facing diagnostic, the fallback-chain order, per-tier
+    status, and "which tier is serving what" are far more legible as sortable rows
+    with status badges than as one crammed markdown line. This function keeps the
+    probing behaviour (below) byte-for-byte identical — only the final *assembly*
+    changed from a markdown string to a ``list[dict]``.
+
+    Each row: ``{tier, role, status, latency_ms, note, serving}`` where ``serving``
+    collapses the #1715 ``_TIER_IN_USE`` ledger into the row of the tier that owns
+    each endpoint.
+
+    Behaviour preserved from prior revisions:
 
     Spec §3 T12.1: non-blocking cold cache (returns 'unknown' immediately),
     60s TTL, exception notes from the allowlist only, never raw exception
     strings. #1715 adds the ``in-use: <tier>`` annotation per endpoint,
     driven by :func:`record_tier_used` calls from retrofitted endpoints.
 
-    #1956: the strip used to show every tier as ``probe_failed_cold_cache``
-    forever because no probers were ever registered on the server (only tests
-    called ``register_prober``). Real reachability probers are now registered
-    at server startup (see :func:`._app._register_health_probers`), and the
-    inline cold-cache probe budget was widened from 0.4s/0.5s to 2.5s/3.0s so
-    those real HTTP HEADs can actually complete and populate the 60s cache.
+    #1956: real reachability probers are registered at server startup (see
+    :func:`._app._register_health_probers`); the inline cold-cache probe budget
+    is 2.5s/3.0s so those HTTP HEADs can populate the 60s cache.
 
-    #1961: the strip now renders **Track A only**. Every data widget already
-    fetches via Track A (``with_chain`` / ``route_through_chain`` default to
-    ``track="A"`` and no endpoint overrides to ``"B"``), so a second
-    ``Track B (free)`` row was pure confusion during test/verification — a
-    tester could not tell which chain served a widget, and a shared tier
-    (cboe/sec) shown in both rows read like two independent signals. The
-    Track B chain infrastructure (registry ``:B`` keys) stays as a dormant
-    no-credentials fallback; it is simply no longer surfaced in the UX.
+    #1961: Track A only. Every data widget already fetches via Track A, so a
+    second ``Track B (free)`` row was pure confusion. The Track B chain stays a
+    dormant no-credentials fallback; it is simply no longer surfaced.
     """
     _require_auth(request)
 
@@ -2482,36 +2509,81 @@ async def provider_health(request: Request) -> str:
             track_a = probed_a
         except asyncio.TimeoutError:
             # Overall budget exceeded — render the cold-cache 'unknown'
-            # strip loudly and try again on the next call (within TTL).
+            # rows loudly and try again on the next call (within TTL).
             track_a = track_a or _unknown_strip(TRACK_A_DEFAULT)
 
-    def _render_tier(h: object) -> str:
-        badge = {"healthy": "●", "degraded": "⚠", "down": "✕", "unknown": "?"}.get(
-            getattr(h, "status", "unknown"), "?"
-        )
+    # Per-tier "serving" column: which endpoints this tier currently owns,
+    # from the #1715 ledger. Sorted for determinism (mirrors the old markdown).
+    def _serving_for(tier: str) -> str:
+        eps = sorted(ep for ep, t in _TIER_IN_USE.items() if t == tier)
+        return ", ".join(eps)
+
+    def _row(h: object) -> dict[str, object]:
+        status = getattr(h, "status", "unknown")
         name = getattr(h, "name", "?")
-        ms = getattr(h, "latency_ms", 0)
-        note = getattr(h, "note", None)
-        suffix = f" ({note})" if note else ""
-        return f"{badge} {name} ({ms}ms){suffix}"
+        badge = _STATUS_BADGE.get(status, "⚪")
+        return {
+            "tier": name,
+            "role": _TIER_ROLE.get(name, ""),
+            "status": f"{badge} {status}",
+            "latency_ms": getattr(h, "latency_ms", 0),
+            # ``note`` is drawn only from the closed allowlist (P0-3): a raw
+            # exception string can never reach this field.
+            "note": getattr(h, "note", None) or "",
+            "serving": _serving_for(name),
+        }
 
-    a_str = "  ".join(_render_tier(t) for t in track_a)
+    return [_row(t) for t in track_a]
 
-    # Optional "currently in-use" summary — only rendered if any endpoint
-    # has actually gone through a ChainedFetcher yet. Sorted for
-    # determinism.
-    in_use_lines = ""
+
+@app.get("/pi/context/provenance")
+async def data_provenance(request: Request) -> str:
+    """Return the Data-Provenance strip markdown (#1976).
+
+    A thin, always-on top-chrome bar that answers the analyst's *trust*
+    question — is what I'm looking at live, where did it come from, and how
+    healthy is the source chain — rather than the DevOps latency question the
+    old provider-health strip answered. Three compact fields:
+
+    - **Data mode** — LIVE (fmp_cached/fmp), DELAYED (a snapshot tier), PUBLIC
+      (cboe/sec), or ``—`` when nothing has been served through the chain yet.
+    - **Serving source** — the tier currently serving the most endpoints, from
+      the #1715 ``_TIER_IN_USE`` ledger.
+    - **Providers** — healthy/total Track A tiers, from the *cached* health
+      probe only (never triggers a new probe → this route stays non-blocking).
+
+    No fiscal "as-of" date is fabricated here: the as-of EOD snapshot layer is
+    tracked separately in #1932. Rendering a made-up date would violate the
+    loud-empties rule, so we surface real chain state instead.
+    """
+    _require_auth(request)
+
+    # Serving source = the tier owning the most endpoints in the ledger.
+    source = None
     if _TIER_IN_USE:
-        summary = "\n".join(
-            f"- `{ep}` → **{tier}**" for ep, tier in sorted(_TIER_IN_USE.items())
-        )
-        in_use_lines = f"\n\n**Currently serving:**\n{summary}"
+        source = Counter(_TIER_IN_USE.values()).most_common(1)[0][0]
 
+    if source in ("fmp_cached", "fmp"):
+        mode = "LIVE"
+    elif source and "snapshot" in source:
+        mode = "DELAYED"
+    elif source:
+        mode = "PUBLIC"
+    else:
+        mode = "—"
+
+    # Read cached health only — do NOT probe here (keep this route instant).
+    cached = _cached_health("A")
+    if cached:
+        healthy = sum(1 for h in cached if getattr(h, "status", "") == "healthy")
+        providers = f"{healthy}/{len(cached)} healthy"
+    else:
+        providers = "probing…"
+
+    src_str = f"`{source}`" if source else "—"
     return (
-        "**Track A:**  " + a_str + in_use_lines + "\n\n"
-        "> Provider-health strip (#1685) with 5-tier probing + tier-in-use "
-        "ledger (#1715). Track A only (#1961). 60s cache, 2s per-tier timeout, "
-        "3s overall cold-cache probe budget (#1956)."
+        f"**Data mode:** {mode}  ·  **Serving source:** {src_str}  ·  "
+        f"**Providers:** {providers}"
     )
 
 

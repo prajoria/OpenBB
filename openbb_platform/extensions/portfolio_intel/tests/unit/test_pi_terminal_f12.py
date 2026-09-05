@@ -61,24 +61,27 @@ def _terminal_app() -> dict:
 
 
 def test_provider_health_widget_declared() -> None:
-    """widgets.json declares pi_provider_health markdown widget."""
+    """widgets.json declares pi_provider_health as a table widget (#1976)."""
     w = _widgets().get("pi_provider_health")
-    assert w and w["type"] == "markdown"
+    assert w and w["type"] == "table"
     assert w["endpoint"] == "pi/health/providers"
 
 
 def test_provider_health_endpoint_returns_shape() -> None:
-    """/pi/health/providers returns markdown with Track A tier info (#1961)."""
+    """/pi/health/providers returns Track A tier rows (#1961 + #1976)."""
     r = _client.get("/pi/health/providers")
     assert r.status_code == 200
     body = r.json()
-    assert isinstance(body, str)
-    # #1961: the strip renders Track A only — no Track B row.
-    assert "Track A" in body
-    assert "Track B" not in body
-    # Every tier name from the 5-tier chain (Track A) shows up.
-    for name in ("fmp_cached", "fmp", "cboe", "sec", "yfinance"):
-        assert name in body, f"missing tier {name!r} in health strip"
+    assert isinstance(body, list) and body, "expected non-empty table rows"
+    tiers = {row["tier"] for row in body}
+    # #1961: Track A only — every Track A tier is a row.
+    for name in ("fmp_cached", "fmp", "cboe", "sec", "yfinance-snapshot"):
+        assert name in tiers, f"missing tier {name!r} in health table"
+    # Track B-exclusive tier must NOT appear.
+    assert "yfinance" not in tiers
+    # Each row carries the columns the table widget declares.
+    for row in body:
+        assert set(row) >= {"tier", "role", "status", "latency_ms", "serving", "note"}
 
 
 def test_provider_health_never_blocks_on_cold_cache() -> None:

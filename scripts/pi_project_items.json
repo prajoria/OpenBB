@@ -3095,11 +3095,11 @@
     "type": "Task"
   },
   "1389": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0izn8",
     "lane": "A",
     "phase": "Validation",
-    "type": "bug",
-    "bead_id": null
+    "type": "bug"
   },
   "1390": {
     "bead_id": null,
@@ -3334,46 +3334,46 @@
     "type": "Task"
   },
   "1459": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0esy8",
     "lane": "A",
     "phase": "Validation",
-    "type": "bug",
-    "bead_id": null
+    "type": "bug"
   },
   "1460": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0esz4",
     "lane": "A",
     "phase": "Validation",
-    "type": "bug",
-    "bead_id": null
+    "type": "bug"
   },
   "1461": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0fAHw",
     "lane": "A",
     "phase": "Validation",
-    "type": "docs",
-    "bead_id": null
+    "type": "docs"
   },
   "1463": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0fhg4",
     "lane": "A",
     "phase": "Validation",
-    "type": "bug",
-    "bead_id": null
+    "type": "bug"
   },
   "1464": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0fhhw",
     "lane": "A",
     "phase": "Validation",
-    "type": "bug",
-    "bead_id": null
+    "type": "bug"
   },
   "1465": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0fhis",
     "lane": "A",
     "phase": "Validation",
-    "type": "bug",
-    "bead_id": null
+    "type": "bug"
   },
   "1466": {
     "bead_id": null,
@@ -3381,879 +3381,879 @@
     "lane": null
   },
   "1467": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iqfs",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1468": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iqic",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1469": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iqlU",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1470": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iqm8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1471": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iqpU",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1472": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iqsQ",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1473": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iquU",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1474": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iqxE",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1475": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iqzQ",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1476": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iq2A",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1477": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iq6Q",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1478": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iq8c",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1479": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iq-U",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1480": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irAs",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1481": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irE0",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1482": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irIU",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1483": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irJ8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1484": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irL4",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1485": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irOE",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1486": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irPc",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1487": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irQs",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1488": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irTM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1489": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irVM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1490": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irWw",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1491": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irZU",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1492": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ira8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1493": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irc8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1494": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irfU",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1495": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irg8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1496": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iri8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1497": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irkM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1498": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irls",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1499": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iroM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1500": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irqM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1501": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irsI",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1502": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irt8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1503": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0irww",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1504": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iryg",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1505": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ir0Q",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1506": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ir2A",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1507": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ir30",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1508": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ir5E",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1509": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ir6s",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1510": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ir8c",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1511": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ir-Y",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1512": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isAM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1513": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isBk",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1514": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isDY",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1515": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isFM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1516": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isG8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1517": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isIg",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1518": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isK4",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1519": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isMA",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1520": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isN8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1521": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isQA",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1522": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isTE",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1523": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isU4",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1524": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isWo",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1525": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isYM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1526": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isaI",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1527": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isb4",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1528": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isdo",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1529": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isfs",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1530": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ishY",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1531": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isis",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1532": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iskM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1533": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ismA",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1534": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isoM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1535": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isqM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1536": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iss0",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1537": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isuI",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1538": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isxM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1539": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0isy8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1540": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0is00",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1541": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0is3A",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1542": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0is5c",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1543": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0is7s",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1544": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0is90",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1545": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itAM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1546": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itCg",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1547": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itFI",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1548": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itHA",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1549": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itJI",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1550": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itLA",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1551": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itNE",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1552": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itO0",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1553": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itQ0",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1554": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itTg",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1555": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itWY",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1556": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itYI",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1557": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itaM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1558": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itcY",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1559": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itfE",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1560": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ithk",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1561": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itjw",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1562": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itl8",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1563": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itpQ",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1564": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itrQ",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1565": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ittI",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1566": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itvM",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1567": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itxQ",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1568": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0itzA",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1569": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0it0o",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1570": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0it3A",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1571": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0it5A",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1572": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0it7Y",
     "lane": "A",
     "phase": "A-parity",
-    "type": "endpoint",
-    "bead_id": null
+    "type": "endpoint"
   },
   "1573": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0it9o",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1574": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0it_U",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1575": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuBU",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1576": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuDE",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1577": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuFA",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1578": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuHk",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1579": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuJ4",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1580": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuMI",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1581": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuOE",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1582": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuQs",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1583": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuTA",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1584": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuU8",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1585": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuYQ",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1586": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iuaQ",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1587": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iucQ",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1588": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iueQ",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1589": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0iugw",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1590": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0i1YQ",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1591": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0i1aE",
     "lane": "A",
     "phase": "A-e2e",
-    "type": "test",
-    "bead_id": null
+    "type": "test"
   },
   "1592": {
     "bead_id": null,
@@ -4341,32 +4341,32 @@
     "lane": null
   },
   "1628": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0ouGo",
     "lane": "housekeep",
     "phase": "reconcile",
-    "type": "chore",
-    "bead_id": null
+    "type": "chore"
   },
   "1629": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0owRs",
     "lane": "housekeep",
     "phase": "reconcile",
-    "type": "chore",
-    "bead_id": null
+    "type": "chore"
   },
   "1632": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0snI0",
     "lane": "D",
     "phase": "feature",
-    "type": "task",
-    "bead_id": null
+    "type": "task"
   },
   "1633": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0snJ4",
     "lane": "D",
     "phase": "feature",
-    "type": "task",
-    "bead_id": null
+    "type": "task"
   },
   "1634": {
     "bead_id": null,
@@ -4374,25 +4374,25 @@
     "lane": null
   },
   "1635": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0pBG4",
     "lane": "D",
     "phase": "feature",
-    "type": "task",
-    "bead_id": null
+    "type": "task"
   },
   "1636": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0pBIM",
     "lane": "D",
     "phase": "feature",
-    "type": "task",
-    "bead_id": null
+    "type": "task"
   },
   "1637": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0pBJs",
     "lane": "D",
     "phase": "feature",
-    "type": "task",
-    "bead_id": null
+    "type": "task"
   },
   "1638": {
     "bead_id": null,
@@ -4773,11 +4773,11 @@
     "type": "Task"
   },
   "1702": {
+    "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg0sXGg",
     "lane": "D",
     "phase": "feature",
-    "type": "task",
-    "bead_id": null
+    "type": "task"
   },
   "1713": {
     "bead_id": null,
@@ -5186,5 +5186,33 @@
     "bead_id": null,
     "item_id": "PVTI_lAHOAOc7384BdSTgzg1QB1Q",
     "lane": null
+  },
+  "1971": {
+    "bead_id": null,
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg15wKU",
+    "lane": null,
+    "phase": null,
+    "type": "Task"
+  },
+  "1972": {
+    "bead_id": null,
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg15wKg",
+    "lane": null,
+    "phase": null,
+    "type": "Task"
+  },
+  "1973": {
+    "bead_id": null,
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg16CoU",
+    "lane": null,
+    "phase": null,
+    "type": "Task"
+  },
+  "1976": {
+    "bead_id": null,
+    "item_id": "PVTI_lAHOAOc7384BdSTgzg2JTxw",
+    "lane": null,
+    "phase": null,
+    "type": "Feature"
   }
 }

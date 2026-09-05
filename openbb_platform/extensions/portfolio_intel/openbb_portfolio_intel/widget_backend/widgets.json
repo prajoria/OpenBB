@@ -604,12 +604,34 @@
     "params": []
   },
   "pi_provider_health": {
-    "name": "Provider Health Strip",
-    "description": "Live status of the 5-tier data-sourcing chain across Track A (paid) and Track B (free) (#1685). Chrome widget shown on every tab. Real 5-tier fallback is #1715.",
+    "name": "Provider Health Table",
+    "description": "Live status of the 5-tier Track A data-sourcing chain (#1685/#1715/#1976). Sortable table: Tier, Role, Status, Latency, Serving. Diagnostics widget; the thin always-on chrome is pi_data_provenance.",
+    "category": "Chrome",
+    "type": "table",
+    "endpoint": "pi/health/providers",
+    "gridData": { "w": 40, "h": 7 },
+    "source": "portfolio-intel",
+    "data": {
+      "table": {
+        "columnsDefs": [
+          { "field": "tier", "headerName": "Tier" },
+          { "field": "role", "headerName": "Role" },
+          { "field": "status", "headerName": "Status" },
+          { "field": "latency_ms", "headerName": "Latency (ms)" },
+          { "field": "serving", "headerName": "Serving" },
+          { "field": "note", "headerName": "Note" }
+        ]
+      }
+    },
+    "params": []
+  },
+  "pi_data_provenance": {
+    "name": "Data Provenance Bar",
+    "description": "Thin always-on chrome (#1976): Data mode (LIVE/DELAYED/PUBLIC), serving source tier, and Track A provider health count. Answers 'is this live, from where, how healthy' at a glance.",
     "category": "Chrome",
     "type": "markdown",
-    "endpoint": "pi/health/providers",
-    "gridData": { "w": 40, "h": 2 },
+    "endpoint": "pi/context/provenance",
+    "gridData": { "w": 40, "h": 3 },
     "source": "portfolio-intel",
     "params": []
   },

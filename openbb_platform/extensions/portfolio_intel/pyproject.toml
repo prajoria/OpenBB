@@ -15,6 +15,18 @@ openbb-core = "^1.5.8"
 # and paper-trading engine implement / consume (#498 A' resolution). Hard runtime
 # dep — imports happen at module-load time in P2 paper-trading routers.
 openbb-backtest = "^0.1.0"
+# openbb-techtrade is imported at runtime by portfolio_intel's segments /
+# scan / signals / plan / movers / execution surfaces. Imports are wrapped
+# in try/except so a partial install surfaces a friendly error instead of
+# an import-time crash, but the sibling package IS required for those
+# surfaces to function — declaring it here makes the install-time contract
+# explicit. Path/develop dep — NOT a version pin — because there is no
+# wheel of openbb-techtrade on any index; a version pin would break every
+# fresh .venv_portfolio install. See #1971 (Phase A1 — declare
+# openbb-techtrade dep) / design spec
+# `docs/superpowers/specs/2026-08-09-asof-snapshot-cache-and-alignment-design.md`
+# §9 D1, §10 Phase A (A1) review item #8.
+openbb-techtrade = { path = "../techtrade", develop = true }
 # All portfolio math shares numpy/pandas with Analysis/stock_analysis.py so
 # metric parity is guaranteed by shared imports, not copy-paste (PRD §14.1).
 numpy = "*"

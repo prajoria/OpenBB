@@ -1,0 +1,6 @@
+{
+  "body": "**Data mode:** PUBLIC  \u00b7  **Serving source:** `stub`  \u00b7  **Providers:** 4/5 healthy",
+  "endpoint": "pi/context/provenance",
+  "params": {},
+  "status_code": 200
+}
