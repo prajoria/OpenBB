@@ -77,6 +77,7 @@
     .widget {
       position: absolute; display: flex; flex-direction: column;
       background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+      container-type: inline-size;
     }
     .widget.dragging, .widget.resizing { z-index: 5; box-shadow: 0 6px 22px rgba(0,0,0,.45); opacity: .96; }
     .widget > .whead { cursor: move; user-select: none; }
@@ -219,6 +220,26 @@
     .chart { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
     .chart svg { max-width: 100%; }
     .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--muted); }
+    .chart.pie-chart {
+      height: 100%; min-height: 0; display: grid;
+      grid-template-columns: minmax(180px, 42%) minmax(0, 1fr);
+      align-items: center; gap: 18px;
+    }
+    .pie-plot {
+      width: min(100%, 240px); height: auto; max-height: 100%; justify-self: center;
+    }
+    .pie-legend {
+      min-width: 0; flex-direction: column; align-content: stretch;
+    }
+    .pie-legend .lg { justify-content: space-between; }
+    @container (max-width: 520px) {
+      .chart.pie-chart {
+        grid-template-columns: minmax(0, 1fr); align-content: start;
+      }
+      .pie-plot { width: min(100%, 220px); }
+      .pie-legend { flex-direction: row; justify-content: center; }
+      .pie-legend .lg { justify-content: flex-start; }
+    }
     /* TradingView Lightweight Charts host (#vendor-lwc) + hover OHLC legend */
     .tvchart { position: relative; width: 100%; height: 100%; min-height: 200px; }
     .tvlegend {
@@ -813,7 +834,7 @@
           return `<div class="lg"${title}><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.label)} <b>${((Math.abs(s.value) / total) * 100).toFixed(1)}%</b></div>`;
         })()
       ).join("");
-      return `<div class="chart"><svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="pie chart">${paths}</svg><div class="legend">${legend}</div></div>`;
+      return `<div class="chart pie-chart"><svg class="pie-plot" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="pie chart">${paths}</svg><div class="legend pie-legend">${legend}</div></div>`;
     }
     // candle (#1885) — OHLC candlesticks on a PRICE-only y-axis; volume, if
     // present, is drawn as faint bars in a reserved bottom band on its OWN

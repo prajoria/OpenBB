@@ -78,10 +78,20 @@ _NONDETERMINISTIC_STEP_IDS: frozenset[str] = frozenset(
         # run. #1961 also dropped the Track B row. Body is inherently
         # nondeterministic.
         "W0.provider-health",
+        # CX.data-provenance summarizes the runtime serving ledger and cached
+        # provider-health probes. Startup timing and installed providers can
+        # change its mode, source, and healthy count without changing its
+        # markdown contract.
+        "CX.data-provenance",
         # W1.key-stats: live-wired to fmp_cached (#1958). Values (market cap,
         # P/E, volume, next-earnings date) drift with the server clock and
         # market data; the fabricated stub fields it replaced no longer exist.
         "W1.key-stats",
+        # CX.earnings-history: live-wired to fmp_cached. New reported quarters
+        # and provider estimate revisions change the ordered rows over time.
+        # Endpoint unit tests cover the EPS-surprise calculation; this harness
+        # check only requires the live endpoint to remain callable.
+        "CX.earnings-history",
         # CX.equity-price-history: live-wired to fmp_cached. The OHLC series
         # ends at the latest trading session, so it drifts with the clock.
         "CX.equity-price-history",
