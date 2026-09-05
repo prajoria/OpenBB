@@ -88,6 +88,33 @@ def test_oracle_sum_invariant_holds_on_random_cases(i: int) -> None:
     assert total == pytest.approx(o.total_active_return, abs=TOL)
 
 
+@pytest.mark.parametrize(
+    ("label", "allocation", "selection", "interaction", "active_return"),
+    [
+        ("pure_allocation", [0.0168, 0.0072], [0.0, 0.0], [0.0, 0.0], 0.024),
+        ("pure_selection", [0.0, 0.0], [0.02, 0.01], [0.0, 0.0], 0.03),
+        (
+            "negative_benchmark",
+            [0.0066, 0.0054, 0.0],
+            [0.015, -0.002, 0.012],
+            [-0.003, -0.001, 0.0],
+            0.033,
+        ),
+    ],
+)
+def test_oracle_matches_hand_calculated_nonzero_references(
+    label, allocation, selection, interaction, active_return
+) -> None:
+    """Validate the oracle against references calculated outside its code path."""
+    case = next(c for c in GOLDEN_CASES if c.label == label)
+    result = oracle_bf(case)
+
+    np.testing.assert_allclose(result.allocation, allocation, atol=TOL, rtol=0)
+    np.testing.assert_allclose(result.selection, selection, atol=TOL, rtol=0)
+    np.testing.assert_allclose(result.interaction, interaction, atol=TOL, rtol=0)
+    assert result.total_active_return == pytest.approx(active_return, abs=TOL)
+
+
 # ---------------------------------------------------------------------------
 # Oracle behavior on the six §4.2 edge cases
 # ---------------------------------------------------------------------------
