@@ -293,13 +293,28 @@
   },
   "pi_equity_financial_charts": {
     "name": "Equity Profile - Financial Statement Charts",
-    "description": "5-yr revenue / net income + net margin; funnel; debt vs FCF vs cash.",
+    "description": "5-yr Revenue + Net Income ($B, grouped bars, left axis) vs Net Margin (%, line, right axis). Dual-axis combo so the margin line isn't crushed by the revenue scale (#1978).",
     "category": "Equity Profile",
     "type": "chart",
     "endpoint": "pi/equity/financials",
     "raw": true,
     "gridData": { "w": 40, "h": 10 },
     "source": "portfolio-intel",
+    "data": {
+      "chart": {
+        "type": "combo",
+        "x": "year",
+        "bars": [
+          { "column": "revenue_b", "name": "Revenue ($B)" },
+          { "column": "net_income_b", "name": "Net Income ($B)" }
+        ],
+        "lines": [
+          { "column": "net_margin_pct", "name": "Net Margin (%)" }
+        ],
+        "leftLabel": "$B",
+        "rightLabel": "%"
+      }
+    },
     "params": [
       { "paramName": "symbol", "value": "AAPL", "label": "Symbol", "type": "text", "description": "Ticker" }
     ]
