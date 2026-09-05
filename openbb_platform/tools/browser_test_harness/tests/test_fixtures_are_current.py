@@ -82,6 +82,11 @@ _NONDETERMINISTIC_STEP_IDS: frozenset[str] = frozenset(
         # P/E, volume, next-earnings date) drift with the server clock and
         # market data; the fabricated stub fields it replaced no longer exist.
         "W1.key-stats",
+        # CX.earnings-history: live-wired to fmp_cached. New reported quarters
+        # and provider estimate revisions change the ordered rows over time.
+        # Endpoint unit tests cover the EPS-surprise calculation; this harness
+        # check only requires the live endpoint to remain callable.
+        "CX.earnings-history",
         # CX.equity-price-history: live-wired to fmp_cached. The OHLC series
         # ends at the latest trading session, so it drifts with the clock.
         "CX.equity-price-history",
