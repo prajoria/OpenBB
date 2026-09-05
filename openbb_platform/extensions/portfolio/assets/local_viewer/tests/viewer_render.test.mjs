@@ -190,7 +190,28 @@ test("svgForChart draws one slice per pie datum", () => {
   );
   const svg = H.svgForChart(model);
   assert.match(svg, /<svg/);
+  assert.match(svg, /class="chart pie-chart"/);
+  assert.match(svg, /class="pie-plot"/);
+  assert.match(svg, /class="legend pie-legend"/);
   assert.equal((svg.match(/<path/g) || []).length, 2);
+});
+
+test("pie charts use a container-responsive plot and legend layout", () => {
+  assert.match(
+    HTML,
+    /\.widget\s*\{[^}]*container-type:\s*inline-size;/s,
+    "widget width must establish the pie layout container",
+  );
+  assert.match(
+    HTML,
+    /\.chart\.pie-chart\s*\{[^}]*grid-template-columns:\s*minmax\(180px,\s*42%\)\s+minmax\(0,\s*1fr\);/s,
+    "wide pie widgets must allocate separate plot and legend columns",
+  );
+  assert.match(
+    HTML,
+    /@container\s*\(max-width:\s*520px\)\s*\{[\s\S]*?\.chart\.pie-chart\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/,
+    "narrow pie widgets must collapse to one column",
+  );
 });
 
 test("svgForChart draws one polyline per line series", () => {
