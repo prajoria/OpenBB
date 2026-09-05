@@ -1,6 +1,7 @@
 """Test the extension map."""
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -33,6 +34,32 @@ def load_req_ext(file: Path) -> dict[str, VersionConstraint]:
     return req_ext
 
 
+def _strict_extension_map_enabled() -> bool:
+    """Return whether generated package artifacts must fail the test."""
+    explicit = os.environ.get("OPENBB_STRICT_EXTENSION_MAP") == "1"
+    continuous_integration = os.environ.get("CI", "").lower() == "true"
+    return explicit or continuous_integration
+
+
+@pytest.mark.parametrize(
+    ("environment", "expected"),
+    [
+        ({}, False),
+        ({"OPENBB_STRICT_EXTENSION_MAP": "1"}, True),
+        ({"CI": "true"}, True),
+        ({"CI": "TRUE"}, True),
+    ],
+)
+def test_strict_extension_map_enabled(monkeypatch, environment, expected):
+    """Recognize explicit strict mode and the standard CI environment."""
+    monkeypatch.delenv("OPENBB_STRICT_EXTENSION_MAP", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+
+    assert _strict_extension_map_enabled() is expected
+
+
 @pytest.mark.order(1)
 def test_extension_map():
     """Ensure package folder exists, __init__.py is present, no static assets, and reference.json core version matches."""
@@ -50,12 +77,6 @@ def test_extension_map():
         for p in package_dir.iterdir()
         if p.name not in ("__init__.py", "__pycache__")
     ]
-    assert not contents, (
-        "If you are running this test locally, you can ignore this failure."
-        + " This test is to ensure files are not added to the repository."
-        + " Do not add these files to a commit."
-        f" Unexpected files or folders found in package directory: {contents}"
-    )
 
     # Check reference.json core version matches pyproject.toml openbb-core version
     ref_path = Path(this_dir, "..", "core", "openbb", "assets", "reference.json")
@@ -73,4 +94,22 @@ def test_extension_map():
     assert core_version == openbb_core_version.lstrip("^"), (
         f"reference.json core version '{core_version}'"
         f" does not match pyproject.toml openbb-core version '{openbb_core_version}'"
+    )
+
+    # Generated files are expected in local editable environments, but
+    # GitHub Actions and explicit strict-mode runs must fail on them.
+    if contents and not _strict_extension_map_enabled():
+        pytest.skip(
+            "Package directory contains generated files (expected after "
+            "openbb.build() or editable install). This test enforces "
+            "'no generated files committed to the repo' in CI or when "
+            "OPENBB_STRICT_EXTENSION_MAP=1. "
+            f"Files present: {contents}"
+        )
+
+    assert not contents, (
+        "If you are running this test locally, you can ignore this failure."
+        + " This test is to ensure files are not added to the repository."
+        + " Do not add these files to a commit."
+        f" Unexpected files or folders found in package directory: {contents}"
     )
