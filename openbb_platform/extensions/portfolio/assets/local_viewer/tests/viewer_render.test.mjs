@@ -21,6 +21,9 @@ import vm from "node:vm";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HTML = readFileSync(join(__dirname, "..", "index.html"), "utf-8");
+const WIDGETS = JSON.parse(
+  readFileSync(join(__dirname, "..", "..", "..", "..", "..", "extensions", "portfolio_intel", "openbb_portfolio_intel", "widget_backend", "widgets.json"), "utf-8")
+);
 
 // Extract the inline <script> body.
 function scriptBody(html) {
@@ -50,12 +53,18 @@ function extractFn(src, name) {
 function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
-    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "inlineOptionsHtml",
+    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
+    "metricModel", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricHelpPageHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
-    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
-  const code = names.map((n) => extractFn(src, n)).join("\n\n") +
-    "\n;globalThis.__H = { " + names.join(", ") + " };";
-  const ctx = {};
+    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "renderTab"];
+  const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null;\n\n"
+    + names.map((n) => extractFn(src, n)).join("\n\n") +
+    "\n;globalThis.__H = { " + names.join(", ")
+    + ", __setDocument: (doc) => { globalThis.document = doc; }, __setWindow: (win) => { globalThis.window = win; }, __setGlobals: (globals) => { Object.assign(globalThis, globals); }, __setActiveMetricHelpBtn: (btn) => { ACTIVE_METRIC_HELP_BTN = btn; }, __getActiveMetricHelpBtn: () => ACTIVE_METRIC_HELP_BTN };";
+  const ctx = {
+    document: { getElementById: () => null },
+    window: { innerWidth: 1024, innerHeight: 768 },
+  };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(code, ctx);
@@ -275,6 +284,192 @@ test("metricModel: multi numeric keys -> grid, negatives flagged", () => {
 
 test("metricModel loud-empty: {} -> no cards", () => {
   assert.equal(H.metricModel({}).cards.length, 0);
+});
+
+// --------------------------------------------------------------------------
+// metricGlossaryEntry — curated F2 labels and safe unknowns
+// --------------------------------------------------------------------------
+test("metricGlossaryEntry returns a curated F2 record", () => {
+  const metric = H.metricGlossaryEntry("pe_ttm");
+  assert.equal(metric.label, "P/E (TTM)");
+  assert.match(metric.summary, /price.*earnings/i);
+});
+
+test("metricGlossaryEntry ignores an unknown key", () => {
+  assert.equal(H.metricGlossaryEntry("unreviewed_metric"), null);
+});
+
+test("metricGlossaryEntry ignores inherited object keys", () => {
+  assert.equal(H.metricGlossaryEntry("toString"), null);
+  assert.equal(H.metricGlossaryEntry("__proto__"), null);
+});
+
+test("metricHelpButtonHtml labels a known metric accessibly", () => {
+  const html = H.metricHelpButtonHtml("market_cap");
+  assert.match(html, /aria-label="Learn about Market Cap"/);
+  assert.match(html, /data-metric-help="market_cap"/);
+  assert.match(html, /data-metric-help-summary="The company/);
+  const id = html.match(/aria-describedby="([^"]+)"/)?.[1];
+  assert.ok(id, "expected aria-describedby id");
+  assert.match(id, /^metric-help-summary-market_cap-\d+$/);
+  assert.match(html, new RegExp(`id="${id}">The company[^<]*current share price\\.<\\/span>`));
+});
+
+test("metricHelpButtonHtml gives repeated metrics unique described-by ids", () => {
+  const first = H.metricHelpButtonHtml("market_cap");
+  const second = H.metricHelpButtonHtml("market_cap");
+  const firstId = first.match(/aria-describedby="([^"]+)"/)?.[1];
+  const secondId = second.match(/aria-describedby="([^"]+)"/)?.[1];
+  assert.ok(firstId && secondId, "expected ids on both help buttons");
+  assert.notEqual(firstId, secondId);
+});
+
+test("metricHelpButtonHtml omits unknown metrics", () => {
+  assert.equal(H.metricHelpButtonHtml("unreviewed_metric"), "");
+});
+
+test("metricHelpPageHtml renders a curated external resource safely", () => {
+  const html = H.metricHelpPageHtml("net_margin");
+  assert.match(html, /Net Margin/);
+  assert.match(html, /target="_blank"/);
+  assert.match(html, /rel="noopener noreferrer"/);
+});
+
+test("metricHelpPageHtml reports an unknown metric without interpolating it", () => {
+  assert.match(H.metricHelpPageHtml("<script>"), /Metric documentation is unavailable/);
+  assert.doesNotMatch(H.metricHelpPageHtml("<script>"), /<script>/);
+});
+
+test("metricHelpPageHtml stays self-contained and omits the Bug Context loader", () => {
+  const html = H.metricHelpPageHtml("net_margin");
+  assert.doesNotMatch(html, /bugcontext\.com\/loader\.js/i);
+  assert.doesNotMatch(html, /<script/i);
+});
+
+test("viewer shell still carries the Bug Context loader for /viewer", () => {
+  assert.match(HTML, /https:\/\/demo\.bugcontext\.com\/loader\.js/);
+  assert.match(HTML, /Bug Context feedback widget/);
+});
+
+test("metricHelpLayerPosition centers below and clamps within the viewport", () => {
+  const pos = H.metricHelpLayerPosition(
+    { left: 20, right: 36, top: 20, bottom: 38, width: 16, height: 18 },
+    { width: 220, height: 56 },
+    { left: 0, top: 0, right: 240, bottom: 180 },
+  );
+  assert.equal(pos.placement, "bottom");
+  assert.equal(pos.left, 8, "tooltip should clamp inward from the left edge");
+  assert.equal(pos.top, 48);
+  assert.ok(pos.arrowLeft >= 12 && pos.arrowLeft <= 208, `arrow inset must stay inside bubble, got ${pos.arrowLeft}`);
+});
+
+test("metricHelpLayerPosition flips above when there is no room below", () => {
+  const pos = H.metricHelpLayerPosition(
+    { left: 120, right: 136, top: 148, bottom: 166, width: 16, height: 18 },
+    { width: 180, height: 40 },
+    { left: 0, top: 0, right: 280, bottom: 180 },
+  );
+  assert.equal(pos.placement, "top");
+  assert.equal(pos.top, 98);
+});
+
+test("F2 widgets declare glossary mappings for key stats and financial charts", () => {
+  const keyStats = WIDGETS.pi_equity_key_stats.data.metricGlossary;
+  const financials = WIDGETS.pi_equity_financial_charts.data.metricGlossary;
+  assert.equal(keyStats["P/E (TTM)"], "pe_ttm");
+  assert.equal(keyStats["Market Cap"], "market_cap");
+  assert.equal(financials["Revenue ($B)"], "revenue_b");
+  assert.equal(financials["Net Margin (%)"], "net_margin_pct");
+});
+
+test("renderTable adds help only for mapped first-column metrics", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "Market Cap", value: 3_200_000_000_000 },
+    { metric: "Unmapped Metric", value: 42 },
+  ], WIDGETS.pi_equity_key_stats);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*data-metric-help="market_cap"/);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*metric-help-summary-market_cap-\d+[\s\S]*The company/);
+  assert.match(container.innerHTML, />Unmapped Metric<\/td>/);
+  assert.doesNotMatch(container.innerHTML, /Unmapped Metric[\s\S]*data-metric-help=/);
+});
+
+test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
+  const layer = {
+    hidden: false,
+    attrs: {},
+    setAttribute(name, value) { this.attrs[name] = value; },
+  };
+  const activeBtn = {};
+  H.__setDocument({ getElementById: () => layer });
+  H.__setActiveMetricHelpBtn(activeBtn);
+  let html = "";
+  const container = {
+    contains(node) { return node === activeBtn; },
+    set innerHTML(value) {
+      assert.equal(layer.hidden, true, "tooltip layer should hide before body replacement");
+      html = value;
+    },
+    get innerHTML() { return html; },
+  };
+  H.renderTable(container, [{ metric: "Market Cap", value: 1 }], WIDGETS.pi_equity_key_stats);
+  assert.equal(H.__getActiveMetricHelpBtn(), null);
+  assert.equal(layer.attrs["aria-hidden"], "true");
+  assert.match(html, /data-metric-help="market_cap"/);
+});
+
+test("renderTab hides an active floating metric tooltip before clearing the widget grid", () => {
+  const layer = {
+    hidden: false,
+    attrs: {},
+    setAttribute(name, value) { this.attrs[name] = value; },
+  };
+  const activeBtn = {};
+  const calls = [];
+  H.__setDocument({
+    getElementById: (id) => (id === "metric-help-layer" ? layer : null),
+    querySelectorAll: () => [],
+  });
+  H.__setActiveMetricHelpBtn(activeBtn);
+  const grid = {
+    set innerHTML(value) {
+      calls.push(value);
+      assert.equal(layer.hidden, true, "tooltip layer should hide before grid replacement");
+    },
+    get innerHTML() { return ""; },
+  };
+  H.__setGlobals({
+    $: (id) => {
+      if (id === "grid") return grid;
+      if (id === "tabs") return { querySelectorAll: () => [] };
+      return null;
+    },
+    disposeTradingViewCharts: () => {},
+    APP: { tabs: { overview: { name: "Overview", layout: [] } } },
+    ACTIVE_TAB: "overview",
+    LAYOUT: [],
+    loadOverrides: () => [],
+    mergeLayout: () => [],
+    renderWidget: () => {},
+    gridGeom: () => ({}),
+    fitCanvas: () => {},
+  });
+  H.renderTab("overview");
+  assert.equal(H.__getActiveMetricHelpBtn(), null);
+  assert.equal(layer.attrs["aria-hidden"], "true");
+  assert.deepEqual(calls, ["", '<div class="state">This tab has no widgets.</div>']);
+});
+
+test("svgForChart combo legend adds help buttons for mapped series", () => {
+  const svg = H.svgForChart(
+    H.inferChartModel(_COMBO_ROWS, _COMBO_CFG),
+    WIDGETS.pi_equity_financial_charts,
+  );
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help="revenue_b"/);
+  assert.match(svg, /Net Income \(\$B\)[\s\S]*data-metric-help="net_income_b"/);
+  assert.match(svg, /Net Margin \(%\)[\s\S]*data-metric-help="net_margin_pct"/);
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help-summary="Annual sales expressed in billions of dollars\."/);
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*id="metric-help-summary-revenue_b-\d+">Annual sales expressed in billions of dollars\.<\/span>/);
 });
 
 // --------------------------------------------------------------------------

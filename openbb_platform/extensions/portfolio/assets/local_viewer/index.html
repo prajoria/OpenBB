@@ -119,13 +119,60 @@
     .widget > .whead .wsrc.wsrc-demo { color: #e3b341; border-color: #bb800966; background: #bb800922; }
     /* Help affordance (#1951): a "?" button that opens a popover explaining
        how to read the widget. Circular, muted until hovered. */
-    .widget > .whead .whelp {
+    .widget > .whead .whelp,
+    .mhelp {
       width: 18px; height: 18px; line-height: 16px; text-align: center;
       font: 600 12px/16px ui-sans-serif, system-ui, sans-serif; padding: 0;
       color: var(--muted); background: var(--panel); border: 1px solid var(--border);
       border-radius: 50%; cursor: help; flex: none;
+      display: inline-flex; align-items: center; justify-content: center;
     }
-    .widget > .whead .whelp:hover { color: var(--fg); border-color: var(--muted); }
+    .mhelp-wrap { display: inline-flex; align-items: center; }
+    .widget > .whead .whelp:hover,
+    .widget > .whead .whelp:focus-visible,
+    .mhelp:hover,
+    .mhelp:focus-visible {
+      color: var(--text); border-color: var(--muted);
+    }
+    .widget > .whead .whelp:focus-visible,
+    .mhelp:focus-visible {
+      outline: 2px solid rgba(47, 129, 247, 0.45);
+      outline-offset: 1px;
+    }
+    .mhelp-tip {
+      position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+      overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%);
+      border: 0; white-space: nowrap;
+    }
+    .mhelp-layer {
+      position: fixed; min-width: 200px; max-width: min(280px, calc(100vw - 16px));
+      padding: 8px 10px; background: var(--panel2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.45);
+      font: 12px/1.45 ui-sans-serif, system-ui, sans-serif;
+      white-space: normal; text-align: left; pointer-events: none; z-index: 60;
+    }
+    .mhelp-layer[hidden] { display: none; }
+    .mhelp-layer::before,
+    .mhelp-layer::after {
+      content: ""; position: absolute; left: var(--mhelp-arrow-left, 50%);
+      transform: translateX(-50%); border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+    }
+    .mhelp-layer[data-placement="bottom"]::before {
+      bottom: 100%; border-bottom: 6px solid var(--border);
+    }
+    .mhelp-layer[data-placement="bottom"]::after {
+      bottom: calc(100% - 1px); border-bottom: 5px solid var(--panel2);
+      border-left-width: 5px; border-right-width: 5px;
+    }
+    .mhelp-layer[data-placement="top"]::before {
+      top: 100%; border-top: 6px solid var(--border);
+    }
+    .mhelp-layer[data-placement="top"]::after {
+      top: calc(100% - 1px); border-top: 5px solid var(--panel2);
+      border-left-width: 5px; border-right-width: 5px;
+    }
     .whelp-pop {
       position: absolute; top: 40px; left: 12px; z-index: 40; max-width: 420px;
       max-height: 60%; overflow: auto; padding: 4px 14px;
@@ -186,6 +233,7 @@
     .tvlegend .down, .tvlegend .down b { color: #f85149; }
     .legend .lg { display: flex; align-items: center; gap: 5px; }
     .legend .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    .metric-label, .legend-label { display: inline-flex; align-items: center; gap: 6px; }
     /* Chat pane — collapsible secondary panel with a VS Code-style toggle. */
     .chat { width: 360px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--panel); transition: width .15s ease; overflow: hidden; }
     .chat .chead { padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -206,6 +254,54 @@
     .msg.note { align-self: stretch; background: transparent; color: var(--muted); font-size: 12px; text-align: center; }
     .composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
     .composer input { flex: 1; }
+    /* Standalone metric documentation page (#1984): same-origin, static, and
+       style-local so `/viewer/help?metric=...` never needs external assets. */
+    body.help-doc {
+      min-height: 100vh; height: auto; display: block;
+      background:
+        radial-gradient(circle at top, rgba(47,129,247,.12), transparent 34%),
+        var(--bg);
+    }
+    .help-doc-page {
+      width: min(840px, calc(100vw - 32px)); margin: 0 auto; padding: 32px 0 48px;
+    }
+    .help-doc-back {
+      display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px;
+      color: var(--accent); text-decoration: none; font-weight: 600;
+    }
+    .help-doc-back:hover,
+    .help-doc-back:focus-visible { text-decoration: underline; }
+    .help-doc-kicker {
+      margin: 0 0 10px; color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    }
+    .help-doc-page h1 { margin: 0 0 10px; font-size: 32px; line-height: 1.15; }
+    .help-doc-summary {
+      margin: 0 0 24px; max-width: 68ch; color: #c9d1d9; font-size: 16px;
+    }
+    .help-doc-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px; margin-bottom: 20px;
+    }
+    .help-doc-card {
+      padding: 18px; background: rgba(22, 27, 34, 0.88);
+      border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 14px 40px rgba(0,0,0,.18);
+    }
+    .help-doc-card h2 { margin: 0 0 10px; font-size: 14px; }
+    .help-doc-card p { margin: 0; color: #c9d1d9; }
+    .help-doc-source {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border-radius: 8px; text-decoration: none;
+      background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      font-weight: 600;
+    }
+    .help-doc-source:hover,
+    .help-doc-source:focus-visible { border-color: var(--accent); color: #fff; }
+    .help-doc-empty {
+      max-width: 56ch; padding: 18px; background: rgba(22, 27, 34, 0.88);
+      border: 1px solid var(--border); border-radius: 12px; color: #c9d1d9;
+    }
+    .help-doc-empty p { margin: 0; }
   </style>
 </head>
 <body>
@@ -425,19 +521,25 @@
   }
 
   function renderTable(container, rows, widget) {
+    hideMetricHelpLayerWithin(container);
     if (!rows.length) { container.innerHTML = '<div class="state">No rows returned.</div>'; return; }
     const defs = widget && widget.data && widget.data.table && widget.data.table.columnsDefs;
+    const map = widget && widget.data && widget.data.metricGlossary;
     const cols = (defs && defs.length)
       ? defs.map((c) => ({ field: c.field, header: c.headerName || c.field, formatterFn: c.formatterFn, renderFn: c.renderFn }))
       : Object.keys(rows[0]).map((k) => ({ field: k, header: k }));
     const thead = "<tr>" + cols.map((c) => `<th>${escapeHtml(c.header)}</th>`).join("") + "</tr>";
     const body = rows.map((r) =>
-      "<tr>" + cols.map((c) => {
+      "<tr>" + cols.map((c, idx) => {
         const v = r[c.field];
-        return `<td class="${cellClass(v, c)}">${escapeHtml(fmtCell(v, c))}</td>`;
+        const key = idx === 0 && typeof v === "string" && map && Object.prototype.hasOwnProperty.call(map, v) ? map[v] : null;
+        const text = escapeHtml(fmtCell(v, c));
+        const label = key ? `<span class="metric-label">${text}${metricHelpButtonHtml(key)}</span>` : text;
+        return `<td class="${cellClass(v, c)}">${label}</td>`;
       }).join("") + "</tr>"
     ).join("");
     container.innerHTML = `<table><thead>${thead}</thead><tbody>${body}</tbody></table>`;
+    if (typeof bindMetricHelpButtons === "function") bindMetricHelpButtons(container);
   }
 
   //--------------------------------------------------------------------------
@@ -650,7 +752,7 @@
 
   // Render a chart model to an inline-SVG string (no CDN, no canvas). Labels
   // and series keys are escaped; numeric coordinates come from Number().
-  function svgForChart(model) {
+  function svgForChart(model, widgetDef) {
     if (!model || model.kind === "empty") return "";
     const colors = ["#2f81f7", "#3fb950", "#f85149", "#d29922", "#a371f7", "#39c5cf", "#db61a2", "#e3b341", "#8b949e", "#ff7b72"];
     // Compact large magnitudes so y-axis labels never overflow the left pad
@@ -678,7 +780,11 @@
         return `<path d="${d}" fill="${colors[idx % colors.length]}" stroke="#0d1117" stroke-width="1"><title>${escapeHtml(s.label)}: ${(frac * 100).toFixed(1)}%</title></path>`;
       }).join("");
       const legend = model.slices.map((s, idx) =>
-        `<div class="lg"><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.label)} <b>${((Math.abs(s.value) / total) * 100).toFixed(1)}%</b></div>`
+        (() => {
+          const entry = metricGlossaryForLabel(widgetDef, s.label);
+          const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
+          return `<div class="lg"${title}><span class="sw" style="background:${colors[idx % colors.length]}"></span>${escapeHtml(s.label)} <b>${((Math.abs(s.value) / total) * 100).toFixed(1)}%</b></div>`;
+        })()
       ).join("");
       return `<div class="chart"><svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="pie chart">${paths}</svg><div class="legend">${legend}</div></div>`;
     }
@@ -793,9 +899,21 @@
         : "";
       const xticks = xAxisTicksSvg(model.xLabels, centerAt, Hh - 6, n);
       const legend = bars.map((s, i) =>
-        `<div class="lg"><span class="sw" style="background:${barColors[i % barColors.length]}"></span>${escapeHtml(s.key)}</div>`
+        (() => {
+          const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+          const key = map && Object.prototype.hasOwnProperty.call(map, s.key) ? map[s.key] : null;
+          const help = metricHelpButtonHtml(key);
+          const label = help ? `<span class="legend-label">${escapeHtml(s.key)}${help}</span>` : escapeHtml(s.key);
+          return `<div class="lg"><span class="sw" style="background:${barColors[i % barColors.length]}"></span>${label}</div>`;
+        })()
       ).concat(lines.map((s, i) =>
-        `<div class="lg"><span class="sw" style="background:${lineColors[i % lineColors.length]}"></span>${escapeHtml(s.key)}</div>`
+        (() => {
+          const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+          const key = map && Object.prototype.hasOwnProperty.call(map, s.key) ? map[s.key] : null;
+          const help = metricHelpButtonHtml(key);
+          const label = help ? `<span class="legend-label">${escapeHtml(s.key)}${help}</span>` : escapeHtml(s.key);
+          return `<div class="lg"><span class="sw" style="background:${lineColors[i % lineColors.length]}"></span>${label}</div>`;
+        })()
       )).join("");
       return `<div class="chart"><svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="combo bar and line chart">${axis}${barsSvg}${linesSvg}${leftLbls}${rightLbls}${xticks}</svg><div class="legend">${legend}</div></div>`;
     }
@@ -846,6 +964,7 @@
   }
 
   function renderMarkdown(container, mdText) {
+    hideMetricHelpLayerWithin(container);
     const text = (typeof mdText === "string") ? mdText : (mdText == null ? "" : String(mdText));
     if (!text.trim()) { container.innerHTML = '<div class="state">No content returned.</div>'; return; }
     const div = document.createElement("div");
@@ -855,14 +974,19 @@
     container.appendChild(div);
   }
 
-  function renderMetric(container, obj) {
+  function renderMetric(container, obj, widgetDef) {
+    hideMetricHelpLayerWithin(container);
     const model = metricModel(obj);
     if (!model.cards.length) { container.innerHTML = '<div class="state">No metric value returned.</div>'; return; }
     const fmt = (v) => (typeof v === "number"
       ? (Number.isInteger(v) ? String(v) : v.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""))
       : String(v));
     const cards = model.cards.map((c) =>
-      `<div class="metric ${c.cls}"><div class="mlabel">${escapeHtml(c.label)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`
+      (() => {
+        const entry = metricGlossaryForLabel(widgetDef, c.label);
+        const title = entry ? ` title="${escapeHtml(entry.summary)}"` : "";
+        return `<div class="metric ${c.cls}"><div class="mlabel"${title}>${escapeHtml(c.label)}</div><div class="mvalue">${escapeHtml(fmt(c.value))}</div></div>`;
+      })()
     ).join("");
     const note = model.note ? `<div class="mnote">${escapeHtml(model.note)}</div>` : "";
     container.innerHTML = `<div class="metrics">${cards}</div>${note}`;
@@ -976,6 +1100,7 @@
   }
 
   function renderChart(container, rows, widgetDef) {
+    hideMetricHelpLayerWithin(container);
     const cfg = widgetDef && widgetDef.data && widgetDef.data.chart;
     const model = inferChartModel(rows, cfg);
     if (model.kind === "empty") {
@@ -991,7 +1116,8 @@
       try { renderTradingViewChart(container, model, widgetDef); return; }
       catch (e) { tvDispose(container); /* fall through to SVG */ }
     }
-    container.innerHTML = svgForChart(model);
+    container.innerHTML = svgForChart(model, widgetDef);
+    if (typeof bindMetricHelpButtons === "function") bindMetricHelpButtons(container);
   }
 
   //--------------------------------------------------------------------------
@@ -1046,13 +1172,14 @@
   }
 
   async function loadWidgetData(bodyEl, widgetDef, params) {
+    hideMetricHelpLayerWithin(bodyEl);
     bodyEl.innerHTML = '<div class="state">Loading…</div>';
     try {
       const { data: resp, source } = await fetchJSONWithSource(widgetDef.endpoint + buildQuery(params));
       applyDataSourceBadge(bodyEl, source);
       const type = widgetDef.type || "table";
       if (type === "markdown") { renderMarkdown(bodyEl, resp); return; }
-      if (type === "metric") { renderMetric(bodyEl, resp); return; }
+      if (type === "metric") { renderMetric(bodyEl, resp, widgetDef); return; }
       if (type === "chart") {
         const rows = extractRows(resp, widgetDef.data ? widgetDef.data.dataKey : "");
         renderChart(bodyEl, rows, widgetDef);
@@ -1275,6 +1402,40 @@
     return def.description != null ? String(def.description).trim() : "";
   }
 
+  let METRIC_HELP_ID_SEQ = 0;
+
+  function metricHelpButtonHtml(key) {
+    const entry = metricGlossaryEntry(key);
+    if (!entry) return "";
+    const safeKey = String(key).replace(/[^a-zA-Z0-9_-]/g, "-");
+    METRIC_HELP_ID_SEQ += 1;
+    const summaryId = `metric-help-summary-${safeKey}-${METRIC_HELP_ID_SEQ}`;
+    return `<span class="mhelp-wrap"><button type="button" class="mhelp" data-metric-help="${escapeHtml(key)}" `
+      + `data-metric-help-summary="${escapeHtml(entry.summary)}" aria-label="Learn about ${escapeHtml(entry.label)}" `
+      + `aria-describedby="${summaryId}">?</button>`
+      + `<span class="mhelp-tip" id="${summaryId}">${escapeHtml(entry.summary)}</span></span>`;
+  }
+
+  function metricHelpPageHtml(key) {
+    const entry = metricGlossaryEntry(key);
+    if (!entry) {
+      return `<main class="help-doc-page"><a class="help-doc-back" href="/viewer">&larr; Back to viewer</a>`
+        + `<p class="help-doc-kicker">Metric glossary</p><h1>Metric documentation is unavailable</h1>`
+        + `<div class="help-doc-empty"><p>Return to the viewer and select a documented metric.</p></div></main>`;
+    }
+    const source = typeof entry.source === "string" && /^https?:\/\//i.test(entry.source) ? entry.source : "";
+    const sourceLink = source
+      ? `<p><a class="help-doc-source" href="${escapeHtml(source)}" target="_blank" rel="noopener noreferrer">`
+        + `Open external learning resource</a></p>`
+      : "";
+    return `<main class="help-doc-page"><a class="help-doc-back" href="/viewer">&larr; Back to viewer</a>`
+      + `<p class="help-doc-kicker">Metric glossary</p><h1>${escapeHtml(entry.label)}</h1>`
+      + `<p class="help-doc-summary">${escapeHtml(entry.summary)}</p><div class="help-doc-grid">`
+      + `<section class="help-doc-card"><h2>Definition</h2><p>${escapeHtml(entry.definition)}</p></section>`
+      + `<section class="help-doc-card"><h2>How to interpret it</h2><p>${escapeHtml(entry.interpretation)}</p></section>`
+      + `</div>${sourceLink}</main>`;
+  }
+
   // Pure builder for the "?" help button in a widget header. Returns "" when
   // the widget carries no help/description so the button is omitted entirely
   // (keeps the header clean for undocumented widgets).
@@ -1307,6 +1468,97 @@
       cls: "wsrc-live",
       title: "Live data served by provider tier: " + source,
     };
+  }
+
+  function metricGlossaryData() {
+    return {
+    market_cap: Object.freeze({
+      label: "Market Cap",
+      summary: "The company’s total equity value at the current share price.",
+      definition: "Market capitalization multiplies the share price by the number of shares outstanding.",
+      interpretation: "Use it to compare company size; larger names are not automatically better or cheaper.",
+      source: "https://www.investopedia.com/terms/m/marketcapitalization.asp",
+    }),
+    pe_ttm: Object.freeze({
+      label: "P/E (TTM)",
+      summary: "Price divided by trailing twelve-month earnings per share.",
+      definition: "The price-to-earnings ratio compares the current share price with earnings generated over the most recent four reported quarters.",
+      interpretation: "Compare it with profitable peers and the company’s own history; it is not meaningful when trailing earnings are negative.",
+      source: "https://www.investopedia.com/terms/p/price-earningsratio.asp",
+    }),
+    ev_ebitda: Object.freeze({
+      label: "EV/EBITDA",
+      summary: "Enterprise value compared with operating cash earnings before depreciation and amortization.",
+      definition: "Enterprise value adds debt and subtracts cash from market cap, then divides by EBITDA.",
+      interpretation: "Lower values can signal a cheaper operating multiple, but the ratio works best when you compare similar businesses.",
+      source: "https://www.investopedia.com/terms/e/ev-ebitda.asp",
+    }),
+    ps_ttm: Object.freeze({
+      label: "P/S (TTM)",
+      summary: "Price divided by trailing twelve-month sales per share.",
+      definition: "The price-to-sales ratio compares the company’s market value with the revenue it generated over the last four quarters.",
+      interpretation: "It is useful when earnings are thin or volatile, but it should still be read alongside margins and growth.",
+      source: "https://www.investopedia.com/terms/p/price-to-salesratio.asp",
+    }),
+    eps_ttm: Object.freeze({
+      label: "EPS (TTM)",
+      summary: "Trailing twelve-month earnings available to each share.",
+      definition: "Earnings per share divides net income attributable to common shareholders by the weighted average share count.",
+      interpretation: "Higher EPS usually means more profit per share, but growth quality and share count changes still matter.",
+      source: "https://www.investopedia.com/terms/e/eps.asp",
+    }),
+    beta: Object.freeze({
+      label: "Beta",
+      summary: "A rough measure of how much the stock tends to move versus the market.",
+      definition: "Beta compares the stock’s historical returns with a benchmark such as the S&P 500.",
+      interpretation: "A beta above 1 usually means more day-to-day movement than the market; below 1 usually means less.",
+      source: "https://www.investopedia.com/terms/b/beta.asp",
+    }),
+    dividend_yield: Object.freeze({
+      label: "Dividend Yield",
+      summary: "Annual dividends as a percentage of the share price.",
+      definition: "Dividend yield divides the expected yearly cash dividend by the current stock price.",
+      interpretation: "Higher yield can mean more income, but check payout safety and whether the price has simply fallen.",
+      source: "https://www.investopedia.com/terms/d/dividendyield.asp",
+    }),
+    revenue_b: Object.freeze({
+      label: "Revenue ($B)",
+      summary: "Annual sales expressed in billions of dollars.",
+      definition: "Revenue is the top line: the money the company brought in before expenses are deducted.",
+      interpretation: "Look for steady growth and compare it with margin trends to see whether sales are improving efficiently.",
+      source: "https://www.investopedia.com/terms/r/revenue.asp",
+    }),
+    net_income_b: Object.freeze({
+      label: "Net Income ($B)",
+      summary: "Annual profit after expenses, taxes, and interest, shown in billions.",
+      definition: "Net income is the bottom line remaining after all operating and non-operating costs are subtracted from revenue.",
+      interpretation: "Rising net income usually signals improving profitability, but watch for one-off items and share-count effects.",
+      source: "https://www.investopedia.com/terms/n/netincome.asp",
+    }),
+    net_margin_pct: Object.freeze({
+      label: "Net Margin (%)",
+      summary: "Net income as a percentage of revenue.",
+      definition: "Net margin divides net income by revenue and converts the result to a percentage.",
+      interpretation: "A wider margin means the business keeps more profit from each sales dollar; compare it with peers and history.",
+      source: "https://www.investopedia.com/terms/n/netprofitmargin.asp",
+    }),
+    };
+  }
+
+  const METRIC_GLOSSARY = Object.freeze(metricGlossaryData());
+
+  function metricGlossaryEntry(key) {
+    const glossary = typeof METRIC_GLOSSARY !== "undefined" ? METRIC_GLOSSARY : metricGlossaryData();
+    const rawName = String(key || "");
+    const name = rawName === "net_margin" ? "net_margin_pct" : rawName;
+    const entry = Object.prototype.hasOwnProperty.call(glossary, name) ? glossary[name] : null;
+    return entry || null;
+  }
+
+  function metricGlossaryForLabel(widgetDef, label) {
+    const map = widgetDef && widgetDef.data && widgetDef.data.metricGlossary;
+    if (!map) return null;
+    return metricGlossaryEntry(map[label]);
   }
 
   // Apply the provenance badge to a widget's header. ``bodyEl`` is the widget
@@ -1387,6 +1639,126 @@
       document.addEventListener("pointerdown", onDocClick, true);
       document.addEventListener("keydown", onKey, true);
     }, 0);
+  }
+
+  function metricHelpLayerPosition(anchorRect, tipRect, boundsRect) {
+    const gap = 10;
+    const pad = 8;
+    const bounds = boundsRect || { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    const tipWidth = Math.max(0, tipRect && tipRect.width ? tipRect.width : 0);
+    const tipHeight = Math.max(0, tipRect && tipRect.height ? tipRect.height : 0);
+    const anchor = anchorRect || { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
+    const centerX = anchor.left + ((anchor.width != null ? anchor.width : (anchor.right - anchor.left)) / 2);
+    const minLeft = bounds.left + pad;
+    const maxLeft = Math.max(minLeft, bounds.right - tipWidth - pad);
+    const left = Math.min(Math.max(centerX - (tipWidth / 2), minLeft), maxLeft);
+    const belowTop = anchor.bottom + gap;
+    const aboveTop = anchor.top - tipHeight - gap;
+    const fitsBelow = belowTop + tipHeight <= bounds.bottom - pad;
+    const fitsAbove = aboveTop >= bounds.top + pad;
+    const placement = (!fitsBelow && fitsAbove) ? "top" : "bottom";
+    const rawTop = placement === "top" ? aboveTop : belowTop;
+    const minTop = bounds.top + pad;
+    const maxTop = Math.max(minTop, bounds.bottom - tipHeight - pad);
+    const top = Math.min(Math.max(rawTop, minTop), maxTop);
+    const arrowLeft = Math.min(Math.max(centerX - left, 12), Math.max(12, tipWidth - 12));
+    return { left, top, placement, arrowLeft };
+  }
+
+  let ACTIVE_METRIC_HELP_BTN = null;
+
+  function metricHelpLayer() {
+    let layer = document.getElementById("metric-help-layer");
+    if (layer) return layer;
+    layer = document.createElement("div");
+    layer.id = "metric-help-layer";
+    layer.className = "mhelp-layer";
+    layer.hidden = true;
+    layer.setAttribute("role", "tooltip");
+    layer.setAttribute("aria-hidden", "true");
+    document.body.appendChild(layer);
+    return layer;
+  }
+
+  function showMetricHelpLayer(btn) {
+    if (!btn || typeof btn.getBoundingClientRect !== "function") return;
+    const summary = btn.dataset.metricHelpSummary || "";
+    if (!summary) return;
+    const layer = metricHelpLayer();
+    ACTIVE_METRIC_HELP_BTN = btn;
+    layer.textContent = summary;
+    layer.hidden = false;
+    layer.setAttribute("aria-hidden", "false");
+    layer.style.left = "0px";
+    layer.style.top = "0px";
+    const pos = metricHelpLayerPosition(
+      btn.getBoundingClientRect(),
+      layer.getBoundingClientRect(),
+      { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
+    );
+    layer.dataset.placement = pos.placement;
+    layer.style.left = `${pos.left}px`;
+    layer.style.top = `${pos.top}px`;
+    layer.style.setProperty("--mhelp-arrow-left", `${pos.arrowLeft}px`);
+  }
+
+  function hideMetricHelpLayer(btn) {
+    if (btn && ACTIVE_METRIC_HELP_BTN && btn !== ACTIVE_METRIC_HELP_BTN) return;
+    ACTIVE_METRIC_HELP_BTN = null;
+    const layer = document.getElementById("metric-help-layer");
+    if (!layer) return;
+    layer.hidden = true;
+    layer.setAttribute("aria-hidden", "true");
+  }
+
+  function hideMetricHelpLayerWithin(root) {
+    if (!root || !ACTIVE_METRIC_HELP_BTN) return;
+    if (root === ACTIVE_METRIC_HELP_BTN) {
+      hideMetricHelpLayer();
+      return;
+    }
+    if (typeof root.contains === "function" && root.contains(ACTIVE_METRIC_HELP_BTN)) {
+      hideMetricHelpLayer();
+    }
+  }
+
+  function syncMetricHelpLayer() {
+    if (!ACTIVE_METRIC_HELP_BTN || !ACTIVE_METRIC_HELP_BTN.isConnected) {
+      hideMetricHelpLayer();
+      return;
+    }
+    showMetricHelpLayer(ACTIVE_METRIC_HELP_BTN);
+  }
+
+  let METRIC_HELP_LAYER_BOUND = false;
+
+  function bindMetricHelpLayerEvents() {
+    if (METRIC_HELP_LAYER_BOUND) return;
+    METRIC_HELP_LAYER_BOUND = true;
+    window.addEventListener("resize", syncMetricHelpLayer);
+    document.addEventListener("scroll", syncMetricHelpLayer, true);
+  }
+
+  function bindMetricHelpButtons(root) {
+    if (!root || typeof root.querySelectorAll !== "function") return;
+    bindMetricHelpLayerEvents();
+    for (const btn of root.querySelectorAll(".mhelp")) {
+      if (btn.dataset.metricHelpBound === "1") continue;
+      btn.dataset.metricHelpBound = "1";
+      btn.addEventListener("pointerdown", (e) => e.stopPropagation());
+      btn.addEventListener("pointerenter", () => showMetricHelpLayer(btn));
+      btn.addEventListener("pointerleave", () => hideMetricHelpLayer(btn));
+      btn.addEventListener("focus", () => showMetricHelpLayer(btn));
+      btn.addEventListener("blur", () => hideMetricHelpLayer(btn));
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideMetricHelpLayer(btn);
+        const key = btn.dataset.metricHelp || "";
+        if (!key) return;
+        const url = "/viewer/help?metric=" + encodeURIComponent(key);
+        window.open(url, "_blank", "noopener");
+      });
+    }
   }
 
   function renderWidget(gridEl, layoutItem) {
@@ -1482,6 +1854,7 @@
       b.classList.toggle("active", b.dataset.tab === tabId);
     }
     const grid = $("grid");
+    hideMetricHelpLayer();
     disposeTradingViewCharts(); // free LWC canvases/observers before DOM teardown
     grid.innerHTML = "";
     const tab = APP.tabs[tabId];
@@ -1612,6 +1985,18 @@
     selectApp(0);
   }
 
+  function renderMetricHelpRoute() {
+    const pathname = String((window.location && window.location.pathname) || "").replace(/\/+$/, "");
+    if (pathname !== "/viewer/help") return false;
+    const params = new URLSearchParams((window.location && window.location.search) || "");
+    const key = params.get("metric") || "";
+    const entry = metricGlossaryEntry(key);
+    document.body.className = "help-doc";
+    document.body.innerHTML = metricHelpPageHtml(key);
+    document.title = (entry ? entry.label + " Help" : "Metric Help") + " - Local Workspace Viewer";
+    return true;
+  }
+
   // VS Code-style collapse for BOTH side panels — left "Apps" sidebar (#1890)
   // and right "Copilot" panel. State persists across reloads; header toggles
   // light up (.pin-on) while their panel is open. On any collapse the active
@@ -1632,34 +2017,35 @@
     try { localStorage.setItem("viewer:sideCollapsed", v ? "1" : "0"); } catch (_) { /* ignore */ }
     reflowActiveTab();
   }
-  applySideCollapsed(localStorage.getItem("viewer:sideCollapsed") === "1");
-  $("side-toggle").addEventListener("click", () => setSideCollapsed(!document.body.classList.contains("side-collapsed")));
-  $("side-hide").addEventListener("click", () => setSideCollapsed(true));
+  if (!renderMetricHelpRoute()) {
+    applySideCollapsed(localStorage.getItem("viewer:sideCollapsed") === "1");
+    $("side-toggle").addEventListener("click", () => setSideCollapsed(!document.body.classList.contains("side-collapsed")));
+    $("side-hide").addEventListener("click", () => setSideCollapsed(true));
 
-  function applyChatCollapsed(v) { document.body.classList.toggle("chat-collapsed", v); syncPanelToggles(); }
-  function setChatCollapsed(v) {
-    applyChatCollapsed(v);
-    try { localStorage.setItem("viewer:chatCollapsed", v ? "1" : "0"); } catch (_) { /* ignore */ }
-    reflowActiveTab();
-  }
-  // Copilot panel is HIDDEN BY DEFAULT (no stored preference -> collapsed).
-  applyChatCollapsed(localStorage.getItem("viewer:chatCollapsed") !== "0");
-  $("chat-toggle").addEventListener("click", () => setChatCollapsed(!document.body.classList.contains("chat-collapsed")));
-  $("chat-hide").addEventListener("click", () => setChatCollapsed(true));
+    function applyChatCollapsed(v) { document.body.classList.toggle("chat-collapsed", v); syncPanelToggles(); }
+    function setChatCollapsed(v) {
+      applyChatCollapsed(v);
+      try { localStorage.setItem("viewer:chatCollapsed", v ? "1" : "0"); } catch (_) { /* ignore */ }
+      reflowActiveTab();
+    }
+    // Copilot panel is HIDDEN BY DEFAULT (no stored preference -> collapsed).
+    applyChatCollapsed(localStorage.getItem("viewer:chatCollapsed") !== "0");
+    $("chat-toggle").addEventListener("click", () => setChatCollapsed(!document.body.classList.contains("chat-collapsed")));
+    $("chat-hide").addEventListener("click", () => setChatCollapsed(true));
 
-  // Reset the active tab's layout to the apps.json defaults (#1893).
-  $("reset-layout").addEventListener("click", () => {
-    if (APP && ACTIVE_TAB) { clearOverrides(APP.name, ACTIVE_TAB); renderTab(ACTIVE_TAB); }
-  });
+    // Reset the active tab's layout to the apps.json defaults (#1893).
+    $("reset-layout").addEventListener("click", () => {
+      if (APP && ACTIVE_TAB) { clearOverrides(APP.name, ACTIVE_TAB); renderTab(ACTIVE_TAB); }
+    });
 
-  $("refresh-btn").addEventListener("click", () => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); });
+    $("refresh-btn").addEventListener("click", () => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); });
 
-  // Reflow the grid when the window (and thus column width) changes.
-  let _rzT = null;
-  window.addEventListener("resize", () => {
-    clearTimeout(_rzT);
-    _rzT = setTimeout(() => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); }, 150);
-  });
+    // Reflow the grid when the window (and thus column width) changes.
+    let _rzT = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(_rzT);
+      _rzT = setTimeout(() => { if (ACTIVE_TAB) renderTab(ACTIVE_TAB); }, 150);
+    });
 
   //--------------------------------------------------------------------------
   // Chat pane: POST /query and stream copilotMessageChunk SSE frames.
@@ -1755,12 +2141,13 @@
     }
   }
 
-  $("chat-send").addEventListener("click", sendChat);
-  $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
+    $("chat-send").addEventListener("click", sendChat);
+    $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendChat(); });
 
-  // Boot.
-  initDashboard();
-  initChat();
+    // Boot.
+    initDashboard();
+    initChat();
+  }
   </script>
 
   <!-- Bug Context feedback widget (CSP-friendly: no inline script) -->
