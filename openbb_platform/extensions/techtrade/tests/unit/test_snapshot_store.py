@@ -5,9 +5,12 @@ the baseline ``default_validator`` gate. Task 2 scope: the concrete
 ``SqliteSnapshotStore`` stage/validate/promote/get_live/get_as_of/
 list_history lifecycle, including the keep-last-good rank guard, the
 validated-before-promote gate, the DB-level single-LIVE-row unique index,
-and read-boundary canonicalization. The MySQL backend and the remaining
-Protocol methods (``should_skip``/``restamp_live``/``prune``) are exercised
-by later tasks (#1963 Task 3+); see the design spec
+and read-boundary canonicalization. Task 3 scope: ``should_skip``
+(idempotent-rerun detection), ``restamp_live`` (auditable session
+re-stamping without recompute, atop the same stage/validate/promote path),
+and ``prune`` (the ``RetentionPolicy`` hook — default keep-all, bounded
+policy never removes LIVE rows). The MySQL backend is exercised by later
+tasks (#1963 Task 4+); see the design spec
 (``docs/superpowers/specs/2026-08-09-asof-snapshot-cache-and-alignment-design.md``
 §3-4).
 """
@@ -22,6 +25,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 from openbb_techtrade.snapshot.store import (
+    RetentionPolicy,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
@@ -75,13 +79,22 @@ def _stage(
     as_of_session: date = date(2026, 9, 4),
     job_run_id: str | None = None,
     status: SnapshotStatus = SnapshotStatus.OK,
+    input_hash: str | None = None,
 ) -> tuple[str, str, date, str]:
     """Stage a row; return the ``(dataset, entity_key, as_of_session, job_run_id)``.
 
     tuple that ``validate()``/``promote()`` expect via ``*staged`` unpacking.
     """
     job_run_id = job_run_id or f"run-{next(_job_run_ids)}"
-    store.stage(dataset, entity_key, as_of_session, job_run_id, payload, status=status)
+    store.stage(
+        dataset,
+        entity_key,
+        as_of_session,
+        job_run_id,
+        payload,
+        status=status,
+        input_hash=input_hash,
+    )
     return (dataset, entity_key, as_of_session, job_run_id)
 
 
@@ -342,4 +355,90 @@ def test_get_as_of_returns_promoted_row_for_given_session(tmp_path) -> None:
         store.get_as_of("techtrade.movers", "sector=technology", date(2026, 9, 1))
         is None
     )
+    store.close()
+
+
+# --- Task 3: idempotency, auditable restamping, and retention ------------
+
+
+def _live_store(tmp_path, *, input_hash: str) -> SqliteSnapshotStore:
+    """Build a store with one promoted LIVE row carrying ``input_hash``."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+        job_run_id="run-1",
+        input_hash=input_hash,
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    return store
+
+
+def _store_with_three_sessions(tmp_path) -> SqliteSnapshotStore:
+    """Build a store with three promoted sessions for one key (newest is LIVE)."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    for offset, symbol in enumerate(["AAPL", "MSFT", "GOOG"]):
+        staged = _stage(
+            store,
+            payload={"rows": [{"symbol": symbol}]},
+            as_of_session=date(2026, 9, 2 + offset),
+        )
+        assert store.validate(*staged).ok
+        assert store.promote(*staged)
+    return store
+
+
+def test_should_skip_is_false_with_no_live_row_or_mismatched_hash(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    assert not store.should_skip("techtrade.movers", "sector=technology", "any-hash")
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]}, input_hash="hash-a")
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    assert not store.should_skip("techtrade.movers", "sector=technology", "hash-b")
+    assert store.should_skip("techtrade.movers", "sector=technology", "hash-a")
+    store.close()
+
+
+def test_matching_input_hash_can_be_restamped_without_recompute(tmp_path) -> None:
+    store = _live_store(tmp_path, input_hash="same-input")
+    assert store.should_skip("techtrade.movers", "sector=technology", "same-input")
+    assert store.restamp_live(
+        "techtrade.movers", "sector=technology", date(2026, 9, 4), "run-2"
+    )
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.as_of_session == date(2026, 9, 4)
+    assert live.job_run_id == "run-2"
+    assert live.payload["rows"][0]["symbol"] == "AAPL"
+    assert live.input_hash == "same-input"
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert len(history) == 2
+    # No in-place mutation: the prior row keeps its original session/state.
+    superseded = next(row for row in history if row.job_run_id == "run-1")
+    assert superseded.as_of_session == date(2026, 9, 3)
+    assert superseded.state == SnapshotState.SUPERSEDED
+    store.close()
+
+
+def test_restamp_live_refuses_when_no_live_row_exists(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    assert not store.restamp_live(
+        "techtrade.movers", "sector=technology", date(2026, 9, 4), "run-2"
+    )
+    assert store.get_live("techtrade.movers", "sector=technology") is None
+    store.close()
+
+
+def test_default_prune_keeps_all_and_bounded_policy_preserves_live(tmp_path) -> None:
+    store = _store_with_three_sessions(tmp_path)
+    assert store.prune() == 0
+    assert store.prune(RetentionPolicy(keep_sessions=1)) == 2
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.payload["rows"][0]["symbol"] == "GOOG"
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert len(history) == 1
     store.close()

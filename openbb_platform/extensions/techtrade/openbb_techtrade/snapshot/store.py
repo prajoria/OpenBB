@@ -321,9 +321,9 @@ def _row_from_record(record: sqlite3.Row) -> SnapshotRow:
 class SqliteSnapshotStore:
     """SQLite-backed EOD snapshot store implementing the ``SnapshotStore`` Protocol.
 
-    Task 2 scope only: ``stage``/``validate``/``promote``/``get_live``/
-    ``get_as_of``/``list_history``/``close``. ``should_skip``/
-    ``restamp_live``/``prune`` land in Task 3 on the same class.
+    Task 2 scope: ``stage``/``validate``/``promote``/``get_live``/
+    ``get_as_of``/``list_history``/``close``. Task 3 adds ``should_skip``/
+    ``restamp_live``/``prune`` on the same class.
 
     Threading: mirrors ``SqlitePaperEngine`` — ``check_same_thread=False``
     with ``isolation_level=None`` (autocommit) so every multi-statement
@@ -566,6 +566,112 @@ class SqliteSnapshotStore:
             (dataset, entity_key, limit),
         ).fetchall()
         return [_row_from_record(record) for record in records]
+
+    def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
+        """Report whether the LIVE row already carries this ``input_hash``.
+
+        A skip must not strand the staleness badge — callers should follow
+        a skip with ``restamp_live`` on a new session (design spec §4.5).
+        """
+        live = self.get_live(dataset, entity_key)
+        return live is not None and live.input_hash == input_hash
+
+    def restamp_live(
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+    ) -> bool:
+        """Advance the LIVE pointer's ``as_of_session`` without recomputing.
+
+        Inserts a *new* row carrying the current LIVE row's payload and
+        provenance under the new session/run IDs, then runs it through the
+        same stage -> validate -> promote atomic path. The prior LIVE row
+        is never mutated in place — ``promote()`` flips it to SUPERSEDED
+        and it remains in history for audit, exactly like any other
+        supersession.
+        """
+        live = self.get_live(dataset, entity_key)
+        if live is None:
+            logger.warning("snapshot restamp refused: no LIVE row to restamp")
+            return False
+        self.stage(
+            dataset,
+            entity_key,
+            as_of_session,
+            job_run_id,
+            live.payload,
+            status=live.status,
+            input_hash=live.input_hash,
+            row_count=live.row_count,
+            engine_version=live.engine_version,
+            payload_schema_version=live.payload_schema_version,
+        )
+        result = self.validate(dataset, entity_key, as_of_session, job_run_id)
+        if not result.ok:
+            logger.warning(
+                "snapshot restamp refused: validation failed: %s", result.reason
+            )
+            return False
+        return self.promote(dataset, entity_key, as_of_session, job_run_id)
+
+    def prune(self, policy: RetentionPolicy | None = None) -> int:
+        """Apply retention; return the number of rows removed.
+
+        The default policy (``None``, or an explicit ``RetentionPolicy()``
+        with ``keep_sessions=None``) keeps everything and returns ``0``. A
+        bounded policy deletes only non-LIVE rows outside the newest
+        ``keep_sessions`` distinct ``as_of_session`` values, per
+        (dataset, entity_key) key. LIVE rows are never pruned — the
+        ``state != 'live'`` filter below is an unconditional safety net,
+        independent of whether a LIVE row's session lands inside the kept
+        window.
+        """
+        if policy is None or policy.keep_sessions is None:
+            return 0
+        keep_sessions = policy.keep_sessions
+        deleted = 0
+        with self._tx():
+            keys = self._conn.execute(
+                "SELECT DISTINCT dataset, entity_key FROM pi_snapshot"
+            ).fetchall()
+            for key in keys:
+                dataset_key, entity_key_key = key["dataset"], key["entity_key"]
+                sessions = [
+                    record["as_of_session"]
+                    for record in self._conn.execute(
+                        "SELECT DISTINCT as_of_session FROM pi_snapshot "
+                        "WHERE dataset = ? AND entity_key = ? "
+                        "ORDER BY as_of_session DESC",
+                        (dataset_key, entity_key_key),
+                    ).fetchall()
+                ]
+                if len(sessions) <= keep_sessions:
+                    continue
+                keep = sessions[:keep_sessions]
+                # `condition` is built only from a fixed literal ("1 = 1") or
+                # a placeholders string of "?" — no external input reaches
+                # the SQL text itself, all values are bound via `params`.
+                if keep:
+                    placeholders = ", ".join("?" for _ in keep)
+                    condition = f"as_of_session NOT IN ({placeholders})"
+                    params = (
+                        dataset_key,
+                        entity_key_key,
+                        SnapshotState.LIVE.value,
+                        *keep,
+                    )
+                else:
+                    condition = "1 = 1"
+                    params = (dataset_key, entity_key_key, SnapshotState.LIVE.value)
+                cursor = self._conn.execute(
+                    "DELETE FROM pi_snapshot WHERE dataset = ? AND entity_key = ? "  # noqa: S608
+                    f"AND state != ? AND {condition}",
+                    params,
+                )
+                deleted += cursor.rowcount
+        return deleted
 
     def close(self) -> None:
         """Release the SQLite connection."""
