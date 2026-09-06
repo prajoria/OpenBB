@@ -1,24 +1,32 @@
-"""Tests for the #1963 EOD snapshot store contract (Task 1).
+"""Tests for the #1963 EOD snapshot store contract (Task 1-2).
 
-Task 1 scope only: the shared value types, ``canonical_key`` normalization,
-and the baseline ``default_validator`` gate. The concrete SQLite/MySQL
-backends and the ``SnapshotStore`` Protocol's behavior are exercised by
-later tasks (#1963 Task 2+); this module only proves the contract types
-import cleanly and the two pure helper functions behave per the design
-spec (``docs/superpowers/specs/2026-08-09-asof-snapshot-cache-and-alignment-design.md``
-§4.2-4.3).
+Task 1 scope: the shared value types, ``canonical_key`` normalization, and
+the baseline ``default_validator`` gate. Task 2 scope: the concrete
+``SqliteSnapshotStore`` stage/validate/promote/get_live/get_as_of/
+list_history lifecycle, including the keep-last-good rank guard, the
+validated-before-promote gate, the DB-level single-LIVE-row unique index,
+and read-boundary canonicalization. The MySQL backend and the remaining
+Protocol methods (``should_skip``/``restamp_live``/``prune``) are exercised
+by later tasks (#1963 Task 3+); see the design spec
+(``docs/superpowers/specs/2026-08-09-asof-snapshot-cache-and-alignment-design.md``
+§3-4).
 """
 
 # ruff: noqa: D101, D102, D103, D105
 
 from __future__ import annotations
 
+import itertools
+import sqlite3
 from datetime import date, datetime, timezone
 
+import pytest
 from openbb_techtrade.snapshot.store import (
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
+    SqliteSnapshotStore,
+    ValidationResult,
     canonical_key,
     default_validator,
 )
@@ -51,3 +59,209 @@ def test_default_validator_rejects_empty_payload_and_negative_rows() -> None:
     assert default_validator(
         _row(payload={"rows": [{"symbol": "AAPL"}]}, row_count=1)
     ).ok
+
+
+# --- Task 2: SQLite lifecycle -------------------------------------------
+
+_job_run_ids = itertools.count(1)
+
+
+def _stage(
+    store: SqliteSnapshotStore,
+    *,
+    payload: dict,
+    dataset: str = "techtrade.movers",
+    entity_key: str = "sector=technology",
+    as_of_session: date = date(2026, 9, 4),
+    job_run_id: str | None = None,
+    status: SnapshotStatus = SnapshotStatus.OK,
+) -> tuple[str, str, date, str]:
+    """Stage a row; return the ``(dataset, entity_key, as_of_session, job_run_id)``.
+
+    tuple that ``validate()``/``promote()`` expect via ``*staged`` unpacking.
+    """
+    job_run_id = job_run_id or f"run-{next(_job_run_ids)}"
+    store.stage(dataset, entity_key, as_of_session, job_run_id, payload, status=status)
+    return (dataset, entity_key, as_of_session, job_run_id)
+
+
+def test_fresh_store_has_no_live_snapshot(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    assert store.get_live("techtrade.movers", "sector=technology") is None
+    store.close()
+
+
+def test_clean_stage_validate_promote_is_atomic(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(
+        store, status=SnapshotStatus.OK, payload={"rows": [{"symbol": "AAPL"}]}
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.payload["rows"][0]["symbol"] == "AAPL"
+    assert live.state == SnapshotState.LIVE
+    # 12.3 #8: as_of_session is a plain date, created_at a tz-aware datetime;
+    # `type(...) is date` (not isinstance) since datetime subclasses date.
+    assert (
+        type(live.as_of_session) is date
+    )  # noqa: E721 pylint: disable=unidiomatic-typecheck
+    assert isinstance(live.created_at, datetime)
+    assert live.created_at.tzinfo is not None
+    store.close()
+
+
+def test_unvalidated_or_empty_stage_cannot_promote(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(store, payload={})
+    assert not store.promote(*staged)
+    assert not store.validate(*staged).ok
+    assert store.get_live("techtrade.movers", "sector=technology") is None
+    store.close()
+
+
+def test_custom_validator_rejection_blocks_promotion(tmp_path) -> None:
+    """Invariant: a caller-supplied ``validator=`` can refuse promotion."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+
+    def _reject(row: SnapshotRow) -> ValidationResult:
+        del row
+        return ValidationResult(ok=False, reason="too few rows for this caller")
+
+    result = store.validate(*staged, validator=_reject)
+    assert not result.ok
+    assert result.reason == "too few rows for this caller"
+    assert not store.promote(*staged)
+    assert store.get_live("techtrade.movers", "sector=technology") is None
+    store.close()
+
+
+def test_partial_cannot_displace_ok(tmp_path) -> None:
+    """Invariant: keep-last-good — PARTIAL never outranks a LIVE OK row."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    ok_staged = _stage(
+        store, status=SnapshotStatus.OK, payload={"rows": [{"symbol": "AAPL"}]}
+    )
+    assert store.validate(*ok_staged).ok
+    assert store.promote(*ok_staged)
+
+    partial_staged = _stage(
+        store,
+        status=SnapshotStatus.PARTIAL,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 5),
+    )
+    assert store.validate(*partial_staged).ok
+    assert not store.promote(*partial_staged)
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.payload["rows"][0]["symbol"] == "AAPL"
+    assert live.job_run_id == ok_staged[3]
+    store.close()
+
+
+def test_newer_ok_supersedes_prior_ok_and_history_retains_both(tmp_path) -> None:
+    """Invariant: a newer OK run displaces the LIVE OK row; history keeps both."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    first = _stage(
+        store,
+        status=SnapshotStatus.OK,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+
+    second = _stage(
+        store,
+        status=SnapshotStatus.OK,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+    )
+    assert store.validate(*second).ok
+    assert store.promote(*second)
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.payload["rows"][0]["symbol"] == "MSFT"
+    assert live.job_run_id == second[3]
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert [row.job_run_id for row in history] == [second[3], first[3]]
+    assert history[0].state == SnapshotState.LIVE
+    assert history[1].state == SnapshotState.SUPERSEDED
+    store.close()
+
+
+def test_direct_second_live_insert_raises_integrity_error(tmp_path) -> None:
+    """Invariant: the partial unique index blocks a second LIVE row at the DB layer."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        store._conn.execute(  # pylint: disable=protected-access
+            "INSERT INTO pi_snapshot ("
+            "dataset, entity_key, as_of_session, created_at, job_run_id, "
+            "status, state, validated, validation_reason, payload_json, "
+            "input_hash, row_count, engine_version, payload_schema_version"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, 1, '', ?, NULL, NULL, NULL, NULL)",
+            (
+                "techtrade.movers",
+                "sector=technology",
+                date(2026, 9, 5).isoformat(),
+                datetime.now(timezone.utc).isoformat(),
+                "run-direct-live",
+                SnapshotStatus.OK.value,
+                SnapshotState.LIVE.value,
+                '{"rows": [{"symbol": "GOOG"}]}',
+            ),
+        )
+    store.close()
+
+
+def test_differently_formatted_keys_resolve_same_live_row(tmp_path) -> None:
+    """Invariant: read-boundary canonicalization — split-brain keys collapse to one row.
+
+    Both write and read keys are deliberately non-canonical and formatted
+    *differently* from each other (extra whitespace, underscores, case) so
+    this only passes if ``get_live`` canonicalizes its own arguments —
+    reading with an already-canonical key would make this assertion
+    ceremonial (CLAUDE.md R7: it would pass even with canonicalization
+    removed from the read path).
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(
+        store,
+        entity_key="sector = Information_Technology",
+        payload={"rows": [{"symbol": "AAPL"}]},
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+    live = store.get_live("techtrade.movers", "sector=INFORMATION_technology")
+    assert live is not None
+    assert live.payload["rows"][0]["symbol"] == "AAPL"
+    store.close()
+
+
+def test_get_as_of_returns_promoted_row_for_given_session(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, as_of_session=date(2026, 9, 4)
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+    as_of = store.get_as_of("techtrade.movers", "sector=technology", date(2026, 9, 4))
+    assert as_of is not None
+    assert as_of.payload["rows"][0]["symbol"] == "AAPL"
+    assert (
+        store.get_as_of("techtrade.movers", "sector=technology", date(2026, 9, 1))
+        is None
+    )
+    store.close()
