@@ -1,0 +1,8 @@
+# Fixture compose file — its mere existence satisfies the cross-check that
+# the referenced compose file is present. Real compose semantics aren't
+# exercised by the unit tests.
+services:
+  runner:
+    image: alpine:3
+  mysql-svc:
+    image: mysql:8

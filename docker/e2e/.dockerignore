@@ -1,0 +1,26 @@
+# docker/e2e/.dockerignore
+#
+# Applied to every build context rooted at the repo. Keep secrets and
+# heavy transient state out of ANY image layer.
+
+**/.git
+**/.venv
+**/.venv_win
+**/node_modules
+**/dist
+**/build
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# Secrets — belt-and-suspenders. These are also excluded by .gitignore.
+.env
+**/.env
+**/user_settings.json
+**/*.key
+**/*.pem
+**/credentials.json
+
+# Harness output
+docker/e2e/artifacts/

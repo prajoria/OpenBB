@@ -1,0 +1,22 @@
+# docker/e2e/Dockerfile.desktop
+#
+# Validates the desktop web bundle builds cleanly. We deliberately do
+# NOT run `tauri build` here — that needs a Linux GUI stack (xvfb +
+# libwebkit + gtk) which balloons the image and is out of scope for the
+# first cut of this harness. Follow-up issue tracks the Tauri binary build.
+
+FROM node:20-bookworm-slim
+
+ENV NODE_ENV=development
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/e2e/scripts/build_desktop.sh /scripts/build_desktop.sh
+RUN chmod +x /scripts/build_desktop.sh
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

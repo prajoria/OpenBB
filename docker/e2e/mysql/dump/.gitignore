@@ -1,0 +1,6 @@
+# docker/e2e/mysql/dump/.gitignore
+# Never commit database dumps — they're huge and may contain sensitive data.
+*.sql
+*.sql.gz
+*.sql.zst
+!.gitignore
