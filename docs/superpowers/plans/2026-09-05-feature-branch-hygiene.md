@@ -701,31 +701,31 @@ active state other than `BLOCKED-AUTH`.
 | `trading_technicals` | `KEPT-HOLD` | `195b63422` | PR #101 merged to `develop`; 27 historical target PRs | Hold | None | **Preserve:** one patch differs from all permanent trunks; dedicated retirement approval required |
 | `__dolt_remote_info__` | `KEPT-METADATA` | `fbdc924a3` | Not a code PR branch | Metadata | None | **Exclude:** never pass to code-branch deletion commands |
 | `sync/upstream-openbb-2026-07-19` | `BLOCKED-AUTH` | `88dcdb226` | PR #895 open to `develop` | `develop` | Blocked | **Quarantine:** ten unique patches; no PR update, merge, close, or deletion without Daisy explicitly directing the `develop` operation |
-| `chore/bump-pynecore-alpha-27v7-9cae` | `READY-PROOF` | `57d766cf6` | PR #480 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
-| `chore/bump-pynecore-p2-wave1` | `NEEDS-RECONCILIATION` | `dfd7c60e4` | PR #458 closed, unmerged | `openbb_pine_support` | `openbb_pine_support` | One unique patch; prove superseded or recover before deletion |
-| `chore/bump-pynecore-p2-wave1-v2` | `READY-PROOF` | `7da8320c9` | PR #460 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
-| `chore/e41-unfreeze-rescope` | `READY-PROOF` | `a5de7c9c3` | PR #440 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
-| `docs/bl57-alpha-quickstart-supported` | `READY-PROOF` | `3173a4811` | PR #482 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
-| `docs/dyhr-tv-walkthrough` | `READY-PROOF` | `caa364ed8` | PR #486 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
-| `docs/e42-manifest-prd-fixups` | `READY-PROOF` | `9b8477553` | PR #442 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
-| `docs/pine-claude-md-merge-rule-learnings` | `ACTIVE-PR` | `4f8d10830` | PR #921 open | `openbb_pine_support` | `openbb_pine_support` | One unique patch; finish or explicitly close PR #921 before deletion |
-| `fix/6atb-coverage-tool` | `READY-PROOF` | `352c28da2` | PR #475 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
-| `fix/tech-debt-post-develop-sync` | `NEEDS-RECONCILIATION` | `d2f862670` | No PR | `openbb_pine_support` | `openbb_pine_support` | One unique patch versus Pine; reconcile content before deletion |
-| `plan/pine-extraction-2b` | `READY-PROOF` | `c5abf3c94` | PR #429 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
-| `chore/delete-portfolio-app-gh-1629` | `READY-PROOF` | `07b6639af` | PR #1631 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
-| `chore/move-techtrade-notebooks-gh-1679` | `READY-PROOF` | `2f03dcb74` | PR #1690 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
-| `chore/reconcile-tools-gh-1628` | `READY-PROOF` | `be5aa92d3` | PR #1630 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
-| `fix/pi-portfolio-backend-run-gh-1786` | `READY-PROOF` | `49e861c3f` | PR #1787 merged | `portfolio` | `portfolio_validations` | Zero unique patches; delete remote and matching stale local ref |
-| `fix/pi-portfolio-intel-obbject-openapi-gh-1788` | `READY-PROOF` | `541c27517` | PR #1791 merged | `portfolio` | `portfolio_validations` | Zero unique patches; delete remote and matching stale local ref |
-| `fmp_tradingv2` | `READY-PROOF` | `eeaaaf383` | Historical integration branch | `portfolio` | `portfolio_validations` | Zero commits and patches unique to `portfolio`; record proof, then delete |
-| `journaling-primitive` | `READY-PROOF` | `8200698b1` | Historical integration branch | `portfolio` | `portfolio_validations` | Zero commits and patches unique to `portfolio`; record proof, then delete |
-| `chore/absorb-develop-into-portfolio` | `NEEDS-RECONCILIATION` | `5f1940a36` | PR #762 closed, unmerged | `portfolio` | `portfolio_validations` | Three unique patches; compare against later absorbs and recover retained behavior only through validation |
-| `chore/openbb-dev-cycle-v2-2026-07-04` | `NEEDS-RECONCILIATION` | `c8fb15cb7` | No PR | `portfolio_validations` | `portfolio_validations` | One unique workflow patch; reconcile before deletion |
-| `copilot/create-vs-code-extension-spec` | `NEEDS-RECONCILIATION` | `a98761388` | PR #1803 closed, unmerged | `portfolio` | `portfolio_validations` | One unique documentation patch; prove obsolete or recover through validation |
-| `fix/tech-debt-to-develop` | `NEEDS-RECONCILIATION` | `2af2b5b9e` | PR #742 closed, unmerged | `portfolio_validations` | `portfolio_validations` | Two unique patches; despite its name, do not target `develop`; retain only work valid for Portfolio Intelligence |
-| `fix/techtrade-python-constraint` | `NEEDS-RECONCILIATION` | `d444443c9` | PR #481 closed, unmerged | `portfolio_validations` | `portfolio_validations` | One unique patch; reconcile through validation or document supersession |
-| `qualitycontrol` | `NEEDS-RECONCILIATION` | `9427f6030` | No PR | `portfolio_validations` | `portfolio_validations` | Nine unique patches, primarily historical QC coordination and skills; reconcile useful files, archive evidence, then delete |
-| `quant_trading` | `NEEDS-RECONCILIATION` | `92ef1def6` | No PR | `portfolio_validations` | `portfolio_validations` | Three unique patches across agent tooling, docs, and Financial Toolkit; reconcile file by file before deletion |
+| `chore/bump-pynecore-alpha-27v7-9cae` | `DELETED-PROVED` | `57d766cf6` | PR #480 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `chore/bump-pynecore-p2-wave1` | `DELETED-RECONCILED` | `dfd7c60e4` | PR #458 closed, unmerged | `openbb_pine_support` | `openbb_pine_support` | Superseded by the later Pine submodule pointer; proof recorded on #2037 before deletion |
+| `chore/bump-pynecore-p2-wave1-v2` | `DELETED-PROVED` | `7da8320c9` | PR #460 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `chore/e41-unfreeze-rescope` | `DELETED-PROVED` | `a5de7c9c3` | PR #440 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `docs/bl57-alpha-quickstart-supported` | `DELETED-PROVED` | `3173a4811` | PR #482 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `docs/dyhr-tv-walkthrough` | `DELETED-PROVED` | `caa364ed8` | PR #486 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `docs/e42-manifest-prd-fixups` | `DELETED-PROVED` | `9b8477553` | PR #442 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `docs/pine-claude-md-merge-rule-learnings` | `DELETED-RECONCILED` | `4f8d10830` | PR #921 merged | `openbb_pine_support` | `openbb_pine_support` | Documentation retained through PR #921; source branch deleted after merge |
+| `fix/6atb-coverage-tool` | `DELETED-PROVED` | `352c28da2` | PR #475 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `fix/tech-debt-post-develop-sync` | `DELETED-RECONCILED` | `d2f862670` | No PR | `openbb_pine_support` | `openbb_pine_support` | Obsolete alias fix superseded by the current `session_date` and `AliasChoices` implementation; proof recorded on #2037 before deletion |
+| `plan/pine-extraction-2b` | `DELETED-PROVED` | `c5abf3c94` | PR #429 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `chore/delete-portfolio-app-gh-1629` | `DELETED-PROVED` | `07b6639af` | PR #1631 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
+| `chore/move-techtrade-notebooks-gh-1679` | `DELETED-PROVED` | `2f03dcb74` | PR #1690 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
+| `chore/reconcile-tools-gh-1628` | `DELETED-PROVED` | `be5aa92d3` | PR #1630 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
+| `fix/pi-portfolio-backend-run-gh-1786` | `DELETED-PROVED` | `49e861c3f` | PR #1787 merged | `portfolio` | `portfolio_validations` | Zero unique patches; delete remote and matching stale local ref |
+| `fix/pi-portfolio-intel-obbject-openapi-gh-1788` | `DELETED-PROVED` | `541c27517` | PR #1791 merged | `portfolio` | `portfolio_validations` | Zero unique patches; delete remote and matching stale local ref |
+| `fmp_tradingv2` | `DELETED-PROVED` | `eeaaaf383` | Historical integration branch | `portfolio` | `portfolio_validations` | Zero commits and patches unique to `portfolio`; record proof, then delete |
+| `journaling-primitive` | `DELETED-PROVED` | `8200698b1` | Historical integration branch | `portfolio` | `portfolio_validations` | Zero commits and patches unique to `portfolio`; record proof, then delete |
+| `chore/absorb-develop-into-portfolio` | `DELETED-RECONCILED` | `5f1940a36` | PR #762 closed, unmerged | `portfolio` | `portfolio_validations` | All files present or superseded in pv; paper_trading migration from old portfolio arch; deleted per #2038 Task 11 |
+| `chore/openbb-dev-cycle-v2-2026-07-04` | `DELETED-RECONCILED` | `c8fb15cb7` | No PR | `portfolio_validations` | `portfolio_validations` | SKILL.md superseded by newer version in pv; deleted per #2038 Task 11 |
+| `copilot/create-vs-code-extension-spec` | `DELETED-RECONCILED` | `a98761388` | PR #1803 closed, unmerged | `portfolio` | `portfolio_validations` | PRD superseded by newer version in pv; deleted per #2038 Task 11 |
+| `fix/tech-debt-to-develop` | `DELETED-RECONCILED` | `2af2b5b9e` | PR #742 closed, unmerged | `portfolio_validations` | `portfolio_validations` | fmp_trading Pydantic v2 fixes and pytest.ini superseded in pv; deleted per #2038 Task 11 |
+| `fix/techtrade-python-constraint` | `DELETED-RECONCILED` | `d444443c9` | PR #481 closed, unmerged | `portfolio_validations` | `portfolio_validations` | Python constraint fix superseded in pv (dev_install.py, pyproject.toml evolved); deleted per #2038 Task 11 |
+| `qualitycontrol` | `DELETED-RECONCILED` | `9427f6030` | No PR | `portfolio_validations` | `portfolio_validations` | QC skill + .beads data use retired bd system; concept never adopted in pv; deleted per #2038 Task 11 |
+| `quant_trading` | `DELETED-RECONCILED` | `92ef1def6` | No PR | `portfolio_validations` | `portfolio_validations` | Copilot CLI parity artifacts obsolete (unadopted format); financialtoolkit fix superseded in pv; deleted per #2038 Task 11 |
 
 ### Complete local branch classification
 
@@ -736,10 +736,10 @@ merges into `portfolio_validations`.
 
 | Local branch | Status | Snapshot tip | Remote ref | Required disposition |
 | --- | --- | --- | --- | --- |
-| `docs/pi-asof-snapshot-spec-gh-1932` | `NEEDS-RECONCILIATION` | `be92a07c1bef` | Gone | PR #1970 merged into `portfolio`, but two later patches remain; reconcile them into `portfolio_validations` or prove them obsolete, then delete locally |
-| `fix/local-ci-post-merge-review-gh-2030` | `READY-PROOF` | `38349dd3d551` | Gone | PR #2031 merged into `develop`; verify that historical merge only, then delete locally without any new `develop` operation |
-| `fix/pi-portfolio-backend-run-gh-1786` | `READY-PROOF` | `49e861c3fac7` | Present | Delete locally after the corresponding zero-patch remote cleanup |
-| `fix/pi-portfolio-intel-obbject-openapi-gh-1788` | `READY-PROOF` | `541c275176e2` | Present | Delete locally after the corresponding zero-patch remote cleanup |
+| `docs/pi-asof-snapshot-spec-gh-1932` | `DELETED-RECONCILED` | `be92a07c1bef` | Gone | PR #1970 merged into `portfolio` 2026-08-10; sole file blob `97414885f44cea8122939ff31fadf068f2667c14` confirmed present in `origin/portfolio_validations`; no worktree; force-deleted via `git branch -D` under documented-content-proof exception (Task 12, #2038, #2039) |
+| `fix/local-ci-post-merge-review-gh-2030` | `DELETED-PROVED` | `38349dd3d551` | Gone | PR #2031 merged into `develop`; tip confirmed ancestor of `origin/develop` via `git merge-base --is-ancestor`; upstream set to `origin/develop` after ancestry proof; deleted via `git branch -d` (Task 12, #2039) |
+| `fix/pi-portfolio-backend-run-gh-1786` | `DELETED-PROVED` | `49e861c3fac7` | Gone | Delete locally after the corresponding zero-patch remote cleanup |
+| `fix/pi-portfolio-intel-obbject-openapi-gh-1788` | `DELETED-PROVED` | `541c275176e2` | Gone | Delete locally after the corresponding zero-patch remote cleanup |
 
 ### Target policy for this cleanup
 
