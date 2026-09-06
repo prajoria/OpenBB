@@ -615,6 +615,34 @@ def test_normalize_yfinance_bars_price_field_first_layout():
     assert set(result["symbol"]) == {"AAA", "BBB"}
 
 
+def test_normalize_yfinance_bars_uses_pandas_15_stack_api(monkeypatch):
+    """Both layouts must avoid the post-pandas-1.5 future_stack keyword."""
+    original_stack = pd.DataFrame.stack
+
+    def legacy_stack(frame, *args, **kwargs):
+        assert "future_stack" not in kwargs
+        return original_stack(frame, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "stack", legacy_stack)
+    index = pd.DatetimeIndex(["2026-08-10T16:00:00Z"])
+    symbol_first = pd.DataFrame(
+        [[100.0, 101.0]],
+        index=index,
+        columns=pd.MultiIndex.from_product([["AAA"], ["Open", "Close"]]),
+    )
+    field_first = pd.DataFrame(
+        [[100.0, 101.0]],
+        index=index,
+        columns=pd.MultiIndex.from_product([["Open", "Close"], ["AAA"]]),
+    )
+
+    symbol_result = normalize_yfinance_bars(symbol_first)
+    field_result = normalize_yfinance_bars(field_first)
+
+    assert list(symbol_result.columns) == ["timestamp", "symbol", "open", "close"]
+    assert list(field_result.columns) == ["timestamp", "symbol", "open", "close"]
+
+
 def test_normalize_yfinance_bars_non_multiindex_raises():
     """Flat columns must raise ValueError."""
     raw = pd.DataFrame({"open": [100.0], "close": [101.0]})

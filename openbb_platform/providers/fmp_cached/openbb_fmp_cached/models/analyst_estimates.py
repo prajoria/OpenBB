@@ -812,10 +812,10 @@ def get_estimate_for_period_before_release(
 
     ``date`` must equal the issuer's resolved fiscal-period end; this query
     deliberately never falls back to an earlier period. The selected snapshot
-    must also have existed on or before the provider earnings-release date,
-    preventing post-release revisions from being presented as a historical
-    estimate. Returns ``None`` when that exact period has no pre-release
-    snapshot.
+    must also have existed before the provider earnings-release date. Because
+    snapshots are date-only, release-day rows are conservatively excluded:
+    their pre/post-release ordering cannot be proven. Returns ``None`` when
+    that exact period has no provably pre-release snapshot.
     """
     try:
         rows = execute_query(
@@ -830,7 +830,7 @@ def get_estimate_for_period_before_release(
             WHERE symbol = %s
               AND date = %s
               AND period = %s
-              AND snapshot_date <= %s
+              AND snapshot_date < %s
             ORDER BY snapshot_date DESC
             LIMIT 1
             """,

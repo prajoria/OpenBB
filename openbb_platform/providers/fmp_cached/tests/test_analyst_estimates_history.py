@@ -206,7 +206,8 @@ def test_get_estimate_for_period_before_release_requires_exact_fiscal_period(
     def fake_execute_query(sql: str, args: tuple):
         assert "AND date = %s" in sql
         assert "AND date <= %s" not in sql
-        assert "snapshot_date <= %s" in sql
+        assert "snapshot_date < %s" in sql
+        assert "snapshot_date <= %s" not in sql
         assert "ORDER BY snapshot_date DESC" in sql
         assert args == ("AAPL", fiscal_period_end, "quarter", release_date)
         return [

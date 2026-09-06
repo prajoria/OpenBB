@@ -221,12 +221,12 @@ def normalize_yfinance_bars(raw: pd.DataFrame) -> pd.DataFrame:
     # yfinance >=0.2 returns (price_field, symbol); older versions and
     # group_by="ticker" return (symbol, price_field)
     price_fields = {"Open", "High", "Low", "Close", "Volume"}
-    if lvl0[0] in price_fields:
-        # (price_field, symbol) layout -- stack symbols into a column
-        raw = raw.stack(level=1, future_stack=True).reset_index()
-    else:
-        # (symbol, price_field) layout -- stack symbols, price fields become columns
-        raw = raw.stack(level=0, future_stack=True).reset_index()
+    # Stack symbols into a column; price fields remain as value columns.
+    raw = (
+        raw.stack(level=1).reset_index()
+        if lvl0[0] in price_fields
+        else raw.stack(level=0).reset_index()
+    )
 
     # Normalise all column names to lower-case
     raw.columns = [str(c).lower() for c in raw.columns]

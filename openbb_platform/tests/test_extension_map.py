@@ -108,8 +108,7 @@ def test_extension_map():
         )
 
     assert not contents, (
-        "If you are running this test locally, you can ignore this failure."
-        + " This test is to ensure files are not added to the repository."
-        + " Do not add these files to a commit."
+        "Generated package files are forbidden in CI and strict mode."
+        + " Remove them from the repository before committing."
         f" Unexpected files or folders found in package directory: {contents}"
     )

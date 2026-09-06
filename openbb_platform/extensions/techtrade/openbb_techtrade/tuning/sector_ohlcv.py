@@ -18,6 +18,10 @@ without an injected ``fetcher`` will lazy-import the default ``fmp_cached``
 fetcher at call time, which itself requires fmp_cached to be configured).
 """
 
+# The default fetcher deliberately imports ``openbb`` only when invoked so this
+# tuning module remains importable in minimal TechTrade environments.
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
 import logging
@@ -52,6 +56,7 @@ try:
             benchmark_etf=GICS_SECTOR_ETFS.get(segment),
         )
         return resolve_universe(cfg)
+
 except ImportError:  # pragma: no cover - defensive; all the names exist today
     _FALLBACK_UNIVERSE: dict[str, list[str]] = {
         "Information Technology": ["AAPL", "MSFT", "NVDA", "AVGO", "ADBE"],
@@ -70,6 +75,8 @@ except ImportError:  # pragma: no cover - defensive; all the names exist today
     def universe_for_segment(  # type: ignore[no-redef]
         segment: str, source: str = "etf_holdings"
     ) -> list[str]:
+        """Return the static fallback universe when resolver imports fail."""
+        del source
         return list(_FALLBACK_UNIVERSE.get(segment, []))
 
 
@@ -157,7 +164,9 @@ def pool_sector_ohlcv(
     for symbol in symbols:
         try:
             df = use_fetcher(symbol, start=start, end=as_of)
-        except Exception as exc:  # noqa: BLE001 - one bad symbol must not abort the pool
+        except (
+            Exception
+        ) as exc:  # noqa: BLE001 - one bad symbol must not abort the pool
             logger.warning("sector_ohlcv: %s fetch failed: %s", symbol, exc)
             continue
         if df is None or df.empty:
@@ -175,7 +184,7 @@ def pool_sector_ohlcv(
     # unstack -> per-symbol column -> shift within column -> stack back to long.
     closes = X["close"].unstack("symbol")
     forward = closes.shift(-forward_horizon_bars) / closes - 1.0
-    y = forward.stack(future_stack=True).reorder_levels(["date", "symbol"]).sort_index()
+    y = forward.stack().reorder_levels(["date", "symbol"]).sort_index()
     y.name = "y"
     # Align X to y's index (which has dropped the tail NaN rows).
     y = y.dropna()
