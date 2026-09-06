@@ -68,7 +68,7 @@ def _fmt_clock(hour: int, minute: int) -> str:
 
 
 @dataclass(frozen=True)
-class DriftSummary:
+class DriftSummary:  # pylint: disable=too-many-instance-attributes
     """Immutable rollup of intraday-drift observations."""
 
     start_session: date
@@ -166,7 +166,7 @@ def filter_incomplete_exit_sessions(
     return observations[complete].reset_index(drop=True)
 
 
-def build_observations(
+def build_observations(  # pylint: disable=too-many-positional-arguments
     bars: pd.DataFrame,
     now: datetime | None = None,
     entry_hour: int = ENTRY_HOUR,

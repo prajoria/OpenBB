@@ -385,7 +385,7 @@ def download_intraday_bars(
         unexpected flat column index.
     """
     try:
-        import yfinance as yf  # noqa: PLC0415
+        import yfinance as yf  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
     except ImportError as exc:
         raise RuntimeError(
             "yfinance is required -- install it with: pip install yfinance"
@@ -602,14 +602,14 @@ def run_study(
         returned window is materially shorter than requested and
         *allow_partial_window* is ``False``.
     """
-    import os  # noqa: PLC0415
+    import os  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
 
     # Make openbb_backtest importable when run as a script
     _backtest_root = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
     if _backtest_root not in sys.path:
         sys.path.insert(0, _backtest_root)
 
-    from openbb_backtest.strategies.intraday_drift import (  # noqa: PLC0415
+    from openbb_backtest.strategies.intraday_drift import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
         build_observations,
         summarize_observations,
     )
