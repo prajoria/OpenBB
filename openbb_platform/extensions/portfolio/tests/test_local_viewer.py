@@ -35,7 +35,9 @@ def test_viewer_help_route_returns_same_origin_html_shell():
     assert body.lstrip().lower().startswith("<!doctype html")
     assert "function metricHelpPageHtml" in body
     assert 'pathname !== "/viewer/help"' in body
-    assert 'new URLSearchParams((window.location && window.location.search) || "")' in body
+    assert (
+        'new URLSearchParams((window.location && window.location.search) || "")' in body
+    )
     assert "bugcontext.com/loader.js" not in body
     assert "Bug Context feedback widget" not in body
 
@@ -53,17 +55,7 @@ def test_viewer_html_references_contract_endpoints():
 
 
 def test_viewer_html_is_self_contained():
-    """Offline-first: the only permitted external *fetch* is the Bug Context
-    feedback widget (#1980).
-
-    The viewer inlines/vendors all its assets so it works without network
-    access. The single sanctioned exception is the Bug Context feedback widget
-    loader. This test blocks accidental CDN creep by asserting no other host is
-    loaded via a ``src=``/``href=`` attribute. Attribution URLs that live inside
-    vendored-library *strings/comments* (apache.org, tradingview.com) and the
-    SVG XML *namespace identifier* (w3.org) are not network fetches, so matching
-    only ``src=``/``href=`` attributes correctly ignores them.
-    """
+    """Offline-first: the viewer must never execute external resources."""
     import re  # noqa: PLC0415
 
     body = _client().get("/viewer").text
@@ -73,11 +65,9 @@ def test_viewer_html_is_self_contained():
             r"""(?:src|href)\s*=\s*["']https?://([a-z0-9.\-]+)""", body, re.IGNORECASE
         )
     )
-    allowed = {"demo.bugcontext.com"}
-    extra = fetched - allowed
-    assert (
-        not extra
-    ), f"unexpected external src/href hosts in viewer shell: {sorted(extra)}"
+    assert not fetched, (
+        "unexpected external src/href hosts in viewer shell: " f"{sorted(fetched)}"
+    )
     assert "https://cdn" not in body.lower()
 
 
@@ -125,24 +115,11 @@ def test_viewer_preserves_xss_guards():
     assert "https?:\\/\\/" in body
 
 
-def test_viewer_embeds_bugcontext_feedback_widget():
-    """#1980: the Bug Context feedback widget loader must be wired in.
-
-    It is added just before ``</body>`` as a CSP-friendly external ``<script>``
-    (no inline code) carrying the publishable project key and ``defer``. This is
-    the single sanctioned external fetch (see ``test_viewer_html_is_self_contained``).
-    """
+def test_viewer_omits_remote_feedback_code():
+    """Remote scripts must not receive same-origin access to portfolio data."""
     body = _client().get("/viewer").text
-    assert 'src="https://demo.bugcontext.com/loader.js"' in body
-    assert (
-        'data-project-key="pk_3a55167dc4b50c71f7886e58f40dab43efa859b0e7459bdf"' in body
-    )
-    assert "defer" in body
-    # CSP-friendly: the widget must not require an inline script tag.
-    marker = "Bug Context feedback widget"
-    assert marker in body
-    # It must sit before the closing body tag.
-    assert body.index("bugcontext.com/loader.js") < body.rindex("</body>")
+    assert "bugcontext.com/loader.js" not in body
+    assert "Bug Context feedback widget" not in body
 
 
 def test_viewer_help_route_omits_bugcontext_feedback_widget():

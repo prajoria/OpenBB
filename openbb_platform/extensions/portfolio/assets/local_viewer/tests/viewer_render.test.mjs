@@ -419,9 +419,9 @@ test("metricHelpPageHtml stays self-contained and omits the Bug Context loader",
   assert.doesNotMatch(html, /<script/i);
 });
 
-test("viewer shell still carries the Bug Context loader for /viewer", () => {
-  assert.match(HTML, /https:\/\/demo\.bugcontext\.com\/loader\.js/);
-  assert.match(HTML, /Bug Context feedback widget/);
+test("viewer shell omits remote Bug Context code", () => {
+  assert.doesNotMatch(HTML, /bugcontext\.com\/loader\.js/i);
+  assert.doesNotMatch(HTML, /Bug Context feedback widget/);
 });
 
 test("metricHelpLayerPosition centers below and clamps within the viewport", () => {

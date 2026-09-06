@@ -26,6 +26,10 @@ Design notes:
 - Loud empties: never return silent empty responses.
 """
 
+# Late imports register endpoint modules and preserve legacy private exports
+# only after the FastAPI application has been initialized.
+# pylint: disable=ungrouped-imports
+
 from __future__ import annotations
 
 import json

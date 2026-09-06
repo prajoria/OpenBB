@@ -20,13 +20,13 @@ message instead of breaking backend startup — the mount is best-effort.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 router = APIRouter()
 
 
-def _load_viewer_html(*, include_bugcontext: bool = True) -> str | None:
+def _load_viewer_html() -> str | None:
     """Return the shared viewer HTML, or ``None`` if the asset is unavailable."""
     try:
         from openbb_portfolio.local_viewer import (  # pylint: disable=import-outside-toplevel
@@ -35,17 +35,16 @@ def _load_viewer_html(*, include_bugcontext: bool = True) -> str | None:
     except ImportError:
         return None
     try:
-        return read_viewer_html(include_bugcontext=include_bugcontext)
+        return read_viewer_html()
     except OSError:
         return None
 
 
 @router.get("/viewer", include_in_schema=False, response_model=None)
 @router.get("/viewer/help", include_in_schema=False, response_model=None)
-async def viewer(request: Request) -> HTMLResponse | PlainTextResponse:
+async def viewer() -> HTMLResponse | PlainTextResponse:
     """Serve the self-contained Local Workspace Viewer for the 6120 apps."""
-    include_bugcontext = request.scope.get("path") != "/viewer/help"
-    html = _load_viewer_html(include_bugcontext=include_bugcontext)
+    html = _load_viewer_html()
     if html is None:
         return PlainTextResponse(
             "Local Workspace Viewer asset unavailable: the 'openbb_portfolio' "

@@ -1280,6 +1280,20 @@ def test_shape_earnings_maps_computes_surprise_and_sorts() -> None:
     ]
 
 
+def test_shape_earnings_accepts_numeric_strings() -> None:
+    """Provider numeric strings must be normalized before arithmetic."""
+    out = tier_calls._shape_earnings_history(
+        [
+            {
+                "date": _dt.date(2024, 9, 30),
+                "eps_actual": "1.40",
+                "eps_estimated": "1.35",
+            }
+        ]
+    )
+    assert out[0]["surprise_pct"] == 3.7
+
+
 def test_calendar_quarter_label_boundaries() -> None:
     """Quarter label maps month ranges to Q1-Q4 correctly."""
     assert tier_calls._calendar_quarter_label(_dt.date(2024, 1, 15)) == "Q1 2024"
@@ -1802,6 +1816,19 @@ def test_shape_charting_skips_null_close_and_date() -> None:
     out = tier_calls._shape_charting(rows, "3M")
     assert len(out) == 5
     assert all(r["close"] is not None for r in out)
+
+
+def test_shape_charting_normalizes_numeric_string_ohlc() -> None:
+    """Provider numeric strings must be normalized for indicators and output."""
+    rows = _charting_rows(25)
+    for row in rows:
+        for field in ("open", "high", "low", "close"):
+            row[field] = str(row[field])
+    out = tier_calls._shape_charting(rows, "3M")
+    assert out[-1]["sma20"] == 114.5
+    assert out[-1]["close"] == 124.0
+    for field in ("open", "high", "low", "close"):
+        assert isinstance(out[-1][field], float)
 
 
 def test_charting_tier_call_composes_fetch_and_shape(
@@ -2750,7 +2777,8 @@ def _header_profile() -> dict:
 def _header_quote() -> dict:
     """Realistic fmp_cached quote row. ``change_percent`` is deliberately a
     bogus 999.0 to prove the shaper computes the percent from change/prev_close
-    rather than trusting the provider's field."""
+    rather than trusting the provider's field.
+    """
     return {
         "exchange": "NASDAQ",
         "last_price": 499.99,
@@ -2821,9 +2849,10 @@ def test_header_tier_call_raises_on_all_empty(
     monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: {})
     monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: {})
     call = _TIER_CALLS[("equity/header", "fmp_cached")]
-    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
-        with pytest.raises(ValueError):
-            call(symbol="MSFT")
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name), pytest.raises(
+        ValueError
+    ):
+        call(symbol="MSFT")
     assert any("empty profile+quote" in r.getMessage() for r in caplog.records)
 
 

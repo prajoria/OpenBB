@@ -11,7 +11,9 @@ The endpoints are registered by importing this module for its side
 effects (``main.py`` does that).
 """
 
-# pylint: disable=too-many-lines
+# Provider fetchers are imported lazily in request helpers to avoid loading the
+# full extension/provider graph during module initialization.
+# pylint: disable=import-outside-toplevel,too-many-lines
 
 from __future__ import annotations
 

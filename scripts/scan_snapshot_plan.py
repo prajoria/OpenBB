@@ -32,6 +32,11 @@ REPO = "prajoria/OpenBB"
 PROJECT_ID = "PVT_kwHOAOc7384BdSTg"  # Project #4
 PARENT = 1934
 DEPENDENCY_MARKER = re.compile(r"\[\[([A-Z]\d+)\]\]")
+PLAN_BREAKDOWN_HEADING = "## Plan breakdown (filed 2026-08-05)"
+PLAN_BREAKDOWN_SECTION = re.compile(
+    rf"\n*{re.escape(PLAN_BREAKDOWN_HEADING)}\n.*?(?=\n## |\Z)",
+    re.DOTALL,
+)
 
 
 def gh(*args: str) -> str:
@@ -75,10 +80,22 @@ def find_open_by_title(title: str) -> int | None:
 
 
 def create_issue(title: str, body: str, dry: bool) -> int:
-    """Create an issue unless its exact title already exists."""
+    """Create an issue or synchronize the body of an exact-title match."""
     existing = find_open_by_title(title)
     if existing:
-        print(f"  exists: #{existing}  {title[:70]}")
+        if dry:
+            print(f"  exists: #{existing}  {title[:70]}")
+        else:
+            gh(
+                "issue",
+                "edit",
+                str(existing),
+                "--repo",
+                REPO,
+                "--body",
+                body,
+            )
+            print(f"  updated: #{existing}  {title[:70]}")
         return existing
     if dry:
         print(f"  DRY create: {title}")
@@ -137,6 +154,14 @@ def resolve_dependencies(
         raise ValueError(f"Dependency {key} has not been created yet")
 
     return DEPENDENCY_MARKER.sub(replace_marker, body)
+
+
+def render_parent_body(body: str, plan: list[Node]) -> str:
+    """Replace prior plan breakdowns while preserving other parent content."""
+    body_without_breakdowns = PLAN_BREAKDOWN_SECTION.sub("", body).rstrip()
+    lines = [PLAN_BREAKDOWN_HEADING, ""]
+    lines.extend(f"- #{node.number} — {node.title}" for node in plan)
+    return body_without_breakdowns + "\n\n" + "\n".join(lines)
 
 
 def build_plan() -> list[Node]:
@@ -506,9 +531,6 @@ def main() -> int:
         add_to_project(node.number, args.dry_run)
     if not args.dry_run:
         # Update parent #1934 with the phase breakdown
-        lines = ["", "## Plan breakdown (filed 2026-08-05)", ""]
-        for node in plan:
-            lines.append(f"- #{node.number} — {node.title}")
         body = gh(
             "issue",
             "view",
@@ -520,7 +542,7 @@ def main() -> int:
             "--jq",
             ".body",
         )
-        new_body = body + "\n" + "\n".join(lines)
+        new_body = render_parent_body(body, plan)
         gh("issue", "edit", str(PARENT), "--repo", REPO, "--body", new_body)
         print(f"\nUpdated #{PARENT} body with plan breakdown.")
     print("\nDone.")

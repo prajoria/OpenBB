@@ -17,7 +17,7 @@ offline — no external CDN.
 
 from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 router = APIRouter()
@@ -27,15 +27,9 @@ router = APIRouter()
 _VIEWER_HTML = (
     Path(__file__).resolve().parent.parent / "assets" / "local_viewer" / "index.html"
 )
-_BUGCONTEXT_LOADER_BLOCK = (
-    "\n  <!-- Bug Context feedback widget (CSP-friendly: no inline script) -->\n"
-    '  <script src="https://demo.bugcontext.com/loader.js"'
-    ' data-project-key="pk_3a55167dc4b50c71f7886e58f40dab43efa859b0e7459bdf"'
-    " defer></script>\n"
-)
 
 
-def read_viewer_html(*, include_bugcontext: bool = True) -> str:
+def read_viewer_html() -> str:
     """Return the self-contained viewer SPA HTML.
 
     Shared by the 6902 ``portfolio`` backend (this module) and the 6120
@@ -44,18 +38,14 @@ def read_viewer_html(*, include_bugcontext: bool = True) -> str:
     ``/apps.json`` + ``/widgets.json`` + ``/query`` endpoints, so whichever
     backend serves it same-origin gets its own apps rendered.
     """
-    html = _VIEWER_HTML.read_text(encoding="utf-8")
-    if include_bugcontext:
-        return html
-    return html.replace(_BUGCONTEXT_LOADER_BLOCK, "", 1)
+    return _VIEWER_HTML.read_text(encoding="utf-8")
 
 
 @router.get("/viewer", include_in_schema=False)
 @router.get("/viewer/help", include_in_schema=False)
-async def viewer(request: Request) -> HTMLResponse:
+async def viewer() -> HTMLResponse:
     """Serve the self-contained local viewer page and same-origin help route."""
-    include_bugcontext = request.scope.get("path") != "/viewer/help"
-    return HTMLResponse(content=read_viewer_html(include_bugcontext=include_bugcontext))
+    return HTMLResponse(content=read_viewer_html())
 
 
 __all__ = ["router", "read_viewer_html"]

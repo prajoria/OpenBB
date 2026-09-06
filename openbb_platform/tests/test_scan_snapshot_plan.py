@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -83,6 +84,42 @@ def test_gh_decodes_cli_output_as_utf8(monkeypatch):
     assert module.gh("-c", command) == "Phase A1 — DDL"
 
 
+def test_gh_requests_utf8_decoding_on_every_platform(monkeypatch):
+    """The Windows fix must remain guarded even when CI's locale is UTF-8."""
+    module = _load_module()
+    run_kwargs: dict[str, object] = {}
+    monkeypatch.setattr(module.shutil, "which", lambda _name: "gh.exe")
+
+    def fake_run(*_args, **kwargs):
+        run_kwargs.update(kwargs)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    module.gh("issue", "list")
+    assert run_kwargs["encoding"] == "utf-8"
+
+
+def test_create_issue_updates_existing_issue_body(monkeypatch):
+    """Reruns must repair existing plan issues instead of discarding the body."""
+    module = _load_module()
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(module, "find_open_by_title", lambda _title: 1937)
+    monkeypatch.setattr(module, "gh", lambda *args: calls.append(args) or "")
+
+    assert module.create_issue("Phase A2", "corrected body", False) == 1937
+    assert calls == [
+        (
+            "issue",
+            "edit",
+            "1937",
+            "--repo",
+            module.REPO,
+            "--body",
+            "corrected body",
+        )
+    ]
+
+
 def test_resolve_dependencies_formats_dry_run_placeholders():
     """Dry-run output must remain readable before GitHub assigns numbers."""
     module = _load_module()
@@ -99,3 +136,24 @@ def test_resolve_dependencies_rejects_unknown_unresolved_markers():
 
     with pytest.raises(ValueError, match="Dependency C1 has not been created yet"):
         module.resolve_dependencies("Blocked-by [[C1]].", {}, dry_run=False)
+
+
+def test_render_parent_body_replaces_prior_breakdowns():
+    """Planner reruns must leave exactly one breakdown and preserve later text."""
+    module = _load_module()
+    plan = [module.Node(key="A1", title="First task", body="", number=3101)]
+    existing = (
+        "Parent intro.\n\n"
+        "## Plan breakdown (filed 2026-08-05)\n\n"
+        "- #1936 — stale task\n\n"
+        "## Operator notes\n\n"
+        "Keep this text.\n\n"
+        "## Plan breakdown (filed 2026-08-05)\n\n"
+        "- #1936 — duplicated task"
+    )
+
+    rendered = module.render_parent_body(existing, plan)
+
+    assert rendered.count("## Plan breakdown (filed 2026-08-05)") == 1
+    assert "- #3101 — First task" in rendered
+    assert "## Operator notes\n\nKeep this text." in rendered
