@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openbb.local/local-ci/schema/local-ci.schema.json",
+  "title": "local-ci project config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "project", "compose", "tiers"],
+  "properties": {
+    "version": {"const": 1},
+    "project": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+    "description": {"type": "string"},
+    "compose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "runner_service"],
+      "properties": {
+        "file": {"type": "string"},
+        "runner_service": {"type": "string"},
+        "env_file": {"type": "string"}
+      }
+    },
+    "tiers": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command"],
+          "properties": {
+            "description": {"type": "string"},
+            "command": {"type": "string", "minLength": 1},
+            "requires_services": {
+              "type": "array",
+              "items": {"type": "string"},
+              "uniqueItems": true
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "default_tiers": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "sidecars": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["service"],
+          "properties": {
+            "service": {"type": "string"},
+            "healthcheck_timeout_s": {"type": "integer", "minimum": 1, "maximum": 3600},
+            "init": {
+              "type": "object",
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "required": ["kind", "source_env", "source_file", "volume"],
+                  "properties": {
+                    "kind": {"const": "mysql_restore"},
+                    "source_env": {"type": "string"},
+                    "source_file": {"type": "string"},
+                    "volume": {"type": "string"}
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
