@@ -11,6 +11,11 @@ _PKG_ROOT = os.path.dirname(__file__)
 if _PKG_ROOT not in sys.path:
     sys.path.insert(0, _PKG_ROOT)
 
+# Make the examples directory importable for tests (e.g. top50_intraday_drift).
+_EXAMPLES_DIR = os.path.join(_PKG_ROOT, "examples")
+if _EXAMPLES_DIR not in sys.path:
+    sys.path.insert(0, _EXAMPLES_DIR)
+
 
 def pytest_configure(config):
     """Register backtest-local markers (C12.1 will formalize the full taxonomy)."""
