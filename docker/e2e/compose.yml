@@ -83,7 +83,7 @@ services:
       # a dev laptop, definitely not what we want on a shared runner.
       - "127.0.0.1:13306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ufmp_user", "-pfmp_user"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -ufmp_user -p\"$${MYSQL_PASSWORD:-e2e_fmppw_change_me}\""]
       interval: 5s
       timeout: 5s
       retries: 20

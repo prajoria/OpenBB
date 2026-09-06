@@ -2,8 +2,8 @@
 
 A fully containerized harness that always starts from a **fresh clone of
 `origin/develop`**, builds the whole stack bottom-up, runs an exhaustive
-integration sweep against real providers + a real MySQL, and files a
-GitHub Issue whenever something breaks.
+integration sweep against real providers + a real MySQL, and writes
+local bug reports for manual review and issue filing.
 
 Fills the gap that CI can't: no OpenAI keys, no FMP/FRED keys, no
 database, no Analysis pipeline runs, no desktop bundle check.
@@ -23,7 +23,7 @@ mysql (healthy) → checkout (fresh develop)
    integration)
    ↓
    reporter  ──►  ./artifacts/<run-id>/summary.md
-                  gh issue create  (on failure, de-duplicated)
+                  ./artifacts/<run-id>/bugs/*.md  (human reviews, then files)
 ```
 
 ## Prereqs
@@ -31,9 +31,10 @@ mysql (healthy) → checkout (fresh develop)
 - Docker Desktop / Docker Engine ≥ 24 with Compose v2 (`docker compose`)
 - `~/.openbb_platform/user_settings.json` with your provider keys
   (FMP, FRED, OpenAI, etc.). Bind-mounted read-only into every stage.
-- Optionally `${REPO_ROOT}/.env` with `GH_TOKEN=...` if you want the
-  reporter to file GitHub Issues on failure. Without `GH_TOKEN` the
-  harness still runs and writes a report; it just skips filing.
+- Optionally `${REPO_ROOT}/.env` with `GH_TOKEN=...` for future
+  automation. The harness currently writes local bug files only;
+  a human reviews `artifacts/<run-id>/bugs/*.md` and files issues
+  manually.
 
 ## Usage
 

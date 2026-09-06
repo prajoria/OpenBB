@@ -98,9 +98,13 @@ awk '
 '
 
 echo "==> Restore complete — verifying"
-docker compose exec -T mysql mysql -ufmp_user -pfmp_user -e "
-  SELECT table_schema AS db, COUNT(*) AS tables
-  FROM information_schema.tables
-  WHERE table_schema IN ('openbb_fmp_cache','openbb_fmp_cache_test')
-  GROUP BY table_schema;
-" 2>&1 | grep -vE "Using a password|^mysql:" || true
+docker compose exec -T mysql sh -c '
+  : "${MYSQL_PASSWORD:=e2e_fmppw_change_me}"
+  export MYSQL_PWD="${MYSQL_PASSWORD}"
+  mysql -ufmp_user -e "
+    SELECT table_schema AS db, COUNT(*) AS tables
+    FROM information_schema.tables
+    WHERE table_schema IN ('"'"'openbb_fmp_cache'"'"','"'"'openbb_fmp_cache_test'"'"')
+    GROUP BY table_schema;
+  "
+' 2>&1 | grep -vE "Using a password|^mysql:" || true
