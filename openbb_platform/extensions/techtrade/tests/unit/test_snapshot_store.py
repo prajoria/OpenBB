@@ -249,6 +249,84 @@ def test_differently_formatted_keys_resolve_same_live_row(tmp_path) -> None:
     store.close()
 
 
+def test_promote_refuses_candidate_not_in_staging_state(tmp_path) -> None:
+    """Invariant: promote() must refuse a candidate whose row state is not STAGING.
+
+    Prevents resurrecting a SUPERSEDED (or already-LIVE) row back to LIVE by
+    calling promote() again with a stale staged-tuple, which would silently
+    un-supersede history and displace the true current LIVE row.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    first = _stage(
+        store,
+        status=SnapshotStatus.OK,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+
+    second = _stage(
+        store,
+        status=SnapshotStatus.OK,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+    )
+    assert store.validate(*second).ok
+    assert store.promote(*second)
+
+    # `first` is now SUPERSEDED. Re-promoting it must be refused, not
+    # resurrect it as LIVE and re-supersede `second`.
+    assert not store.promote(*first)
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == second[3]
+    assert live.payload["rows"][0]["symbol"] == "MSFT"
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    states = {row.job_run_id: row.state for row in history}
+    assert states[first[3]] == SnapshotState.SUPERSEDED
+    assert states[second[3]] == SnapshotState.LIVE
+
+    # Re-promoting the current LIVE row itself must also be refused.
+    assert not store.promote(*second)
+    store.close()
+
+
+def test_validate_refuses_and_does_not_mutate_non_staging_row(tmp_path) -> None:
+    """Invariant: validate() must not mutate a row whose state is not STAGING.
+
+    Calling validate() again on an already-promoted (LIVE) row must return a
+    failed ``ValidationResult`` and leave the row's persisted
+    ``validated``/``validation_reason`` untouched — no silent rewrite of
+    LIVE/SUPERSEDED history.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+    live_before = store.get_live("techtrade.movers", "sector=technology")
+    assert live_before is not None
+    assert live_before.validated is True
+    assert live_before.validation_reason == ""
+
+    def _reject(row: SnapshotRow) -> ValidationResult:
+        del row
+        return ValidationResult(ok=False, reason="should never be persisted")
+
+    result = store.validate(*staged, validator=_reject)
+    assert not result.ok
+
+    live_after = store.get_live("techtrade.movers", "sector=technology")
+    assert live_after is not None
+    assert live_after.validated is True
+    assert live_after.validation_reason == ""
+    assert live_after.state == SnapshotState.LIVE
+    store.close()
+
+
 def test_get_as_of_returns_promoted_row_for_given_session(tmp_path) -> None:
     store = SqliteSnapshotStore(tmp_path / "snapshot.db")
     staged = _stage(

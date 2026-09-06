@@ -423,12 +423,20 @@ class SqliteSnapshotStore:
         job_run_id: str,
         validator: Callable[[SnapshotRow], ValidationResult] | None = None,
     ) -> ValidationResult:
-        """Run the gate on the staged row; persist validated flag + reason."""
+        """Run the gate on the staged row; persist validated flag + reason.
+
+        Refuses (without mutating anything) if the row's state is not
+        STAGING — a LIVE or SUPERSEDED row is immutable history and must
+        never have its ``validated``/``validation_reason`` rewritten.
+        """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
         row = self._get_row(dataset, entity_key, as_of_session, job_run_id)
         if row is None:
             return ValidationResult(ok=False, reason="staged snapshot not found")
+        if row.state != SnapshotState.STAGING:
+            logger.warning("snapshot validation refused: row is not in STAGING state")
+            return ValidationResult(ok=False, reason="row is not in STAGING state")
         gate = validator or default_validator
         result = gate(row)
         with self._tx():
@@ -456,16 +464,23 @@ class SqliteSnapshotStore:
     ) -> bool:
         """Atomically promote a validated staged row to LIVE.
 
-        Refuses if not validated; refuses if the staged rank is lower than
-        the current LIVE rank (keep-last-good); else flips the prior LIVE
-        row to superseded and this row to LIVE. Returns ``True`` on
-        success, ``False`` on any refusal (logs a WARNING).
+        Refuses if not validated; refuses if the candidate's row state is
+        not STAGING (prevents resurrecting an already-LIVE or SUPERSEDED
+        row back to LIVE); refuses if the staged rank is lower than the
+        current LIVE rank (keep-last-good); else flips the prior LIVE row
+        to superseded and this row to LIVE. Returns ``True`` on success,
+        ``False`` on any refusal (logs a WARNING).
         """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
         candidate = self._get_row(dataset, entity_key, as_of_session, job_run_id)
         if candidate is None or not candidate.validated:
             logger.warning("snapshot promotion refused: candidate is not validated")
+            return False
+        if candidate.state != SnapshotState.STAGING:
+            logger.warning(
+                "snapshot promotion refused: candidate is not in STAGING state"
+            )
             return False
         live = self.get_live(dataset, entity_key)
         if live and _STATUS_RANK[candidate.status] < _STATUS_RANK[live.status]:
