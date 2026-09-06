@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Prove every remaining `feat/*` branch is integrated into its intended program branch before deleting obsolete local and remote refs.
+**Goal:** Preserve the repository's permanent integration branches and prove every other local or remote branch is integrated, superseded, intentionally quarantined, or recovered before deleting obsolete refs.
 
-**Architecture:** Treat branch cleanup as three isolated delivery lanes: Pine work converges on `openbb_pine_support`, local-CI work follows its existing stacked PR chain into `develop`, and Portfolio Intelligence work converges on `portfolio_validations`. Use ancestry, patch equivalence, file-level comparison, tests, and merged-PR evidence in that order; never infer safety from a closed PR or branch age alone.
+**Architecture:** Treat branch cleanup as isolated delivery lanes with four permanent trunks: `develop`, `portfolio`, `portfolio_validations`, and `openbb_pine_support`. New or recovered Portfolio Intelligence work converges on `portfolio_validations`; Pine work converges on `openbb_pine_support`; promotion from `portfolio_validations` to `portfolio`, or any PR or merge into `develop`, requires Daisy's explicit instruction. Use ancestry, patch equivalence, file-level comparison, tests, and merged-PR evidence in that order; never infer safety from a closed PR, branch age, or naming convention alone.
 
 **Tech Stack:** Git, GitHub CLI, PowerShell, Git Bash, pytest, Node.js, GitHub pull requests.
 
@@ -14,11 +14,15 @@
 - Run all GitHub operations against `prajoria/OpenBB`; never create a cross-fork PR.
 - Keep Pine work isolated from Portfolio Intelligence. Pine branches target `openbb_pine_support`, not `portfolio_validations`.
 - Keep Portfolio Intelligence work isolated from Pine. In this checkout, Portfolio Intelligence branches target `portfolio_validations`, not `portfolio`.
+- Never create or merge a PR into `develop` without Daisy explicitly requesting
+  that exact operation. A cleanup request authorizes evidence gathering and
+  deletion of already-integrated refs, not a new `develop` merge.
 - The only Portfolio Validation promotion path is a fork-internal
   `portfolio_validations` -> `portfolio` PR. Create and merge it only after an
   explicit user request for that exact promotion PR; generic merge, push,
   cleanup, or side-branch PR instructions do not authorize it.
-- Preserve the live local-CI stack order: `feat/local-ci-skill-gh-989` -> `feat/local-ci-cli-gh-985` -> `test/develop-e2e-docker-stack` -> `develop`.
+- The historical local-CI stack was merged and deleted during Tasks 1-7.
+  Never recreate or re-run its `develop` merge steps from this document.
 - Do not delete a branch checked out by any worktree.
 - A branch is deletion-safe only after one of these proofs:
   1. its tip is an ancestor of the intended target; or
@@ -32,9 +36,53 @@
 
 ---
 
+## Permanent Branch Allowlist
+
+These branches are long-lived integration trunks and are outside every cleanup
+candidate set. Never delete, rename, force-push, or repurpose them:
+
+| Branch | Role | Historical evidence | GitHub protection at 2026-09-05 |
+| --- | --- | --- | --- |
+| `develop` | Fork default and upstream-sync mainline | Default branch; target of 117 PRs | Protected |
+| `portfolio` | Portfolio Intelligence production integration | Declared long-lived Project #4 branch; target of 253 PRs | Not protected |
+| `portfolio_validations` | Portfolio Intelligence validation and staging | Mandatory target for this checkout's side branches; target of 12 PRs | Not protected |
+| `openbb_pine_support` | Separate Pine program integration | Target of 54 PRs and active Pine work | Not protected |
+
+Add GitHub rulesets for the three currently unprotected trunks before or during
+cleanup. Branch protection is defense in depth; the documented no-delete rules
+remain authoritative even if GitHub settings drift.
+
+The following refs are also excluded from automatic deletion:
+
+- `trading_technicals`: historical program branch and former target of 27 PRs.
+  It has one patch not represented on the current permanent trunks. Preserve it
+  until Daisy explicitly approves a dedicated retirement audit.
+- `__dolt_remote_info__`: Dolt transport metadata, not a normal code branch.
+  Never process it with the code-branch cleanup loop.
+- `origin/HEAD`: symbolic remote alias, not a branch.
+
+---
+
+## Execution Status
+
+- The original `feat/*` and `feature/*` cleanup in Tasks 1-7 completed on
+  2026-09-05. All scoped refs were proved integrated or superseded before
+  deletion.
+- The full-inventory continuation below was captured after that cleanup and is
+  governed by issue #2035 (expand branch-hygiene plan to full remote
+  inventory).
+- Updating this plan does not authorize any merge, PR, or deletion. Each
+  execution lane needs its own tracked issue and review cycle.
+
+---
+
 ## Inventory Snapshot
 
 Inventory captured on 2026-09-05 after `git fetch --prune origin`.
+
+> **Historical completed phase:** Tasks 1-7 and this original `feat/*`
+> inventory record the already-finished first cleanup. Do not re-run their
+> commands. Current work begins at Phase 2 and uses the status tables there.
 
 | Integration branch | Snapshot SHA |
 | --- | --- |
@@ -80,7 +128,7 @@ The local-CI stack's main feature branch is `test/develop-e2e-docker-stack`. PR 
 
 ---
 
-### Task 1: Freeze the cleanup inventory and ownership boundaries
+### Task 1: Freeze the cleanup inventory and ownership boundaries — COMPLETED
 
 **Files:**
 - Modify during execution: none
@@ -135,7 +183,7 @@ Expected: two issue URLs. Do not attach the Pine or local-CI cleanup issues to P
 
 ---
 
-### Task 2: Retire the 15 patch-equivalent Pine branches
+### Task 2: Retire the 15 patch-equivalent Pine branches — COMPLETED
 
 **Files:**
 - Modify during execution: none
@@ -235,7 +283,7 @@ Expected: no candidate branch remains locally or under `refs/remotes/origin/`.
 
 ---
 
-### Task 3: Reconcile the seven merged Pine branches with nonzero patch IDs
+### Task 3: Reconcile the seven merged Pine branches with nonzero patch IDs — COMPLETED
 
 **Files:**
 - Potentially modify on a new Pine reconciliation branch: only files proven missing from `openbb_pine_support`
@@ -347,7 +395,7 @@ Expected: all seven refs are absent only after their evidence is recorded.
 
 ---
 
-### Task 4: Resolve the three closed, unmerged Pine PR branches
+### Task 4: Resolve the three closed, unmerged Pine PR branches — COMPLETED
 
 **Files:**
 - Potentially modify on a new Pine recovery branch: files selected from the three closed branches
@@ -445,80 +493,21 @@ Expected: all three branches are removed only after recovery or supersession pro
 
 ---
 
-### Task 5: Drain the local-CI stack bottom-up
+### Task 5: Drain the local-CI stack bottom-up — COMPLETED
 
-**Files:**
-- Verify: `.agents/skills/` changes from `feat/local-ci-skill-gh-989`
-- Verify: local-CI CLI and schema changes from `feat/local-ci-cli-gh-985`
-- Verify: `docker/e2e/` on `test/develop-e2e-docker-stack`
+**Historical result:** PR #1015 merged into `feat/local-ci-cli-gh-985`, PR
+#1009 merged into `test/develop-e2e-docker-stack`, and PR #948 merged into
+`develop` under the authorization that applied during the completed first
+cleanup. The three source refs were deleted. Post-merge review defects were
+corrected by PR #2031.
 
-**Interfaces:**
-- Consumes: Open PR #1015, PR #1009, and PR #948.
-- Produces: Merged changes in `develop` and retired intermediate feature refs.
-
-- [ ] **Step 1: Verify PR #1015 targets the CLI branch**
-
-Run:
-
-```powershell
-gh pr view 1015 --repo prajoria/OpenBB --json state,baseRefName,headRefName,mergeable,statusCheckRollup
-```
-
-Expected: head `feat/local-ci-skill-gh-989`, base `feat/local-ci-cli-gh-985`, state `OPEN`, and required checks passing.
-
-- [ ] **Step 2: Merge PR #1015 and verify ancestry**
-
-After review approval:
-
-```powershell
-gh pr merge 1015 --repo prajoria/OpenBB --merge --delete-branch
-git fetch --prune origin
-git merge-base --is-ancestor origin/feat/local-ci-skill-gh-989 origin/feat/local-ci-cli-gh-985
-```
-
-Expected: GitHub deletes the skill branch. If the final ancestry command cannot run because the remote ref was deleted, verify PR #1015 reports `MERGED` and record its merge commit instead.
-
-- [ ] **Step 3: Verify and merge PR #1009 into the main local-CI feature branch**
-
-Run:
-
-```powershell
-gh pr view 1009 --repo prajoria/OpenBB --json state,baseRefName,headRefName,mergeable,statusCheckRollup
-```
-
-Expected: head `feat/local-ci-cli-gh-985`, base `test/develop-e2e-docker-stack`, and passing required checks.
-
-Then:
-
-```powershell
-gh pr merge 1009 --repo prajoria/OpenBB --merge --delete-branch
-git fetch --prune origin
-```
-
-Expected: PR #1009 is merged and the CLI feature branch is deleted.
-
-- [ ] **Step 4: Promote the completed local-CI feature through PR #948**
-
-Run:
-
-```powershell
-gh pr view 948 --repo prajoria/OpenBB --json state,baseRefName,headRefName,mergeable,statusCheckRollup
-```
-
-Expected: head `test/develop-e2e-docker-stack`, base `develop`, and all required checks passing.
-
-Merge only after its review and CI gates pass:
-
-```powershell
-gh pr merge 948 --repo prajoria/OpenBB --merge --delete-branch
-git fetch --prune origin
-```
-
-Expected: the full stack is in `develop`; all three stack refs are absent remotely.
+The original executable merge commands are intentionally removed from this
+record. This completed task is evidence only and provides no authorization to
+create or merge another `develop` PR.
 
 ---
 
-### Task 6: Complete the active Top-50 intraday branch through validation
+### Task 6: Complete the active Top-50 intraday branch through validation — COMPLETED
 
 **Files:**
 - Existing worktree: `H:\masterswork\git\OpenBB-Top50-Intraday-1986`
@@ -598,7 +587,7 @@ Expected: the PR is merged into `portfolio_validations`, the dedicated worktree 
 
 ---
 
-### Task 7: Perform the final branch-hygiene audit
+### Task 7: Perform the final branch-hygiene audit — COMPLETED
 
 **Files:**
 - Modify during execution: none
@@ -678,10 +667,624 @@ Expected: the cleanup is auditable and each program remains isolated on its inte
 
 ---
 
+## Phase 2: Full Branch Inventory and Cleanup
+
+Inventory captured on 2026-09-05 after `git fetch --prune origin`. The
+snapshot contains 32 real remote branches, plus the local `origin/HEAD`
+symbolic alias. Four
+are permanent trunks, one is preserved pending a dedicated retirement
+decision, one is a develop-only quarantine, one is Dolt metadata, and 25 are
+remote cleanup candidates. Two additional cleanup candidates exist only as
+local refs.
+
+### Complete remote branch classification
+
+`Evidence target` is the branch against which existing integration or
+supersession is proved. `Recovery target` is where retained missing work may
+land. A row naming `portfolio` as its evidence target does not authorize a new
+PR to `portfolio`; missing Portfolio Intelligence work is recovered through
+`portfolio_validations` and waits there for a separately authorized promotion.
+
+The `Status` column is the task tracker and must be updated in place during
+execution. Allowed active values are `READY-PROOF`, `NEEDS-RECONCILIATION`,
+`ACTIVE-PR`, and `BLOCKED-AUTH`. Allowed terminal values are
+`KEPT-PERMANENT`, `KEPT-HOLD`, `KEPT-METADATA`, `DELETED-PROVED`, and
+`DELETED-RECONCILED`. A cleanup issue cannot close while any row remains in an
+active state other than `BLOCKED-AUTH`.
+
+| Branch | Status | Snapshot tip (abbreviated; not deletion proof) | PR evidence | Evidence target | Recovery target | Snapshot result and required disposition |
+| --- | --- | --- | --- | --- | --- | --- |
+| `develop` | `KEPT-PERMANENT` | `7199c0a60941` | 117 target PRs | Permanent | None | **Never delete:** protected default/mainline branch |
+| `portfolio` | `KEPT-PERMANENT` | `8fe0ff748` | 253 target PRs | Permanent | None | **Never delete:** Portfolio Intelligence production integration |
+| `portfolio_validations` | `KEPT-PERMANENT` | `e2c03108b` | 12 target PRs | Permanent | None | **Never delete:** validation/staging integration |
+| `openbb_pine_support` | `KEPT-PERMANENT` | `6059fc7d9` | 54 target PRs | Permanent | None | **Never delete:** separate Pine integration |
+| `trading_technicals` | `KEPT-HOLD` | `195b63422` | PR #101 merged to `develop`; 27 historical target PRs | Hold | None | **Preserve:** one patch differs from all permanent trunks; dedicated retirement approval required |
+| `__dolt_remote_info__` | `KEPT-METADATA` | `fbdc924a3` | Not a code PR branch | Metadata | None | **Exclude:** never pass to code-branch deletion commands |
+| `sync/upstream-openbb-2026-07-19` | `BLOCKED-AUTH` | `88dcdb226` | PR #895 open to `develop` | `develop` | Blocked | **Quarantine:** ten unique patches; no PR update, merge, close, or deletion without Daisy explicitly directing the `develop` operation |
+| `chore/bump-pynecore-alpha-27v7-9cae` | `READY-PROOF` | `57d766cf6` | PR #480 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `chore/bump-pynecore-p2-wave1` | `NEEDS-RECONCILIATION` | `dfd7c60e4` | PR #458 closed, unmerged | `openbb_pine_support` | `openbb_pine_support` | One unique patch; prove superseded or recover before deletion |
+| `chore/bump-pynecore-p2-wave1-v2` | `READY-PROOF` | `7da8320c9` | PR #460 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `chore/e41-unfreeze-rescope` | `READY-PROOF` | `a5de7c9c3` | PR #440 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `docs/bl57-alpha-quickstart-supported` | `READY-PROOF` | `3173a4811` | PR #482 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `docs/dyhr-tv-walkthrough` | `READY-PROOF` | `caa364ed8` | PR #486 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `docs/e42-manifest-prd-fixups` | `READY-PROOF` | `9b8477553` | PR #442 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `docs/pine-claude-md-merge-rule-learnings` | `ACTIVE-PR` | `4f8d10830` | PR #921 open | `openbb_pine_support` | `openbb_pine_support` | One unique patch; finish or explicitly close PR #921 before deletion |
+| `fix/6atb-coverage-tool` | `READY-PROOF` | `352c28da2` | PR #475 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `fix/tech-debt-post-develop-sync` | `NEEDS-RECONCILIATION` | `d2f862670` | No PR | `openbb_pine_support` | `openbb_pine_support` | One unique patch versus Pine; reconcile content before deletion |
+| `plan/pine-extraction-2b` | `READY-PROOF` | `c5abf3c94` | PR #429 merged | `openbb_pine_support` | `openbb_pine_support` | Zero unique patches; record proof, then delete |
+| `chore/delete-portfolio-app-gh-1629` | `READY-PROOF` | `07b6639af` | PR #1631 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
+| `chore/move-techtrade-notebooks-gh-1679` | `READY-PROOF` | `2f03dcb74` | PR #1690 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
+| `chore/reconcile-tools-gh-1628` | `READY-PROOF` | `be5aa92d3` | PR #1630 merged | `portfolio` | `portfolio_validations` | Zero unique patches; record proof, then delete |
+| `fix/pi-portfolio-backend-run-gh-1786` | `READY-PROOF` | `49e861c3f` | PR #1787 merged | `portfolio` | `portfolio_validations` | Zero unique patches; delete remote and matching stale local ref |
+| `fix/pi-portfolio-intel-obbject-openapi-gh-1788` | `READY-PROOF` | `541c27517` | PR #1791 merged | `portfolio` | `portfolio_validations` | Zero unique patches; delete remote and matching stale local ref |
+| `fmp_tradingv2` | `READY-PROOF` | `eeaaaf383` | Historical integration branch | `portfolio` | `portfolio_validations` | Zero commits and patches unique to `portfolio`; record proof, then delete |
+| `journaling-primitive` | `READY-PROOF` | `8200698b1` | Historical integration branch | `portfolio` | `portfolio_validations` | Zero commits and patches unique to `portfolio`; record proof, then delete |
+| `chore/absorb-develop-into-portfolio` | `NEEDS-RECONCILIATION` | `5f1940a36` | PR #762 closed, unmerged | `portfolio` | `portfolio_validations` | Three unique patches; compare against later absorbs and recover retained behavior only through validation |
+| `chore/openbb-dev-cycle-v2-2026-07-04` | `NEEDS-RECONCILIATION` | `c8fb15cb7` | No PR | `portfolio_validations` | `portfolio_validations` | One unique workflow patch; reconcile before deletion |
+| `copilot/create-vs-code-extension-spec` | `NEEDS-RECONCILIATION` | `a98761388` | PR #1803 closed, unmerged | `portfolio` | `portfolio_validations` | One unique documentation patch; prove obsolete or recover through validation |
+| `fix/tech-debt-to-develop` | `NEEDS-RECONCILIATION` | `2af2b5b9e` | PR #742 closed, unmerged | `portfolio_validations` | `portfolio_validations` | Two unique patches; despite its name, do not target `develop`; retain only work valid for Portfolio Intelligence |
+| `fix/techtrade-python-constraint` | `NEEDS-RECONCILIATION` | `d444443c9` | PR #481 closed, unmerged | `portfolio_validations` | `portfolio_validations` | One unique patch; reconcile through validation or document supersession |
+| `qualitycontrol` | `NEEDS-RECONCILIATION` | `9427f6030` | No PR | `portfolio_validations` | `portfolio_validations` | Nine unique patches, primarily historical QC coordination and skills; reconcile useful files, archive evidence, then delete |
+| `quant_trading` | `NEEDS-RECONCILIATION` | `92ef1def6` | No PR | `portfolio_validations` | `portfolio_validations` | Three unique patches across agent tooling, docs, and Financial Toolkit; reconcile file by file before deletion |
+
+### Complete local branch classification
+
+The permanent local `develop` and current `portfolio_validations` refs are not
+cleanup candidates. The plan-update branch for issue #2035 (expand
+branch-hygiene plan to full remote inventory) remains active until its PR
+merges into `portfolio_validations`.
+
+| Local branch | Status | Snapshot tip | Remote ref | Required disposition |
+| --- | --- | --- | --- | --- |
+| `docs/pi-asof-snapshot-spec-gh-1932` | `NEEDS-RECONCILIATION` | `be92a07c1bef` | Gone | PR #1970 merged into `portfolio`, but two later patches remain; reconcile them into `portfolio_validations` or prove them obsolete, then delete locally |
+| `fix/local-ci-post-merge-review-gh-2030` | `READY-PROOF` | `38349dd3d551` | Gone | PR #2031 merged into `develop`; verify that historical merge only, then delete locally without any new `develop` operation |
+| `fix/pi-portfolio-backend-run-gh-1786` | `READY-PROOF` | `49e861c3fac7` | Present | Delete locally after the corresponding zero-patch remote cleanup |
+| `fix/pi-portfolio-intel-obbject-openapi-gh-1788` | `READY-PROOF` | `541c275176e2` | Present | Delete locally after the corresponding zero-patch remote cleanup |
+
+### Target policy for this cleanup
+
+1. New Pine recovery PRs may target only `openbb_pine_support`.
+2. New Portfolio Intelligence, TechTrade, tooling, documentation, and quality
+   recovery PRs may target only `portfolio_validations`.
+3. Existing merged PRs into `portfolio` may be used as deletion evidence, but
+   this plan does not authorize another direct PR to `portfolio`.
+4. No new PR or merge may target `develop`. Already-merged `develop` history
+   may be inspected only to prove a stale branch safe to delete.
+5. PR #895 and `sync/upstream-openbb-2026-07-19` remain untouched until Daisy
+   explicitly authorizes that exact `develop` operation.
+
+---
+
+### Task 8: Freeze the full inventory and protect permanent trunks
+
+**Files:**
+- Modify during execution: none
+- Reference: `docs/superpowers/plans/2026-09-05-feature-branch-hygiene.md`
+
+**Interfaces:**
+- Consumes: The complete remote and local classification above.
+- Produces: An auditable issue comment and confirmed no-delete rules for all
+  permanent trunks.
+
+- [ ] **Step 1: Refresh and compare the live branch set**
+
+```powershell
+git fetch --prune origin
+$remote = @(git for-each-ref refs/remotes/origin `
+  --format='%(refname:strip=3)' | Where-Object { $_ -and $_ -ne 'HEAD' })
+$local = @(git for-each-ref refs/heads --format='%(refname:short)')
+$remote
+$local
+```
+
+Expected: every live branch is present in one of the tables above, except the
+active issue #2035 (expand branch-hygiene plan to full remote inventory)
+delivery branch. Stop and add any newly discovered branch before proceeding.
+
+- [ ] **Step 2: Verify the permanent allowlist**
+
+```powershell
+$permanent = @(
+  'develop',
+  'portfolio',
+  'portfolio_validations',
+  'openbb_pine_support'
+)
+foreach ($branch in $permanent) {
+  git show-ref --verify --quiet "refs/remotes/origin/$branch"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Permanent branch missing: $branch"
+  }
+}
+```
+
+Expected: all four remote refs exist.
+
+- [ ] **Step 3: Record immutable tips on issue #2035**
+
+```powershell
+$body = $permanent | ForEach-Object {
+  "$_ : $(git rev-parse "origin/$_")"
+}
+gh issue comment 2035 --repo prajoria/OpenBB --body `
+  "Permanent branch pre-cleanup tips:`n$($body -join "`n")"
+```
+
+Expected: issue #2035 contains all four full SHAs before any deletion.
+
+- [ ] **Step 4: Verify GitHub protection coverage**
+
+```powershell
+gh api repos/prajoria/OpenBB/branches?per_page=100 --paginate `
+  --jq '.[] | select(.name == "develop" or .name == "portfolio" or .name == "portfolio_validations" or .name == "openbb_pine_support") | [.name,.protected] | @tsv'
+```
+
+Expected at snapshot time: only `develop` reports `true`. Record the gap on
+issue #2035. Ruleset creation is a separate repository-administration action;
+absence of a ruleset never makes a permanent branch deletion-safe.
+
+---
+
+### Task 9: Delete branches already proved integrated
+
+**Files:**
+- Modify during execution: none
+- Test: PR state, `git cherry`, commit reachability, and post-delete ref audit
+
+**Interfaces:**
+- Consumes: Merged zero-patch rows from the full inventory.
+- Produces: Deleted remote and matching stale local refs with proof on issue
+  #2035.
+
+- [ ] **Step 1: Define the exact zero-patch candidate sets**
+
+```powershell
+$pineMerged = @(
+  'chore/bump-pynecore-alpha-27v7-9cae',
+  'chore/bump-pynecore-p2-wave1-v2',
+  'chore/e41-unfreeze-rescope',
+  'docs/bl57-alpha-quickstart-supported',
+  'docs/dyhr-tv-walkthrough',
+  'docs/e42-manifest-prd-fixups',
+  'fix/6atb-coverage-tool',
+  'plan/pine-extraction-2b'
+)
+$portfolioMerged = @(
+  'chore/delete-portfolio-app-gh-1629',
+  'chore/move-techtrade-notebooks-gh-1679',
+  'chore/reconcile-tools-gh-1628',
+  'fix/pi-portfolio-backend-run-gh-1786',
+  'fix/pi-portfolio-intel-obbject-openapi-gh-1788',
+  'fmp_tradingv2',
+  'journaling-primitive'
+)
+```
+
+Expected: eight Pine and seven Portfolio candidates.
+
+- [ ] **Step 2: Re-prove patch equivalence**
+
+```powershell
+foreach ($branch in $pineMerged) {
+  $unique = @(git cherry origin/openbb_pine_support "origin/$branch" |
+    Where-Object { $_ -like '+*' })
+  if ($unique.Count -ne 0) {
+    throw "$branch is no longer patch-equivalent to openbb_pine_support"
+  }
+}
+foreach ($branch in $portfolioMerged) {
+  $unique = @(git cherry origin/portfolio "origin/$branch" |
+    Where-Object { $_ -like '+*' })
+  if ($unique.Count -ne 0) {
+    throw "$branch is no longer patch-equivalent to portfolio"
+  }
+}
+```
+
+Expected: no exception and no unique patch.
+
+- [ ] **Step 3: Verify merged PR evidence where a PR exists**
+
+```powershell
+$prs = 480,460,440,482,486,442,475,429,1631,1690,1630,1787,1791
+foreach ($pr in $prs) {
+  gh pr view $pr --repo prajoria/OpenBB `
+    --json number,state,baseRefName,mergeCommit `
+    --jq '[.number,.state,.baseRefName,.mergeCommit.oid] | @tsv'
+}
+```
+
+Expected: every PR reports `MERGED` and the target shown in the inventory.
+`fmp_tradingv2` and `journaling-primitive` use zero-commit reachability proof
+instead because they have no single branch-closing PR.
+
+- [ ] **Step 4: Record full tips, then delete only the proved refs**
+
+```powershell
+$candidates = @($pineMerged) + @($portfolioMerged)
+$proof = foreach ($branch in $candidates) {
+  "$branch : $(git rev-parse "origin/$branch")"
+}
+gh issue comment 2035 --repo prajoria/OpenBB --body `
+  "Patch-equivalent deletion set:`n$($proof -join "`n")"
+foreach ($branch in $candidates) {
+  git push origin --delete $branch
+}
+git fetch --prune origin
+```
+
+Expected: all 15 remote refs are absent. Delete matching local refs with
+`git branch -d` only after confirming they are not checked out by a worktree.
+In the next plan-status commit, change each deleted remote row and any deleted
+matching local row from `READY-PROOF` to `DELETED-PROVED`.
+
+---
+
+### Task 10: Resolve the remaining Pine branches
+
+**Files:**
+- Potentially modify on a Pine recovery branch: only retained files from the
+  three unresolved Pine branches
+- Test: `openbb_platform/extensions/pine/openbb_pine/tests/`
+
+**Interfaces:**
+- Consumes: PR #458, PR #921, and `fix/tech-debt-post-develop-sync`.
+- Produces: Supersession evidence or a reviewed PR into
+  `openbb_pine_support`, followed by branch deletion.
+
+- [ ] **Step 1: Audit the exact unresolved set**
+
+```powershell
+$pineReconcile = @(
+  'chore/bump-pynecore-p2-wave1',
+  'docs/pine-claude-md-merge-rule-learnings',
+  'fix/tech-debt-post-develop-sync'
+)
+foreach ($branch in $pineReconcile) {
+  "===== $branch ====="
+  git log --left-right --cherry-pick --oneline `
+    origin/openbb_pine_support..."origin/$branch"
+  git diff --name-status origin/openbb_pine_support..."origin/$branch"
+}
+gh pr view 458 --repo prajoria/OpenBB --comments
+gh pr view 921 --repo prajoria/OpenBB --comments
+```
+
+Expected: a file-level disposition for each unique patch. Do not assume that
+closed PR #458 is obsolete or that open PR #921 is merge-ready.
+
+- [ ] **Step 2: Recover only retained Pine behavior**
+
+If any behavior is still required, create a tracked Pine issue and a side
+branch from `openbb_pine_support`:
+
+```powershell
+$url = gh issue create --repo prajoria/OpenBB `
+  --title "fix(pine): reconcile residual branch-hygiene changes" `
+  --body "Recover only retained changes from the three Pine reconciliation branches listed in issue #2035. Target openbb_pine_support. Do not touch Portfolio Intelligence or develop."
+$pineIssue = [int]($url -replace '^.*/','')
+git switch --create "fix/pine-residual-hygiene-gh-$pineIssue" `
+  origin/openbb_pine_support
+```
+
+Apply only reviewed retained hunks, then run:
+
+```powershell
+.\.venv_portfolio\Scripts\python.exe -m pytest `
+  openbb_platform\extensions\pine\openbb_pine\tests -m "not integration" -v
+git diff --check
+```
+
+Expected: Pine tests pass and the diff contains no unrelated program files.
+
+- [ ] **Step 3: Deliver retained work only to Pine**
+
+```powershell
+git push -u origin "fix/pine-residual-hygiene-gh-$pineIssue"
+gh pr create --repo prajoria/OpenBB --base openbb_pine_support `
+  --head "fix/pine-residual-hygiene-gh-$pineIssue" `
+  --title "fix(pine): reconcile residual branch-hygiene changes (#$pineIssue)" `
+  --body "Closes #$pineIssue.`n`nRefs #2035 (full branch inventory)."
+```
+
+Expected: the PR targets `openbb_pine_support`, passes review and tests, and
+merges before any source branch is deleted.
+
+- [ ] **Step 4: Delete only resolved Pine source branches**
+
+Record each full tip and its supersession or recovery evidence on issue #2035,
+then delete the three source refs and prune. If PR #921 remains open or any
+patch lacks a disposition, keep that source branch.
+
+For each deleted row, set `Status` to `DELETED-RECONCILED`. Keep
+`docs/pine-claude-md-merge-rule-learnings` as `ACTIVE-PR` until PR #921 reaches
+a reviewed terminal decision.
+
+---
+
+### Task 11: Reconcile Portfolio and tooling branches through validation
+
+**Files:**
+- Potentially modify on one or more tracked side branches rooted in
+  `portfolio_validations`: only retained files proven missing
+- Test: targeted checks selected from each retained file's owning subsystem
+
+**Interfaces:**
+- Consumes: Eight remote nonzero-patch branches and one local-only nonzero-patch
+  branch.
+- Produces: Documented supersession or reviewed PRs into
+  `portfolio_validations`; never directly into `portfolio` or `develop`.
+
+- [ ] **Step 1: Define the exact reconciliation set**
+
+```powershell
+$validationReconcile = @(
+  'chore/absorb-develop-into-portfolio',
+  'chore/openbb-dev-cycle-v2-2026-07-04',
+  'copilot/create-vs-code-extension-spec',
+  'fix/tech-debt-to-develop',
+  'fix/techtrade-python-constraint',
+  'qualitycontrol',
+  'quant_trading'
+)
+$localOnlyReconcile = @(
+  'docs/pi-asof-snapshot-spec-gh-1932'
+)
+```
+
+Expected: seven remote and one local-only source branch.
+
+- [ ] **Step 2: Produce file-level evidence**
+
+```powershell
+foreach ($branch in $validationReconcile) {
+  "===== $branch ====="
+  git log --left-right --cherry-pick --oneline `
+    origin/portfolio_validations..."origin/$branch"
+  git diff --name-status origin/portfolio_validations..."origin/$branch"
+}
+foreach ($branch in $localOnlyReconcile) {
+  "===== $branch ====="
+  git log --left-right --cherry-pick --oneline `
+    origin/portfolio_validations..."$branch"
+  git diff --name-status origin/portfolio_validations..."$branch"
+}
+```
+
+Expected: every changed file is classified as present, superseded, obsolete,
+or retained. Historical PR state alone is not enough.
+
+- [ ] **Step 3: Split retained work by coherent ownership**
+
+For each coherent retained change, create a GitHub issue, add it to Project #4,
+claim it, and create a side branch from `portfolio_validations`. Do not combine
+unrelated QC tooling, dependency constraints, design documents, and application
+code merely because they came from one stale branch.
+
+Use this exact branch policy:
+
+```powershell
+$branchType = 'fix'
+$topic = 'portfolio-validation-reconciliation'
+git switch portfolio_validations
+git pull --ff-only origin portfolio_validations
+git switch --create "$branchType/$topic-gh-$issue"
+```
+
+`$issue` is the number returned from the issue created for that coherent
+retained change; no branch may be created without that issue.
+
+- [ ] **Step 4: Run the full internal development cycle**
+
+Each recovery branch must complete `/openbb-dev-cycle`, targeted tests,
+independent review, and a fork-internal PR:
+
+```powershell
+$branch = "$branchType/$topic-gh-$issue"
+$issueTitle = gh issue view $issue --repo prajoria/OpenBB `
+  --json title --jq '.title'
+gh pr create --repo prajoria/OpenBB --base portfolio_validations `
+  --head $branch `
+  --title "$issueTitle (#$issue)" `
+  --body "Closes #$issue.`n`nRefs #2035 (full branch inventory)."
+```
+
+Expected: every recovery PR targets `portfolio_validations`. This task never
+creates a direct `portfolio` PR and never creates or merges a `develop` PR.
+
+- [ ] **Step 5: Delete reconciled source refs**
+
+After all retained work from a source branch is merged into
+`portfolio_validations`, or the issue records concrete supersession evidence:
+
+1. Record the source branch's full tip SHA on issue #2035.
+2. Delete the remote source ref.
+3. Prune remotes.
+4. Delete a matching local ref with `git branch -d` only when no worktree owns
+   it.
+
+Expected: all eight reconciliation source branches are gone without bypassing
+the validation stage.
+
+Update every deleted source row to `DELETED-RECONCILED` in the same status
+reporting cycle that records its evidence.
+
+---
+
+### Task 12: Remove stale local-only branches
+
+**Files:**
+- Modify during execution: none
+- Test: local reachability, merged PR evidence, and worktree ownership
+
+**Interfaces:**
+- Consumes: Local-only branches after Tasks 9 and 11.
+- Produces: A clean local branch list containing only active work and permanent
+  trunks.
+
+- [ ] **Step 1: Verify no worktree owns a candidate**
+
+```powershell
+git worktree list --porcelain
+```
+
+Expected: none of the local candidates is listed as a checked-out branch.
+
+- [ ] **Step 2: Delete the already-merged local-CI correction branch**
+
+```powershell
+gh pr view 2031 --repo prajoria/OpenBB `
+  --json state,baseRefName,headRefName,mergeCommit
+git branch -d fix/local-ci-post-merge-review-gh-2030
+```
+
+Expected: PR #2031 reports `MERGED` into `develop`; `git branch -d` succeeds.
+This is deletion of an already-integrated local ref, not authorization for a
+new `develop` PR or merge.
+
+- [ ] **Step 3: Delete Portfolio local refs only after their remote rows clear**
+
+```powershell
+$localPortfolio = @(
+  'fix/pi-portfolio-backend-run-gh-1786',
+  'fix/pi-portfolio-intel-obbject-openapi-gh-1788'
+)
+foreach ($branch in $localPortfolio) {
+  git branch -d $branch
+}
+git worktree prune
+```
+
+Expected: both refs delete without force. Task 11 owns reconciliation and
+deletion of `docs/pi-asof-snapshot-spec-gh-1932`. If `-d` refuses, stop and
+re-open the corresponding reconciliation proof; do not use `-D`.
+
+Update each successfully deleted local row to `DELETED-PROVED` or
+`DELETED-RECONCILED`, matching the proof path used.
+
+---
+
+### Task 13: Quarantine develop-only work
+
+**Files:**
+- Modify during execution: none
+- Test: GitHub PR and branch state only
+
+**Interfaces:**
+- Consumes: PR #895 and `sync/upstream-openbb-2026-07-19`.
+- Produces: An explicit no-action record, not a merge or deletion.
+
+- [ ] **Step 1: Verify the quarantined pair**
+
+```powershell
+gh pr view 895 --repo prajoria/OpenBB `
+  --json number,state,baseRefName,headRefName,mergeable,statusCheckRollup
+git rev-parse origin/sync/upstream-openbb-2026-07-19
+```
+
+Expected: PR #895 still targets `develop`. Record its state and full branch tip
+on issue #2035.
+
+- [ ] **Step 2: Make no state-changing GitHub or Git operation**
+
+Do not update, close, merge, rebase, retarget, or delete PR #895 or its branch.
+The only exit from quarantine is a later instruction from Daisy explicitly
+naming the intended `develop` operation.
+
+---
+
+### Task 14: Run the full post-cleanup audit
+
+**Files:**
+- Modify during execution: none
+- Test: complete local/remote ref and open-PR inventory
+
+**Interfaces:**
+- Consumes: Completed Tasks 8-13.
+- Produces: Final evidence that only permanent, explicitly held, quarantined,
+  or actively tracked branches remain.
+
+- [ ] **Step 1: List every remaining ref**
+
+```powershell
+git fetch --prune origin
+git for-each-ref refs/remotes/origin --sort=refname `
+  --format='%(refname:strip=3)|%(objectname)'
+git for-each-ref refs/heads --sort=refname `
+  --format='%(refname:short)|%(objectname)|%(upstream:short)'
+git worktree list --porcelain
+```
+
+Expected remote code branches after completed cleanup:
+
+```text
+develop
+openbb_pine_support
+portfolio
+portfolio_validations
+sync/upstream-openbb-2026-07-19
+trading_technicals
+```
+
+`__dolt_remote_info__` may also remain as metadata. Any additional branch must
+have an open issue, an open PR to an allowed non-`develop` target, and a named
+owner; otherwise the cleanup is incomplete.
+
+- [ ] **Step 2: Audit every open PR**
+
+```powershell
+gh pr list --repo prajoria/OpenBB --state open --limit 1000 `
+  --json number,title,headRefName,baseRefName,url
+```
+
+Expected:
+
+- no stale PR from a deleted branch;
+- no newly created PR targeting `develop`;
+- no `portfolio_validations` to `portfolio` promotion unless Daisy separately
+  requested that exact PR;
+- every remaining Pine PR targets `openbb_pine_support`;
+- every remaining Portfolio recovery PR targets `portfolio_validations`.
+
+- [ ] **Step 3: Verify permanent refs and forbidden deletions**
+
+```powershell
+$permanent = 'develop','portfolio','portfolio_validations','openbb_pine_support'
+foreach ($branch in $permanent) {
+  git show-ref --verify --quiet "refs/remotes/origin/$branch"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Permanent branch missing after cleanup: $branch"
+  }
+}
+```
+
+Expected: all four permanent branches exist at the end of every cleanup cycle.
+
+- [ ] **Step 4: Record and close the cleanup issue**
+
+Post the final branch list, deleted branch names and full pre-delete SHAs,
+supersession or recovery evidence, merged recovery PRs, held refs, and
+quarantined refs on issue #2035. Close issue #2035 only after the audit matches
+the expected state and every status-table row is terminal or
+`BLOCKED-AUTH`.
+
+---
+
 ## Self-Review
 
-- Spec coverage: maps every currently observed remote `feat/*` branch plus the one local-only `feat/*` branch to an explicit target and disposition.
-- Safety coverage: requires ancestry or patch/content proof, merged PR evidence, SHA recording, worktree checks, and post-deletion audits.
-- Program boundaries: Pine, local-CI, and Portfolio Intelligence are handled independently; no Pine work is routed through `portfolio_validations`.
-- Placeholder scan: no incomplete implementation placeholders remain; execution-time issue and PR numbers are resolved with exact GitHub CLI queries.
+- Spec coverage: maps every remote code branch observed on 2026-09-05 and every
+  stale local branch to a permanent trunk, explicit hold, quarantine, or
+  cleanup disposition.
+- Permanent-branch coverage: `develop`, `portfolio`, `portfolio_validations`,
+  and `openbb_pine_support` are an explicit no-delete allowlist;
+  `trading_technicals` requires a separate retirement decision.
+- Safety coverage: requires ancestry or patch/content proof, merged PR
+  evidence, SHA recording, worktree checks, and post-deletion audits.
+- Program boundaries: Pine recovery targets `openbb_pine_support`; Portfolio
+  recovery targets `portfolio_validations`; existing `portfolio` merges are
+  evidence only.
+- Develop gate: no task creates or merges a PR to `develop`; PR #895 and its
+  branch are explicitly quarantined.
+- Placeholder scan: execution-time issue identifiers are captured from the
+  exact `gh issue create` result before use.
 - Execution authorization: absent. This plan does not perform or authorize branch deletion.
