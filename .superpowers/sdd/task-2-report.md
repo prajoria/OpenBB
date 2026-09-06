@@ -1,7 +1,7 @@
 # Task 2 Report — Top-50 S&P 500 Intraday Drift Study
 
-**Date executed:** 2026-08-13  
-**Operator:** Copilot CLI (automated)  
+**Date executed:** 2026-08-13
+**Operator:** Copilot CLI (automated)
 **Repository:** `H:\masterswork\git\OpenBB-Top50-Intraday-1986`
 
 ---
@@ -68,8 +68,8 @@ methodology is in Section 9.*
 
 - **Entry bar (DEFECTIVE):** intended the open of the 12:00 America/New_York bar, but with `interval="60m"` the 09:30-aligned grid has no 12:00 bar, so `hour == 12` actually selected the **12:30 ET** bar.
 - **Exit bar:** close of the 15:30 America/New_York bar (matched via `hour == 15`; accidentally correct because 15:30 is the only 15:xx bar).
-- **Win condition:** exit price strictly greater than entry price (ties count as losses).  
-- **Equal-weight basket:** mean return across all symbols for each session day; basket-day win = basket return > 0.  
+- **Win condition:** exit price strictly greater than entry price (ties count as losses).
+- **Equal-weight basket:** mean return across all symbols for each session day; basket-day win = basket return > 0.
 - **Data source (DEFECTIVE):** Yahoo Finance via `yfinance 1.5.2`, `interval="60m"`, `auto_adjust=True`, `group_by="ticker"`. Corrected to `interval="30m"` in Section 9.
 - **Constituent list:** `pandas.read_html` against `slickcharts.com/sp500` with a browser `User-Agent`, sorted by weight descending; dots in tickers replaced with dashes (e.g. `BRK.B` → `BRK-B`).
 

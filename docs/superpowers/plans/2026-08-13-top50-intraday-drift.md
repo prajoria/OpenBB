@@ -307,4 +307,3 @@ Expected: all commands exit `0`.
 git add openbb_platform/extensions/backtest/examples/top50_intraday_drift.py openbb_platform/extensions/backtest/tests/unit/test_intraday_drift.py openbb_platform/extensions/backtest/README.md
 git commit -m "feat(backtest): add top-50 intraday drift strategy" -m "Closes #1986" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
-

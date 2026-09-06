@@ -118,4 +118,3 @@ After unit tests pass, run the script against live public data and record the
 the ~60-day retention, that record must be labelled a PARTIAL WINDOW result and
 must not be presented as a six-month answer. The result is descriptive, before
 transaction costs, and is not investment advice.
-
