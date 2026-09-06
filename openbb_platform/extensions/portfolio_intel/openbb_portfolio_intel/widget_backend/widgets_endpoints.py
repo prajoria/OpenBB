@@ -11,7 +11,9 @@ The endpoints are registered by importing this module for its side
 effects (``main.py`` does that).
 """
 
-# pylint: disable=too-many-lines
+# Provider fetchers are imported lazily in request helpers to avoid loading the
+# full extension/provider graph during module initialization.
+# pylint: disable=import-outside-toplevel,too-many-lines
 
 from __future__ import annotations
 
@@ -21,7 +23,8 @@ import math
 import os
 import re
 import time
-from datetime import date, timedelta
+from collections import Counter
+from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException, Query, Request
 
@@ -69,6 +72,27 @@ def record_tier_used(endpoint: str, tier: str) -> None:
     by tier Y". Kept module-level so the retrofit sites are one-liners.
     """
     _TIER_IN_USE[endpoint] = tier
+
+
+# Human-readable role for each Track A tier — rendered in the provider-health
+# table so an analyst reads the fallback *chain order* at a glance (#1976).
+# Keys match ``TRACK_A_DEFAULT`` in providers/registry.py.
+_TIER_ROLE: dict[str, str] = {
+    "fmp_cached": "Primary (cache)",
+    "fmp": "Live fallback",
+    "cboe": "Public",
+    "sec": "Filings",
+    "yfinance-snapshot": "Last-resort",
+}
+
+# Status → badge glyph for the provider-health table (#1976). Kept as text
+# (not HTML) so it renders identically in the offline viewer and Workspace.
+_STATUS_BADGE: dict[str, str] = {
+    "healthy": "🟢",
+    "degraded": "🟡",
+    "down": "🔴",
+    "unknown": "⚪",
+}
 
 
 def _validate_symbol(symbol: str) -> str:
@@ -528,15 +552,15 @@ def risk_dashboard(
 def risk_vol(
     request: Request, account_id: str = "demo"
 ) -> list[dict[str, float | str]]:
-    """Return rolling 20d / 60d realized volatility."""
+    """Return rolling 20d / 60d realized volatility in percentage points."""
     _require_auth(request)
     _validate_account(account_id)
     if account_id == "demo":
         return [
             {
                 "date": f"2026-06-{d:02d}",
-                "vol_20d": 0.16 + 0.02 * ((d % 5) - 2) / 3,
-                "vol_60d": 0.18 + 0.01 * ((d % 7) - 3) / 3,
+                "vol_20d": round((0.16 + 0.02 * ((d % 5) - 2) / 3) * 100, 2),
+                "vol_60d": round((0.18 + 0.01 * ((d % 7) - 3) / 3) * 100, 2),
             }
             for d in range(1, 31)
         ]
@@ -1042,6 +1066,65 @@ def equity_technicals(
     ]
 
 
+def _provider_date(value: object) -> date | None:
+    """Normalize a provider date value without inventing a calendar period."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _latest_issuer_fiscal_period_and_release_date(
+    symbol: str,
+) -> tuple[date, date] | None:
+    """Return ``(fiscal_period_end, earnings_release_date)`` from FMP data.
+
+    Historical EPS supplies the provider earnings-release dates; the quarterly
+    income statement supplies the issuer's actual fiscal period ends. Selecting
+    the latest period that ends on or before the latest release avoids assuming
+    calendar-quarter dates for issuers such as AAPL.
+    """
+    try:
+        from openbb_portfolio_intel.widget_backend.tier_calls import (
+            _fetch_earnings_rows,
+            _fetch_statement,
+        )
+
+        release_dates = [
+            release_date
+            for row in _fetch_earnings_rows(symbol)
+            if row.get("eps_actual") is not None
+            if (release_date := _provider_date(row.get("date"))) is not None
+        ]
+        if not release_dates:
+            return None
+        release_date = max(release_dates)
+
+        fiscal_period_ends = [
+            fiscal_period_end
+            for row in _fetch_statement("income", symbol, "quarter")
+            if (fiscal_period_end := _provider_date(row.get("period_ending")))
+            is not None
+            and fiscal_period_end <= release_date
+        ]
+        if not fiscal_period_ends:
+            return None
+        return max(fiscal_period_ends), release_date
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "analyst-forecasts: provider fiscal/release lookup failed for %s: %s",
+            symbol,
+            exc,
+        )
+        return None
+
+
 @app.get("/pi/equity/analyst-forecasts")
 @with_chain(
     endpoint="pi/equity/analyst-forecasts",
@@ -1118,20 +1201,18 @@ def equity_analyst_forecasts(
             ]
         )
 
-    rows.extend(
-        [
+    for quarter, actual, estimate in (
+        ("Q3 2025", 1.55, 1.50),
+        ("Q2 2025", 1.52, 1.49),
+    ):
+        surprise_pct = (actual - estimate) / abs(estimate) * 100
+        rows.append(
             {
-                "metric": "Q3 2025 EPS Surprise",
-                "value": "+3.2%",
-                "note": "actual 1.55 vs est 1.50",
-            },
-            {
-                "metric": "Q2 2025 EPS Surprise",
-                "value": "+1.9%",
-                "note": "actual 1.52 vs est 1.49",
-            },
-        ]
-    )
+                "metric": f"{quarter} EPS Surprise",
+                "value": f"{surprise_pct:+.1f}%",
+                "note": f"actual {actual:.2f} vs est {estimate:.2f}",
+            }
+        )
 
     # Revenue surprise (5C) — live via #998 opportunistic history
     # (#1025 / #1026). Only rendered when a historical snapshot exists;
@@ -1139,25 +1220,20 @@ def equity_analyst_forecasts(
     # the state honestly rather than fabricating a surprise%.
     # pylint: disable=import-outside-toplevel,broad-exception-caught
     try:
-        from datetime import (
-            date as _date,
-            timedelta as _td,
-        )
-
         from openbb_fmp_cached.models.analyst_estimates import (
-            get_estimate_as_of,
+            get_estimate_for_period_before_release,
         )
 
-        # Look up an estimate that was captured before the most recent
-        # earnings release. For the demo path we probe the last-completed
-        # quarter end (approximately today - 90 days).
-        today = _date.today()
-        approx_last_qend = today - _td(days=90)
-        snap = get_estimate_as_of(
-            symbol=sym,
-            fiscal_period_end=approx_last_qend,
-            as_of_date=approx_last_qend,
-            period="quarter",
+        resolved_period = _latest_issuer_fiscal_period_and_release_date(sym)
+        snap = (
+            get_estimate_for_period_before_release(
+                symbol=sym,
+                fiscal_period_end=resolved_period[0],
+                release_date=resolved_period[1],
+                period="quarter",
+            )
+            if resolved_period
+            else None
         )
         if snap and snap.get("estimated_revenue_avg"):
             rows.append(
@@ -1173,12 +1249,12 @@ def equity_analyst_forecasts(
         else:
             rows.append(
                 {
-                    "metric": "Historical rev estimate",
+                    "metric": "Historical rev estimate (last Q)",
                     "value": "insufficient history",
                     "note": (
-                        "no snapshot in analyst_estimates_history yet; "
-                        "surprise% available once opportunistic snapshots "
-                        "accumulate (#998 / #1025)"
+                        "no historical estimate snapshot is available yet; "
+                        "revenue surprise will become available after "
+                        "snapshots accumulate"
                     ),
                 }
             )
@@ -1188,7 +1264,7 @@ def equity_analyst_forecasts(
         # rationale above. Detail is in the WARN log.
         rows.append(
             {
-                "metric": "Historical rev estimate",
+                "metric": "Historical rev estimate (last Q)",
                 "value": "n/a",
                 "note": "lookup failed (see server logs)",
             }
@@ -1767,37 +1843,21 @@ def equity_earnings_history(
     """
     _require_auth(request)
     _validate_symbol(symbol)
+    fallback_rows = (
+        ("Q3 2026", 1.65, 1.60),
+        ("Q2 2026", 1.53, 1.50),
+        ("Q1 2026", 2.18, 2.10),
+        ("Q4 2025", 1.46, 1.39),
+        ("Q3 2025", 1.40, 1.35),
+    )
     return [
         {
-            "quarter": "Q3 2026",
-            "eps_actual": 1.65,
-            "eps_estimate": 1.60,
-            "surprise_pct": 3.13,
-        },
-        {
-            "quarter": "Q2 2026",
-            "eps_actual": 1.53,
-            "eps_estimate": 1.50,
-            "surprise_pct": 2.00,
-        },
-        {
-            "quarter": "Q1 2026",
-            "eps_actual": 2.18,
-            "eps_estimate": 2.10,
-            "surprise_pct": 3.81,
-        },
-        {
-            "quarter": "Q4 2025",
-            "eps_actual": 1.46,
-            "eps_estimate": 1.39,
-            "surprise_pct": 5.04,
-        },
-        {
-            "quarter": "Q3 2025",
-            "eps_actual": 1.40,
-            "eps_estimate": 1.35,
-            "surprise_pct": 3.70,
-        },
+            "quarter": quarter,
+            "eps_actual": actual,
+            "eps_estimate": estimate,
+            "surprise_pct": round((actual - estimate) / abs(estimate) * 100, 2),
+        }
+        for quarter, actual, estimate in fallback_rows
     ]
 
 
@@ -2026,8 +2086,8 @@ def equity_statements(
 
     Live-served from ``fmp_cached`` via the ``equity/statements`` tier call
     (#1920): fetches income/balance/cash statements and maps nine canonical
-    line items to a 2-period comparison. This stub body is the loud fallback
-    when no tier serves.
+    line items to a 2-period comparison in reporting-currency millions. This
+    stub body is the loud fallback when no tier serves and uses the same scale.
     """
     _require_auth(request)
     _validate_symbol(symbol)
@@ -2425,29 +2485,34 @@ async def _probe_tiers_map(
 
 
 @app.get("/pi/health/providers")
-async def provider_health(request: Request) -> str:
-    """Return Provider Health strip markdown (#1685 + #1715 + #1956 + #1961).
+async def provider_health(request: Request) -> list[dict[str, object]]:
+    """Return Provider Health as **table rows** (#1685 + #1715 + #1956 + #1961 + #1976).
+
+    #1976: the widget changed from a truncated ``markdown`` strip to a proper
+    ``table``. As an analyst-facing diagnostic, the fallback-chain order, per-tier
+    status, and "which tier is serving what" are far more legible as sortable rows
+    with status badges than as one crammed markdown line. This function keeps the
+    probing behaviour (below) byte-for-byte identical — only the final *assembly*
+    changed from a markdown string to a ``list[dict]``.
+
+    Each row: ``{tier, role, status, latency_ms, note, serving}`` where ``serving``
+    collapses the #1715 ``_TIER_IN_USE`` ledger into the row of the tier that owns
+    each endpoint.
+
+    Behaviour preserved from prior revisions:
 
     Spec §3 T12.1: non-blocking cold cache (returns 'unknown' immediately),
     60s TTL, exception notes from the allowlist only, never raw exception
     strings. #1715 adds the ``in-use: <tier>`` annotation per endpoint,
     driven by :func:`record_tier_used` calls from retrofitted endpoints.
 
-    #1956: the strip used to show every tier as ``probe_failed_cold_cache``
-    forever because no probers were ever registered on the server (only tests
-    called ``register_prober``). Real reachability probers are now registered
-    at server startup (see :func:`._app._register_health_probers`), and the
-    inline cold-cache probe budget was widened from 0.4s/0.5s to 2.5s/3.0s so
-    those real HTTP HEADs can actually complete and populate the 60s cache.
+    #1956: real reachability probers are registered at server startup (see
+    :func:`._app._register_health_probers`); the inline cold-cache probe budget
+    is 2.5s/3.0s so those HTTP HEADs can populate the 60s cache.
 
-    #1961: the strip now renders **Track A only**. Every data widget already
-    fetches via Track A (``with_chain`` / ``route_through_chain`` default to
-    ``track="A"`` and no endpoint overrides to ``"B"``), so a second
-    ``Track B (free)`` row was pure confusion during test/verification — a
-    tester could not tell which chain served a widget, and a shared tier
-    (cboe/sec) shown in both rows read like two independent signals. The
-    Track B chain infrastructure (registry ``:B`` keys) stays as a dormant
-    no-credentials fallback; it is simply no longer surfaced in the UX.
+    #1961: Track A only. Every data widget already fetches via Track A, so a
+    second ``Track B (free)`` row was pure confusion. The Track B chain stays a
+    dormant no-credentials fallback; it is simply no longer surfaced.
     """
     _require_auth(request)
 
@@ -2482,36 +2547,81 @@ async def provider_health(request: Request) -> str:
             track_a = probed_a
         except asyncio.TimeoutError:
             # Overall budget exceeded — render the cold-cache 'unknown'
-            # strip loudly and try again on the next call (within TTL).
+            # rows loudly and try again on the next call (within TTL).
             track_a = track_a or _unknown_strip(TRACK_A_DEFAULT)
 
-    def _render_tier(h: object) -> str:
-        badge = {"healthy": "●", "degraded": "⚠", "down": "✕", "unknown": "?"}.get(
-            getattr(h, "status", "unknown"), "?"
-        )
+    # Per-tier "serving" column: which endpoints this tier currently owns,
+    # from the #1715 ledger. Sorted for determinism (mirrors the old markdown).
+    def _serving_for(tier: str) -> str:
+        eps = sorted(ep for ep, t in _TIER_IN_USE.items() if t == tier)
+        return ", ".join(eps)
+
+    def _row(h: object) -> dict[str, object]:
+        status = getattr(h, "status", "unknown")
         name = getattr(h, "name", "?")
-        ms = getattr(h, "latency_ms", 0)
-        note = getattr(h, "note", None)
-        suffix = f" ({note})" if note else ""
-        return f"{badge} {name} ({ms}ms){suffix}"
+        badge = _STATUS_BADGE.get(status, "⚪")
+        return {
+            "tier": name,
+            "role": _TIER_ROLE.get(name, ""),
+            "status": f"{badge} {status}",
+            "latency_ms": getattr(h, "latency_ms", 0),
+            # ``note`` is drawn only from the closed allowlist (P0-3): a raw
+            # exception string can never reach this field.
+            "note": getattr(h, "note", None) or "",
+            "serving": _serving_for(name),
+        }
 
-    a_str = "  ".join(_render_tier(t) for t in track_a)
+    return [_row(t) for t in track_a]
 
-    # Optional "currently in-use" summary — only rendered if any endpoint
-    # has actually gone through a ChainedFetcher yet. Sorted for
-    # determinism.
-    in_use_lines = ""
+
+@app.get("/pi/context/provenance")
+async def data_provenance(request: Request) -> str:
+    """Return the Data-Provenance strip markdown (#1976).
+
+    A thin, always-on top-chrome bar that answers the analyst's *trust*
+    question — is what I'm looking at live, where did it come from, and how
+    healthy is the source chain — rather than the DevOps latency question the
+    old provider-health strip answered. Three compact fields:
+
+    - **Data mode** — LIVE (fmp_cached/fmp), DELAYED (a snapshot tier), PUBLIC
+      (cboe/sec), or ``—`` when nothing has been served through the chain yet.
+    - **Serving source** — the tier currently serving the most endpoints, from
+      the #1715 ``_TIER_IN_USE`` ledger.
+    - **Providers** — healthy/total Track A tiers, from the *cached* health
+      probe only (never triggers a new probe → this route stays non-blocking).
+
+    No fiscal "as-of" date is fabricated here: the as-of EOD snapshot layer is
+    tracked separately in #1932. Rendering a made-up date would violate the
+    loud-empties rule, so we surface real chain state instead.
+    """
+    _require_auth(request)
+
+    # Serving source = the tier owning the most endpoints in the ledger.
+    source = None
     if _TIER_IN_USE:
-        summary = "\n".join(
-            f"- `{ep}` → **{tier}**" for ep, tier in sorted(_TIER_IN_USE.items())
-        )
-        in_use_lines = f"\n\n**Currently serving:**\n{summary}"
+        source = Counter(_TIER_IN_USE.values()).most_common(1)[0][0]
 
+    if source in ("fmp_cached", "fmp"):
+        mode = "LIVE"
+    elif source and "snapshot" in source:
+        mode = "DELAYED"
+    elif source:
+        mode = "PUBLIC"
+    else:
+        mode = "—"
+
+    # Read cached health only — do NOT probe here (keep this route instant).
+    cached = _cached_health("A")
+    if cached:
+        healthy = sum(1 for h in cached if getattr(h, "status", "") == "healthy")
+        providers = f"{healthy}/{len(cached)} healthy"
+    else:
+        providers = "probing…"
+
+    src_str = f"`{source}`" if source else "—"
     return (
-        "**Track A:**  " + a_str + in_use_lines + "\n\n"
-        "> Provider-health strip (#1685) with 5-tier probing + tier-in-use "
-        "ledger (#1715). Track A only (#1961). 60s cache, 2s per-tier timeout, "
-        "3s overall cold-cache probe budget (#1956)."
+        f"**Data mode:** {mode}  ·  **Serving source:** {src_str}  ·  "
+        f"**Providers:** {providers}"
     )
 
 

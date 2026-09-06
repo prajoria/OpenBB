@@ -1280,6 +1280,20 @@ def test_shape_earnings_maps_computes_surprise_and_sorts() -> None:
     ]
 
 
+def test_shape_earnings_accepts_numeric_strings() -> None:
+    """Provider numeric strings must be normalized before arithmetic."""
+    out = tier_calls._shape_earnings_history(
+        [
+            {
+                "date": _dt.date(2024, 9, 30),
+                "eps_actual": "1.40",
+                "eps_estimated": "1.35",
+            }
+        ]
+    )
+    assert out[0]["surprise_pct"] == 3.7
+
+
 def test_calendar_quarter_label_boundaries() -> None:
     """Quarter label maps month ranges to Q1-Q4 correctly."""
     assert tier_calls._calendar_quarter_label(_dt.date(2024, 1, 15)) == "Q1 2024"
@@ -1804,6 +1818,19 @@ def test_shape_charting_skips_null_close_and_date() -> None:
     assert all(r["close"] is not None for r in out)
 
 
+def test_shape_charting_normalizes_numeric_string_ohlc() -> None:
+    """Provider numeric strings must be normalized for indicators and output."""
+    rows = _charting_rows(25)
+    for row in rows:
+        for field in ("open", "high", "low", "close"):
+            row[field] = str(row[field])
+    out = tier_calls._shape_charting(rows, "3M")
+    assert out[-1]["sma20"] == 114.5
+    assert out[-1]["close"] == 124.0
+    for field in ("open", "high", "low", "close"):
+        assert isinstance(out[-1][field], float)
+
+
 def test_charting_tier_call_composes_fetch_and_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1929,43 +1956,43 @@ def _statement_fixtures() -> tuple[list[dict], list[dict], list[dict]]:
     income = [
         {
             "period_ending": _dt.date(2023, 9, 30),
-            "revenue": 383285,
-            "gross_profit": 169148,
-            "total_operating_income": 114301,
-            "bottom_line_net_income": 96995,
+            "revenue": 383_285_000_000,
+            "gross_profit": 169_148_000_000,
+            "total_operating_income": 114_301_000_000,
+            "bottom_line_net_income": 96_995_000_000,
         },
         {
             "period_ending": _dt.date(2022, 9, 24),
-            "revenue": 394328,
-            "gross_profit": 170782,
-            "total_operating_income": 119437,
-            "bottom_line_net_income": 99803,
+            "revenue": 394_328_000_000,
+            "gross_profit": 170_782_000_000,
+            "total_operating_income": 119_437_000_000,
+            "bottom_line_net_income": 99_803_000_000,
         },
     ]
     balance = [
         {
             "period_ending": _dt.date(2023, 9, 30),
-            "total_assets": 352583,
-            "total_debt": 111088,
-            "cash_and_cash_equivalents": 29965,
+            "total_assets": 352_583_000_000,
+            "total_debt": 111_088_000_000,
+            "cash_and_cash_equivalents": 29_965_000_000,
         },
         {
             "period_ending": _dt.date(2022, 9, 24),
-            "total_assets": 352755,
-            "total_debt": 120069,
-            "cash_and_cash_equivalents": 23646,
+            "total_assets": 352_755_000_000,
+            "total_debt": 120_069_000_000,
+            "cash_and_cash_equivalents": 23_646_000_000,
         },
     ]
     cash = [
         {
             "period_ending": _dt.date(2023, 9, 30),
-            "operating_cash_flow": 110543,
-            "free_cash_flow": 99584,
+            "operating_cash_flow": 110_543_000_000,
+            "free_cash_flow": 99_584_000_000,
         },
         {
             "period_ending": _dt.date(2022, 9, 24),
-            "operating_cash_flow": 122151,
-            "free_cash_flow": 111443,
+            "operating_cash_flow": 122_151_000_000,
+            "free_cash_flow": 111_443_000_000,
         },
     ]
     return income, balance, cash
@@ -1989,7 +2016,7 @@ def test_shape_statements_maps_nine_line_items_in_order() -> None:
 
 
 def test_shape_statements_period_1_is_latest_period_2_is_prior() -> None:
-    """period_1 reads index 0 (latest), period_2 reads index 1 (prior)."""
+    """Raw provider amounts are normalized to reporting-currency millions by period."""
     income, balance, cash = _statement_fixtures()
     out = tier_calls._shape_statements(income, balance, cash)
     by = {r["line_item"]: r for r in out}
@@ -2002,6 +2029,29 @@ def test_shape_statements_period_1_is_latest_period_2_is_prior() -> None:
     # Free Cash Flow from cash[0]/cash[1]
     assert by["Free Cash Flow"]["period_1"] == 99584
     assert by["Free Cash Flow"]["period_2"] == 111443
+
+
+def test_statements_live_and_fallback_values_use_reporting_currency_millions() -> None:
+    """A raw live amount and fallback both render as 391,000 reporting-currency millions."""
+    raw_revenue = 391_000_000_000
+    live = tier_calls._shape_statements(
+        [{"period_ending": _dt.date(2024, 9, 28), "revenue": raw_revenue}],
+        [],
+        [],
+    )
+    assert live[0]["period_1"] == 391_000
+    assert live[0]["period_1"] not in {391, raw_revenue}
+
+    _TIER_CALLS.clear()
+    try:
+        response = _client.get("/pi/equity/statements?symbol=AAPL")
+    finally:
+        tier_calls.register_all(register_tier_call)
+
+    assert response.status_code == 200
+    fallback = {row["line_item"]: row for row in response.json()}
+    assert fallback["Revenue"]["period_1"] == 391_000
+    assert fallback["Revenue"]["period_1"] not in {391, raw_revenue}
 
 
 def test_shape_statements_missing_prior_period_is_none() -> None:
@@ -2727,7 +2777,8 @@ def _header_profile() -> dict:
 def _header_quote() -> dict:
     """Realistic fmp_cached quote row. ``change_percent`` is deliberately a
     bogus 999.0 to prove the shaper computes the percent from change/prev_close
-    rather than trusting the provider's field."""
+    rather than trusting the provider's field.
+    """
     return {
         "exchange": "NASDAQ",
         "last_price": 499.99,
@@ -2798,9 +2849,10 @@ def test_header_tier_call_raises_on_all_empty(
     monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: {})
     monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: {})
     call = _TIER_CALLS[("equity/header", "fmp_cached")]
-    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
-        with pytest.raises(ValueError):
-            call(symbol="MSFT")
+    with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name), pytest.raises(
+        ValueError
+    ):
+        call(symbol="MSFT")
     assert any("empty profile+quote" in r.getMessage() for r in caplog.records)
 
 

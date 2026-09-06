@@ -41,6 +41,7 @@ def _load_viewer_html() -> str | None:
 
 
 @router.get("/viewer", include_in_schema=False, response_model=None)
+@router.get("/viewer/help", include_in_schema=False, response_model=None)
 async def viewer() -> HTMLResponse | PlainTextResponse:
     """Serve the self-contained Local Workspace Viewer for the 6120 apps."""
     html = _load_viewer_html()
@@ -48,7 +49,8 @@ async def viewer() -> HTMLResponse | PlainTextResponse:
         return PlainTextResponse(
             "Local Workspace Viewer asset unavailable: the 'openbb_portfolio' "
             "extension (which owns assets/local_viewer/index.html) is not "
-            "importable in this environment. Install it to enable /viewer.",
+            "importable in this environment. Install it to enable the local "
+            "viewer routes.",
             status_code=503,
         )
     return HTMLResponse(content=html)

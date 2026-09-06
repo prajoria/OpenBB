@@ -2,6 +2,35 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Workspace override — Portfolio Validation checkout
+
+These rules apply whenever the repository is opened from
+`H:\masterswork\git\OpenBB-Portfolio-Validation` and override the generic
+Portfolio Intelligence branch targets below.
+
+1. **Integration branch:** `portfolio_validations` is this workspace's
+   long-lived integration branch. The similarly named singular branch
+   `portfolio_validation` does not exist.
+2. **Side branches only:** never commit directly to `portfolio_validations`.
+   Create a tracked side branch from `portfolio_validations` (or from the tip
+   of an active stack rooted there).
+3. **Internal cycle first:** every side branch must complete the full internal
+   `/openbb-dev-cycle`, then merge through a fork-internal PR whose eventual
+   target is `portfolio_validations`.
+4. **Drain stacks before promotion:** merge stacked side-branch PRs into
+   `portfolio_validations` in dependency order and confirm the integration
+   branch is clean and synchronized before proposing any promotion.
+5. **Promotion requires an explicit PR request:** the only promotion path is a
+   fork-internal PR from `portfolio_validations` → `portfolio`. Create and
+   merge that PR only when Daisy explicitly requests that exact promotion PR.
+   Generic instructions to merge, push, clean up branches, or create
+   side-branch PRs do not authorize promotion. Never merge or push
+   `portfolio_validations` directly into `portfolio`, and never target
+   `portfolio`, `develop`, or another fork directly from a validation side
+   branch.
+6. **Fork-internal only:** every PR uses `--repo prajoria/OpenBB`; cross-fork
+   PRs remain prohibited.
+
 ## Project ↔ Repo Mapping (do not lose this)
 
 Portfolio work is tracked in a single GitHub Project bound to a single repo,

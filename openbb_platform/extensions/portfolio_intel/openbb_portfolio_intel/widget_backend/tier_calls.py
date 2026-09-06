@@ -32,6 +32,10 @@ Wiring status
 - ``equity/key-stats`` -> ``fmp_cached`` (full-wiring of stub #1685, #1958)
 """
 
+# The module is intentionally organized by independently registered widget
+# families, and the final import registers them only after all handlers exist.
+# pylint: disable=too-many-lines,wrong-import-position
+
 from __future__ import annotations
 
 import logging
@@ -677,16 +681,16 @@ def _shape_earnings_history(rows: list[dict]) -> list[dict]:
     """
     kept: list[dict] = []
     for r in rows:
-        actual = r.get("eps_actual")
+        actual = _as_float(r.get("eps_actual"))
         if actual is None:
             continue
         quarter = _calendar_quarter_label(r.get("date"))
         if quarter is None:
             continue
-        estimate = r.get("eps_estimated")
+        estimate = _as_float(r.get("eps_estimated"))
         surprise = (
             None
-            if estimate in (None, 0)
+            if estimate is None or estimate == 0
             else round((actual - estimate) / abs(estimate) * 100, 2)
         )
         kept.append(
@@ -989,31 +993,32 @@ def _shape_charting(rows: list[dict], window: str) -> list[dict]:
     Indicators are computed over the full ascending series (so SMA50 has
     lookback) and the output is sliced to ``window``. Pure (no I/O).
     """
-    parsed: list[tuple[_dt.date, dict]] = []
+    parsed: list[tuple[_dt.date, float, dict]] = []
     for r in rows:
         d = _as_date(r.get("date"))
-        if d is None or r.get("close") is None:
+        close = _as_float(r.get("close"))
+        if d is None or close is None:
             continue
-        parsed.append((d, r))
+        parsed.append((d, close, r))
     parsed.sort(key=lambda t: t[0])
     if not parsed:
         return []
-    closes = [float(r.get("close")) for _, r in parsed]
+    closes = [close for _, close, _ in parsed]
     sma20 = _sma(closes, 20)
     sma50 = _sma(closes, 50)
     rsi14 = _rsi(closes, 14)
     cutoff = _window_cutoff(parsed[-1][0], window)
     out: list[dict] = []
-    for idx, (d, r) in enumerate(parsed):
+    for idx, (d, close, r) in enumerate(parsed):
         if d < cutoff:
             continue
         out.append(
             {
                 "date": d.isoformat(),
-                "open": r.get("open"),
-                "high": r.get("high"),
-                "low": r.get("low"),
-                "close": r.get("close"),
+                "open": _as_float(r.get("open")),
+                "high": _as_float(r.get("high")),
+                "low": _as_float(r.get("low")),
+                "close": close,
                 "sma20": sma20[idx],
                 "sma50": sma50[idx],
                 "rsi14": rsi14[idx],
@@ -1047,12 +1052,14 @@ def _charting_fmp_cached(*, symbol: str, window: str = "3M") -> list[dict]:
 # A 2-period comparison table over three statements. Fetches income, balance,
 # and cash statements (limit=2, latest-first) and maps nine canonical line
 # items to ``{line_item, period_1 (latest), period_2 (prior)}``. Values are
-# the provider's raw amounts (absolute currency units), ``None`` where a
-# period or field is missing. The widget's ``period`` (annual/quarterly) maps
-# to the provider's ``annual``/``quarter``.
+# normalized from the provider's absolute reporting-currency units to millions,
+# matching the fallback presentation; ``None`` remains ``None`` where a period
+# or field is missing. The widget's ``period`` (annual/quarterly) maps to the
+# provider's ``annual``/``quarter``.
 
 #: Widget ``period`` value -> provider ``period`` argument.
 _STATEMENT_PERIOD_MAP: dict[str, str] = {"annual": "annual", "quarterly": "quarter"}
+_MILLION = 1_000_000
 
 #: (row label, statement source, provider field). Order defines row order and
 #: mirrors the shipped stub so the widget renders identically.
@@ -1114,7 +1121,8 @@ def _shape_statements(
     def _value(source: str, field: str, idx: int) -> Any:
         rows = src[source]
         if idx < len(rows):
-            return rows[idx].get(field)
+            value = rows[idx].get(field)
+            return None if value is None else round(float(value) / _MILLION, 2)
         return None
 
     out: list[dict] = []

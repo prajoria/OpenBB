@@ -26,6 +26,22 @@ def test_viewer_route_returns_html():
     assert resp.text.lstrip().lower().startswith("<!doctype html")
 
 
+def test_viewer_help_route_returns_same_origin_html_shell():
+    """GET /viewer/help returns the same SPA shell for help-route dispatch."""
+    resp = _client().get("/viewer/help?metric=pe_ttm")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    body = resp.text
+    assert body.lstrip().lower().startswith("<!doctype html")
+    assert "function metricHelpPageHtml" in body
+    assert 'pathname !== "/viewer/help"' in body
+    assert (
+        'new URLSearchParams((window.location && window.location.search) || "")' in body
+    )
+    assert "bugcontext.com/loader.js" not in body
+    assert "Bug Context feedback widget" not in body
+
+
 def test_viewer_html_references_contract_endpoints():
     """The shell must wire every backend endpoint the JS depends on.
 
@@ -39,15 +55,20 @@ def test_viewer_html_references_contract_endpoints():
 
 
 def test_viewer_html_is_self_contained():
-    """No external script/style CDNs — the viewer must work fully offline."""
-    body = _client().get("/viewer").text.lower()
+    """Offline-first: the viewer must never execute external resources."""
+    import re  # noqa: PLC0415
+
+    body = _client().get("/viewer").text
     assert "<script" in body  # it has inline JS
-    # No external network dependencies (would break the offline promise).
-    assert "http://" not in body.replace("http://127.0.0.1", "").replace(
-        "http://localhost", ""
+    fetched = set(
+        re.findall(
+            r"""(?:src|href)\s*=\s*["']https?://([a-z0-9.\-]+)""", body, re.IGNORECASE
+        )
     )
-    assert "https://cdn" not in body
-    assert 'src="http' not in body
+    assert not fetched, (
+        "unexpected external src/href hosts in viewer shell: " f"{sorted(fetched)}"
+    )
+    assert "https://cdn" not in body.lower()
 
 
 def test_viewer_renders_chart_markdown_metric_types():
@@ -70,12 +91,15 @@ def test_viewer_renders_chart_markdown_metric_types():
 
 
 def test_viewer_has_multi_app_switcher():
-    """#1805: the viewer must expose an app selector and no longer hard-code
-    apps[0].
+    """#1805 + sidebar refactor: the viewer must expose an app switcher and no
+    longer hard-code apps[0]. The switcher moved from a ``<select
+    id="app-select">`` to a sidebar of ``data-app`` buttons rendered by
+    ``sidebarAppsHtml`` / ``renderSidebar`` and wired through ``selectApp``.
     """
     body = _client().get("/viewer").text
-    assert 'id="app-select"' in body
     assert "function selectApp" in body
+    assert "function sidebarAppsHtml" in body
+    assert "data-app=" in body
     assert "APP = Array.isArray(apps) ? apps[0]" not in body
 
 
@@ -89,3 +113,17 @@ def test_viewer_preserves_xss_guards():
     assert "div.innerHTML = mdToHtml(" in body
     # javascript: link scheme must be rejected in markdown links
     assert "https?:\\/\\/" in body
+
+
+def test_viewer_omits_remote_feedback_code():
+    """Remote scripts must not receive same-origin access to portfolio data."""
+    body = _client().get("/viewer").text
+    assert "bugcontext.com/loader.js" not in body
+    assert "Bug Context feedback widget" not in body
+
+
+def test_viewer_help_route_omits_bugcontext_feedback_widget():
+    """#1984: the help route must not include or fetch the external loader."""
+    body = _client().get("/viewer/help?metric=market_cap").text
+    assert "bugcontext.com/loader.js" not in body
+    assert "Bug Context feedback widget" not in body

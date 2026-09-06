@@ -26,6 +26,10 @@ Design notes:
 - Loud empties: never return silent empty responses.
 """
 
+# Late imports register endpoint modules and preserve legacy private exports
+# only after the FastAPI application has been initialized.
+# pylint: disable=ungrouped-imports
+
 from __future__ import annotations
 
 import json
@@ -186,7 +190,7 @@ def whatif(request: Request, symbol: str = "AAPL", delta_shares: str = "100") ->
 def attribution(
     request: Request, window: str = "1Y", benchmark_symbol: str = "SPY"
 ) -> list[dict[str, float | str]]:
-    """Brinson-Fachler attribution waterfall."""
+    """Brinson-Fachler attribution waterfall in percentage points for charts."""
     require_auth(request)
     bm = benchmark_symbol.strip().upper()
     if not _SYMBOL_RE.match(bm):
@@ -216,10 +220,13 @@ def attribution(
     return [
         {
             "sector": row.sector,
-            "allocation": row.allocation,
-            "selection": row.selection,
-            "interaction": row.interaction,
-            "total": row.allocation + row.selection + row.interaction,
+            # This widget-only endpoint is a presentation API. Preserve the
+            # analytics engine's fractional-return contract and expose chart
+            # values as percentage points to match the manifest labels.
+            "allocation": row.allocation * 100,
+            "selection": row.selection * 100,
+            "interaction": row.interaction * 100,
+            "total": (row.allocation + row.selection + row.interaction) * 100,
         }
         for row in waterfall.rows
     ]

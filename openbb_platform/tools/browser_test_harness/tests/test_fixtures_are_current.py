@@ -19,9 +19,20 @@ import pytest
 from openbb_browser_test_harness.drivers.standalone_driver import StandaloneDriver
 from openbb_browser_test_harness.stories import STORIES
 
-_FIXTURE_ROOT = (
-    Path(__file__).resolve().parents[1] / "fixtures" / "expected_responses"
-)
+_FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "expected_responses"
+
+
+def test_brinson_fixture_uses_percentage_points() -> None:
+    """Brinson's chart fixture is shaped for percentage-point presentation."""
+    fixture = json.loads(
+        (_FIXTURE_ROOT / "W4.brinson.json").read_text(encoding="utf-8")
+    )
+    first = fixture["body"][0]
+    assert first["sector"] == "S0"
+    assert first["allocation"] == pytest.approx(-0.06843181714558489)
+    assert first["selection"] == pytest.approx(-0.05476594628924076)
+    assert first["interaction"] == pytest.approx(0.02539967271489473)
+    assert first["total"] == pytest.approx(-0.09779809071993094)
 
 
 def _all_endpoint_steps() -> list:
@@ -67,10 +78,20 @@ _NONDETERMINISTIC_STEP_IDS: frozenset[str] = frozenset(
         # run. #1961 also dropped the Track B row. Body is inherently
         # nondeterministic.
         "W0.provider-health",
+        # CX.data-provenance summarizes the runtime serving ledger and cached
+        # provider-health probes. Startup timing and installed providers can
+        # change its mode, source, and healthy count without changing its
+        # markdown contract.
+        "CX.data-provenance",
         # W1.key-stats: live-wired to fmp_cached (#1958). Values (market cap,
         # P/E, volume, next-earnings date) drift with the server clock and
         # market data; the fabricated stub fields it replaced no longer exist.
         "W1.key-stats",
+        # CX.earnings-history: live-wired to fmp_cached. New reported quarters
+        # and provider estimate revisions change the ordered rows over time.
+        # Endpoint unit tests cover the EPS-surprise calculation; this harness
+        # check only requires the live endpoint to remain callable.
+        "CX.earnings-history",
         # CX.equity-price-history: live-wired to fmp_cached. The OHLC series
         # ends at the latest trading session, so it drifts with the clock.
         "CX.equity-price-history",
@@ -115,9 +136,7 @@ async def test_fixtures_are_current() -> None:
                 continue
             assert driver.client is not None
             path = (
-                step.endpoint
-                if step.endpoint.startswith("/")
-                else f"/{step.endpoint}"
+                step.endpoint if step.endpoint.startswith("/") else f"/{step.endpoint}"
             )
             resp = await driver.client.get(path, params=step.params)
             # For nondeterministic steps: only check status_code equals fixture.

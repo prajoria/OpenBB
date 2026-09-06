@@ -107,12 +107,18 @@ def test_risk_dashboard_returns_named_metrics() -> None:
         assert key in body
 
 
-def test_risk_vol_chart_returns_time_series_rows() -> None:
-    """chart+raw contract: list of {date, vol_20d, vol_60d}."""
+def test_risk_vol_chart_returns_percentage_point_time_series_rows() -> None:
+    """chart+raw contract uses percentage points, not decimal fractions."""
     resp = _client.get("/pi/risk/vol?account_id=demo")
     assert resp.status_code == 200
     rows = resp.json()
     assert rows and all("date" in r and "vol_20d" in r for r in rows)
+    assert rows[1] == {
+        "date": "2026-06-02",
+        "vol_20d": 16.0,
+        "vol_60d": 17.67,
+    }
+    assert rows[2]["vol_60d"] == 18.0
 
 
 # ---------------------------------------------------------------------------

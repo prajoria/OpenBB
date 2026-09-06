@@ -30,19 +30,20 @@ os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
-from openbb_portfolio_intel.providers import health_probers as hp  # noqa: E402
-from openbb_portfolio_intel.providers import probe as probe_mod  # noqa: E402
+from openbb_portfolio_intel.providers import (
+    health_probers as hp,  # noqa: E402
+    probe as probe_mod,  # noqa: E402
+)
 from openbb_portfolio_intel.providers.probe import (  # noqa: E402
     probe_tier,
     register_prober,
     unregister_prober,
 )
-from openbb_portfolio_intel.widget_backend import _app as app_mod  # noqa: E402
 from openbb_portfolio_intel.widget_backend import (  # noqa: E402
+    _app as app_mod,  # noqa: E402
     widgets_endpoints as we,
 )
 from starlette.requests import Request  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Fakes / helpers (no network)
@@ -62,7 +63,7 @@ class _FakeClient:
         self._status = status_code
         self._exc = exc
 
-    async def __aenter__(self) -> "_FakeClient":
+    async def __aenter__(self) -> _FakeClient:
         return self
 
     async def __aexit__(self, *_a: object) -> bool:
@@ -98,7 +99,8 @@ def _stub_request() -> Request:
 @pytest.fixture(autouse=True)
 def _clean_state():
     """Keep the prober registry + health cache clean so a leaked real-network
-    prober can never bleed into (or slow down) another test file."""
+    prober can never bleed into (or slow down) another test file.
+    """
     for t in list(hp.BASE_URL_FOR_TIER):
         unregister_prober(t)
     we._PROVIDER_HEALTH_CACHE.clear()
@@ -243,9 +245,10 @@ def test_provider_health_renders_healthy_when_probers_registered() -> None:
             unregister_prober(tier)
         we._PROVIDER_HEALTH_CACHE.clear()
 
-    assert isinstance(body, str)
-    assert "● fmp_cached" in body, f"expected fmp_cached healthy; got:\n{body}"
-    assert "probe_failed_cold_cache" not in body, "still rendering cold-cache '?'"
+    assert isinstance(body, list)
+    row = next(r for r in body if r["tier"] == "fmp_cached")
+    assert "healthy" in row["status"], f"expected fmp_cached healthy; got:\n{row}"
+    assert "probe_failed_cold_cache" not in row["note"], "still rendering cold-cache"
 
 
 def test_provider_health_5xx_tier_renders_down_not_unknown() -> None:
@@ -268,4 +271,5 @@ def test_provider_health_5xx_tier_renders_down_not_unknown() -> None:
             unregister_prober(tier)
         we._PROVIDER_HEALTH_CACHE.clear()
 
-    assert "✕ fmp_cached" in body, f"expected fmp_cached down (✕); got:\n{body}"
+    row = next(r for r in body if r["tier"] == "fmp_cached")
+    assert "down" in row["status"], f"expected fmp_cached down; got:\n{row}"

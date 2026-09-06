@@ -97,7 +97,9 @@ def parse_iso(s: str) -> datetime | None:
     Callers treat None as 'unparseable marker, skip'.
     """
     try:
-        return datetime.strptime(s.rstrip("Z"), "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        return datetime.strptime(s.rstrip("Z"), "%Y-%m-%dT%H:%M:%S").replace(
+            tzinfo=timezone.utc
+        )
     except (ValueError, TypeError, AttributeError):
         return None
 
@@ -144,16 +146,18 @@ def _hb_marker_from_comment(comment: dict) -> dict | None:
 
 def item_id_for(issue: str) -> str:
     """Look up the Project #4 item_id for an issue number."""
-    if not ITEMS_JSON.exists():
-        raise RuntimeError(f"{ITEMS_JSON} not found")
-    mapping = json.loads(ITEMS_JSON.read_text(encoding="utf-8"))
-    entry = mapping.get(str(int(issue)))
-    if not entry:
-        raise RuntimeError(
-            f"issue #{issue} not in {ITEMS_JSON}. "
-            "Was it added to Project #4? Re-sync via pi_sync_project_items."
-        )
-    return entry["item_id"] if isinstance(entry, dict) else entry
+    issue_number = int(issue)
+    if ITEMS_JSON.exists():
+        mapping = json.loads(ITEMS_JSON.read_text(encoding="utf-8"))
+        entry = mapping.get(str(issue_number))
+        if entry:
+            return entry["item_id"] if isinstance(entry, dict) else entry
+
+    for item in _project_items():
+        content = item.get("content") or {}
+        if content.get("number") == issue_number:
+            return item["id"]
+    raise RuntimeError(f"issue #{issue} is not in Project #4")
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +261,8 @@ def post_heartbeat_comment(issue: str, action: str, note: str | None = None) -> 
 
 def _age(hb: dict) -> timedelta:
     """Compute age of a hb marker. Guaranteed non-None thanks to the
-    filter in `_hb_marker_from_comment`, but we defend anyway."""
+    filter in `_hb_marker_from_comment`, but we defend anyway.
+    """
     ts = parse_iso(hb.get("hb", ""))
     if ts is None:
         # Should be unreachable — the marker filter already validated.
@@ -281,19 +286,54 @@ def cmd_status(issue: str) -> int:
     return 0
 
 
+def _project_items() -> list[dict]:
+    """Return every Project #4 item, following the GraphQL connection."""
+    items: list[dict] = []
+    cursor: str | None = None
+    query = """
+    query($cursor: String) {
+      user(login: "prajoria") {
+        projectV2(number: 4) {
+          items(first: 100, after: $cursor) {
+            nodes {
+              id
+              content { ... on Issue { number title } }
+              fieldValues(first: 20) {
+                nodes {
+                  ... on ProjectV2ItemFieldSingleSelectValue {
+                    name
+                    field { ... on ProjectV2FieldCommon { name } }
+                  }
+                }
+              }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }
+    }
+    """
+    while True:
+        args = ["api", "graphql", "-f", f"query={query}"]
+        if cursor is not None:
+            args.extend(("-f", f"cursor={cursor}"))
+        data = gh_json(*args)
+        connection = data["data"]["user"]["projectV2"]["items"]
+        items.extend(connection["nodes"])
+        page_info = connection["pageInfo"]
+        if not page_info["hasNextPage"]:
+            return items
+        cursor = page_info["endCursor"]
+        if not cursor:
+            raise RuntimeError(
+                "Project item pagination reported another page without a cursor"
+            )
+
+
 def cmd_list_stale() -> int:
     """Print all In Progress items whose last heartbeat > 2h (or missing)."""
-    # Fetch the In Progress items via GraphQL
-    query = """
-    { user(login:"prajoria"){ projectV2(number:4){ items(first:100){ nodes{
-      content{ ... on Issue { number title } }
-      fieldValues(first:20){ nodes{ ... on ProjectV2ItemFieldSingleSelectValue { name field{... on ProjectV2FieldCommon{name}}}}}
-    }}}}}
-    """
-    d = gh_json("api", "graphql", "-f", f"query={query}")
-    items = d["data"]["user"]["projectV2"]["items"]["nodes"]
     in_progress = []
-    for n in items:
+    for n in _project_items():
         c = n.get("content") or {}
         num = c.get("number")
         if not num:
@@ -305,7 +345,6 @@ def cmd_list_stale() -> int:
         if st == "In Progress":
             in_progress.append((num, c.get("title", "")[:60]))
 
-    now = datetime.now(timezone.utc)
     printed = 0
     for num, title in in_progress:
         hb, _ = latest_heartbeat(str(num))
@@ -321,7 +360,9 @@ def cmd_list_stale() -> int:
             )
             printed += 1
     if not printed:
-        print(f"no stale claims (all {len(in_progress)} In Progress items heartbeat within {STALE_HOURS}h)")
+        print(
+            f"no stale claims (all {len(in_progress)} In Progress items heartbeat within {STALE_HOURS}h)"
+        )
     return 0
 
 
@@ -336,7 +377,11 @@ def cmd_transition(issue: str, action: str, note: str | None = None) -> int:
         # Verify claim is still ours (or nobody's) before heartbeating
         hb, _ = latest_heartbeat(issue)
         me = whoami()
-        if hb and hb["owner"] != me and hb["action"] in ("claim", "heartbeat", "reclaim"):
+        if (
+            hb
+            and hb["owner"] != me
+            and hb["action"] in ("claim", "heartbeat", "reclaim")
+        ):
             age = _age(hb)
             if age < timedelta(hours=STALE_HOURS):
                 print(
@@ -365,7 +410,10 @@ def cmd_transition(issue: str, action: str, note: str | None = None) -> int:
                 )
                 return 3
             old_owner = hb["owner"]
-            note = note or f"previous owner {old_owner} last hb {hb['hb']} (>{STALE_HOURS}h stale)"
+            note = (
+                note
+                or f"previous owner {old_owner} last hb {hb['hb']} (>{STALE_HOURS}h stale)"
+            )
         set_status(issue, "in-progress")
         post_heartbeat_comment(issue, "reclaim", note=note)
         print(f"#{issue} reclaimed by {whoami()}")
@@ -413,7 +461,15 @@ def main() -> int:
     issue = str(int(a.issue))
     action = (a.action or "").lower().strip()
 
-    if action in {"in-progress", "claim", "heartbeat", "release", "reclaim", "done", "todo"}:
+    if action in {
+        "in-progress",
+        "claim",
+        "heartbeat",
+        "release",
+        "reclaim",
+        "done",
+        "todo",
+    }:
         try:
             return cmd_transition(issue, action, note=a.note)
         except RuntimeError as e:

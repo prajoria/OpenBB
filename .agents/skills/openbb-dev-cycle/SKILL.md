@@ -81,8 +81,24 @@ If a repo has no active GH Project for the program, the skill halts and asks the
 
 ### Phase 3: Workspace Isolation
 
-1. Invoke `superpowers:using-git-worktrees` (or a feature branch when worktrees don't fit). **Branch name MUST embed the GH issue number**: `feat/pi-<topic>-gh-<NN>`, `fix/pi-<topic>-gh-<NN>`, or `docs/pi-<topic>-gh-<NN>` for portfolio work (the `pi-` scope tag identifies portfolio; the `-gh-<NN>` suffix is required by the repo's coordination protocol). PR target is the program's integration branch (`portfolio` for Portfolio Intelligence Engine) — never `develop` directly.
-2. **Mark the first issue as In Progress** on the program project:
+1. **Recover abandoned claims before taking new work**:
+   ```bash
+   .venv_portfolio\Scripts\python.exe scripts\pi_claim.py --list-stale
+   gh issue list --repo prajoria/OpenBB --assignee @me --state open
+   ```
+   - A claim with no heartbeat or a heartbeat older than 2 hours has no active
+     owner and is reclaimable.
+   - To restart abandoned work, run
+     `.venv_portfolio\Scripts\python.exe scripts\pi_claim.py <NN> reclaim`.
+     This keeps the issue In Progress, records the takeover in the issue
+     timeline, and starts a new heartbeat epoch.
+   - Release stale work you are not restarting with
+     `.venv_portfolio\Scripts\python.exe scripts\pi_claim.py <NN> release
+     --note "no active agent; returned to Todo during session-start audit"`.
+   - Never reclaim a claim with a fresh heartbeat. Never emit heartbeats for
+     work that is not making progress.
+2. Invoke `superpowers:using-git-worktrees` (or a feature branch when worktrees don't fit). **Branch name MUST embed the GH issue number**: `feat/pi-<topic>-gh-<NN>`, `fix/pi-<topic>-gh-<NN>`, or `docs/pi-<topic>-gh-<NN>` for portfolio work (the `pi-` scope tag identifies portfolio; the `-gh-<NN>` suffix is required by the repo's coordination protocol). PR target is the program's integration branch (`portfolio` for Portfolio Intelligence Engine) — never `develop` directly.
+3. **Mark the first issue as In Progress** on the program project:
    ```bash
    # Find item_id for the issue in the project (from scripts/<program>_project_items.json,
    # or via `gh project item-list <n> --owner <owner> --format json | jq ...`)
@@ -99,15 +115,26 @@ If a repo has no active GH Project for the program, the skill halts and asks the
      -f field=<STATUS_FIELD_ID> \
      -f option=<IN_PROGRESS_OPTION_ID>
    ```
-   Or simply comment on the issue: `gh issue comment <n> --body "Starting work on branch: \`<branch>\`"` — comment is a lightweight equivalent when the project field-value dance is overkill.
+   For Portfolio Intelligence work, prefer the atomic lifecycle command:
+   `.venv_portfolio\Scripts\python.exe scripts\pi_claim.py <NN> in-progress`.
+   It updates Project #4 and records the initial heartbeat.
 
-**Checklist:** [ ] isolated CWD  [ ] first GH issue marked In Progress OR commented with branch name.
+4. **Maintain ownership while working.** Run
+   `.venv_portfolio\Scripts\python.exe scripts\pi_claim.py <NN> heartbeat`
+   at every natural pause and at least every 10 minutes. Before ending a
+   session, either leave a current heartbeat because work is actively
+   continuing, or release the issue to Todo. A different agent may reclaim
+   and restart the work after 2 hours without a heartbeat.
+
+**Checklist:** [ ] stale claims audited  [ ] isolated CWD  [ ] first GH issue claimed with heartbeat  [ ] heartbeat/release plan active.
 
 ### Phase 4: TDD Implementation
 
 For each plan step (each corresponds to one GH issue):
 
-1. Move the GH issue's Status to `In Progress` on the program project (see Phase 3 snippet), OR comment `Starting <issue-N>` on the issue.
+1. Claim the issue through `scripts/pi_claim.py <NN> in-progress` and keep its
+   heartbeat current every <=10 minutes. If resuming an abandoned In Progress
+   issue, use `reclaim` instead so the takeover remains auditable.
 2. Invoke `superpowers:test-driven-development` — RED → GREEN → REFACTOR. Mandatory, not optional.
 3. On failure: `superpowers:systematic-debugging`. **Bug outside current task?**
    ```bash

@@ -16,11 +16,13 @@ Usage:
 
 # Issue bodies intentionally retain long lines, and this CLI reports progress to stdout.
 # ruff: noqa: E501, T201
+# pylint: disable=line-too-long
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +31,12 @@ from dataclasses import dataclass
 REPO = "prajoria/OpenBB"
 PROJECT_ID = "PVT_kwHOAOc7384BdSTg"  # Project #4
 PARENT = 1934
+DEPENDENCY_MARKER = re.compile(r"\[\[([A-Z]\d+)\]\]")
+PLAN_BREAKDOWN_HEADING = "## Plan breakdown (filed 2026-08-05)"
+PLAN_BREAKDOWN_SECTION = re.compile(
+    rf"\n*{re.escape(PLAN_BREAKDOWN_HEADING)}\n.*?(?=\n## |\Z)",
+    re.DOTALL,
+)
 
 
 def gh(*args: str) -> str:
@@ -38,7 +46,10 @@ def gh(*args: str) -> str:
         print("GitHub CLI executable 'gh' was not found.", file=sys.stderr)
         raise SystemExit(127)
     r = subprocess.run(  # noqa: S603 - fixed executable; arguments are passed without a shell.
-        [executable, *args], capture_output=True, text=True, check=False
+        [executable, *args],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
     )
     if r.returncode != 0:
         print(f"gh {' '.join(args)}\nSTDERR: {r.stderr}", file=sys.stderr)
@@ -48,8 +59,20 @@ def gh(*args: str) -> str:
 
 def find_open_by_title(title: str) -> int | None:
     """Return the matching issue number when an issue with this title exists."""
-    out = gh("issue", "list", "--repo", REPO, "--search", f'"{title}" in:title',
-             "--state", "all", "--json", "number,title", "--limit", "10")
+    out = gh(
+        "issue",
+        "list",
+        "--repo",
+        REPO,
+        "--search",
+        f'"{title}" in:title',
+        "--state",
+        "all",
+        "--json",
+        "number,title",
+        "--limit",
+        "10",
+    )
     for it in json.loads(out or "[]"):
         if it["title"].strip() == title.strip():
             return int(it["number"])
@@ -57,10 +80,22 @@ def find_open_by_title(title: str) -> int | None:
 
 
 def create_issue(title: str, body: str, dry: bool) -> int:
-    """Create an issue unless its exact title already exists."""
+    """Create an issue or synchronize the body of an exact-title match."""
     existing = find_open_by_title(title)
     if existing:
-        print(f"  exists: #{existing}  {title[:70]}")
+        if dry:
+            print(f"  exists: #{existing}  {title[:70]}")
+        else:
+            gh(
+                "issue",
+                "edit",
+                str(existing),
+                "--repo",
+                REPO,
+                "--body",
+                body,
+            )
+            print(f"  updated: #{existing}  {title[:70]}")
         return existing
     if dry:
         print(f"  DRY create: {title}")
@@ -82,16 +117,51 @@ def add_to_project(num: int, dry: bool) -> None:
         return
     nid = node_id_for(num)
     q = "mutation($p:ID!,$c:ID!){addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id}}}"
-    gh("api", "graphql", "-f", f"query={q}", "-f", f"p={PROJECT_ID}", "-f", f"c={nid}")
+    gh(
+        "api",
+        "graphql",
+        "-f",
+        f"query={q}",
+        "-f",
+        f"p={PROJECT_ID}",
+        "-f",
+        f"c={nid}",
+    )
 
 
 @dataclass
 class Node:
     """Describe one child issue in the ScanSnapshotStore implementation plan."""
 
+    key: str
     title: str
     body: str
     number: int = 0
+
+
+def resolve_dependencies(
+    body: str, issue_numbers: dict[str, int], dry_run: bool
+) -> str:
+    """Resolve dependency markers from issue numbers returned by GitHub."""
+
+    def replace_marker(match: re.Match[str]) -> str:
+        key = match.group(1)
+        number = issue_numbers.get(key)
+        if number:
+            return f"#{number}"
+        if dry_run:
+            return f"#<{key}>"
+        raise ValueError(f"Dependency {key} has not been created yet")
+
+    return DEPENDENCY_MARKER.sub(replace_marker, body)
+
+
+def render_parent_body(body: str, plan: list[Node]) -> str:
+    """Replace prior plan breakdowns while preserving other parent content."""
+    body_without_breakdowns = PLAN_BREAKDOWN_SECTION.sub("", body).rstrip()
+    lines = [PLAN_BREAKDOWN_HEADING, ""]
+    lines.extend(f"- #{node.number} — {node.title}" for node in plan)
+    return body_without_breakdowns + "\n\n" + "\n".join(lines)
 
 
 def build_plan() -> list[Node]:
@@ -101,6 +171,7 @@ def build_plan() -> list[Node]:
     return [
         # Phase A — persistence layer
         Node(
+            key="A1",
             title="[techtrade] ScanSnapshotStore Phase A1 — DDL + schema (tt_scan_snapshot table)",
             body=f"""{parent_ref}
 
@@ -138,6 +209,7 @@ Refs #1934.
 """,
         ),
         Node(
+            key="A2",
             title="[techtrade] ScanSnapshotStore Phase A2 — Protocol + Mysql/Sqlite impls + factory + migration CLI",
             body=f"""{parent_ref}
 
@@ -172,10 +244,11 @@ Ships the core store surface per FRS §4 FR-1..FR-4 + the migration CLI.
 - Integration tests skipped-in-CI unless `FMP_CACHE_TEST_MODE=true`.
 - R7.11 mutation-twin discipline on every load-bearing test.
 
-Refs #1934. Blocked-by #1935 (A1 schema).
+Refs #1934. Blocked-by [[A1]] (A1 schema).
 """,
         ),
         Node(
+            key="A3",
             title="[techtrade] ScanSnapshotStore Phase A3 — recorded fixtures + realistic-shape tests for 3 scan_kinds",
             body=f"""{parent_ref}
 
@@ -213,11 +286,12 @@ checked in.
 - No secrets / PII in the fixtures. All symbols round-numbered / anonymized
   where necessary.
 
-Refs #1934. Blocked-by #1935 (A1), #1936 (A2).
+Refs #1934. Blocked-by [[A1]] (A1), [[A2]] (A2).
 """,
         ),
         # Phase B — runner + trigger
         Node(
+            key="B1",
             title="[techtrade] ScanSnapshotStore Phase B1 — scan_runner CLI (run_scan + `python -m` entry)",
             body=f"""{parent_ref}
 
@@ -246,10 +320,11 @@ Ships the scan runner per FRS §4 FR-5.
   snapshot rows with distinct `snapshot_id`s; readers see the latest.
 - Integration test (`@pytest.mark.integration`, skipped in CI) hits real MySQL.
 
-Refs #1934. Blocked-by #1936 (A2).
+Refs #1934. Blocked-by [[A2]] (A2).
 """,
         ),
         Node(
+            key="B2",
             title="[techtrade] ScanSnapshotStore Phase B2 — POST /tt/scan/trigger endpoint (2 modes: dev-sync + prod-detached)",
             body=f"""{parent_ref}
 
@@ -285,11 +360,12 @@ Ships the optional HTTP trigger per FRS §4 FR-8.
 - Endpoint hidden (404) when env unset.
 - Node:test-style contract: response schema matches the OpenAPI shape.
 
-Refs #1934. Blocked-by #1937 (B1).
+Refs #1934. Blocked-by [[B1]] (B1).
 """,
         ),
         # Phase C — widget rewiring
         Node(
+            key="C1",
             title="[techtrade] ScanSnapshotStore Phase C — wire tt_movers + tt_scan + tt_scan_export widgets (batch, closes #1692)",
             body=f"""{parent_ref}
 
@@ -313,10 +389,11 @@ Wires the three `movers`/`scan` widgets to the snapshot store. Closes #1692.
   payload (no OHLCV fetch on the export path).
 
 Closes #1692.
-Refs #1934. Blocked-by #1937 (B1 runner) + #1938 (A3 fixtures for the tests).
+Refs #1934. Blocked-by [[B1]] (B1 runner) + [[A3]] (A3 fixtures for the tests).
 """,
         ),
         Node(
+            key="C2",
             title="[techtrade] ScanSnapshotStore Phase C — wire tt_signals + tt_plan + tt_orders + tt_simulate widgets (batch, closes #1696)",
             body=f"""{parent_ref}
 
@@ -335,10 +412,11 @@ Same as Phase C1: < 500ms reads, loud-empty on empty store, freshness +
 staleness rendering.
 
 Closes #1696.
-Refs #1934. Blocked-by #1937 (B1) + #1938 (A3).
+Refs #1934. Blocked-by [[B1]] (B1) + [[A3]] (A3).
 """,
         ),
         Node(
+            key="C3",
             title="[techtrade] ScanSnapshotStore Phase C — wire tt_validate widget (closes #1697)",
             body=f"""{parent_ref}
 
@@ -346,10 +424,11 @@ Wires `tt_validate` to `scan_kind = validate`. Same read-latest + freshness +
 loud-empty pattern.
 
 Closes #1697.
-Refs #1934. Blocked-by #1937 + #1938.
+Refs #1934. Blocked-by [[B1]] + [[A3]].
 """,
         ),
         Node(
+            key="C4",
             title="[techtrade] ScanSnapshotStore Phase C — wire tt_tune widget (closes #1698)",
             body=f"""{parent_ref}
 
@@ -357,10 +436,11 @@ Wires `tt_tune` to `scan_kind = tune`. Same read-latest + freshness +
 loud-empty pattern.
 
 Closes #1698.
-Refs #1934. Blocked-by #1937 + #1938.
+Refs #1934. Blocked-by [[B1]] + [[A3]].
 """,
         ),
         Node(
+            key="C5",
             title="[techtrade] ScanSnapshotStore Phase C — wire tt_audit widget (closes #1699)",
             body=f"""{parent_ref}
 
@@ -368,11 +448,12 @@ Wires `tt_audit` to `scan_kind = audit`. Same read-latest + freshness +
 loud-empty pattern.
 
 Closes #1699.
-Refs #1934. Blocked-by #1937 + #1938.
+Refs #1934. Blocked-by [[B1]] + [[A3]].
 """,
         ),
         # Phase D — rollout
         Node(
+            key="D1",
             title="[techtrade] ScanSnapshotStore Phase D — retention worker + snapshot pruning verification",
             body=f"""{parent_ref}
 
@@ -400,10 +481,11 @@ Phase A2 ships the write-time retention delete. This ticket ships:
   recent rows survive.
 - `--prune` CLI is idempotent (re-run does not error).
 
-Refs #1934. Blocked-by #1936 (A2).
+Refs #1934. Blocked-by [[A2]] (A2).
 """,
         ),
         Node(
+            key="D2",
             title="[techtrade] ScanSnapshotStore Phase D — cron / Task Scheduler cadence docs + example config",
             body=f"""{parent_ref}
 
@@ -428,7 +510,7 @@ Documents the operator-facing cadence patterns.
 - Doc validates against markdown lint.
 - Example crontab is copy-pasteable (works against `.venv_portfolio`).
 
-Refs #1934. Blocked-by #1937 (B1).
+Refs #1934. Blocked-by [[B1]] (B1).
 """,
         ),
     ]
@@ -440,17 +522,27 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     plan = build_plan()
+    issue_numbers: dict[str, int] = {}
     print(f"Filing {len(plan)} child issues under #{PARENT}...\n")
     for node in plan:
-        node.number = create_issue(node.title, node.body, args.dry_run)
+        body = resolve_dependencies(node.body, issue_numbers, args.dry_run)
+        node.number = create_issue(node.title, body, args.dry_run)
+        issue_numbers[node.key] = node.number
         add_to_project(node.number, args.dry_run)
     if not args.dry_run:
         # Update parent #1934 with the phase breakdown
-        lines = ["", "## Plan breakdown (filed 2026-08-05)", ""]
-        for i, node in enumerate(plan):
-            lines.append(f"- #{node.number} — {node.title}")
-        body = gh("issue", "view", str(PARENT), "--repo", REPO, "--json", "body", "--jq", ".body")
-        new_body = body + "\n" + "\n".join(lines)
+        body = gh(
+            "issue",
+            "view",
+            str(PARENT),
+            "--repo",
+            REPO,
+            "--json",
+            "body",
+            "--jq",
+            ".body",
+        )
+        new_body = render_parent_body(body, plan)
         gh("issue", "edit", str(PARENT), "--repo", REPO, "--body", new_body)
         print(f"\nUpdated #{PARENT} body with plan breakdown.")
     print("\nDone.")

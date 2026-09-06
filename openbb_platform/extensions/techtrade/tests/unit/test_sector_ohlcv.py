@@ -9,7 +9,9 @@ import pandas as pd
 import pytest
 
 
-def _synth_ohlcv(symbol: str, start: date, end: date, *, base: float = 100.0) -> pd.DataFrame:
+def _synth_ohlcv(
+    symbol: str, start: date, end: date, *, base: float = 100.0
+) -> pd.DataFrame:
     """Synthetic deterministic OHLCV: linearly drifting close + small daily noise.
 
     Used as the injected fetcher's return value so unit tests stay fully offline
@@ -30,7 +32,9 @@ def _synth_ohlcv(symbol: str, start: date, end: date, *, base: float = 100.0) ->
 
 
 def _fake_fetcher_two_symbols(symbol: str, *, start: date, end: date) -> pd.DataFrame:
-    return _synth_ohlcv(symbol, start, end, base={"AAPL": 100.0, "MSFT": 200.0}.get(symbol, 50.0))
+    return _synth_ohlcv(
+        symbol, start, end, base={"AAPL": 100.0, "MSFT": 200.0}.get(symbol, 50.0)
+    )
 
 
 def test_pool_returns_multiindex_date_symbol(monkeypatch: pytest.MonkeyPatch):
@@ -83,6 +87,13 @@ def test_pool_drops_tail_rows_with_nan_forward_returns(monkeypatch: pytest.Monke
     )
     from openbb_techtrade.tuning.sector_ohlcv import pool_sector_ohlcv
 
+    original_stack = pd.DataFrame.stack
+
+    def legacy_stack(frame, *args, **kwargs):
+        assert "future_stack" not in kwargs
+        return original_stack(frame, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "stack", legacy_stack)
     horizon = 5
     X, y = pool_sector_ohlcv(
         "IT",
@@ -113,8 +124,11 @@ def test_pool_y_is_cumulative_forward_return(monkeypatch: pytest.MonkeyPatch):
 
     horizon = 5
     X, y = pool_sector_ohlcv(
-        "IT", as_of=date(2025, 6, 20), horizon_years=1,
-        forward_horizon_bars=horizon, fetcher=_fake_fetcher_two_symbols,
+        "IT",
+        as_of=date(2025, 6, 20),
+        horizon_years=1,
+        forward_horizon_bars=horizon,
+        fetcher=_fake_fetcher_two_symbols,
     )
     # Pick the first bar in the result and check y by hand.
     aapl = X.xs("AAPL", level="symbol")
@@ -139,8 +153,12 @@ def test_pool_empty_universe_returns_empty_frames(monkeypatch: pytest.MonkeyPatc
     )
     from openbb_techtrade.tuning.sector_ohlcv import pool_sector_ohlcv
 
-    X, y = pool_sector_ohlcv("IT", as_of=date(2025, 6, 20), horizon_years=1,
-                              fetcher=_fake_fetcher_two_symbols)
+    X, y = pool_sector_ohlcv(
+        "IT",
+        as_of=date(2025, 6, 20),
+        horizon_years=1,
+        fetcher=_fake_fetcher_two_symbols,
+    )
     assert len(X) == 0
     assert len(y) == 0
     assert list(X.columns) == ["open", "high", "low", "close", "volume"]

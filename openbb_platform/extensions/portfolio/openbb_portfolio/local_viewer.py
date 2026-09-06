@@ -42,8 +42,9 @@ def read_viewer_html() -> str:
 
 
 @router.get("/viewer", include_in_schema=False)
+@router.get("/viewer/help", include_in_schema=False)
 async def viewer() -> HTMLResponse:
-    """Serve the self-contained local viewer page."""
+    """Serve the self-contained local viewer page and same-origin help route."""
     return HTMLResponse(content=read_viewer_html())
 
 

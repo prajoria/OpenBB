@@ -21,6 +21,9 @@ import vm from "node:vm";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HTML = readFileSync(join(__dirname, "..", "index.html"), "utf-8");
+const WIDGETS = JSON.parse(
+  readFileSync(join(__dirname, "..", "..", "..", "..", "..", "extensions", "portfolio_intel", "openbb_portfolio_intel", "widget_backend", "widgets.json"), "utf-8")
+);
 
 // Extract the inline <script> body.
 function scriptBody(html) {
@@ -50,12 +53,19 @@ function extractFn(src, name) {
 function loadHelpers() {
   const src = scriptBody(HTML);
   const names = ["escapeHtml", "mdToHtml", "inferChartModel", "svgForChart", "xAxisTicksSvg",
-    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "metricModel", "inlineOptionsHtml",
+    "isDateLabel", "isTimeSeriesModel", "toLwcSeries", "fmtCell", "cellClass", "renderTable",
+    "metricModel", "renderMetric", "metricGlossaryData", "metricGlossaryEntry", "metricGlossaryForLabel", "metricHelpButtonHtml", "metricLabelHtml", "metricHelpPageHtml", "metricHelpLayerPosition", "hideMetricHelpLayer", "hideMetricHelpLayerWithin", "inlineOptionsHtml",
     "sidebarAppsHtml", "pxToGridRect", "clampGridItem", "gridItemStyle", "mergeLayout", "widgetRefString",
-    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel"];
-  const code = names.map((n) => extractFn(src, n)).join("\n\n") +
-    "\n;globalThis.__H = { " + names.join(", ") + " };";
-  const ctx = {};
+    "helpText", "helpButtonHtml", "dataSourceBadge", "resolveParams", "contextParamLabel", "chartLegendLabelHtml", "renderTab",
+    "syncMetricHelpLayer", "bindMetricHelpLayerEvents", "bindMetricHelpButtons"];
+  const code = "let METRIC_HELP_ID_SEQ = 0; let ACTIVE_METRIC_HELP_BTN = null; let METRIC_HELP_LAYER_BOUND = false;\n\n"
+    + names.map((n) => extractFn(src, n)).join("\n\n") +
+    "\n;globalThis.__H = { " + names.join(", ")
+    + ", __setDocument: (doc) => { globalThis.document = doc; }, __setWindow: (win) => { globalThis.window = win; }, __setGlobals: (globals) => { Object.assign(globalThis, globals); }, __setActiveMetricHelpBtn: (btn) => { ACTIVE_METRIC_HELP_BTN = btn; }, __getActiveMetricHelpBtn: () => ACTIVE_METRIC_HELP_BTN };";
+  const ctx = {
+    document: { getElementById: () => null, addEventListener() {} },
+    window: { innerWidth: 1024, innerHeight: 768, addEventListener() {} },
+  };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(code, ctx);
@@ -180,7 +190,28 @@ test("svgForChart draws one slice per pie datum", () => {
   );
   const svg = H.svgForChart(model);
   assert.match(svg, /<svg/);
+  assert.match(svg, /class="chart pie-chart"/);
+  assert.match(svg, /class="pie-plot"/);
+  assert.match(svg, /class="legend pie-legend"/);
   assert.equal((svg.match(/<path/g) || []).length, 2);
+});
+
+test("pie charts use a container-responsive plot and legend layout", () => {
+  assert.match(
+    HTML,
+    /\.widget\s*\{[^}]*container-type:\s*inline-size;/s,
+    "widget width must establish the pie layout container",
+  );
+  assert.match(
+    HTML,
+    /\.chart\.pie-chart\s*\{[^}]*grid-template-columns:\s*minmax\(180px,\s*42%\)\s+minmax\(0,\s*1fr\);/s,
+    "wide pie widgets must allocate separate plot and legend columns",
+  );
+  assert.match(
+    HTML,
+    /@container\s*\(max-width:\s*520px\)\s*\{[\s\S]*?\.chart\.pie-chart\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/,
+    "narrow pie widgets must collapse to one column",
+  );
 });
 
 test("svgForChart draws one polyline per line series", () => {
@@ -194,6 +225,75 @@ test("svgForChart draws one polyline per line series", () => {
   const svg = H.svgForChart(model);
   assert.match(svg, /<svg/);
   assert.equal((svg.match(/<polyline/g) || []).length, 2);
+});
+
+test("inferChartModel applies explicit chart-series labels", () => {
+  const model = H.inferChartModel(
+    [{ date: "2026-01-01", vol_20d: 20.0, vol_60d: 30.0 }],
+    { labels: { vol_20d: "20-Day Volatility (%)", vol_60d: "60-Day Volatility (%)" } },
+  );
+  assert.equal(
+    model.series.map((series) => series.key).join("|"),
+    "20-Day Volatility (%)|60-Day Volatility (%)",
+  );
+});
+
+// --------------------------------------------------------------------------
+// #1978 — dual-axis combo: bars on a LEFT axis + line(s) on a RIGHT axis so a
+// %-scale margin line isn't crushed flat by a $B-scale revenue series.
+// --------------------------------------------------------------------------
+const _COMBO_CFG = {
+  type: "combo",
+  x: "year",
+  bars: [
+    { column: "revenue_b", name: "Revenue ($B)" },
+    { column: "net_income_b", name: "Net Income ($B)" },
+  ],
+  lines: [{ column: "net_margin_pct", name: "Net Margin (%)" }],
+  leftLabel: "$B",
+  rightLabel: "%",
+};
+const _COMBO_ROWS = [
+  { year: 2023, revenue_b: 383.3, net_income_b: 97.0, net_margin_pct: 25.31 },
+  { year: 2024, revenue_b: 391.0, net_income_b: 93.0, net_margin_pct: 23.79 },
+  { year: 2025, revenue_b: 400.5, net_income_b: 102.3, net_margin_pct: 25.54 },
+];
+
+test("inferChartModel builds a combo model (bars + lines, own axes)", () => {
+  const m = H.inferChartModel(_COMBO_ROWS, _COMBO_CFG);
+  assert.equal(m.kind, "combo");
+  assert.equal(m.xKey, "year");
+  assert.deepEqual(m.xLabels, ["2023", "2024", "2025"]);
+  assert.equal(m.bars.length, 2);
+  assert.equal(m.lines.length, 1);
+  assert.equal(m.bars[0].key, "Revenue ($B)");
+  assert.equal(m.lines[0].key, "Net Margin (%)");
+  // the margin series values are kept intact (not rescaled into $B)
+  assert.equal(m.lines[0].points[0].y, 25.31);
+});
+
+test("svgForChart combo: grouped bars + line, dual axis, margin not crushed", () => {
+  const svg = H.svgForChart(H.inferChartModel(_COMBO_ROWS, _COMBO_CFG));
+  assert.match(svg, /<svg/);
+  // 2 bar series x 3 years = 6 bar rects
+  assert.equal((svg.match(/<rect/g) || []).length, 6, "expected grouped bar rects");
+  // exactly one margin polyline
+  assert.equal((svg.match(/<polyline/g) || []).length, 1, "expected one line series");
+  // RIGHT axis carries a percentage label (the margin scale), proving a second
+  // independent axis exists rather than one shared $B axis.
+  const labels = [...svg.matchAll(/font-size="10">([^<]+)<\/text>/g)].map((x) => x[1]);
+  assert.ok(labels.some((t) => /%$/.test(t)), `expected a %-axis label, got ${JSON.stringify(labels)}`);
+  // LEFT axis stays $B-scale (a label reflecting the ~400 magnitude).
+  assert.ok(labels.some((t) => !/%$/.test(t) && parseFloat(t) >= 100),
+    `expected a $B-scale left-axis label, got ${JSON.stringify(labels)}`);
+});
+
+test("inferChartModel combo loud-empty: all-null columns -> empty", () => {
+  const m = H.inferChartModel([{ year: 2024, revenue_b: null, net_margin_pct: null }], {
+    type: "combo", x: "year",
+    bars: [{ column: "revenue_b" }], lines: [{ column: "net_margin_pct" }],
+  });
+  assert.equal(m.kind, "empty");
 });
 
 // --------------------------------------------------------------------------
@@ -215,8 +315,518 @@ test("metricModel: multi numeric keys -> grid, negatives flagged", () => {
   assert.equal(varCard.cls, "neg");
 });
 
+test("metricModel keeps raw snake_case keys when labels are absent", () => {
+  const m = H.metricModel({ net_margin_pct: 0.215, beta_spy: 1.08 });
+  assert.equal(m.cards.length, 2);
+  assert.equal(m.cards[0].label, "net_margin_pct");
+  assert.equal(m.cards[0].rawKey, "net_margin_pct");
+  assert.equal(m.cards[1].label, "beta_spy");
+  assert.equal(m.cards[1].rawKey, "beta_spy");
+  assert.doesNotMatch(m.cards[0].label, /[A-Z ]/);
+  assert.doesNotMatch(m.cards[1].label, /[A-Z ]/);
+  const container = { innerHTML: "" };
+  H.renderMetric(container, { net_margin_pct: 0.215, beta_spy: 1.08 }, { data: { metric: {} } });
+  assert.match(container.innerHTML, /net_margin_pct/);
+  assert.match(container.innerHTML, /beta_spy/);
+  assert.doesNotMatch(container.innerHTML, /Net Margin Pct/);
+  assert.doesNotMatch(container.innerHTML, /Beta Spy/);
+});
+
+test("metricModel uses explicit metric labels and glossary keys when configured", () => {
+  const m = H.metricModel(
+    { market_cap: 3_200_000_000_000, opaque_field: 42, plain_metric: 7, note: "demo book" },
+    {
+      labels: {
+        market_cap: "Market Cap",
+        opaque_field: "Opaque Field",
+        plain_metric: "Plain Metric",
+      },
+      metricGlossary: {
+        "Market Cap": "market_cap",
+        "Opaque Field": "unreviewed_metric",
+      },
+    },
+  );
+  const marketCap = m.cards.find((c) => c.label === "Market Cap");
+  const opaque = m.cards.find((c) => c.label === "Opaque Field");
+  const plain = m.cards.find((c) => c.label === "Plain Metric");
+  assert.equal(marketCap.glossaryKey, "market_cap");
+  assert.equal(opaque.glossaryKey, "unreviewed_metric");
+  assert.equal(plain.glossaryKey, null);
+});
+
 test("metricModel loud-empty: {} -> no cards", () => {
   assert.equal(H.metricModel({}).cards.length, 0);
+});
+
+// --------------------------------------------------------------------------
+// metricGlossaryEntry — curated F2 labels and safe unknowns
+// --------------------------------------------------------------------------
+test("metricGlossaryEntry returns a curated F2 record", () => {
+  const metric = H.metricGlossaryEntry("pe_ttm");
+  assert.equal(metric.label, "P/E (TTM)");
+  assert.match(metric.summary, /price.*earnings/i);
+});
+
+test("metricGlossaryEntry ignores an unknown key", () => {
+  assert.equal(H.metricGlossaryEntry("unreviewed_metric"), null);
+});
+
+test("metricGlossaryEntry ignores inherited object keys", () => {
+  assert.equal(H.metricGlossaryEntry("toString"), null);
+  assert.equal(H.metricGlossaryEntry("__proto__"), null);
+});
+
+test("metricHelpButtonHtml labels a known metric accessibly", () => {
+  const html = H.metricHelpButtonHtml("market_cap");
+  assert.match(html, /aria-label="Learn about Market Cap"/);
+  assert.match(html, /data-metric-help="market_cap"/);
+  assert.match(html, /data-metric-help-summary="The company/);
+  const id = html.match(/aria-describedby="([^"]+)"/)?.[1];
+  assert.ok(id, "expected aria-describedby id");
+  assert.match(id, /^metric-help-summary-market_cap-\d+$/);
+  assert.match(html, new RegExp(`id="${id}">The company[^<]*current share price\\.<\\/span>`));
+});
+
+test("metricHelpButtonHtml gives repeated metrics unique described-by ids", () => {
+  const first = H.metricHelpButtonHtml("market_cap");
+  const second = H.metricHelpButtonHtml("market_cap");
+  const firstId = first.match(/aria-describedby="([^"]+)"/)?.[1];
+  const secondId = second.match(/aria-describedby="([^"]+)"/)?.[1];
+  assert.ok(firstId && secondId, "expected ids on both help buttons");
+  assert.notEqual(firstId, secondId);
+});
+
+test("metricHelpButtonHtml omits unknown metrics", () => {
+  assert.equal(H.metricHelpButtonHtml("unreviewed_metric"), "");
+});
+
+test("metricHelpPageHtml renders a curated external resource safely", () => {
+  const html = H.metricHelpPageHtml("net_margin");
+  assert.match(html, /Net Margin/);
+  assert.match(html, /target="_blank"/);
+  assert.match(html, /rel="noopener noreferrer"/);
+});
+
+test("metricHelpPageHtml reports an unknown metric without interpolating it", () => {
+  assert.match(H.metricHelpPageHtml("<script>"), /Metric documentation is unavailable/);
+  assert.doesNotMatch(H.metricHelpPageHtml("<script>"), /<script>/);
+});
+
+test("metricHelpPageHtml stays self-contained and omits the Bug Context loader", () => {
+  const html = H.metricHelpPageHtml("net_margin");
+  assert.doesNotMatch(html, /bugcontext\.com\/loader\.js/i);
+  assert.doesNotMatch(html, /<script/i);
+});
+
+test("viewer shell omits remote Bug Context code", () => {
+  assert.doesNotMatch(HTML, /bugcontext\.com\/loader\.js/i);
+  assert.doesNotMatch(HTML, /Bug Context feedback widget/);
+});
+
+test("metricHelpLayerPosition centers below and clamps within the viewport", () => {
+  const pos = H.metricHelpLayerPosition(
+    { left: 20, right: 36, top: 20, bottom: 38, width: 16, height: 18 },
+    { width: 220, height: 56 },
+    { left: 0, top: 0, right: 240, bottom: 180 },
+  );
+  assert.equal(pos.placement, "bottom");
+  assert.equal(pos.left, 8, "tooltip should clamp inward from the left edge");
+  assert.equal(pos.top, 48);
+  assert.ok(pos.arrowLeft >= 12 && pos.arrowLeft <= 208, `arrow inset must stay inside bubble, got ${pos.arrowLeft}`);
+});
+
+test("metricHelpLayerPosition flips above when there is no room below", () => {
+  const pos = H.metricHelpLayerPosition(
+    { left: 120, right: 136, top: 148, bottom: 166, width: 16, height: 18 },
+    { width: 180, height: 40 },
+    { left: 0, top: 0, right: 280, bottom: 180 },
+  );
+  assert.equal(pos.placement, "top");
+  assert.equal(pos.top, 98);
+});
+
+test("F2 widgets declare glossary mappings for key stats and financial charts", () => {
+  const keyStats = WIDGETS.pi_equity_key_stats.data.metricGlossary;
+  const financials = WIDGETS.pi_equity_financial_charts.data.metricGlossary;
+  assert.equal(keyStats["P/E (TTM)"], "pe_ttm");
+  assert.equal(keyStats["Market Cap"], "market_cap");
+  assert.equal(financials["Revenue ($B)"], "revenue_b");
+  assert.equal(financials["Net Margin (%)"], "net_margin_pct");
+});
+
+test("look-through effective-weight formatter converts fractions to displayed percentages", () => {
+  const col = WIDGETS.pi_lookthrough_top25.data.table.columnsDefs
+    .find((item) => item.field === "effective_weight");
+  assert.equal(col.formatterFn, "normalizedPercent");
+  assert.equal(H.fmtCell(0.078, col), "7.80%");
+});
+
+test("risk dashboard formats fraction metrics as signed percentages while beta stays a ratio", () => {
+  const metric = WIDGETS.pi_risk_dashboard.data.metric;
+  assert.deepEqual(metric.formatters, {
+    vol_annualized: "normalizedPercent",
+    var_95_1d: "normalizedPercent",
+  });
+  const container = { innerHTML: "" };
+  H.renderMetric(
+    container,
+    { vol_annualized: 0.184, var_95_1d: -0.021, beta_spy: 1.08 },
+    WIDGETS.pi_risk_dashboard,
+  );
+  assert.match(container.innerHTML, />18\.40%</);
+  assert.match(container.innerHTML, />-2\.10%</);
+  assert.match(container.innerHTML, />1\.08</);
+});
+
+test("Brinson chart labels identify percentage-point series and retain help keys", () => {
+  const data = WIDGETS.pi_brinson_attribution.data;
+  const model = H.inferChartModel(
+    [{ sector: "Technology", allocation: 3.0, selection: -0.5, interaction: 0.1, total: 2.6 }],
+    data.chart,
+  );
+  assert.equal(
+    model.series.map((series) => series.key).join("|"),
+    "Allocation Effect (%)|Selection Effect (%)|Interaction Effect (%)|Total Active Return (%)",
+  );
+  assert.equal(data.metricGlossary["Allocation Effect (%)"], "allocation_effect");
+  assert.equal(data.metricGlossary["Total Active Return (%)"], "total_active_return");
+});
+
+test("single-value metric cards apply explicit labels and glossary metadata", () => {
+  const model = H.metricModel(
+    { value: 0.076, label: "HHI (0..1; higher = more concentrated)" },
+    WIDGETS.pi_concentration_gauge.data.metric,
+  );
+  assert.equal(model.cards[0].label, "Concentration (HHI)");
+  assert.equal(model.cards[0].glossaryKey, "herfindahl_hirschman_index");
+});
+
+test("technical row labels cover the actual Classic pivot strings with help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [{ metric: "R3 (Classic)", value: 234.6, note: "" }],
+    WIDGETS.pi_equity_technicals);
+  assert.match(container.innerHTML, /Resistance 3[\s\S]*data-metric-help="resistance"/);
+});
+
+test("canonical analyst-forecast labels map to focused glossary help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "Rating: Strong Buy / Buy", value: "12 / 8", note: "as of today" },
+    { metric: "Rating: Hold / Sell / Strong Sell", value: "3 / 2 / 1", note: "" },
+    { metric: "Q3 2025 EPS Surprise", value: "+3.2%", note: "reported" },
+    { metric: "Q2 2025 EPS Surprise", value: "+1.9%", note: "reported" },
+    { metric: "Historical rev estimate (last Q)", value: "n/a", note: "unavailable" },
+  ], WIDGETS.pi_equity_analyst_forecasts);
+  for (const key of ["rating_distribution", "eps_surprise", "revenue_estimate"]) {
+    assert.match(container.innerHTML, new RegExp(`data-metric-help="${key}"`));
+  }
+  assert.match(container.innerHTML, /Rating Distribution: Strong Buy \/ Buy/);
+  assert.match(container.innerHTML, /Rating Distribution: Hold \/ Sell \/ Strong Sell/);
+  assert.match(container.innerHTML, /Q3 2025 EPS Surprise/);
+  assert.match(container.innerHTML, /Q2 2025 EPS Surprise/);
+  assert.match(container.innerHTML, /Historical Revenue Estimate/);
+});
+
+test("explicit enum labels preserve API values without global humanization", () => {
+  const smartMoney = { innerHTML: "" };
+  H.renderTable(smartMoney, [
+    { symbol: "NVDA", kind: "insider_buy", actor: "CFO", value_usd: 1, date: "2026-08-15" },
+    { symbol: "AAPL", kind: "13F_increase", actor: "Fund", value_usd: 1, date: "2026-08-15" },
+    { symbol: "TSLA", kind: "insider_sell", actor: "Director", value_usd: 1, date: "2026-08-15" },
+  ], WIDGETS.pi_smart_money_ribbon);
+  for (const label of ["Insider Buy", "13F Increase", "Insider Sell"]) {
+    assert.match(smartMoney.innerHTML, new RegExp(`>${label}</td>`));
+  }
+  assert.doesNotMatch(smartMoney.innerHTML, /insider_buy|13F_increase|insider_sell/);
+
+  const consensus = { innerHTML: "" };
+  H.renderTable(consensus, [
+    { symbol: "MSFT", avg_target: 465, buy: 28, hold: 4, sell: 0, consensus: "STRONG_BUY" },
+  ], WIDGETS.pi_basket_analyst_consensus);
+  assert.match(consensus.innerHTML, /Strong Buy/);
+  assert.doesNotMatch(consensus.innerHTML, /STRONG_BUY/);
+});
+
+test("TradingView legend keeps chart gestures transparent but binds help controls", () => {
+  assert.match(HTML, /\.tvlegend\s*\{[^}]*pointer-events:\s*none;/s);
+  assert.match(HTML, /\.tvlegend \.mhelp-wrap, \.tvlegend \.mhelp \{\s*pointer-events:\s*auto;\s*\}/);
+  const btn = {
+    dataset: {},
+    listeners: {},
+    addEventListener(type, listener) { this.listeners[type] = listener; },
+  };
+  H.bindMetricHelpButtons({ querySelectorAll: (selector) => selector === ".mhelp" ? [btn] : [] });
+  for (const event of ["pointerdown", "pointerenter", "pointerleave", "focus", "blur", "click"]) {
+    assert.equal(typeof btn.listeners[event], "function", `${event} must be bound on legend help`);
+  }
+  assert.equal(btn.dataset.metricHelpBound, "1");
+});
+
+test("What-If raw row identifiers resolve approved labels and glossary help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "symbol_weight_%", before: 4.8, after: 5.0, delta: 0.2 },
+    { metric: "sector_weight_%", before: 37.2, after: 37.4, delta: 0.2 },
+    { metric: "cash_%", before: 5, after: 4.8, delta: -0.2 },
+    { metric: "beta_spy", before: 1.08, after: 1.1, delta: 0.02 },
+  ], WIDGETS.pi_whatif_card);
+  for (const [label, key] of [
+    ["Symbol Weight (%)", "symbol_weight"],
+    ["Sector Weight (%)", "sector_weight"],
+    ["Cash Weight (%)", "cash_weight"],
+    ["Beta vs SPY", "beta_vs_spy"],
+  ]) {
+    assert.ok(container.innerHTML.includes(label));
+    assert.match(container.innerHTML, new RegExp(`data-metric-help="${key}"`));
+  }
+});
+
+test("earnings Surprise header uses the earnings-surprise glossary record", () => {
+  const column = WIDGETS.pi_earnings_history.data.table.columnsDefs
+    .find((item) => item.field === "surprise_pct");
+  assert.equal(column.glossaryKey, "earnings_surprise");
+});
+
+test("time-series legend labels expose help for price, volatility, and equity", () => {
+  for (const [widget, label, key] of [
+    [WIDGETS.pi_price_target_history, "Closing Price", "closing_price"],
+    [WIDGETS.pi_risk_vol_chart, "20-Day Volatility (%)", "twenty_day_volatility"],
+    [WIDGETS.pi_paper_performance, "Portfolio Equity", "portfolio_equity"],
+  ]) {
+    const html = H.chartLegendLabelHtml(label, widget);
+    assert.match(html, new RegExp(`data-metric-help="${key}"`));
+  }
+});
+
+test("renderTable adds help only for mapped first-column metrics", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "Market Cap", value: 3_200_000_000_000 },
+    { metric: "Unmapped Metric", value: 42 },
+  ], WIDGETS.pi_equity_key_stats);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*data-metric-help="market_cap"/);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*metric-help-summary-market_cap-\d+[\s\S]*The company/);
+  assert.match(container.innerHTML, />Unmapped Metric<\/td>/);
+  assert.doesNotMatch(container.innerHTML, /Unmapped Metric[\s\S]*data-metric-help=/);
+});
+
+test("renderTable adds help buttons to configured glossary-backed headers only", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { market_cap: 3_200_000_000_000, opaque_field: 42, status: "active" },
+  ], {
+    data: {
+      table: {
+        columnsDefs: [
+          { field: "market_cap", headerName: "Market Cap", glossaryKey: "market_cap" },
+          { field: "opaque_field", headerName: "Opaque Field", glossaryKey: "unreviewed_metric" },
+          { field: "status", headerName: "Status" },
+        ],
+      },
+    },
+  });
+  assert.match(container.innerHTML, /<th><span class="metric-label">Market Cap[\s\S]*data-metric-help="market_cap"/);
+  assert.match(container.innerHTML, /<th>Opaque Field<\/th>/);
+  assert.doesNotMatch(container.innerHTML, /<th>Opaque Field[\s\S]*data-metric-help=/);
+  assert.match(container.innerHTML, /<th>Status<\/th>/);
+  assert.doesNotMatch(container.innerHTML, /<th>Status[\s\S]*data-metric-help=/);
+});
+
+test("renderMetric adds help buttons to configured metric-card labels only", () => {
+  const container = { innerHTML: "" };
+  H.renderMetric(container, {
+    market_cap: 3_200_000_000_000,
+    opaque_field: 42,
+    plain_metric: 7,
+  }, {
+    data: {
+      metric: {
+        labels: {
+          market_cap: "Market Cap",
+          opaque_field: "Opaque Field",
+          plain_metric: "Plain Metric",
+        },
+        metricGlossary: {
+          "Market Cap": "market_cap",
+          "Opaque Field": "unreviewed_metric",
+        },
+      },
+    },
+  });
+  assert.match(container.innerHTML, /<div class="mlabel"[^>]*><span class="metric-label">Market Cap[\s\S]*data-metric-help="market_cap"/);
+  assert.match(container.innerHTML, /<div class="mlabel"[^>]*>Opaque Field<\/div>/);
+  assert.doesNotMatch(container.innerHTML, /Opaque Field[\s\S]*data-metric-help=/);
+  assert.match(container.innerHTML, /<div class="mlabel"[^>]*>Plain Metric<\/div>/);
+  assert.doesNotMatch(container.innerHTML, /Plain Metric[\s\S]*data-metric-help=/);
+});
+
+test("2010 key stats renders explicit financial table headers", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [{ metric: "Market Cap", value: 3_200_000_000_000 }],
+    WIDGETS.pi_equity_key_stats);
+  assert.match(container.innerHTML, /<th>Financial Metric<\/th>/);
+  assert.match(container.innerHTML, /<th>Value<\/th>/);
+  assert.match(container.innerHTML, /Market Cap[\s\S]*data-metric-help="market_cap"/);
+});
+
+test("2011 technicals render explicit indicator table headers", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [{ metric: "R3 (Classic)", value: 234.6, note: "Classic pivot" }],
+    WIDGETS.pi_equity_technicals);
+  assert.match(container.innerHTML, /<th>Technical Indicator<\/th>/);
+  assert.match(container.innerHTML, /<th>Value<\/th>/);
+  assert.match(container.innerHTML, /<th>Interpretation<\/th>/);
+  assert.match(container.innerHTML, /Resistance 3[\s\S]*data-metric-help="resistance"/);
+});
+
+test("2012 event calendar renders mapped event types and header help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { symbol: "AAPL", type: "ex_dividend", date: "2026-08-08", detail: "$0.24/sh" },
+    { symbol: "NVDA", type: "form_8k", date: "2026-07-22", detail: "Item 7.01" },
+  ], WIDGETS.pi_event_calendar);
+  assert.match(container.innerHTML, /<th><span class="metric-label">Event Type[\s\S]*data-metric-help="event_type"/);
+  assert.match(container.innerHTML, />Ex-Dividend<\/td>/);
+  assert.match(container.innerHTML, />Form 8-K<\/td>/);
+  assert.doesNotMatch(container.innerHTML, /ex_dividend|form_8k/);
+});
+
+test("2013 forecasts render explicit forecast table headers", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "1Y target (consensus)", value: "$240", note: "12 months" },
+  ], WIDGETS.pi_equity_analyst_forecasts);
+  assert.match(container.innerHTML, /<th>Forecast Measure<\/th>/);
+  assert.match(container.innerHTML, /<th>Value<\/th>/);
+  assert.match(container.innerHTML, /<th>Context<\/th>/);
+  assert.match(container.innerHTML, /12-Month Price Target[\s\S]*data-metric-help="twelve_month_price_target"/);
+});
+
+test("2014 what-if card renders explicit before-and-after headers", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { metric: "symbol_weight_%", before: 4.8, after: 5.0, delta: 0.2 },
+  ], WIDGETS.pi_whatif_card);
+  assert.match(container.innerHTML, /<th>Portfolio Metric<\/th>/);
+  assert.match(container.innerHTML, /<th>Before Trade<\/th>/);
+  assert.match(container.innerHTML, /<th>After Trade<\/th>/);
+  assert.match(container.innerHTML, /<th>Change<\/th>/);
+  assert.match(container.innerHTML, /Symbol Weight \(%\)[\s\S]*data-metric-help="symbol_weight"/);
+});
+
+test("2015 alerts render mapped alert categories and header help", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { severity: "warning", kind: "form_8k_for_held", symbol: "NVDA", detail: "Item 7.01" },
+    { severity: "info", kind: "earnings_upcoming", symbol: "AAPL", detail: "Earnings" },
+    { severity: "critical", kind: "news_material", symbol: "TSLA", detail: "Recall" },
+  ], WIDGETS.pi_alerts_panel);
+  assert.match(container.innerHTML, /<th><span class="metric-label">Alert Type[\s\S]*data-metric-help="alert_type"/);
+  for (const label of ["Held-Security Form 8-K", "Upcoming Earnings", "Material News"]) {
+    assert.match(container.innerHTML, new RegExp(`>${label}</td>`));
+  }
+  assert.doesNotMatch(container.innerHTML, /form_8k_for_held|earnings_upcoming|news_material/);
+});
+
+test("2016 news ribbon renders operational headers without glossary controls", () => {
+  const container = { innerHTML: "" };
+  H.renderTable(container, [
+    { symbol: "AAPL", when: "2026-07-19", title: "Apple beats estimates", severity: "material" },
+  ], WIDGETS.pi_news_ribbon);
+  for (const header of ["Symbol", "Published", "Headline", "Severity"]) {
+    assert.match(container.innerHTML, new RegExp(`<th>${header}</th>`));
+  }
+  assert.doesNotMatch(container.innerHTML, /data-metric-help=/);
+});
+
+test("2017 sentiment gauge renders its explicit label and glossary help", () => {
+  const container = { innerHTML: "" };
+  H.renderMetric(container, {
+    value: 0.62,
+    label: "Sentiment (-1..+1)",
+    note: "demo — 7d window",
+  }, WIDGETS.pi_sentiment_gauge);
+  assert.match(container.innerHTML, /News Sentiment Score \(-1 to \+1\)[\s\S]*data-metric-help="news_sentiment_score"/);
+  assert.doesNotMatch(container.innerHTML, /Sentiment \(-1\.\.\+1\)/);
+});
+
+test("renderTable hides an active floating metric tooltip before replacing widget body", () => {
+  const layer = {
+    hidden: false,
+    attrs: {},
+    setAttribute(name, value) { this.attrs[name] = value; },
+  };
+  const activeBtn = {};
+  H.__setDocument({ getElementById: () => layer });
+  H.__setActiveMetricHelpBtn(activeBtn);
+  let html = "";
+  const container = {
+    contains(node) { return node === activeBtn; },
+    set innerHTML(value) {
+      assert.equal(layer.hidden, true, "tooltip layer should hide before body replacement");
+      html = value;
+    },
+    get innerHTML() { return html; },
+  };
+  H.renderTable(container, [{ metric: "Market Cap", value: 1 }], WIDGETS.pi_equity_key_stats);
+  assert.equal(H.__getActiveMetricHelpBtn(), null);
+  assert.equal(layer.attrs["aria-hidden"], "true");
+  assert.match(html, /data-metric-help="market_cap"/);
+});
+
+test("renderTab hides an active floating metric tooltip before clearing the widget grid", () => {
+  const layer = {
+    hidden: false,
+    attrs: {},
+    setAttribute(name, value) { this.attrs[name] = value; },
+  };
+  const activeBtn = {};
+  const calls = [];
+  H.__setDocument({
+    getElementById: (id) => (id === "metric-help-layer" ? layer : null),
+    querySelectorAll: () => [],
+  });
+  H.__setActiveMetricHelpBtn(activeBtn);
+  const grid = {
+    set innerHTML(value) {
+      calls.push(value);
+      assert.equal(layer.hidden, true, "tooltip layer should hide before grid replacement");
+    },
+    get innerHTML() { return ""; },
+  };
+  H.__setGlobals({
+    $: (id) => {
+      if (id === "grid") return grid;
+      if (id === "tabs") return { querySelectorAll: () => [] };
+      return null;
+    },
+    disposeTradingViewCharts: () => {},
+    APP: { tabs: { overview: { name: "Overview", layout: [] } } },
+    ACTIVE_TAB: "overview",
+    LAYOUT: [],
+    loadOverrides: () => [],
+    mergeLayout: () => [],
+    renderWidget: () => {},
+    gridGeom: () => ({}),
+    fitCanvas: () => {},
+  });
+  H.renderTab("overview");
+  assert.equal(H.__getActiveMetricHelpBtn(), null);
+  assert.equal(layer.attrs["aria-hidden"], "true");
+  assert.deepEqual(calls, ["", '<div class="state">This tab has no widgets.</div>']);
+});
+
+test("svgForChart combo legend adds help buttons for mapped series", () => {
+  const svg = H.svgForChart(
+    H.inferChartModel(_COMBO_ROWS, _COMBO_CFG),
+    WIDGETS.pi_equity_financial_charts,
+  );
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help="revenue_b"/);
+  assert.match(svg, /Net Income \(\$B\)[\s\S]*data-metric-help="net_income_b"/);
+  assert.match(svg, /Net Margin \(%\)[\s\S]*data-metric-help="net_margin_pct"/);
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*data-metric-help-summary="Annual sales expressed in billions of dollars\."/);
+  assert.match(svg, /Revenue \(\$B\)[\s\S]*id="metric-help-summary-revenue_b-\d+">Annual sales expressed in billions of dollars\.<\/span>/);
 });
 
 // --------------------------------------------------------------------------
@@ -555,6 +1165,47 @@ test("toLwcSeries line: maps {time,value} per series, drops nulls, sorted", () =
   // null close dropped; remaining sorted ascending
   assert.deepEqual(out.lines[0].data.map((p) => p.time), ["2026-06-01", "2026-06-02"]);
   assert.deepEqual(out.lines[0].data.map((p) => p.value), [188, 190]);
+});
+
+// #1982 — LWC requires plain unique ascending yyyy-mm-dd times. Feeds like
+// analyst price targets carry full ISO datetimes with several rows per day;
+// passing those raw makes LWC throw an uncaught "Value is null". toLwcSeries
+// must normalize to the day and dedupe (last row per day wins).
+test("toLwcSeries line: ISO datetimes normalize to unique ascending yyyy-mm-dd", () => {
+  const model = H.inferChartModel(
+    [
+      { date: "2025-10-31T11:31:29+00:00", target: 246.99 },
+      { date: "2025-10-31T13:28:11+00:00", target: 325.0 },
+      { date: "2025-10-20T11:04:40+00:00", target: 315.0 },
+      { date: "2025-11-03T11:39:17+00:00", target: 325.0 },
+    ],
+    undefined,
+  );
+  const out = H.toLwcSeries(model);
+  assert.equal(out.kind, "line");
+  const times = out.lines[0].data.map((p) => p.time);
+  // day-only, unique, ascending
+  assert.deepEqual(times, ["2025-10-20", "2025-10-31", "2025-11-03"]);
+  assert.equal(new Set(times).size, times.length, "times must be unique");
+  // last row of the duplicated day wins (325.0, not 246.99)
+  const oct31 = out.lines[0].data.find((p) => p.time === "2025-10-31");
+  assert.equal(oct31.value, 325.0);
+});
+
+test("toLwcSeries candle: duplicate-day intraday candles dedupe to unique days", () => {
+  const model = H.inferChartModel(
+    [
+      { date: "2026-06-01T09:30:00+00:00", open: 1, high: 2, low: 1, close: 1.5 },
+      { date: "2026-06-01T15:59:00+00:00", open: 1.5, high: 3, low: 1.4, close: 2.8 },
+      { date: "2026-06-02T10:00:00+00:00", open: 2.8, high: 3.2, low: 2.7, close: 3.0 },
+    ],
+    undefined,
+  );
+  const out = H.toLwcSeries(model);
+  assert.equal(out.kind, "candle");
+  assert.deepEqual(out.candles.map((c) => c.time), ["2026-06-01", "2026-06-02"]);
+  // last intraday candle of the day wins its close
+  assert.equal(out.candles[0].close, 2.8);
 });
 
 // --------------------------------------------------------------------------
