@@ -78,7 +78,7 @@ services:
       # name `mysql:3306` without any host port mapping. This mapping
       # exists only so the *developer* can point mysqldump / an IDE at
       # localhost:13306 during interactive debugging. Binding to
-      # 0.0.0.0 would expose the DB (default creds fmp_user/fmp_user)
+      # 0.0.0.0 would expose the DB (default creds fmp_user/${MYSQL_PASSWORD})
       # to anything reachable on the host's LAN — not what we want on
       # a dev laptop, definitely not what we want on a shared runner.
       - "127.0.0.1:13306:3306"

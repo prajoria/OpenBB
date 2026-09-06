@@ -77,7 +77,7 @@ def print_summary(report: RunReport, out: TextIO | None = None) -> None:
         print(f"  [{marker:5}] {t.name:12s} {t.duration_s:>7.2f}s  exit={t.exit_code}", file=out)
     for s in report.sidecars:
         state = "healthy" if s.healthy else ("up" if s.brought_up else "down")
-        init = " (init ran)" if s.init_triggered else ""
+        init = " (init triggered)" if s.init_triggered else ""
         print(f"  sidecar {s.name}: {state}{init}", file=out)
 
 

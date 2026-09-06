@@ -421,12 +421,12 @@ def test_print_summary_uses_init_triggered():
     # Must not raise AttributeError
     print_summary(r, out=buf)
     output = buf.getvalue()
-    assert "(init ran)" in output
+    assert "(init triggered)" in output
     assert "mysql" in output
 
 
 def test_print_summary_init_triggered_false_omits_label():
-    """When init_triggered is False, the '(init ran)' label must be absent."""
+    """When init_triggered is False, the '(init triggered)' label must be absent."""
     from local_ci.compose import SidecarResult
     from local_ci.report import RunReport, print_summary
 
@@ -438,7 +438,7 @@ def test_print_summary_init_triggered_false_omits_label():
     )
     buf = io.StringIO()
     print_summary(r, out=buf)
-    assert "(init ran)" not in buf.getvalue()
+    assert "(init triggered)" not in buf.getvalue()
 
 
 def test_pull_uses_check_true(monkeypatch):
