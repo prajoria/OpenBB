@@ -11,7 +11,8 @@
 #   ./run.sh --keep-volumes   # don't nuke openbb_src between runs (dev-only)
 #
 # Exit code: 0 iff every stage's `status` file reads `pass`. Non-zero
-# otherwise — but the reporter ALWAYS runs and files GH Issues.
+# otherwise — the reporter ALWAYS runs and writes local bug files
+# for manual review (it does not file GH Issues automatically).
 
 set -euo pipefail
 

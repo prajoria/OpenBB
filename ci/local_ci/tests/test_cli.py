@@ -190,11 +190,10 @@ def test_dry_run_prints_tier_command_and_no_side_effects(capsys, monkeypatch):
     import local_ci.compose as compose_mod
 
     called = []
-    orig = compose_mod.subprocess.run
 
     def sentinel(*a, **kw):
         called.append(a)
-        return orig(*a, **kw)
+        raise RuntimeError("--dry-run must not shell out")
 
     monkeypatch.setattr(compose_mod.subprocess, "run", sentinel)
 
@@ -401,6 +400,45 @@ def test_sidecar_result_uses_init_triggered_not_init_ran():
     # And the schema must accept the new field (regression against a stale
     # schema that only knew about init_ran).
     jsonschema.validate(payload, REPORT_SCHEMA)
+
+
+def test_print_summary_uses_init_triggered():
+    """Regression: print_summary must use init_triggered, not init_ran.
+
+    Before the fix, print_summary() raised AttributeError because it
+    referenced s.init_ran on a SidecarResult that only has init_triggered.
+    """
+    from local_ci.compose import SidecarResult
+    from local_ci.report import RunReport, print_summary
+
+    r = RunReport(project="fixture")
+    r.sidecars.append(
+        SidecarResult(
+            name="mysql", brought_up=True, healthy=True, init_triggered=True
+        )
+    )
+    buf = io.StringIO()
+    # Must not raise AttributeError
+    print_summary(r, out=buf)
+    output = buf.getvalue()
+    assert "(init triggered)" in output
+    assert "mysql" in output
+
+
+def test_print_summary_init_triggered_false_omits_label():
+    """When init_triggered is False, the '(init triggered)' label must be absent."""
+    from local_ci.compose import SidecarResult
+    from local_ci.report import RunReport, print_summary
+
+    r = RunReport(project="fixture")
+    r.sidecars.append(
+        SidecarResult(
+            name="mysql", brought_up=True, healthy=True, init_triggered=False
+        )
+    )
+    buf = io.StringIO()
+    print_summary(r, out=buf)
+    assert "(init triggered)" not in buf.getvalue()
 
 
 def test_pull_uses_check_true(monkeypatch):

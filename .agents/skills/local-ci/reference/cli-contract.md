@@ -56,7 +56,7 @@ Stream layout on stdout:
 local-ci: <project> — <STATUS>
   [<STATUS>] <tier1>       <duration>s  exit=<n>
   [<STATUS>] <tier2>       <duration>s  exit=<n>
-  sidecar <name>: <state>[ (init ran)]
+  sidecar <name>: <state>[ (init triggered)]
 
 ---LOCAL-CI-JSON---
 {
