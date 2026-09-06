@@ -46,9 +46,13 @@ import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from openbb_backtest.strategies.intraday_drift import DriftSummary
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -84,7 +88,7 @@ class StudyResult:
     """Everything the CLI needs to print an honest report."""
 
     observations: pd.DataFrame
-    summary: object
+    summary: DriftSummary
     missing_symbols: list[str]
     requested_start: date
     requested_end: date

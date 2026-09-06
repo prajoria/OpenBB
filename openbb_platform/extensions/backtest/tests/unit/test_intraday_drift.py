@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
-
 from openbb_backtest.strategies.intraday_drift import (
     BAR_MINUTES,
     ENTRY_HOUR,
@@ -40,9 +39,9 @@ from top50_intraday_drift import (  # noqa: E402
     enforce_window_completeness,
     fetch_top_symbols,
     intraday_chunks,
+    main as cli_main,
     normalize_yfinance_bars,
     run_study,
-    main as cli_main,
 )
 
 NY = ZoneInfo("America/New_York")
@@ -262,7 +261,7 @@ def test_build_observations_excludes_nonpositive_prices():
 
 
 def test_build_observations_tie_is_loss():
-    """exact tie (exit == entry) must produce win=False."""
+    """Exact tie (exit == entry) must produce win=False."""
     rows = session_bars(
         date(2026, 2, 10),
         "TIE",
@@ -508,7 +507,7 @@ def test_summary_reports_stock_day_and_equal_weight_basket_rates():
 
 
 def test_summary_missing_columns_raises():
-    """observations lacking any of session/symbol/return/win must raise ValueError."""
+    """Observations lacking any of session/symbol/return/win must raise ValueError."""
     obs_no_win = pd.DataFrame(
         {
             "session": pd.to_datetime(["2026-08-10"]).date,
@@ -601,7 +600,7 @@ def test_normalize_yfinance_bars_returns_long_contract():
 
 
 def test_normalize_yfinance_bars_price_field_first_layout():
-    """yfinance >=0.2 uses (price_field, symbol) ordering -- should normalize correctly."""
+    """Yfinance >=0.2 uses (price_field, symbol) ordering -- should normalize correctly."""
     index = pd.DatetimeIndex(["2026-08-10T16:00:00Z"])
     columns = pd.MultiIndex.from_product([["Open", "Close"], ["AAA", "BBB"]])
     raw = pd.DataFrame(
@@ -644,7 +643,7 @@ def test_promote_single_ticker_columns_builds_multiindex():
 
 
 def test_promote_single_ticker_then_normalize_yields_long_contract():
-    """promote + normalize must produce the Task-1 long contract for a single ticker."""
+    """Promote + normalize must produce the Task-1 long contract for a single ticker."""
     index = pd.DatetimeIndex(["2026-08-10T16:00:00Z", "2026-08-10T19:30:00Z"])
     flat = pd.DataFrame(
         {"Open": [100.0, 104.0], "Close": [101.0, 105.0]},
