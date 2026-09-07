@@ -151,11 +151,14 @@ public sealed partial class ComponentLogWriter : IDisposable
                 System.Globalization.CultureInfo.InvariantCulture,
                 System.Globalization.DateTimeStyles.AssumeUniversal,
                 out var date) && date >= oldestAllowed;
-            retainedBytes += file.Length;
-            if (!keepByDate || retainedBytes > _maximumComponentBytes)
+            var nextRetainedBytes = retainedBytes + file.Length;
+            if (!keepByDate || nextRetainedBytes > _maximumComponentBytes)
             {
                 file.Delete();
+                continue;
             }
+
+            retainedBytes = nextRetainedBytes;
         }
     }
 

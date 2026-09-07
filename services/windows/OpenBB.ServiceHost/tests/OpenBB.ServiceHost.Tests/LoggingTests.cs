@@ -82,6 +82,35 @@ public sealed class LoggingTests
     }
 
     [Fact]
+    public async Task Retention_counts_only_bytes_for_files_it_keeps()
+    {
+        using var directory = new TestLogDirectory();
+        var component = "jobs-worker";
+        var clock = new MutableTimeProvider(
+            new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.Zero));
+        var writer = new ComponentLogWriter(
+            directory.Path,
+            new SecretRedactor([]),
+            clock,
+            maxLineLength: 512,
+            retentionDays: 2,
+            maximumComponentBytes: 700);
+        var futurePath = Path.Combine(directory.Path, $"{component}-20260907.log");
+        var currentPath = Path.Combine(directory.Path, $"{component}-20260906.log");
+        var expiredPath = Path.Combine(directory.Path, $"{component}-20260904.log");
+
+        await File.WriteAllBytesAsync(futurePath, new byte[750]);
+        await File.WriteAllBytesAsync(currentPath, new byte[100]);
+        await File.WriteAllBytesAsync(expiredPath, new byte[50]);
+
+        await writer.WriteAsync(component, LogLevel.Information, "stdout", "ok");
+
+        Assert.False(File.Exists(futurePath));
+        Assert.False(File.Exists(expiredPath));
+        Assert.True(File.Exists(currentPath));
+    }
+
+    [Fact]
     public void Logger_provider_routes_structured_child_output_to_component_file()
     {
         using var directory = new TestLogDirectory();
