@@ -1637,10 +1637,15 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
 
     ``db_path`` takes precedence over ``$PI_SNAPSHOT_DB`` on both the
     explicit-sqlite path and the mysql-unreachable fallback path. The
-    resolved SQLite path is computed once, up front, so both the
-    MySQL-unreachable WARNING and the eventual ``SqliteSnapshotStore``
-    construction agree on the same path — the WARNING never claims a
-    different location than the one actually opened.
+    resolved SQLite path is computed once, up front, and immediately
+    normalized with ``expanduser().resolve()`` — the single point where
+    this happens — so the MySQL-unreachable WARNING and the eventual
+    ``SqliteSnapshotStore`` construction agree on the same absolute
+    path. Without the ``expanduser()`` half, a literal ``~`` in
+    ``$PI_SNAPSHOT_DB``/``db_path`` would not expand to the caller's home
+    directory: ``Path.resolve()`` alone treats ``~`` as an ordinary
+    path segment and would create it as a literal directory named
+    ``~`` under the current working directory instead.
     """
     backend = os.environ.get(_ENV_SNAPSHOT_ENGINE, "mysql").strip().lower()
 
@@ -1655,13 +1660,17 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
     # spec §8 requires an in-repo `PI_SNAPSHOT_DB` to raise; that guard
     # lands with #1965, deliberately out of scope for #1963.
     resolved = (
-        Path(db_path)
-        if db_path is not None
-        else (
-            Path(os.environ[_ENV_SNAPSHOT_DB])
-            if os.environ.get(_ENV_SNAPSHOT_DB)
-            else Path.home() / ".portfolio_intel" / "snapshot.db"
+        (
+            Path(db_path)
+            if db_path is not None
+            else (
+                Path(os.environ[_ENV_SNAPSHOT_DB])
+                if os.environ.get(_ENV_SNAPSHOT_DB)
+                else Path.home() / ".portfolio_intel" / "snapshot.db"
+            )
         )
+        .expanduser()
+        .resolve()
     )
 
     if backend == "mysql":

@@ -22,6 +22,8 @@ from __future__ import annotations
 import itertools
 import logging
 import sqlite3
+import subprocess
+import sys
 import threading
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -567,6 +569,8 @@ def test_validate_refuses_when_the_row_leaves_staging_between_read_and_write(
     assert live.state == SnapshotState.LIVE
     assert live.validated is True
     assert live.validation_reason == ""
+    other.close()
+    store.close()
 
 
 def test_revalidating_an_unchanged_verdict_is_not_reported_as_a_race(
@@ -658,6 +662,7 @@ def test_promote_takes_a_write_lock_before_reading_and_pins_what_it_read(
     assert (
         "AND state = 'staging'" in promoting[0]
     ), "the promoting UPDATE must re-assert the state it read"
+    store.close()
 
 
 def test_promote_refuses_when_the_incumbent_live_row_moves_mid_transaction(
@@ -725,6 +730,7 @@ def test_promote_refuses_when_the_incumbent_live_row_moves_mid_transaction(
     }
     assert states[mine[3]] == SnapshotState.STAGING
     assert states[theirs[3]] == SnapshotState.STAGING
+    store.close()
 
 
 def test_promote_refuses_when_the_candidate_leaves_staging_mid_transaction(
@@ -761,6 +767,7 @@ def test_promote_refuses_when_the_candidate_leaves_staging_mid_transaction(
     assert promoted is False
     assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
     assert store.get_live("techtrade.movers", "sector=technology") is None
+    store.close()
 
 
 def test_promote_converts_a_live_key_collision_into_a_refusal(
@@ -817,6 +824,7 @@ def test_promote_converts_a_live_key_collision_into_a_refusal(
         for row in store.list_history("techtrade.movers", "sector=technology")
     }
     assert remaining == {mine[3]}
+    store.close()
 
 
 def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(
@@ -870,6 +878,7 @@ def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(
         for row in store.list_history("techtrade.movers", "sector=technology")
     }
     assert states[mine[3]] == SnapshotState.STAGING
+    store.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1062,6 +1071,69 @@ def test_mysql_failure_warning_reports_the_env_db_path_when_arg_omitted(
     assert "falling back to SQLite" in caplog.text
     assert str(env_target) in caplog.text
     store.close()
+
+
+def test_env_db_path_tilde_expands_to_the_real_home_dir_and_matches_the_warning(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    """Regression: a literal ``~`` in ``$PI_SNAPSHOT_DB`` must expand.
+
+    Before this fix, ``get_default_snapshot_store`` built ``resolved``
+    with a bare ``Path(...)`` and never called ``expanduser()``.
+    ``Path.resolve()`` does *not* expand ``~`` -- it treats it as an
+    ordinary path segment -- so a caller-configured ``~/...`` path would
+    have been reported in the WARNING (and eventually opened by
+    ``SqliteSnapshotStore``) as a literal ``~`` directory under the
+    current working directory rather than the caller's actual home
+    directory. Reverse-verified: dropping ``.expanduser()`` from the
+    single normalization point in ``get_default_snapshot_store`` makes
+    both assertions below fail -- the opened DB lands under a literal
+    ``~`` segment instead of ``fake_home``, and the WARNING names that
+    same wrong path.
+
+    ``expanduser()`` resolves ``~`` via ``$HOME``/``$USERPROFILE`` (POSIX
+    / Windows respectively), not via ``Path.home()``, so both are set.
+    """
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.setenv("PI_SNAPSHOT_DB", "~/.portfolio_intel/snapshot.db")
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
+    expected = (fake_home / ".portfolio_intel" / "snapshot.db").resolve()
+
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store()
+    try:
+        assert isinstance(store, SqliteSnapshotStore)
+        assert store._db_path == expected  # noqa: SLF001
+        # The WARNING must name the same expanded path the store opened,
+        # never the literal, un-expanded "~/..." argument.
+        assert str(expected) in caplog.text
+        assert "~" not in caplog.text
+    finally:
+        store.close()
+
+
+def test_explicit_tilde_db_path_argument_also_expands(monkeypatch, tmp_path) -> None:
+    """The same normalization applies to the ``db_path`` argument, not just the env var."""
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "sqlite")
+
+    store = get_default_snapshot_store("~/argument-resolved/snapshot.db")
+    try:
+        expected = (fake_home / "argument-resolved" / "snapshot.db").resolve()
+        assert store._db_path == expected  # noqa: SLF001
+        assert expected.exists()
+        assert not (
+            Path.cwd() / "~"
+        ).exists(), "a literal '~' directory must never be created under cwd"
+    finally:
+        store.close()
 
 
 def test_mysql_failure_warning_reports_the_per_user_default_path(
@@ -1534,6 +1606,7 @@ def test_a_failing_begin_is_not_masked_by_the_rollback(tmp_path) -> None:
             "run-masked",
             {"rows": []},
         )
+    store.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1758,6 +1831,7 @@ def test_prune_is_set_based_not_a_round_trip_per_key(tmp_path) -> None:
     deletes = [sql for sql in seen if sql.lstrip().upper().startswith("DELETE")]
     assert len(selects) == 1, f"one SELECT for the whole sweep, saw {len(selects)}"
     assert len(deletes) == 1, f"one batched DELETE for 8 keys, saw {len(deletes)}"
+    store.close()
 
 
 def test_prune_batches_a_sweep_larger_than_the_batch_size(tmp_path) -> None:
@@ -1912,3 +1986,81 @@ def test_close_waits_for_an_in_flight_write_on_another_thread(tmp_path) -> None:
         "close() tore the connection out from under an open transaction on "
         f"another thread: {failures}"
     )
+
+
+# ---------------------------------------------------------------------------
+# `openbb_techtrade.snapshot` lazily imports the MySQL backend (#1963 review)
+# ---------------------------------------------------------------------------
+#
+# `openbb-techtrade`'s pyproject.toml does not declare `openbb-fmp-cached` /
+# PyMySQL as a hard dependency, so `snapshot/__init__.py` must not eagerly
+# `from .mysql_store import MysqlSnapshotStore` at package-import time: doing
+# so would make a SQLite-only install fail to even `import
+# openbb_techtrade.snapshot`, before `get_default_snapshot_store()` ever gets
+# a chance to fall back to `SqliteSnapshotStore`. `test_mysql_snapshot_store.py`
+# imports `mysql_store` at collection time, which poisons `sys.modules` for
+# the rest of this pytest session, so the regression is pinned via a fresh
+# subprocess interpreter instead of an in-process check.
+
+
+def test_snapshot_package_lazily_imports_the_mysql_backend() -> None:
+    """Regression: importing the package must not import ``mysql_store``.
+
+    Reverse-verified: reverting ``snapshot/__init__.py`` to a module-scope
+    ``from .mysql_store import MysqlSnapshotStore`` makes the first
+    assertion in the child script fail, because ``mysql_store`` would
+    already be in ``sys.modules`` immediately after ``import
+    openbb_techtrade.snapshot``.
+    """
+    script = (
+        "import sys\n"
+        "import openbb_techtrade.snapshot as snapshot\n"
+        "assert 'openbb_techtrade.snapshot.mysql_store' not in sys.modules, (\n"
+        "    'mysql_store must stay unimported until MysqlSnapshotStore is '\n"
+        "    'actually accessed'\n"
+        ")\n"
+        "# The rest of the contract surface must be usable with no MySQL\n"
+        "# backend loaded at all.\n"
+        "assert snapshot.SqliteSnapshotStore is not None\n"
+        "assert snapshot.get_default_snapshot_store is not None\n"
+        "assert snapshot.canonical_key('sector=Technology') == 'sector=technology'\n"
+        "snapshot.MysqlSnapshotStore  # first touch triggers the deferred import\n"
+        "assert 'openbb_techtrade.snapshot.mysql_store' in sys.modules, (\n"
+        "    'accessing MysqlSnapshotStore must trigger the deferred import'\n"
+        ")\n"
+        "print('OK')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip().endswith("OK")
+
+
+def test_snapshot_package_getattr_rejects_unknown_names() -> None:
+    """The PEP 562 hook must only special-case ``MysqlSnapshotStore``."""
+    from openbb_techtrade import (
+        snapshot,
+    )  # noqa: PLC0415 pylint: disable=import-outside-toplevel
+
+    with pytest.raises(AttributeError, match="not_a_real_export"):
+        snapshot.not_a_real_export  # noqa: B018 pylint: disable=pointless-statement
+
+
+def test_snapshot_package_mysql_store_attribute_is_a_stable_identity() -> None:
+    """Repeated access returns the same class object as a direct import."""
+    from openbb_techtrade import (
+        snapshot,
+    )  # noqa: PLC0415 pylint: disable=import-outside-toplevel
+    from openbb_techtrade.snapshot.mysql_store import (  # noqa: PLC0415 pylint: disable=import-outside-toplevel
+        MysqlSnapshotStore,
+    )
+
+    assert snapshot.MysqlSnapshotStore is MysqlSnapshotStore
+    # Second access resolves through the cached module attribute, not a
+    # second `__getattr__` round trip -- still the identical class object.
+    assert snapshot.MysqlSnapshotStore is MysqlSnapshotStore
