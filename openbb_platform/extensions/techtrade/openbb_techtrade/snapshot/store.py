@@ -257,6 +257,69 @@ class SnapshotStore(Protocol):
         ...  # pylint: disable=unnecessary-ellipsis
 
 
+# --- Bounded identifier/provenance fields (#1963 Task 4) ------------------
+#
+# The MySQL table declares finite widths for the identity and provenance
+# columns; SQLite ignores widths entirely. Enforcing them here — once, in
+# shared Python, before any statement is issued — is what keeps the two
+# backends interchangeable: a call one accepts is a call the other
+# accepts. The alternative is silent divergence, and on a MySQL server
+# without strict mode a truncated ``job_run_id`` or ``input_hash`` is
+# corrupted provenance that no later read can detect.
+#
+# The values mirror ``_PI_SNAPSHOT_DDL`` exactly (a test asserts the two
+# cannot drift apart). ``entity_key`` stops at 191 because 191 * 4 bytes
+# of utf8mb4 is the widest value InnoDB can put under the historical
+# 767-byte index prefix limit.
+
+FIELD_MAX_LENGTHS: dict[str, int] = {
+    "dataset": 128,
+    "entity_key": 191,
+    "job_run_id": 128,
+    "input_hash": 128,
+    "engine_version": 64,
+    "payload_schema_version": 64,
+}
+
+_PREVIEW_CHARS = 32
+
+
+class SnapshotFieldTooLong(ValueError):
+    """A bounded identifier/provenance value exceeds its column width.
+
+    Raised *before* the write, identically on every backend, so the
+    caller learns which field is too long instead of discovering a
+    truncated identifier weeks later in an audit.
+    """
+
+    def __init__(self, field_name: str, value: str, limit: int) -> None:
+        self.field_name = field_name
+        self.limit = limit
+        self.length = len(value)
+        preview = value[:_PREVIEW_CHARS]
+        if self.length > _PREVIEW_CHARS:
+            preview += "..."
+        super().__init__(
+            f"{field_name} is {self.length} characters; the column holds at "
+            f"most {limit}. Refusing to write a value the database would "
+            f"truncate: {preview!r}"
+        )
+
+
+def _check_field_lengths(**fields: str | None) -> None:
+    """Reject any bounded field that would not fit its column.
+
+    Call this *after* canonicalisation — canonicalising can shorten a
+    value, and it is the stored form whose length matters.
+    """
+    for name, value in fields.items():
+        if value is None:
+            continue
+        limit = FIELD_MAX_LENGTHS[name]
+        if len(value) > limit:
+            raise SnapshotFieldTooLong(name, value, limit)
+
+
 # --- Dialect-agnostic row conversion (#1963 Task 4) ------------------------
 #
 # SQLite has no native temporal types and stores ISO-8601 text; MySQL uses
@@ -303,7 +366,7 @@ def _row_from_mapping(record: Any) -> SnapshotRow:
     """Parse a raw ``pi_snapshot`` record into a typed ``SnapshotRow``.
 
     ``record`` is anything with name-based ``__getitem__`` — a
-    ``sqlite3.Row`` or a ``mysql-connector`` dictionary cursor row.
+    ``sqlite3.Row`` or a PyMySQL ``DictCursor`` mapping.
     """
     return SnapshotRow(
         dataset=record["dataset"],
@@ -410,8 +473,8 @@ def _is_integrity_error(exc: BaseException) -> bool:
     """Report whether ``exc`` is a DB-API ``IntegrityError`` from any driver.
 
     PEP 249 mandates the class *name* but no shared base class, and
-    importing ``mysql.connector`` here would drag a MySQL dependency into
-    the SQLite backend. Matching the name across the MRO keeps the check
+    importing ``pymysql`` here would drag a MySQL dependency into the
+    SQLite backend. Matching the name across the MRO keeps the check
     dialect-agnostic (and also recognizes the test doubles' subclasses).
     """
     return any(base.__name__.endswith("IntegrityError") for base in type(exc).__mro__)
@@ -597,6 +660,14 @@ class SqliteSnapshotStore:
         """Write a run to STAGING; never touches the LIVE view."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
+        _check_field_lengths(
+            dataset=dataset,
+            entity_key=entity_key,
+            job_run_id=job_run_id,
+            input_hash=input_hash,
+            engine_version=engine_version,
+            payload_schema_version=payload_schema_version,
+        )
         with self._tx():
             self._conn.execute(
                 "INSERT INTO pi_snapshot ("

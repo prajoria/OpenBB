@@ -27,7 +27,9 @@ from datetime import date, datetime, timezone
 import pytest
 from openbb_techtrade.snapshot import store as store_module
 from openbb_techtrade.snapshot.store import (
+    FIELD_MAX_LENGTHS,
     RetentionPolicy,
+    SnapshotFieldTooLong,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
@@ -72,7 +74,7 @@ def test_default_validator_rejects_empty_payload_and_negative_rows() -> None:
 _job_run_ids = itertools.count(1)
 
 
-def _stage(
+def _stage(  # pylint: disable=too-many-arguments
     store: SqliteSnapshotStore,
     *,
     payload: dict,
@@ -82,6 +84,8 @@ def _stage(
     job_run_id: str | None = None,
     status: SnapshotStatus = SnapshotStatus.OK,
     input_hash: str | None = None,
+    engine_version: str | None = None,
+    payload_schema_version: str | None = None,
 ) -> tuple[str, str, date, str]:
     """Stage a row; return the ``(dataset, entity_key, as_of_session, job_run_id)``.
 
@@ -96,6 +100,8 @@ def _stage(
         payload,
         status=status,
         input_hash=input_hash,
+        engine_version=engine_version,
+        payload_schema_version=payload_schema_version,
     )
     return (dataset, entity_key, as_of_session, job_run_id)
 
@@ -860,3 +866,120 @@ def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(
         for row in store.list_history("techtrade.movers", "sector=technology")
     }
     assert states[mine[3]] == SnapshotState.STAGING
+
+
+# ---------------------------------------------------------------------------
+# Bounded identifier/provenance fields (review finding 2)
+# ---------------------------------------------------------------------------
+#
+# SQLite ignores declared column widths; MySQL does not. The limits are
+# therefore enforced in shared Python before either dialect is reached, so
+# a call that this backend accepts is a call the MySQL backend accepts too.
+# The mirror of these assertions lives in `test_mysql_snapshot_store.py`.
+
+
+@pytest.mark.parametrize("field", sorted(FIELD_MAX_LENGTHS))
+def test_stage_refuses_an_over_long_bounded_field(tmp_path, field: str) -> None:
+    """Every bounded field is checked, and nothing is written."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        limit = FIELD_MAX_LENGTHS[field]
+        with pytest.raises(SnapshotFieldTooLong) as excinfo:
+            _stage(
+                store,
+                payload={"rows": [{"symbol": "AAPL"}]},
+                **{field: "y" * (limit + 1)},
+            )
+        message = str(excinfo.value)
+        assert field in message
+        assert str(limit) in message
+        assert str(limit + 1) in message
+        assert excinfo.value.field_name == field
+        assert excinfo.value.limit == limit
+        assert excinfo.value.length == limit + 1
+        rows = store._conn.execute(  # noqa: SLF001
+            "SELECT COUNT(*) FROM pi_snapshot"
+        ).fetchone()
+        assert rows[0] == 0
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize("field", sorted(FIELD_MAX_LENGTHS))
+def test_stage_accepts_a_bounded_field_at_exactly_the_limit(
+    tmp_path, field: str
+) -> None:
+    """The boundary is inclusive, and the full value round-trips."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        value = "z" * FIELD_MAX_LENGTHS[field]
+        dataset, entity_key, _, _ = _stage(
+            store, payload={"rows": [{"symbol": "AAPL"}]}, **{field: value}
+        )
+        history = store.list_history(dataset, entity_key)
+        assert len(history) == 1
+        assert getattr(history[0], field) == value
+    finally:
+        store.close()
+
+
+def test_bounded_lengths_are_measured_after_canonicalization(tmp_path) -> None:
+    """The stored value is the canonical one, so that is what is measured."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        padded = "  " + "k" * FIELD_MAX_LENGTHS["entity_key"] + "  "
+        assert len(padded) > FIELD_MAX_LENGTHS["entity_key"]
+        dataset, entity_key, _, _ = _stage(
+            store, payload={"rows": [{"symbol": "AAPL"}]}, entity_key=padded
+        )
+        history = store.list_history(dataset, entity_key)
+        assert len(history) == 1
+        assert history[0].entity_key == canonical_key(padded)
+    finally:
+        store.close()
+
+
+def test_restamp_live_inherits_the_length_guard(tmp_path) -> None:
+    """`restamp_live` writes a new row, so it is bounded by the same rule.
+
+    It reaches the table through `stage()`, so a guard placed anywhere
+    else (in the caller, say) would leave this path unprotected.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+        assert store.validate(*staged).ok
+        assert store.promote(*staged)
+
+        too_long = "r" * (FIELD_MAX_LENGTHS["job_run_id"] + 1)
+        with pytest.raises(SnapshotFieldTooLong):
+            store.restamp_live(
+                "techtrade.movers", "sector=technology", date(2026, 9, 5), too_long
+            )
+        live = store.get_live("techtrade.movers", "sector=technology")
+        assert live is not None
+        assert live.as_of_session == date(2026, 9, 4)
+    finally:
+        store.close()
+
+
+def test_a_long_validation_reason_is_persisted_whole(tmp_path) -> None:
+    """A validator may say as much as it needs to; nothing is cut off."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        reason = "row-level mismatch: " + ", ".join(f"AAPL{n}" for n in range(300))
+        assert len(reason) > 512
+
+        def _reject(row: SnapshotRow) -> ValidationResult:
+            del row
+            return ValidationResult(ok=False, reason=reason)
+
+        staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+        result = store.validate(*staged, validator=_reject)
+
+        assert result.ok is False
+        assert result.reason == reason
+        history = store.list_history(staged[0], staged[1])
+        assert history[0].validation_reason == reason
+    finally:
+        store.close()

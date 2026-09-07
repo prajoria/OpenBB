@@ -9,7 +9,9 @@ the Protocol and let the backend selector pick the implementation.
 
 from .mysql_store import MysqlSnapshotStore
 from .store import (
+    FIELD_MAX_LENGTHS,
     RetentionPolicy,
+    SnapshotFieldTooLong,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
@@ -21,8 +23,10 @@ from .store import (
 )
 
 __all__ = [
+    "FIELD_MAX_LENGTHS",
     "MysqlSnapshotStore",
     "RetentionPolicy",
+    "SnapshotFieldTooLong",
     "SnapshotRow",
     "SnapshotState",
     "SnapshotStatus",

@@ -88,13 +88,16 @@ from openbb_techtrade.snapshot.mysql_store import (
     _make_mysql_store,
 )
 from openbb_techtrade.snapshot.store import (
+    FIELD_MAX_LENGTHS,
     RetentionPolicy,
+    SnapshotFieldTooLong,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
     SnapshotStore,
     SqliteSnapshotStore,
     ValidationResult,
+    canonical_key,
 )
 
 # ---------------------------------------------------------------------------
@@ -122,6 +125,24 @@ def _column_types(ddl: str) -> dict[str, str]:
 
 _COLUMN_TYPES = _column_types(_PI_SNAPSHOT_DDL)
 
+_VARCHAR_RE = re.compile(r"^\s+(\w+)\s+VARCHAR\((\d+)\)", re.M)
+
+# `live_key` is a generated column: its width is derived from the columns it
+# concatenates, so it is not a bound the *writer* can violate.
+_GENERATED_COLUMNS = frozenset({"live_key"})
+
+
+def _column_widths(ddl: str) -> dict[str, int]:
+    """Map ``column -> declared VARCHAR width`` from a ``CREATE TABLE`` body."""
+    return {
+        match.group(1): int(match.group(2))
+        for match in _VARCHAR_RE.finditer(ddl)
+        if match.group(1).upper() not in _NON_COLUMN_TOKENS
+    }
+
+
+_COLUMN_WIDTHS = _column_widths(_PI_SNAPSHOT_DDL)
+
 
 def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
     """Translate the MySQL ``CREATE TABLE`` into an equivalent SQLite one.
@@ -130,6 +151,13 @@ def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
     column and its unique constraint survive the translation (SQLite
     3.31+ supports ``GENERATED ALWAYS AS ... STORED``), so the
     single-LIVE-row invariant is genuinely enforced by the double.
+
+    SQLite ignores declared ``VARCHAR(n)`` widths entirely, while MySQL
+    in its default strict mode raises ``DataError`` (1406, "Data too
+    long"). Translating each declared width into a table-level ``CHECK``
+    restores that difference, so a test that stages an over-long value
+    fails here exactly as it would against a real server — which is what
+    makes the length-guard tests discriminating rather than ceremonial.
     """
     body = ddl.strip()
     body = re.sub(r"\)\s*ENGINE=\w+\s+DEFAULT\s+CHARSET=\w+\s*$", ")", body)
@@ -148,12 +176,24 @@ def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
     body = body.replace("CHAR(31 USING utf8mb4)", "char(31)")
     body = body.replace("CONCAT(", "concat(")
     body = re.sub(r",(\s*)\)\s*$", r"\1)", body)
+    checks = ",\n".join(
+        f"    CHECK ({column} IS NULL OR length({column}) <= {width})"
+        for column, width in _column_widths(ddl).items()
+        if column not in _GENERATED_COLUMNS
+    )
+    body = re.sub(r"\)\s*$", f",\n{checks}\n)", body) if checks else body
     return body, indexes
 
 
 # ---------------------------------------------------------------------------
 # PyMySQL-shaped test double
 # ---------------------------------------------------------------------------
+
+# The production pool logs on its own module logger; the doubles reuse that
+# name deliberately so a `caplog` assertion reads the same whether the test
+# runs against `_FakePool`/`_RealisticPool` or the real `ConnectionPool`.
+_POOL_LOGGER = "openbb_fmp_cached.utils.database"
+_MYSQL_LOGGER = "openbb_techtrade.snapshot.mysql_store"
 
 
 class _FakeMysqlError(Exception):
@@ -166,6 +206,16 @@ class _FakeProgrammingError(_FakeMysqlError):
 
 class _FakeIntegrityError(_FakeMysqlError):
     """Stand-in for ``pymysql.err.IntegrityError``."""
+
+
+class _FakeDataError(_FakeMysqlError):
+    """Stand-in for ``pymysql.err.DataError`` (1406, "Data too long").
+
+    Deliberately *not* an ``IntegrityError``: the store downgrades
+    integrity errors to lifecycle refusals, so mis-classifying an
+    over-long write would silently turn lost data into a routine
+    ``promote() -> False``.
+    """
 
 
 _ISO_TEMPORAL_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]|$)")
@@ -267,6 +317,10 @@ class _FakeCursor:
                 _to_sqlite(sql), tuple(_adapt(value) for value in bound)
             )
         except sqlite3.IntegrityError as exc:
+            # The width CHECKs injected by `_ddl_to_sqlite` stand in for
+            # MySQL strict mode, which reports 1406 as a *data* error.
+            if "CHECK constraint failed" in str(exc):
+                raise _FakeDataError(f"Data too long for column: {exc}") from exc
             raise _FakeIntegrityError(str(exc)) from exc
         self._executed = (sql, bound)
 
@@ -412,10 +466,39 @@ class _BasePool:
         self.closed_with_open_txn = 0
         self.statements: list[tuple[str, tuple]] = []
         self.calls: list[tuple[int, str, tuple]] = []
+        self.errors: list[BaseException] = []
         self.after_execute: Any = None
         self.fail_on: Any = None
         self._ids = itertools.count(1)
         self._in_hook = False
+
+    @contextmanager
+    def get_connection(self) -> Iterator[_FakeConnection]:
+        """``ConnectionPool.get_connection`` is a context manager, not a getter.
+
+        It is also *not* transparent to exceptions: the production body is
+        ``yield`` / ``except Exception: logger.error("MySQL connection
+        error: %s"); raise`` / ``finally: close()``. Anything a store lets
+        unwind across this boundary is therefore reported to operators as
+        a **connection fault**, whatever it actually was. The double
+        records every such exception in ``errors`` and logs it under the
+        production logger name so a test can assert that a routine
+        lifecycle refusal never reaches it.
+        """
+        self.handed_out += 1
+        conn = self._open()
+        try:
+            yield conn
+        except Exception as exc:  # noqa: BLE001 - mirrors the production pool
+            self.errors.append(exc)
+            logging.getLogger(_POOL_LOGGER).error("MySQL connection error: %s", exc)
+            raise
+        finally:
+            conn.close()
+
+    def _open(self) -> _FakeConnection:
+        """Open one pooled session (subclasses decide how independent it is)."""
+        raise NotImplementedError
 
     def record(self, conn_id: int, sql: str, params: tuple) -> None:
         self.statements.append((sql, params))
@@ -444,15 +527,8 @@ class _FakePool(_BasePool):
         super().__init__()
         self.raw = sqlite3.connect(str(path), isolation_level=None)
 
-    @contextmanager
-    def get_connection(self) -> Iterator[_FakeConnection]:
-        """``ConnectionPool.get_connection`` is a context manager, not a getter."""
-        self.handed_out += 1
-        conn = _FakeConnection(self, self.raw, next(self._ids), owns_raw=False)
-        try:
-            yield conn
-        finally:
-            conn.close()
+    def _open(self) -> _FakeConnection:
+        return _FakeConnection(self, self.raw, next(self._ids), owns_raw=False)
 
 
 class _RealisticPool(_BasePool):
@@ -471,15 +547,9 @@ class _RealisticPool(_BasePool):
         super().__init__()
         self.path = str(path)
 
-    @contextmanager
-    def get_connection(self) -> Iterator[_FakeConnection]:
-        self.handed_out += 1
+    def _open(self) -> _FakeConnection:
         raw = sqlite3.connect(self.path, timeout=1.0, isolation_level=None)
-        conn = _FakeConnection(self, raw, next(self._ids), owns_raw=True)
-        try:
-            yield conn
-        finally:
-            conn.close()
+        return _FakeConnection(self, raw, next(self._ids), owns_raw=True)
 
     def query(self, sql: str, params: tuple = ()) -> list[tuple]:
         """Out-of-band read for assertions (its own short-lived connection)."""
@@ -538,6 +608,8 @@ def _stage(  # pylint: disable=too-many-arguments
     job_run_id: str | None = None,
     status: SnapshotStatus = SnapshotStatus.OK,
     input_hash: str | None = None,
+    engine_version: str | None = None,
+    payload_schema_version: str | None = None,
 ) -> tuple[str, str, date, str]:
     job_run_id = job_run_id or f"run-{next(_job_run_ids)}"
     target.stage(
@@ -548,11 +620,13 @@ def _stage(  # pylint: disable=too-many-arguments
         payload,
         status=status,
         input_hash=input_hash,
+        engine_version=engine_version,
+        payload_schema_version=payload_schema_version,
     )
     return (dataset, entity_key, as_of_session, job_run_id)
 
 
-def _direct_insert(pool: _FakePool, *, job_run_id: str, state: str) -> None:
+def _direct_insert(pool: _BasePool, *, job_run_id: str, state: str) -> None:
     """Bypass the store to test the DB-level constraint directly."""
     with pool.get_connection() as conn:
         conn.begin()
@@ -654,6 +728,207 @@ def test_generated_live_key_is_null_for_non_live_rows(
     ).fetchall()
     assert len(rows) == 3
     assert all(live_key is None for _, live_key in rows)
+
+
+# ---------------------------------------------------------------------------
+# Bounded identifier/provenance fields (review finding 2)
+# ---------------------------------------------------------------------------
+#
+# MySQL declares finite widths for the identity and provenance columns;
+# SQLite ignores widths entirely. Left alone, the same `stage()` call is
+# accepted by one backend and rejected (or, on a non-strict server,
+# silently truncated) by the other -- and a truncated `job_run_id` or
+# `input_hash` is corrupted provenance that no later read can detect.
+# The limits therefore live in one shared table that is asserted against
+# the DDL, and are enforced in Python before any statement is issued.
+
+_LONG_TEXT = "x" * 600
+
+
+def test_ddl_widths_match_the_shared_length_limits() -> None:
+    """Drift guard: the declared widths *are* the enforced limits.
+
+    If the DDL is widened (or the shared table edited) without the other
+    following, the guard would reject values the column accepts, or --
+    far worse -- admit values the column truncates.
+    """
+    declared = {
+        column: width
+        for column, width in _COLUMN_WIDTHS.items()
+        if column in FIELD_MAX_LENGTHS
+    }
+    assert declared == FIELD_MAX_LENGTHS
+    # Every bounded field the guard knows about must exist in the table.
+    assert set(FIELD_MAX_LENGTHS) <= set(_COLUMN_WIDTHS)
+
+
+def test_ddl_stores_validation_reason_as_unbounded_text() -> None:
+    """A validator's explanation is diagnostics, not an identifier.
+
+    Bounding it to ``VARCHAR(512)`` puts the two backends in permanent
+    disagreement -- SQLite keeps the whole reason, MySQL truncates it --
+    and the truncation is silent on a non-strict server, so the operator
+    reading the row cannot tell a short reason from a cut-off one.
+    """
+    assert _COLUMN_TYPES["validation_reason"] == "TEXT"
+    assert "validation_reason" not in _COLUMN_WIDTHS
+
+
+def test_live_key_is_wide_enough_for_the_widest_possible_identity() -> None:
+    """The generated column must hold ``dataset + SEP + entity_key``.
+
+    A narrower ``live_key`` would truncate the concatenation, and two
+    distinct identities sharing a prefix would then collide on the unique
+    index -- a spurious "another writer installed a LIVE row" refusal.
+    """
+    widest = FIELD_MAX_LENGTHS["dataset"] + 1 + FIELD_MAX_LENGTHS["entity_key"]
+    assert _COLUMN_WIDTHS["live_key"] >= widest
+
+
+def test_status_and_state_columns_fit_every_enum_value() -> None:
+    """The lifecycle vocabularies are persisted verbatim, not truncated."""
+    vocabulary = [member.value for member in SnapshotStatus] + [
+        member.value for member in SnapshotState
+    ]
+    for column in ("status", "state"):
+        assert _COLUMN_WIDTHS[column] >= max(len(value) for value in vocabulary)
+
+
+def test_the_double_enforces_declared_widths_like_strict_mode(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """Guards the guard: without this, the length tests prove nothing.
+
+    SQLite ignores ``VARCHAR(n)``. If the double did too, a test that
+    stages an over-long value would pass whether or not the production
+    guard existed. Here the double is made to reject the write the way a
+    strict-mode MySQL server does -- as a *data* error, not an integrity
+    error (the store downgrades integrity errors to refusals).
+    """
+    _stage(store, payload={"rows": [{"symbol": "AAPL"}]})  # creates the table
+    with pytest.raises(_FakeDataError) as excinfo:
+        _direct_insert(pool, job_run_id="run-" + _LONG_TEXT, state="staging")
+    assert not isinstance(excinfo.value, _FakeIntegrityError)
+
+
+@pytest.mark.parametrize("field", sorted(FIELD_MAX_LENGTHS))
+def test_stage_refuses_an_over_long_bounded_field(
+    store: MysqlSnapshotStore, pool: _FakePool, field: str
+) -> None:
+    """Every bounded field is checked, and nothing is written."""
+    limit = FIELD_MAX_LENGTHS[field]
+    begins_before = pool.begins
+    with pytest.raises(SnapshotFieldTooLong) as excinfo:
+        _stage(
+            store,
+            payload={"rows": [{"symbol": "AAPL"}]},
+            **{field: "y" * (limit + 1)},
+        )
+
+    message = str(excinfo.value)
+    assert field in message
+    assert str(limit) in message
+    assert str(limit + 1) in message
+    assert excinfo.value.field_name == field
+    assert excinfo.value.limit == limit
+    assert excinfo.value.length == limit + 1
+    # The refusal lands before the driver is touched at all: no write
+    # transaction is opened and no INSERT is issued, so a server without
+    # strict mode never gets the chance to truncate the value. This is
+    # asserted independently of the exception type above, because a guard
+    # placed *inside* the transaction would still raise -- after a
+    # pointless BEGIN/ROLLBACK round-trip on the shared pool.
+    assert pool.begins == begins_before
+    inserts = [
+        sql for sql, _ in pool.statements if sql.lstrip().upper().startswith("INSERT")
+    ]
+    assert inserts == []
+
+
+@pytest.mark.parametrize("field", sorted(FIELD_MAX_LENGTHS))
+def test_stage_accepts_a_bounded_field_at_exactly_the_limit(
+    store: MysqlSnapshotStore, field: str
+) -> None:
+    """The boundary is inclusive, and the full value round-trips.
+
+    An off-by-one in either direction is a real defect: one rejects legal
+    identifiers, the other hands the column a value it must truncate.
+    """
+    value = "z" * FIELD_MAX_LENGTHS[field]
+    dataset, entity_key, _, _ = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, **{field: value}
+    )
+    history = store.list_history(dataset, entity_key)
+    assert len(history) == 1
+    assert getattr(history[0], field) == value
+
+
+def test_bounded_lengths_are_measured_after_canonicalization(
+    store: MysqlSnapshotStore,
+) -> None:
+    """The stored value is the canonical one, so that is what is measured.
+
+    Checking the raw argument would reject a key whose canonical form
+    fits the column -- a false refusal caused by whitespace the store
+    itself strips.
+    """
+    padded = "  " + "k" * FIELD_MAX_LENGTHS["entity_key"] + "  "
+    assert len(padded) > FIELD_MAX_LENGTHS["entity_key"]
+    dataset, entity_key, _, _ = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, entity_key=padded
+    )
+    history = store.list_history(dataset, entity_key)
+    assert len(history) == 1
+    assert history[0].entity_key == canonical_key(padded)
+
+
+def test_a_long_validation_reason_is_persisted_whole(
+    store: MysqlSnapshotStore,
+) -> None:
+    """A validator may say as much as it needs to; nothing is cut off."""
+    reason = "row-level mismatch: " + ", ".join(f"AAPL{n}" for n in range(300))
+    assert len(reason) > 512
+
+    def _reject(row: SnapshotRow) -> ValidationResult:
+        del row
+        return ValidationResult(ok=False, reason=reason)
+
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    result = store.validate(*staged, validator=_reject)
+
+    assert result.ok is False
+    assert result.reason == reason
+    history = store.list_history(staged[0], staged[1])
+    assert history[0].validation_reason == reason
+
+
+def test_both_backends_refuse_the_same_over_long_value(
+    store: MysqlSnapshotStore, tmp_path: Path
+) -> None:
+    """Cross-backend parity, asserted in one place.
+
+    This is the finding itself: the same call must not be accepted by
+    SQLite and rejected by MySQL. Both raise the identical error, from
+    the identical shared limit, before either dialect is reached.
+    """
+    sqlite_store = SqliteSnapshotStore(tmp_path / "parity.db")
+    try:
+        too_long = "w" * (FIELD_MAX_LENGTHS["job_run_id"] + 1)
+        payload = {"rows": [{"symbol": "AAPL"}]}
+        with pytest.raises(SnapshotFieldTooLong) as mysql_error:
+            _stage(store, payload=payload, job_run_id=too_long)
+        with pytest.raises(SnapshotFieldTooLong) as sqlite_error:
+            sqlite_store.stage(
+                "techtrade.movers",
+                "sector=technology",
+                date(2026, 9, 4),
+                too_long,
+                payload,
+            )
+        assert str(mysql_error.value) == str(sqlite_error.value)
+        assert sqlite_store.get_live("techtrade.movers", "sector=technology") is None
+    finally:
+        sqlite_store.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1357,6 +1632,39 @@ class _StubDatabaseConfig:
         return {"host": "127.0.0.1", "database": "seam_contract_test"}
 
 
+class _SeamHarness:
+    """The **production** ``ConnectionPool`` driven over SQLite.
+
+    Only ``pymysql.connect`` is stubbed — no server, no socket — so the
+    borrow protocol (``@contextmanager``, log-and-reraise, close-in-
+    ``finally``), the pinned ``DictCursor`` and ``autocommit=True`` are
+    the real ones, and so is the ``logger.error("MySQL connection error:
+    ...")`` any exception crossing the borrow triggers.
+    """
+
+    def __init__(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from openbb_fmp_cached.utils import database  # noqa: PLC0415
+
+        self.database = database
+        self.book = _BasePool()
+        self.path = tmp_path / "seam.db"
+        self.connect_kwargs: list[dict[str, Any]] = []
+        self.opened: list[_FakeConnection] = []
+        monkeypatch.setattr(database.pymysql, "connect", self._connect)
+        self.pool = database.ConnectionPool(_StubDatabaseConfig())
+
+    def _connect(self, **kwargs: Any) -> _FakeConnection:
+        self.connect_kwargs.append(kwargs)
+        conn = _FakeConnection(
+            self.book,
+            sqlite3.connect(str(self.path), isolation_level=None),
+            len(self.opened) + 1,
+            owns_raw=True,
+        )
+        self.opened.append(conn)
+        return conn
+
+
 def test_store_drives_the_real_connection_pool_class(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1369,39 +1677,24 @@ def test_store_drives_the_real_connection_pool_class(
     protocol (``@contextmanager``, close-in-finally), the pinned
     ``DictCursor``, and ``autocommit=True`` are the real ones.
     """
-    from openbb_fmp_cached.utils import database  # noqa: PLC0415
+    seam = _SeamHarness(tmp_path, monkeypatch)
 
-    book = _BasePool()
-    connect_kwargs: list[dict[str, Any]] = []
-    opened: list[_FakeConnection] = []
-
-    def _fake_connect(**kwargs: Any) -> _FakeConnection:
-        connect_kwargs.append(kwargs)
-        conn = _FakeConnection(
-            book,
-            sqlite3.connect(str(tmp_path / "seam.db"), isolation_level=None),
-            len(opened) + 1,
-            owns_raw=True,
-        )
-        opened.append(conn)
-        return conn
-
-    monkeypatch.setattr(database.pymysql, "connect", _fake_connect)
-    pool = database.ConnectionPool(_StubDatabaseConfig())
-
-    borrowed = pool.get_connection()
+    borrowed = seam.pool.get_connection()
     assert hasattr(borrowed, "__enter__") and hasattr(borrowed, "__exit__")
     assert not hasattr(borrowed, "cursor"), (
         "get_connection() returns a context manager; a store that treats it "
         "as a connection breaks against the real pool"
     )
     with borrowed as conn:
-        assert conn is opened[-1]
-    assert connect_kwargs[-1]["autocommit"] is True
-    assert connect_kwargs[-1]["cursorclass"] is database.pymysql.cursors.DictCursor
-    assert connect_kwargs[-1]["database"] == "seam_contract_test"
+        assert conn is seam.opened[-1]
+    assert seam.connect_kwargs[-1]["autocommit"] is True
+    assert (
+        seam.connect_kwargs[-1]["cursorclass"]
+        is seam.database.pymysql.cursors.DictCursor
+    )
+    assert seam.connect_kwargs[-1]["database"] == "seam_contract_test"
 
-    store = MysqlSnapshotStore(connection_pool=pool)
+    store = MysqlSnapshotStore(connection_pool=seam.pool)
     staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
     assert store.validate(*staged).ok
     assert store.promote(*staged)
@@ -1410,9 +1703,153 @@ def test_store_drives_the_real_connection_pool_class(
     assert live.job_run_id == staged[3]
     assert live.state == SnapshotState.LIVE
 
-    assert book.begins >= 2, "writes must open an explicit transaction"
-    assert book.closed_with_open_txn == 0
-    assert book.returned == len(opened), "the pool closes every connection it opens"
+    assert seam.book.begins >= 2, "writes must open an explicit transaction"
+    assert seam.book.closed_with_open_txn == 0
+    assert seam.book.returned == len(
+        seam.opened
+    ), "the pool closes every connection it opens"
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle refusals must not be reported as pool faults (review finding 1)
+# ---------------------------------------------------------------------------
+#
+# `ConnectionPool.get_connection` logs `ERROR MySQL connection error: ...`
+# for *anything* that unwinds across the borrow. `_PromotionRefused` /
+# `_ValidationRefused` are healthy, expected outcomes of the lifecycle —
+# "this candidate ranks below LIVE", "the row moved, retry" — so letting
+# them cross that boundary turns every routine refusal into an operator
+# page about a database connection that is in fact perfectly healthy, on a
+# pool shared with the FMP cache. The refusal must therefore be rolled
+# back *inside* the borrow and re-raised only after it has closed.
+
+
+def _pool_errors(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Every ``MySQL connection error`` the pool logged, as messages."""
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == _POOL_LOGGER
+        and record.levelno >= logging.ERROR
+        and "MySQL connection error" in record.getMessage()
+    ]
+
+
+def test_a_refused_promotion_is_not_reported_to_the_pool_as_an_error(
+    store: MysqlSnapshotStore, pool: _FakePool, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Invariant: a gate refusal never unwinds across ``get_connection``.
+
+    Promoting an unvalidated row is the most routine refusal there is.
+    It must still roll back (nothing is written) *and* leave the shared
+    pool's error path untouched.
+    """
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+
+    with caplog.at_level(logging.DEBUG):
+        promoted = store.promote(*staged)
+
+    assert promoted is False
+    assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
+    assert pool.errors == [], (
+        "a lifecycle refusal unwound across ConnectionPool.get_connection; "
+        "the shared pool logs that as `ERROR MySQL connection error`"
+    )
+    assert _pool_errors(caplog) == []
+    assert pool.rollbacks >= 1, "the refusal must still roll back its transaction"
+    assert pool.closed_with_open_txn == 0
+
+
+def test_a_keep_last_good_refusal_is_not_reported_to_the_pool_as_an_error(
+    store: MysqlSnapshotStore, pool: _FakePool, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Same invariant for the rank gate, which refuses *after* a read."""
+    incumbent = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, as_of_session=date(2026, 9, 3)
+    )
+    assert store.validate(*incumbent).ok
+    assert store.promote(*incumbent)
+
+    worse = _stage(
+        store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+        status=SnapshotStatus.PARTIAL,
+    )
+    assert store.validate(*worse).ok
+
+    with caplog.at_level(logging.DEBUG):
+        promoted = store.promote(*worse)
+
+    assert promoted is False
+    assert pool.errors == []
+    assert _pool_errors(caplog) == []
+    assert store.get_live("techtrade.movers", "sector=technology") is not None
+
+
+def test_a_refused_validation_is_not_reported_to_the_pool_as_an_error(
+    real_store: MysqlSnapshotStore,
+    real_pool: _RealisticPool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Invariant: the ``validate()`` race refusal is a refusal, not a fault.
+
+    The row is promoted out of STAGING between the gate's read and its
+    write, so ``_ValidationRefused`` unwinds the write transaction. That
+    is the store working exactly as designed.
+    """
+    staged = _stage(real_store, payload={"rows": [{"symbol": "AAPL"}]})
+    other = MysqlSnapshotStore(connection_pool=real_pool)
+
+    def _forge(row: SnapshotRow) -> ValidationResult:
+        del row
+        # Play the concurrent worker from inside the gate: promote the
+        # row out of STAGING before our verdict is written.
+        assert other.validate(*staged).ok
+        assert other.promote(*staged)
+        return ValidationResult(ok=True, reason="")
+
+    with caplog.at_level(logging.DEBUG):
+        result = real_store.validate(*staged, _forge)
+
+    assert result.ok is False
+    assert "changed state between read and write" in result.reason
+    assert real_pool.errors == [], (
+        "a validation refusal unwound across ConnectionPool.get_connection; "
+        "the shared pool logs that as `ERROR MySQL connection error`"
+    )
+    assert _pool_errors(caplog) == []
+
+
+def test_refusals_are_invisible_to_the_real_pool_but_driver_faults_are_not(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Seam contract, both directions, against the production pool class.
+
+    The first half proves the fix: a routine refusal produces no
+    ``MySQL connection error`` record from
+    ``openbb_fmp_cached.utils.database``. The second half proves the fix
+    is not a blanket suppression: a genuine driver failure inside the
+    same transaction still reaches the pool and is still logged, because
+    that one really is a database fault.
+    """
+    seam = _SeamHarness(tmp_path, monkeypatch)
+    store = MysqlSnapshotStore(connection_pool=seam.pool)
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+
+    with caplog.at_level(logging.DEBUG):
+        assert store.promote(*staged) is False  # unvalidated -> refusal
+    assert _pool_errors(caplog) == []
+    assert seam.book.rollbacks >= 1
+
+    caplog.clear()
+    seam.book.fail_on = lambda sql, params: sql.startswith("UPDATE pi_snapshot SET")
+    with caplog.at_level(logging.DEBUG), pytest.raises(_FakeMysqlError):
+        store.validate(*staged)
+    assert _pool_errors(caplog), (
+        "a real driver failure must still reach the pool's error log — the "
+        "refusal fix must not swallow genuine faults"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1422,11 +1859,9 @@ def test_store_drives_the_real_connection_pool_class(
 # The single-connection `_FakePool` above cannot express a race: every
 # borrow is the same session, so nothing can commit "in between". These
 # tests therefore run on `_RealisticPool`, whose `get_connection()`
-# returns an independent session exactly like `mysql-connector`'s, and
-# drive a second actor from the double's `after_execute` hook so the
-# interleaving is deterministic rather than timing-dependent.
-
-_MYSQL_LOGGER = "openbb_techtrade.snapshot.mysql_store"
+# returns an independent PyMySQL-shaped session exactly like the real
+# pool's, and drive a second actor from the double's `after_execute` hook
+# so the interleaving is deterministic rather than timing-dependent.
 
 
 def _hook_once(pool: _RealisticPool, needle: str, action: Any) -> dict:
@@ -1743,6 +2178,11 @@ def test_promote_converts_a_concurrent_live_key_collision_into_a_refusal(
     assert promoted is False
     assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
     assert real_pool.live_job_run_ids() == ["run-outsider"]
+    assert real_pool.errors == [], (
+        "the collision is a lifecycle refusal the store already downgrades to "
+        "False; it must not also unwind across ConnectionPool.get_connection, "
+        "which would log it as `ERROR MySQL connection error`"
+    )
 
     rolled_back = real_pool.query(
         "SELECT state FROM pi_snapshot WHERE job_run_id = ?", (mine[3],)

@@ -82,9 +82,11 @@ from openbb_techtrade.snapshot.store import (
     SnapshotState,
     SnapshotStatus,
     ValidationResult,
+    _check_field_lengths,
     _dumps_payload,
     _is_integrity_error,
     _kept_sessions,
+    _LifecycleRefused,
     _promotion_refusal,
     _PromotionRefused,
     _restamp_live,
@@ -113,7 +115,7 @@ CREATE TABLE IF NOT EXISTS pi_snapshot (
     status                 VARCHAR(16) NOT NULL,
     state                  VARCHAR(16) NOT NULL,
     validated              TINYINT(1) NOT NULL DEFAULT 0,
-    validation_reason      VARCHAR(512) NOT NULL DEFAULT '',
+    validation_reason      TEXT NOT NULL,
     payload_json           LONGTEXT NOT NULL,
     input_hash             VARCHAR(128),
     row_count              INT,
@@ -131,6 +133,16 @@ CREATE TABLE IF NOT EXISTS pi_snapshot (
     INDEX ix_pi_snapshot_latest (dataset, entity_key, as_of_session, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
+# The bounded VARCHAR widths above are mirrored by
+# ``store.FIELD_MAX_LENGTHS`` and enforced in Python before any write, so
+# the SQLite backend (which ignores widths) refuses exactly what MySQL
+# would. ``validation_reason`` is deliberately *not* bounded: it is a
+# validator's free-text explanation, not an identifier, and a
+# ``VARCHAR(512)`` would silently truncate it on a non-strict server
+# while SQLite kept it whole. TEXT has no literal DEFAULT before MySQL
+# 8.0.13, so ``_INSERT_STAGED`` binds the empty string explicitly. (TEXT
+# still tops out at 64 KiB; a validator needing more should write a
+# pointer, not a novel.)
 
 _ALL_DDLS = (_PI_SNAPSHOT_DDL,)
 
@@ -266,7 +278,21 @@ class MysqlSnapshotStore:
         where ``commit()`` itself raises, and swallows only a *failing
         rollback* (logged), which would otherwise mask the original
         error.
+
+        **Refusals are held back until the borrow has closed.**
+        ``ConnectionPool.get_connection`` is not transparent to
+        exceptions: it logs ``ERROR MySQL connection error: ...`` for
+        anything that unwinds across it. A :class:`_LifecycleRefused` is
+        a *policy* signal — "this candidate ranks below LIVE", "the row
+        moved, retry" — raised on a perfectly healthy connection, so it
+        is caught here, rolled back like any other unwind, and re-raised
+        only once the borrow's ``with`` block has exited. Callers see the
+        identical exception at the identical place; the pool shared with
+        the FMP cache simply stops reporting routine lifecycle outcomes
+        as database faults. Genuine driver errors are *not* intercepted:
+        those really are faults and the pool should log them.
         """
+        refused: _LifecycleRefused | None = None
         with self._borrow() as conn:
             conn.begin()
             committed = False
@@ -274,9 +300,13 @@ class MysqlSnapshotStore:
                 yield conn
                 conn.commit()
                 committed = True
+            except _LifecycleRefused as refusal:
+                refused = refusal
             finally:
                 if not committed:
                     self._restore(conn)
+        if refused is not None:
+            raise refused
 
     @staticmethod
     def _restore(conn: Any) -> None:
@@ -356,6 +386,14 @@ class MysqlSnapshotStore:
         """Write a run to STAGING; never touches the LIVE view."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
+        _check_field_lengths(
+            dataset=dataset,
+            entity_key=entity_key,
+            job_run_id=job_run_id,
+            input_hash=input_hash,
+            engine_version=engine_version,
+            payload_schema_version=payload_schema_version,
+        )
         with self.transaction() as conn, conn.cursor() as cur:
             cur.execute(
                 _INSERT_STAGED,
@@ -491,6 +529,9 @@ class MysqlSnapshotStore:
             logger.warning("snapshot promotion refused: %s", refused.reason)
             return False
         except Exception as exc:  # noqa: BLE001
+            # `_promote_locked` already converts a collision on its own
+            # statements into a refusal; this stays as the safety net for
+            # a constraint that only fires at COMMIT.
             if not _is_integrity_error(exc):
                 raise
             logger.warning("snapshot promotion refused: %s", _LIVE_COLLISION_REASON)
@@ -512,6 +553,14 @@ class MysqlSnapshotStore:
         writes are state transitions (``staging -> live``,
         ``live -> superseded``), so a matched row is always a changed
         row and PyMySQL's changed-row count cannot be ambiguous.
+
+        A ``live_key`` collision (a writer that bypassed this method
+        installed a LIVE row in the window) is translated into the same
+        ``_PromotionRefused`` the other gates raise, rather than being
+        left to unwind as a driver ``IntegrityError``. It means the same
+        thing to the caller — ``promote()`` returns ``False`` — and
+        keeping it inside the transaction scope stops a routine refusal
+        being logged as a connection fault by the shared pool.
         """
         candidate = cls._get_row(
             conn, dataset, entity_key, as_of_session, job_run_id, for_update=True
@@ -520,6 +569,26 @@ class MysqlSnapshotStore:
         refusal = _promotion_refusal(candidate, live)
         if refusal is not None:
             raise _PromotionRefused(refusal)
+        try:
+            cls._apply_promotion(
+                conn, dataset, entity_key, as_of_session, job_run_id, live
+            )
+        except Exception as exc:  # noqa: BLE001
+            if not _is_integrity_error(exc):
+                raise
+            raise _PromotionRefused(_LIVE_COLLISION_REASON) from exc
+
+    @classmethod
+    def _apply_promotion(  # pylint: disable=too-many-positional-arguments
+        cls,
+        conn: Any,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        live: SnapshotRow | None,
+    ) -> None:
+        """Demote the incumbent (if any) and install the candidate as LIVE."""
         with conn.cursor() as cur:
             if live is not None:
                 cur.execute(
