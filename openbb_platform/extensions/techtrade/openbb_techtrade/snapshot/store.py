@@ -659,12 +659,18 @@ def _promotion_refusal(
 ) -> str | None:
     """Return why ``candidate`` may not be promoted, or ``None`` if it may.
 
-    Three gates, in order: the candidate must have passed validation; it
-    must still be in STAGING (so a stale staged-tuple cannot resurrect a
-    SUPERSEDED row back to LIVE); and it must rank at least as high as
-    the incumbent LIVE row (keep-last-good, spec §4.1/§5#2).
+    Four gates, in order: the candidate row must exist; it must have
+    passed validation; it must still be in STAGING (so a stale
+    staged-tuple cannot resurrect a SUPERSEDED row back to LIVE); and it
+    must rank at least as high as the incumbent LIVE row (keep-last-good,
+    spec §4.1/§5#2). The missing-row and not-validated cases are reported
+    with distinct reasons so a caller (and the logs) can tell "there is
+    no such staged snapshot" apart from "it exists but failed/hasn't
+    passed validation".
     """
-    if candidate is None or not candidate.validated:
+    if candidate is None:
+        return "candidate snapshot not found"
+    if not candidate.validated:
         return "candidate is not validated"
     if candidate.state != SnapshotState.STAGING:
         return "candidate is not in STAGING state"

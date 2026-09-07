@@ -75,6 +75,70 @@ def test_default_validator_rejects_empty_payload_and_negative_rows() -> None:
     ).ok
 
 
+def _promotion_candidate(
+    *,
+    validated: bool,
+    state: SnapshotState = SnapshotState.STAGING,
+    status: SnapshotStatus = SnapshotStatus.OK,
+) -> SnapshotRow:
+    """Build a candidate row for ``_promotion_refusal`` branch tests."""
+    return SnapshotRow(
+        dataset="techtrade.movers",
+        entity_key="sector=technology",
+        as_of_session=date(2026, 9, 4),
+        created_at=datetime(2026, 9, 4, tzinfo=timezone.utc),
+        job_run_id="run-1",
+        status=status,
+        state=state,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        row_count=1,
+        validated=validated,
+    )
+
+
+def test_promotion_refusal_distinguishes_missing_from_unvalidated_candidate() -> None:
+    """Each ``_promotion_refusal`` branch reports its own, discriminating reason.
+
+    Regression test for PR #2062 review feedback: a missing candidate
+    (``None``, e.g. a stale/wrong ``job_run_id``) used to be reported with
+    the same "candidate is not validated" reason as a candidate row that
+    genuinely exists but hasn't passed validation, which made the
+    promotion-refusal log misleading. The two cases must now be
+    distinguishable.
+    """
+    live_ok = _promotion_candidate(validated=True, state=SnapshotState.LIVE)
+
+    # 1. No candidate row at all: a not-found reason, not "not validated".
+    assert (
+        store_module._promotion_refusal(None, None) == "candidate snapshot not found"
+    )
+
+    # 2. Candidate exists but was never validated: distinct reason from (1).
+    unvalidated = _promotion_candidate(validated=False)
+    assert (
+        store_module._promotion_refusal(unvalidated, None)
+        == "candidate is not validated"
+    )
+
+    # 3. Validated but no longer STAGING (already promoted/superseded).
+    superseded = _promotion_candidate(validated=True, state=SnapshotState.SUPERSEDED)
+    assert (
+        store_module._promotion_refusal(superseded, None)
+        == "candidate is not in STAGING state"
+    )
+
+    # 4. Validated, STAGING, but ranked worse than the incumbent LIVE row.
+    worse_candidate = _promotion_candidate(validated=True, status=SnapshotStatus.PARTIAL)
+    assert (
+        store_module._promotion_refusal(worse_candidate, live_ok)
+        == "candidate status is worse than LIVE"
+    )
+
+    # 5. A fully eligible candidate is allowed through (no refusal).
+    good_candidate = _promotion_candidate(validated=True)
+    assert store_module._promotion_refusal(good_candidate, None) is None
+
+
 # --- Task 2: SQLite lifecycle -------------------------------------------
 
 _job_run_ids = itertools.count(1)

@@ -148,11 +148,11 @@ Run the lifecycle tests. Expected: import or attribute failure for `SqliteSnapsh
 
 - [ ] **Step 3: Implement SQLite schema and persistence**
 
-Create `pi_snapshot` with the approved columns, both read indexes, and:
+Create `pi_eod_snapshot` with the approved columns, both read indexes, and:
 
 ```sql
-CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_snapshot_live
-ON pi_snapshot(dataset, entity_key)
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_eod_snapshot_live
+ON pi_eod_snapshot(dataset, entity_key)
 WHERE state = 'live';
 ```
 
@@ -302,7 +302,7 @@ live_key VARCHAR(512)
   GENERATED ALWAYS AS (
     IF(state='live', CONCAT(dataset, CHAR(31), entity_key), NULL)
   ) STORED,
-UNIQUE KEY ux_pi_snapshot_live (live_key)
+UNIQUE KEY ux_pi_eod_snapshot_live (live_key)
 ```
 
 - [ ] **Step 4: Implement Protocol parity**
