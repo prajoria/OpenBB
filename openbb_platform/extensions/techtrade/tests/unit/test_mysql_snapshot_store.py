@@ -72,6 +72,7 @@ import ast
 import inspect
 import itertools
 import logging
+import os
 import re
 import sqlite3
 from collections.abc import Iterator
@@ -2853,3 +2854,176 @@ def test_schema_mismatch_and_version_are_public(store: MysqlSnapshotStore) -> No
     assert "SnapshotSchemaMismatch" in snapshot.__all__
     assert "SNAPSHOT_SCHEMA_VERSION" in snapshot.__all__
     assert snapshot.SNAPSHOT_SCHEMA_VERSION >= 1
+
+
+# ---------------------------------------------------------------------------
+# Live-MySQL smoke coverage (#1963 review I5)
+# ---------------------------------------------------------------------------
+#
+# Everything above runs against a PyMySQL-shaped double over SQLite. The
+# double is deliberately strict, but it is still not a MySQL server: nothing
+# in this suite has ever asked a real server to parse
+# `CHAR(31 USING utf8mb4)` inside a STORED generated column, to accept
+# `TINYINT(1)`, or to build a unique key on `live_key VARCHAR(512)` (2048
+# bytes under utf8mb4 - fine on InnoDB's modern 3072-byte limit with
+# DYNAMIC row format, over the historical 767-byte one) alongside a
+# 1791-byte primary key.
+#
+# These tests are the documented gap. They are skipped by default - stock CI
+# has no MySQL - and are the one place the DDL is validated by the engine
+# that will actually run it:
+#
+#     $env:PI_SNAPSHOT_MYSQL_SMOKE = "1"
+#     .venv_portfolio\Scripts\python.exe -m pytest `
+#         openbb_platform\extensions\techtrade\tests\unit\test_mysql_snapshot_store.py `
+#         -m "integration and requires_mysql" -v
+#
+# Connection parameters come from the shared `fmp_cached` DatabaseConfig
+# (`~/.openbb_platform/user_settings.json` or `DB_*` env vars), exactly like
+# production. The tests write and then remove rows under a dedicated
+# `techtrade.snapshot.smoke` dataset and never touch any other dataset.
+
+_LIVE_SMOKE_ENV = "PI_SNAPSHOT_MYSQL_SMOKE"
+_SMOKE_DATASET = "techtrade.snapshot.smoke"
+
+_requires_live_mysql = pytest.mark.skipif(
+    os.environ.get(_LIVE_SMOKE_ENV, "").strip().lower() not in ("1", "true", "yes"),
+    reason=(
+        f"live MySQL smoke test: set {_LIVE_SMOKE_ENV}=1 with a reachable "
+        "fmp_cached MySQL to exercise the real server. Skipped by default so "
+        "stock CI (no MySQL) stays green - see #1963 review I5."
+    ),
+)
+
+
+@contextmanager
+def _live_mysql_store() -> Iterator[MysqlSnapshotStore]:
+    """Build a store on the real shared pool and clean up its rows after."""
+    from openbb_fmp_cached.utils.database import (  # noqa: PLC0415
+        get_connection_pool,
+    )
+
+    pool = get_connection_pool()
+    store = MysqlSnapshotStore(connection_pool=pool)
+    try:
+        yield store
+    finally:
+        with pool.get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM pi_eod_snapshot WHERE dataset = %s", (_SMOKE_DATASET,)
+            )
+
+
+@pytest.mark.integration
+@pytest.mark.requires_mysql
+@_requires_live_mysql
+def test_live_mysql_accepts_the_ddl_and_enforces_the_generated_live_key() -> None:
+    """The real server parses the DDL and honours the single-LIVE key."""
+    with _live_mysql_store() as store:
+        staged = _stage(
+            store,
+            payload={"rows": [{"symbol": "AAPL"}]},
+            dataset=_SMOKE_DATASET,
+            entity_key="sector=technology",
+        )
+        assert store.validate(*staged).ok
+        assert store.promote(*staged)
+
+        from openbb_fmp_cached.utils.database import (  # noqa: PLC0415
+            get_connection_pool,
+        )
+
+        with get_connection_pool().get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT live_key FROM pi_eod_snapshot WHERE dataset = %s "
+                "AND state = 'live'",
+                (_SMOKE_DATASET,),
+            )
+            live_key = cur.fetchone()["live_key"]
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM pi_eod_snapshot WHERE dataset = %s "
+                "AND state != 'live' AND live_key IS NOT NULL",
+                (_SMOKE_DATASET,),
+            )
+            assert cur.fetchone()["n"] == 0
+
+        assert live_key == f"{_SMOKE_DATASET}\x1fsector=technology"
+
+
+@pytest.mark.integration
+@pytest.mark.requires_mysql
+@_requires_live_mysql
+def test_live_mysql_round_trips_every_protocol_entry_point() -> None:
+    """One smoke pass over all ten Protocol methods on a real server."""
+    with _live_mysql_store() as store:
+        first = _stage(
+            store,
+            payload={"rows": [{"symbol": "AAPL"}]},
+            dataset=_SMOKE_DATASET,
+            entity_key="sector=technology",
+            as_of_session=date(2026, 9, 3),
+            input_hash="smoke-hash",
+            engine_version="smoke-1",
+            payload_schema_version="v1",
+        )
+        assert store.validate(*first).ok
+        assert store.promote(*first)
+
+        live = store.get_live(_SMOKE_DATASET, "sector=technology")
+        assert live is not None
+        assert live.as_of_session == date(2026, 9, 3)
+        assert live.created_at.tzinfo is not None
+        assert live.created_at.utcoffset().total_seconds() == 0
+        assert live.payload == {"rows": [{"symbol": "AAPL"}]}
+        assert live.state == SnapshotState.LIVE
+
+        assert store.should_skip(_SMOKE_DATASET, "sector=technology", "smoke-hash")
+        assert not store.should_skip(_SMOKE_DATASET, "sector=technology", "other")
+
+        assert store.restamp_live(
+            _SMOKE_DATASET, "sector=technology", date(2026, 9, 4), "run-smoke-restamp"
+        )
+        restamped = store.get_live(_SMOKE_DATASET, "sector=technology")
+        assert restamped is not None
+        assert restamped.as_of_session == date(2026, 9, 4)
+        assert restamped.payload == {"rows": [{"symbol": "AAPL"}]}
+
+        as_of = store.get_as_of(_SMOKE_DATASET, "sector=technology", date(2026, 9, 3))
+        assert as_of is not None
+        assert as_of.state == SnapshotState.SUPERSEDED
+
+        history = store.list_history(_SMOKE_DATASET, "sector=technology", limit=10)
+        assert len(history) == 2
+
+        removed = store.prune(RetentionPolicy(keep_sessions=1), dataset=_SMOKE_DATASET)
+        assert removed == 1
+        assert store.get_live(_SMOKE_DATASET, "sector=technology") is not None
+        store.close()
+
+
+@pytest.mark.integration
+@pytest.mark.requires_mysql
+@_requires_live_mysql
+def test_live_mysql_pins_binary_collation_on_the_key_columns() -> None:
+    """The server reports the collation the DDL asked for, not the default."""
+    with _live_mysql_store() as store:
+        del store
+        from openbb_fmp_cached.utils.database import (  # noqa: PLC0415
+            get_connection_pool,
+        )
+
+        with get_connection_pool().get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT COLUMN_NAME, COLLATION_NAME FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                ("pi_eod_snapshot",),
+            )
+            collations = {
+                record["COLUMN_NAME"]: record["COLLATION_NAME"]
+                for record in cur.fetchall()
+            }
+
+    for column in _KEY_COLUMNS:
+        assert (
+            collations[column] == "utf8mb4_bin"
+        ), f"{column} resolved to {collations[column]!r} on the live server"
