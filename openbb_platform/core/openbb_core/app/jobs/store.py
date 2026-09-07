@@ -70,6 +70,9 @@ class JobStoreHealth(BaseModel):
     active_workers: int = 0
     stale_runs: int = 0
     due_runs: int = 0
+    queue_depth: int = 0
+    worker_heartbeat_age_seconds: float | None = None
+    last_successful_run_by_job: dict[str, datetime | None] = Field(default_factory=dict)
 
 
 class JobStore(Protocol):

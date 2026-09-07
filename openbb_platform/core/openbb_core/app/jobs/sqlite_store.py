@@ -819,6 +819,31 @@ class SqliteJobStore:
             """,
             (_serialize_datetime(now_utc),),
         )
+        latest_heartbeat_row = self._connection.execute(
+            "SELECT MAX(heartbeat_at) FROM job_worker"
+        ).fetchone()
+        latest_heartbeat = _deserialize_datetime(latest_heartbeat_row[0])
+        worker_heartbeat_age_seconds = (
+            None
+            if latest_heartbeat is None
+            else max(0.0, (now_utc - latest_heartbeat).total_seconds())
+        )
+        last_successful_run_by_job = {
+            row["job_name"]: _deserialize_datetime(row["last_successful_run_at"])
+            for row in self._connection.execute(
+                """
+                SELECT
+                    schedule.job_name,
+                    MAX(run.finished_at) AS last_successful_run_at
+                FROM job_schedule AS schedule
+                LEFT JOIN job_run AS run
+                  ON run.job_name = schedule.job_name
+                 AND run.status IN ('succeeded', 'succeeded_with_warnings')
+                GROUP BY schedule.job_name
+                ORDER BY schedule.job_name
+                """
+            ).fetchall()
+        }
 
         return JobStoreHealth(
             definition_count=definition_count,
@@ -832,6 +857,9 @@ class SqliteJobStore:
             active_workers=active_workers,
             stale_runs=stale_runs,
             due_runs=due_runs,
+            queue_depth=queued_runs,
+            worker_heartbeat_age_seconds=worker_heartbeat_age_seconds,
+            last_successful_run_by_job=last_successful_run_by_job,
         )
 
     def _apply_pragmas(self) -> None:
