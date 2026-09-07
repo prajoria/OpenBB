@@ -1,10 +1,14 @@
 """EOD snapshot store — public contract and SQLite backend (#1963 Task 1-2).
 
 This module owns the shared value types, the ``canonical_key`` normalizer,
-the baseline ``default_validator`` gate, the ``SnapshotStore`` Protocol, and
-(#1963 Task 2) the concrete ``SqliteSnapshotStore`` lifecycle backend. The
-MySQL backend (#1963 Task 4) implements the same Protocol in its own
-module. See the approved design spec for the full contract this mirrors:
+the baseline ``default_validator`` gate, the ``SnapshotStore`` Protocol, the
+dialect-agnostic row conversion + lifecycle *policy* helpers every backend
+reuses, and (#1963 Task 2) the concrete ``SqliteSnapshotStore`` lifecycle
+backend. The MySQL backend (#1963 Task 4) implements the same Protocol in
+its own module and imports the policy helpers from here rather than
+restating them — one place decides what "validated", "promotable", and
+"retained" mean. See the approved design spec for the full contract this
+mirrors:
 ``docs/superpowers/specs/2026-08-09-asof-snapshot-cache-and-alignment-design.md``
 §3-4.
 
@@ -39,7 +43,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +257,176 @@ class SnapshotStore(Protocol):
         ...  # pylint: disable=unnecessary-ellipsis
 
 
+# --- Dialect-agnostic row conversion (#1963 Task 4) ------------------------
+#
+# SQLite has no native temporal types and stores ISO-8601 text; MySQL uses
+# native DATE / DATETIME(6) and its driver hands back real ``date`` /
+# (naive) ``datetime`` objects. Both shapes funnel through the coercers
+# below so every backend returns the *same* Python types (design spec
+# §3, 12.3 #8) without either one re-implementing the rule.
+
+
+def _as_session_date(value: Any) -> date:
+    """Coerce a stored ``as_of_session`` to a plain ``date``."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value))
+
+
+def _as_created_at(value: Any) -> datetime:
+    """Coerce a stored ``created_at`` to a tz-aware **UTC** ``datetime``.
+
+    MySQL ``DATETIME`` carries no offset, so the driver returns a naive
+    value; every backend writes UTC, so a naive read is stamped UTC here
+    rather than being handed to callers as an ambiguous wall clock.
+    """
+    moment = (
+        value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    )
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(timezone.utc)
+
+
+def _as_payload(value: Any) -> dict:
+    """Coerce a stored payload column to a ``dict``."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        value = bytes(value).decode("utf-8")
+    return json.loads(value)
+
+
+def _row_from_mapping(record: Any) -> SnapshotRow:
+    """Parse a raw ``pi_snapshot`` record into a typed ``SnapshotRow``.
+
+    ``record`` is anything with name-based ``__getitem__`` — a
+    ``sqlite3.Row`` or a ``mysql-connector`` dictionary cursor row.
+    """
+    return SnapshotRow(
+        dataset=record["dataset"],
+        entity_key=record["entity_key"],
+        as_of_session=_as_session_date(record["as_of_session"]),
+        created_at=_as_created_at(record["created_at"]),
+        job_run_id=record["job_run_id"],
+        status=SnapshotStatus(record["status"]),
+        state=SnapshotState(record["state"]),
+        payload=_as_payload(record["payload_json"]),
+        input_hash=record["input_hash"],
+        row_count=record["row_count"],
+        validated=bool(record["validated"]),
+        validation_reason=record["validation_reason"] or "",
+        engine_version=record["engine_version"],
+        payload_schema_version=record["payload_schema_version"],
+    )
+
+
+def _dumps_payload(payload: dict) -> str:
+    """Serialize a payload deterministically for storage."""
+    return json.dumps(payload, sort_keys=True, default=str)
+
+
+# --- Dialect-agnostic lifecycle policy (#1963 Task 4) ----------------------
+#
+# The *decisions* — may this row be validated? may it be promoted? which
+# sessions survive retention? — are dialect-free and live here so the
+# SQLite and MySQL backends can only ever disagree about SQL text, never
+# about policy.
+
+
+def _validation_refusal(row: SnapshotRow | None) -> str | None:
+    """Return why ``row`` may not be validated, or ``None`` if it may be.
+
+    A LIVE or SUPERSEDED row is immutable history: rewriting its
+    ``validated``/``validation_reason`` would silently forge an audit
+    trail, so validation is STAGING-only.
+    """
+    if row is None:
+        return "staged snapshot not found"
+    if row.state != SnapshotState.STAGING:
+        return "row is not in STAGING state"
+    return None
+
+
+def _promotion_refusal(
+    candidate: SnapshotRow | None, live: SnapshotRow | None
+) -> str | None:
+    """Return why ``candidate`` may not be promoted, or ``None`` if it may.
+
+    Three gates, in order: the candidate must have passed validation; it
+    must still be in STAGING (so a stale staged-tuple cannot resurrect a
+    SUPERSEDED row back to LIVE); and it must rank at least as high as
+    the incumbent LIVE row (keep-last-good, spec §4.1/§5#2).
+    """
+    if candidate is None or not candidate.validated:
+        return "candidate is not validated"
+    if candidate.state != SnapshotState.STAGING:
+        return "candidate is not in STAGING state"
+    if live is not None and _STATUS_RANK[candidate.status] < _STATUS_RANK[live.status]:
+        return "candidate status is worse than LIVE"
+    return None
+
+
+def _kept_sessions(sessions: list, keep_sessions: int) -> list | None:
+    """Return the newest ``keep_sessions`` values, or ``None`` if none drop.
+
+    ``sessions`` must already be sorted newest-first. ``None`` means the
+    key has nothing outside the window, so the backend can skip its
+    DELETE entirely.
+    """
+    if len(sessions) <= keep_sessions:
+        return None
+    return sessions[:keep_sessions]
+
+
+def _should_skip(
+    store: SnapshotStore, dataset: str, entity_key: str, input_hash: str
+) -> bool:
+    """Shared ``should_skip`` body — LIVE already carries this input hash."""
+    live = store.get_live(dataset, entity_key)
+    return live is not None and live.input_hash == input_hash
+
+
+def _restamp_live(
+    store: SnapshotStore,
+    dataset: str,
+    entity_key: str,
+    as_of_session: date,
+    job_run_id: str,
+) -> bool:
+    """Shared ``restamp_live`` body — auditable, never an in-place edit.
+
+    Stages a *new* row carrying the current LIVE row's payload and
+    provenance under the new session/run IDs, then drives it through the
+    same stage -> validate -> promote path. The prior LIVE row is never
+    mutated: ``promote()`` flips it to SUPERSEDED and it stays in history
+    exactly like any other supersession.
+    """
+    live = store.get_live(dataset, entity_key)
+    if live is None:
+        logger.warning("snapshot restamp refused: no LIVE row to restamp")
+        return False
+    store.stage(
+        dataset,
+        entity_key,
+        as_of_session,
+        job_run_id,
+        live.payload,
+        status=live.status,
+        input_hash=live.input_hash,
+        row_count=live.row_count,
+        engine_version=live.engine_version,
+        payload_schema_version=live.payload_schema_version,
+    )
+    result = store.validate(dataset, entity_key, as_of_session, job_run_id)
+    if not result.ok:
+        logger.warning("snapshot restamp refused: validation failed: %s", result.reason)
+        return False
+    return store.promote(dataset, entity_key, as_of_session, job_run_id)
+
+
 # --- SQLite backend (#1963 Task 2) -----------------------------------------
 #
 # Schema per design spec §3.1. SQLite has no native DATE/DATETIME type, so
@@ -291,31 +465,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_snapshot_live
 def _now_iso() -> str:
     """Wall-clock UTC instant of the write, ISO-8601 (spec §3, 12.3 #8)."""
     return datetime.now(timezone.utc).isoformat()
-
-
-def _row_from_record(record: sqlite3.Row) -> SnapshotRow:
-    """Parse a raw ``pi_snapshot`` row back into a typed ``SnapshotRow``.
-
-    Reverses the ISO-text storage workaround: ``as_of_session`` becomes a
-    plain ``date``, ``created_at`` a tz-aware UTC ``datetime`` — the split
-    the design spec (§3, 12.3 #8) requires regardless of on-disk dialect.
-    """
-    return SnapshotRow(
-        dataset=record["dataset"],
-        entity_key=record["entity_key"],
-        as_of_session=date.fromisoformat(record["as_of_session"]),
-        created_at=datetime.fromisoformat(record["created_at"]),
-        job_run_id=record["job_run_id"],
-        status=SnapshotStatus(record["status"]),
-        state=SnapshotState(record["state"]),
-        payload=json.loads(record["payload_json"]),
-        input_hash=record["input_hash"],
-        row_count=record["row_count"],
-        validated=bool(record["validated"]),
-        validation_reason=record["validation_reason"],
-        engine_version=record["engine_version"],
-        payload_schema_version=record["payload_schema_version"],
-    )
 
 
 class SqliteSnapshotStore:
@@ -371,7 +520,7 @@ class SqliteSnapshotStore:
             "AND job_run_id = ?",
             (dataset, entity_key, as_of_session.isoformat(), job_run_id),
         ).fetchone()
-        return _row_from_record(record) if record is not None else None
+        return _row_from_mapping(record) if record is not None else None
 
     # --- Protocol methods ---------------------------------------------
 
@@ -407,7 +556,7 @@ class SqliteSnapshotStore:
                     job_run_id,
                     status.value,
                     SnapshotState.STAGING.value,
-                    json.dumps(payload, sort_keys=True, default=str),
+                    _dumps_payload(payload),
                     input_hash,
                     row_count,
                     engine_version,
@@ -432,11 +581,13 @@ class SqliteSnapshotStore:
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
         row = self._get_row(dataset, entity_key, as_of_session, job_run_id)
-        if row is None:
-            return ValidationResult(ok=False, reason="staged snapshot not found")
-        if row.state != SnapshotState.STAGING:
-            logger.warning("snapshot validation refused: row is not in STAGING state")
-            return ValidationResult(ok=False, reason="row is not in STAGING state")
+        refusal = _validation_refusal(row)
+        if row is None or refusal is not None:
+            if row is not None:
+                logger.warning("snapshot validation refused: %s", refusal)
+            return ValidationResult(
+                ok=False, reason=refusal or "staged snapshot not found"
+            )
         gate = validator or default_validator
         result = gate(row)
         with self._tx():
@@ -474,19 +625,10 @@ class SqliteSnapshotStore:
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
         candidate = self._get_row(dataset, entity_key, as_of_session, job_run_id)
-        if candidate is None or not candidate.validated:
-            logger.warning("snapshot promotion refused: candidate is not validated")
-            return False
-        if candidate.state != SnapshotState.STAGING:
-            logger.warning(
-                "snapshot promotion refused: candidate is not in STAGING state"
-            )
-            return False
         live = self.get_live(dataset, entity_key)
-        if live and _STATUS_RANK[candidate.status] < _STATUS_RANK[live.status]:
-            logger.warning(
-                "snapshot promotion refused: candidate status is worse than LIVE"
-            )
+        refusal = _promotion_refusal(candidate, live)
+        if refusal is not None:
+            logger.warning("snapshot promotion refused: %s", refusal)
             return False
         with self._tx():
             if live is not None:
@@ -526,7 +668,7 @@ class SqliteSnapshotStore:
             "WHERE dataset = ? AND entity_key = ? AND state = ?",
             (dataset, entity_key, SnapshotState.LIVE.value),
         ).fetchone()
-        return _row_from_record(record) if record is not None else None
+        return _row_from_mapping(record) if record is not None else None
 
     def get_as_of(
         self, dataset: str, entity_key: str, as_of_session: date
@@ -548,7 +690,7 @@ class SqliteSnapshotStore:
                 SnapshotState.STAGING.value,
             ),
         ).fetchone()
-        return _row_from_record(record) if record is not None else None
+        return _row_from_mapping(record) if record is not None else None
 
     def list_history(
         self, dataset: str, entity_key: str, limit: int = 50
@@ -565,7 +707,7 @@ class SqliteSnapshotStore:
             "ORDER BY as_of_session DESC, created_at DESC LIMIT ?",
             (dataset, entity_key, limit),
         ).fetchall()
-        return [_row_from_record(record) for record in records]
+        return [_row_from_mapping(record) for record in records]
 
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
         """Report whether the LIVE row already carries this ``input_hash``.
@@ -573,8 +715,7 @@ class SqliteSnapshotStore:
         A skip must not strand the staleness badge — callers should follow
         a skip with ``restamp_live`` on a new session (design spec §4.5).
         """
-        live = self.get_live(dataset, entity_key)
-        return live is not None and live.input_hash == input_hash
+        return _should_skip(self, dataset, entity_key, input_hash)
 
     def restamp_live(
         self,
@@ -592,29 +733,7 @@ class SqliteSnapshotStore:
         and it remains in history for audit, exactly like any other
         supersession.
         """
-        live = self.get_live(dataset, entity_key)
-        if live is None:
-            logger.warning("snapshot restamp refused: no LIVE row to restamp")
-            return False
-        self.stage(
-            dataset,
-            entity_key,
-            as_of_session,
-            job_run_id,
-            live.payload,
-            status=live.status,
-            input_hash=live.input_hash,
-            row_count=live.row_count,
-            engine_version=live.engine_version,
-            payload_schema_version=live.payload_schema_version,
-        )
-        result = self.validate(dataset, entity_key, as_of_session, job_run_id)
-        if not result.ok:
-            logger.warning(
-                "snapshot restamp refused: validation failed: %s", result.reason
-            )
-            return False
-        return self.promote(dataset, entity_key, as_of_session, job_run_id)
+        return _restamp_live(self, dataset, entity_key, as_of_session, job_run_id)
 
     def prune(self, policy: RetentionPolicy | None = None) -> int:
         """Apply retention; return the number of rows removed.
@@ -647,9 +766,9 @@ class SqliteSnapshotStore:
                         (dataset_key, entity_key_key),
                     ).fetchall()
                 ]
-                if len(sessions) <= keep_sessions:
+                keep = _kept_sessions(sessions, keep_sessions)
+                if keep is None:
                     continue
-                keep = sessions[:keep_sessions]
                 # `condition` is built only from a fixed literal ("1 = 1") or
                 # a placeholders string of "?" — no external input reaches
                 # the SQL text itself, all values are bound via `params`.
