@@ -2676,6 +2676,21 @@ def test_canonical_sql_folds_formatting_and_preserves_meaning() -> None:
     assert canonical(None) == ""
     assert canonical("") == ""
 
+    # `backslash_escapes` selects the dialect's literal syntax and nothing
+    # else. SQLite has no backslash escapes -- `'li\ve'` there is the
+    # five-character value `li\ve`, a literal no row ever equals -- so the
+    # default must read it that way; MySQL reads the same text as `'live'`.
+    assert canonical(r"state = 'li\ve'") != canonical("state = 'live'")
+    assert canonical(r"state = 'li\ve'", backslash_escapes=True) == canonical(
+        "state = 'live'"
+    )
+    # Under MySQL's syntax the two spellings of one literal fold together,
+    # and two different literals still do not.
+    assert canonical(r"'li\'ve'", backslash_escapes=True) == canonical("'li''ve'")
+    assert canonical(r"'\\live'", backslash_escapes=True) != canonical("'live'")
+    # `\%` and `\_` keep their backslash, exactly as MySQL does.
+    assert canonical(r"'a\%b'", backslash_escapes=True) == r"'a\%b'"
+
 
 # ---------------------------------------------------------------------------
 # Catalogue reads survive awkward index names (PR #2062 review)

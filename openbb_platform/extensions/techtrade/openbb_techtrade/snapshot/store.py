@@ -578,18 +578,21 @@ _MYSQL_BINARY_COLLATED_COLUMNS = (
 # form of the expression this module's DDL ships.
 #
 # Exact text comparison is impossible — no server hands back what was
-# typed. MySQL 8 rewrites
+# typed. MySQL 8.4.9 rewrites
 #
 #     IF(state = 'live', CONCAT(dataset, CHAR(31 USING utf8mb4), entity_key), NULL)
 #
-# as ``if((`state` = _utf8mb4'live'),concat(`dataset`,char(31 using
-# utf8mb4),`entity_key`),NULL)``, and the exact rewrite differs by server
-# version. :func:`_canonical_sql` therefore folds away precisely the
-# things a server is free to change and nothing else: letter case of
-# keywords and identifiers, identifier quoting (`` `x` ``, ``"x"``,
-# ``[x]``), whitespace, comments, charset introducers (``_utf8mb4'live'``
-# -> ``'live'``), ``USING <charset>`` inside ``CHAR()``, and redundant
-# grouping parentheses. Operators, argument order, literal text and
+# as ``if((`state` = _utf8mb4\'live\'),concat(`dataset`,char(31),
+# `entity_key`),NULL)`` — 8.0 keeps the ``using utf8mb4`` inside
+# ``char()``, 5.7 and MariaDB drop the introducer, and the escaping of
+# the literal's delimiters is described below. The exact rewrite differs
+# by server version. :func:`_canonical_sql` therefore folds away
+# precisely the things a server is free to change and nothing else:
+# letter case of keywords and identifiers, identifier quoting
+# (`` `x` ``, ``"x"``, ``[x]``), whitespace, comments, charset
+# introducers (``_utf8mb4'live'`` -> ``'live'``), ``USING <charset>``
+# inside ``CHAR()``, redundant grouping parentheses, and the spelling of
+# a literal's escapes. Operators, argument order, literal text and
 # literal case all survive — which is what makes `!=`, `<>`, a swapped
 # THEN/ELSE, a dropped `entity_key` or a `'staging'` literal a mismatch.
 _LIVE_KEY_CANONICAL = "if(state='live',concat(dataset,char(31),entity_key),null)"
@@ -610,12 +613,63 @@ _LIVE_KEY_CANONICAL_FORMS = frozenset(
 _SQLITE_LIVE_PREDICATE = "state='live'"
 _SQLITE_LIVE_PREDICATE_FORMS = frozenset({_SQLITE_LIVE_PREDICATE, "'live'=state"})
 
+# --- MySQL's two layers of literal escaping (PR #2062 review) -------------
+#
+# MySQL does not report a generated column's expression the way it prints
+# it: `information_schema` hands back the *printed* expression with a
+# further layer of backslash escaping applied on top, so the text is safe
+# to paste inside a quoted string. On 8.4.9 the expression
+# `_PI_EOD_SNAPSHOT_DDL` ships comes back as
+#
+#     if((`state` = _utf8mb4\'live\'),concat(`dataset`,char(31),`entity_key`),NULL)
+#
+# with the literal's own *delimiters* wearing backslashes. A token scan
+# that knows only about `''` doubling therefore reads the literal as
+# `'live\'` and canonicalizes the whole expression to
+# `if(state='live\',...)`, which matches no accepted form — so the guard
+# refused every real server it was ever pointed at (#1963 live smoke).
+#
+# Two escaping layers are stacked, and both have to be peeled before the
+# scan can see a literal at all. Confirmed against 8.4.9 with a throwaway
+# probe table: a column generated from `IF(s = 'li''ve', ...)` is
+# reported as ``if((`s` = _utf8mb4\'li\\\'ve\'),...)`` and one generated
+# from `IF(s = 'a\\b', ...)` as ``if((`s` = _utf8mb4\'a\\\\b\'),...)``.
+# One plain unescape pass over the whole text yields the printed
+# expression, whose literals then carry MySQL's own backslash escaping —
+# which the token scan handles directly.
+#
+# Neither layer exists on SQLite. `sqlite_master.sql` stores the text as
+# typed, and SQLite has no backslash escapes at all, so `'li\ve'` there
+# is the five-character value `li\ve`. Peeling escapes off a SQLite
+# predicate would *weaken* its guard: `state = 'li\ve'` would decode onto
+# `state = 'live'` and be accepted while indexing rows nothing ever
+# writes. Both layers are consequently MySQL-only, selected by the
+# caller, and nothing about the SQLite scan changed.
+_SQL_BACKSLASH_ESCAPE_RE = re.compile(r"\\(?s:.)")
+
+# One escaped unit inside a MySQL string literal: a doubled quote or a
+# backslash sequence.
+_SQL_LITERAL_ESCAPE_RE = re.compile(r"''|\\(?s:.)")
+
+# MySQL's backslash sequences that stand for some *other* character. Any
+# other `\x` stands for `x` itself, except `\%` and `\_`, which keep the
+# backslash — it is only special to `LIKE`.
+_MYSQL_ESCAPE_SEQUENCES = {
+    "0": "\0",
+    "b": "\b",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "Z": "\x1a",
+}
+
 # One SQL token. Ordered alternation matters: the string-literal and
 # comment branches come first so a `--` or a quote *inside* a literal is
-# consumed with it rather than restarting the scan mid-token.
-_SQL_TOKEN_RE = re.compile(
-    r"""
-      '(?:[^']|'')*'                 # 'live'  (doubled '' escapes)
+# consumed with it rather than restarting the scan mid-token. The literal
+# branch is the one piece that differs by dialect, so it is substituted
+# in rather than written twice.
+_SQL_SCAN_PATTERN = r"""
+      {literal}                      # 'live'
     | --[^\n]*                       # -- line comment
     | (?s:/\*.*?\*/)                 # /* block comment */
     | `(?:[^`]|``)*`                 # `state`   MySQL-quoted identifier
@@ -625,8 +679,18 @@ _SQL_TOKEN_RE = re.compile(
     | \d+(?:\.\d+)?                  # 31
     | <=>|<>|!=|>=|<=|\|\|           # multi-character operators
     | [-+*/%(),.=<>!&|^~]            # single-character operators
-    """,
-    re.VERBOSE,
+    """
+
+# Doubled `''` only — a backslash is an ordinary character, which is what
+# SQLite means by it.
+_SQL_TOKEN_RE = re.compile(
+    _SQL_SCAN_PATTERN.format(literal=r"'(?:[^']|'')*'"), re.VERBOSE
+)
+
+# Doubled `''` *and* `\x`, so `'li\'ve'` is one literal rather than a
+# literal, a bare word, and a literal that runs off the end.
+_SQL_TOKEN_ESCAPED_RE = re.compile(
+    _SQL_SCAN_PATTERN.format(literal=r"'(?:[^'\\]|''|\\(?s:.))*'"), re.VERBOSE
 )
 
 _SQL_WORD_RE = re.compile(r"[A-Za-z_$][A-Za-z_$0-9]*")
@@ -652,8 +716,50 @@ def _unquote_identifier(token: str) -> str:
     return token[1:-1]
 
 
-def _canonical_sql(expression: str | None) -> str:
-    """Reduce a server-reported SQL expression to a comparable canonical form.
+def _decode_escape(sequence: str) -> str:
+    r"""Resolve one ``''`` or ``\x`` sequence to the character it stands for."""
+    if sequence == "''":
+        return "'"
+    escaped = sequence[1]
+    if escaped in ("%", "_"):
+        # `\%` and `\_` keep their backslash: it is meaningful only to
+        # `LIKE`, and MySQL leaves it in place everywhere else.
+        return sequence
+    return _MYSQL_ESCAPE_SEQUENCES.get(escaped, escaped)
+
+
+def _decode_backslash_escapes(text: str) -> str:
+    """Undo ``information_schema``'s escaping of a whole expression.
+
+    The inverse of the pass MySQL applies to a generated column's printed
+    expression before reporting it (see the block comment above
+    :data:`_SQL_BACKSLASH_ESCAPE_RE`). A text with no backslashes — every
+    expression this repo's DDL produces, on every server that does not
+    add the layer, and every SQLite predicate — is returned unchanged, so
+    applying it can only ever *add* the servers that do escape.
+    """
+    return _SQL_BACKSLASH_ESCAPE_RE.sub(lambda m: _decode_escape(m.group(0)), text)
+
+
+def _canonical_literal(token: str, *, backslash_escapes: bool) -> str:
+    r"""Re-emit a string literal from its value under one escaping scheme.
+
+    Two spellings of one literal (``'li''ve'`` and, on MySQL, ``'li\'ve'``)
+    become one canonical token, and two *different* literals stay
+    different: the value is decoded, then re-emitted with only ``''``
+    doubling. Literal case is preserved, which is what keeps ``'live'``
+    and ``'staging'`` — or ``'live'`` and ``'LIVE'`` — apart.
+    """
+    body = token[1:-1]
+    if backslash_escapes:
+        value = _SQL_LITERAL_ESCAPE_RE.sub(lambda m: _decode_escape(m.group(0)), body)
+    else:
+        value = body.replace("''", "'")
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _canonical_sql(expression: str | None, *, backslash_escapes: bool = False) -> str:
+    r"""Reduce a server-reported SQL expression to a comparable canonical form.
 
     Folds exactly the variation a server may introduce without changing
     meaning (see the block comment above :data:`_LIVE_KEY_CANONICAL`) and
@@ -667,11 +773,18 @@ def _canonical_sql(expression: str | None) -> str:
     the shipped ``IF(state = 'live', ...)`` without also folding
     ``if(not(state = 'live'), ...)`` onto it — ``not`` survives as a
     token either way.
+
+    ``backslash_escapes`` selects the dialect's *literal* syntax and
+    nothing else. MySQL reads ``\'`` inside a literal as a quote; SQLite
+    reads it as a backslash followed by the literal's closing quote, so
+    the flag must stay off for a SQLite predicate or ``state = 'li\ve'``
+    would be read as ``state = 'live'`` and accepted (PR #2062 review).
     """
+    token_re = _SQL_TOKEN_ESCAPED_RE if backslash_escapes else _SQL_TOKEN_RE
     tokens: list[str] = []
     call_paren: list[bool] = []
     skip_charset = False
-    for raw in _SQL_TOKEN_RE.findall(expression or ""):
+    for raw in token_re.findall(expression or ""):
         if raw.startswith("--") or raw.startswith("/*"):
             continue
         if skip_charset:
@@ -681,7 +794,7 @@ def _canonical_sql(expression: str | None) -> str:
         if raw.startswith("'"):
             if tokens and _SQL_INTRODUCER_RE.fullmatch(tokens[-1]):
                 tokens.pop()
-            tokens.append(raw)
+            tokens.append(_canonical_literal(raw, backslash_escapes=backslash_escapes))
         elif raw[0] in '`"[':
             tokens.append(_unquote_identifier(raw).casefold())
         elif raw == "(":
@@ -701,6 +814,21 @@ def _canonical_sql(expression: str | None) -> str:
                 continue
             tokens.append(_SQL_CONDITIONAL_SYNONYMS.get(word, word))
     return "".join(tokens)
+
+
+def _canonical_generation_expression(expression: str | None) -> str:
+    """Canonicalize a ``GENERATION_EXPRESSION`` as MySQL reports it.
+
+    Peels ``information_schema``'s escaping of the whole text, then scans
+    the printed expression under MySQL's literal syntax — the two layers
+    described above :data:`_SQL_BACKSLASH_ESCAPE_RE`. Both are no-ops on
+    text a server reported without escaping (MySQL 5.7, MariaDB, and this
+    suite's SQLite-backed double all do), so one code path serves every
+    server.
+    """
+    return _canonical_sql(
+        _decode_backslash_escapes(expression or ""), backslash_escapes=True
+    )
 
 
 # Slices a partial index's predicate out of its `CREATE INDEX` statement.
@@ -805,14 +933,15 @@ def _check_mysql_live_guard(
        second *staged* run for the same key.
 
     The generation expression is matched *structurally* — canonicalized
-    by :func:`_canonical_sql` and compared for equality against
-    :data:`_LIVE_KEY_CANONICAL_FORMS` — rather than scanned for tokens.
-    A token scan accepts expressions that invert the invariant while
-    mentioning every expected word: ``IF(state != 'live', CONCAT(dataset,
-    CHAR(31), entity_key), NULL)`` keys ``live_key`` on every row that is
-    *not* LIVE, so the UNIQUE index then permits unlimited LIVE rows and
-    forbids a second staged one — the exact opposite of the invariant,
-    passing a check meant to prove it (PR #2062 review).
+    by :func:`_canonical_generation_expression` and compared for equality
+    against :data:`_LIVE_KEY_CANONICAL_FORMS` — rather than scanned for
+    tokens. A token scan accepts expressions that invert the invariant
+    while mentioning every expected word: ``IF(state != 'live',
+    CONCAT(dataset, CHAR(31), entity_key), NULL)`` keys ``live_key`` on
+    every row that is *not* LIVE, so the UNIQUE index then permits
+    unlimited LIVE rows and forbids a second staged one — the exact
+    opposite of the invariant, passing a check meant to prove it
+    (PR #2062 review).
 
     The index is matched on its *shape*, not its name: an operator who
     rebuilt an equivalent unique index under a different name has not
@@ -825,7 +954,7 @@ def _check_mysql_live_guard(
             f"the generated column {_MYSQL_LIVE_KEY_COLUMN!r} is missing",
         )
     expression = generation[_MYSQL_LIVE_KEY_COLUMN]
-    canonical = _canonical_sql(expression)
+    canonical = _canonical_generation_expression(expression)
     if canonical not in _LIVE_KEY_CANONICAL_FORMS:
         raise _live_guard_refusal(
             "mysql",

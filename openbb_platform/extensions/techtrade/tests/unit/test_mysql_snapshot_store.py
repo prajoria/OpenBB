@@ -3165,7 +3165,7 @@ def test_mysql_accepts_the_guard_its_own_ddl_creates(tmp_path: Path) -> None:
     # by the real schema rather than only by the refusal tests below.
     assert "live_key" in generation
     assert (
-        store_module._canonical_sql(generation["live_key"])
+        store_module._canonical_generation_expression(generation["live_key"])
         in store_module._LIVE_KEY_CANONICAL_FORMS
     )
     # ... and its UNIQUE index is reported under the name MySQL would use.
@@ -3437,13 +3437,29 @@ def test_mysql_refuses_an_equivalent_but_differently_shaped_live_key(
     assert store_module._LIVE_KEY_CANONICAL in message
 
 
-# The three forms below are what real servers hand back for the *one*
+# The forms below are what real servers hand back for the *one*
 # expression `_PI_EOD_SNAPSHOT_DDL` writes. They are the false-negative
 # half of the hardening: a structural check that refused any of these
 # would refuse every correctly-built production table, so the guard is
 # exercised against them directly rather than only against the SQLite
 # double's rendering.
 _SERVER_REPORTED_LIVE_KEY_EXPRESSIONS = (
+    # MySQL 8.4.9, verbatim from the live server this branch's smoke
+    # tests run against (`SELECT GENERATION_EXPRESSION FROM
+    # information_schema.COLUMNS`, printed with `repr`). Note the
+    # backslashes on the literal's own delimiters: `information_schema`
+    # escapes the whole printed expression a second time, and reading
+    # them as part of the literal is what made every one of the three
+    # live smoke tests fail before `_decode_backslash_escapes` existed
+    # (#1963). This is the single most important string in the file --
+    # it is the only one taken from a real server rather than written
+    # from a reading of the documentation.
+    "if((`state` = _utf8mb4\\'live\\'),concat(`dataset`,"
+    "char(31),`entity_key`),NULL)",
+    # The same, from a server that keeps `USING utf8mb4` inside `CHAR()`
+    # (MySQL 8.0) while still escaping the delimiters.
+    "if((`state` = _utf8mb4\\'live\\'),concat(`dataset`,"
+    "char(31 using utf8mb4),`entity_key`),NULL)",
     # MySQL 8: backticked identifiers, charset introducer on the literal,
     # `USING utf8mb4` inside CHAR(), and parentheses around the comparison.
     "if((`state` = _utf8mb4'live'),concat(`dataset`,"
@@ -3463,7 +3479,9 @@ def test_mysql_live_guard_accepts_every_server_rendering_of_its_own_ddl(
     """No false negatives: server formatting must never look like tampering.
 
     Reverse-verified: comparing the reported text to the DDL string
-    instead of canonicalizing it fails all three.
+    instead of canonicalizing it fails all of them, and reverting
+    `_decode_backslash_escapes` to the identity fails exactly the two
+    escaped renderings -- which is the #1963 live-smoke failure.
     """
     store_module._check_mysql_live_guard(
         {"live_key": expression, "dataset": ""},
@@ -3507,6 +3525,132 @@ def test_mysql_live_guard_rejects_every_near_match_of_its_own_ddl() -> None:
         with pytest.raises(SnapshotSchemaMismatch) as excinfo:
             store_module._check_mysql_live_guard({"live_key": expression}, guard)
         assert "single-LIVE" in str(excinfo.value)
+
+
+# The same six edits, each wearing the escaping a real MySQL applies. A
+# fix for the live-smoke failure that merely deleted backslashes -- or
+# that gave up and compared tokens again -- would still pass the
+# unescaped list above while accepting every one of these, so this is the
+# discriminating half of the regression: the peeling must recover the
+# *literal*, not flatten the expression.
+_ESCAPED_NEAR_MATCH_LIVE_KEY_EXPRESSIONS = (
+    # Inverted comparison.
+    "if((`state` <> _utf8mb4\\'live\\'),concat(`dataset`,char(31),`entity_key`),NULL)",
+    # Negated comparison.
+    "if(not(`state` = _utf8mb4\\'live\\'),concat(`dataset`,"
+    "char(31),`entity_key`),NULL)",
+    # Swapped branches.
+    "if((`state` = _utf8mb4\\'live\\'),NULL,concat(`dataset`,char(31),`entity_key`))",
+    # A different literal, one escaped quote away from the right one.
+    "if((`state` = _utf8mb4\\'staging\\'),concat(`dataset`,"
+    "char(31),`entity_key`),NULL)",
+    # A literal that differs only in case: `state` is compared under
+    # `utf8mb4_bin`, so `'LIVE'` never matches a row this store writes.
+    "if((`state` = _utf8mb4\\'LIVE\\'),concat(`dataset`,char(31),`entity_key`),NULL)",
+    # The wrong separator.
+    "if((`state` = _utf8mb4\\'live\\'),concat(`dataset`,char(124),`entity_key`),NULL)",
+)
+
+
+@pytest.mark.parametrize("expression", _ESCAPED_NEAR_MATCH_LIVE_KEY_EXPRESSIONS)
+def test_mysql_live_guard_rejects_near_matches_in_the_servers_escaped_form(
+    expression: str,
+) -> None:
+    r"""Peeling MySQL's escaping must not cost the guard its teeth.
+
+    Reverse-verified: mutating `_canonical_generation_expression` to
+    strip backslashes wholesale (``expression.replace("\\", "")``)
+    keeps the accept test green and turns every case here into a false
+    accept -- so these are the cases that pin the fix to *decoding* the
+    literal rather than deleting characters.
+    """
+    guard = [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+        )
+    ]
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        store_module._check_mysql_live_guard({"live_key": expression}, guard)
+    assert "single-LIVE" in str(excinfo.value)
+
+
+# `information_schema` escapes the *whole* printed expression, so a
+# literal that itself contains a quote or a backslash comes back doubly
+# escaped. These two pairs were read off MySQL 8.4.9 with a throwaway
+# probe table carrying the columns
+#
+#     q VARCHAR(64) GENERATED ALWAYS AS (IF(s = 'li''ve', 'x', NULL)) STORED
+#     b VARCHAR(64) GENERATED ALWAYS AS (IF(s = 'a\\b',   'y', NULL)) STORED
+#
+# and are the evidence that one unescape pass over the text, followed by
+# a scan that understands MySQL's own `\'` inside a literal, is the right
+# model rather than a guess that happens to work for `'live'`.
+_ESCAPED_GENERATION_EXPRESSIONS = (
+    (
+        "if((`s` = _utf8mb4\\'li\\\\\\'ve\\'),_utf8mb4\\'x\\',NULL)",
+        "if(s='li''ve','x',null)",
+    ),
+    (
+        "if((`s` = _utf8mb4\\'a\\\\\\\\b\\'),_utf8mb4\\'y\\',NULL)",
+        "if(s='a\\b','y',null)",
+    ),
+)
+
+
+@pytest.mark.parametrize("reported,canonical", _ESCAPED_GENERATION_EXPRESSIONS)
+def test_generation_expression_canonicalizer_recovers_the_literal_mysql_meant(
+    reported: str, canonical: str
+) -> None:
+    """Both escaping layers are peeled, and the literal survives intact.
+
+    Reverse-verified: with only the outer pass the first case canonicalizes
+    to ``if(s='li'...`` (the literal ends at the escaped quote and the rest
+    of the expression is re-lexed as garbage); with only the inner pass
+    neither case parses as a literal at all.
+    """
+    assert store_module._canonical_generation_expression(reported) == canonical
+
+
+def test_sqlite_predicate_is_read_without_mysql_backslash_escapes() -> None:
+    r"""The peeling is MySQL's alone -- SQLite stores what was typed.
+
+    SQLite has no backslash escapes, so ``'li\ve'`` there is the
+    five-character value ``li\ve`` and an index predicated on it matches
+    no row this store ever writes. Decoding it -- which is exactly what
+    the MySQL path must do -- would hand that index a pass, so the two
+    dialects must not share one literal syntax.
+
+    Reverse-verified: defaulting `_canonical_sql`'s `backslash_escapes`
+    to ``True`` (or peeling in `_check_sqlite_live_guard`) makes the
+    refusal below stop firing.
+    """
+    assert (
+        store_module._canonical_sql(r"state = 'li\ve'")
+        not in store_module._SQLITE_LIVE_PREDICATE_FORMS
+    )
+    with pytest.raises(SnapshotSchemaMismatch):
+        store_module._check_sqlite_live_guard(
+            [
+                store_module._IndexShape(
+                    name="ux_pi_eod_snapshot_live",
+                    unique=True,
+                    columns=("dataset", "entity_key"),
+                    predicate=r"state = 'li\ve'",
+                )
+            ]
+        )
+    # The genuine predicate still passes, so the assertion above is not
+    # vacuous.
+    store_module._check_sqlite_live_guard(
+        [
+            store_module._IndexShape(
+                name="ux_pi_eod_snapshot_live",
+                unique=True,
+                columns=("dataset", "entity_key"),
+                predicate="state = 'live'",
+            )
+        ]
+    )
 
 
 def test_mysql_live_guard_refusal_is_not_a_pool_connection_fault(
