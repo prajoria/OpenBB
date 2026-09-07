@@ -23,6 +23,7 @@ Discriminators:
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import json
 import os
@@ -399,3 +400,31 @@ def test_root_endpoint_returns_info_payload() -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert body.get("manifest") == "/widgets.json"
+
+
+def test_lifespan_shutdown_cancels_registered_background_tasks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Installed-service shutdown leaves no backend-owned task running."""
+    from openbb_portfolio_intel.widget_backend import _app as backend_app
+
+    monkeypatch.setattr(backend_app, "_warm_openbb", lambda: None)
+    monkeypatch.setattr(backend_app, "_register_health_probers", lambda: None)
+
+    async def exercise() -> None:
+        entered = asyncio.Event()
+
+        async def background() -> None:
+            entered.set()
+            await asyncio.Event().wait()
+
+        async with backend_app._lifespan(backend_app.app):
+            task = asyncio.create_task(background())
+            backend_app.app.state.background_tasks.add(task)
+            await entered.wait()
+
+        assert task.done()
+        assert task.cancelled()
+        assert not backend_app.app.state.background_tasks
+
+    asyncio.run(exercise())

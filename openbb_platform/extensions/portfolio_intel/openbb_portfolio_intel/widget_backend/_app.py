@@ -8,6 +8,7 @@ onto it without importing each other.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator, Callable
@@ -40,10 +41,14 @@ def _default_auto_build_off() -> None:
 
 _default_auto_build_off()
 
-import anyio  # noqa: E402
-from fastapi import FastAPI  # noqa: E402
-from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from starlette.datastructures import MutableHeaders  # noqa: E402
+import anyio  # noqa: E402  # pylint: disable=wrong-import-position
+from fastapi import FastAPI  # noqa: E402  # pylint: disable=wrong-import-position
+from fastapi.middleware.cors import (  # noqa: E402  # pylint: disable=wrong-import-position
+    CORSMiddleware,
+)
+from starlette.datastructures import (  # noqa: E402  # pylint: disable=wrong-import-position
+    MutableHeaders,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +122,7 @@ def _warm_openbb(builder: Callable[[], None] | None = None) -> None:
         logger.info("openbb warmup complete — live-wired widgets ready to serve")
     except Exception:  # noqa: BLE001 - startup must not die on warmup
         logger.warning(
-            "openbb warmup (prime) failed; live-wired widgets may serve "
-            "stub until the generated package is importable",
+            "openbb warmup (prime) failed; live-wired widgets may serve stub until the generated package is importable",
             exc_info=True,
         )
 
@@ -131,6 +135,7 @@ def _register_health_probers() -> None:
     keeps showing 'unknown' for any tier whose prober failed to register.
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from openbb_portfolio_intel.providers.health_probers import (
             register_default_probers,
         )
@@ -138,8 +143,7 @@ def _register_health_probers() -> None:
         register_default_probers()
     except Exception:  # noqa: BLE001 - startup must not die on probe wiring
         logger.warning(
-            "provider-health prober registration failed; strip will show "
-            "'unknown' until probers are available",
+            "provider-health prober registration failed; strip will show 'unknown' until probers are available",
             exc_info=True,
         )
 
@@ -167,9 +171,17 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        background_tasks = set(getattr(_app.state, "background_tasks", set()))
+        for task in background_tasks:
+            task.cancel()
+        if background_tasks:
+            await asyncio.gather(*background_tasks, return_exceptions=True)
+        _app.state.background_tasks.clear()
+
         # Best-effort teardown of the pooled probe client so httpx doesn't warn
         # about an unclosed client at interpreter shutdown.
         try:
+            # pylint: disable=import-outside-toplevel
             from openbb_portfolio_intel.providers.health_probers import (
                 aclose_shared_client,
             )
@@ -189,6 +201,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=_lifespan,
 )
+app.state.background_tasks = set()
 
 
 class _DataSourceHeaderMiddleware:
@@ -206,8 +219,8 @@ class _DataSourceHeaderMiddleware:
     single-user local dev viewer.
     """
 
-    def __init__(self, app: Any) -> None:
-        self.app = app
+    def __init__(self, asgi_app: Any) -> None:
+        self.app = asgi_app
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope["type"] != "http":
@@ -216,6 +229,7 @@ class _DataSourceHeaderMiddleware:
 
         # Lazy import avoids an import cycle: widgets_endpoints imports ``app``
         # from this module, so importing it at module load would be circular.
+        # pylint: disable=import-outside-toplevel
         from openbb_portfolio_intel.widget_backend.widgets_endpoints import (
             _TIER_IN_USE,
         )

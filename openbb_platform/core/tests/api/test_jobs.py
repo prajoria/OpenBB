@@ -13,8 +13,6 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
-
 from openbb_core.api.auth.user import authenticate_user
 from openbb_core.api.dependency.jobs import get_job_service
 from openbb_core.api.router.jobs import router as router_jobs
@@ -22,6 +20,7 @@ from openbb_core.app.jobs.models import JobContext, JobDefinition, JobResult
 from openbb_core.app.jobs.registry import JobRegistry
 from openbb_core.app.jobs.sqlite_store import SqliteJobStore
 from openbb_core.app.service.job_service import JobService
+from pydantic import BaseModel
 
 UTC = timezone.utc
 BASE_TIME = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
@@ -176,6 +175,40 @@ def test_health_reports_queue_state(client: TestClient):
     assert response.status_code == 200
     body = response.json()
     assert "queued_runs" in body
+
+
+def test_health_reports_read_only_service_probe_payload(
+    client: TestClient, job_service: JobService
+):
+    """Health exposes queue depth, heartbeat age, and per-job last success."""
+    queued = job_service.enqueue(
+        "portfolio.position_history", {"symbol": "MSFT"}, now=BASE_TIME
+    )
+    claimed = job_service.claim_next("worker-health", now=BASE_TIME)
+    assert claimed is not None and claimed.run_id == queued.run_id
+    job_service.complete(
+        claimed.run_id,
+        JobResult(summary={"ok": True}),
+        finished_at=BASE_TIME,
+    )
+    pending = job_service.enqueue(
+        "portfolio.position_history",
+        {"symbol": "AAPL"},
+        now=BASE_TIME,
+    )
+    job_service.heartbeat("worker-health", now=datetime.now(UTC))
+
+    response = client.get("/jobs/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["queue_depth"] == 1
+    assert body["worker_heartbeat_age_seconds"] is not None
+    assert 0 <= body["worker_heartbeat_age_seconds"] < 5
+    assert datetime.fromisoformat(
+        body["last_successful_run_by_job"]["portfolio.position_history"]
+    ) == BASE_TIME
+    assert job_service.get_run(pending.run_id).status == "queued"
 
 
 def test_routes_require_authentication(app: FastAPI, job_service: JobService):

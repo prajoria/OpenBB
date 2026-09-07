@@ -1,5 +1,7 @@
 """SQLite-backed durable job store."""
 
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import json
@@ -122,8 +124,7 @@ class SqliteJobStore:
 
     def initialize(self) -> None:
         """Create the durable schema if it does not already exist."""
-        self._connection.executescript(
-            """
+        self._connection.executescript("""
             CREATE TABLE IF NOT EXISTS job_schedule (
                 job_name TEXT PRIMARY KEY,
                 handler_version INTEGER NOT NULL,
@@ -182,8 +183,7 @@ class SqliteJobStore:
                 ON job_schedule (enabled, next_run_at);
             CREATE INDEX IF NOT EXISTS idx_job_worker_heartbeat
                 ON job_worker (heartbeat_at);
-            """
-        )
+            """)
 
     def close(self) -> None:
         """Close the SQLite connection."""
@@ -226,7 +226,9 @@ class SqliteJobStore:
                     _deserialize_datetime(existing["next_run_at"]) if existing else None
                 )
                 existing_schedule = (
-                    _deserialize_schedule(existing["schedule_kind"], existing["schedule_json"])
+                    _deserialize_schedule(
+                        existing["schedule_kind"], existing["schedule_json"]
+                    )
                     if existing
                     else None
                 )
@@ -467,8 +469,12 @@ class SqliteJobStore:
                     completed.status,
                     _serialize_datetime(completed.updated_at),
                     _serialize_datetime(completed.finished_at),
-                    _serialize_json(completed.result.summary if completed.result else None),
-                    _serialize_json(completed.result.warnings if completed.result else []),
+                    _serialize_json(
+                        completed.result.summary if completed.result else None
+                    ),
+                    _serialize_json(
+                        completed.result.warnings if completed.result else []
+                    ),
                     _serialize_datetime(finished),
                     run_id,
                 ),
@@ -609,8 +615,7 @@ class SqliteJobStore:
 
                 failed = current.fail(
                     error=AbandonedRunRecoveryError(
-                        "Worker lease expired; abandoned-run recovery would exceed "
-                        f"max_attempts={current.max_attempts}"
+                        f"Worker lease expired; abandoned-run recovery would exceed max_attempts={current.max_attempts}"
                     ),
                     finished_at=now_utc,
                 )
@@ -667,7 +672,9 @@ class SqliteJobStore:
             next_run_at = schedule_record.next_run_at
             last_scheduled_at = schedule_record.last_scheduled_at
             while next_run_at is not None and next_run_at <= now:
-                dedupe_key = f"schedule:{schedule_record.job_name}:{next_run_at.isoformat()}"
+                dedupe_key = (
+                    f"schedule:{schedule_record.job_name}:{next_run_at.isoformat()}"
+                )
                 params = schedule_record.default_params
 
                 if validate_params is not None:
@@ -819,6 +826,29 @@ class SqliteJobStore:
             """,
             (_serialize_datetime(now_utc),),
         )
+        latest_heartbeat_row = self._connection.execute(
+            "SELECT MAX(heartbeat_at) FROM job_worker"
+        ).fetchone()
+        latest_heartbeat = _deserialize_datetime(latest_heartbeat_row[0])
+        worker_heartbeat_age_seconds = (
+            None
+            if latest_heartbeat is None
+            else max(0.0, (now_utc - latest_heartbeat).total_seconds())
+        )
+        last_successful_run_by_job = {
+            row["job_name"]: _deserialize_datetime(row["last_successful_run_at"])
+            for row in self._connection.execute("""
+                SELECT
+                    schedule.job_name,
+                    MAX(run.finished_at) AS last_successful_run_at
+                FROM job_schedule AS schedule
+                LEFT JOIN job_run AS run
+                  ON run.job_name = schedule.job_name
+                 AND run.status IN ('succeeded', 'succeeded_with_warnings')
+                GROUP BY schedule.job_name
+                ORDER BY schedule.job_name
+                """).fetchall()
+        }
 
         return JobStoreHealth(
             definition_count=definition_count,
@@ -832,6 +862,9 @@ class SqliteJobStore:
             active_workers=active_workers,
             stale_runs=stale_runs,
             due_runs=due_runs,
+            queue_depth=queued_runs,
+            worker_heartbeat_age_seconds=worker_heartbeat_age_seconds,
+            last_successful_run_by_job=last_successful_run_by_job,
         )
 
     def _apply_pragmas(self) -> None:
@@ -850,8 +883,7 @@ class SqliteJobStore:
         except Exception:
             self._connection.execute("ROLLBACK")
             raise
-        else:
-            self._connection.execute("COMMIT")
+        self._connection.execute("COMMIT")
 
     def _row_to_schedule(self, row: sqlite3.Row) -> JobScheduleRecord:
         """Convert a SQLite row into a schedule record."""

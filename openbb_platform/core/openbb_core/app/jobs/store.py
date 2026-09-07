@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterable
 from datetime import datetime, timedelta
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeAlias
 
 from openbb_core.app.jobs.models import JobDefinition, JobResult, JobRun
 from openbb_core.app.jobs.schedules import DailySchedule, IntervalSchedule, ensure_utc
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-JobSchedule = DailySchedule | IntervalSchedule | None
+JobSchedule: TypeAlias = DailySchedule | IntervalSchedule | None
 
 
 def _validate_json_dict(value: dict[str, Any], field_name: str) -> dict[str, Any]:
@@ -70,6 +70,9 @@ class JobStoreHealth(BaseModel):
     active_workers: int = 0
     stale_runs: int = 0
     due_runs: int = 0
+    queue_depth: int = 0
+    worker_heartbeat_age_seconds: float | None = None
+    last_successful_run_by_job: dict[str, datetime | None] = Field(default_factory=dict)
 
 
 class JobStore(Protocol):

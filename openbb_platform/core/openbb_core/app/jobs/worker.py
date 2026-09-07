@@ -91,12 +91,22 @@ class JobWorker:
             min(MAX_HEARTBEAT_SECONDS, lease_seconds / HEARTBEAT_LEASE_FRACTION),
         )
 
-    def run_once(self, now: datetime | None = None) -> JobOutcome | None:
+    def run_once(
+        self,
+        now: datetime | None = None,
+        stop_event: threading.Event | None = None,
+    ) -> JobOutcome | None:
         """Run one scheduling-and-execution cycle; claim and run at most one job."""
+        if stop_event is not None and stop_event.is_set():
+            return None
+
         self._service.reconcile_definitions(now)
         self._service.heartbeat(self._worker_id, now, hostname=self._hostname)
         self._service.recover_abandoned_runs(now)
         self._service.enqueue_due(now)
+
+        if stop_event is not None and stop_event.is_set():
+            return None
 
         run = self._service.claim_next(self._worker_id, now=now)
         if run is None:
@@ -116,7 +126,7 @@ class JobWorker:
         """
         event = stop_event or threading.Event()
         while not event.is_set():
-            outcome = self.run_once()
+            outcome = self.run_once(stop_event=event)
             if outcome is None:
                 event.wait(poll_seconds)
 
@@ -192,9 +202,7 @@ class JobWorker:
                 # A heartbeat failure must never crash or interrupt the
                 # in-flight handler; the next tick or claim-time heartbeat
                 # will retry.
-                logger.exception(
-                    "Heartbeat failed for worker %s", self._worker_id
-                )
+                logger.exception("Heartbeat failed for worker %s", self._worker_id)
 
 
 def _build_registry() -> JobRegistry:
@@ -227,7 +235,7 @@ def _wait_for_terminal_run(
         time.sleep(poll_seconds)
 
 
-def cmd_list(args: argparse.Namespace) -> int:
+def cmd_list(_args: argparse.Namespace) -> int:
     """Print registered job definitions and their schedule state."""
     service = _build_service()
     for definition in service.list_definitions():
@@ -266,7 +274,7 @@ def cmd_worker(args: argparse.Namespace) -> int:
 
     stop_event = threading.Event()
 
-    def _handle_signal(signum: int, frame: Any) -> None:  # noqa: ARG001
+    def _handle_signal(_signum: int, _frame: Any) -> None:
         """Request a clean shutdown on interrupt/terminate signals."""
         stop_event.set()
 

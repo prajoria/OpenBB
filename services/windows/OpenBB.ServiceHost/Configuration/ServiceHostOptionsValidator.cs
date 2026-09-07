@@ -22,6 +22,21 @@ public sealed class ServiceHostOptionsValidator : IValidateOptions<ServiceHostOp
             return ValidateOptionsResult.Fail(failures);
         }
 
+        ValidateAbsolutePath(options.LogDirectory, nameof(options.LogDirectory), failures);
+        if (!string.IsNullOrWhiteSpace(options.EnvironmentFile))
+        {
+            ValidateAbsolutePath(
+                options.EnvironmentFile,
+                nameof(options.EnvironmentFile),
+                failures);
+            if (Path.IsPathFullyQualified(options.EnvironmentFile) &&
+                !File.Exists(options.EnvironmentFile))
+            {
+                failures.Add(
+                    $"{nameof(options.EnvironmentFile)} does not exist: {options.EnvironmentFile}");
+            }
+        }
+
         ValidateUniqueValues(options.Components, failures);
         for (var index = 0; index < options.Components.Count; index++)
         {
@@ -91,6 +106,15 @@ public sealed class ServiceHostOptionsValidator : IValidateOptions<ServiceHostOp
              !IPAddress.IsLoopback(address)))
         {
             failures.Add($"{prefix}.BindAddress must be a loopback IP address.");
+        }
+
+        if (component.Arguments.Any(
+                argument => string.Equals(
+                    argument,
+                    "--reload",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            failures.Add($"{prefix}.Arguments cannot contain --reload.");
         }
 
         ValidatePositive(component.ReadinessTimeout, $"{prefix}.ReadinessTimeout", failures);

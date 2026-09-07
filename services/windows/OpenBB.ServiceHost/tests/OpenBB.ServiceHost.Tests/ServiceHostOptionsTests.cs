@@ -29,6 +29,19 @@ public sealed class ServiceHostOptionsTests
         AssertFailure(result, "schemaVersion");
     }
 
+    [Fact]
+    public void Rejects_missing_environment_file()
+    {
+        var options = ValidOptions();
+        options.EnvironmentFile = Path.Combine(
+            Path.GetTempPath(),
+            $"{Guid.NewGuid():N}.env");
+
+        var result = Validate(options);
+
+        AssertFailure(result, "EnvironmentFile");
+    }
+
     [Theory]
     [InlineData("ExecutablePath")]
     [InlineData("WorkingDirectory")]
@@ -157,6 +170,143 @@ public sealed class ServiceHostOptionsTests
     }
 
     [Fact]
+    public async Task Strict_binding_accepts_documented_camel_case_json_configuration()
+    {
+        using var directory = new TestDirectory();
+        var environmentFile = Path.Combine(directory.Path, "secrets.env");
+        var logDirectory = Path.Combine(directory.Path, "logs");
+        var configPath = Path.Combine(directory.Path, "service.json");
+        var executablePath = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, "tools", "python.exe");
+        var workingDirectory = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, "OpenBB", "app");
+        await File.WriteAllTextAsync(environmentFile, "OPENBB_PROFILE=standard");
+        await File.WriteAllTextAsync(
+            configPath,
+            $$"""
+            {
+              "serviceHost": {
+                "schemaVersion": 1,
+                "environmentFile": "{{EscapeJson(environmentFile)}}",
+                "logDirectory": "{{EscapeJson(logDirectory)}}",
+                "components": [
+                  {
+                    "name": "jobs-worker",
+                    "executablePath": "{{EscapeJson(executablePath)}}",
+                    "arguments": ["-m", "openbb"],
+                    "workingDirectory": "{{EscapeJson(workingDirectory)}}",
+                    "startupOrder": 10,
+                    "required": true,
+                    "readinessTimeout": "00:00:05",
+                    "gracefulShutdownTimeout": "00:00:05",
+                    "restartWindow": "00:05:00",
+                    "maxRestarts": 3,
+                    "restartDelays": ["00:00:02", "00:00:10", "00:00:30"],
+                    "environment": {
+                      "OPENBB_PROFILE": "standard"
+                    }
+                  },
+                  {
+                    "name": "portfolio-api",
+                    "executablePath": "{{EscapeJson(executablePath)}}",
+                    "arguments": ["-m", "openbb"],
+                    "workingDirectory": "{{EscapeJson(workingDirectory)}}",
+                    "bindAddress": "127.0.0.1",
+                    "port": 6902,
+                    "startupOrder": 20,
+                    "required": true,
+                    "readinessTimeout": "00:00:05",
+                    "gracefulShutdownTimeout": "00:00:05",
+                    "restartWindow": "00:05:00",
+                    "maxRestarts": 3,
+                    "restartDelays": ["00:00:02", "00:00:10", "00:00:30"],
+                    "environment": {
+                      "OPENBB_MODE": "api"
+                    }
+                  }
+                ]
+              }
+            }
+            """);
+
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(configPath, optional: false, reloadOnChange: false)
+            .Build();
+        var services = new ServiceCollection();
+        services.AddServiceHostOptions(configuration.GetSection(ServiceHostOptions.SectionName));
+
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider.GetRequiredService<IOptions<ServiceHostOptions>>().Value;
+        Assert.Equal(ServiceHostOptions.CurrentSchemaVersion, options.SchemaVersion);
+        Assert.Equal(environmentFile, options.EnvironmentFile);
+        Assert.Equal(logDirectory, options.LogDirectory);
+        Assert.Collection(
+            options.Components,
+            jobsWorker =>
+            {
+                Assert.Equal("jobs-worker", jobsWorker.Name);
+                Assert.Equal(10, jobsWorker.StartupOrder);
+                Assert.Equal("standard", jobsWorker.Environment["OPENBB_PROFILE"]);
+            },
+            portfolioApi =>
+            {
+                Assert.Equal("portfolio-api", portfolioApi.Name);
+                Assert.Equal("127.0.0.1", portfolioApi.BindAddress);
+                Assert.Equal(6902, portfolioApi.Port);
+                Assert.Equal("api", portfolioApi.Environment["OPENBB_MODE"]);
+            });
+        AssertConfigurationKeyName<ServiceHostOptions>(
+            nameof(ServiceHostOptions.SchemaVersion),
+            "schemaVersion");
+        AssertConfigurationKeyName<ServiceHostOptions>(
+            nameof(ServiceHostOptions.EnvironmentFile),
+            "environmentFile");
+        AssertConfigurationKeyName<ServiceHostOptions>(
+            nameof(ServiceHostOptions.LogDirectory),
+            "logDirectory");
+        AssertConfigurationKeyName<ServiceHostOptions>(
+            nameof(ServiceHostOptions.Components),
+            "components");
+        AssertConfigurationKeyName<ComponentOptions>(nameof(ComponentOptions.Name), "name");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.ExecutablePath),
+            "executablePath");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.Arguments),
+            "arguments");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.WorkingDirectory),
+            "workingDirectory");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.BindAddress),
+            "bindAddress");
+        AssertConfigurationKeyName<ComponentOptions>(nameof(ComponentOptions.Port), "port");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.StartupOrder),
+            "startupOrder");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.Required),
+            "required");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.ReadinessTimeout),
+            "readinessTimeout");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.GracefulShutdownTimeout),
+            "gracefulShutdownTimeout");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.RestartWindow),
+            "restartWindow");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.MaxRestarts),
+            "maxRestarts");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.RestartDelays),
+            "restartDelays");
+        AssertConfigurationKeyName<ComponentOptions>(
+            nameof(ComponentOptions.Environment),
+            "environment");
+    }
+
+    [Fact]
     public async Task Validate_config_does_not_launch_components()
     {
         using var directory = new TestDirectory();
@@ -242,6 +392,21 @@ public sealed class ServiceHostOptionsTests
                 TimeSpan.FromSeconds(30)
             ]
         };
+
+    private static string EscapeJson(string value) => value.Replace("\\", "\\\\", StringComparison.Ordinal);
+
+    private static void AssertConfigurationKeyName<TOptions>(
+        string propertyName,
+        string expectedKeyName)
+    {
+        var property = typeof(TOptions).GetProperty(propertyName);
+        Assert.NotNull(property);
+        var attribute = property!.GetCustomAttributes(typeof(ConfigurationKeyNameAttribute), inherit: false)
+            .Cast<ConfigurationKeyNameAttribute>()
+            .SingleOrDefault();
+        Assert.NotNull(attribute);
+        Assert.Equal(expectedKeyName, attribute!.Name);
+    }
 
     private sealed class TestDirectory : IDisposable
     {
