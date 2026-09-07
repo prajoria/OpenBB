@@ -109,30 +109,68 @@ public sealed partial class ComponentLogWriter : IDisposable
         var candidate = message;
         while (true)
         {
-            var line = JsonSerializer.Serialize(
-                new
-                {
-                    timestamp,
-                    level = level.ToString(),
-                    component,
-                    processId,
-                    @event = eventName,
-                    restartCount,
-                    correlationId,
-                    message = candidate
-                },
-                JsonOptions);
+            var line = SerializeRecord(
+                timestamp,
+                level,
+                component,
+                eventName,
+                candidate,
+                processId,
+                restartCount,
+                correlationId);
             var byteCount = Utf8NoBom.GetByteCount(line);
             if (byteCount <= _maxLineLength)
             {
                 return line;
             }
 
+            if (candidate.Length == 0)
+            {
+                return SerializeFallbackRecord(timestamp, level);
+            }
+
             var overflow = byteCount - _maxLineLength;
             var keep = Math.Max(0, candidate.Length - overflow - 1);
-            candidate = candidate[..keep] + "…";
+            candidate = keep > 0
+                ? candidate[..keep] + "…"
+                : string.Empty;
         }
     }
+
+    private static string SerializeRecord(
+        DateTimeOffset timestamp,
+        LogLevel level,
+        string component,
+        string eventName,
+        string message,
+        int? processId,
+        int? restartCount,
+        string? correlationId) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                timestamp,
+                level = level.ToString(),
+                component,
+                processId,
+                @event = eventName,
+                restartCount,
+                correlationId,
+                message
+            },
+            JsonOptions);
+
+    private static string SerializeFallbackRecord(
+        DateTimeOffset timestamp,
+        LogLevel level) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                timestamp,
+                level = level.ToString(),
+                truncated = true
+            },
+            JsonOptions);
 
     private void ApplyRetention(string component, DateTimeOffset now)
     {
