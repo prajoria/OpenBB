@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using OpenBB.ServiceHost.Configuration;
 using OpenBB.ServiceHost.Health;
 
 namespace OpenBB.ServiceHost.Tests;
@@ -157,6 +158,40 @@ public sealed class HealthProbeTests
                 .GetProperty("jobs-worker")
                 .GetProperty("workerHeartbeatAgeSeconds")
                 .GetDouble());
+    }
+
+    [Fact]
+    public async Task Component_probes_support_ipv6_loopback_addresses()
+    {
+        Uri? requestedUri = null;
+        var handler = new StubHttpHandler(request =>
+        {
+            requestedUri = request.RequestUri;
+            return JsonResponse(HttpStatusCode.OK, """{"status":"ok"}""");
+        });
+        var options = new ServiceHostOptions
+        {
+            Components =
+            [
+                new ComponentOptions
+                {
+                    Name = "portfolio-api",
+                    BindAddress = "::1",
+                    Port = 6902
+                }
+            ]
+        };
+        var probe = Assert.Single(
+            ComponentProbeFactory.Create(options, new HttpClient(handler)));
+
+        var result = await probe.CheckAsync(startup: false, CancellationToken.None);
+
+        Assert.True(result.IsHealthy);
+        Assert.NotNull(requestedUri);
+        Assert.StartsWith(
+            "http://[::1]:6902/",
+            requestedUri.AbsoluteUri,
+            StringComparison.Ordinal);
     }
 
     private static HttpComponentProbe HttpProbe(

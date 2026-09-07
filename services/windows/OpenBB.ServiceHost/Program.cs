@@ -38,7 +38,9 @@ public static class ServiceHostApplication
                 .GetRequiredService<IOptions<ServiceHostOptions>>()
                 .Value;
             var configuredValues = options.Components
-                .SelectMany(component => component.Environment.Values)
+                .SelectMany(component => component.Environment)
+                .Where(variable => SecretRedactor.IsSecretVariableName(variable.Key))
+                .Select(variable => variable.Value)
                 .ToList();
             if (!string.IsNullOrWhiteSpace(options.EnvironmentFile) &&
                 File.Exists(options.EnvironmentFile))

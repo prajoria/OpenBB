@@ -5,6 +5,8 @@ namespace OpenBB.ServiceHost.Logging;
 public sealed partial class SecretRedactor
 {
     public const string Redacted = "[REDACTED]";
+    private static readonly string[] SecretVariableMarkers =
+        ["KEY", "TOKEN", "SECRET", "PASSWORD"];
 
     private readonly string[] _secretValues;
 
@@ -37,6 +39,13 @@ public sealed partial class SecretRedactor
 
     public static SecretRedactor FromEnvironmentFile(string path)
         => new(LoadEnvironmentFile(path).Values);
+
+    public static bool IsSecretVariableName(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return SecretVariableMarkers.Any(
+            marker => name.Contains(marker, StringComparison.OrdinalIgnoreCase));
+    }
 
     public static IReadOnlyDictionary<string, string> LoadEnvironmentFile(string path)
     {

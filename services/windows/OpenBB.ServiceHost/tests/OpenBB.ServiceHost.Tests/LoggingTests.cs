@@ -7,6 +7,19 @@ namespace OpenBB.ServiceHost.Tests;
 
 public sealed class LoggingTests
 {
+    [Theory]
+    [InlineData("FMP_API_KEY", true)]
+    [InlineData("PI_WIDGET_BACKEND_TOKEN", true)]
+    [InlineData("CLIENT_SECRET", true)]
+    [InlineData("DATABASE_PASSWORD", true)]
+    [InlineData("OPENBB_INSTALLED_SERVICE", false)]
+    public void Identifies_secret_environment_variable_names(
+        string name,
+        bool expected)
+    {
+        Assert.Equal(expected, SecretRedactor.IsSecretVariableName(name));
+    }
+
     [Fact]
     public void Redacts_environment_values_bearer_tokens_queries_and_exceptions()
     {

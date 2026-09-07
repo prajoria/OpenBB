@@ -28,7 +28,7 @@ from openbb_core.app.jobs.models import (
     JobResult,
 )
 from openbb_core.app.jobs.schedules import DailySchedule
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from openbb_techtrade.engine.scan_runner import run_scan
 from openbb_techtrade.snapshots.sqlite import SqliteScanSnapshotStore
@@ -74,6 +74,8 @@ def _bounded_warnings(messages: list[str]) -> list[str]:
 class DailyScanParams(BaseModel):
     """Parameters for ``techtrade.daily_scan``."""
 
+    model_config = ConfigDict(extra="forbid")
+
     segments: list[str] | None = Field(
         default=None,
         description="Segments to persist; defaults to every GICS sector.",
@@ -91,6 +93,8 @@ class DailyScanParams(BaseModel):
 
 class PruneSnapshotsParams(BaseModel):
     """Parameters for ``techtrade.prune_snapshots``."""
+
+    model_config = ConfigDict(extra="forbid")
 
     keep: int = Field(
         default=DEFAULT_RETENTION,

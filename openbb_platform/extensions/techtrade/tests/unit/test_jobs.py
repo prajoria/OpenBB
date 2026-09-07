@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import openbb_techtrade.jobs as jobs_module
+import pytest
 from openbb_core.app.jobs.models import JobContext, JobDefinition, JobResult
 from openbb_core.app.jobs.registry import JobRegistry
 from openbb_core.app.jobs.schedules import DailySchedule
@@ -78,6 +79,19 @@ def test_default_params_validate_against_models():
     PruneSnapshotsParams.model_validate(
         definitions["techtrade.prune_snapshots"].default_params
     )
+
+
+@pytest.mark.parametrize(
+    ("model", "params"),
+    [
+        (DailyScanParams, {"top_n": 3, "typo": True}),
+        (PruneSnapshotsParams, {"kepp": 10}),
+    ],
+)
+def test_job_params_reject_unknown_fields(model, params):
+    """Operator parameter typos fail instead of silently using defaults."""
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        model.model_validate(params)
 
 
 def test_daily_scan_handler_returns_job_result(monkeypatch, tmp_path):

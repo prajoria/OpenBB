@@ -134,13 +134,16 @@ public sealed class ChildProcess(
 
         if (process.CloseMainWindow())
         {
-            using var gracefulTimeout = new CancellationTokenSource(
-                Definition.GracefulShutdownTimeout);
+            using var gracefulTimeout =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            gracefulTimeout.CancelAfter(Definition.GracefulShutdownTimeout);
             try
             {
                 await process.WaitForExitAsync(gracefulTimeout.Token).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (gracefulTimeout.IsCancellationRequested)
+            catch (OperationCanceledException) when (
+                gracefulTimeout.IsCancellationRequested &&
+                !cancellationToken.IsCancellationRequested)
             {
                 // Escalate below.
             }

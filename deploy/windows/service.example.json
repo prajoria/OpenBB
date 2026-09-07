@@ -16,7 +16,10 @@
         "restartWindow": "00:05:00",
         "maxRestarts": 3,
         "restartDelays": ["00:00:02", "00:00:10", "00:00:30"],
-        "environment": {"OPENBB_INSTALLED_SERVICE": "true"}
+        "environment": {
+          "OPENBB_INSTALLED_SERVICE": "true",
+          "OPENBB_JOBS_ENABLED": "true"
+        }
       },
       {
         "name": "portfolio-api",

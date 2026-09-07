@@ -124,6 +124,6 @@ public static class ComponentProbeFactory
         var host = string.IsNullOrWhiteSpace(options.BindAddress)
             ? "127.0.0.1"
             : options.BindAddress;
-        return new Uri($"http://{host}:{port}/");
+        return new UriBuilder(Uri.UriSchemeHttp, host, port).Uri;
     }
 }
