@@ -8,13 +8,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel
-
 from openbb_core.app.jobs.models import JobContext, JobDefinition, JobResult
 from openbb_core.app.jobs.registry import JobRegistry
 from openbb_core.app.jobs.sqlite_store import SqliteJobStore
 from openbb_core.app.jobs.worker import JobWorker
 from openbb_core.app.service.job_service import JobService, RetryableJobError
+from pydantic import BaseModel
 
 UTC = timezone.utc
 BASE_TIME = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
@@ -50,7 +49,7 @@ def fast_handler(context: JobContext, params: FastParams) -> JobResult:
 
 
 def failing_retryable_handler(context: JobContext, params: FastParams) -> JobResult:
-    """Always raise a retryable error."""
+    """Raise a retryable error."""
     raise RetryableJobError("upstream timeout")
 
 

@@ -4,6 +4,8 @@ public sealed class JobsHeartbeatProbe : IComponentProbe
 {
     private readonly HttpComponentProbe _httpProbe;
     private readonly TimeSpan _maximumHeartbeatAge;
+    private readonly int _startupAttempts;
+    private readonly TimeSpan _startupRetryDelay;
 
     public JobsHeartbeatProbe(
         string component,
@@ -16,13 +18,15 @@ public sealed class JobsHeartbeatProbe : IComponentProbe
     {
         Component = component;
         _maximumHeartbeatAge = maximumHeartbeatAge;
+        _startupAttempts = Math.Max(1, startupAttempts);
+        _startupRetryDelay = startupRetryDelay ?? TimeSpan.FromSeconds(1);
         _httpProbe = new HttpComponentProbe(
             component,
             httpClient,
             [endpoint],
             timeout,
-            startupAttempts,
-            startupRetryDelay,
+            startupAttempts: 1,
+            startupRetryDelay: TimeSpan.Zero,
             requireJson: true);
     }
 
@@ -32,8 +36,29 @@ public sealed class JobsHeartbeatProbe : IComponentProbe
         bool startup,
         CancellationToken cancellationToken)
     {
+        var attempts = startup ? _startupAttempts : 1;
+        ProbeResult? response = null;
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            response = await CheckOnceAsync(cancellationToken).ConfigureAwait(false);
+            if (response.IsHealthy || attempt == attempts)
+            {
+                return response;
+            }
+
+            if (_startupRetryDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(_startupRetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return response!;
+    }
+
+    private async Task<ProbeResult> CheckOnceAsync(CancellationToken cancellationToken)
+    {
         var response = await _httpProbe
-            .CheckAsync(startup, cancellationToken)
+            .CheckAsync(startup: false, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsHealthy || response.Payload is not { } payload)
         {

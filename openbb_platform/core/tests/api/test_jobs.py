@@ -13,8 +13,6 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
-
 from openbb_core.api.auth.user import authenticate_user
 from openbb_core.api.dependency.jobs import get_job_service
 from openbb_core.api.router.jobs import router as router_jobs
@@ -22,6 +20,7 @@ from openbb_core.app.jobs.models import JobContext, JobDefinition, JobResult
 from openbb_core.app.jobs.registry import JobRegistry
 from openbb_core.app.jobs.sqlite_store import SqliteJobStore
 from openbb_core.app.service.job_service import JobService
+from pydantic import BaseModel
 
 UTC = timezone.utc
 BASE_TIME = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)

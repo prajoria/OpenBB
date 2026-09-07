@@ -106,6 +106,31 @@ public sealed class HealthProbeTests
     }
 
     [Fact]
+    public async Task Jobs_probe_retries_stale_heartbeat_only_during_startup()
+    {
+        var handler = new StubHttpHandler(request =>
+            JsonResponse(
+                HttpStatusCode.OK,
+                $"{{\"worker_heartbeat_age_seconds\":" +
+                $"{(request.GetRequestNumber() < 3 ? 120 : 1)}}}"));
+        var probe = new JobsHeartbeatProbe(
+            "jobs-worker",
+            new HttpClient(handler),
+            new Uri("http://127.0.0.1:6902/jobs/health"),
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromSeconds(1),
+            startupAttempts: 3,
+            startupRetryDelay: TimeSpan.Zero);
+
+        var startup = await probe.CheckAsync(startup: true, CancellationToken.None);
+        var liveness = await probe.CheckAsync(startup: false, CancellationToken.None);
+
+        Assert.True(startup.IsHealthy);
+        Assert.True(liveness.IsHealthy);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    [Fact]
     public async Task Doctor_json_reports_every_probe_and_returns_nonzero_when_unhealthy()
     {
         var output = new StringWriter();
