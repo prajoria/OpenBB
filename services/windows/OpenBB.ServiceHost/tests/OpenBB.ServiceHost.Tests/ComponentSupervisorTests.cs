@@ -138,22 +138,45 @@ public sealed class ComponentSupervisorTests
             events.Where(entry => entry.StartsWith("stop:", StringComparison.Ordinal)));
     }
 
-    [Fact]
-    public async Task Cancelled_service_stop_still_cleans_up_children()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Cancelled_service_stop_still_cleans_up_children(bool preCancelStopToken)
     {
-        var events = new ConcurrentQueue<string>();
+        var factory = new ControllableAsyncChildProcessFactory();
         var supervisor = CreateSupervisor(
             [Component("worker", 10)],
-            new FakeChildProcessFactory(events, ignoreMonitorCancellation: true),
+            factory,
             new ImmediateReadinessProbe(),
             new FakeHostApplicationLifetime());
         await supervisor.StartAsync(CancellationToken.None);
+        var child = Assert.Single(factory.Created("worker"));
+        await child.WaitForExitStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
         using var cancelled = new CancellationTokenSource();
-        cancelled.Cancel();
+        if (preCancelStopToken)
+        {
+            cancelled.Cancel();
+        }
 
-        _ = await Record.ExceptionAsync(() => supervisor.StopAsync(cancelled.Token));
+        var stopTask = supervisor.StopAsync(cancelled.Token);
+        if (!preCancelStopToken)
+        {
+            await Task.Delay(50);
+            Assert.False(stopTask.IsCompleted);
+            cancelled.Cancel();
+        }
 
-        Assert.Contains("stop:worker", events);
+        await child.StopStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(1, child.StopCallCount);
+
+        child.ReleaseStop();
+
+        var exception = await Record.ExceptionAsync(() => stopTask);
+
+        Assert.True(exception is null or OperationCanceledException);
+        Assert.True(child.HasExited);
+        Assert.True(child.DisposeAsyncCalled);
     }
 
     [Fact]
@@ -305,6 +328,38 @@ public sealed class ComponentSupervisorTests
         }
     }
 
+    private sealed class ControllableAsyncChildProcessFactory : IChildProcessFactory
+    {
+        private readonly ConcurrentDictionary<string, List<ControllableAsyncChildProcess>> _children = new();
+
+        public IChildProcess Create(ComponentDefinition definition)
+        {
+            var child = new ControllableAsyncChildProcess(definition);
+            lock (_children)
+            {
+                if (!_children.TryGetValue(definition.Name, out var children))
+                {
+                    children = [];
+                    _children[definition.Name] = children;
+                }
+
+                children.Add(child);
+            }
+
+            return child;
+        }
+
+        public IReadOnlyList<ControllableAsyncChildProcess> Created(string name)
+        {
+            lock (_children)
+            {
+                return _children.TryGetValue(name, out var children)
+                    ? [.. children]
+                    : [];
+            }
+        }
+    }
+
     private sealed class FakeChildProcess(
         ComponentDefinition definition,
         ConcurrentQueue<string>? events,
@@ -341,6 +396,55 @@ public sealed class ComponentSupervisorTests
 
         public ValueTask DisposeAsync()
         {
+            _exit.TrySetResult(0);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class ControllableAsyncChildProcess(ComponentDefinition definition) : IChildProcess
+    {
+        private readonly TaskCompletionSource<int> _exit =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _allowStop =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ComponentDefinition Definition { get; } = definition;
+
+        public int Id { get; } = Random.Shared.Next(10_000, 99_999);
+
+        public bool DisposeAsyncCalled { get; private set; }
+
+        public bool HasExited => _exit.Task.IsCompleted;
+
+        public int StopCallCount { get; private set; }
+
+        public TaskCompletionSource WaitForExitStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource StopStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<int> WaitForExitAsync(CancellationToken cancellationToken)
+        {
+            WaitForExitStarted.TrySetResult();
+            return _exit.Task;
+        }
+
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            StopCallCount++;
+            StopStarted.TrySetResult();
+            await _allowStop.Task.ConfigureAwait(false);
+            _exit.TrySetResult(0);
+        }
+
+        public void ReleaseStop() => _allowStop.TrySetResult();
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeAsyncCalled = true;
             _exit.TrySetResult(0);
             return ValueTask.CompletedTask;
         }

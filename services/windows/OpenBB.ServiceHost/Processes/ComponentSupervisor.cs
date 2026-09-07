@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Options;
 using OpenBB.ServiceHost.Configuration;
 
@@ -60,12 +61,25 @@ public sealed class ComponentSupervisor(
         }
 
         _stopped = true;
+        OperationCanceledException? cancellationException = null;
         if (_baseServiceStarted)
         {
-            await base.StopAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await base.StopAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
+            {
+                cancellationException = exception;
+            }
         }
 
         await StopChildrenAsync().ConfigureAwait(false);
+
+        if (cancellationException is not null)
+        {
+            ExceptionDispatchInfo.Capture(cancellationException).Throw();
+        }
     }
 
     private async Task MonitorAsync(
