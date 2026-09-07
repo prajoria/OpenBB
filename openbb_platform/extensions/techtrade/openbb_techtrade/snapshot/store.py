@@ -1964,10 +1964,17 @@ class SqliteSnapshotStore:
         another component that stamps its own version.
         """
         columns = self._table_columns()
+        version = int(self._conn.execute("PRAGMA user_version").fetchone()[0])
         if columns is not None:
             _check_schema_shape(columns, backend="sqlite")
-            version = self._conn.execute("PRAGMA user_version").fetchone()[0]
-            _check_schema_version(int(version), backend="sqlite")
+            _check_schema_version(version, backend="sqlite")
+        elif version != 0:
+            raise SnapshotSchemaMismatch(
+                "sqlite: database has no "
+                f"{_SNAPSHOT_TABLE!r} table but is stamped schema version "
+                f"{version}. PI_SNAPSHOT_DB must point to a dedicated database; "
+                "refusing to overwrite another component's version."
+            )
         self._conn.executescript(_SQLITE_SCHEMA)
         _check_sqlite_live_guard(self._table_indexes())
         self._conn.execute(f"PRAGMA user_version = {SNAPSHOT_SCHEMA_VERSION}")

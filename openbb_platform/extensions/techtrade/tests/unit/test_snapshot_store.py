@@ -2161,6 +2161,45 @@ def test_sqlite_stamps_and_accepts_its_own_schema_version(tmp_path) -> None:
     reopened.close()
 
 
+@pytest.mark.parametrize(
+    "foreign_version",
+    [
+        store_module.SNAPSHOT_SCHEMA_VERSION,
+        store_module.SNAPSHOT_SCHEMA_VERSION + 7,
+    ],
+)
+def test_sqlite_refuses_stamped_database_without_snapshot_table(
+    tmp_path, foreign_version
+) -> None:
+    """A stamped database owned by another component is never adopted."""
+    db_path = tmp_path / "shared.db"
+    seeded = sqlite3.connect(str(db_path))
+    seeded.execute("CREATE TABLE foreign_component (id INTEGER PRIMARY KEY)")
+    seeded.execute(f"PRAGMA user_version = {foreign_version}")
+    seeded.close()
+
+    with pytest.raises(
+        store_module.SnapshotSchemaMismatch,
+        match="dedicated database",
+    ):
+        SqliteSnapshotStore(db_path)
+
+    inspected = sqlite3.connect(str(db_path))
+    try:
+        tables = {
+            row[0]
+            for row in inspected.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        stamped = inspected.execute("PRAGMA user_version").fetchone()[0]
+    finally:
+        inspected.close()
+
+    assert "pi_eod_snapshot" not in tables
+    assert stamped == foreign_version
+
+
 def test_sqlite_refuses_a_table_stamped_by_another_schema_version(tmp_path) -> None:
     """A forward-version file is refused rather than silently downgraded.
 
