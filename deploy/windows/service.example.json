@@ -1,0 +1,58 @@
+{
+  "serviceHost": {
+    "schemaVersion": 1,
+    "environmentFile": "C:\\ProgramData\\OpenBB Portfolio\\secrets.env",
+    "logDirectory": "C:\\ProgramData\\OpenBB Portfolio\\logs",
+    "components": [
+      {
+        "name": "jobs-worker",
+        "executablePath": "C:\\Program Files\\OpenBB Portfolio\\current\\python\\Scripts\\python.exe",
+        "arguments": ["-m", "openbb_core.app.jobs.worker", "worker", "--poll-seconds", "5"],
+        "workingDirectory": "C:\\Program Files\\OpenBB Portfolio\\current\\app",
+        "startupOrder": 10,
+        "required": true,
+        "readinessTimeout": "00:01:00",
+        "gracefulShutdownTimeout": "00:10:00",
+        "restartWindow": "00:05:00",
+        "maxRestarts": 3,
+        "restartDelays": ["00:00:02", "00:00:10", "00:00:30"],
+        "environment": {
+          "OPENBB_INSTALLED_SERVICE": "true",
+          "OPENBB_JOBS_ENABLED": "true"
+        }
+      },
+      {
+        "name": "portfolio-api",
+        "executablePath": "C:\\Program Files\\OpenBB Portfolio\\current\\python\\Scripts\\python.exe",
+        "arguments": ["-m", "openbb_platform_api.main", "--app", "openbb_platform/extensions/portfolio/launch.py", "--host", "127.0.0.1", "--port", "6902"],
+        "workingDirectory": "C:\\Program Files\\OpenBB Portfolio\\current\\app",
+        "bindAddress": "127.0.0.1",
+        "port": 6902,
+        "startupOrder": 20,
+        "required": true,
+        "readinessTimeout": "00:01:00",
+        "gracefulShutdownTimeout": "00:00:30",
+        "restartWindow": "00:05:00",
+        "maxRestarts": 3,
+        "restartDelays": ["00:00:02", "00:00:10", "00:00:30"],
+        "environment": {"OPENBB_INSTALLED_SERVICE": "true"}
+      },
+      {
+        "name": "portfolio-intel-ux",
+        "executablePath": "C:\\Program Files\\OpenBB Portfolio\\current\\python\\Scripts\\python.exe",
+        "arguments": ["-m", "uvicorn", "openbb_portfolio_intel.widget_backend.main:app", "--host", "127.0.0.1", "--port", "6120"],
+        "workingDirectory": "C:\\Program Files\\OpenBB Portfolio\\current\\app",
+        "bindAddress": "127.0.0.1",
+        "port": 6120,
+        "startupOrder": 30,
+        "required": true,
+        "readinessTimeout": "00:01:00",
+        "gracefulShutdownTimeout": "00:00:30",
+        "restartWindow": "00:05:00",
+        "maxRestarts": 3,
+        "restartDelays": ["00:00:02", "00:00:10", "00:00:30"],
+        "environment": {"OPENBB_INSTALLED_SERVICE": "true"}
+      }
+    ]
+  }
+}

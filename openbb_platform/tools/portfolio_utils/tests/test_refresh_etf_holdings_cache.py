@@ -274,7 +274,13 @@ def test_refresh_universe_aggregates_stats_correctly():
             dry_run=False,
             api_key=None,
         )
-    assert stats == {"requested": 5, "populated": 2, "errored": 2, "empty": 1}
+    assert stats == {
+        "requested": 5,
+        "populated": 2,
+        "errored": 2,
+        "empty": 1,
+        "cancelled": False,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -418,3 +424,233 @@ def test_main_api_key_value_is_stripped(monkeypatch):
     assert rc == 0
     # Stored value is stripped — no leading/trailing whitespace pollution.
     assert os.environ.get("FMP_API_KEY") == "TOKEN_WITH_WHITESPACE"
+
+
+# ---------------------------------------------------------------------------
+# refresh_universe: cancellation between ETFs (issue #1934)
+# ---------------------------------------------------------------------------
+
+
+def test_refresh_universe_stops_between_etfs_when_cancelled():
+    """should_cancel is polled before each ETF; remaining ETFs are left unprocessed."""
+    calls: list[str] = []
+
+    def _fake_refresh_one_etf(etf, **_kw):
+        calls.append(etf)
+        return (etf, 5, "issuer_ssga", 10.0, None)
+
+    # Cancel after the first ETF has been processed.
+    cancel_after = {"count": 0}
+
+    def _should_cancel():
+        return cancel_after["count"] >= 1
+
+    def _tracking_refresh_one_etf(etf, **kw):
+        result = _fake_refresh_one_etf(etf, **kw)
+        cancel_after["count"] += 1
+        return result
+
+    with patch.object(tool, "refresh_one_etf", side_effect=_tracking_refresh_one_etf):
+        stats = tool.refresh_universe(
+            ["XLK", "XLF", "XLE", "XLY"],
+            dry_run=False,
+            api_key=None,
+            should_cancel=_should_cancel,
+        )
+
+    assert calls == ["XLK"]  # loop stopped before the 2nd ETF
+    assert stats["cancelled"] is True
+    assert stats["populated"] == 1
+    assert stats["requested"] == 4
+
+
+def test_refresh_universe_cancelled_before_first_etf_processes_nothing():
+    """should_cancel() returning True immediately means zero ETFs are refreshed."""
+    with patch.object(tool, "refresh_one_etf") as mock_refresh:
+        stats = tool.refresh_universe(
+            ["XLK", "XLF"],
+            dry_run=False,
+            api_key=None,
+            should_cancel=lambda: True,
+        )
+    mock_refresh.assert_not_called()
+    assert stats == {
+        "requested": 2,
+        "populated": 0,
+        "errored": 0,
+        "empty": 0,
+        "cancelled": True,
+    }
+
+
+def test_refresh_universe_default_should_cancel_never_stops():
+    """Omitting should_cancel behaves exactly as before (no cancellation)."""
+    with patch.object(
+        tool,
+        "refresh_one_etf",
+        side_effect=lambda etf, **_kw: (etf, 3, "issuer_ssga", 5.0, None),
+    ):
+        stats = tool.refresh_universe(["XLK", "XLF"], dry_run=False, api_key=None)
+    assert stats["cancelled"] is False
+    assert stats["populated"] == 2
+
+
+def test_refresh_one_etf_holdings_fn_injection_bypasses_openbb_import():
+    """holdings_fn lets callers avoid the lazy ``from openbb import obb`` import entirely."""
+    fake_row = MagicMock(data_source="fmp_cached")
+    fake_result = MagicMock(results=[fake_row])
+    calls = []
+
+    def _fake_holdings_fn(etf):
+        calls.append(etf)
+        return fake_result
+
+    # No sys.modules["openbb"] patch here -- if the code path fell back to the
+    # real lazy import it would raise/behave differently, proving injection worked.
+    _, row_count, data_source, _, error = tool.refresh_one_etf(
+        "XLK", dry_run=False, api_key=None, holdings_fn=_fake_holdings_fn
+    )
+    assert calls == ["XLK"]
+    assert row_count == 1
+    assert data_source == "fmp_cached"
+    assert error is None
+
+
+def test_refresh_universe_forwards_holdings_fn_to_each_etf():
+    """holdings_fn passed to refresh_universe reaches every refresh_one_etf call."""
+    seen_holdings_fns = []
+
+    def _capture_refresh_one_etf(etf, *, dry_run, api_key, holdings_fn=None):
+        seen_holdings_fns.append(holdings_fn)
+        return (etf, 1, "issuer_ssga", 1.0, None)
+
+    sentinel_fn = lambda etf: None  # noqa: E731
+    with patch.object(tool, "refresh_one_etf", side_effect=_capture_refresh_one_etf):
+        tool.refresh_universe(
+            ["XLK", "XLF"], dry_run=False, api_key=None, holdings_fn=sentinel_fn
+        )
+    assert seen_holdings_fns == [sentinel_fn, sentinel_fn]
+
+
+# ---------------------------------------------------------------------------
+# run_etf_holdings_warm: structured, importable orchestration (issue #1934)
+# ---------------------------------------------------------------------------
+
+
+def test_run_etf_holdings_warm_success_builds_result():
+    """A clean run returns an EtfHoldingsWarmResult with the aggregated counts."""
+    result = tool.run_etf_holdings_warm(
+        universe=["XLK", "XLF", "QQQ"],
+        portfolio_etfs=["QQQ"],
+        extra_etfs=None,
+        skip_portfolio=False,
+        dry_run=False,
+        holdings_fn=lambda etf: MagicMock(results=[MagicMock(data_source="fmp")]),
+    )
+    assert result.requested == 3
+    assert result.populated == 3
+    assert result.errored == 0
+    assert result.cancelled is False
+    assert result.spdr_count == len(tool.SPDR_SECTORS)
+    assert result.portfolio_etfs == ["QQQ"]
+    summary = result.to_summary()
+    assert summary["requested"] == 3
+    assert summary["populated"] == 3
+    # Never persists a credential.
+    assert "api_key" not in summary
+    assert "credential" not in str(summary).lower()
+
+
+def test_run_etf_holdings_warm_partial_failure_is_reflected_in_errored_count():
+    """A partial per-ETF failure is aggregated into errored, not raised."""
+
+    def _holdings_fn(etf):
+        if etf == "QQQ":
+            raise RuntimeError("402 Restricted")
+        return MagicMock(results=[MagicMock(data_source="fmp")])
+
+    result = tool.run_etf_holdings_warm(
+        universe=["XLK", "QQQ"],
+        portfolio_etfs=[],
+        extra_etfs=None,
+        skip_portfolio=True,
+        dry_run=False,
+        holdings_fn=_holdings_fn,
+    )
+    assert result.requested == 2
+    assert result.populated == 1
+    assert result.errored == 1
+    assert result.cancelled is False
+
+
+def test_run_etf_holdings_warm_cancellation_stops_between_etfs():
+    """should_cancel propagates from run_etf_holdings_warm through refresh_universe."""
+    processed = []
+
+    def _holdings_fn(etf):
+        processed.append(etf)
+        return MagicMock(results=[MagicMock(data_source="fmp")])
+
+    calls = {"n": 0}
+
+    def _should_cancel():
+        calls["n"] += 1
+        return calls["n"] > 1  # cancel after the first check passes (before 2nd ETF)
+
+    result = tool.run_etf_holdings_warm(
+        universe=["XLK", "XLF", "XLE"],
+        portfolio_etfs=[],
+        extra_etfs=None,
+        skip_portfolio=True,
+        dry_run=False,
+        holdings_fn=_holdings_fn,
+        should_cancel=_should_cancel,
+    )
+    assert processed == ["XLK"]
+    assert result.cancelled is True
+    assert result.requested == 3
+    assert result.populated == 1
+
+
+def test_run_etf_holdings_warm_resolves_universe_when_not_supplied():
+    """When universe/portfolio_etfs are omitted, injectable resolver functions supply them."""
+    resolved_calls = {}
+
+    def _fake_resolve_universe(*, database, skip_portfolio, extra_etfs):
+        resolved_calls["resolve_universe"] = (database, skip_portfolio, extra_etfs)
+        return ["XLK", "XLF"]
+
+    def _fake_list_portfolio_etfs(database):
+        resolved_calls["list_portfolio_etfs"] = database
+        return ["XLF"]
+
+    result = tool.run_etf_holdings_warm(
+        database="test_db",
+        extra_etfs=["ARKK"],
+        skip_portfolio=False,
+        dry_run=False,
+        list_portfolio_etfs_fn=_fake_list_portfolio_etfs,
+        resolve_universe_fn=_fake_resolve_universe,
+        holdings_fn=lambda etf: MagicMock(results=[MagicMock(data_source="fmp")]),
+    )
+    assert resolved_calls["resolve_universe"] == ("test_db", False, ["ARKK"])
+    assert resolved_calls["list_portfolio_etfs"] == "test_db"
+    assert result.universe == ["XLK", "XLF"]
+    assert result.portfolio_etfs == ["XLF"]
+
+
+def test_run_etf_holdings_warm_dry_run_never_calls_holdings_fn():
+    """dry_run=True must not invoke the injected holdings_fn (no provider calls)."""
+    holdings_fn = MagicMock()
+    result = tool.run_etf_holdings_warm(
+        universe=["XLK", "XLF"],
+        portfolio_etfs=[],
+        extra_etfs=None,
+        skip_portfolio=True,
+        dry_run=True,
+        holdings_fn=holdings_fn,
+    )
+    holdings_fn.assert_not_called()
+    assert result.dry_run is True
+    assert result.requested == 2
+    assert result.populated == 0
