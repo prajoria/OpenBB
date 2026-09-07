@@ -75,6 +75,7 @@ import logging
 import os
 import re
 import sqlite3
+import unicodedata
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
@@ -192,8 +193,11 @@ def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
     that dropped its ``COLLATE utf8mb4_bin`` would keep passing here
     while silently changing key semantics on the real server. So a
     pinned ``utf8mb4_bin`` becomes ``COLLATE BINARY`` and an *unpinned*
-    column becomes ``COLLATE NOCASE`` — the double's stand-in for
-    ``_ci``.
+    column becomes ``COLLATE MYSQL_AI_CI`` — a collation registered on
+    every connection the double opens that folds case **and** accents,
+    exactly like ``utf8mb4_0900_ai_ci`` (PR #2062 review; ``NOCASE``
+    modelled only the case half, so the ``sector=cafe`` /
+    ``sector=café`` collision was unreachable in-process).
     """
     body = ddl.strip()
     body = re.sub(
@@ -248,11 +252,116 @@ def _apply_collations(body: str) -> str:
         head = f"{match.group(0)[: match.end('type') - match.start(0)]}"
         collation = match.group("collation")
         if collation is None:
-            # MySQL's utf8mb4 default collation is case-insensitive.
-            return f"{head} COLLATE NOCASE"
-        return f"{head} COLLATE {'BINARY' if collation.endswith('_bin') else 'NOCASE'}"
+            # MySQL's utf8mb4 default collation is case- AND
+            # accent-insensitive.
+            return f"{head} COLLATE {_MYSQL_AI_CI}"
+        binary = collation.endswith("_bin")
+        return f"{head} COLLATE {'BINARY' if binary else _MYSQL_AI_CI}"
 
     return _TEXTUAL_COLUMN_RE.sub(_rewrite, body)
+
+
+# --- The double's stand-in for `utf8mb4_0900_ai_ci` (PR #2062 review) -----
+#
+# SQLite ships `NOCASE`, which folds ASCII case only. MySQL's charset
+# default folds case *and* accents, and the accent half is the more
+# dangerous one here: `canonical_key` casefolds, so a `_ci`-only model
+# cannot reach the `sector=cafe` / `sector=café` collision on
+# `ux_pi_eod_snapshot_live` that the collation guard exists to prevent.
+# Registering a real collation on every connection the double opens is
+# what makes that scenario reproducible in-process instead of only
+# assertable against a live server.
+_MYSQL_AI_CI = "MYSQL_AI_CI"
+
+# What a server reports for an unpinned utf8mb4 column: `utf8mb4_0900_ai_ci`
+# on MySQL 8, `utf8mb4_general_ci` on 5.7. Either one is case- and
+# accent-insensitive; the 8.x name is used because it is what the servers
+# this store runs against report.
+_MYSQL_DEFAULT_COLLATION = "utf8mb4_0900_ai_ci"
+_MYSQL_BINARY_COLLATION = "utf8mb4_bin"
+
+
+def _ai_ci_key(value: str) -> str:
+    """Fold case and strip accents, the way an ``_ai_ci`` collation compares."""
+    decomposed = unicodedata.normalize("NFD", value)
+    return "".join(
+        char for char in decomposed if not unicodedata.combining(char)
+    ).casefold()
+
+
+def _ai_ci_collation(left: str, right: str) -> int:
+    """Three-way comparison over :func:`_ai_ci_key`, for ``create_collation``."""
+    left_key, right_key = _ai_ci_key(left), _ai_ci_key(right)
+    return (left_key > right_key) - (left_key < right_key)
+
+
+def _connect(path: Path | str, **kwargs: Any) -> sqlite3.Connection:
+    """Open a SQLite connection that speaks the double's collations.
+
+    Every connection the double hands out has to know ``MYSQL_AI_CI``:
+    SQLite resolves a collation name lazily, so a connection without it
+    accepts the ``CREATE TABLE`` and then fails the first comparison with
+    ``no such collation sequence`` — which would surface as a driver
+    fault in the middle of an unrelated test.
+    """
+    conn = sqlite3.connect(str(path), **kwargs)
+    conn.create_collation(_MYSQL_AI_CI, _ai_ci_collation)
+    return conn
+
+
+# Type names SQLite (and the translated MySQL DDL) uses for character
+# data. A column of any other type reports `COLLATION_NAME = NULL` on a
+# real server, and the double reproduces that: a `NULL` collation is not
+# "unset", it means "this is no longer a character column".
+_SQLITE_TEXT_TYPES = frozenset(
+    {"TEXT", "VARCHAR", "CHAR", "CLOB", "LONGTEXT", "NVARCHAR", "NCHAR"}
+)
+
+_SQLITE_TO_MYSQL_COLLATION = {
+    "BINARY": _MYSQL_BINARY_COLLATION,
+    "NOCASE": _MYSQL_DEFAULT_COLLATION,
+    _MYSQL_AI_CI: _MYSQL_DEFAULT_COLLATION,
+}
+
+# One column declaration out of a SQLite `CREATE TABLE`. `[^,\n]*` stops
+# the tail at the end of the line, so a generated column's expression
+# (which spans lines and contains commas) is never mistaken for part of
+# the declaration that precedes it.
+_SQLITE_COLUMN_DECL_RE = re.compile(
+    r"^\s*(?P<name>\w+)\s+(?P<type>\w+(?:\s*\(\s*\d+\s*\))?)(?P<rest>[^,\n]*)",
+    re.M,
+)
+
+_SQLITE_COLLATE_RE = re.compile(r"\bCOLLATE\s+(\w+)", re.I)
+
+# Words that begin a line of a `CREATE TABLE` without naming a column.
+_NON_COLUMN_LINE_HEADS = _NON_COLUMN_TOKENS | {"CREATE", "CHECK"}
+
+
+def _declared_collations(table_sql: str) -> dict[str, str | None]:
+    """Map ``column -> the collation MySQL would report`` for a SQLite table.
+
+    SQLite exposes a column's collation nowhere in ``pragma_table_info``
+    — only in ``sqlite_master.sql`` — so the declaration text is parsed
+    here and translated back into MySQL's vocabulary: ``COLLATE BINARY``
+    is what a pinned ``utf8mb4_bin`` becomes, ``COLLATE MYSQL_AI_CI``
+    (and ``NOCASE``) is what an unpinned column becomes, and a character
+    column with no ``COLLATE`` at all is BINARY, which is SQLite's own
+    default and therefore what the double genuinely enforces.
+    """
+    collations: dict[str, str | None] = {}
+    for match in _SQLITE_COLUMN_DECL_RE.finditer(table_sql or ""):
+        name = match.group("name")
+        if name.upper() in _NON_COLUMN_LINE_HEADS:
+            continue
+        base = re.sub(r"\s*\(.*", "", match.group("type")).upper()
+        if base not in _SQLITE_TEXT_TYPES:
+            collations[name] = None
+            continue
+        clause = _SQLITE_COLLATE_RE.search(match.group("rest"))
+        declared = clause.group(1).upper() if clause is not None else "BINARY"
+        collations[name] = _SQLITE_TO_MYSQL_COLLATION.get(declared, declared.lower())
+    return collations
 
 
 _TABLE_NAME_RE = re.compile(r"CREATE TABLE (?:IF NOT EXISTS )?(?P<name>\w+)\s*\(", re.I)
@@ -504,7 +613,7 @@ class _FakeCursor:
         self._select_columns(bound)
 
     def _select_columns(self, bound: tuple) -> None:
-        """Answer the shape + generated-column probe from SQLite's catalogue.
+        """Answer the shape + generated-column + collation probe from SQLite.
 
         ``information_schema.COLUMNS.GENERATION_EXPRESSION`` is ``''``
         for an ordinary column and the (server-normalized) expression
@@ -516,13 +625,22 @@ class _FakeCursor:
         exists but is an ordinary column" test discriminating rather than
         ceremonial: an ordinary column of that name would satisfy any
         check that merely asked whether the name is present.
+
+        ``COLLATION_NAME`` comes from the same ``sqlite_master.sql``, for
+        the same reason — no pragma reports it — translated back into
+        MySQL's vocabulary by :func:`_declared_collations`. A
+        non-character column reports ``NULL``, exactly as the server
+        does, which is what lets the "someone redeclared ``job_run_id``
+        as a BLOB" refusal be tested at all (PR #2062 review).
         """
         table = bound[0]
         record = self._cursor.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
             (table,),
         ).fetchone()
-        expressions = _generated_expressions(record[0] if record else "")
+        table_sql = record[0] if record else ""
+        expressions = _generated_expressions(table_sql)
+        collations = _declared_collations(table_sql)
         columns = self._cursor.execute(
             "SELECT name, hidden FROM pragma_table_xinfo(?)", (table,)
         ).fetchall()
@@ -533,6 +651,7 @@ class _FakeCursor:
                     "GENERATION_EXPRESSION": (
                         expressions.get(name, "") if hidden in _SQLITE_GENERATED else ""
                     ),
+                    "COLLATION_NAME": collations.get(name),
                 }
                 for name, hidden in columns
             ]
@@ -814,7 +933,7 @@ class _FakePool(_BasePool):
 
     def __init__(self, path: Path | str) -> None:
         super().__init__()
-        self.raw = sqlite3.connect(str(path), isolation_level=None)
+        self.raw = _connect(str(path), isolation_level=None)
 
     def _open(self) -> _FakeConnection:
         return _FakeConnection(self, self.raw, next(self._ids), owns_raw=False)
@@ -837,12 +956,12 @@ class _RealisticPool(_BasePool):
         self.path = str(path)
 
     def _open(self) -> _FakeConnection:
-        raw = sqlite3.connect(self.path, timeout=1.0, isolation_level=None)
+        raw = _connect(self.path, timeout=1.0, isolation_level=None)
         return _FakeConnection(self, raw, next(self._ids), owns_raw=True)
 
     def query(self, sql: str, params: tuple = ()) -> list[tuple]:
         """Out-of-band read for assertions (its own short-lived connection)."""
-        conn = sqlite3.connect(self.path, timeout=1.0)
+        conn = _connect(self.path, timeout=1.0)
         try:
             return conn.execute(sql, params).fetchall()
         finally:
@@ -1946,7 +2065,7 @@ class _SeamHarness:
         self.connect_kwargs.append(kwargs)
         conn = _FakeConnection(
             self.book,
-            sqlite3.connect(str(self.path), isolation_level=None),
+            _connect(str(self.path), isolation_level=None),
             len(self.opened) + 1,
             owns_raw=True,
         )
@@ -2822,6 +2941,7 @@ _GOOD_LIVE_KEY_SQL = (
 def _seed_table(
     path: Path,
     *,
+    columns_sql: str = _BASE_COLUMNS_SQL,
     live_key_sql: str | None = _GOOD_LIVE_KEY_SQL,
     index_sql: str | None = (
         "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live ON pi_eod_snapshot(live_key)"
@@ -2829,10 +2949,10 @@ def _seed_table(
     comment: str | None = None,
 ) -> None:
     """Pre-create a `pi_eod_snapshot` with a chosen guard (or none)."""
-    columns = _BASE_COLUMNS_SQL.rstrip()
+    columns = columns_sql.rstrip()
     if live_key_sql is not None:
         columns = f"{columns},\n    {live_key_sql}"
-    conn = sqlite3.connect(str(path), isolation_level=None)
+    conn = _connect(str(path), isolation_level=None)
     try:
         conn.execute(
             f"CREATE TABLE pi_eod_snapshot ({columns},\n"
@@ -2849,6 +2969,33 @@ def _seed_table(
             )
     finally:
         conn.close()
+
+
+def _seed_table_with_columns(path: Path, columns_sql: str, **seed: Any) -> None:
+    """Seed a shape-correct table whose *column declarations* were varied.
+
+    The collation tests need to hold the guard, the index and the shape
+    constant while changing exactly one column's ``COLLATE`` clause, which
+    is the opposite of what the guard tests need. Naming that explicitly
+    keeps the two families from quietly reaching into each other.
+    """
+    _seed_table(path, columns_sql=columns_sql, **seed)
+
+
+def _redeclare(column: str, declaration: str) -> str:
+    """Return `_BASE_COLUMNS_SQL` with one column's type clause replaced.
+
+    Matching on the column name rather than on a fixed-width slice keeps
+    these mutations working if the shared column block is ever re-aligned
+    — a silently-unapplied mutation would turn every test built on it
+    into a test of the *correct* table.
+    """
+    pattern = re.compile(rf"^(\s*{re.escape(column)}\s+)TEXT\b", re.M)
+    updated, count = pattern.subn(
+        lambda m: f"{m.group(1)}{declaration}", _BASE_COLUMNS_SQL
+    )
+    assert count == 1, f"{column} not found in the seeded column list"
+    return updated
 
 
 def _refusal(tmp_path: Path, name: str, **seed: Any) -> str:
@@ -3350,7 +3497,7 @@ def test_mysql_guard_does_not_leak_into_the_shared_column_shape() -> None:
 
 def _table_comment(path: Path | str, table: str = "pi_eod_snapshot") -> str | None:
     """Read a table's comment out of the double's data dictionary."""
-    conn = sqlite3.connect(str(path))
+    conn = _connect(str(path))
     try:
         _ensure_dictionary(conn.cursor())
         row = conn.execute(
@@ -3366,7 +3513,7 @@ def _set_table_comment(
     path: Path | str, comment: str, table: str = "pi_eod_snapshot"
 ) -> None:
     """Stamp a table comment out-of-band, as another build's ALTER would."""
-    conn = sqlite3.connect(str(path))
+    conn = _connect(str(path))
     try:
         _ensure_dictionary(conn.cursor())
         conn.execute(
@@ -3387,7 +3534,7 @@ def _version_stamp(version: int) -> str:
 
 def _add_column(path: Path | str, column: str) -> None:
     """Add a column out-of-band, as a newer build's migration would."""
-    conn = sqlite3.connect(str(path))
+    conn = _connect(str(path))
     try:
         conn.execute(f"ALTER TABLE pi_eod_snapshot ADD COLUMN {column}")
         conn.commit()
@@ -3688,8 +3835,16 @@ def test_a_different_pool_gets_its_own_schema_check(tmp_path: Path) -> None:
 # semantics of the only two DB-level guarantees this table has: the
 # `ux_pi_eod_snapshot_live` unique key (single LIVE row) and the primary
 # key (`job_run_id` identity). The double translates a pinned
-# `utf8mb4_bin` to SQLite's BINARY and an *unpinned* column to NOCASE, so
-# these assertions fail if the DDL ever loses its COLLATE.
+# `utf8mb4_bin` to SQLite's BINARY and an *unpinned* column to
+# `MYSQL_AI_CI`, so these assertions fail if the DDL ever loses its
+# COLLATE.
+#
+# The DDL assertions below pin what *this build* would create. They say
+# nothing about a table that already exists, because `CREATE TABLE IF NOT
+# EXISTS` no-ops against one -- which is why construction also re-reads
+# `information_schema.COLUMNS.COLLATION_NAME` and refuses anything that
+# is not `utf8mb4_bin` (PR #2062 review). Those tests are in the section
+# below this one.
 
 _KEY_COLUMNS = ("dataset", "entity_key", "job_run_id", "status", "state", "live_key")
 
@@ -3749,19 +3904,13 @@ def test_the_double_folds_case_when_a_column_is_unpinned(tmp_path: Path) -> None
     ``job_run_id`` values collide on the primary key. If this test ever
     passes *without* raising, the double stopped modelling collation and
     every assertion above became ceremonial.
-
-    Scope note: SQLite's ``NOCASE`` folds ASCII case only, so it models
-    the ``_ci`` half of ``utf8mb4_0900_ai_ci``. The accent-insensitive
-    half (the ``live_key`` collision path) is pinned statically by
-    ``test_ddl_pins_binary_collation_on_every_key_column``; no local
-    engine can reproduce MySQL's accent folding.
     """
     unpinned = _PI_EOD_SNAPSHOT_DDL.replace(" COLLATE utf8mb4_bin", "").replace(
         " COLLATE=utf8mb4_bin", ""
     )
     assert "COLLATE" not in unpinned
     table_sql, _ = _ddl_to_sqlite(unpinned)
-    conn = sqlite3.connect(str(tmp_path / "unpinned.db"), isolation_level=None)
+    conn = _connect(str(tmp_path / "unpinned.db"), isolation_level=None)
     conn.execute(table_sql)
 
     insert = (
@@ -3774,6 +3923,395 @@ def test_the_double_folds_case_when_a_column_is_unpinned(tmp_path: Path) -> None
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(insert, ("techtrade.movers", "sector=technology", "Run-1"))
     conn.close()
+
+
+def test_the_double_folds_accents_when_a_column_is_unpinned(tmp_path: Path) -> None:
+    """Guards the guard, accent half: `sector=cafe` vs `sector=café`.
+
+    `canonical_key` casefolds but does *not* Unicode-normalize, so those
+    two entity keys survive canonicalization as distinct strings and the
+    only thing keeping them apart in the database is the collation. Under
+    `_ci` they fold together on `ux_pi_eod_snapshot_live`, so promoting
+    the second one would collide with -- or, on a server that resolved
+    the tie the other way, silently overwrite -- the LIVE row of the
+    first. That is a *different* failure from the `job_run_id` case
+    collision above: it lands on the single-LIVE guard rather than the
+    primary key.
+
+    Reverse-verified: with `MYSQL_AI_CI` reduced to SQLite's `NOCASE`
+    (which folds ASCII case only), the second insert succeeds and this
+    test fails -- which is exactly why the double registers a real
+    accent-folding collation instead (PR #2062 review).
+    """
+    unpinned = _PI_EOD_SNAPSHOT_DDL.replace(" COLLATE utf8mb4_bin", "").replace(
+        " COLLATE=utf8mb4_bin", ""
+    )
+    table_sql, index_sql = _ddl_to_sqlite(unpinned)
+    conn = _connect(str(tmp_path / "accents.db"), isolation_level=None)
+    conn.execute(table_sql)
+    for statement in index_sql:
+        conn.execute(statement)
+
+    # Two keys that `canonical_key` keeps distinct...
+    assert canonical_key("sector=cafe") != canonical_key("sector=café")
+
+    live = (
+        "INSERT INTO pi_eod_snapshot (dataset, entity_key, as_of_session, "
+        "created_at, job_run_id, status, state, validated, validation_reason, "
+        "payload_json) VALUES (?, ?, '2026-09-04', '2026-09-04 00:00:00', ?, "
+        "'ok', 'live', 1, '', '{}')"
+    )
+    conn.execute(live, ("techtrade.movers", "sector=cafe", "run-1"))
+    # ... and that an `_ci` collation folds together on the LIVE guard.
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(live, ("techtrade.movers", "sector=café", "run-2"))
+    conn.close()
+
+
+def test_the_pinned_ddl_keeps_accented_entity_keys_apart(tmp_path: Path) -> None:
+    """The mirror image: under the *real* DDL both keys go LIVE.
+
+    Same two entity keys, same single-LIVE guard, but with the DDL's
+    `COLLATE utf8mb4_bin` left in place. Without this the test above
+    could be passing for an unrelated reason (a broken index, a bad
+    insert) rather than because of collation.
+    """
+    store = MysqlSnapshotStore(connection_pool=_FakePool(tmp_path / "pinned.db"))
+    for entity_key in ("sector=cafe", "sector=café"):
+        staged = _stage(
+            store, payload={"rows": [{"symbol": "AAPL"}]}, entity_key=entity_key
+        )
+        assert store.validate(*staged).ok
+        assert store.promote(*staged)
+
+    for entity_key in ("sector=cafe", "sector=café"):
+        live = store.get_live("techtrade.movers", entity_key)
+        assert live is not None
+        assert live.entity_key == canonical_key(entity_key)
+
+
+# ---------------------------------------------------------------------------
+# Collation is *verified*, not just declared (PR #2062 review)
+# ---------------------------------------------------------------------------
+#
+# The DDL assertions above pin what this build would create. They cannot
+# see the table that is actually there: `CREATE TABLE IF NOT EXISTS`
+# no-ops against a pre-existing one, so a table created by an older
+# build, by a migration tool, or by hand can carry the charset default
+# collation and still satisfy every shape / guard / index check. Its
+# `live_key` would then fold `sector=cafe` onto `sector=café` and its
+# primary key would fold `Run-1` onto `run-1` -- the two divergences the
+# section above proves are real -- and construction would stamp the table
+# READY on the way past.
+#
+# So `_verify_schema` re-reads `information_schema.COLUMNS.COLLATION_NAME`
+# and refuses anything that is not `utf8mb4_bin`, *before* the version
+# stamp. The tests below mutate one column at a time and assert the
+# refusal, and assert the refused table is left unstamped.
+
+
+def _collation_refusal(tmp_path: Path, name: str, **seed: Any) -> str:
+    """Seed a table with a bad collation, construct, return the message.
+
+    Deliberately separate from `_refusal`: that helper asserts the
+    message mentions the single-LIVE guard, and a collation refusal is a
+    *different* failure with a different message. Sharing one helper
+    would let a collation bug pass as a guard bug.
+    """
+    db_path = tmp_path / f"{name}.db"
+    _seed_table(db_path, **seed)
+    pool = _FakePool(db_path)
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=pool)
+    message = str(excinfo.value)
+    assert "collation" in message
+    assert "pi_eod_snapshot" in message
+    # The refusal has to be actionable, not just loud.
+    assert "ALTER TABLE" in message
+    # ... and it must not be stamped READY on the way out.
+    assert _table_comment(db_path) is None
+    return message
+
+
+def test_mysql_reports_the_collation_of_every_column_it_created(
+    tmp_path: Path,
+) -> None:
+    """Control: the positive path is not vacuous.
+
+    Every column the check requires is reported as `utf8mb4_bin` by the
+    double against the table the production DDL built, and the probe the
+    production code runs is the one that carries `COLLATION_NAME`.
+    """
+    assert "COLLATION_NAME" in mysql_store_module._SELECT_SCHEMA_COLUMNS
+
+    pool = _FakePool(tmp_path / "good.db")
+    MysqlSnapshotStore(connection_pool=pool)
+
+    with pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            mysql_store_module._SELECT_SCHEMA_COLUMNS, (store_module._SNAPSHOT_TABLE,)
+        )
+        collations = {
+            record["COLUMN_NAME"]: record["COLLATION_NAME"] for record in cur.fetchall()
+        }
+
+    for column in store_module._MYSQL_BINARY_COLLATED_COLUMNS:
+        assert collations.get(column) == "utf8mb4_bin", column
+    # Non-character columns report NULL, as they do on a real server --
+    # which is what makes the "redeclared as a BLOB" refusal below a
+    # genuine mutation rather than a missing key.
+    assert collations["row_count"] is None
+    assert collations["as_of_session"] is None
+
+
+@pytest.mark.parametrize(
+    "column",
+    ["dataset", "entity_key", "job_run_id", "status", "state", "input_hash"],
+)
+def test_mysql_refuses_a_case_insensitive_key_column(
+    tmp_path: Path, column: str
+) -> None:
+    """Mutation: one shared key column carries the charset default.
+
+    Reverse-verified: with `_check_mysql_collations` neutered every one
+    of these tables constructs cleanly -- shape, guard and index are all
+    correct -- and gets stamped with this build's schema version.
+    """
+    seeded = _redeclare(column, f"TEXT COLLATE {_MYSQL_AI_CI}")
+
+    db_path = tmp_path / f"ci_{column}.db"
+    _seed_table_with_columns(db_path, seeded)
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    message = str(excinfo.value)
+    assert f"{column} -> '{_MYSQL_DEFAULT_COLLATION}'" in message
+    assert _table_comment(db_path) is None
+
+
+def test_mysql_refuses_a_case_insensitive_live_key(tmp_path: Path) -> None:
+    """Mutation: the *generated* column is the one that is unpinned.
+
+    `live_key` is the column the accent collision actually lands on, and
+    it is generated -- so it is the one a migration is most likely to
+    recreate without thinking about collation.
+    """
+    message = _collation_refusal(
+        tmp_path,
+        "ci_live_key",
+        live_key_sql=(
+            f"live_key TEXT COLLATE {_MYSQL_AI_CI} GENERATED ALWAYS AS "
+            "(IIF(state = 'live', concat(dataset, char(31), entity_key), NULL)) STORED"  # codespell:ignore
+        ),
+    )
+    assert f"live_key -> '{_MYSQL_DEFAULT_COLLATION}'" in message
+
+
+@pytest.mark.parametrize("column", ["engine_version", "payload_schema_version"])
+def test_mysql_refuses_a_case_insensitive_version_column(
+    tmp_path: Path, column: str
+) -> None:
+    """Parity: the version columns are held to the same standard.
+
+    They are not part of any key, but they are compared as strings by
+    every caller that asks "was this produced by the build I expect?".
+    An `_ci` collation there makes `v1.2.0-RC1` equal `v1.2.0-rc1`, and
+    the whole point of the schema check is that comparison semantics are
+    verified rather than assumed.
+    """
+    seeded = _redeclare(column, f"TEXT COLLATE {_MYSQL_AI_CI}")
+
+    db_path = tmp_path / f"ci_{column}.db"
+    _seed_table_with_columns(db_path, seeded)
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    assert f"{column} -> '{_MYSQL_DEFAULT_COLLATION}'" in str(excinfo.value)
+
+
+def test_mysql_refuses_a_key_column_that_is_no_longer_text(tmp_path: Path) -> None:
+    """Mutation: `job_run_id` redeclared as a BLOB reports NULL collation.
+
+    A NULL `COLLATION_NAME` is not "unset" -- it means the column is not
+    character data at all, so its comparison semantics are whatever the
+    binary type says. The check has to refuse that rather than treat
+    NULL as "nothing to verify", which is the reading that would let a
+    schema drift through unnoticed.
+    """
+    seeded = _redeclare("job_run_id", "BLOB")
+
+    db_path = tmp_path / "blob_job_run_id.db"
+    _seed_table_with_columns(db_path, seeded)
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    assert "job_run_id -> NULL" in str(excinfo.value)
+
+
+def test_mysql_refuses_a_stamped_table_with_the_wrong_collation(
+    tmp_path: Path,
+) -> None:
+    """The version stamp buys no pass.
+
+    A table stamped by *this* build still has to prove its collation.
+    Otherwise the first build to stamp a mis-collated table would make
+    every later build accept it -- the stamp would launder the defect.
+
+    Reverse-verified: gate `_check_mysql_collations` behind the
+    adopt-and-stamp branch (`if stamped == 0:`) -- the shape the check
+    would have if it were treated as a one-time adoption cost rather
+    than an invariant -- and this table constructs cleanly.
+    """
+    seeded = _redeclare("entity_key", f"TEXT COLLATE {_MYSQL_AI_CI}")
+    db_path = tmp_path / "stamped_ci.db"
+    stamp = _version_stamp(store_module.SNAPSHOT_SCHEMA_VERSION)
+    _seed_table_with_columns(db_path, seeded, comment=stamp)
+    assert _table_comment(db_path) == stamp
+
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    assert "entity_key" in str(excinfo.value)
+
+
+def test_mysql_collation_refusal_is_not_a_connection_fault(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A rejected schema is a caller error, not a broken connection.
+
+    Same contract the guard refusals hold to: the pool must not record
+    the borrow as faulted, or a refusal would poison the pool for every
+    later caller and mask itself as an infrastructure problem.
+    """
+    seeded = _redeclare("dataset", f"TEXT COLLATE {_MYSQL_AI_CI}")
+    db_path = tmp_path / "ci_not_a_fault.db"
+    _seed_table_with_columns(db_path, seeded)
+    pool = _FakePool(db_path)
+
+    with caplog.at_level(logging.WARNING), pytest.raises(SnapshotSchemaMismatch):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.errors == []
+    assert _pool_errors(caplog) == []
+
+
+def test_mysql_collation_refusal_names_every_offender_at_once(
+    tmp_path: Path,
+) -> None:
+    """One trip: a repair that fixes one column must not reveal the next.
+
+    Three unpinned columns, one refusal, all three named. Fixing them
+    one refusal at a time is three deploys instead of one.
+    """
+    seeded = _BASE_COLUMNS_SQL
+    for column in ("dataset", "entity_key", "job_run_id"):
+        seeded = re.sub(
+            rf"^(\s*{column}\s+)TEXT\b",
+            rf"\g<1>TEXT COLLATE {_MYSQL_AI_CI}",
+            seeded,
+            count=1,
+            flags=re.M,
+        )
+    db_path = tmp_path / "ci_many.db"
+    _seed_table_with_columns(db_path, seeded)
+
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    message = str(excinfo.value)
+    for column in ("dataset", "entity_key", "job_run_id"):
+        assert f"{column} -> '{_MYSQL_DEFAULT_COLLATION}'" in message
+    assert message.count("ALTER TABLE") == 3
+
+
+def test_collation_check_accepts_a_clean_map() -> None:
+    """Unit: the required columns, all binary, in any letter case.
+
+    MySQL reports collation names lower-cased, but `SHOW`-derived tooling
+    and hand-written migrations both produce upper-case spellings, and
+    the *name* is not the thing being verified -- the semantics are.
+    """
+    clean = {
+        column: "utf8mb4_bin" for column in store_module._MYSQL_BINARY_COLLATED_COLUMNS
+    }
+    store_module._check_mysql_collations(clean)
+    store_module._check_mysql_collations({key: "UTF8MB4_BIN" for key in clean})
+    # Columns outside the required set are not the check's business.
+    store_module._check_mysql_collations(
+        {**clean, "payload_json": _MYSQL_DEFAULT_COLLATION, "row_count": None}
+    )
+
+
+@pytest.mark.parametrize(
+    "reported",
+    [
+        "utf8mb4_0900_ai_ci",
+        "utf8mb4_general_ci",
+        "utf8mb4_unicode_ci",
+        "latin1_swedish_ci",
+        None,
+        "",
+    ],
+)
+def test_collation_check_rejects_anything_but_binary(reported: str | None) -> None:
+    """Unit: every non-binary spelling, including NULL and empty."""
+    collations: dict[str, str | None] = {
+        column: "utf8mb4_bin" for column in store_module._MYSQL_BINARY_COLLATED_COLUMNS
+    }
+    collations["entity_key"] = reported
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        store_module._check_mysql_collations(collations)
+    assert "entity_key" in str(excinfo.value)
+
+
+def test_collation_check_rejects_a_different_binary_collation() -> None:
+    """Fail closed on `utf8mb4_0900_bin`, same as the live-guard check.
+
+    `utf8mb4_0900_bin` compares byte-for-byte too, so accepting it would
+    arguably be correct -- but it also NO PADs differently, and the
+    module's whole approach to schema drift is to refuse anything it did
+    not write rather than to reason about equivalence at read time. An
+    operator who genuinely wants it changes the pin in one place, in a
+    reviewed diff.
+    """
+    collations: dict[str, str | None] = {
+        column: "utf8mb4_bin" for column in store_module._MYSQL_BINARY_COLLATED_COLUMNS
+    }
+    collations["dataset"] = "utf8mb4_0900_bin"
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        store_module._check_mysql_collations(collations)
+    assert "utf8mb4_0900_bin" in str(excinfo.value)
+
+
+def test_collation_check_rejects_a_missing_column() -> None:
+    """A column the probe never reported is not silently exempt."""
+    collations: dict[str, str | None] = {
+        column: "utf8mb4_bin" for column in store_module._MYSQL_BINARY_COLLATED_COLUMNS
+    }
+    del collations["live_key"]
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        store_module._check_mysql_collations(collations)
+    assert "live_key" in str(excinfo.value)
+
+
+def test_required_collated_columns_are_exactly_what_the_ddl_pins() -> None:
+    """The required list and the DDL must not drift apart.
+
+    If the DDL grows a `COLLATE utf8mb4_bin` column that the check does
+    not require, the pin is unverified on adopted tables. If the check
+    requires one the DDL does not pin, this build's own table is refused
+    on the next construction. Either way it is caught here rather than in
+    production.
+
+    `validation_reason` and `payload_json` are deliberately *not* pinned
+    and therefore deliberately not required: they are free text and JSON
+    that nothing compares, keying or otherwise, and requiring a collation
+    the DDL does not pin would make the store refuse the table it just
+    created.
+    """
+    pinned = {
+        column
+        for column, collation in _column_collations(_PI_EOD_SNAPSHOT_DDL).items()
+        if collation is not None
+    }
+    assert pinned == set(store_module._MYSQL_BINARY_COLLATED_COLUMNS)
+    assert not pinned & {"validation_reason", "payload_json"}
 
 
 # ---------------------------------------------------------------------------
@@ -4130,7 +4668,15 @@ def test_live_mysql_round_trips_every_protocol_entry_point() -> None:
 @pytest.mark.requires_mysql
 @_requires_live_mysql
 def test_live_mysql_pins_binary_collation_on_the_key_columns() -> None:
-    """The server reports the collation the DDL asked for, not the default."""
+    """The server reports the collation the DDL asked for, not the default.
+
+    Runs the *production* check over the *production* probe's answer, so
+    it proves the two agree on a real server: that the column names the
+    check requires are names `information_schema` actually reports, and
+    that `utf8mb4_bin` is the spelling this MySQL version returns for a
+    column the DDL pinned. The double cannot answer either question --
+    it renders both sides itself.
+    """
     with _live_mysql_store() as store:
         del store
         from openbb_fmp_cached.utils.database import (  # noqa: PLC0415
@@ -4139,8 +4685,7 @@ def test_live_mysql_pins_binary_collation_on_the_key_columns() -> None:
 
         with get_connection_pool().get_connection() as conn, conn.cursor() as cur:
             cur.execute(
-                "SELECT COLUMN_NAME, COLLATION_NAME FROM information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                mysql_store_module._SELECT_SCHEMA_COLUMNS,
                 ("pi_eod_snapshot",),
             )
             collations = {
@@ -4148,7 +4693,11 @@ def test_live_mysql_pins_binary_collation_on_the_key_columns() -> None:
                 for record in cur.fetchall()
             }
 
-    for column in _KEY_COLUMNS:
+    for column in store_module._MYSQL_BINARY_COLLATED_COLUMNS:
         assert (
             collations[column] == "utf8mb4_bin"
         ), f"{column} resolved to {collations[column]!r} on the live server"
+    # Non-character columns really do report NULL, which is the reading
+    # `_check_mysql_collations` refuses rather than skips.
+    assert collations["row_count"] is None
+    store_module._check_mysql_collations(collations)

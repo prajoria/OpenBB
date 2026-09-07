@@ -26,6 +26,7 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1704,6 +1705,259 @@ def test_get_default_snapshot_store_persists_a_promoted_row_across_reopen(
     assert live.dataset == "techtrade.movers"
     assert live.entity_key == "sector=technology"
     assert live.state == SnapshotState.LIVE
+
+
+# ---------------------------------------------------------------------------
+# created_at is fixed-width UTC text (PR #2062 review)
+# ---------------------------------------------------------------------------
+#
+# On SQLite `created_at` is a `TEXT` column, so every "which row is
+# newest" decision this store makes -- `get_as_of`'s `ORDER BY created_at
+# DESC LIMIT 1`, `list_history`'s `ORDER BY as_of_session DESC,
+# created_at DESC`, and the `ix_pi_eod_snapshot_latest` index behind both
+# -- is a *lexical* comparison of that text. Lexical order equals
+# temporal order only while every value has the same shape, and a bare
+# `datetime.isoformat()` guarantees neither: it drops the fractional part
+# entirely when `microsecond == 0` (25 characters instead of 32) and it
+# keeps whatever UTC offset the instant carries.
+#
+# `_iso_utc` is the single renderer that fixes both. The tests below pin
+# the properties rather than the spelling: fixed width, normalized
+# offset, and sort-equals-time over a list that includes the pathological
+# cases.
+
+
+class _FrozenClock(datetime):
+    """A `datetime` whose `now()` walks a scripted list of instants."""
+
+    _script: list[datetime] = []
+
+    @classmethod
+    def now(cls, tz=None):  # noqa: D102
+        moment = cls._script.pop(0)
+        return moment if tz is None else moment.astimezone(tz)
+
+
+@contextmanager
+def _clock(monkeypatch: pytest.MonkeyPatch, *moments: datetime):
+    """Make `store_module.datetime.now()` return `moments`, in order.
+
+    Scoped to a `with` block rather than applied for a whole test on
+    purpose: `_as_created_at` and `_as_session_date` branch on
+    `isinstance(value, datetime)`, and a subclass installed under that
+    name would quietly change what a *read* does. Only the write is
+    driven by the script.
+    """
+    _FrozenClock._script = list(moments)
+    with monkeypatch.context() as patch:
+        patch.setattr(store_module, "datetime", _FrozenClock)
+        yield
+    assert not _FrozenClock._script, "scripted clock was not fully consumed"
+
+
+def _created_at_texts(db_path: Path) -> list[str]:
+    """Read the raw stored `created_at` strings, in insertion order."""
+    conn = sqlite3.connect(str(db_path))
+    try:
+        return [
+            row[0]
+            for row in conn.execute(
+                "SELECT created_at FROM pi_eod_snapshot ORDER BY rowid"
+            )
+        ]
+    finally:
+        conn.close()
+
+
+def test_iso_utc_is_fixed_width_even_on_a_whole_second() -> None:
+    """The property, stated directly: one width for every instant.
+
+    Reverse-verified: drop `timespec="microseconds"` and the whole-second
+    instant renders 25 characters instead of 32.
+    """
+    whole = store_module._iso_utc(datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc))
+    fractional = store_module._iso_utc(
+        datetime(2026, 9, 4, 12, 0, 0, 1, tzinfo=timezone.utc)
+    )
+
+    assert whole == "2026-09-04T12:00:00.000000+00:00"
+    assert len(whole) == len(fractional) == 32
+
+
+def test_iso_utc_normalizes_a_non_utc_instant() -> None:
+    """The offset is rendered, not preserved.
+
+    Reverse-verified: render `moment.isoformat(...)` without the
+    `astimezone` and this keeps `+05:30`, which sorts *after* the
+    later-in-time `+00:00` value in the next test.
+    """
+    rendered = store_module._iso_utc(
+        datetime(2026, 9, 4, 17, 30, tzinfo=timezone(timedelta(hours=5, minutes=30)))
+    )
+
+    assert rendered == "2026-09-04T12:00:00.000000+00:00"
+    assert rendered.endswith("+00:00")
+
+
+def test_iso_utc_lexical_order_is_temporal_order() -> None:
+    """Sorting the *text* must reorder nothing.
+
+    The list deliberately mixes the two shapes a bare `isoformat()`
+    produces (whole-second and fractional, inside one second) with an
+    instant carrying a non-UTC offset -- the case that genuinely inverts.
+
+    Reverse-verified: render with `moment.isoformat()` and the `+05:30`
+    instant sorts to the end, three places from where it belongs.
+    """
+    kolkata = timezone(timedelta(hours=5, minutes=30))
+    instants = [
+        datetime(2026, 9, 4, 11, 59, 59, 999999, tzinfo=timezone.utc),
+        datetime(2026, 9, 4, 12, 0, 0, 0, tzinfo=timezone.utc),
+        datetime(2026, 9, 4, 12, 0, 0, 1, tzinfo=timezone.utc),
+        datetime(2026, 9, 4, 17, 30, 0, 500000, tzinfo=kolkata),
+        datetime(2026, 9, 4, 12, 0, 1, 0, tzinfo=timezone.utc),
+    ]
+    chronological = sorted(instants)
+    rendered = [store_module._iso_utc(moment) for moment in chronological]
+
+    assert rendered == sorted(rendered)
+    assert len({len(text) for text in rendered}) == 1
+
+
+def test_stage_stores_one_width_for_every_created_at(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Behavioral: two writes in one second, one of them on the second.
+
+    `microsecond == 0` is not a contrived instant -- it is what a clock
+    hands back roughly one microsecond in a million, and roughly always
+    when a test freezes time. Pre-fix that row is stored 25 characters
+    wide beside its 32-character neighbours, so the column's shape
+    depends on when the write happened.
+
+    Reverse-verified: drop `timespec="microseconds"` from `_iso_utc` and
+    the width assertion fails (25 != 32).
+    """
+    db_path = tmp_path / "widths.db"
+    store = SqliteSnapshotStore(db_path)
+    second = datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
+    with _clock(
+        monkeypatch,
+        second,
+        second.replace(microsecond=1),
+        second.replace(microsecond=999999),
+    ):
+        for index in range(3):
+            _stage(
+                store,
+                payload={"rows": [{"symbol": "AAPL"}]},
+                job_run_id=f"run-width-{index}",
+            )
+    store.close()
+
+    stored = _created_at_texts(db_path)
+    assert len(stored) == 3
+    assert {len(text) for text in stored} == {32}
+    assert stored == sorted(stored)
+
+
+def test_same_session_mixed_microseconds_order_correctly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Behavioral: `get_as_of` and `list_history` under one session date.
+
+    Three rows share `as_of_session`, so `created_at` is the *only* thing
+    breaking the tie in either query -- `get_as_of` returns whichever row
+    the `ORDER BY created_at DESC` picks, and `list_history` returns them
+    newest-first. Both are answered by comparing text, so both depend on
+    every value in the column having the same shape.
+
+    Reverse-verified against the property, not the accident: with
+    `_iso_utc` reduced to `moment.isoformat()` the stored widths diverge
+    (25 vs 32) and the width assertion below fails. The retrieval
+    assertions still pass in that state -- ASCII puts `'+'` below `'.'`,
+    so the whole-second row happens to sort where it belongs -- which is
+    exactly the point: the ordering was correct by coincidence of the
+    offset spelling, and any change to it (rendering `Z`, widening the
+    fraction) silently inverts the pair. The width is the property worth
+    pinning; the retrieval assertions pin that fixing the width did not
+    break what it was protecting.
+    """
+    db_path = tmp_path / "mixed.db"
+    store = SqliteSnapshotStore(db_path)
+    second = datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
+    written = [
+        second.replace(microsecond=250000),
+        second.replace(second=1),  # whole second: the variable-width case
+        second.replace(second=1, microsecond=1),
+    ]
+    with _clock(monkeypatch, *written):
+        staged = [
+            _stage(
+                store,
+                payload={"rows": [{"symbol": "AAPL", "n": index}]},
+                job_run_id=f"run-mixed-{index}",
+            )
+            for index in range(3)
+        ]
+    # `get_as_of` reads promoted rows only, so the tie it breaks is
+    # between three rows of one session that all left `staging`.
+    for candidate in staged:
+        assert store.validate(*candidate).ok
+        assert store.promote(*candidate)
+
+    stored = _created_at_texts(db_path)
+    assert {len(text) for text in stored} == {32}
+
+    newest = store.get_as_of("techtrade.movers", "sector=technology", date(2026, 9, 4))
+    assert newest is not None
+    assert newest.job_run_id == staged[-1][3]
+    assert newest.created_at == written[-1]
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert [row.job_run_id for row in history] == [
+        staged[2][3],
+        staged[1][3],
+        staged[0][3],
+    ]
+    store.close()
+
+
+def test_created_at_round_trips_through_a_legacy_variable_width_value(
+    tmp_path: Path,
+) -> None:
+    """Compatibility: a pre-fix development row still reads and sorts.
+
+    `pi_eod_snapshot` is unshipped foundation (#1963), so nothing
+    deployed holds pre-fix text -- but a developer's database does, and
+    the fix must not require them to drop it. A 25-character legacy value
+    parses (`fromisoformat` accepts either width) and still sorts below
+    the fixed-width values written after it, which is why
+    `SNAPSHOT_SCHEMA_VERSION` is deliberately not bumped.
+    """
+    db_path = tmp_path / "legacy.db"
+    store = SqliteSnapshotStore(db_path)
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+    legacy = "2026-09-04T11:00:00+00:00"  # what a pre-fix whole second wrote
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute("UPDATE pi_eod_snapshot SET created_at = ?", (legacy,))
+        conn.commit()
+    finally:
+        conn.close()
+    store.close()
+
+    reopened = SqliteSnapshotStore(db_path)
+    row = reopened.get_as_of("techtrade.movers", "sector=technology", staged[2])
+    assert row is not None
+    assert row.created_at == datetime(2026, 9, 4, 11, 0, tzinfo=timezone.utc)
+    assert legacy < store_module._iso_utc(
+        datetime(2026, 9, 4, 11, 0, 0, 1, tzinfo=timezone.utc)
+    )
+    reopened.close()
 
 
 # ---------------------------------------------------------------------------

@@ -51,6 +51,20 @@ Design invariants this module encodes (see the spec for the full list):
   no-ops, and with it every index declared inside it), which would let
   concurrent promotions install two LIVE rows for one key. See
   :func:`_check_mysql_live_guard` / :func:`_check_sqlite_live_guard`.
+- **The comparison semantics of the key columns are verified, not
+  assumed.** On MySQL the guard above only means what it says while the
+  columns it keys on compare *byte for byte*. An existing table whose
+  ``dataset``/``entity_key``/``job_run_id``/``live_key`` resolved to the
+  charset's case- and accent-insensitive default collation enforces a
+  different — weaker — invariant than SQLite's BINARY default, so the
+  reported collation is read back from ``information_schema.COLUMNS``
+  and refused when it is not ``utf8mb4_bin``. See
+  :func:`_check_mysql_collations`.
+- **Stored timestamps are fixed-width.** SQLite has no temporal type, so
+  ``created_at`` is text and every "newest row" decision is a *lexical*
+  ``ORDER BY``. :func:`_iso_utc` is the single renderer, and it always
+  emits UTC at microsecond precision so text order is time order by
+  construction rather than by accident.
 
 Read path is compute-free: nothing in this module calls a provider or
 performs a live computation. That remains true for every concrete backend
@@ -71,7 +85,7 @@ import os
 import re
 import sqlite3
 import threading
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
@@ -489,6 +503,60 @@ _LIVE_UNIQUE_INDEX = "ux_pi_eod_snapshot_live"
 _MYSQL_LIVE_KEY_COLUMN = "live_key"
 _SQLITE_LIVE_INDEX_COLUMNS = ("dataset", "entity_key")
 
+# --- Comparison semantics of the key columns (PR #2062 review) ------------
+#
+# The guards above prove that the *objects* which enforce the invariants
+# exist. They cannot prove that those objects mean the same thing on both
+# backends, because on MySQL an index means whatever its columns'
+# collation says it means. SQLite compares TEXT byte for byte (BINARY);
+# MySQL resolves an unpinned column to the charset's *default* collation
+# — `utf8mb4_0900_ai_ci` on 8.x, `utf8mb4_general_ci` on 5.7 — both case-
+# **and** accent-insensitive. `_PI_EOD_SNAPSHOT_DDL` therefore pins
+# `utf8mb4_bin` on every column below, but `CREATE TABLE IF NOT EXISTS`
+# no-ops against a pre-existing table, so the DDL's pin says nothing
+# about the table that is actually there. Only the server does.
+#
+# Two divergences follow from a `_ci`/`_ai` column, neither visible to the
+# shape, guard or version checks:
+#
+# 1. `ux_pi_eod_snapshot_live` over an `_ai_ci` `live_key` folds two
+#    genuinely distinct canonical keys into one index entry —
+#    `sector=cafe` and `sector=café` (`canonical_key` casefolds but does
+#    not normalize Unicode, so both survive canonicalization intact).
+#    Once one is LIVE the other can never be promoted, and the refusal is
+#    logged as the routine "another writer already installed a LIVE row",
+#    misattributing the cause forever.
+# 2. `job_run_id` is never canonicalized at all, so under `_ci` the
+#    primary key treats `Run-1` and `run-1` as one row: SQLite inserts
+#    two, MySQL raises a duplicate-key `IntegrityError`. A call one
+#    backend accepts is a call the other refuses.
+#
+# `input_hash` (`should_skip` equality), `status`/`state` (every WHERE
+# clause and the `live_key` generation expression itself) and
+# `engine_version`/`payload_schema_version` (provenance an operator
+# filters and groups on) are held to the same rule for parity: SQLite
+# compares all of them byte for byte, so MySQL must too, and a table
+# built by this DDL already reports `utf8mb4_bin` for each.
+#
+# `validation_reason` and `payload_json` are deliberately *not* checked:
+# free text and a JSON document, never compared, never indexed, never
+# part of a key — their collation cannot change any decision this store
+# makes, and refusing an operator who redeclared one of them would be
+# pedantry.
+_MYSQL_BINARY_COLLATION = "utf8mb4_bin"
+
+_MYSQL_BINARY_COLLATED_COLUMNS = (
+    "dataset",
+    "entity_key",
+    "job_run_id",
+    "status",
+    "state",
+    "input_hash",
+    "engine_version",
+    "payload_schema_version",
+    _MYSQL_LIVE_KEY_COLUMN,
+)
+
 # --- Structural comparison of the guard expressions (PR #2062 review) -----
 #
 # Both dialect guards used to ask only whether the server-reported text
@@ -773,6 +841,71 @@ def _check_mysql_live_guard(
             f"no UNIQUE index over exactly ({_MYSQL_LIVE_KEY_COLUMN}) exists "
             f"(expected {_LIVE_UNIQUE_INDEX!r})",
         )
+
+
+def _check_mysql_collations(collations: Mapping[str, str | None]) -> None:
+    """Verify MySQL compares the key columns byte for byte (PR #2062 review).
+
+    ``collations`` maps every existing column to its
+    ``information_schema.COLUMNS.COLLATION_NAME`` — ``NULL`` for a
+    non-character column. Every name in
+    :data:`_MYSQL_BINARY_COLLATED_COLUMNS` must report
+    :data:`_MYSQL_BINARY_COLLATION`; anything else is refused, including
+    ``NULL``.
+
+    ``NULL`` is refused rather than ignored because it is not the benign
+    case it looks like. A character column always reports a collation, so
+    ``NULL`` here means the column is no longer a character column at
+    all — someone redeclared ``entity_key`` as ``VARBINARY``/``BLOB``,
+    or ``job_run_id`` as an integer. That table's comparison semantics
+    are *undefined* with respect to this store's parity claim (a binary
+    string column would compare byte for byte but silently change what
+    the driver hands back; a numeric one would coerce), and it passes the
+    shape check because ``information_schema`` still lists the column.
+
+    An exact name match is required, not a ``_bin`` suffix test, for the
+    same reason :func:`_check_mysql_live_guard` compares the generation
+    expression exactly: "equivalent collation" is not a property this
+    check can decide in general. ``utf8mb4_0900_bin`` orders by code
+    point and would very likely behave, but it is not what the DDL asks
+    for, and failing closed on a table nobody in this repo creates costs
+    an operator one ``ALTER TABLE`` — which the refusal spells out.
+
+    Every offending column is reported at once. An operator repairing a
+    restored table should see the whole list, not discover the next one
+    on the next construction.
+    """
+    wrong = [
+        (column, collations.get(column))
+        for column in _MYSQL_BINARY_COLLATED_COLUMNS
+        if (collations.get(column) or "").casefold() != _MYSQL_BINARY_COLLATION
+    ]
+    if not wrong:
+        return
+    # `NULL` rather than `None`: the operator reading this is looking at
+    # `information_schema`, where that is what the column reports.
+    detail = ", ".join(
+        f"{column} -> {'NULL' if reported is None else repr(reported)}"
+        for column, reported in wrong
+    )
+    repairs = " ".join(
+        f"ALTER TABLE {_SNAPSHOT_TABLE} MODIFY {column} ... "
+        f"COLLATE {_MYSQL_BINARY_COLLATION};"
+        for column, _ in wrong
+    )
+    raise SnapshotSchemaMismatch(
+        f"mysql: table {_SNAPSHOT_TABLE!r} does not compare its key columns "
+        f"byte for byte — {detail} (expected {_MYSQL_BINARY_COLLATION!r} on "
+        f"every one of {list(_MYSQL_BINARY_COLLATED_COLUMNS)}). MySQL "
+        f"resolves an unpinned column to the charset default, which is case- "
+        f"AND accent-insensitive, so 'sector=cafe' and 'sector=café' "
+        f"collide on {_LIVE_UNIQUE_INDEX!r} (the second key becomes "
+        f"permanently unpromotable, reported as a routine LIVE-row race) and "
+        f"'Run-1' and 'run-1' collide on the primary key (a stage() SQLite "
+        f"accepts raises a duplicate-key error here). A NULL collation means "
+        f"the column is no longer a character column at all. Refusing to use "
+        f"it. Repair with: {repairs}"
+    )
 
 
 def _index_predicate(sql: str | None) -> str:
@@ -1348,9 +1481,53 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_eod_snapshot_live
 """
 
 
+def _iso_utc(moment: datetime) -> str:
+    """Render an instant as **fixed-width** UTC ISO-8601 text.
+
+    The single renderer for every ``created_at`` this backend persists,
+    because on SQLite that column is ``TEXT`` and every "which row is
+    newest" decision — :meth:`SqliteSnapshotStore.get_as_of`'s
+    ``ORDER BY created_at DESC LIMIT 1``, :meth:`list_history`'s
+    ``ORDER BY as_of_session DESC, created_at DESC``, and the
+    ``ix_pi_eod_snapshot_latest`` index behind both — is a *lexical*
+    comparison of that text. Lexical order equals temporal order only
+    while every value has the same shape, and two properties of a bare
+    ``datetime.isoformat()`` break that (PR #2062 review):
+
+    * **Variable width.** ``isoformat()`` omits the fractional part
+      entirely when ``microsecond == 0``, so two writes inside one second
+      are stored as ``...T12:00:00+00:00`` and
+      ``...T12:00:00.000001+00:00`` — 25 characters and 32. Those two
+      happen to still compare correctly, but only because ``'+'`` sorts
+      below ``'.'`` in ASCII: an accident of the offset spelling, not a
+      property anyone declared. Rendering the offset as ``Z``, or
+      widening the fraction, silently inverts the pair.
+    * **Variable offset.** ``isoformat()`` keeps whatever offset the
+      instant carries, and ``'2026-09-04T17:30:00+05:30'`` sorts *after*
+      the later-in-time ``'2026-09-04T12:00:01+00:00'``.
+
+    ``timespec="microseconds"`` fixes the width at 32 characters and
+    ``astimezone(timezone.utc)`` fixes the offset at ``+00:00``, so the
+    text sort is the time sort by construction. It also matches the
+    MySQL backend's ``DATETIME(6)``, which has fixed microsecond
+    precision and no offset at all.
+
+    Compatibility: ``pi_eod_snapshot`` is unshipped foundation (#1963),
+    so no deployed database holds pre-fix values. A development database
+    that does needs no rewrite either — a legacy 25-character value still
+    sorts correctly beside the new 32-character ones, for the ASCII
+    accident above — and :func:`_as_created_at` parses both, since
+    ``datetime.fromisoformat`` accepts either width. The schema *shape*
+    is unchanged, so :data:`SNAPSHOT_SCHEMA_VERSION` is deliberately not
+    bumped; a bump would refuse those development databases while
+    protecting no real data.
+    """
+    return moment.astimezone(timezone.utc).isoformat(timespec="microseconds")
+
+
 def _now_iso() -> str:
     """Wall-clock UTC instant of the write, ISO-8601 (spec §3, 12.3 #8)."""
-    return datetime.now(timezone.utc).isoformat()
+    return _iso_utc(datetime.now(timezone.utc))
 
 
 # Design spec §4.6 makes this binding: the SQLite backend "serializes all

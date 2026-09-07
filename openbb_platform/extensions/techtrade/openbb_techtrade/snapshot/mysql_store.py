@@ -62,7 +62,12 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    accent-insensitive; SQLite's default is BINARY. Every key column and
    the table itself therefore pin ``utf8mb4_bin``, or the primary key
    and the single-LIVE unique key would mean different things on the two
-   backends (see the DDL comment below).
+   backends (see the DDL comment below). The pin is also **re-read from
+   ``information_schema.COLUMNS`` at construction and refused when the
+   server reports anything else**, because ``CREATE TABLE IF NOT
+   EXISTS`` no-ops against a pre-existing table and its collation is
+   whatever that table already had (PR #2062 review). See
+   :func:`~openbb_techtrade.snapshot.store._check_mysql_collations`.
 6. **Schema version stamped in the table ``COMMENT``.** MySQL has no
    ``PRAGMA user_version``, so :data:`~openbb_techtrade.snapshot.store.SNAPSHOT_SCHEMA_VERSION`
    is written into ``pi_eod_snapshot``'s own comment and read back from
@@ -120,6 +125,7 @@ from openbb_techtrade.snapshot.store import (
     _batched,
     _check_field_lengths,
     _check_limit,
+    _check_mysql_collations,
     _check_mysql_live_guard,
     _check_schema_shape,
     _check_schema_version,
@@ -201,7 +207,10 @@ CREATE TABLE IF NOT EXISTS pi_eod_snapshot (
 #    cannot see.
 #
 # Both the table default and every key column carry the collation
-# explicitly, so changing one without the other is visible in review.
+# explicitly, so changing one without the other is visible in review —
+# and `_check_mysql_collations` re-reads what the *server* resolved, so a
+# pre-existing table that the `IF NOT EXISTS` above quietly adopted
+# cannot smuggle an `_ai_ci` key column past construction.
 
 # The bounded VARCHAR widths above are mirrored by
 # ``store.FIELD_MAX_LENGTHS`` and enforced in Python before any write, so
@@ -262,9 +271,17 @@ _INSERT_STAGED = (
 )
 
 _SELECT_SCHEMA_COLUMNS = (
-    "SELECT COLUMN_NAME, GENERATION_EXPRESSION FROM information_schema.COLUMNS "
+    "SELECT COLUMN_NAME, GENERATION_EXPRESSION, COLLATION_NAME "
+    "FROM information_schema.COLUMNS "
     "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s"
 )
+# `COLLATION_NAME` is the third thing this one probe answers, and it is
+# not decoration: a `CREATE TABLE IF NOT EXISTS` that no-ops leaves a
+# pre-existing table's collation in place, and an `_ai_ci` key column
+# turns both the primary key and `ux_pi_eod_snapshot_live` into weaker
+# constraints than SQLite's BINARY ones without changing a single column
+# name. It is `NULL` for a non-character column, which is itself a
+# refusal — see `_check_mysql_collations` (PR #2062 review).
 
 # The single-LIVE guard, read back from the server rather than assumed.
 # `GENERATION_EXPRESSION` above distinguishes the generated `live_key`
@@ -517,6 +534,15 @@ class MysqlSnapshotStore:
         against such a table, and because MySQL declares its indexes
         *inside* ``CREATE TABLE``, the no-op silently skips them too.
 
+        Nor can any of them see the fourth, which is why
+        :meth:`_verify_schema` also re-reads the key columns' collation.
+        The same no-op leaves a pre-existing table's collation alone, and
+        an ``_ai_ci`` ``dataset``/``entity_key``/``job_run_id``/
+        ``live_key`` keeps every column name, every index and every stamp
+        while quietly making the primary key and the single-LIVE key
+        case- and accent-blind — a strictly weaker invariant than the one
+        SQLite's BINARY comparison enforces for the same calls.
+
         The check runs once per pool (see :data:`_SCHEMA_READY`), and the
         refusal is raised *outside* the borrow so a schema fault is not
         logged by the shared pool as ``MySQL connection error``.
@@ -541,30 +567,41 @@ class MysqlSnapshotStore:
 
     @staticmethod
     def _verify_schema(cur: Any) -> None:
-        """Check the table's shape, single-LIVE guard and version stamp.
+        """Check the table's shape, guard, collation and version stamp.
 
         Every probe asks the *server* (``information_schema``) rather than
         re-reading this module's own DDL text, so the answer describes
         the table that exists, not the table this build would have
         created.
 
-        Order matters. The single-LIVE guard is checked *before* the
-        version stamp is read — and therefore before an unstamped table
-        would be adopted and stamped — so a malformed table never leaves
-        this method wearing this build's version marker. It is also
-        checked unconditionally: a table that already carries a perfectly
-        current stamp gets exactly the same scrutiny, because the stamp
-        proves only who wrote the table, never that its keys survived
-        (PR #2062 review).
+        Order matters. The single-LIVE guard and the key columns'
+        collation are both checked *before* the version stamp is read —
+        and therefore before an unstamped table would be adopted and
+        stamped — so a malformed table never leaves this method wearing
+        this build's version marker. They are also checked
+        unconditionally: a table that already carries a perfectly current
+        stamp gets exactly the same scrutiny, because the stamp proves
+        only who wrote the table, never that its keys survived (PR #2062
+        review).
+
+        The guard runs before the collation check only so its message
+        wins when ``live_key`` is absent entirely — a missing column has
+        no collation to report, and "the generated column is missing" is
+        the more useful sentence than "live_key -> NULL".
         """
         cur.execute(_SELECT_SCHEMA_COLUMNS, (_SNAPSHOT_TABLE,))
+        records = cur.fetchall()
         generation = {
             record["COLUMN_NAME"]: record["GENERATION_EXPRESSION"] or ""
-            for record in cur.fetchall()
+            for record in records
+        }
+        collations = {
+            record["COLUMN_NAME"]: record["COLLATION_NAME"] for record in records
         }
         _check_schema_shape(generation.keys(), backend="mysql")
         cur.execute(_SELECT_SCHEMA_INDEXES, (_SNAPSHOT_TABLE,))
         _check_mysql_live_guard(generation, _index_shapes(cur.fetchall()))
+        _check_mysql_collations(collations)
         cur.execute(_SELECT_SCHEMA_COMMENT, (_SNAPSHOT_TABLE,))
         record = cur.fetchone()
         stamped = _parse_schema_version_comment(
