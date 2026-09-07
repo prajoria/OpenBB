@@ -385,17 +385,25 @@ _CANDIDATE_RACE_REASON = "candidate row changed between read and write"
 _LIVE_COLLISION_REASON = "another writer already installed a LIVE row for this key"
 
 
-class _PromotionRefused(Exception):
-    """Internal signal: unwind ``promote()``'s transaction without an error.
+class _LifecycleRefused(Exception):
+    """Internal signal: unwind a lifecycle write's transaction cleanly.
 
     Raised so the enclosing transaction context manager performs its
-    ``ROLLBACK`` — returning ``False`` from inside the ``with`` block
-    would *commit* whatever the refusal was meant to undo.
+    ``ROLLBACK`` — returning from inside the ``with`` block would
+    *commit* whatever the refusal was meant to undo.
     """
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
         self.reason = reason
+
+
+class _PromotionRefused(_LifecycleRefused):
+    """``promote()`` lost a race or failed a gate; unwind without an error."""
+
+
+class _ValidationRefused(_LifecycleRefused):
+    """``validate()`` found the row had moved; unwind without an error."""
 
 
 def _is_integrity_error(exc: BaseException) -> bool:
@@ -626,11 +634,19 @@ class SqliteSnapshotStore:
         STAGING — a LIVE or SUPERSEDED row is immutable history and must
         never have its ``validated``/``validation_reason`` rewritten.
 
-        The state check is re-asserted in the UPDATE's WHERE clause: the
+        The state check is re-asserted inside the write transaction: the
         gate runs between the read and the write, so a concurrent
-        ``promote()`` can move the row in that window. Zero rows affected
-        means exactly that, and is reported as a refusal rather than
-        being mistaken for a persisted verdict.
+        ``promote()`` can move the row in that window. The transaction
+        opens with ``BEGIN IMMEDIATE`` (this dialect's stand-in for
+        ``SELECT ... FOR UPDATE``), re-reads the row, and refuses if it
+        is no longer STAGING; the UPDATE additionally pins ``state`` in
+        its WHERE clause.
+
+        The refusal is deliberately *not* inferred from ``rowcount``.
+        sqlite3 counts rows *matched*, but the MySQL backend's PyMySQL
+        driver counts rows *changed* — so a re-validate that writes the
+        same verdict reports 0 there and 1 here. Deciding the race by
+        re-reading instead keeps the two backends' answers identical.
         """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
@@ -644,24 +660,30 @@ class SqliteSnapshotStore:
             )
         gate = validator or default_validator
         result = gate(row)
-        with self._tx():
-            changed = self._conn.execute(
-                "UPDATE pi_snapshot SET validated = ?, validation_reason = ? "
-                "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
-                "AND job_run_id = ? AND state = ?",
-                (
-                    1 if result.ok else 0,
-                    result.reason,
-                    dataset,
-                    entity_key,
-                    as_of_session.isoformat(),
-                    job_run_id,
-                    SnapshotState.STAGING.value,
-                ),
-            ).rowcount
-        if changed != 1:
-            logger.warning("snapshot validation refused: %s", _VALIDATION_RACE_REASON)
-            return ValidationResult(ok=False, reason=_VALIDATION_RACE_REASON)
+        try:
+            with self._tx(immediate=True):
+                current = self._get_row(dataset, entity_key, as_of_session, job_run_id)
+                # The pre-gate read already established STAGING, so
+                # anything else here means the row moved in the window.
+                if _validation_refusal(current) is not None:
+                    raise _ValidationRefused(_VALIDATION_RACE_REASON)
+                self._conn.execute(
+                    "UPDATE pi_snapshot SET validated = ?, validation_reason = ? "
+                    "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
+                    "AND job_run_id = ? AND state = ?",
+                    (
+                        1 if result.ok else 0,
+                        result.reason,
+                        dataset,
+                        entity_key,
+                        as_of_session.isoformat(),
+                        job_run_id,
+                        SnapshotState.STAGING.value,
+                    ),
+                )
+        except _ValidationRefused as refused:
+            logger.warning("snapshot validation refused: %s", refused.reason)
+            return ValidationResult(ok=False, reason=refused.reason)
         return result
 
     def promote(

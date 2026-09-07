@@ -559,6 +559,55 @@ def test_validate_refuses_when_the_row_leaves_staging_between_read_and_write(
     assert live.validation_reason == ""
 
 
+def test_revalidating_an_unchanged_verdict_is_not_reported_as_a_race(
+    tmp_path, caplog
+) -> None:
+    """Invariant: an idempotent re-validate succeeds on both backends.
+
+    Re-running the gate over a row that already carries the identical
+    verdict rewrites nothing. sqlite3's ``rowcount`` counts rows
+    *matched* so it would report 1 here, but the MySQL backend's PyMySQL
+    driver counts rows *changed* and reports 0 — so a rowcount-based
+    race check answers differently per dialect for the same history.
+    Both backends therefore decide the race by re-reading the row inside
+    the write transaction, and this test pins the shared answer.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        again = store.validate(*staged)
+
+    assert again.ok is True, again.reason
+    assert "changed" not in again.reason.lower()
+    assert not [r for r in caplog.records if "refused" in r.getMessage()]
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert [(r.state, r.validated) for r in history] == [(SnapshotState.STAGING, True)]
+    store.close()
+
+
+def test_revalidating_a_reversed_verdict_still_persists(tmp_path) -> None:
+    """The idempotency fix must not swallow a genuinely changed verdict."""
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+
+    def _reject(row: SnapshotRow) -> ValidationResult:
+        del row
+        return ValidationResult(ok=False, reason="stale-vendor-feed")
+
+    result = store.validate(*staged, validator=_reject)
+    assert result.ok is False
+    assert result.reason == "stale-vendor-feed"
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert history[0].validated is False
+    assert history[0].validation_reason == "stale-vendor-feed"
+    store.close()
+
+
 def test_promote_takes_a_write_lock_before_reading_and_pins_what_it_read(
     tmp_path,
 ) -> None:

@@ -8,14 +8,29 @@ commit/rollback discipline.
 
 The test double
 ---------------
-``_FakePool`` speaks the ``mysql-connector`` pool API
-(``pool.get_connection() -> conn``, ``conn.cursor(dictionary=...)``,
-``cursor.execute(sql, params)``, ``conn.commit()/rollback()/close()``)
-over an on-disk SQLite database, mirroring the pattern already used by
-``test_mysql_paper_engine.py`` and
-``portfolio_snapshot_importer/tests/test_mysql_store.py``. It is
-deliberately *stricter* than the real driver in three places so that
-dialect leakage cannot pass silently:
+The production pool is
+:class:`openbb_fmp_cached.utils.database.ConnectionPool`, which is
+**PyMySQL**, not ``mysql-connector``. Its contract, read off the source:
+
+* ``get_connection()`` is a ``@contextmanager`` — it yields a connection
+  and closes it in a ``finally``. It does **not** return a connection,
+  so ``conn = pool.get_connection()`` hands back a
+  ``_GeneratorContextManager`` that has no ``.cursor()``/``.close()``.
+* the connection is built with ``cursorclass=pymysql.cursors.DictCursor``
+  and ``autocommit=True``. ``conn.cursor()`` therefore takes **no**
+  ``dictionary=``/``buffered=`` keywords (PyMySQL's signature is
+  ``cursor(self, cursor=None)``) and already yields ``dict`` rows.
+* because the session is autocommit, a multi-statement write only becomes
+  atomic — and ``SELECT ... FOR UPDATE`` only holds a lock — inside an
+  explicit ``conn.begin()`` ... ``commit()``/``rollback()`` block.
+* PyMySQL connects with ``client_flag=0`` (no ``CLIENT.FOUND_ROWS``), so
+  ``cursor.rowcount`` after an ``UPDATE`` counts **changed** rows, not
+  matched rows. Re-writing a row's existing values legitimately reports
+  0 affected rows.
+
+``_FakePool``/``_RealisticPool`` implement exactly that contract over an
+on-disk SQLite database. They are deliberately *stricter* than the real
+driver in four places so dialect leakage cannot pass silently:
 
 1. ``execute`` raises when ``sql.count("%s") != len(params)`` — the real
    driver raises ``ProgrammingError`` here too.
@@ -26,11 +41,24 @@ dialect leakage cannot pass silently:
    Real MySQL would accept it; the double refuses so that a copy-pasted
    SQLite-style ``.isoformat()`` workaround fails loudly instead of
    silently round-tripping through a ``DATE`` column.
+4. ``cursor(cursor=...)`` with any argument raises: the pool pins
+   ``DictCursor``, so the backend must ask for a bare cursor.
 
 Column types for the read-side conversion are parsed out of the module's
 own ``_PI_SNAPSHOT_DDL``, so a ``DATE``/``DATETIME(6)`` column really is
-handed back as ``datetime.date``/``datetime.datetime`` exactly like
-``mysql-connector`` does.
+handed back as ``datetime.date``/``datetime.datetime`` exactly like the
+driver does.
+
+Transaction fidelity, and its one deliberate simplification: SQLite has
+no row locks, so a faithful ``FOR UPDATE`` is impossible. The double
+therefore holds *no* read locks — it opens SQLite's write transaction
+lazily, at the explicit transaction's first **write** — which keeps the
+read -> write window observable, which is the whole point of the race
+guards. That a lock was *requested* is asserted on the recorded SQL
+text instead (``test_promote_locks_the_candidate_and_live_rows_on_one_connection``).
+Statements executed without ``begin()`` are autocommitted and a later
+``rollback()`` cannot undo them — exactly like the real autocommit
+session, which is what makes the atomicity tests discriminating.
 
 R7 note: every load-bearing assertion below was reverse-verified by
 mutating the production code it guards (see the task report).
@@ -40,16 +68,20 @@ mutating the production code it guards (see the task report).
 
 from __future__ import annotations
 
+import ast
 import inspect
 import itertools
 import logging
 import re
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pytest
+from openbb_techtrade.snapshot import mysql_store as mysql_store_module
 from openbb_techtrade.snapshot.mysql_store import (
     _PI_SNAPSHOT_DDL,
     MysqlSnapshotStore,
@@ -120,20 +152,20 @@ def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
 
 
 # ---------------------------------------------------------------------------
-# mysql-connector-shaped test double
+# PyMySQL-shaped test double
 # ---------------------------------------------------------------------------
 
 
 class _FakeMysqlError(Exception):
-    """Stand-in for ``mysql.connector.Error``."""
+    """Stand-in for ``pymysql.err.Error``."""
 
 
 class _FakeProgrammingError(_FakeMysqlError):
-    """Stand-in for ``mysql.connector.ProgrammingError``."""
+    """Stand-in for ``pymysql.err.ProgrammingError``."""
 
 
 class _FakeIntegrityError(_FakeMysqlError):
-    """Stand-in for ``mysql.connector.IntegrityError``."""
+    """Stand-in for ``pymysql.err.IntegrityError``."""
 
 
 _ISO_TEMPORAL_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]|$)")
@@ -171,6 +203,12 @@ def _convert(name: str, value: Any) -> Any:
 
 
 _FOR_UPDATE_RE = re.compile(r"\s+FOR\s+UPDATE\s*$", re.I)
+_WRITE_RE = re.compile(r"^\s*(INSERT|UPDATE|DELETE|REPLACE)\b", re.I)
+_UPDATE_RE = re.compile(
+    r"^\s*UPDATE\s+(?P<table>\w+)\s+SET\s+(?P<sets>.+?)\s+WHERE\s+(?P<where>.+)$",
+    re.I | re.S,
+)
+_ASSIGNMENT_RE = re.compile(r"^\s*(\w+)\s*=\s*%s\s*$")
 
 
 def _to_sqlite(sql: str) -> str:
@@ -185,15 +223,24 @@ def _to_sqlite(sql: str) -> str:
 
 
 class _FakeCursor:
-    def __init__(self, conn: _FakeConnection, *, dictionary: bool) -> None:
+    """PyMySQL ``DictCursor`` shim: dict rows, changed-row ``rowcount``."""
+
+    def __init__(self, conn: _FakeConnection) -> None:
         self._conn = conn
-        self._dictionary = dictionary
         self._cursor = conn.raw.cursor()
         self._executed: tuple[str, tuple] | None = None
+        self._changed: int | None = None
+
+    def __enter__(self) -> _FakeCursor:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
 
     @property
     def rowcount(self) -> int:
-        return self._cursor.rowcount
+        """Rows *changed*, as PyMySQL reports without ``CLIENT.FOUND_ROWS``."""
+        return self._cursor.rowcount if self._changed is None else self._changed
 
     def execute(self, sql: str, params: Any = None) -> None:
         if sql.lstrip().upper().startswith("CREATE TABLE"):
@@ -209,6 +256,12 @@ class _FakeCursor:
                 f"{sql.count('%s')} placeholders vs {len(bound)} params"
             )
         self._conn.record(sql, bound)
+        if _WRITE_RE.match(sql):
+            # An explicit transaction only takes SQLite's write lock here,
+            # at its first write — see the module docstring.
+            self._conn.begin_write_if_needed()
+        self._conn.maybe_fail(sql, bound)
+        self._changed = self._count_changed_rows(sql, bound)
         try:
             self._cursor.execute(
                 _to_sqlite(sql), tuple(_adapt(value) for value in bound)
@@ -217,14 +270,45 @@ class _FakeCursor:
             raise _FakeIntegrityError(str(exc)) from exc
         self._executed = (sql, bound)
 
+    def _count_changed_rows(self, sql: str, bound: tuple) -> int | None:
+        """Pre-compute MySQL's *changed*-row count for an ``UPDATE``.
+
+        SQLite's ``rowcount`` counts every row the ``UPDATE`` matched,
+        even when the new values equal the old ones; PyMySQL (no
+        ``CLIENT.FOUND_ROWS``) reports only the rows whose values really
+        changed. Emulating the driver here is what makes an *idempotent*
+        write distinguishable from a lost race.
+        """
+        match = _UPDATE_RE.match(sql)
+        if match is None:
+            return None
+        assignments = match.group("sets").split(",")
+        columns = []
+        for assignment in assignments:
+            parsed = _ASSIGNMENT_RE.match(assignment)
+            if parsed is None:  # pragma: no cover - keeps the double honest
+                raise _FakeProgrammingError(
+                    f"the double only models `col = %s` assignments: " f"{assignment!r}"
+                )
+            columns.append(parsed.group(1))
+        set_params = bound[: len(columns)]
+        where_params = bound[len(columns) :]
+        unchanged = " AND ".join(f"{column} IS ?" for column in columns)
+        # Not recorded in `pool.statements`: this is the double emulating
+        # the driver, not the backend issuing SQL.
+        row = self._cursor.execute(
+            f"SELECT COUNT(*) FROM {match.group('table')} "
+            f"WHERE ({_to_sqlite(match.group('where'))}) AND NOT ({unchanged})",
+            tuple(_adapt(value) for value in (*where_params, *set_params)),
+        ).fetchone()
+        return int(row[0])
+
     def _shape(self, row: Any) -> Any:
+        """Return dict rows, because the pool pins ``cursorclass=DictCursor``."""
         if row is None:
             return None
         names = [column[0] for column in self._cursor.description]
-        values = [_convert(name, value) for name, value in zip(names, row)]
-        if self._dictionary:
-            return dict(zip(names, values))
-        return tuple(values)
+        return {name: _convert(name, value) for name, value in zip(names, row)}
 
     def fetchone(self) -> Any:
         return self._shape(self._cursor.fetchone())
@@ -245,50 +329,91 @@ class _FakeCursor:
 
 
 class _FakeConnection:
+    """PyMySQL ``Connection`` shim: autocommit until an explicit ``begin()``."""
+
     def __init__(
-        self, pool: _BasePool, raw: sqlite3.Connection, conn_id: int, *, owns_raw: bool
+        self, book: _BasePool, raw: sqlite3.Connection, conn_id: int, *, owns_raw: bool
     ) -> None:
-        self._pool = pool
+        self._book = book
         self._owns_raw = owns_raw
         self.raw = raw
         self.conn_id = conn_id
+        self.in_txn = False
+        self._write_txn_open = False
 
-    def cursor(self, dictionary: bool = False, buffered: bool = False) -> _FakeCursor:
-        del buffered
-        return _FakeCursor(self, dictionary=dictionary)
+    def cursor(self, cursor: Any = None) -> _FakeCursor:
+        """PyMySQL's signature. The pool already pins ``DictCursor``."""
+        if cursor is not None:
+            raise _FakeProgrammingError(
+                "the pool pins cursorclass=DictCursor; ask for a bare cursor"
+            )
+        self._book.cursor_calls += 1
+        return _FakeCursor(self)
 
     def record(self, sql: str, params: tuple) -> None:
-        self._pool.record(self.conn_id, sql, params)
+        self._book.record(self.conn_id, sql, params)
 
     def fire(self, sql: str, params: tuple) -> None:
-        self._pool.fire(sql, params)
+        self._book.fire(sql, params)
+
+    def maybe_fail(self, sql: str, params: tuple) -> None:
+        """Simulate a mid-transaction driver failure (see ``fail_on``)."""
+        predicate = self._book.fail_on
+        if predicate is not None and predicate(sql, params):
+            self._book.fail_on = None
+            raise _FakeMysqlError(f"simulated driver failure on {sql!r}")
+
+    def begin(self) -> None:
+        """``conn.begin()`` — the only way to group writes under autocommit."""
+        if self.in_txn:
+            raise _FakeProgrammingError("a transaction is already open")
+        self.in_txn = True
+        self._book.begins += 1
+
+    def begin_write_if_needed(self) -> None:
+        if self.in_txn and not self._write_txn_open:
+            self.raw.execute("BEGIN IMMEDIATE")
+            self._write_txn_open = True
 
     def commit(self) -> None:
-        self._pool.commits += 1
-        self.raw.commit()
+        self._book.commits += 1
+        self._end_txn("COMMIT")
 
     def rollback(self) -> None:
-        self._pool.rollbacks += 1
-        self.raw.rollback()
+        self._book.rollbacks += 1
+        self._end_txn("ROLLBACK")
+
+    def _end_txn(self, verb: str) -> None:
+        if self._write_txn_open:
+            self.raw.execute(verb)
+            self._write_txn_open = False
+        self.in_txn = False
 
     def close(self) -> None:
         # Pooled connections are returned, not torn down.
-        self._pool.returned += 1
+        self._book.returned += 1
+        if self.in_txn:
+            self._book.closed_with_open_txn += 1
+            self._end_txn("ROLLBACK")
         if self._owns_raw:
             self.raw.close()
 
 
 class _BasePool:
-    """Bookkeeping shared by both pool doubles."""
+    """Bookkeeping shared by both pool doubles (and the seam-test stub)."""
 
     def __init__(self) -> None:
+        self.begins = 0
         self.commits = 0
         self.rollbacks = 0
         self.handed_out = 0
         self.returned = 0
+        self.cursor_calls = 0
+        self.closed_with_open_txn = 0
         self.statements: list[tuple[str, tuple]] = []
         self.calls: list[tuple[int, str, tuple]] = []
         self.after_execute: Any = None
+        self.fail_on: Any = None
         self._ids = itertools.count(1)
         self._in_hook = False
 
@@ -317,33 +442,44 @@ class _FakePool(_BasePool):
 
     def __init__(self, path: Path | str) -> None:
         super().__init__()
-        self.raw = sqlite3.connect(str(path))
+        self.raw = sqlite3.connect(str(path), isolation_level=None)
 
-    def get_connection(self) -> _FakeConnection:
+    @contextmanager
+    def get_connection(self) -> Iterator[_FakeConnection]:
+        """``ConnectionPool.get_connection`` is a context manager, not a getter."""
         self.handed_out += 1
-        return _FakeConnection(self, self.raw, next(self._ids), owns_raw=False)
+        conn = _FakeConnection(self, self.raw, next(self._ids), owns_raw=False)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
 
 class _RealisticPool(_BasePool):
     """Pool whose connections are genuinely independent, like the real driver.
 
-    ``mysql-connector``'s ``get_connection()`` hands out a *distinct*
-    session with its own transaction; the single-connection
-    :class:`_FakePool` cannot express that, so it can never exhibit a
-    read-then-write race. Here each borrow opens its own SQLite
-    connection to the same file, so one actor's commit becomes visible
-    to another actor between its read and its write — exactly the
-    window ``promote()``/``validate()`` must defend.
+    ``ConnectionPool.get_connection()`` opens a *fresh* PyMySQL session
+    with its own transaction; the single-connection :class:`_FakePool`
+    cannot express that, so it can never exhibit a read-then-write race.
+    Here each borrow opens its own SQLite connection to the same file, so
+    one actor's commit becomes visible to another actor between its read
+    and its write — exactly the window ``promote()``/``validate()`` must
+    defend.
     """
 
     def __init__(self, path: Path | str) -> None:
         super().__init__()
         self.path = str(path)
 
-    def get_connection(self) -> _FakeConnection:
+    @contextmanager
+    def get_connection(self) -> Iterator[_FakeConnection]:
         self.handed_out += 1
-        raw = sqlite3.connect(self.path, timeout=1.0)
-        return _FakeConnection(self, raw, next(self._ids), owns_raw=True)
+        raw = sqlite3.connect(self.path, timeout=1.0, isolation_level=None)
+        conn = _FakeConnection(self, raw, next(self._ids), owns_raw=True)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def query(self, sql: str, params: tuple = ()) -> list[tuple]:
         """Out-of-band read for assertions (its own short-lived connection)."""
@@ -418,31 +554,32 @@ def _stage(  # pylint: disable=too-many-arguments
 
 def _direct_insert(pool: _FakePool, *, job_run_id: str, state: str) -> None:
     """Bypass the store to test the DB-level constraint directly."""
-    conn = pool.get_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            "INSERT INTO pi_snapshot ("
-            "dataset, entity_key, as_of_session, created_at, job_run_id, "
-            "status, state, validated, validation_reason, payload_json, "
-            "input_hash, row_count, engine_version, payload_schema_version"
-            ") VALUES (%s, %s, %s, %s, %s, %s, %s, 1, '', %s, NULL, NULL, "
-            "NULL, NULL)",
-            (
-                "techtrade.movers",
-                "sector=technology",
-                date(2026, 9, 9),
-                datetime(2026, 9, 9, 12, 0, 0),
-                job_run_id,
-                SnapshotStatus.OK.value,
-                state,
-                '{"rows": [{"symbol": "GOOG"}]}',
-            ),
-        )
-        conn.commit()
-    finally:
-        cur.close()
-        conn.close()
+    with pool.get_connection() as conn:
+        conn.begin()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO pi_snapshot ("
+                    "dataset, entity_key, as_of_session, created_at, job_run_id, "
+                    "status, state, validated, validation_reason, payload_json, "
+                    "input_hash, row_count, engine_version, payload_schema_version"
+                    ") VALUES (%s, %s, %s, %s, %s, %s, %s, 1, '', %s, NULL, NULL, "
+                    "NULL, NULL)",
+                    (
+                        "techtrade.movers",
+                        "sector=technology",
+                        date(2026, 9, 9),
+                        datetime(2026, 9, 9, 12, 0, 0),
+                        job_run_id,
+                        SnapshotStatus.OK.value,
+                        state,
+                        '{"rows": [{"symbol": "GOOG"}]}',
+                    ),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
 
 # ---------------------------------------------------------------------------
@@ -987,18 +1124,71 @@ def test_every_user_value_is_bound_with_percent_s(
 def test_writes_commit_and_reads_do_not(
     store: MysqlSnapshotStore, pool: _FakePool
 ) -> None:
-    commits_before = pool.commits
+    """Invariant: writes open an explicit transaction; reads open nothing.
+
+    The pool hands out ``autocommit=True`` sessions, so a write scope
+    that never calls ``begin()`` is not a transaction at all — its
+    statements land one at a time and its ``rollback()`` undoes nothing.
+    A read scope, conversely, needs no transaction: a bare ``SELECT`` on
+    an autocommit session leaves no read view to close, so opening one
+    would only be a round-trip to throw away.
+    """
+    begins_before, commits_before = pool.begins, pool.commits
     _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert pool.begins == begins_before + 1
     assert pool.commits == commits_before + 1
 
+    begins_after_write = pool.begins
     commits_after_write = pool.commits
     rollbacks_before_read = pool.rollbacks
     assert store.get_live("techtrade.movers", "sector=technology") is None
     store.list_history("techtrade.movers", "sector=technology")
+    assert pool.begins == begins_after_write
     assert pool.commits == commits_after_write
-    # Reads must close their InnoDB read transaction rather than leak it
-    # back into the pool.
-    assert pool.rollbacks > rollbacks_before_read
+    assert pool.rollbacks == rollbacks_before_read
+
+
+def test_a_failed_promote_rolls_back_the_demotion_it_already_wrote(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """Invariant: multi-statement writes are all-or-nothing.
+
+    ``promote()`` demotes the incumbent and installs the candidate as
+    two statements. On an autocommit session without an explicit
+    ``begin()`` the first one is already durable when the second fails,
+    leaving the key with *no* LIVE row at all — the corruption this
+    store exists to prevent. The failure is injected on the promoting
+    UPDATE so the demotion has definitely landed first.
+    """
+    incumbent = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, as_of_session=date(2026, 9, 3)
+    )
+    assert store.validate(*incumbent).ok
+    assert store.promote(*incumbent)
+
+    mine = _stage(
+        store, payload={"rows": [{"symbol": "MSFT"}]}, as_of_session=date(2026, 9, 4)
+    )
+    assert store.validate(*mine).ok
+
+    rollbacks_before = pool.rollbacks
+    pool.fail_on = lambda sql, params: (
+        sql.startswith("UPDATE pi_snapshot SET state")
+        and params[0] == SnapshotState.LIVE.value
+    )
+    with pytest.raises(_FakeMysqlError):
+        store.promote(*mine)
+
+    assert pool.rollbacks == rollbacks_before + 1
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None, "the demotion was committed without its promotion"
+    assert live.job_run_id == incumbent[3]
+    states = {
+        row.job_run_id: row.state
+        for row in store.list_history("techtrade.movers", "sector=technology")
+    }
+    assert states[incumbent[3]] == SnapshotState.LIVE
+    assert states[mine[3]] == SnapshotState.STAGING
 
 
 def test_failed_write_rolls_back_and_leaves_the_table_untouched(
@@ -1026,6 +1216,26 @@ def test_failed_write_rolls_back_and_leaves_the_table_untouched(
     assert live.payload["rows"][0]["symbol"] == "AAPL"
 
 
+def test_connections_are_returned_with_no_transaction_left_open(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """Invariant: a borrowed session goes back in a clean state.
+
+    The pool closes whatever it handed out, but a store that leaves a
+    transaction dangling on failure has already broken the contract for
+    any pool that recycles sessions instead of dropping them.
+    """
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]}, job_run_id="run-x")
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    with pytest.raises(_FakeIntegrityError):
+        _stage(store, payload={"rows": [{"symbol": "MSFT"}]}, job_run_id="run-x")
+    assert store.prune(RetentionPolicy(keep_sessions=1)) >= 0
+
+    assert pool.closed_with_open_txn == 0
+    assert pool.handed_out == pool.returned
+
+
 def test_every_borrowed_connection_is_returned_to_the_pool(
     store: MysqlSnapshotStore, pool: _FakePool
 ) -> None:
@@ -1047,6 +1257,162 @@ def test_close_does_not_tear_down_the_shared_pool(
     # The pool is shared with the FMP cache; a second store must still work.
     second = MysqlSnapshotStore(connection_pool=pool)
     assert second.get_live("techtrade.movers", "sector=technology") is not None
+
+
+# ---------------------------------------------------------------------------
+# Driver seam: the store is written against PyMySQL, not mysql-connector
+# ---------------------------------------------------------------------------
+
+
+def _mysql_store_ast() -> ast.Module:
+    return ast.parse(inspect.getsource(mysql_store_module))
+
+
+def test_pool_connections_are_only_taken_inside_a_with_block() -> None:
+    """Invariant: ``get_connection()`` is a context manager, not a getter.
+
+    ``ConnectionPool.get_connection`` is decorated with
+    ``@contextmanager``: calling it returns a ``_GeneratorContextManager``
+    with no ``cursor()``/``close()``, and the connection is only opened
+    (and, crucially, closed) by the ``with``. The AST is walked rather
+    than the source text because a textual check is defeated by the
+    string appearing in a comment or docstring.
+    """
+    tree = _mysql_store_ast()
+    guarded = {
+        id(item.context_expr)
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.With, ast.AsyncWith))
+        for item in node.items
+    }
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get_connection"
+    ]
+    assert calls, "the store no longer borrows from the pool at all"
+    for call in calls:
+        assert id(call) in guarded, (
+            "pool.get_connection() is a @contextmanager; calling it outside a "
+            "`with` yields a context-manager object, not a connection"
+        )
+
+
+def test_cursors_are_requested_with_the_pymysql_signature() -> None:
+    """Invariant: no ``dictionary=``/``buffered=`` mysql-connector kwargs.
+
+    PyMySQL's signature is ``cursor(self, cursor=None)`` and the pool
+    already pins ``cursorclass=DictCursor``, so any keyword here is a
+    ``TypeError`` against the real driver.
+    """
+    tree = _mysql_store_ast()
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "cursor"
+    ]
+    assert calls, "the store no longer opens cursors at all"
+    for call in calls:
+        assert not call.keywords, (
+            "conn.cursor() takes no keywords in PyMySQL: "
+            f"{[kw.arg for kw in call.keywords]}"
+        )
+        assert not call.args, "the pool pins DictCursor; ask for a bare cursor"
+
+
+def test_rows_come_back_as_dict_cursor_mappings(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """Invariant: the read path consumes ``DictCursor`` rows by name.
+
+    The pool pins ``cursorclass=DictCursor``; a backend that indexed rows
+    positionally would silently transpose columns the moment the
+    projection changed.
+    """
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    with pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT dataset, state FROM pi_snapshot WHERE state = %s", ("live",)
+        )
+        record = cur.fetchone()
+    assert isinstance(record, dict)
+    assert record["state"] == "live"
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.state == SnapshotState.LIVE
+
+
+class _StubDatabaseConfig:
+    """Minimal stand-in for ``DatabaseConfig`` — no user_settings.json read."""
+
+    @property
+    def connection_params(self) -> dict[str, Any]:
+        return {"host": "127.0.0.1", "database": "seam_contract_test"}
+
+
+def test_store_drives_the_real_connection_pool_class(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seam contract: run the store through the *real* ``ConnectionPool``.
+
+    Every other test in this module injects a pool double, which can only
+    prove the store agrees with the double. This one instantiates the
+    production class from ``openbb_fmp_cached.utils.database`` and only
+    stubs ``pymysql.connect`` — no server, no socket — so the borrow
+    protocol (``@contextmanager``, close-in-finally), the pinned
+    ``DictCursor``, and ``autocommit=True`` are the real ones.
+    """
+    from openbb_fmp_cached.utils import database  # noqa: PLC0415
+
+    book = _BasePool()
+    connect_kwargs: list[dict[str, Any]] = []
+    opened: list[_FakeConnection] = []
+
+    def _fake_connect(**kwargs: Any) -> _FakeConnection:
+        connect_kwargs.append(kwargs)
+        conn = _FakeConnection(
+            book,
+            sqlite3.connect(str(tmp_path / "seam.db"), isolation_level=None),
+            len(opened) + 1,
+            owns_raw=True,
+        )
+        opened.append(conn)
+        return conn
+
+    monkeypatch.setattr(database.pymysql, "connect", _fake_connect)
+    pool = database.ConnectionPool(_StubDatabaseConfig())
+
+    borrowed = pool.get_connection()
+    assert hasattr(borrowed, "__enter__") and hasattr(borrowed, "__exit__")
+    assert not hasattr(borrowed, "cursor"), (
+        "get_connection() returns a context manager; a store that treats it "
+        "as a connection breaks against the real pool"
+    )
+    with borrowed as conn:
+        assert conn is opened[-1]
+    assert connect_kwargs[-1]["autocommit"] is True
+    assert connect_kwargs[-1]["cursorclass"] is database.pymysql.cursors.DictCursor
+    assert connect_kwargs[-1]["database"] == "seam_contract_test"
+
+    store = MysqlSnapshotStore(connection_pool=pool)
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == staged[3]
+    assert live.state == SnapshotState.LIVE
+
+    assert book.begins >= 2, "writes must open an explicit transaction"
+    assert book.closed_with_open_txn == 0
+    assert book.returned == len(opened), "the pool closes every connection it opens"
 
 
 # ---------------------------------------------------------------------------
@@ -1099,6 +1465,88 @@ def test_validate_update_is_scoped_to_the_staging_state(
     sql, params = updates[0]
     assert "AND state = %s" in sql
     assert SnapshotState.STAGING.value in params
+
+
+def test_revalidating_an_unchanged_verdict_is_not_reported_as_a_race(
+    store: MysqlSnapshotStore, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Invariant: an idempotent re-validate succeeds.
+
+    Re-running the gate on a row that already carries the identical
+    verdict rewrites nothing, and PyMySQL — which connects without
+    ``CLIENT.FOUND_ROWS`` — reports **0** affected rows for that UPDATE.
+    A backend that reads "0 affected" as "someone moved the row" turns a
+    replayed job into a phantom race: the verdict is discarded and the
+    caller is told the snapshot is unusable, while the row sits
+    untouched in STAGING with the very verdict it just refused to admit.
+    """
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+
+    with caplog.at_level(logging.WARNING, logger=_MYSQL_LOGGER):
+        again = store.validate(*staged)
+
+    assert again.ok is True, again.reason
+    assert "changed" not in again.reason.lower()
+    assert not [r for r in caplog.records if "refused" in r.getMessage()]
+
+    row = store.get_as_of("techtrade.movers", "sector=technology", staged[2])
+    assert row is None  # still STAGING, never promoted
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert [(r.state, r.validated) for r in history] == [(SnapshotState.STAGING, True)]
+
+
+def test_revalidating_a_reversed_verdict_still_persists(
+    store: MysqlSnapshotStore,
+) -> None:
+    """The idempotency fix must not swallow a genuinely changed verdict."""
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+
+    def _reject(row: SnapshotRow) -> ValidationResult:
+        del row
+        return ValidationResult(ok=False, reason="stale-vendor-feed")
+
+    result = store.validate(*staged, validator=_reject)
+    assert result.ok is False
+    assert result.reason == "stale-vendor-feed"
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert history[0].validated is False
+    assert history[0].validation_reason == "stale-vendor-feed"
+
+
+def test_validate_re_reads_the_row_under_a_lock_in_its_write_transaction(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """Invariant: the STAGING re-check is a *locked* read, not a rowcount.
+
+    ``rowcount`` cannot answer "did the row move?" on PyMySQL, because 0
+    affected rows is ambiguous between "someone moved it" and "nothing
+    to change". The unambiguous answer is to re-read the row ``FOR
+    UPDATE`` inside the same transaction as the write, which both
+    resolves the ambiguity and holds the row until COMMIT.
+    """
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    before = len(pool.calls)
+    assert store.validate(*staged).ok
+
+    calls = pool.calls[before:]
+    update_at = next(
+        index
+        for index, (_, sql, _) in enumerate(calls)
+        if sql.lstrip().upper().startswith("UPDATE PI_SNAPSHOT SET VALIDATED")
+    )
+    locked = [
+        (conn_id, sql)
+        for conn_id, sql, _ in calls[:update_at]
+        if sql.rstrip().upper().endswith("FOR UPDATE")
+    ]
+    assert locked, "validate wrote its verdict without re-reading under a lock"
+    assert locked[-1][0] == calls[update_at][0], (
+        "the locking read must run on the same connection — and therefore the "
+        "same transaction — as the write it guards"
+    )
 
 
 def test_validate_refuses_when_the_row_leaves_staging_between_read_and_write(
@@ -1304,17 +1752,18 @@ def test_promote_converts_a_concurrent_live_key_collision_into_a_refusal(
 
 def _direct_supersede(pool: _RealisticPool, job_run_id: str) -> None:
     """Out-of-band demotion, committed on its own connection."""
-    conn = pool.get_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            "UPDATE pi_snapshot SET state = %s WHERE job_run_id = %s",
-            (SnapshotState.SUPERSEDED.value, job_run_id),
-        )
-        conn.commit()
-    finally:
-        cur.close()
-        conn.close()
+    with pool.get_connection() as conn:
+        conn.begin()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE pi_snapshot SET state = %s WHERE job_run_id = %s",
+                    (SnapshotState.SUPERSEDED.value, job_run_id),
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
 
 def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(

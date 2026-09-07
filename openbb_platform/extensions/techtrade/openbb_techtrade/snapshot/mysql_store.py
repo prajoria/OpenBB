@@ -37,12 +37,21 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    older session, so every read and every retention decision keys off
    ``state``, and ``prune()`` refuses to delete a LIVE row regardless of
    whether its session lands inside the kept window.
-4. **``%s`` bindings and pooled connections.** Placeholders are ``%s``
-   (mysql-connector) instead of ``?``; connections are borrowed per
-   operation and returned to the shared pool. Writes go through
-   :meth:`transaction` (commit on success, rollback on any exception);
-   reads go through :meth:`_read`, which rolls back on exit so an
-   InnoDB read view is never leaked back into the pool.
+4. **``%s`` bindings, pooled PyMySQL sessions, explicit transactions.**
+   Placeholders are ``%s`` (PyMySQL) instead of ``?``. Connections are
+   borrowed per operation from a shared pool whose ``get_connection()``
+   is a ``@contextmanager`` — it *yields* the connection and closes it
+   itself — so every borrow is a ``with`` block, never a bare call.
+   Those sessions are ``autocommit=True``, which means a write scope has
+   to open its own transaction (:meth:`transaction`, via
+   ``conn.begin()``) or it is not atomic and its ``FOR UPDATE`` locks do
+   not survive the statement that took them; reads
+   (:meth:`_read`) need no transaction at all. The pool pins
+   ``cursorclass=DictCursor``, so cursors are requested bare
+   (``conn.cursor()``) and rows arrive as mappings. Finally, PyMySQL
+   connects without ``CLIENT.FOUND_ROWS``, so ``cursor.rowcount`` after
+   an UPDATE counts rows *changed*, not rows *matched* — see
+   :meth:`validate`, which cannot use it to detect a race.
 
 Read path is compute-free: every read method only ever issues a
 ``SELECT`` against ``pi_snapshot``; none of them calls a provider or a
@@ -82,6 +91,7 @@ from openbb_techtrade.snapshot.store import (
     _row_from_mapping,
     _should_skip,
     _validation_refusal,
+    _ValidationRefused,
     canonical_key,
     default_validator,
 )
@@ -185,8 +195,8 @@ class MysqlSnapshotStore:
     """MySQL-backed EOD snapshot store implementing ``SnapshotStore``.
 
     ``connection_pool`` is injectable so the contract suite can run
-    against a mysql-connector-shaped double without a live server; in
-    production it defaults to the shared FMP-cache pool.
+    against a PyMySQL-shaped double without a live server; in production
+    it defaults to the shared FMP-cache pool.
     """
 
     def __init__(self, connection_pool: Any = None) -> None:
@@ -211,53 +221,91 @@ class MysqlSnapshotStore:
         self.close()
 
     @contextmanager
-    def _acquire(self) -> Iterator[Any]:
-        """Borrow a pooled connection and always hand it back."""
-        conn = self._pool.get_connection()
-        try:
+    def _borrow(self) -> Iterator[Any]:
+        """Borrow a pooled connection.
+
+        ``ConnectionPool.get_connection()`` is itself a
+        ``@contextmanager``: it yields the live PyMySQL connection and
+        closes it in its own ``finally``. Calling it bare would hand back
+        a ``_GeneratorContextManager`` — an object with no ``cursor()``
+        and no ``close()`` — so the ``with`` is load-bearing, not
+        stylistic.
+        """
+        with self._pool.get_connection() as conn:
             yield conn
-        finally:
-            conn.close()
 
     @contextmanager
     def _read(self) -> Iterator[Any]:
-        """Read scope: end the InnoDB read view before returning the conn."""
-        with self._acquire() as conn:
-            try:
-                yield conn
-            finally:
-                conn.rollback()
+        """Read scope: a bare, autocommitted ``SELECT``.
+
+        Pool sessions are ``autocommit=True``, so a lone ``SELECT`` opens
+        no transaction and leaves no read view behind. Nothing to commit,
+        nothing to roll back — issuing either here would only be a
+        round-trip that ends a transaction that was never started.
+        """
+        with self._borrow() as conn:
+            yield conn
 
     @contextmanager
     def transaction(self) -> Iterator[Any]:
-        """Write scope: commit on success, rollback on any exception."""
-        with self._acquire() as conn:
+        """Write scope: an explicit transaction on an autocommit session.
+
+        The pool hands out ``autocommit=True`` connections, so without an
+        explicit ``begin()`` every statement is its own transaction: a
+        multi-statement write is no longer atomic and every
+        ``SELECT ... FOR UPDATE`` releases its row lock the instant the
+        statement finishes. ``conn.begin()`` issues a plain ``BEGIN``,
+        which suspends autocommit until the next ``COMMIT``/``ROLLBACK``;
+        it is preferred over toggling ``conn.autocommit(False)`` because
+        the pool's own writers document that mid-connection toggle as a
+        PyMySQL footgun (see ``openbb_fmp_cached.utils.database``).
+
+        The connection is shared with the FMP cache, so it must go back
+        in the state it arrived in — no transaction open. The ``finally``
+        therefore rolls back whatever did not commit, including the path
+        where ``commit()`` itself raises, and swallows only a *failing
+        rollback* (logged), which would otherwise mask the original
+        error.
+        """
+        with self._borrow() as conn:
+            conn.begin()
+            committed = False
             try:
                 yield conn
                 conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
+                committed = True
+            finally:
+                if not committed:
+                    self._restore(conn)
+
+    @staticmethod
+    def _restore(conn: Any) -> None:
+        """Best-effort ``ROLLBACK`` so the pooled session is reusable."""
+        try:
+            conn.rollback()
+        except Exception:  # pylint: disable=broad-except
+            # Never mask the error that caused the unwind. A connection
+            # that cannot roll back is broken; the pool closes it anyway.
+            logger.warning("snapshot rollback failed", exc_info=True)
 
     def _ensure_schema(self) -> None:
-        with self.transaction() as conn:
-            cur = conn.cursor()
-            try:
-                for ddl in _ALL_DDLS:
-                    cur.execute(ddl)
-            finally:
-                cur.close()
+        # DDL is implicitly committed by MySQL, so it deliberately runs on
+        # the autocommit session rather than inside `transaction()`, where
+        # a rollback would be a lie.
+        with self._borrow() as conn, conn.cursor() as cur:
+            for ddl in _ALL_DDLS:
+                cur.execute(ddl)
 
     # --- private query helpers -----------------------------------------
 
     @staticmethod
     def _fetch_row(conn: Any, sql: str, params: tuple) -> SnapshotRow | None:
-        cur = conn.cursor(dictionary=True)
-        try:
+        # No `dictionary=`/`buffered=` keyword: PyMySQL's signature is
+        # `cursor(self, cursor=None)` and the pool already pins
+        # `cursorclass=DictCursor`, so a bare cursor yields dict rows.
+        with conn.cursor() as cur:
             cur.execute(sql, params)
             record = cur.fetchone()
-        finally:
-            cur.close()
         return _row_from_mapping(record) if record is not None else None
 
     @classmethod
@@ -308,28 +356,24 @@ class MysqlSnapshotStore:
         """Write a run to STAGING; never touches the LIVE view."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
-        with self.transaction() as conn:
-            cur = conn.cursor()
-            try:
-                cur.execute(
-                    _INSERT_STAGED,
-                    (
-                        dataset,
-                        entity_key,
-                        as_of_session,
-                        _now_utc_naive(),
-                        job_run_id,
-                        status.value,
-                        SnapshotState.STAGING.value,
-                        _dumps_payload(payload),
-                        input_hash,
-                        row_count,
-                        engine_version,
-                        payload_schema_version,
-                    ),
-                )
-            finally:
-                cur.close()
+        with self.transaction() as conn, conn.cursor() as cur:
+            cur.execute(
+                _INSERT_STAGED,
+                (
+                    dataset,
+                    entity_key,
+                    as_of_session,
+                    _now_utc_naive(),
+                    job_run_id,
+                    status.value,
+                    SnapshotState.STAGING.value,
+                    _dumps_payload(payload),
+                    input_hash,
+                    row_count,
+                    engine_version,
+                    payload_schema_version,
+                ),
+            )
 
     def validate(  # pylint: disable=too-many-positional-arguments
         self,
@@ -344,11 +388,19 @@ class MysqlSnapshotStore:
         Refuses (without mutating anything) if the row's state is not
         STAGING — a LIVE or SUPERSEDED row is immutable history.
 
-        The gate runs *between* the read and the write, so the UPDATE
-        re-asserts ``state = 'staging'`` in its WHERE clause. If a
-        concurrent ``promote()`` moved the row in that window, zero rows
-        are affected and the verdict is refused rather than forged onto
-        a row that is no longer staged.
+        The gate runs *between* the read and the write, so the row can
+        move in that window (a concurrent ``promote()``). The write
+        transaction therefore re-reads the row ``FOR UPDATE`` and
+        re-applies the STAGING gate before writing, holding the row until
+        COMMIT; the UPDATE additionally pins ``state = 'staging'`` as a
+        belt-and-braces predicate.
+
+        What it deliberately does *not* do is infer the race from
+        ``rowcount``. PyMySQL connects without ``CLIENT.FOUND_ROWS``, so
+        an UPDATE reports rows *changed*, not rows *matched*: re-running
+        the same gate over the same row legitimately affects **0** rows.
+        Reading that as "someone moved the row" would turn every replayed
+        job into a phantom race.
         """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
@@ -363,30 +415,49 @@ class MysqlSnapshotStore:
             )
         gate = validator or default_validator
         result = gate(row)
-        with self.transaction() as conn:
-            cur = conn.cursor()
-            try:
-                cur.execute(
-                    "UPDATE pi_snapshot SET validated = %s, validation_reason = %s "
-                    "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
-                    "AND job_run_id = %s AND state = %s",
-                    (
-                        1 if result.ok else 0,
-                        result.reason,
-                        dataset,
-                        entity_key,
-                        as_of_session,
-                        job_run_id,
-                        SnapshotState.STAGING.value,
-                    ),
+        try:
+            with self.transaction() as conn:
+                self._write_verdict(
+                    conn, dataset, entity_key, as_of_session, job_run_id, result
                 )
-                changed = cur.rowcount
-            finally:
-                cur.close()
-        if changed != 1:
-            logger.warning("snapshot validation refused: %s", _VALIDATION_RACE_REASON)
-            return ValidationResult(ok=False, reason=_VALIDATION_RACE_REASON)
+        except _ValidationRefused as refused:
+            logger.warning("snapshot validation refused: %s", refused.reason)
+            return ValidationResult(ok=False, reason=refused.reason)
         return result
+
+    @classmethod
+    def _write_verdict(  # pylint: disable=too-many-positional-arguments
+        cls,
+        conn: Any,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        result: ValidationResult,
+    ) -> None:
+        """Re-check STAGING under a row lock, then persist the verdict."""
+        current = cls._get_row(
+            conn, dataset, entity_key, as_of_session, job_run_id, for_update=True
+        )
+        # The pre-gate read already established STAGING, so anything else
+        # here means the row moved inside the gate's window.
+        if _validation_refusal(current) is not None:
+            raise _ValidationRefused(_VALIDATION_RACE_REASON)
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE pi_snapshot SET validated = %s, validation_reason = %s "
+                "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
+                "AND job_run_id = %s AND state = %s",
+                (
+                    1 if result.ok else 0,
+                    result.reason,
+                    dataset,
+                    entity_key,
+                    as_of_session,
+                    job_run_id,
+                    SnapshotState.STAGING.value,
+                ),
+            )
 
     def promote(
         self,
@@ -435,7 +506,13 @@ class MysqlSnapshotStore:
         as_of_session: date,
         job_run_id: str,
     ) -> None:
-        """Locking read + guarded writes; raises :class:`_PromotionRefused`."""
+        """Locking read + guarded writes; raises :class:`_PromotionRefused`.
+
+        Unlike ``validate()``, ``rowcount`` *is* trustworthy here: both
+        writes are state transitions (``staging -> live``,
+        ``live -> superseded``), so a matched row is always a changed
+        row and PyMySQL's changed-row count cannot be ambiguous.
+        """
         candidate = cls._get_row(
             conn, dataset, entity_key, as_of_session, job_run_id, for_update=True
         )
@@ -443,8 +520,7 @@ class MysqlSnapshotStore:
         refusal = _promotion_refusal(candidate, live)
         if refusal is not None:
             raise _PromotionRefused(refusal)
-        cur = conn.cursor()
-        try:
+        with conn.cursor() as cur:
             if live is not None:
                 cur.execute(
                     "UPDATE pi_snapshot SET state = %s "
@@ -476,8 +552,6 @@ class MysqlSnapshotStore:
             )
             if cur.rowcount != 1:
                 raise _PromotionRefused(_CANDIDATE_RACE_REASON)
-        finally:
-            cur.close()
 
     def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
         """Compute-free single-row read of ``state='live'``; ``None`` if absent."""
@@ -510,13 +584,9 @@ class MysqlSnapshotStore:
         """Newest-first rows for a key, retained for audit/replay/diffing."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
-        with self._read() as conn:
-            cur = conn.cursor(dictionary=True)
-            try:
-                cur.execute(_SELECT_HISTORY, (dataset, entity_key, limit))
-                records = cur.fetchall()
-            finally:
-                cur.close()
+        with self._read() as conn, conn.cursor() as cur:
+            cur.execute(_SELECT_HISTORY, (dataset, entity_key, limit))
+            records = cur.fetchall()
         return [_row_from_mapping(record) for record in records]
 
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
@@ -557,17 +627,13 @@ class MysqlSnapshotStore:
             return 0
         keep_sessions = policy.keep_sessions
         deleted = 0
-        with self.transaction() as conn:
-            cur = conn.cursor(dictionary=True)
-            try:
-                cur.execute("SELECT DISTINCT dataset, entity_key FROM pi_snapshot", ())
-                keys = cur.fetchall()
-                for key in keys:
-                    deleted += self._prune_key(
-                        cur, key["dataset"], key["entity_key"], keep_sessions
-                    )
-            finally:
-                cur.close()
+        with self.transaction() as conn, conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT dataset, entity_key FROM pi_snapshot", ())
+            keys = cur.fetchall()
+            for key in keys:
+                deleted += self._prune_key(
+                    cur, key["dataset"], key["entity_key"], keep_sessions
+                )
         return deleted
 
     @staticmethod
