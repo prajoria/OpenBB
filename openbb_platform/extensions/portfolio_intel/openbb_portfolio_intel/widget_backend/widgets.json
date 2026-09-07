@@ -1828,11 +1828,12 @@
   },
   "tt_segment_movers": {
     "name": "Techtrade - Segment Movers",
-    "description": "Top gainers/losers by market segment (#1692). Stub-shaped over openbb_techtrade.engine.screener_router.segments.",
+    "description": "Strongest persisted TechTrade signal by market segment (#1692).",
     "category": "Techtrade",
     "type": "chart",
     "endpoint": "tt/scan/segment-movers",
     "raw": true,
+    "dataKey": "rows",
     "gridData": {
       "w": 20,
       "h": 8
@@ -1842,10 +1843,11 @@
   },
   "tt_scan_table": {
     "name": "Techtrade - Scan Table",
-    "description": "Filtered ticker scan results (#1692). Stub-shaped over openbb_techtrade.engine.scan.scan_segments.",
+    "description": "Filtered persisted TechTrade scan results (#1692).",
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/scan/table",
+    "dataKey": "rows",
     "gridData": {
       "w": 30,
       "h": 12

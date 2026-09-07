@@ -152,6 +152,7 @@ def test_tt_segment_movers_widget_declared() -> None:
     w = _widgets().get("tt_segment_movers")
     assert w and w["type"] == "chart"
     assert w["endpoint"] == "tt/scan/segment-movers"
+    assert w["dataKey"] == "rows"
 
 
 def test_tt_scan_table_widget_declared() -> None:
@@ -159,6 +160,7 @@ def test_tt_scan_table_widget_declared() -> None:
     w = _widgets().get("tt_scan_table")
     assert w and w["type"] == "table"
     assert w["endpoint"] == "tt/scan/table"
+    assert w["dataKey"] == "rows"
 
 
 def test_tt_export_button_widget_declared() -> None:
