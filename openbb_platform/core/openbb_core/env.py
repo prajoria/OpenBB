@@ -65,6 +65,11 @@ class Env(metaclass=SingletonMeta):
         """Allow on command output: enables extensions that act on command output."""
         return self.str2bool(self._environ.get("OPENBB_ALLOW_ON_COMMAND_OUTPUT", False))
 
+    @property
+    def JOBS_ENABLED(self) -> bool:
+        """Jobs enabled: includes the authenticated /jobs control-plane router."""
+        return self.str2bool(self._environ.get("OPENBB_JOBS_ENABLED", False))
+
     @staticmethod
     def str2bool(value) -> bool:
         """Match a value to its boolean correspondent."""
