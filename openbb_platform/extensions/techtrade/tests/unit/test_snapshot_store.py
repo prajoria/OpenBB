@@ -442,3 +442,65 @@ def test_default_prune_keeps_all_and_bounded_policy_preserves_live(tmp_path) -> 
     history = store.list_history("techtrade.movers", "sector=technology")
     assert len(history) == 1
     store.close()
+
+
+def _store_with_out_of_order_live_session(tmp_path) -> SqliteSnapshotStore:
+    """Build a store where LIVE's session is older than a SUPERSEDED one.
+
+    Promotes three runs *out of session order* — 9/2, then 9/4, then 9/3 —
+    so the final LIVE row (run-3, session 9/3) is older than the newest
+    distinct session on file (run-2, session 9/4, now SUPERSEDED).
+    ``promote()`` has no session-monotonicity requirement (only the
+    status-rank keep-last-good guard), so this is a legitimate history a
+    real restamp/backfill/replay sequence could produce, not a synthetic
+    impossibility.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    for symbol, as_of_session in (
+        ("AAPL", date(2026, 9, 2)),
+        ("MSFT", date(2026, 9, 4)),
+        ("GOOG", date(2026, 9, 3)),
+    ):
+        staged = _stage(
+            store, payload={"rows": [{"symbol": symbol}]}, as_of_session=as_of_session
+        )
+        assert store.validate(*staged).ok
+        assert store.promote(*staged)
+    return store
+
+
+def test_bounded_prune_preserves_live_when_its_session_predates_the_kept_window(
+    tmp_path,
+) -> None:
+    """Discriminating regression test for the `state != LIVE` prune guard.
+
+    LIVE (GOOG, session 9/3) is *not* the newest distinct session on file —
+    MSFT's superseded 9/4 row is newer. With ``keep_sessions=1`` the
+    newest-session window is ``{9/4}``, which does **not** contain LIVE's
+    own session (9/3). A prune implementation that decided "keep" purely by
+    session-window membership (ignoring ``state``) would delete the LIVE
+    row here; the store's unconditional ``state != 'live'`` filter must
+    keep it regardless.
+    """
+    store = _store_with_out_of_order_live_session(tmp_path)
+    live_before = store.get_live("techtrade.movers", "sector=technology")
+    assert live_before is not None
+    assert live_before.as_of_session == date(2026, 9, 3)
+    assert live_before.payload["rows"][0]["symbol"] == "GOOG"
+
+    # Only AAPL (9/2, SUPERSEDED, outside the {9/4} keep window) is removed.
+    # MSFT (9/4, SUPERSEDED) survives because its session is in the kept
+    # window; GOOG (9/3, LIVE) survives despite its session being outside
+    # the kept window, because LIVE rows are never pruned.
+    assert store.prune(RetentionPolicy(keep_sessions=1)) == 1
+
+    live_after = store.get_live("techtrade.movers", "sector=technology")
+    assert live_after is not None
+    assert live_after.as_of_session == date(2026, 9, 3)
+    assert live_after.job_run_id == live_before.job_run_id
+    assert live_after.payload["rows"][0]["symbol"] == "GOOG"
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert {row.payload["rows"][0]["symbol"] for row in history} == {"GOOG", "MSFT"}
+    assert len(history) == 2
+    store.close()

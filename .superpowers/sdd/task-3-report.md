@@ -172,3 +172,134 @@ returned nothing).
 - None outstanding for this task's scope. The MySQL backend equivalent of
   these three methods (Task 4) is not implemented here and is tracked
   separately per the brief's file list.
+
+## Post-review fix — Important finding (out-of-order `prune()` LIVE preservation, commit follows)
+
+A reviewer raised an **Important** finding against the original Task 3
+`prune()` coverage: `test_default_prune_keeps_all_and_bounded_policy_preserves_live`
+only exercised the "forward" case, where sessions are promoted in
+chronological order and the LIVE row is always the newest distinct
+`as_of_session` in the store. That test cannot discriminate between (a)
+the correct implementation — an *unconditional* `state != 'live'` delete
+filter — and (b) a subtly different one that only preserves LIVE rows
+*when their session happens to fall inside the kept-sessions window*.
+Both implementations pass the original test; only (a) is correct per the
+brief ("A bounded policy deletes only non-LIVE rows outside the newest N
+distinct sessions ... LIVE rows are never pruned").
+
+### Scenario constructed
+
+Added `_store_with_out_of_order_live_session()` and
+`test_bounded_prune_preserves_live_when_its_session_predates_the_kept_window`
+to `test_snapshot_store.py`. The scenario promotes three runs *out of
+session order*:
+
+| run | payload | `as_of_session` | promoted when |
+| --- | --- | --- | --- |
+| run-1 | AAPL | 2026-09-02 | 1st |
+| run-2 | MSFT | 2026-09-04 | 2nd |
+| run-3 | GOOG | 2026-09-03 | 3rd (becomes LIVE) |
+
+`promote()` has no session-monotonicity requirement (only the
+status-rank keep-last-good guard — confirmed by reading
+`SqliteSnapshotStore.promote()`), so run-3 (session 9/3) becomes LIVE
+even though run-2 (session 9/4) — now SUPERSEDED — carries a *newer*
+session date. With `RetentionPolicy(keep_sessions=1)`, the newest-session
+window is `{9/4}`, which does **not** contain LIVE's own session (9/3).
+This is exactly the brief's required scenario: "bounded prune preserves
+the LIVE row even when that LIVE row's `as_of_session` is older than the
+newest N sessions."
+
+Expected/asserted outcome: `prune()` deletes only run-1 (SUPERSEDED,
+outside the kept window) — 1 row. Run-2 (SUPERSEDED, 9/4, inside the
+kept window) and run-3 (LIVE, 9/3, outside the kept window but protected
+by the unconditional guard) both survive. `get_live()` after prune still
+returns run-3 (GOOG, session 9/3) unchanged.
+
+### RED/GREEN status on arrival
+
+Running the new test against the **already-committed** (commit
+`6e80a75f0`) `prune()` implementation:
+
+```powershell
+.venv_portfolio\Scripts\python.exe -m pytest openbb_platform/extensions/techtrade/tests/unit/test_snapshot_store.py -q
+```
+
+Result: **18 passed** (17 pre-existing + 1 new) — the existing
+implementation already satisfies the discriminating scenario. Per the
+task instructions, no production-code fix was required or made.
+
+### Reverse verification (confirms the test discriminates, not ceremonial)
+
+Temporarily removed the unconditional `state != ?` guard from the
+`DELETE` statement in `SqliteSnapshotStore.prune()` (dropped the
+`SnapshotState.LIVE.value` bind param and the `AND state != ?` clause,
+leaving only the session-window `NOT IN (...)` condition) — i.e.
+reintroduced exactly the "keep-by-session-window-only" bug the brief
+warns against and the new test targets.
+
+Command:
+
+```powershell
+.venv_portfolio\Scripts\python.exe -m pytest openbb_platform/extensions/techtrade/tests/unit/test_snapshot_store.py -q
+```
+
+Result: **1 failed, 17 passed** —
+`test_bounded_prune_preserves_live_when_its_session_predates_the_kept_window`
+failed at `assert store.prune(RetentionPolicy(keep_sessions=1)) == 1`
+with `AssertionError: assert 2 == 1` — the mutated implementation deleted
+2 rows instead of 1, because it additionally deleted the LIVE row
+(run-3, session 9/3, outside the `{9/4}` window) that the unconditional
+guard is supposed to protect. This confirms the new test is
+discriminating, not ceremonial: it fails when the specific defect it
+targets is present, and only that assertion fails (the earlier
+`live_before` assertions on the correct fixture setup still passed).
+
+Restored the original `prune()` implementation (guard back in place) and
+reran:
+
+```powershell
+.venv_portfolio\Scripts\python.exe -m pytest openbb_platform/extensions/techtrade/tests/unit/test_snapshot_store.py -q
+```
+
+Result: **18 passed** — back to green.
+
+```powershell
+git diff --stat -- openbb_platform/extensions/techtrade/openbb_techtrade/snapshot/store.py
+```
+
+Result: empty — confirmed `store.py` has zero diff from HEAD (fully
+restored, no leftover mutation).
+
+### Broader regression check
+
+```powershell
+.venv_portfolio\Scripts\python.exe -m pytest openbb_platform/extensions/techtrade -m "not integration" -q
+```
+
+Result: **796 passed, 3 skipped, 56 deselected** (was 795 passed before;
++1 for the new test; no regressions).
+
+### Lint
+
+```powershell
+.venv_portfolio\Scripts\python.exe -m black --check openbb_platform/extensions/techtrade/tests/unit/test_snapshot_store.py
+.venv_portfolio\Scripts\python.exe -m ruff check openbb_platform/extensions/techtrade/tests/unit/test_snapshot_store.py
+```
+
+Result: both clean.
+
+### Files changed (this follow-up)
+
+- `openbb_platform/extensions/techtrade/tests/unit/test_snapshot_store.py`
+  — added `_store_with_out_of_order_live_session()` helper and
+  `test_bounded_prune_preserves_live_when_its_session_predates_the_kept_window`.
+- No production code changed — the new test exposed no defect in
+  `SqliteSnapshotStore.prune()`.
+
+### Concerns (follow-up)
+
+- None. The finding was about missing test coverage for a scenario the
+  implementation already handles correctly; the fix is test-only, per
+  the task's own instruction not to change production code unless the
+  new test exposes a defect (it did not).
