@@ -178,6 +178,40 @@ def test_health_reports_queue_state(client: TestClient):
     assert "queued_runs" in body
 
 
+def test_health_reports_read_only_service_probe_payload(
+    client: TestClient, job_service: JobService
+):
+    """Health exposes queue depth, heartbeat age, and per-job last success."""
+    queued = job_service.enqueue(
+        "portfolio.position_history", {"symbol": "MSFT"}, now=BASE_TIME
+    )
+    claimed = job_service.claim_next("worker-health", now=BASE_TIME)
+    assert claimed is not None and claimed.run_id == queued.run_id
+    job_service.complete(
+        claimed.run_id,
+        JobResult(summary={"ok": True}),
+        finished_at=BASE_TIME,
+    )
+    pending = job_service.enqueue(
+        "portfolio.position_history",
+        {"symbol": "AAPL"},
+        now=BASE_TIME,
+    )
+    job_service.heartbeat("worker-health", now=datetime.now(UTC))
+
+    response = client.get("/jobs/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["queue_depth"] == 1
+    assert body["worker_heartbeat_age_seconds"] is not None
+    assert 0 <= body["worker_heartbeat_age_seconds"] < 5
+    assert datetime.fromisoformat(
+        body["last_successful_run_by_job"]["portfolio.position_history"]
+    ) == BASE_TIME
+    assert job_service.get_run(pending.run_id).status == "queued"
+
+
 def test_routes_require_authentication(app: FastAPI, job_service: JobService):
     """Requests are rejected before touching the job service when auth fails."""
     from fastapi import HTTPException, status
