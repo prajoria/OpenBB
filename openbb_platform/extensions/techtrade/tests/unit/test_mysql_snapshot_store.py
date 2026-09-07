@@ -208,8 +208,23 @@ def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
         )
         return ""
 
+    def _hoist_unique(match: re.Match[str]) -> str:
+        indexes.append(
+            f"CREATE UNIQUE INDEX IF NOT EXISTS {match.group(1)} "
+            f"ON {_table_name(ddl)} ({match.group(2)})"
+        )
+        return ""
+
     body = re.sub(r"\n\s*INDEX (\w+) \(([^)]*)\),?", _hoist_index, body)
-    body = re.sub(r"UNIQUE KEY \w+ \(([^)]*)\)", r"UNIQUE (\1)", body)
+    # Hoisted rather than left inline as `UNIQUE (...)`: MySQL names its
+    # unique keys, and `information_schema.STATISTICS` reports that name.
+    # An inline SQLite `UNIQUE` becomes an anonymous
+    # `sqlite_autoindex_pi_eod_snapshot_N`, so the double could never
+    # answer the production index probe with the name the real server
+    # would — and the "index was silently skipped by a no-op'd CREATE
+    # TABLE" scenario (which is what `_create_table` models) would look
+    # different here than in production.
+    body = re.sub(r"\n\s*UNIQUE KEY (\w+) \(([^)]*)\),?", _hoist_unique, body)
     body = _apply_collations(body)
     body = body.replace("IF(state", "IIF(state")  # codespell:ignore
     body = body.replace("CHAR(31 USING utf8mb4)", "char(31)")
@@ -334,6 +349,31 @@ _ALTER_COMMENT_RE = re.compile(
 # for why the file, and not the pool object, is the right home for it.
 _DICTIONARY_TABLE = "_fake_information_schema_tables"
 
+# `pragma_table_xinfo`'s `hidden` flag: 2 = VIRTUAL generated, 3 = STORED
+# generated. Anything else is an ordinary (or hidden-for-other-reasons)
+# column, which is what MySQL reports as an empty `GENERATION_EXPRESSION`.
+_SQLITE_GENERATED = frozenset({2, 3})
+
+# A generated column's expression survives only in `sqlite_master.sql`.
+# `[^,]*?` covers the declaration between the column name and `GENERATED`
+# (type, width, collation) — that stretch never contains a comma, while
+# the expression itself does; the non-greedy tail then stops at the first
+# `)` that is followed by STORED/VIRTUAL, i.e. the closing paren of the
+# expression rather than of anything nested inside it.
+_GENERATED_COLUMN_RE = re.compile(
+    r"^\s*(?P<name>\w+)\b[^,]*?GENERATED ALWAYS AS\s*\((?P<expr>.*?)\)\s*"
+    r"(?:STORED|VIRTUAL)",
+    re.I | re.M | re.S,
+)
+
+
+def _generated_expressions(table_sql: str) -> dict[str, str]:
+    """Map ``column -> generation expression`` out of a ``CREATE TABLE``."""
+    return {
+        match.group("name"): " ".join(match.group("expr").split())
+        for match in _GENERATED_COLUMN_RE.finditer(table_sql or "")
+    }
+
 
 def _ensure_dictionary(cursor: sqlite3.Cursor) -> None:
     """Create the double's ``information_schema.TABLES`` stand-in once."""
@@ -362,6 +402,10 @@ class _FakeCursor:
         self._cursor = conn.raw.cursor()
         self._executed: tuple[str, tuple] | None = None
         self._changed: int | None = None
+        # A result set the double computed in Python because SQLite's
+        # catalogue cannot express it as one query (see `_select_columns`).
+        # `None` means "read from the real cursor".
+        self._answered: list[dict[str, Any]] | None = None
 
     def __enter__(self) -> _FakeCursor:
         return self
@@ -375,6 +419,7 @@ class _FakeCursor:
         return self._cursor.rowcount if self._changed is None else self._changed
 
     def execute(self, sql: str, params: Any = None) -> None:
+        self._answered = None
         if sql.lstrip().upper().startswith("CREATE TABLE"):
             self._create_table(sql)
             return
@@ -438,21 +483,76 @@ class _FakeCursor:
     def _describe_table(self, sql: str, bound: tuple) -> None:
         """Answer the production ``information_schema`` probes.
 
-        The store asks two real MySQL questions — ``SELECT COLUMN_NAME
-        FROM information_schema.COLUMNS ...`` for the table's shape and
-        ``SELECT TABLE_COMMENT FROM information_schema.TABLES ...`` for
-        its schema-version stamp — and the double answers both from
-        SQLite's own catalogue rather than the store softening its
-        queries into something portable. A table that does not exist
-        yields no rows from either, exactly as ``information_schema``
-        does.
+        The store asks three real MySQL questions — ``SELECT COLUMN_NAME,
+        GENERATION_EXPRESSION FROM information_schema.COLUMNS ...`` for
+        the table's shape and which of its columns are *generated*,
+        ``SELECT ... FROM information_schema.STATISTICS ...`` for its
+        indexes, and ``SELECT TABLE_COMMENT FROM
+        information_schema.TABLES ...`` for its schema-version stamp —
+        and the double answers all three from SQLite's own catalogue
+        rather than the store softening its queries into something
+        portable. A table that does not exist yields no rows from any of
+        them, exactly as ``information_schema`` does.
         """
         if "TABLE_COMMENT" in sql:
             self._select_table_comment(bound)
             return
+        if "STATISTICS" in sql:
+            self._select_indexes(bound)
+            return
         assert "COLUMN_NAME" in sql, f"unexpected information_schema query: {sql!r}"
+        self._select_columns(bound)
+
+    def _select_columns(self, bound: tuple) -> None:
+        """Answer the shape + generated-column probe from SQLite's catalogue.
+
+        ``information_schema.COLUMNS.GENERATION_EXPRESSION`` is ``''``
+        for an ordinary column and the (server-normalized) expression
+        text for a generated one. SQLite exposes *that a column is
+        generated* through ``pragma_table_xinfo``'s ``hidden`` flag (2 =
+        VIRTUAL, 3 = STORED) but never the expression itself, which only
+        survives in ``sqlite_master.sql`` — so the two sources are joined
+        here. Reproducing the distinction is what makes the "``live_key``
+        exists but is an ordinary column" test discriminating rather than
+        ceremonial: an ordinary column of that name would satisfy any
+        check that merely asked whether the name is present.
+        """
+        table = bound[0]
+        record = self._cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table,),
+        ).fetchone()
+        expressions = _generated_expressions(record[0] if record else "")
+        columns = self._cursor.execute(
+            "SELECT name, hidden FROM pragma_table_xinfo(?)", (table,)
+        ).fetchall()
+        self._answer(
+            [
+                {
+                    "COLUMN_NAME": name,
+                    "GENERATION_EXPRESSION": (
+                        expressions.get(name, "") if hidden in _SQLITE_GENERATED else ""
+                    ),
+                }
+                for name, hidden in columns
+            ]
+        )
+
+    def _select_indexes(self, bound: tuple) -> None:
+        """Answer the index probe the way ``information_schema.STATISTICS`` does.
+
+        One row per *(index, column)* pair, ``NON_UNIQUE`` inverted from
+        SQLite's ``unique`` flag, ``SEQ_IN_INDEX`` 1-based. SQLite's
+        implicit ``PRIMARY KEY`` index shows up here just as MySQL's
+        ``PRIMARY`` does, which is what keeps a test that hopes the
+        primary key will be mistaken for the single-LIVE guard honest.
+        """
         self._cursor.execute(
-            "SELECT name AS COLUMN_NAME FROM pragma_table_info(?)", bound
+            'SELECT il.name AS INDEX_NAME, CASE il."unique" WHEN 1 THEN 0 ELSE 1 END '
+            "AS NON_UNIQUE, ii.seqno + 1 AS SEQ_IN_INDEX, ii.name AS COLUMN_NAME "
+            "FROM pragma_index_list(?) AS il JOIN pragma_index_info(il.name) AS ii "
+            "ORDER BY il.name, ii.seqno",
+            bound,
         )
         self._executed = None
 
@@ -543,10 +643,20 @@ class _FakeCursor:
         names = [column[0] for column in self._cursor.description]
         return {name: _convert(name, value) for name, value in zip(names, row)}
 
+    def _answer(self, rows: list[dict[str, Any]]) -> None:
+        """Stage a result set the double assembled itself, in driver shape."""
+        self._answered = rows
+        self._executed = None
+
     def fetchone(self) -> Any:
+        if self._answered is not None:
+            return self._answered.pop(0) if self._answered else None
         return self._shape(self._cursor.fetchone())
 
     def fetchall(self) -> list[Any]:
+        if self._answered is not None:
+            rows, self._answered = self._answered, []
+            return rows
         return [self._shape(row) for row in self._cursor.fetchall()]
 
     def close(self) -> None:
@@ -2659,6 +2769,386 @@ def test_schema_probe_asks_information_schema_for_the_real_table(
 
     assert "information_schema" in mysql_store_module._SELECT_SCHEMA_COLUMNS.lower()
     assert "DATABASE()" in mysql_store_module._SELECT_SCHEMA_COLUMNS
+
+
+# ---------------------------------------------------------------------------
+# Single-LIVE guard verification on MySQL (PR #2062 review)
+# ---------------------------------------------------------------------------
+#
+# The shape check asks only "is every *shared* column present?", and the
+# version check asks only "who stamped this table?". Neither can see the
+# object that actually enforces "at most one LIVE row per (dataset,
+# entity_key)" on MySQL: the generated `live_key` column plus its UNIQUE
+# KEY. That matters because `CREATE TABLE IF NOT EXISTS` no-ops against a
+# pre-existing table -- and MySQL declares its indexes *inside* CREATE
+# TABLE, so the no-op silently skips them too. A table with the fourteen
+# shared columns and no guard therefore used to construct cleanly, get
+# stamped with this build's version, and then let two concurrent promotes
+# install two LIVE rows for one key.
+#
+# Every test below builds a *specific* malformed table and asserts
+# construction refuses it. Each one is a mutation of exactly one part of
+# the guard, so together they pin all three failure modes:
+# missing column / column present but not generated / index missing,
+# non-unique, or over the wrong columns.
+
+# The fourteen dialect-independent columns, in the double's SQLite
+# vocabulary. Written out rather than derived from `_PI_EOD_SNAPSHOT_DDL`
+# on purpose: these tests need to vary the *guard* while holding the shape
+# constant, which means the shape has to be something a test can hold.
+_BASE_COLUMNS_SQL = """
+    dataset                TEXT NOT NULL,
+    entity_key             TEXT NOT NULL,
+    as_of_session          TEXT NOT NULL,
+    created_at             TEXT NOT NULL,
+    job_run_id             TEXT NOT NULL,
+    status                 TEXT NOT NULL,
+    state                  TEXT NOT NULL,
+    validated              INTEGER NOT NULL DEFAULT 0,
+    validation_reason      TEXT NOT NULL DEFAULT '',
+    payload_json           TEXT NOT NULL,
+    input_hash             TEXT,
+    row_count              INTEGER,
+    engine_version         TEXT,
+    payload_schema_version TEXT
+"""
+
+_GOOD_LIVE_KEY_SQL = (
+    "live_key TEXT GENERATED ALWAYS AS "
+    "(IIF(state = 'live', concat(dataset, char(31), entity_key), NULL)) STORED"  # codespell:ignore
+)
+
+
+def _seed_table(
+    path: Path,
+    *,
+    live_key_sql: str | None = _GOOD_LIVE_KEY_SQL,
+    index_sql: str | None = (
+        "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live ON pi_eod_snapshot(live_key)"
+    ),
+    comment: str | None = None,
+) -> None:
+    """Pre-create a `pi_eod_snapshot` with a chosen guard (or none)."""
+    columns = _BASE_COLUMNS_SQL.rstrip()
+    if live_key_sql is not None:
+        columns = f"{columns},\n    {live_key_sql}"
+    conn = sqlite3.connect(str(path), isolation_level=None)
+    try:
+        conn.execute(
+            f"CREATE TABLE pi_eod_snapshot ({columns},\n"
+            "    PRIMARY KEY (dataset, entity_key, as_of_session, job_run_id))"
+        )
+        if index_sql is not None:
+            conn.execute(index_sql)
+        if comment is not None:
+            _ensure_dictionary(conn.cursor())
+            conn.execute(
+                f"INSERT INTO {_DICTIONARY_TABLE} (table_name, table_comment) "
+                "VALUES (?, ?)",
+                ("pi_eod_snapshot", comment),
+            )
+    finally:
+        conn.close()
+
+
+def _refusal(tmp_path: Path, name: str, **seed: Any) -> str:
+    """Seed a malformed table, construct, and return the refusal message."""
+    db_path = tmp_path / f"{name}.db"
+    _seed_table(db_path, **seed)
+    pool = _FakePool(db_path)
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=pool)
+    message = str(excinfo.value)
+    assert "single-LIVE" in message
+    assert "pi_eod_snapshot" in message
+    return message
+
+
+def test_mysql_accepts_the_guard_its_own_ddl_creates(tmp_path: Path) -> None:
+    """Control: the positive path is not vacuous.
+
+    The refusal tests below are only meaningful if the *correct* table
+    passes, and only if the double genuinely reports the guard the
+    production probe asks for. Both are asserted here, against the table
+    the production DDL built.
+    """
+    pool = _FakePool(tmp_path / "good.db")
+    MysqlSnapshotStore(connection_pool=pool)
+
+    with pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            mysql_store_module._SELECT_SCHEMA_COLUMNS, (store_module._SNAPSHOT_TABLE,)
+        )
+        generation = {
+            record["COLUMN_NAME"]: record["GENERATION_EXPRESSION"] or ""
+            for record in cur.fetchall()
+        }
+        cur.execute(
+            mysql_store_module._SELECT_SCHEMA_INDEXES, (store_module._SNAPSHOT_TABLE,)
+        )
+        indexes = mysql_store_module._index_shapes(cur.fetchall())
+
+    # `live_key` is reported as a *generated* column, expression and all.
+    assert "live_key" in generation
+    expression = generation["live_key"].casefold()
+    assert all(
+        token in expression for token in store_module._LIVE_KEY_EXPRESSION_TOKENS
+    )
+    # ... and its UNIQUE index is reported under the name MySQL would use.
+    guard = [index for index in indexes if index.name == "ux_pi_eod_snapshot_live"]
+    assert guard == [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+        )
+    ]
+    # The primary key is visible too, and must not be mistaken for it.
+    assert any(
+        index.unique and index.columns[:2] == ("dataset", "entity_key")
+        for index in indexes
+        if index.name != "ux_pi_eod_snapshot_live"
+    )
+
+
+def test_mysql_refuses_a_table_with_no_live_key_column(tmp_path: Path) -> None:
+    """Mutation: drop the generated column. All 14 shared columns remain.
+
+    Reverse-verified: without `_check_mysql_live_guard`, this table
+    constructs cleanly (its shape is a perfect match) and nothing stops a
+    second LIVE row.
+    """
+    message = _refusal(tmp_path, "no_live_key", live_key_sql=None, index_sql=None)
+
+    assert "live_key" in message
+
+
+def test_mysql_refuses_a_stamped_table_with_no_live_key_column(tmp_path: Path) -> None:
+    """A valid version stamp must not buy a malformed table a pass.
+
+    The stamp records *who wrote* the table, never that its keys survived
+    a restore, a replication rebuild, or a hand-edited migration. And
+    because construction adopts-and-stamps an unstamped table of the
+    right shape, a guard-less table becomes a *stamped* guard-less table
+    on its very first use — so the check has to be unconditional, not
+    "only for tables we don't recognize".
+    """
+    message = _refusal(
+        tmp_path,
+        "stamped_no_live_key",
+        live_key_sql=None,
+        index_sql=None,
+        comment=_version_stamp(store_module.SNAPSHOT_SCHEMA_VERSION),
+    )
+
+    assert "live_key" in message
+
+
+def test_mysql_does_not_stamp_a_table_it_refuses(tmp_path: Path) -> None:
+    """A refused table must not leave construction wearing our version marker.
+
+    The guard is checked before the stamp is written, so an unstamped
+    malformed table stays unstamped. Otherwise a single failed
+    construction would relabel someone else's table as ours, and the next
+    operator to look at it would be told it belongs to this build.
+    """
+    db_path = tmp_path / "unstamped_refusal.db"
+    _seed_table(db_path, live_key_sql=None, index_sql=None)
+    pool = _FakePool(db_path)
+
+    with pytest.raises(SnapshotSchemaMismatch):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert _table_comment(db_path) is None
+
+
+def test_mysql_refuses_a_live_key_that_is_an_ordinary_column(tmp_path: Path) -> None:
+    """Mutation: `live_key` exists, with its UNIQUE index, but is not generated.
+
+    The nastiest of the three failures, because every name-only check
+    passes: the column is there and so is the unique index. But nothing
+    ever writes the column -- it is not in `_INSERT_STAGED`'s column list
+    -- so it is NULL on every row, and MySQL unique indexes ignore NULLs.
+    The guard would be decorative.
+    """
+    message = _refusal(tmp_path, "plain_live_key", live_key_sql="live_key TEXT")
+
+    assert "GENERATION_EXPRESSION" in message
+    assert "state" in message
+
+
+def test_mysql_refuses_a_live_key_generated_from_the_wrong_expression(
+    tmp_path: Path,
+) -> None:
+    """Mutation: generated, but keyed on identity alone -- `state` dropped.
+
+    Such a column is non-NULL for *every* row, so the UNIQUE index would
+    reject the second staged run for a key -- breaking normal daily
+    operation instead of protecting anything.
+    """
+    message = _refusal(
+        tmp_path,
+        "stateless_live_key",
+        live_key_sql=(
+            "live_key TEXT GENERATED ALWAYS AS "
+            "(concat(dataset, char(31), entity_key)) STORED"
+        ),
+    )
+
+    assert "state" in message
+
+
+def test_mysql_refuses_a_live_key_generated_without_the_entity_half(
+    tmp_path: Path,
+) -> None:
+    """Mutation: generated and state-aware, but keyed on `dataset` alone.
+
+    Two different entities in one dataset would then share a single
+    `live_key`, so promoting `sector=technology` would make
+    `sector=energy` unpromotable -- and the refusal would be logged as the
+    routine "another writer already installed a LIVE row".
+    """
+    message = _refusal(
+        tmp_path,
+        "half_live_key",
+        live_key_sql=(
+            "live_key TEXT GENERATED ALWAYS AS "
+            "(IIF(state = 'live', dataset, NULL)) STORED"  # codespell:ignore
+        ),
+    )
+
+    assert "entity_key" in message
+
+
+def test_mysql_refuses_a_correct_live_key_with_no_unique_index(tmp_path: Path) -> None:
+    """Mutation: the column is perfect; the index was never created.
+
+    This is precisely what a no-op'd `CREATE TABLE IF NOT EXISTS` leaves
+    behind when someone restores the table without its keys.
+    """
+    message = _refusal(tmp_path, "unindexed_live_key", index_sql=None)
+
+    assert "UNIQUE" in message
+    assert "ux_pi_eod_snapshot_live" in message
+
+
+def test_mysql_refuses_a_non_unique_index_over_live_key(tmp_path: Path) -> None:
+    """Mutation: the index exists, under the right name, but is not UNIQUE.
+
+    Name-only verification would pass this. A plain index constrains
+    nothing at all.
+    """
+    message = _refusal(
+        tmp_path,
+        "nonunique_live_key",
+        index_sql=("CREATE INDEX ux_pi_eod_snapshot_live ON pi_eod_snapshot(live_key)"),
+    )
+
+    assert "UNIQUE" in message
+
+
+def test_mysql_refuses_a_unique_index_over_the_wrong_columns(tmp_path: Path) -> None:
+    """Mutation: UNIQUE, right name, wrong columns -- `(dataset, entity_key)`.
+
+    MySQL has no partial indexes, so a *total* unique index over the
+    identity forbids a second staged run for one key. It is not the
+    SQLite guard ported over; it is a different, wrong constraint.
+    """
+    message = _refusal(
+        tmp_path,
+        "wrong_columns",
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key)"
+        ),
+    )
+
+    assert "live_key" in message
+
+
+def test_mysql_live_guard_refusal_is_not_a_pool_connection_fault(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A missing guard is a schema fault, not a database fault.
+
+    Same contract as the shape refusal: the FMP cache shares this pool,
+    and `ConnectionPool.get_connection` logs anything unwinding across it
+    as `ERROR MySQL connection error`.
+    """
+    db_path = tmp_path / "quiet.db"
+    _seed_table(db_path, live_key_sql=None, index_sql=None)
+    pool = _FakePool(db_path)
+
+    with caplog.at_level(logging.ERROR, logger=_POOL_LOGGER), pytest.raises(
+        SnapshotSchemaMismatch
+    ):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.errors == []
+    assert _pool_errors(caplog) == []
+
+
+def test_mysql_index_probe_asks_information_schema_for_statistics() -> None:
+    """The guard check must interrogate the server, not this module's DDL."""
+    probe = mysql_store_module._SELECT_SCHEMA_INDEXES
+
+    assert "information_schema.STATISTICS" in probe
+    assert "DATABASE()" in probe
+    # Composite indexes arrive one row per column; the order is the
+    # server's, so the query must ask for it.
+    assert "SEQ_IN_INDEX" in probe
+    assert "ORDER BY" in probe
+
+
+def test_index_shapes_reassembles_composite_indexes_in_server_order() -> None:
+    """`_index_shapes` folds STATISTICS rows without inventing an order."""
+    shapes = mysql_store_module._index_shapes(
+        [
+            {
+                "INDEX_NAME": "PRIMARY",
+                "NON_UNIQUE": 0,
+                "SEQ_IN_INDEX": 1,
+                "COLUMN_NAME": "dataset",
+            },
+            {
+                "INDEX_NAME": "PRIMARY",
+                "NON_UNIQUE": 0,
+                "SEQ_IN_INDEX": 2,
+                "COLUMN_NAME": "entity_key",
+            },
+            {
+                "INDEX_NAME": "ix_plain",
+                "NON_UNIQUE": 1,
+                "SEQ_IN_INDEX": 1,
+                "COLUMN_NAME": "live_key",
+            },
+            # A functional index (MySQL 8.0.13+) reports no column name.
+            {
+                "INDEX_NAME": "ix_functional",
+                "NON_UNIQUE": 0,
+                "SEQ_IN_INDEX": 1,
+                "COLUMN_NAME": None,
+            },
+        ]
+    )
+
+    by_name = {shape.name: shape for shape in shapes}
+    assert by_name["PRIMARY"].columns == ("dataset", "entity_key")
+    assert by_name["PRIMARY"].unique
+    assert not by_name["ix_plain"].unique
+    # A NULL column is dropped, never folded in as a phantom -- otherwise a
+    # functional unique index could masquerade as the `(live_key)` guard.
+    assert by_name["ix_functional"].columns == ()
+
+
+def test_mysql_guard_does_not_leak_into_the_shared_column_shape() -> None:
+    """`live_key` is MySQL's alone; SQLite must never be asked for it.
+
+    SQLite enforces the same invariant with a partial unique index and has
+    no such column, so requiring it in the dialect-independent
+    `_EXPECTED_COLUMNS` would refuse every correct SQLite database.
+    """
+    assert store_module._MYSQL_LIVE_KEY_COLUMN == "live_key"
+    assert "live_key" not in store_module._EXPECTED_COLUMNS
+    assert "live_key" not in store_module._SQLITE_SCHEMA
 
 
 # ---------------------------------------------------------------------------

@@ -62,9 +62,76 @@ def _row(*, payload: dict, row_count: int | None = 0) -> SnapshotRow:
 
 
 def test_canonical_key_is_idempotent_and_normalizes_label_pairs() -> None:
-    canonical = canonical_key(" sector = Information_Technology ")
+    canonical = canonical_key(" Sector = Information_Technology ")
     assert canonical == "sector=information technology"
     assert canonical_key(canonical) == canonical
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "Sector=Technology",
+        "SECTOR=TECHNOLOGY",
+        "sector=Technology",
+        "Sector=technology",
+        " SeCtOr = TeChNoLoGy ",
+        "Sector=Technology",
+        "SECTOR = technology",
+    ],
+)
+def test_canonical_key_folds_the_field_name_half_too(variant: str) -> None:
+    """Invariant: BOTH halves of ``field=label`` fold — not just the label.
+
+    Regression test for PR #2062 review. ``canonical_key`` used to split on
+    ``=`` *before* folding and then rebuild the key with the field name
+    verbatim, so ``Sector=Technology`` canonicalized to
+    ``Sector=technology`` while ``sector=technology`` canonicalized to
+    ``sector=technology``. Two keys, one entity — the exact split-brain the
+    function exists to prevent, and worse than no canonicalization at all
+    because it looks normalized.
+
+    R7 note: each variant differs from the canonical form *in the field
+    name*, so every case fails under the pre-fix implementation. A variant
+    that only perturbed the label would be ceremonial here (the old code
+    folded labels correctly).
+    """
+    assert canonical_key(variant) == "sector=technology"
+
+
+def test_canonical_key_field_name_folding_is_idempotent() -> None:
+    """Invariant: folding is a fixed point, reached in one pass from any casing.
+
+    Idempotency is what makes the key safe to canonicalize at *every*
+    boundary (write, read, length check) without the result drifting.
+    Under the pre-fix implementation ``canonical_key("Sector=X")`` was
+    itself a fixed point — a stable *wrong* answer — so asserting
+    "``f(f(x)) == f(x)``" alone never discriminated. The load-bearing
+    assertion is that the fixed point is the *same one* for every input
+    casing.
+    """
+    variants = ["Sector=Technology", "sector=technology", "SECTOR=Technology"]
+    canonicals = {canonical_key(variant) for variant in variants}
+
+    assert canonicals == {"sector=technology"}
+    assert {canonical_key(key) for key in canonicals} == canonicals
+
+
+def test_canonical_key_folds_field_names_of_keys_without_a_label() -> None:
+    """A bare key (no ``=``) folds too — the ``=`` split is not what folds it.
+
+    Guards the short-circuit branch: the fold happens before the split, so
+    the no-``=`` early return still returns a folded value.
+    """
+    assert canonical_key("Momentum_Universe") == "momentum universe"
+
+
+def test_canonical_key_folds_every_half_of_a_multi_equals_key() -> None:
+    """Only the FIRST ``=`` splits; everything else is label text, still folded.
+
+    ``split("=", 1)`` keeps embedded ``=`` characters inside the label, and
+    because the fold precedes the split, the label's case is folded whole.
+    """
+    assert canonical_key("Filter=Sector=Technology") == "filter=sector=technology"
 
 
 def test_default_validator_rejects_empty_payload_and_negative_rows() -> None:
@@ -109,9 +176,7 @@ def test_promotion_refusal_distinguishes_missing_from_unvalidated_candidate() ->
     live_ok = _promotion_candidate(validated=True, state=SnapshotState.LIVE)
 
     # 1. No candidate row at all: a not-found reason, not "not validated".
-    assert (
-        store_module._promotion_refusal(None, None) == "candidate snapshot not found"
-    )
+    assert store_module._promotion_refusal(None, None) == "candidate snapshot not found"
 
     # 2. Candidate exists but was never validated: distinct reason from (1).
     unvalidated = _promotion_candidate(validated=False)
@@ -128,7 +193,9 @@ def test_promotion_refusal_distinguishes_missing_from_unvalidated_candidate() ->
     )
 
     # 4. Validated, STAGING, but ranked worse than the incumbent LIVE row.
-    worse_candidate = _promotion_candidate(validated=True, status=SnapshotStatus.PARTIAL)
+    worse_candidate = _promotion_candidate(
+        validated=True, status=SnapshotStatus.PARTIAL
+    )
     assert (
         store_module._promotion_refusal(worse_candidate, live_ok)
         == "candidate status is worse than LIVE"
@@ -337,6 +404,84 @@ def test_differently_formatted_keys_resolve_same_live_row(tmp_path) -> None:
     live = store.get_live("techtrade.movers", "sector=INFORMATION_technology")
     assert live is not None
     assert live.payload["rows"][0]["symbol"] == "AAPL"
+    store.close()
+
+
+def test_a_live_row_written_under_one_field_case_reads_back_under_another(
+    tmp_path,
+) -> None:
+    """Invariant: field-name casing is not part of a snapshot's identity.
+
+    Regression test for PR #2062 review. This is the read/write half of the
+    ``canonical_key`` fix: the write uses ``Sector=`` and the read uses
+    ``sector=``, differing *only* in the case of the field name. Under the
+    pre-fix implementation the two canonicalized to different keys and this
+    read returned ``None`` — a silent cache miss that would have sent the
+    caller off to recompute a snapshot it already had.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(
+        store,
+        entity_key="Sector=Technology",
+        payload={"rows": [{"symbol": "AAPL"}]},
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.payload["rows"][0]["symbol"] == "AAPL"
+    assert live.entity_key == "sector=technology"
+    store.close()
+
+
+def test_field_name_casing_cannot_split_one_entity_into_two_live_rows(
+    tmp_path,
+) -> None:
+    """Invariant: two casings of one field name yield ONE live row, not two.
+
+    The severe consequence of the pre-fix ``canonical_key``: because the
+    single-LIVE index keys on ``(dataset, entity_key)``, ``Sector=Technology``
+    and ``sector=Technology`` were distinct index entries, so *both* could be
+    LIVE simultaneously. Every reader then got whichever casing it happened
+    to ask with — two different "current" answers for one entity, with no
+    error anywhere.
+
+    R7 note: the row count is the discriminating assertion. Under the
+    pre-fix code the second promotion succeeded *without* superseding the
+    first, leaving ``2``.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+
+    first = _stage(
+        store,
+        entity_key="Sector=Technology",
+        as_of_session=date(2026, 9, 4),
+        payload={"rows": [{"symbol": "AAPL"}]},
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+
+    second = _stage(
+        store,
+        entity_key="sector=technology",
+        as_of_session=date(2026, 9, 5),
+        payload={"rows": [{"symbol": "GOOG"}]},
+    )
+    assert store.validate(*second).ok
+    assert store.promote(*second)
+
+    live_rows = store._conn.execute(  # pylint: disable=protected-access
+        "SELECT entity_key FROM pi_eod_snapshot WHERE state = ?",
+        (SnapshotState.LIVE.value,),
+    ).fetchall()
+    assert [row[0] for row in live_rows] == ["sector=technology"]
+
+    # And the surviving LIVE row is the newer one: the second promotion
+    # superseded the first rather than sitting alongside it.
+    live = store.get_live("techtrade.movers", "SECTOR=Technology")
+    assert live is not None
+    assert live.payload["rows"][0]["symbol"] == "GOOG"
     store.close()
 
 
@@ -1472,6 +1617,365 @@ def test_sqlite_refuses_a_table_stamped_by_another_schema_version(tmp_path) -> N
 
     with pytest.raises(store_module.SnapshotSchemaMismatch, match="schema"):
         SqliteSnapshotStore(db_path)
+
+
+# ---------------------------------------------------------------------------
+# Single-LIVE guard verification on SQLite (PR #2062 review)
+# ---------------------------------------------------------------------------
+#
+# `CREATE UNIQUE INDEX IF NOT EXISTS` keys on the index *name*, not its
+# definition — the same silent-no-op hazard as `CREATE TABLE IF NOT EXISTS`,
+# one layer down. A pre-existing index named `ux_pi_eod_snapshot_live` that is
+# non-unique, non-partial, or over the wrong columns makes our CREATE a no-op,
+# and the store then constructs cleanly with *no* single-LIVE enforcement at
+# all. Construction now re-reads the index back out of the database and refuses
+# if it is not the guard we asked for.
+#
+# A guard index that is merely *absent* is a different case: SQLite declares
+# its indexes as statements separate from `CREATE TABLE`, so `CREATE UNIQUE
+# INDEX IF NOT EXISTS` still runs against an adopted table and repairs it.
+# (MySQL cannot do this — its `UNIQUE KEY` is declared inside `CREATE TABLE IF
+# NOT EXISTS` and is skipped wholesale when the table exists — which is why
+# that backend refuses where this one repairs.)
+#
+# The SQLite half of the guard is deliberately asymmetric with MySQL's in the
+# other direction too: SQLite has partial indexes, so it enforces the invariant
+# with `UNIQUE(dataset, entity_key) WHERE state = 'live'` and needs no
+# generated `live_key` column. Requiring `live_key` here would refuse every
+# correct SQLite database ever written by this store.
+
+_COLUMNS_SQL = """
+    dataset            TEXT NOT NULL,
+    entity_key         TEXT NOT NULL,
+    as_of_session      TEXT NOT NULL,
+    created_at         TEXT NOT NULL,
+    job_run_id         TEXT NOT NULL,
+    status             TEXT NOT NULL,
+    state              TEXT NOT NULL,
+    validated          INTEGER NOT NULL DEFAULT 0,
+    validation_reason  TEXT NOT NULL DEFAULT '',
+    payload_json       TEXT NOT NULL,
+    input_hash         TEXT,
+    row_count          INTEGER,
+    engine_version         TEXT,
+    payload_schema_version TEXT,
+    PRIMARY KEY (dataset, entity_key, as_of_session, job_run_id)
+"""
+
+_GOOD_LIVE_INDEX_SQL = (
+    "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+    "ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'live'"
+)
+
+
+def _seed_sqlite(db_path: Path, *, index_sql: str | None) -> None:
+    """Pre-create a correctly shaped table with a caller-chosen live index.
+
+    Every seeded table passes ``_check_schema_shape``, so the store's
+    ``CREATE TABLE IF NOT EXISTS`` is always a no-op and the columns the
+    guard sees are exactly the ones seeded here. Seeded *indexes* are named
+    ``ux_pi_eod_snapshot_live`` on purpose: that is what makes the store's
+    ``CREATE UNIQUE INDEX IF NOT EXISTS`` a no-op too, so the malformed
+    index survives to be caught. Passing ``index_sql=None`` leaves the name
+    free, and the store then creates the real guard itself.
+    """
+    seeded = sqlite3.connect(str(db_path))
+    try:
+        seeded.execute(f"CREATE TABLE pi_eod_snapshot ({_COLUMNS_SQL})")
+        if index_sql is not None:
+            seeded.execute(index_sql)
+        seeded.commit()
+    finally:
+        seeded.close()
+
+
+def _sqlite_refusal(db_path: Path, *, index_sql: str | None) -> str:
+    """Seed a table, construct, and return the refusal message."""
+    _seed_sqlite(db_path, index_sql=index_sql)
+    with pytest.raises(store_module.SnapshotSchemaMismatch) as excinfo:
+        SqliteSnapshotStore(db_path)
+    return str(excinfo.value)
+
+
+def test_sqlite_does_not_require_a_live_key_column(tmp_path) -> None:
+    """Invariant: ``live_key`` is a MySQL-only workaround, never asked of SQLite.
+
+    MySQL has no partial indexes, so it fakes one with a STORED generated
+    ``live_key`` column that is NULL for non-LIVE rows. SQLite has the real
+    thing. Requiring ``live_key`` on both backends would refuse every
+    correct SQLite database this store has ever written, so the column is
+    deliberately absent from the shared expected-column set and the SQLite
+    guard never looks for it.
+    """
+    assert "live_key" not in store_module._EXPECTED_COLUMNS  # noqa: SLF001
+
+    db_path = tmp_path / "snapshot.db"
+    store = SqliteSnapshotStore(db_path)
+    try:
+        columns = {
+            row[1]
+            for row in store._conn.execute(  # pylint: disable=protected-access
+                "PRAGMA table_info(pi_eod_snapshot)"
+            )
+        }
+    finally:
+        store.close()
+
+    assert "live_key" not in columns
+    assert columns >= store_module._EXPECTED_COLUMNS  # noqa: SLF001
+
+
+def test_sqlite_accepts_the_guard_its_own_ddl_creates(tmp_path) -> None:
+    """Positive control: a fresh store reports the partial unique index.
+
+    Without this, every refusal test below could be satisfied by a guard
+    that rejects *everything* — including our own correct schema.
+    """
+    db_path = tmp_path / "snapshot.db"
+    store = SqliteSnapshotStore(db_path)
+    try:
+        indexes = {
+            index.name: index
+            for index in store._table_indexes()  # pylint: disable=protected-access
+        }
+    finally:
+        store.close()
+
+    guard = indexes["ux_pi_eod_snapshot_live"]
+    assert guard.unique
+    assert guard.columns == ("dataset", "entity_key")
+    assert "state" in guard.predicate.casefold()
+    assert "live" in guard.predicate.casefold()
+
+    # The non-unique lookup indexes are read back too, and are not mistaken
+    # for the guard: they are reported, but not unique.
+    assert not indexes["ix_pi_eod_snapshot_live"].unique
+
+
+def test_sqlite_creates_a_missing_guard_index_on_an_adopted_table(tmp_path) -> None:
+    """A shaped table with no guard index is *repaired*, not refused.
+
+    Unlike MySQL — where the ``UNIQUE KEY`` lives inside ``CREATE TABLE IF
+    NOT EXISTS`` and is therefore skipped wholesale when the table already
+    exists — SQLite declares its indexes as separate ``CREATE UNIQUE INDEX
+    IF NOT EXISTS`` statements, which still run against a pre-existing
+    table. A restored-from-a-columns-only-dump database is genuinely
+    fixable here, so it is fixed. The refusals below are for the cases
+    ``IF NOT EXISTS`` *cannot* fix: an object already holding the name.
+    """
+    db_path = tmp_path / "no_index.db"
+    _seed_sqlite(db_path, index_sql=None)
+
+    store = SqliteSnapshotStore(db_path)
+    try:
+        guard = next(
+            index
+            for index in store._table_indexes()  # pylint: disable=protected-access
+            if index.name == "ux_pi_eod_snapshot_live"
+        )
+    finally:
+        store.close()
+
+    assert guard.unique
+    assert guard.columns == ("dataset", "entity_key")
+
+
+def test_sqlite_refuses_a_non_unique_index_wearing_the_guard_name(tmp_path) -> None:
+    """The worst case: the name is right, so our CREATE silently no-ops.
+
+    ``CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_eod_snapshot_live`` does
+    nothing when *any* index of that name exists — unique or not. The
+    database then has an index that looks like the guard in every
+    ``sqlite_master`` listing, enforces nothing, and lets two LIVE rows
+    coexist for one entity.
+    """
+    message = _sqlite_refusal(
+        tmp_path / "not_unique.db",
+        index_sql=(
+            "CREATE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'live'"
+        ),
+    )
+
+    assert "single-LIVE" in message
+
+
+def test_sqlite_refuses_a_unique_index_over_the_wrong_columns(tmp_path) -> None:
+    """A unique index that is not keyed on ``(dataset, entity_key)`` is not the guard.
+
+    Keyed on ``job_run_id`` this index is unique, partial, correctly named —
+    and enforces "one LIVE per job run", which is not the invariant. Two
+    LIVE rows for one entity from two different runs pass it.
+    """
+    message = _sqlite_refusal(
+        tmp_path / "wrong_columns.db",
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, job_run_id) WHERE state = 'live'"
+        ),
+    )
+
+    assert "single-LIVE" in message
+
+
+def test_sqlite_refuses_a_unique_index_missing_the_live_predicate(tmp_path) -> None:
+    """A *total* unique index over the same columns is the wrong guard.
+
+    Without ``WHERE state = 'live'`` the index is unique across every row of
+    every state, so it forbids what the design requires: a superseded row
+    and its LIVE replacement sharing ``(dataset, entity_key)``. That store
+    would construct fine and then fail the first promotion — and, being
+    stricter rather than looser, it would look like a data bug rather than a
+    schema one. Refusing at construction names the real cause.
+    """
+    message = _sqlite_refusal(
+        tmp_path / "no_predicate.db",
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key)"
+        ),
+    )
+
+    assert "single-LIVE" in message
+
+
+def test_sqlite_refuses_a_unique_index_predicated_on_the_wrong_state(tmp_path) -> None:
+    """The predicate must select LIVE rows, not merely be *a* predicate."""
+    message = _sqlite_refusal(
+        tmp_path / "wrong_predicate.db",
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'staging'"
+        ),
+    )
+
+    assert "single-LIVE" in message
+
+
+def test_sqlite_accepts_a_correctly_seeded_pre_existing_guard(tmp_path) -> None:
+    """Second positive control: the refusals above are about *shape*, not seeding.
+
+    Same seeding path as every refusal test, but with the real index. If
+    this failed, the tests above would prove only that ``_seed_sqlite``
+    upsets the store.
+    """
+    db_path = tmp_path / "seeded_ok.db"
+    _seed_sqlite(db_path, index_sql=_GOOD_LIVE_INDEX_SQL)
+
+    store = SqliteSnapshotStore(db_path)
+    store.close()
+
+
+_HIJACKED_INDEX_SQL = (
+    "CREATE INDEX ux_pi_eod_snapshot_live "
+    "ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'live'"
+)
+
+
+def test_sqlite_guard_refusal_does_not_leak_the_connection(tmp_path) -> None:
+    """A refused store must close its connection before raising.
+
+    On Windows an unclosed sqlite3 connection keeps a file handle open, so a
+    leak here makes the *next* test's ``tmp_path`` teardown fail with
+    "process cannot access the file" — a failure that lands nowhere near its
+    cause. Deleting the file is the portable way to prove no handle is held.
+    """
+    db_path = tmp_path / "leaked.db"
+    _seed_sqlite(db_path, index_sql=_HIJACKED_INDEX_SQL)
+
+    with pytest.raises(store_module.SnapshotSchemaMismatch):
+        SqliteSnapshotStore(db_path)
+
+    db_path.unlink()
+    assert not db_path.exists()
+
+
+def test_sqlite_guard_runs_before_the_version_stamp_is_written(tmp_path) -> None:
+    """A refused database must not be left wearing this build's version stamp.
+
+    Construction adopts-and-stamps an unstamped table of the right shape. If
+    the guard ran after the stamp, one failed construction would relabel a
+    malformed table as this build's, and the next operator to inspect it
+    would be told it is current.
+    """
+    db_path = tmp_path / "unstamped.db"
+    _seed_sqlite(db_path, index_sql=_HIJACKED_INDEX_SQL)
+
+    with pytest.raises(store_module.SnapshotSchemaMismatch):
+        SqliteSnapshotStore(db_path)
+
+    inspected = sqlite3.connect(str(db_path))
+    try:
+        stamped = inspected.execute("PRAGMA user_version").fetchone()[0]
+    finally:
+        inspected.close()
+
+    assert stamped == 0
+
+
+def test_sqlite_refuses_a_stamped_table_whose_guard_was_hijacked(tmp_path) -> None:
+    """A current version stamp must not buy a guard-less table a pass.
+
+    Because an unstamped table of the right shape is adopted *and stamped*,
+    any table that survives one construction is stamped from then on. If the
+    guard were only checked for unrecognized tables, a hijacked index would
+    be verified exactly once — on a database that, by definition, has not
+    been used yet — and never again.
+    """
+    db_path = tmp_path / "stamped_hijack.db"
+    _seed_sqlite(db_path, index_sql=_HIJACKED_INDEX_SQL)
+    stamper = sqlite3.connect(str(db_path))
+    stamper.execute(f"PRAGMA user_version = {store_module.SNAPSHOT_SCHEMA_VERSION}")
+    stamper.close()
+
+    with pytest.raises(store_module.SnapshotSchemaMismatch) as excinfo:
+        SqliteSnapshotStore(db_path)
+
+    assert "single-LIVE" in str(excinfo.value)
+
+
+def test_sqlite_index_predicate_is_read_from_the_where_clause_only(tmp_path) -> None:
+    """The predicate check must not be satisfied by the index's own name.
+
+    ``sqlite_master.sql`` holds the whole ``CREATE INDEX`` statement, and
+    the guard is named ``ux_pi_eod_snapshot_live`` — so a token check run
+    against the full text finds ``live`` in the *name* no matter what the
+    ``WHERE`` clause says, and a wrong-state predicate sails through. Only
+    the ``WHERE`` tail is kept, which is what makes
+    ``test_sqlite_refuses_a_unique_index_predicated_on_the_wrong_state``
+    discriminating rather than ceremonial.
+    """
+    assert store_module._index_predicate(None) == ""  # noqa: SLF001
+    assert (
+        store_module._index_predicate(  # noqa: SLF001
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'staging'"
+        )
+        == "state = 'staging'"
+    )
+    # A non-partial index has no predicate, even though its name says "live".
+    assert (
+        store_module._index_predicate(  # noqa: SLF001
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key)"
+        )
+        == ""
+    )
+
+    db_path = tmp_path / "predicate.db"
+    store = SqliteSnapshotStore(db_path)
+    try:
+        guard = next(
+            index
+            for index in store._table_indexes()  # pylint: disable=protected-access
+            if index.name == "ux_pi_eod_snapshot_live"
+        )
+    finally:
+        store.close()
+
+    # Read back off a real database: the predicate, and nothing else.
+    assert guard.predicate == "state = 'live'"
+    assert "CREATE" not in guard.predicate.upper()
 
 
 # ---------------------------------------------------------------------------

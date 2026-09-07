@@ -39,9 +39,12 @@
 
 ```python
 def test_canonical_key_is_idempotent_and_normalizes_label_pairs() -> None:
-    canonical = canonical_key(" sector = Information_Technology ")
+    canonical = canonical_key(" Sector = Information_Technology ")
     assert canonical == "sector=information technology"
     assert canonical_key(canonical) == canonical
+    # Both halves are case-normalized, so a field name spelled two ways
+    # cannot split one logical key into two.
+    assert canonical_key("Sector=Technology") == canonical_key("sector=technology")
 
 
 def test_default_validator_rejects_empty_payload_and_negative_rows() -> None:
@@ -79,11 +82,13 @@ _STATUS_RANK = {
 
 
 def canonical_key(raw: str) -> str:
-    value = " ".join(raw.strip().replace("_", " ").split())
+    # Casefold the whole value — both halves of a `field=label` pair — so
+    # `Sector=Technology` and `sector=technology` are one key, not two.
+    value = " ".join(raw.replace("_", " ").casefold().split())
     if "=" not in value:
-        return value.casefold()
+        return value
     field, label = value.split("=", 1)
-    return f"{field.strip()}={label.strip().casefold()}"
+    return f"{field.strip()}={label.strip()}"
 ```
 
 Define the Protocol with the exact signatures from the approved design's section 4.4. Export only public contract names from `snapshot/__init__.py`.
@@ -308,6 +313,26 @@ UNIQUE KEY ux_pi_eod_snapshot_live (live_key)
 - [ ] **Step 4: Implement Protocol parity**
 
 Keep SQL dialect differences private. Reuse shared row conversion, validation, ranking, and canonicalization logic rather than duplicating policy.
+
+The `live_key` column and its `UNIQUE KEY` are **verified, not assumed**
+(PR #2062 review). `CREATE TABLE IF NOT EXISTS` is a no-op against a
+pre-existing table of any shape, and MySQL declares the unique key
+*inside* that statement — so a table restored from a columns-only dump
+gets no guard, and every later promotion silently leaves a second LIVE
+row. `_verify_schema` therefore re-reads
+`information_schema.COLUMNS.GENERATION_EXPRESSION` and
+`information_schema.STATISTICS` and refuses when `live_key` is missing,
+is an ordinary (non-generated) column, or has no UNIQUE index over
+exactly `(live_key)`. The check runs before the version stamp is written,
+so a refused table is never adopted and stamped, and it runs
+unconditionally — a current stamp proves who wrote the table, never that
+its keys survived.
+
+The symmetric SQLite check lives in `_check_sqlite_live_guard` and looks
+for a *partial* unique index instead: SQLite has partial indexes, so it
+needs no `live_key`, and requiring one there would refuse every correct
+SQLite database. `live_key` is deliberately absent from the shared
+`_EXPECTED_COLUMNS`.
 
 - [ ] **Step 5: Verify tests**
 

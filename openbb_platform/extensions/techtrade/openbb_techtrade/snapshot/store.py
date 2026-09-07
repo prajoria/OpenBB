@@ -20,8 +20,11 @@ Design invariants this module encodes (see the spec for the full list):
 - **Canonicalization is a shared-store obligation.** Every caller — writer
   and reader alike — must run ``dataset``/``entity_key`` through
   ``canonical_key`` before it touches the store, or two writers using
-  differently-cased labels (``Information Technology`` vs.
-  ``information_technology``) would produce split-brain LIVE rows.
+  differently-cased keys (``Information Technology`` vs.
+  ``information_technology``, ``Sector=Technology`` vs.
+  ``sector=technology``) would produce split-brain LIVE rows. Case is
+  folded on **both** sides of a ``field=label`` pair, so a field name
+  spelled two ways cannot split one logical key in two.
 - **``as_of_session`` vs. ``created_at``.** The former is the trading day
   the payload is *about* (a ``date``); the latter is the wall-clock UTC
   instant of the write (a tz-aware ``datetime``). The two concepts must
@@ -38,6 +41,16 @@ Design invariants this module encodes (see the spec for the full list):
   the shape check structurally cannot detect (a newer schema is a
   column superset of this build's). SQLite stamps ``PRAGMA
   user_version``; MySQL stamps the table's own ``COMMENT``.
+- **The single-LIVE guard is verified, not assumed.** The DB object that
+  enforces "at most one LIVE row per ``(dataset, entity_key)``" differs
+  by dialect — SQLite uses a *partial* unique index, MySQL (which has
+  none) uses a generated nullable ``live_key`` column plus a plain
+  ``UNIQUE KEY`` — so each backend checks its own, at construction. A
+  pre-existing table can pass the column-shape *and* version checks
+  while carrying no such guard at all (``CREATE TABLE IF NOT EXISTS``
+  no-ops, and with it every index declared inside it), which would let
+  concurrent promotions install two LIVE rows for one key. See
+  :func:`_check_mysql_live_guard` / :func:`_check_sqlite_live_guard`.
 
 Read path is compute-free: nothing in this module calls a provider or
 performs a live computation. That remains true for every concrete backend
@@ -161,18 +174,42 @@ def canonical_key(raw: str) -> str:
     """Normalize a ``dataset`` or ``entity_key`` to a single canonical form.
 
     Both writer and reader MUST call this before any store operation — see
-    design spec §4.2 (review item #4). Rules: strip surrounding whitespace;
-    treat underscores as word separators; collapse internal whitespace to
-    single spaces; for ``field=Label`` pairs, keep the field name verbatim
-    but casefold the label half; a bare value (no ``=``) is casefolded in
-    full. Deterministic and idempotent:
+    design spec §4.2 (review item #4). Rules: treat underscores as word
+    separators; collapse all surrounding and internal whitespace; casefold
+    the **whole** value, both halves of a ``field=Label`` pair included;
+    then trim the whitespace that sat either side of the ``=``.
+    Deterministic and idempotent:
     ``canonical_key(canonical_key(x)) == canonical_key(x)``.
+
+    The field-name half is casefolded too (PR #2062 review): an earlier
+    revision kept it verbatim, so ``Sector=Technology`` and
+    ``sector=technology`` canonicalized to *different* keys. That is the
+    exact split-brain this function exists to prevent — two writers
+    disagreeing only about the case of a field name would each install
+    their own LIVE row, and a reader spelling the field the third way
+    would find neither. Casing carries no meaning in a key here, so it is
+    removed everywhere rather than in one half.
+
+    Casefolding before the ``=`` split is safe and deliberate: Unicode
+    full case folding never produces ``=`` (nor whitespace) from a
+    character that was not already one, so the split sees exactly the
+    same boundary either way — and folding once, up front, is what makes
+    the two halves provably symmetric.
+
+    Migration: none is needed. ``pi_eod_snapshot`` is a new, unused
+    foundation (#1963) with no writers in any shipped code path, so no
+    persisted row carries a pre-fix key; the schema *shape* is unchanged,
+    so :data:`SNAPSHOT_SCHEMA_VERSION` is deliberately **not** bumped —
+    a bump would refuse existing empty development databases while
+    protecting no real data. A stray development row written with a
+    mixed-case field name simply stops resolving (a miss, never a
+    corruption): re-stage it, or delete the development database.
     """
-    value = " ".join(raw.strip().replace("_", " ").split())
+    value = " ".join(raw.replace("_", " ").casefold().split())
     if "=" not in value:
-        return value.casefold()
+        return value
     field_name, label = value.split("=", 1)
-    return f"{field_name.strip()}={label.strip().casefold()}"
+    return f"{field_name.strip()}={label.strip()}"
 
 
 def default_validator(row: SnapshotRow) -> ValidationResult:
@@ -434,6 +471,66 @@ _EXPECTED_COLUMNS = frozenset(
     }
 )
 
+# The single-LIVE guard, by dialect.
+#
+# SQLite enforces "at most one LIVE row per (dataset, entity_key)" with a
+# *partial* unique index — `... ON (dataset, entity_key) WHERE state =
+# 'live'`. MySQL has no partial indexes, so it carries an extra generated
+# column, `live_key`, that is the two key parts concatenated when the row
+# is LIVE and NULL otherwise, plus a plain `UNIQUE KEY` over it (MySQL
+# unique indexes ignore NULLs, so unlimited STAGING/SUPERSEDED history
+# still coexists).
+#
+# `live_key` therefore belongs to *MySQL only*: it is deliberately absent
+# from `_EXPECTED_COLUMNS`, which is the dialect-independent shape both
+# backends share. Requiring it on SQLite would refuse every correct
+# SQLite database this store has ever written.
+_LIVE_UNIQUE_INDEX = "ux_pi_eod_snapshot_live"
+_MYSQL_LIVE_KEY_COLUMN = "live_key"
+_SQLITE_LIVE_INDEX_COLUMNS = ("dataset", "entity_key")
+
+# Tokens the server-normalized `GENERATION_EXPRESSION` of `live_key` must
+# mention. Checked as case-folded substrings rather than compared to the
+# DDL text, because MySQL rewrites the expression it stores (`IF(state =
+# 'live', CONCAT(dataset, CHAR(31 USING utf8mb4), entity_key), NULL)`
+# comes back as ``if((`state` = _utf8mb4'live'),concat(...),NULL)``) and
+# the exact rewrite differs by server version. What must not vary is that
+# the expression is keyed on the row's state *and* on both halves of the
+# identity: drop `state` and every row gets a non-NULL key (no row could
+# ever be staged twice); drop `entity_key` and two entities in one
+# dataset collide.
+_LIVE_KEY_EXPRESSION_TOKENS = ("state", "live", "dataset", "entity_key")
+
+# Tokens SQLite's partial-index predicate must mention. The same
+# substring discipline as above, and for the same reason: SQLite stores
+# the `WHERE` clause as written, so `state='live'`, `state = 'live'` and
+# `"state" = 'live'` are all the same index and none of them is text-equal
+# to the DDL. What must hold is that the predicate is keyed on the state
+# column *and* selects the LIVE value.
+_SQLITE_LIVE_PREDICATE_TOKENS = ("state", "live")
+
+# Slices a partial index's predicate out of its `CREATE INDEX` statement.
+# `\bWHERE\b` cannot match inside an identifier (`somewhere`), and SQLite
+# forbids subqueries in an index predicate, so at most one `WHERE` appears.
+_INDEX_WHERE_RE = re.compile(r"\bWHERE\b(.*)$", re.IGNORECASE | re.DOTALL)
+
+
+@dataclass(frozen=True)
+class _IndexShape:
+    """One index as the server's own catalogue describes it.
+
+    Built from ``information_schema.STATISTICS`` on MySQL and from
+    ``PRAGMA index_list`` / ``PRAGMA index_info`` on SQLite, so the check
+    describes the index that *exists* rather than the one this build's
+    DDL would have created. ``predicate`` is SQLite's partial-index
+    ``WHERE`` text and is always empty on MySQL, which has no such thing.
+    """
+
+    name: str
+    unique: bool
+    columns: tuple[str, ...]
+    predicate: str = ""
+
 
 class SnapshotSchemaMismatch(RuntimeError):
     """An existing ``pi_eod_snapshot`` table is not the one this code expects.
@@ -445,7 +542,13 @@ class SnapshotSchemaMismatch(RuntimeError):
 
 
 def _check_schema_shape(columns: Iterable[str], *, backend: str) -> None:
-    """Fail loudly when the existing table is missing expected columns."""
+    """Fail loudly when the existing table is missing expected columns.
+
+    Only the *dialect-independent* columns are checked here. MySQL's
+    extra ``live_key`` guard column is checked by
+    :func:`_check_mysql_live_guard`, which is called by the MySQL backend
+    alone — SQLite has no such column and must never be asked for one.
+    """
     missing = sorted(_EXPECTED_COLUMNS - set(columns))
     if missing:
         raise SnapshotSchemaMismatch(
@@ -454,6 +557,128 @@ def _check_schema_shape(columns: Iterable[str], *, backend: str) -> None:
             f"incompatible schema version. Refusing to use it. Expected "
             f"schema version {SNAPSHOT_SCHEMA_VERSION}."
         )
+
+
+def _live_guard_refusal(backend: str, detail: str) -> SnapshotSchemaMismatch:
+    """Build the refusal both dialect guards raise, with a shared preamble."""
+    return SnapshotSchemaMismatch(
+        f"{backend}: table {_SNAPSHOT_TABLE!r} does not enforce the "
+        f"single-LIVE-row invariant — {detail}. Two concurrent promotions "
+        f"could install two LIVE rows for one (dataset, entity_key) and "
+        f"every reader would then resolve an arbitrary one. Refusing to "
+        f"use it."
+    )
+
+
+def _check_mysql_live_guard(
+    generation: dict[str, str], indexes: Iterable[_IndexShape]
+) -> None:
+    """Verify MySQL's half of the single-LIVE invariant (PR #2062 review).
+
+    ``generation`` maps every existing column to its
+    ``information_schema.COLUMNS.GENERATION_EXPRESSION`` (``""`` for an
+    ordinary column). Three distinct failures are all silent without this
+    check, and none of them is visible to :func:`_check_schema_shape` or
+    :func:`_check_schema_version`:
+
+    1. **No ``live_key`` at all.** ``CREATE TABLE IF NOT EXISTS`` no-ops
+       against a pre-existing table, so a table carrying only the 14
+       shared columns passes the shape check and gets stamped — while
+       nothing whatsoever constrains how many rows may be LIVE.
+    2. **A ``live_key`` that is an ordinary column.** Worse than absent:
+       the unique index may well exist, but the column is NULL for every
+       row (nobody writes it — it is never in an ``INSERT`` column list)
+       and MySQL unique indexes ignore NULLs, so the index accepts
+       unlimited LIVE rows while *looking* like the guard.
+    3. **A unique index that is missing, non-unique, or over the wrong
+       columns.** A plain ``INDEX (live_key)`` enforces nothing; a
+       ``UNIQUE`` over ``(dataset, entity_key)`` would (wrongly) forbid a
+       second *staged* run for the same key.
+
+    The index is matched on its *shape*, not its name: an operator who
+    rebuilt an equivalent unique index under a different name has not
+    broken the invariant, and refusing them would be pedantry. The
+    canonical name is named in the message so the fix is obvious.
+    """
+    if _MYSQL_LIVE_KEY_COLUMN not in generation:
+        raise _live_guard_refusal(
+            "mysql",
+            f"the generated column {_MYSQL_LIVE_KEY_COLUMN!r} is missing",
+        )
+    expression = generation[_MYSQL_LIVE_KEY_COLUMN].casefold()
+    absent = [token for token in _LIVE_KEY_EXPRESSION_TOKENS if token not in expression]
+    if absent:
+        raise _live_guard_refusal(
+            "mysql",
+            f"column {_MYSQL_LIVE_KEY_COLUMN!r} is not generated from the "
+            f"expected expression (its GENERATION_EXPRESSION "
+            f"{generation[_MYSQL_LIVE_KEY_COLUMN]!r} never mentions {absent}); "
+            f"an ordinary column is NULL on every row, and a unique index "
+            f"over it constrains nothing",
+        )
+    if not any(
+        index.unique and index.columns == (_MYSQL_LIVE_KEY_COLUMN,) for index in indexes
+    ):
+        raise _live_guard_refusal(
+            "mysql",
+            f"no UNIQUE index over exactly ({_MYSQL_LIVE_KEY_COLUMN}) exists "
+            f"(expected {_LIVE_UNIQUE_INDEX!r})",
+        )
+
+
+def _index_predicate(sql: str | None) -> str:
+    """Slice the ``WHERE`` tail out of a ``CREATE INDEX`` statement.
+
+    ``sqlite_master.sql`` is the only place a partial index's predicate
+    survives, but the statement also contains the index's *name* — and
+    the single-LIVE guard is named ``ux_pi_eod_snapshot_live``. Checking
+    the whole statement for the token ``live`` would therefore succeed
+    for any index wearing that name, including one predicated on the
+    wrong state: the check would be satisfied by the very name it was
+    trying to look past. Returning only the predicate is what makes the
+    caller's token check discriminating.
+
+    ``None`` (the implicit index behind a ``PRIMARY KEY``) and a
+    non-partial index both yield ``""``. Slicing at the first ``WHERE``
+    is unambiguous: SQLite forbids subqueries in an index predicate, so
+    at most one appears.
+    """
+    if not sql:
+        return ""
+    match = _INDEX_WHERE_RE.search(sql)
+    return match.group(1).strip() if match else ""
+
+
+def _check_sqlite_live_guard(indexes: Iterable[_IndexShape]) -> None:
+    """Verify SQLite's half of the same invariant: the *partial* unique index.
+
+    SQLite needs no ``live_key`` — it indexes ``(dataset, entity_key)``
+    directly under a ``WHERE state = 'live'`` predicate — so this check
+    must never look for that column. It exists because ``CREATE UNIQUE
+    INDEX IF NOT EXISTS`` is keyed on the index *name*: a pre-existing
+    index that merely wears the name :data:`_LIVE_UNIQUE_INDEX` (an
+    ordinary non-unique index, or a unique one without the partial
+    predicate) silently no-ops the ``CREATE`` and leaves the invariant
+    unenforced, exactly as MySQL's ``CREATE TABLE IF NOT EXISTS`` does.
+
+    The predicate is required, not optional: a *total* unique index over
+    ``(dataset, entity_key)`` would forbid a second staged run for one
+    key, which is the store's normal daily operation.
+    """
+    for index in indexes:
+        predicate = index.predicate.casefold()
+        if (
+            index.unique
+            and index.columns == _SQLITE_LIVE_INDEX_COLUMNS
+            and all(token in predicate for token in _SQLITE_LIVE_PREDICATE_TOKENS)
+        ):
+            return
+    raise _live_guard_refusal(
+        "sqlite",
+        f"no partial UNIQUE index over {_SQLITE_LIVE_INDEX_COLUMNS} with a "
+        f"\"state = 'live'\" predicate exists (expected "
+        f"{_LIVE_UNIQUE_INDEX!r})",
+    )
 
 
 def _check_schema_version(version: int, *, backend: str) -> None:
@@ -1043,9 +1268,18 @@ class SqliteSnapshotStore:
             str(self._db_path), check_same_thread=False, isolation_level=None
         )
         self._conn.row_factory = sqlite3.Row
-        with _SQLITE_LOCK:
-            self._configure_connection()
-            self._ensure_schema()
+        try:
+            with _SQLITE_LOCK:
+                self._configure_connection()
+                self._ensure_schema()
+        except BaseException:
+            # A refused schema must not also leak the file handle it was
+            # refused through. On Windows an open sqlite connection keeps
+            # the file locked, so a caller that catches
+            # `SnapshotSchemaMismatch` and repairs the database would find
+            # it still held by the store that never finished constructing.
+            self._conn.close()
+            raise
 
     def __enter__(self) -> SqliteSnapshotStore:
         """Enter a ``with`` block; the store is already usable on construction.
@@ -1097,6 +1331,53 @@ class SqliteSnapshotStore:
             ).fetchall()
         ]
 
+    def _table_indexes(self) -> list[_IndexShape]:
+        """Every index on ``pi_eod_snapshot``, as SQLite's catalogue sees it.
+
+        ``PRAGMA index_list`` reports uniqueness and whether an index is
+        partial but not *what* the partial predicate is, and ``PRAGMA
+        index_info`` reports the columns; only ``sqlite_master.sql``
+        carries the ``WHERE`` clause — and it is ``NULL`` for the
+        implicit index behind a ``PRIMARY KEY``, which is exactly the
+        index that must not be mistaken for the single-LIVE guard.
+
+        Only the ``WHERE`` tail is kept, never the whole statement: the
+        guard's own name (``ux_pi_eod_snapshot_live``) contains the token
+        ``live``, so a predicate check run against the full SQL text
+        would pass for *any* index wearing that name, including one
+        predicated on the wrong state. Slicing at the first ``WHERE`` is
+        unambiguous because SQLite forbids subqueries in an index
+        predicate, so a partial index has exactly one.
+        """
+        predicates = {
+            record["name"]: _index_predicate(record["sql"])
+            for record in self._conn.execute(
+                "SELECT name, sql FROM sqlite_master WHERE type = 'index' "
+                "AND tbl_name = ?",
+                (_SNAPSHOT_TABLE,),
+            ).fetchall()
+        }
+        shapes: list[_IndexShape] = []
+        for record in self._conn.execute(
+            f"PRAGMA index_list({_SNAPSHOT_TABLE})"  # noqa: S608
+        ).fetchall():
+            name = record["name"]
+            columns = tuple(
+                column["name"]
+                for column in self._conn.execute(
+                    f"PRAGMA index_info({name})"  # noqa: S608
+                ).fetchall()
+            )
+            shapes.append(
+                _IndexShape(
+                    name=name,
+                    unique=bool(record["unique"]),
+                    columns=columns,
+                    predicate=predicates.get(name, ""),
+                )
+            )
+        return shapes
+
     def _ensure_schema(self) -> None:
         """Create the schema, or refuse an existing table that isn't ours.
 
@@ -1107,6 +1388,15 @@ class SqliteSnapshotStore:
         every operation with "no such column". The shape and version are
         therefore checked before the DDL runs, and both failures are
         loud (:class:`SnapshotSchemaMismatch`).
+
+        The single-LIVE partial unique index is checked *after* the DDL,
+        because on a fresh database the DDL is what creates it. ``CREATE
+        UNIQUE INDEX IF NOT EXISTS`` is keyed on the index name, so a
+        pre-existing object already wearing that name — a plain index, or
+        a unique one without the ``state = 'live'`` predicate — no-ops
+        the statement and leaves the invariant unenforced. Reading the
+        index back from the catalogue is the only way to know which of
+        the two happened (PR #2062 review).
 
         ``PRAGMA user_version`` is per *file*: ``PI_SNAPSHOT_DB`` must
         point at a database dedicated to this store (the factory default
@@ -1119,6 +1409,7 @@ class SqliteSnapshotStore:
             version = self._conn.execute("PRAGMA user_version").fetchone()[0]
             _check_schema_version(int(version), backend="sqlite")
         self._conn.executescript(_SQLITE_SCHEMA)
+        _check_sqlite_live_guard(self._table_indexes())
         self._conn.execute(f"PRAGMA user_version = {SNAPSHOT_SCHEMA_VERSION}")
 
     @contextmanager

@@ -30,7 +30,12 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    coexists with at most one LIVE row per ``(dataset, entity_key)``.
    ``CHAR(31)`` (ASCII unit separator) joins the two halves so a
    ``dataset``/``entity_key`` boundary can never be forged by a value
-   that merely contains the delimiter.
+   that merely contains the delimiter. Both halves of that mechanism —
+   the column *and* its unique index — are re-read from
+   ``information_schema`` at construction and refused if absent or
+   malformed, because ``CREATE TABLE IF NOT EXISTS`` no-ops against a
+   pre-existing table and takes every index declared inside it down with
+   it (PR #2062 review). See :func:`~openbb_techtrade.snapshot.store._check_mysql_live_guard`.
 3. **Explicit LIVE pointer.** "Current" is the row whose ``state`` is
    ``live`` — never "the row with the newest ``as_of_session``". A
    restamp/backfill/replay can legitimately leave LIVE pointing at an
@@ -83,10 +88,17 @@ history of ``portfolio_snapshot_importer`` (#1744). See the C1 note in
 # placeholder tokens. Every user value is bound as a parameter. Ruff
 # cannot prove that, so it is suppressed at file scope.
 
+# pylint: disable=too-many-lines
+# The module is one backend of a two-backend contract; splitting it would
+# put the DDL, the `information_schema` probes that verify that DDL, and
+# the lifecycle methods that depend on both into separate files whose only
+# reader is each other. `store.py` carries the same disable for the same
+# reason.
+
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from typing import Any
@@ -108,10 +120,12 @@ from openbb_techtrade.snapshot.store import (
     _batched,
     _check_field_lengths,
     _check_limit,
+    _check_mysql_live_guard,
     _check_schema_shape,
     _check_schema_version,
     _doomed_triples,
     _dumps_payload,
+    _IndexShape,
     _is_integrity_error,
     _LifecycleRefused,
     _parse_schema_version_comment,
@@ -248,8 +262,23 @@ _INSERT_STAGED = (
 )
 
 _SELECT_SCHEMA_COLUMNS = (
-    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+    "SELECT COLUMN_NAME, GENERATION_EXPRESSION FROM information_schema.COLUMNS "
     "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s"
+)
+
+# The single-LIVE guard, read back from the server rather than assumed.
+# `GENERATION_EXPRESSION` above distinguishes the generated `live_key`
+# column from an ordinary column of the same name (which would be NULL on
+# every row, so its UNIQUE index would constrain nothing); `STATISTICS`
+# below is MySQL's index catalogue — one row per (index, column), ordered
+# by `SEQ_IN_INDEX`, with `NON_UNIQUE = 0` for a unique index. Both
+# together are what `_check_mysql_live_guard` needs to prove the invariant
+# is actually enforced (PR #2062 review).
+_SELECT_SCHEMA_INDEXES = (
+    "SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME "
+    "FROM information_schema.STATISTICS "
+    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s "
+    "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
 )
 
 # MySQL's answer to `PRAGMA user_version`. The version this build speaks is
@@ -279,6 +308,32 @@ _STAMP_SCHEMA_COMMENT = f"ALTER TABLE {_SNAPSHOT_TABLE} COMMENT = %s"
 # weak so a discarded pool cannot pin its entry — or the schema decision
 # taken against it — for the life of the process.
 _SCHEMA_READY: WeakKeyDictionary = WeakKeyDictionary()
+
+
+def _index_shapes(records: Iterable[Mapping[str, Any]]) -> list[_IndexShape]:
+    """Fold ``information_schema.STATISTICS`` rows into one shape per index.
+
+    ``STATISTICS`` is one row per *(index, column)* pair, so the columns
+    of a composite index arrive spread over several rows and must be
+    re-assembled in ``SEQ_IN_INDEX`` order — which the query already
+    sorts by, so insertion order into the ``dict`` is the index order.
+    ``NON_UNIQUE`` is 0 for a unique index (MySQL names the column for
+    the negative). A functional index reports ``COLUMN_NAME = NULL``;
+    such an entry can never be the ``(live_key)`` guard, so it is dropped
+    rather than being folded in as a phantom column.
+    """
+    columns: dict[str, list[str]] = {}
+    unique: dict[str, bool] = {}
+    for record in records:
+        name = record["INDEX_NAME"]
+        column = record["COLUMN_NAME"]
+        unique[name] = not int(record["NON_UNIQUE"])
+        if column is not None:
+            columns.setdefault(name, []).append(column)
+    return [
+        _IndexShape(name=name, unique=is_unique, columns=tuple(columns.get(name, ())))
+        for name, is_unique in unique.items()
+    ]
 
 
 def _now_utc_naive() -> datetime:
@@ -453,6 +508,15 @@ class MysqlSnapshotStore:
         is this store's, and a self-describing marker is worth more than
         a hand-written annotation that no code reads.
 
+        Neither check can see the third failure, which is why
+        :meth:`_verify_schema` also re-reads the single-LIVE guard: a
+        pre-existing table with all fourteen shared columns but no
+        generated ``live_key`` (or no UNIQUE index over it) passes shape
+        *and* version and then lets two concurrent promotions install two
+        LIVE rows for one key. ``CREATE TABLE IF NOT EXISTS`` no-ops
+        against such a table, and because MySQL declares its indexes
+        *inside* ``CREATE TABLE``, the no-op silently skips them too.
+
         The check runs once per pool (see :data:`_SCHEMA_READY`), and the
         refusal is raised *outside* the borrow so a schema fault is not
         logged by the shared pool as ``MySQL connection error``.
@@ -477,16 +541,30 @@ class MysqlSnapshotStore:
 
     @staticmethod
     def _verify_schema(cur: Any) -> None:
-        """Check the live table's shape and version stamp; stamp if unstamped.
+        """Check the table's shape, single-LIVE guard and version stamp.
 
-        Both probes ask the *server* (``information_schema``) rather than
+        Every probe asks the *server* (``information_schema``) rather than
         re-reading this module's own DDL text, so the answer describes
         the table that exists, not the table this build would have
         created.
+
+        Order matters. The single-LIVE guard is checked *before* the
+        version stamp is read — and therefore before an unstamped table
+        would be adopted and stamped — so a malformed table never leaves
+        this method wearing this build's version marker. It is also
+        checked unconditionally: a table that already carries a perfectly
+        current stamp gets exactly the same scrutiny, because the stamp
+        proves only who wrote the table, never that its keys survived
+        (PR #2062 review).
         """
         cur.execute(_SELECT_SCHEMA_COLUMNS, (_SNAPSHOT_TABLE,))
-        columns = [record["COLUMN_NAME"] for record in cur.fetchall()]
-        _check_schema_shape(columns, backend="mysql")
+        generation = {
+            record["COLUMN_NAME"]: record["GENERATION_EXPRESSION"] or ""
+            for record in cur.fetchall()
+        }
+        _check_schema_shape(generation.keys(), backend="mysql")
+        cur.execute(_SELECT_SCHEMA_INDEXES, (_SNAPSHOT_TABLE,))
+        _check_mysql_live_guard(generation, _index_shapes(cur.fetchall()))
         cur.execute(_SELECT_SCHEMA_COMMENT, (_SNAPSHOT_TABLE,))
         record = cur.fetchone()
         stamped = _parse_schema_version_comment(

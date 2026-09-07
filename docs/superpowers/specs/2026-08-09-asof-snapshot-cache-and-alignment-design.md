@@ -279,10 +279,20 @@ reconcile. A single canonicalizer, called by **both writer and reader** on every
 def canonical_key(raw: str) -> str:
     """Normalize a dataset or entity_key to a single canonical form.
     Both writer and reader MUST call this before any store operation.
-    Rules: strip; collapse internal whitespace to single spaces; casefold the
-    label half of 'field=Label' pairs (keep the field name verbatim); normalize
-    separators. Deterministic and idempotent: canonical_key(canonical_key(x)) == canonical_key(x)."""
+    Rules: strip; collapse internal whitespace to single spaces; normalize
+    separators; casefold the WHOLE value, both halves of 'field=Label' pairs
+    included. Deterministic and idempotent: canonical_key(canonical_key(x)) == canonical_key(x)."""
 ```
+
+> **Amended (PR #2062 review, #1963).** This section originally said to
+> "keep the field name verbatim" and casefold only the label half. That was
+> wrong for the same reason the rest of the rule exists: `Sector=Technology`
+> and `sector=technology` would canonicalize to two different keys, so two
+> writers disagreeing only about the case of a *field name* would each
+> install their own LIVE row and a reader spelling it a third way would find
+> neither. Case carries no meaning in a key here, so it is folded on both
+> sides of the `=`. The implementation in
+> `openbb_techtrade.snapshot.store.canonical_key` is the binding form.
 
 Every Protocol method treats its `dataset`/`entity_key` args as already-canonical
 (the store may assert `canonical_key(x) == x` in debug builds). Canonicalization
