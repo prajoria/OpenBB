@@ -703,6 +703,11 @@ _SQL_TOKEN_ESCAPED_RE = re.compile(
     _SQL_SCAN_PATTERN.format(literal=r"'(?:[^'\\]|''|\\(?s:.))*'"), re.VERBOSE
 )
 
+# Server-rendered SQL uses the ASCII whitespace recognized by both dialects.
+# Keeping this explicit prevents Unicode format/control characters from being
+# mistaken for harmless spacing by Python's broader ``str.isspace()``.
+_SQL_WHITESPACE = frozenset(" \t\r\n\f\v")
+
 _SQL_WORD_RE = re.compile(r"[A-Za-z_$][A-Za-z_$0-9]*")
 
 # A charset introducer: `_utf8mb4'live'`. Only ever dropped when it sits
@@ -800,6 +805,9 @@ def _canonical_sql(expression: str | None, *, backslash_escapes: bool = False) -
     preserves everything that carries meaning. An unparseable or empty
     expression canonicalizes to ``""``, which matches no accepted form —
     an ordinary (non-generated) column reports ``""`` and must be refused.
+    Scanning is contiguous: every character must belong to a token or the
+    explicitly supported ASCII whitespace, otherwise the whole expression
+    fails closed to ``""`` rather than silently dropping the unknown text.
 
     Grouping parentheses are dropped, call parentheses are kept: a ``(``
     is a call only when the token before it is a bare word (a function
@@ -815,10 +823,25 @@ def _canonical_sql(expression: str | None, *, backslash_escapes: bool = False) -
     would be read as ``state = 'live'`` and accepted (PR #2062 review).
     """
     token_re = _SQL_TOKEN_ESCAPED_RE if backslash_escapes else _SQL_TOKEN_RE
+    reported = expression or ""
     tokens: list[str] = []
     call_paren: list[bool] = []
     skip_charset = False
-    for raw in token_re.findall(expression or ""):
+    cursor = 0
+    while cursor < len(reported):
+        if reported[cursor] in _SQL_WHITESPACE:
+            cursor += 1
+            continue
+        match = token_re.match(reported, cursor)
+        if match is None:
+            return ""
+        raw = match.group(0)
+        unterminated_comment = reported.startswith("/*", cursor) and not raw.startswith(
+            "/*"
+        )
+        if reported.startswith("*/", cursor) or unterminated_comment:
+            return ""
+        cursor = match.end()
         if raw.startswith("--") or raw.startswith("/*"):
             continue
         if skip_charset:

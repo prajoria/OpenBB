@@ -2731,6 +2731,49 @@ def test_canonical_sql_folds_formatting_and_preserves_meaning() -> None:
     assert canonical(r"'a\%b'", backslash_escapes=True) == r"'a\%b'"
 
 
+@pytest.mark.parametrize(
+    "expression",
+    [
+        pytest.param("state := 'live'", id="assignment-operator"),
+        pytest.param("state : = 'live'", id="colon-between-tokens"),
+        pytest.param("state = 'live';", id="statement-terminator"),
+        pytest.param("state \N{FULLWIDTH COLON}= 'live'", id="unicode-punctuation"),
+        pytest.param("state\u200b = 'live'", id="unicode-format-control"),
+        pytest.param("state\x00 = 'live'", id="nul-control"),
+        pytest.param("state\x1f = 'live'", id="unit-separator-control"),
+        pytest.param("@state = 'live'", id="unrecognized-leading-gap"),
+        pytest.param("state @ = 'live'", id="unrecognized-interior-gap"),
+        pytest.param("state = 'live'@", id="unrecognized-trailing-gap"),
+        pytest.param("\"state = 'live'", id="unterminated-quoted-identifier"),
+        pytest.param("state = 'live' '", id="unterminated-string-literal"),
+        pytest.param("state = 'live' /* never closed", id="unterminated-block-comment"),
+        pytest.param("state = 'live' */", id="unopened-block-comment"),
+    ],
+)
+def test_canonical_sql_fails_closed_when_the_scan_cannot_consume_input(
+    expression: str,
+) -> None:
+    """Unknown or malformed text must not disappear between token matches."""
+    assert store_module._canonical_sql(expression) == ""
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        pytest.param("state='live'", id="compact"),
+        pytest.param("  ( \"state\"  =  'live' ) \n", id="quoted-and-grouped"),
+        pytest.param("`state`=/* separator */'live' -- guard", id="comments"),
+        pytest.param("'live' = [state]", id="reversed-and-bracketed"),
+    ],
+)
+def test_canonical_sql_consumes_every_character_in_valid_sql(expression: str) -> None:
+    """Fail-closed scanning must retain every supported SQLite spelling."""
+    assert (
+        store_module._canonical_sql(expression)
+        in store_module._SQLITE_LIVE_PREDICATE_FORMS
+    )
+
+
 # ---------------------------------------------------------------------------
 # Catalogue reads survive awkward index names (PR #2062 review)
 # ---------------------------------------------------------------------------

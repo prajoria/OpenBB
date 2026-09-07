@@ -3528,6 +3528,38 @@ def test_mysql_live_guard_rejects_one_layer_literal_changed_by_outer_decode() ->
     assert "single-LIVE" in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    "expression",
+    [
+        pytest.param(
+            "if((`state` := _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="one-layer-assignment",
+        ),
+        pytest.param(
+            "if((`state` := _utf8mb4\\'live\\'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="two-layer-assignment",
+        ),
+    ],
+)
+def test_mysql_live_guard_rejects_unconsumed_assignment_punctuation(
+    expression: str,
+) -> None:
+    """A dropped colon must never turn MySQL assignment into equality."""
+    guard = [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+        )
+    ]
+
+    assert store_module._canonical_generation_expression(expression) == ""
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        store_module._check_mysql_live_guard({"live_key": expression}, guard)
+
+    assert "single-LIVE" in str(excinfo.value)
+
+
 def test_mysql_live_guard_rejects_near_matches_in_one_layer_representation() -> None:
     """Reject altered one-layer MySQL 5.7/MariaDB representations.
 
