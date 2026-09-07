@@ -24,7 +24,6 @@ if (-not (Test-Path -LiteralPath $current -PathType Container)) {
 }
 $staging = Join-Path $InstallRoot ("staging-" + [Guid]::NewGuid().ToString("N"))
 $backup = Join-Path $InstallRoot ("rollback-" + [DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))
-$configPath = Join-Path $DataRoot "service.json"
 
 Publish-OpenBBRelease -SourceRoot $SourceRoot -Destination $staging `
     -PythonExecutable $PythonExecutable -ArtifactDirectory $ArtifactDirectory `
@@ -37,7 +36,7 @@ Stop-Service -Name "OpenBBPortfolio" -ErrorAction Stop
 try {
     Move-Item -LiteralPath $current -Destination $backup
     Move-Item -LiteralPath $staging -Destination $current
-    Write-ServiceConfiguration -ReleaseRoot $current -DataRoot $DataRoot | Out-Null
+    $configPath = Write-ServiceConfiguration -ReleaseRoot $current -DataRoot $DataRoot
     Start-Service -Name "OpenBBPortfolio"
     Invoke-ServiceDoctor -HostExecutable (Join-Path $current "host\OpenBB.ServiceHost.exe") `
         -ConfigPath $configPath
