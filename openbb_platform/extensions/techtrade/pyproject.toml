@@ -10,6 +10,7 @@ packages = [{ include = "openbb_techtrade" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 openbb-core = "^1.6.10"
+exchange-calendars = "^4.13.2"
 pandas = "*"
 numpy = "*"
 openpyxl = "*"
@@ -32,6 +33,9 @@ validation = ["openbb-backtest"]
 
 [tool.poetry.plugins."openbb_core_extension"]
 techtrade = "openbb_techtrade.techtrade_router:router"
+
+[tool.poetry.plugins."openbb_job_extension"]
+techtrade = "openbb_techtrade.jobs:get_job_definitions"
 
 [tool.poetry.plugins."openbb_backtest_strategies"]
 # Advertise the techtrade confluence SignalStrategy to openbb-backtest's plugin discovery.

@@ -24,9 +24,15 @@ import os
 import re
 import time
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 
 from fastapi import HTTPException, Query, Request
+from openbb_core.api.dependency.jobs import get_job_service
+from openbb_techtrade.engine.scan_runner import DEFAULT_SEGMENTS
+from openbb_techtrade.snapshots.models import DEFAULT_SCAN_KIND, ScanSnapshot
+from openbb_techtrade.snapshots.sqlite import SqliteScanSnapshotStore
+from openbb_techtrade.snapshots.store import ScanSnapshotStore
 
 from openbb_portfolio_intel.basket_resolver import (
     BasketNotFoundError,
@@ -2289,12 +2295,59 @@ def equity_peer_multiples(
 
 
 # ---------------------------------------------------------------------------
-# Techtrade Morning Scan (#1692 T13.1) — stub-shaped
+# Techtrade Morning Scan (#1692 T13.1, #1940, #1941)
 # ---------------------------------------------------------------------------
 #
-# 3 widgets under the tt_* prefix, hosted in the existing portfolio-intel
-# widget_backend server (Option A architecture). Real wiring calls
-# openbb_techtrade.engine.scan and .screener_router in follow-up.
+# Reads persisted scan snapshots from ``ScanSnapshotStore.read_latest()`` —
+# no computation in the request path. Metadata fields ``computed_at``,
+# ``as_of_session``, and ``is_stale`` are exposed on every response.
+# When no snapshot exists the response is loud-empty (non-empty body
+# explaining why there are no results).
+#
+# ``POST /tt/scan/trigger`` enqueues the registered TechTrade scan job
+# via ``JobService.enqueue`` and returns 202; it never calls
+# ``scan_segments()`` or any other computation directly.
+
+#: Staleness threshold: snapshots older than 26 hours are flagged.
+_STALE_HOURS = 26
+
+
+@lru_cache(maxsize=1)
+def _get_scan_store() -> ScanSnapshotStore:
+    """Return (or create) the module-level snapshot store singleton."""
+    return SqliteScanSnapshotStore()
+
+
+def _snapshot_meta(snapshots: list[ScanSnapshot]) -> dict:
+    """Build conservative metadata across the snapshots backing a response."""
+    if not snapshots:
+        return {
+            "computed_at": None,
+            "as_of_session": None,
+            "is_stale": True,
+        }
+    now = datetime.now(timezone.utc)
+    computed_at = min(snapshot.computed_at for snapshot in snapshots)
+    as_of_session = min(snapshot.as_of_session for snapshot in snapshots)
+    age = now - computed_at
+    return {
+        "computed_at": computed_at.isoformat(),
+        "as_of_session": as_of_session.isoformat(),
+        "is_stale": age.total_seconds() > _STALE_HOURS * 3600,
+    }
+
+
+def _read_daily_snapshots(
+    store: ScanSnapshotStore, segment: str = ""
+) -> list[ScanSnapshot]:
+    """Read latest persisted daily snapshots without invoking scan computation."""
+    segments = (segment,) if segment else DEFAULT_SEGMENTS
+    return [
+        snapshot
+        for candidate in segments
+        if (snapshot := store.read_latest(kind=DEFAULT_SCAN_KIND, segment=candidate))
+        is not None
+    ]
 
 
 _SEGMENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9 &_-]{0,63}$")
@@ -2310,76 +2363,125 @@ def _validate_segment(segment: str) -> str:
     return segment
 
 
+def _loud_empty_rows(context: str) -> list[dict]:
+    """Return a single-row loud-empty marker when no snapshot is available."""
+    return [{"note": f"No scan snapshot available ({context}). Run a scan first."}]
+
+
+def _fresh_empty_rows(context: str) -> list[dict]:
+    """Return a marker for a completed scan with no actionable rows."""
+    return [{"note": f"Latest scan completed with no actionable plans ({context})."}]
+
+
 @app.get("/tt/scan/segment-movers")
 def tt_scan_segment_movers(
     request: Request,
-) -> list[dict[str, str | float]]:
-    """Return Segment Movers rows (#1692) — top gainers/losers by segment (chart)."""
+) -> dict:
+    """Segment Movers — top gainers/losers by segment (#1692, #1941).
+
+    Summarizes the strongest persisted daily-scan signal in each segment.
+    """
     _require_auth(request)
-    # TODO(gh-1692): wire to openbb_techtrade.engine.screener_router.segments.
-    return [
-        {"segment": "Technology", "change_pct": +2.14, "bucket": "gainer"},
-        {"segment": "Communication Services", "change_pct": +1.62, "bucket": "gainer"},
-        {"segment": "Consumer Discretionary", "change_pct": +0.88, "bucket": "gainer"},
-        {"segment": "Health Care", "change_pct": -0.31, "bucket": "loser"},
-        {"segment": "Utilities", "change_pct": -0.94, "bucket": "loser"},
-        {"segment": "Real Estate", "change_pct": -1.55, "bucket": "loser"},
-    ]
+    store = _get_scan_store()
+    snapshots = _read_daily_snapshots(store)
+    meta = _snapshot_meta(snapshots)
+    rows = []
+    for snapshot in snapshots:
+        if not snapshot.rows:
+            continue
+        strongest = max(
+            snapshot.rows, key=lambda row: abs(float(row.get("score") or 0))
+        )
+        score = float(strongest.get("score") or 0)
+        signed_score = score
+        rows.append(
+            {
+                "segment": snapshot.segment,
+                "change_pct": round(signed_score * 100, 2),
+                "bucket": "loser" if signed_score < 0 else "gainer",
+            }
+        )
+    if not rows:
+        rows = (
+            _fresh_empty_rows("segment movers")
+            if snapshots
+            else _loud_empty_rows("segment movers")
+        )
+    return {"rows": rows, **meta}
 
 
 @app.get("/tt/scan/table")
-def tt_scan_table(request: Request, segment: str = "") -> list[dict[str, str | float]]:
-    """Return Scan Table rows (#1692) — filtered ticker scan results (table)."""
+def tt_scan_table(request: Request, segment: str = "") -> dict:
+    """Scan Table — filtered ticker scan results (#1692, #1941).
+
+    Reads the latest ``daily_scan`` snapshot from the store. When a
+    ``segment`` filter is provided only matching rows are returned.
+    """
     _require_auth(request)
     if segment:
         _validate_segment(segment)
-    # TODO(gh-1692): wire to openbb_techtrade.engine.scan.scan_segments.
-    all_rows: list[dict[str, str | float]] = [
-        {
-            "symbol": "NVDA",
-            "segment": "Technology",
-            "score": 0.94,
-            "signal": "BREAKOUT",
-        },
-        {"symbol": "AAPL", "segment": "Technology", "score": 0.82, "signal": "TREND"},
-        {"symbol": "MSFT", "segment": "Technology", "score": 0.78, "signal": "TREND"},
-        {
-            "symbol": "META",
-            "segment": "Communication Services",
-            "score": 0.71,
-            "signal": "TREND",
-        },
-        {
-            "symbol": "AMZN",
-            "segment": "Consumer Discretionary",
-            "score": 0.66,
-            "signal": "BASE",
-        },
-        {
-            "symbol": "TSLA",
-            "segment": "Consumer Discretionary",
-            "score": 0.58,
-            "signal": "RANGE",
-        },
-    ]
-    if segment:
-        return [r for r in all_rows if r["segment"] == segment]
-    return all_rows
+    store = _get_scan_store()
+    snapshots = _read_daily_snapshots(store, segment)
+    meta = _snapshot_meta(snapshots)
+    rows = [row for snapshot in snapshots for row in snapshot.rows]
+    if not rows:
+        context = f"scan table{f' segment={segment}' if segment else ''}"
+        rows = _fresh_empty_rows(context) if snapshots else _loud_empty_rows(context)
+    return {"rows": rows, **meta}
 
 
 @app.get("/tt/scan/export")
 def tt_scan_export(request: Request) -> str:
-    """Return Export button markdown (#1692) — CSV export link for the scan (markdown)."""
+    """Export button markdown (#1692) — CSV export link for the scan."""
     _require_auth(request)
-    # TODO(gh-1692): wire to an actual export route that streams the scan
-    # snapshot as a CSV attachment.
+    store = _get_scan_store()
+    snapshots = _read_daily_snapshots(store)
+    rows = [row for snapshot in snapshots for row in snapshot.rows]
+    if rows:
+        meta = _snapshot_meta(snapshots)
+        return (
+            "### Export Scan\n\n"
+            f"- **Computed:** {meta['computed_at']}\n"
+            f"- **Session:** {meta['as_of_session']}\n"
+            f"- **Rows:** {len(rows)}\n\n"
+            "- [Download CSV](#) — snapshot of the current scan table\n"
+            "- [Copy JSON](#) — machine-readable copy\n"
+        )
     return (
         "### Export Scan\n\n"
-        "- [Download CSV](#) — snapshot of the current scan table\n"
-        "- [Copy JSON](#) — machine-readable copy\n\n"
-        "> Stub — the CSV link will resolve to a real streaming download once "
-        "the export route lands in a follow-up cycle."
+        "> No scan snapshot available. Trigger a scan first, then refresh.\n"
     )
+
+
+@app.post("/tt/scan/trigger", status_code=202)
+def tt_scan_trigger(request: Request) -> dict:
+    """Enqueue the TechTrade daily scan job (#1940, #1941).
+
+    Returns ``202 Accepted`` immediately. The job runs in the worker
+    process — this endpoint **never** calls ``scan_segments()`` or any
+    scan computation directly.
+    """
+    _require_auth(request)
+    try:
+        service = get_job_service()
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Jobs service not initialized. Is the worker configured?",
+        ) from None
+
+    try:
+        run = service.enqueue("techtrade.daily_scan", {})
+    except KeyError:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "techtrade.daily_scan job not registered. "
+                "Ensure the techtrade job extension is installed."
+            ),
+        ) from None
+
+    return {"status": "accepted", "run_id": run.run_id, "job_name": run.job_name}
 
 
 # ---------------------------------------------------------------------------

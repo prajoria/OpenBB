@@ -105,6 +105,11 @@ _NONDETERMINISTIC_STEP_IDS: frozenset[str] = frozenset(
         # is installed and which backend is configured, i.e. it drifts across
         # deploy environments (CI has no openbb_techtrade → import fallback).
         "T5.engine-status",
+        # Morning Scan widgets now read the latest persisted TechTrade scan.
+        # Snapshot presence, rows, timestamps, and staleness vary by environment.
+        "T1.morning-scan",
+        "T1.filter",
+        "CX.tt-export-button",
     }
 )
 

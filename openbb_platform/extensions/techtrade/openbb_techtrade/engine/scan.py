@@ -49,6 +49,16 @@ from openbb_techtrade.models import MoverSignal, TradePlan
 _RANK_EPSILON = 9
 
 
+class ScanSegmentWarning(UserWarning):
+    """Report a failed segment without requiring consumers to parse warning text."""
+
+    def __init__(self, segment: str, error: Exception) -> None:
+        """Initialize the warning with the failed segment and root error."""
+        self.segment = segment
+        self.error_type = type(error).__name__
+        super().__init__(f"scan: skipped segment {segment!r}: {error}")
+
+
 def _rank_key(plan: TradePlan) -> tuple[float, str, str]:
     """Cross-segment total-order sort key: ``(-round(|score|, 9), symbol, segment)`` (design §3).
 
@@ -163,7 +173,8 @@ def scan_segments(
             )
         except Exception as exc:  # noqa: BLE001 - skip-and-continue isolation (design Q-E)
             warnings.warn(
-                f"scan: skipped segment {mover_list.segment!r}: {exc}", stacklevel=2,
+                ScanSegmentWarning(mover_list.segment, exc),
+                stacklevel=2,
             )
             continue
         plans.extend(segment_plans)

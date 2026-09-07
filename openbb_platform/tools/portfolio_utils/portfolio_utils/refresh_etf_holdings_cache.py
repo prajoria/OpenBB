@@ -27,7 +27,11 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Windows console encoding (cp1252 default crashes on Unicode in log lines).
@@ -205,21 +209,29 @@ def refresh_one_etf(
     *,
     dry_run: bool,
     api_key: str | None,  # noqa: ARG001 - signature compat; see _resolve_api_key NOTE
+    holdings_fn: Callable[[str], Any] | None = None,
 ) -> tuple[str, int, str | None, float, str | None]:
     """Call obb.etf.holdings for one ETF; return a (status) tuple.
 
     Tuple shape: (etf, row_count, data_source, elapsed_ms, error_or_None).
     Errors are caught and returned in the tuple; this function never raises.
     Dry-run returns (etf, 0, None, 0.0, None) without calling obb.
+
+    ``holdings_fn`` (default: a lazy ``obb.etf.holdings(symbol=etf,
+    provider="fmp_cached")`` call) is injectable so tests and the jobs handler
+    can exercise this per-ETF call without a live provider/network dependency.
     """
     if dry_run:
         return (etf, 0, None, 0.0, None)
 
     started = time.monotonic()
     try:
-        from openbb import obb  # noqa: PLC0415
+        if holdings_fn is not None:
+            result = holdings_fn(etf)
+        else:
+            from openbb import obb  # noqa: PLC0415
 
-        result = obb.etf.holdings(symbol=etf, provider="fmp_cached")
+            result = obb.etf.holdings(symbol=etf, provider="fmp_cached")
     except Exception as exc:  # noqa: BLE001
         elapsed_ms = (time.monotonic() - started) * 1000
         first_line = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
@@ -241,16 +253,36 @@ def refresh_universe(
     *,
     dry_run: bool,
     api_key: str | None,
-) -> dict[str, int]:
+    holdings_fn: Callable[[str], Any] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
     """Refresh each ETF; aggregate stats.
 
-    Returns ``{"requested": N, "populated": M, "errored": K, "empty": J}``.
-    Per-ETF outcomes are also logged at INFO so the run banner + scheduler
-    log stay in sync.
+    Returns ``{"requested": N, "populated": M, "errored": K, "empty": J,
+    "cancelled": bool}``. Per-ETF outcomes are also logged at INFO so the run
+    banner + scheduler log stay in sync.
+
+    ``holdings_fn`` is forwarded to :func:`refresh_one_etf` so the provider call
+    is injectable end-to-end. ``should_cancel`` is polled between ETFs
+    (cooperative cancellation); when it returns ``True`` the loop stops and
+    ``stats["cancelled"]`` is set, leaving any remaining ETFs unprocessed.
     """
-    stats = {"requested": len(etfs), "populated": 0, "errored": 0, "empty": 0}
+    should_cancel = should_cancel or (lambda: False)
+    stats: dict[str, Any] = {
+        "requested": len(etfs),
+        "populated": 0,
+        "errored": 0,
+        "empty": 0,
+        "cancelled": False,
+    }
     for etf in etfs:
-        result = refresh_one_etf(etf, dry_run=dry_run, api_key=api_key)
+        if should_cancel():
+            stats["cancelled"] = True
+            break
+
+        result = refresh_one_etf(
+            etf, dry_run=dry_run, api_key=api_key, holdings_fn=holdings_fn
+        )
         _, row_count, data_source, elapsed_ms, error = result
         if error is not None:
             stats["errored"] += 1
@@ -281,6 +313,103 @@ def refresh_universe(
                 int(elapsed_ms),
             )
     return stats
+
+
+class EtfHoldingsWarmResult(BaseModel):
+    """Structured, JSON-safe outcome of one :func:`run_etf_holdings_warm` run.
+
+    Never carries API keys/credentials — only ETF universes and counts.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    spdr_count: int = 0
+    portfolio_etfs: list[str] = Field(default_factory=list)
+    extras: list[str] = Field(default_factory=list)
+    universe: list[str] = Field(default_factory=list)
+    requested: int = 0
+    populated: int = 0
+    errored: int = 0
+    empty: int = 0
+    cancelled: bool = False
+    elapsed_seconds: float = 0.0
+    dry_run: bool = False
+
+    def to_summary(self) -> dict[str, Any]:
+        """Return a bounded, JSON-safe summary suitable for a core ``JobResult``."""
+        return {
+            "spdr_count": self.spdr_count,
+            "portfolio_etf_count": len(self.portfolio_etfs),
+            "extra_count": len(self.extras),
+            "requested": self.requested,
+            "populated": self.populated,
+            "errored": self.errored,
+            "empty": self.empty,
+            "cancelled": self.cancelled,
+            "elapsed_seconds": round(self.elapsed_seconds, 3),
+            "dry_run": self.dry_run,
+        }
+
+
+def run_etf_holdings_warm(
+    *,
+    database: str | None = None,
+    extra_etfs: list[str] | None = None,
+    skip_portfolio: bool = False,
+    dry_run: bool = False,
+    api_key: str | None = None,
+    universe: list[str] | None = None,
+    portfolio_etfs: list[str] | None = None,
+    list_portfolio_etfs_fn: Callable[[str | None], list[str]] = list_portfolio_etfs,
+    resolve_universe_fn: Callable[..., list[str]] = resolve_universe,
+    holdings_fn: Callable[[str], Any] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> EtfHoldingsWarmResult:
+    """Resolve the ETF universe and warm the ``etf_holdings`` cache.
+
+    This is the structured, importable core of the ``refresh_etf_holdings_cache``
+    CLI (extracted for issue #1934) so the jobs worker and tests can drive it
+    directly without touching argv/stdout. Pass a pre-resolved ``universe``/
+    ``portfolio_etfs`` (as the CLI does, to avoid a redundant DB read) or leave
+    them unset to have this function resolve them itself (as the jobs handler
+    does). The per-ETF provider call (``holdings_fn``) and universe resolution
+    (``list_portfolio_etfs_fn``, ``resolve_universe_fn``) are injectable, and
+    ``should_cancel`` is polled between ETFs for cooperative cancellation.
+    """
+    if portfolio_etfs is None:
+        portfolio_etfs = [] if skip_portfolio else list_portfolio_etfs_fn(database)
+    if universe is None:
+        universe = resolve_universe_fn(
+            database=database, skip_portfolio=skip_portfolio, extra_etfs=extra_etfs
+        )
+
+    started = time.monotonic()
+    stats = refresh_universe(
+        universe,
+        dry_run=dry_run,
+        api_key=api_key,
+        holdings_fn=holdings_fn,
+        should_cancel=should_cancel,
+    )
+    elapsed = time.monotonic() - started
+
+    extras_normalized = sorted(
+        {s.strip().upper() for s in (extra_etfs or []) if s and s.strip()}
+    )
+
+    return EtfHoldingsWarmResult(
+        spdr_count=len(SPDR_SECTORS),
+        portfolio_etfs=list(portfolio_etfs),
+        extras=extras_normalized,
+        universe=list(universe),
+        requested=stats["requested"],
+        populated=stats["populated"],
+        errored=stats["errored"],
+        empty=stats["empty"],
+        cancelled=stats.get("cancelled", False),
+        elapsed_seconds=elapsed,
+        dry_run=dry_run,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -410,18 +539,24 @@ def main() -> int:
     print("\n  Refreshing ...")  # noqa: T201
 
     api_key = _resolve_api_key(args.api_key)
-    started = time.monotonic()
-    stats = refresh_universe(universe, dry_run=args.dry_run, api_key=api_key)
-    elapsed = time.monotonic() - started
+    result = run_etf_holdings_warm(
+        database=args.database,
+        extra_etfs=extras,
+        skip_portfolio=args.skip_portfolio,
+        dry_run=args.dry_run,
+        api_key=api_key,
+        universe=universe,
+        portfolio_etfs=portfolio_etfs,
+    )
 
     print(f"\n{'=' * 70}")  # noqa: T201
     print("  RESULTS")  # noqa: T201
     print(f"{'=' * 70}")  # noqa: T201
-    print(f"  Requested : {stats['requested']}")  # noqa: T201
-    print(f"  Populated : {stats['populated']}")  # noqa: T201
-    print(f"  Errored   : {stats['errored']}")  # noqa: T201
-    print(f"  Empty     : {stats['empty']}")  # noqa: T201
-    print(f"  Elapsed   : {elapsed:.1f}s")  # noqa: T201
+    print(f"  Requested : {result.requested}")  # noqa: T201
+    print(f"  Populated : {result.populated}")  # noqa: T201
+    print(f"  Errored   : {result.errored}")  # noqa: T201
+    print(f"  Empty     : {result.empty}")  # noqa: T201
+    print(f"  Elapsed   : {result.elapsed_seconds:.1f}s")  # noqa: T201
     print("=" * 70)  # noqa: T201
     return 0
 
