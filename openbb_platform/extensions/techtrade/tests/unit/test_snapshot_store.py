@@ -1020,6 +1020,91 @@ def test_mysql_failure_warns_and_falls_back(monkeypatch, tmp_path, caplog) -> No
     store.close()
 
 
+def test_mysql_failure_warning_reports_the_db_path_argument(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    """The WARNING must name the *actual* path opened, not a hardcoded one.
+
+    Regression test for a review finding: the WARNING text used to
+    hardcode ``~/.portfolio_intel/snapshot.db`` even when an explicit
+    ``db_path`` argument (or ``$PI_SNAPSHOT_DB``) resolved to a
+    completely different location — so an operator debugging a MySQL
+    outage would be told the wrong file to inspect.
+    """
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    # An unrelated env var is set to prove the *argument* wins the
+    # precedence race and is the path the WARNING must report.
+    monkeypatch.setenv("PI_SNAPSHOT_DB", str(tmp_path / "should-not-be-reported.db"))
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
+    arg_target = tmp_path / "arg-resolved.db"
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store(arg_target)
+    assert isinstance(store, SqliteSnapshotStore)
+    assert "falling back to SQLite" in caplog.text
+    assert str(arg_target) in caplog.text
+    assert "should-not-be-reported.db" not in caplog.text
+    store.close()
+
+
+def test_mysql_failure_warning_reports_the_env_db_path_when_arg_omitted(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    """Same guarantee as above, but resolved via ``$PI_SNAPSHOT_DB``."""
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    env_target = tmp_path / "env-resolved.db"
+    monkeypatch.setenv("PI_SNAPSHOT_DB", str(env_target))
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store()
+    assert isinstance(store, SqliteSnapshotStore)
+    assert "falling back to SQLite" in caplog.text
+    assert str(env_target) in caplog.text
+    store.close()
+
+
+def test_mysql_failure_warning_reports_the_per_user_default_path(
+    monkeypatch, caplog
+) -> None:
+    """With no arg and no env var, the WARNING must name the real default."""
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.delenv("PI_SNAPSHOT_DB", raising=False)
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
+    expected_default = Path.home() / ".portfolio_intel" / "snapshot.db"
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store()
+    try:
+        assert isinstance(store, SqliteSnapshotStore)
+        assert "falling back to SQLite" in caplog.text
+        assert str(expected_default) in caplog.text
+    finally:
+        store.close()
+
+
+def test_selector_rejects_unrecognized_engine_value(monkeypatch) -> None:
+    """An unsupported ``PI_SNAPSHOT_ENGINE`` value must fail loudly.
+
+    Regression test for a review finding: the selector used to treat
+    anything other than the literal string ``"mysql"`` as an implicit
+    request for SQLite, so a typo like ``PI_SNAPSHOT_ENGINE=postgres``
+    silently opened the SQLite fallback instead of surfacing the
+    misconfiguration.
+    """
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "postgres")
+    with pytest.raises(ValueError, match="PI_SNAPSHOT_ENGINE"):
+        get_default_snapshot_store()
+
+
+def test_selector_rejects_unrecognized_engine_value_does_not_touch_sqlite(
+    monkeypatch, tmp_path
+) -> None:
+    """The loud rejection must happen before any SQLite file is created."""
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "typo-value")
+    never_created = tmp_path / "should-never-exist.db"
+    with pytest.raises(ValueError):
+        get_default_snapshot_store(never_created)
+    assert not never_created.exists()
+
+
 def test_selector_defaults_to_mysql_and_returns_the_constructed_store(
     monkeypatch,
 ) -> None:

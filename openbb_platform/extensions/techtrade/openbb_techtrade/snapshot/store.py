@@ -993,7 +993,10 @@ class SqliteSnapshotStore:
 # Mirrors the existing `execution.paper_engine.get_default_engine` /
 # `execution.order_sink.get_default_sink` seam: an env var picks the
 # backend, MySQL is the default, and a MySQL-unreachable server degrades
-# to SQLite with a WARNING rather than failing the caller outright.
+# to SQLite with a WARNING rather than failing the caller outright. An
+# unrecognized `PI_SNAPSHOT_ENGINE` value raises `ValueError` loudly
+# (mirrors `get_default_sink`'s stricter convention) rather than being
+# silently treated as "sqlite".
 
 _ENV_SNAPSHOT_ENGINE = "PI_SNAPSHOT_ENGINE"
 _ENV_SNAPSHOT_DB = "PI_SNAPSHOT_DB"
@@ -1035,22 +1038,25 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
       :class:`SqliteSnapshotStore` at ``db_path`` (arg),
       ``$PI_SNAPSHOT_DB`` (env), or the per-user default
       ``~/.portfolio_intel/snapshot.db``.
+    - Anything else — loud :class:`ValueError`. No silent fallback to
+      SQLite for a typo'd or unsupported value (mirrors
+      ``execution.order_sink.get_default_sink``'s stricter convention
+      rather than treating "not mysql" as "must be sqlite").
 
     ``db_path`` takes precedence over ``$PI_SNAPSHOT_DB`` on both the
-    explicit-sqlite path and the mysql-unreachable fallback path.
+    explicit-sqlite path and the mysql-unreachable fallback path. The
+    resolved SQLite path is computed once, up front, so both the
+    MySQL-unreachable WARNING and the eventual ``SqliteSnapshotStore``
+    construction agree on the same path — the WARNING never claims a
+    different location than the one actually opened.
     """
     backend = os.environ.get(_ENV_SNAPSHOT_ENGINE, "mysql").strip().lower()
 
-    if backend == "mysql":
-        try:
-            return _make_mysql_store()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "get_default_snapshot_store: MySQL backend unreachable (%s); "
-                "falling back to SQLite at ~/.portfolio_intel/snapshot.db",
-                exc,
-            )
-            # fall through to sqlite
+    if backend not in ("mysql", "sqlite"):
+        raise ValueError(
+            f"{_ENV_SNAPSHOT_ENGINE} must be one of 'mysql' | 'sqlite'; "
+            f"got {backend!r}"
+        )
 
     resolved = (
         Path(db_path)
@@ -1061,4 +1067,17 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
             else Path.home() / ".portfolio_intel" / "snapshot.db"
         )
     )
+
+    if backend == "mysql":
+        try:
+            return _make_mysql_store()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "get_default_snapshot_store: MySQL backend unreachable (%s); "
+                "falling back to SQLite at %s",
+                exc,
+                resolved,
+            )
+            # fall through to sqlite
+
     return SqliteSnapshotStore(resolved)
