@@ -29,7 +29,11 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Fix Windows console encoding (cp1252 can't handle Unicode emojis from libs)
@@ -76,16 +80,21 @@ except ImportError:
 os.environ.setdefault("FMP_CACHE_AUTO_CREATE_DB", "false")
 
 # ---------------------------------------------------------------------------
-# Configure logging so fmp_cached progress messages are visible on console
+# Configure logging so fmp_cached progress messages are visible on console.
+# Only applied when run as the CLI entry point -- importing this module as a
+# library (e.g. the jobs worker's ``openbb_job_extension`` discovery, or
+# tests) must not reconfigure the process-wide root logger out from under
+# other jobs/handlers sharing the same process (issue #1934).
 # ---------------------------------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="  %(levelname)-5s  %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
-# Quiet noisy third-party loggers
-for _quiet in ("urllib3", "openbb_core", "asyncio"):
-    logging.getLogger(_quiet).setLevel(logging.WARNING)
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="  %(levelname)-5s  %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+    # Quiet noisy third-party loggers
+    for _quiet in ("urllib3", "openbb_core", "asyncio"):
+        logging.getLogger(_quiet).setLevel(logging.WARNING)
 
 # ---------------------------------------------------------------------------
 # Symbols to skip (CUSIPs, money-market funds, OTC/delisted)
@@ -287,125 +296,183 @@ def _resolve_api_key() -> str | None:
     return None
 
 
-def fetch_history(symbols: list[str], years: int = 10, dry_run: bool = False):
-    """Fetch daily equity history for a list of symbols.
+def _fetch_one_symbol_history(
+    symbol: str,
+    *,
+    start_date,
+    end_date,
+    credentials: dict | None,
+) -> dict[str, Any]:
+    """Fetch/cache one symbol's daily history via fmp_cached (default provider call).
 
-    Uses fmp_cached's own ``_analyze_cache_gaps``, ``_fetch_from_fmp_sync``,
-    and ``_store_in_database_cache`` — all synchronous.  No async / aiohttp.
+    Uses fmp_cached's own ``_analyze_cache_gaps``, ``_fetch_from_fmp_sync``, and
+    ``_store_in_database_cache`` — all synchronous, no async / aiohttp. Raises on
+    failure so the caller (``fetch_history``) can classify it as a per-symbol
+    skip-and-continue failure. Returns ``{"rows", "first", "last", "cache_tag"}``.
 
-    Returns dict with stats.
+    This is the default ``fetch_one_fn`` for :func:`fetch_history`; tests and the
+    jobs handler may inject a different callable with the same shape to avoid a
+    live fmp_cached/MySQL dependency.
     """
-    end_date = datetime.now().date()
-    start_date = end_date - timedelta(days=years * 365)
-
-    stats = {
-        "total_symbols": len(symbols),
-        "success": [],
-        "failed": [],
-        "total_rows": 0,
-        "start_date": str(start_date),
-        "end_date": str(end_date),
-    }
-
-    if dry_run:
-        return stats
-
-    # All imports from fmp_cached — sync MySQL + sync HTTP
     from openbb_fmp_cached.models.equity_historical import (
         FMPCachedEquityHistoricalQueryParams,
         _analyze_cache_gaps,
         _fetch_from_fmp_sync,
         _store_in_database_cache,
     )
-    from openbb_fmp_cached.utils.database import init_database
 
-    # One-time database init (tables already exist; skipped via env var)
+    query = FMPCachedEquityHistoricalQueryParams(
+        symbol=symbol,
+        start_date=start_date,
+        end_date=end_date,
+        interval="1d",
+        adjustment="splits_only",
+    )
+
+    # --- fmp_cached: cache gap detection (sync MySQL) --------------
     try:
-        init_database()
-    except Exception as e:
-        print(f"  WARNING: Database init issue: {e}\n")
+        cached_data, missing_ranges = _analyze_cache_gaps(query)
+    except Exception as gap_err:
+        print(f"    cache gap analysis failed: {gap_err}")
+        cached_data, missing_ranges = [], [(start_date, end_date)]
 
-    api_key = _resolve_api_key()
+    if not missing_ranges:
+        data = cached_data
+    else:
+        if not credentials:
+            raise RuntimeError("No API key; cannot fetch missing data")
+
+        # Always fetch the full date range in ONE API call.
+        # FMP's /full endpoint returns all history regardless of
+        # date params, so splitting by gap wastes API calls.
+        overall_start = min(s for s, _ in missing_ranges)
+        overall_end   = max(e for _, e in missing_ranges)
+        total_gap_days = sum((e - s).days + 1 for s, e in missing_ranges)
+        print(
+            f"    {len(missing_ranges)} gap(s), ~{total_gap_days} days "
+            f"-- fetching {overall_start} -> {overall_end}",
+            flush=True,
+        )
+
+        new_data: list[dict] = []
+        fetch_query = FMPCachedEquityHistoricalQueryParams(
+            symbol=symbol,
+            start_date=overall_start,
+            end_date=overall_end,
+            interval=query.interval,
+            adjustment=query.adjustment,
+        )
+        try:
+            new_data = _fetch_from_fmp_sync(fetch_query, credentials)
+        except Exception as fetch_err:
+            err_str = str(fetch_err)
+            if "No data found" in err_str or "EmptyData" in err_str:
+                pass  # no trading data in range (holidays only)
+            else:
+                raise
+
+        # --- fmp_cached: store in MySQL cache (sync) ---------------
+        if new_data:
+            print(f"    storing {len(new_data)} rows in cache ...", flush=True)
+            _store_in_database_cache(query, new_data)
+
+        # Re-read complete data from cache
+        try:
+            data, _ = _analyze_cache_gaps(query)
+        except Exception:
+            data = cached_data + new_data
+
+    rows = len(data)
+    if rows:
+        dates = [str(d.get("date", ""))[:10] for d in data if d.get("date")]
+        first = min(dates) if dates else "N/A"
+        last = max(dates) if dates else "N/A"
+    else:
+        first = last = "N/A"
+
+    return {
+        "rows": rows,
+        "first": first,
+        "last": last,
+        "cache_tag": "CACHE" if not missing_ranges else "FETCH",
+    }
+
+
+def fetch_history(
+    symbols: list[str],
+    years: int = 10,
+    dry_run: bool = False,
+    *,
+    fetch_one_fn: Callable[..., dict[str, Any]] | None = None,
+    api_key_resolver: Callable[[], str | None] = _resolve_api_key,
+    should_cancel: Callable[[], bool] | None = None,
+):
+    """Fetch daily equity history for a list of symbols.
+
+    ``fetch_one_fn`` (default :func:`_fetch_one_symbol_history`) is called once
+    per symbol and may be injected so tests/jobs can exercise this loop without a
+    live fmp_cached/MySQL dependency. ``should_cancel`` is polled between symbols
+    (cooperative cancellation) so a long-running warm can stop early without
+    losing partial progress; failures at the item level are caught and recorded
+    in ``stats["failed"]`` (skip-and-continue), never silently swallowed above
+    that granularity.
+
+    Returns dict with stats, including ``"cancelled"`` when ``should_cancel``
+    stopped the run before every symbol was processed.
+    """
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=years * 365)
+
+    stats: dict[str, Any] = {
+        "total_symbols": len(symbols),
+        "success": [],
+        "failed": [],
+        "total_rows": 0,
+        "start_date": str(start_date),
+        "end_date": str(end_date),
+        "cancelled": False,
+    }
+
+    if dry_run:
+        return stats
+
+    using_default_fetcher = fetch_one_fn is None
+    if using_default_fetcher:
+        from openbb_fmp_cached.utils.database import init_database
+
+        # One-time database init (tables already exist; skipped via env var)
+        try:
+            init_database()
+        except Exception as e:
+            print(f"  WARNING: Database init issue: {e}\n")
+        fetch_one_fn = _fetch_one_symbol_history
+
+    should_cancel = should_cancel or (lambda: False)
+    api_key = api_key_resolver()
     credentials = {"fmp_api_key": api_key} if api_key else None
 
     total = len(symbols)
     for i, symbol in enumerate(symbols, 1):
+        if should_cancel():
+            stats["cancelled"] = True
+            break
+
         t0 = time.time()
         try:
-            query = FMPCachedEquityHistoricalQueryParams(
-                symbol=symbol,
+            outcome = fetch_one_fn(
+                symbol,
                 start_date=start_date,
                 end_date=end_date,
-                interval="1d",
-                adjustment="splits_only",
+                credentials=credentials,
             )
-
-            # --- fmp_cached: cache gap detection (sync MySQL) --------------
-            try:
-                cached_data, missing_ranges = _analyze_cache_gaps(query)
-            except Exception as gap_err:
-                print(f"    cache gap analysis failed: {gap_err}")
-                cached_data, missing_ranges = [], [(start_date, end_date)]
-
-            if not missing_ranges:
-                data = cached_data
-            else:
-                if not credentials:
-                    raise RuntimeError("No API key; cannot fetch missing data")
-
-                # Always fetch the full date range in ONE API call.
-                # FMP's /full endpoint returns all history regardless of
-                # date params, so splitting by gap wastes API calls.
-                overall_start = min(s for s, _ in missing_ranges)
-                overall_end   = max(e for _, e in missing_ranges)
-                total_gap_days = sum((e - s).days + 1 for s, e in missing_ranges)
-                print(
-                    f"    {len(missing_ranges)} gap(s), ~{total_gap_days} days "
-                    f"-- fetching {overall_start} -> {overall_end}",
-                    flush=True,
-                )
-
-                new_data: list[dict] = []
-                fetch_query = FMPCachedEquityHistoricalQueryParams(
-                    symbol=symbol,
-                    start_date=overall_start,
-                    end_date=overall_end,
-                    interval=query.interval,
-                    adjustment=query.adjustment,
-                )
-                try:
-                    new_data = _fetch_from_fmp_sync(fetch_query, credentials)
-                except Exception as fetch_err:
-                    err_str = str(fetch_err)
-                    if "No data found" in err_str or "EmptyData" in err_str:
-                        pass  # no trading data in range (holidays only)
-                    else:
-                        raise
-
-                # --- fmp_cached: store in MySQL cache (sync) ---------------
-                if new_data:
-                    print(f"    storing {len(new_data)} rows in cache ...", flush=True)
-                    _store_in_database_cache(query, new_data)
-
-                # Re-read complete data from cache
-                try:
-                    data, _ = _analyze_cache_gaps(query)
-                except Exception:
-                    data = cached_data + new_data
-
             elapsed = time.time() - t0
-            rows = len(data)
-
-            if rows:
-                dates = [str(d.get("date", ""))[:10] for d in data if d.get("date")]
-                first = min(dates) if dates else "N/A"
-                last = max(dates) if dates else "N/A"
-            else:
-                first = last = "N/A"
+            rows = outcome["rows"]
+            first = outcome.get("first", "N/A")
+            last = outcome.get("last", "N/A")
+            cache_tag = outcome.get("cache_tag", "FETCH")
 
             stats["total_rows"] += rows
             stats["success"].append(symbol)
-            cache_tag = "CACHE" if not missing_ranges else "FETCH"
             print(
                 f"  [{i:3d}/{total}] {symbol:<8s} "
                 f"{rows:>6,d} rows  ({first} -> {last})  "
@@ -419,6 +486,121 @@ def fetch_history(symbols: list[str], years: int = 10, dry_run: bool = False):
             print(f"  [{i:3d}/{total}] {symbol:<8s}  FAILED ({elapsed:.1f}s): {err_msg}")
 
     return stats
+
+
+class PositionHistoryWarmResult(BaseModel):
+    """Structured, JSON-safe outcome of one :func:`run_position_history_warm` run.
+
+    Never carries API keys/credentials — only symbol lists, counts, dates, and
+    readiness metadata are persisted.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    requested_symbols: int = 0
+    skipped: list[dict[str, str]] = Field(default_factory=list)
+    success: list[str] = Field(default_factory=list)
+    failed: list[dict[str, str]] = Field(default_factory=list)
+    total_rows: int = 0
+    start_date: str = ""
+    end_date: str = ""
+    years: int = 0
+    dry_run: bool = False
+    cancelled: bool = False
+    readiness: dict[str, Any] = Field(default_factory=dict)
+
+    def to_summary(self) -> dict[str, Any]:
+        """Return a bounded, JSON-safe summary suitable for a core ``JobResult``."""
+        readiness_summary: dict[str, Any] = {}
+        if self.readiness:
+            readiness_summary = {
+                "target_date": self.readiness.get("target_date"),
+                "missing_price_symbol_count": len(
+                    self.readiness.get("missing_price_symbols", [])
+                ),
+                "stale_price_symbol_count": len(
+                    self.readiness.get("stale_price_symbols", [])
+                ),
+            }
+        return {
+            "requested_symbols": self.requested_symbols,
+            "skipped_count": len(self.skipped),
+            "success_count": len(self.success),
+            "failed_count": len(self.failed),
+            "total_rows": self.total_rows,
+            "start_date": self.start_date,
+            "end_date": self.end_date,
+            "years": self.years,
+            "dry_run": self.dry_run,
+            "cancelled": self.cancelled,
+            "readiness": readiness_summary,
+        }
+
+
+def run_position_history_warm(
+    *,
+    symbols: list[str] | None = None,
+    years: int = 5,
+    database: str | None = None,
+    dry_run: bool = False,
+    skip_holiday_prestep: bool = False,
+    get_symbols_fn: Callable[
+        [str | None], tuple[list[str], list[tuple[str, str]]]
+    ] = get_portfolio_symbols,
+    holiday_prestep_fn: Callable[[int, int, str | None], None] = ensure_market_holidays,
+    fetch_one_fn: Callable[..., dict[str, Any]] | None = None,
+    api_key_resolver: Callable[[], str | None] = _resolve_api_key,
+    readiness_fn: Callable[[list[str], str | None], dict] = check_portfolio_app_readiness,
+    should_cancel: Callable[[], bool] | None = None,
+) -> PositionHistoryWarmResult:
+    """Resolve symbols, warm the ``equity_historical`` cache, and report readiness.
+
+    This is the structured, importable core of the ``fetch_position_history`` CLI
+    (extracted for issue #1934) so the jobs worker and tests can drive it directly
+    without touching argv/stdout. Every provider/database access is injectable:
+    symbol resolution (``get_symbols_fn``), the holiday pre-step
+    (``holiday_prestep_fn``), the per-symbol fetch (``fetch_one_fn``), API key
+    resolution (``api_key_resolver``), and readiness (``readiness_fn``).
+    ``should_cancel`` is polled between symbols for cooperative cancellation.
+    """
+    should_cancel = should_cancel or (lambda: False)
+
+    if symbols is not None:
+        resolved_symbols = list(symbols)
+        skipped: list[tuple[str, str]] = []
+    else:
+        resolved_symbols, skipped = get_symbols_fn(database)
+
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=years * 365)
+
+    if not skip_holiday_prestep:
+        holiday_prestep_fn(start_date.year, end_date.year, database)
+
+    stats = fetch_history(
+        resolved_symbols,
+        years=years,
+        dry_run=dry_run,
+        fetch_one_fn=fetch_one_fn,
+        api_key_resolver=api_key_resolver,
+        should_cancel=should_cancel,
+    )
+
+    readiness: dict[str, Any] = {} if dry_run else readiness_fn(resolved_symbols, database)
+
+    return PositionHistoryWarmResult(
+        requested_symbols=len(resolved_symbols),
+        skipped=[{"symbol": s, "reason": r} for s, r in skipped],
+        success=list(stats["success"]),
+        failed=[{"symbol": s, "error": e} for s, e in stats["failed"]],
+        total_rows=stats["total_rows"],
+        start_date=stats["start_date"],
+        end_date=stats["end_date"],
+        years=years,
+        dry_run=dry_run,
+        cancelled=stats.get("cancelled", False),
+        readiness=readiness,
+    )
 
 
 def main():
@@ -472,8 +654,8 @@ def main():
 
     # Print plan
     print(f"\n  Date range:    {start_date} -> {end_date} ({args.years} years)")
-    print(f"  Interval:      1d (daily)")
-    print(f"  Provider:      fmp_cached (auto-caching)")
+    print("  Interval:      1d (daily)")
+    print("  Provider:      fmp_cached (auto-caching)")
     print(f"  Holiday prep:  {'enabled' if not args.skip_holiday_prestep else 'skipped'}")
     print(f"  Symbols:       {len(symbols)}")
     if skipped:
@@ -481,7 +663,7 @@ def main():
         for sym, reason in skipped:
             print(f"    {sym:<14s} ({reason})")
 
-    print(f"\n  Symbols to fetch:")
+    print("\n  Symbols to fetch:")
     for i, sym in enumerate(symbols):
         print(f"    {sym}", end="")
         if (i + 1) % 10 == 0:
@@ -490,32 +672,38 @@ def main():
         print()
 
     if args.dry_run:
-        print(f"\n  DRY RUN — no API calls will be made.")
+        print("\n  DRY RUN — no API calls will be made.")
         print(f"\n  Estimated API calls: {len(symbols)} (one per symbol, cached provider")
-        print(f"  handles gap detection and incremental fetching internally).")
+        print("  handles gap detection and incremental fetching internally).")
         print(f"\n  Expected rows per symbol: ~2,520 (252 trading days × {args.years} years)")
         print(f"  Expected total rows: ~{len(symbols) * 252 * args.years:,d}")
-        print(f"\n  Note: fmp_cached will cache results in MySQL. Subsequent runs")
-        print(f"  only fetch missing date ranges (incremental).")
+        print("\n  Note: fmp_cached will cache results in MySQL. Subsequent runs")
+        print("  only fetch missing date ranges (incremental).")
         print("=" * 70)
         return
 
-    print(f"\n  Fetching ...\n")
+    print("\n  Fetching ...\n")
 
-    stats = fetch_history(symbols, years=args.years, dry_run=False)
+    result = run_position_history_warm(
+        symbols=symbols,
+        years=args.years,
+        database=args.database,
+        dry_run=False,
+        skip_holiday_prestep=True,  # already ran above; avoid running it twice
+    )
 
     print(f"\n{'=' * 70}")
-    print(f"  RESULTS")
+    print("  RESULTS")
     print(f"{'=' * 70}")
-    print(f"  Successful:    {len(stats['success'])} / {stats['total_symbols']}")
-    print(f"  Total rows:    {stats['total_rows']:,d}")
-    if stats["failed"]:
-        print(f"  Failed ({len(stats['failed'])}):")
-        for sym, err in stats["failed"]:
-            print(f"    {sym:<10s} {err}")
+    print(f"  Successful:    {len(result.success)} / {result.requested_symbols}")
+    print(f"  Total rows:    {result.total_rows:,d}")
+    if result.failed:
+        print(f"  Failed ({len(result.failed)}):")
+        for item in result.failed:
+            print(f"    {item['symbol']:<10s} {item['error']}")
 
-    readiness = check_portfolio_app_readiness(symbols, args.database)
-    print(f"\n  Portfolio App readiness (DB/cache)")
+    readiness = result.readiness
+    print("\n  Portfolio App readiness (DB/cache)")
     print(f"    Freshness target date: {readiness['target_date']}")
     for table_name, count in readiness["table_counts"].items():
         print(f"    {table_name:<20s} rows={count}")
