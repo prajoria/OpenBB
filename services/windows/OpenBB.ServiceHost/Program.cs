@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.EventLog;
 using System.Runtime.Versioning;
 using OpenBB.ServiceHost.Configuration;
 using OpenBB.ServiceHost.Health;
@@ -121,9 +122,16 @@ public static class ServiceHostApplication
     }
 
     [SupportedOSPlatform("windows")]
-    private static void AddWindowsEventLog(HostApplicationBuilder builder) =>
+    private static void AddWindowsEventLog(HostApplicationBuilder builder)
+    {
         builder.Logging.AddEventLog(settings =>
             settings.SourceName = "OpenBB Portfolio");
+        builder.Logging.AddFilter<EventLogLoggerProvider>(
+            (category, _) => !string.Equals(
+                category,
+                typeof(ChildProcess).FullName,
+                StringComparison.Ordinal));
+    }
 
     private static void ApplyEnvironmentFile(ServiceHostOptions options)
     {
