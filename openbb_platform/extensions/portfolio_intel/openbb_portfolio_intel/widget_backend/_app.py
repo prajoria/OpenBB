@@ -237,7 +237,11 @@ class _DataSourceHeaderMiddleware:
                     headers[_DATA_SOURCE_HEADER] = tier
                     # Let the (cross-origin) Workspace read the header too.
                     existing = headers.get("access-control-expose-headers")
-                    exposed = _DATA_SOURCE_HEADER if not existing else (f"{existing}, {_DATA_SOURCE_HEADER}")
+                    exposed = (
+                        _DATA_SOURCE_HEADER
+                        if not existing
+                        else (f"{existing}, {_DATA_SOURCE_HEADER}")
+                    )
                     headers["access-control-expose-headers"] = exposed
             await send(message)
 

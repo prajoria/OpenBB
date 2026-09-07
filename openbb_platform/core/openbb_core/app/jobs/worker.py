@@ -152,7 +152,9 @@ class JobWorker:
         except Exception as error:  # pylint: disable=broad-except
             self._stop_heartbeat_thread(stop_heartbeat, heartbeat_thread)
             failed = self._service.fail(run.run_id, error)
-            return JobOutcome(run_id=failed.run_id, job_name=failed.job_name, status=failed.status)
+            return JobOutcome(
+                run_id=failed.run_id, job_name=failed.job_name, status=failed.status
+            )
 
         self._stop_heartbeat_thread(stop_heartbeat, heartbeat_thread)
         completed = self._service.complete(run.run_id, result)
@@ -162,7 +164,9 @@ class JobWorker:
             status=completed.status,
         )
 
-    def _start_heartbeat_thread(self, stop_event: threading.Event) -> threading.Thread | None:
+    def _start_heartbeat_thread(
+        self, stop_event: threading.Event
+    ) -> threading.Thread | None:
         """Start a background thread that heartbeats faster than the lease timeout.
 
         Returns ``None`` (no thread started) when continuous heartbeating is
@@ -181,7 +185,9 @@ class JobWorker:
         thread.start()
         return thread
 
-    def _stop_heartbeat_thread(self, stop_event: threading.Event, thread: threading.Thread | None) -> None:
+    def _stop_heartbeat_thread(
+        self, stop_event: threading.Event, thread: threading.Thread | None
+    ) -> None:
         """Signal and join the heartbeat thread, if one was started."""
         stop_event.set()
         if thread is not None and thread.is_alive():
@@ -285,12 +291,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="openbb-jobs")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("list", help="List registered job definitions").set_defaults(func=cmd_list)
+    subparsers.add_parser("list", help="List registered job definitions").set_defaults(
+        func=cmd_list
+    )
 
-    trigger_parser = subparsers.add_parser("trigger", help="Manually enqueue a registered job")
+    trigger_parser = subparsers.add_parser(
+        "trigger", help="Manually enqueue a registered job"
+    )
     trigger_parser.add_argument("job_name")
-    trigger_parser.add_argument("--params-json", default=None, help="JSON-encoded job parameters")
-    trigger_parser.add_argument("--wait", action="store_true", help="Wait for the run to reach a terminal state")
+    trigger_parser.add_argument(
+        "--params-json", default=None, help="JSON-encoded job parameters"
+    )
+    trigger_parser.add_argument(
+        "--wait", action="store_true", help="Wait for the run to reach a terminal state"
+    )
     trigger_parser.set_defaults(func=cmd_trigger)
 
     worker_parser = subparsers.add_parser("worker", help="Run the durable jobs worker")
