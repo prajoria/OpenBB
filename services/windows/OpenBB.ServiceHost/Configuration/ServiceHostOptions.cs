@@ -7,6 +7,11 @@ public sealed class ServiceHostOptions
 
     public int SchemaVersion { get; set; }
 
+    public string? EnvironmentFile { get; set; }
+
+    public string LogDirectory { get; set; } =
+        Path.Combine(AppContext.BaseDirectory, "logs");
+
     public List<ComponentOptions> Components { get; set; } = [];
 }
 
