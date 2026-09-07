@@ -1187,7 +1187,9 @@ def test_mysql_failure_warning_reports_the_per_user_default_path(
     monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
     monkeypatch.delenv("PI_SNAPSHOT_DB", raising=False)
     monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
-    expected_default = Path.home() / ".portfolio_intel" / "snapshot.db"
+    expected_default = (
+        (Path.home() / ".portfolio_intel" / "snapshot.db").expanduser().resolve()
+    )
     with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
         store = get_default_snapshot_store()
     try:
