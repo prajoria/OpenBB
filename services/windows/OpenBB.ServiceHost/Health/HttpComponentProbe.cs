@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using OpenBB.ServiceHost.Processes;
 
 namespace OpenBB.ServiceHost.Health;
 
@@ -121,4 +122,40 @@ public sealed class HttpComponentProbe(
 
     private ProbeResult Failed(string detail, long started) =>
         new(Component, false, detail, Stopwatch.GetElapsedTime(started));
+}
+
+public sealed class ConfiguredComponentReadinessProbe(
+    IReadOnlyList<IComponentProbe> probes) : IComponentReadinessProbe
+{
+    private readonly IReadOnlyDictionary<string, IComponentProbe> _probes = probes
+        .Where(probe => probe is not JobsHeartbeatProbe)
+        .ToDictionary(
+            probe => probe.Component,
+            StringComparer.OrdinalIgnoreCase);
+
+    public async Task WaitUntilReadyAsync(
+        ComponentDefinition definition,
+        IChildProcess process,
+        CancellationToken cancellationToken)
+    {
+        if (process.HasExited)
+        {
+            throw new InvalidOperationException(
+                $"Component '{definition.Name}' exited before becoming ready.");
+        }
+
+        if (!_probes.TryGetValue(definition.Name, out var probe))
+        {
+            return;
+        }
+
+        var result = await probe
+            .CheckAsync(startup: true, cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.IsHealthy)
+        {
+            throw new InvalidOperationException(
+                $"Component '{definition.Name}' failed readiness: {result.Detail}");
+        }
+    }
 }

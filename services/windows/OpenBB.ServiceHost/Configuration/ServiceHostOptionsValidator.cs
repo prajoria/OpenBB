@@ -22,6 +22,15 @@ public sealed class ServiceHostOptionsValidator : IValidateOptions<ServiceHostOp
             return ValidateOptionsResult.Fail(failures);
         }
 
+        ValidateAbsolutePath(options.LogDirectory, nameof(options.LogDirectory), failures);
+        if (!string.IsNullOrWhiteSpace(options.EnvironmentFile))
+        {
+            ValidateAbsolutePath(
+                options.EnvironmentFile,
+                nameof(options.EnvironmentFile),
+                failures);
+        }
+
         ValidateUniqueValues(options.Components, failures);
         for (var index = 0; index < options.Components.Count; index++)
         {
