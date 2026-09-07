@@ -24,6 +24,13 @@ if (-not (Test-Path -LiteralPath $current -PathType Container)) {
 }
 $staging = Join-Path $InstallRoot ("staging-" + [Guid]::NewGuid().ToString("N"))
 $backup = Join-Path $InstallRoot ("rollback-" + [DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))
+$configPath = Join-Path $DataRoot "service.json"
+$configExisted = Test-Path -LiteralPath $configPath -PathType Leaf
+$previousConfig = if ($configExisted) {
+    [IO.File]::ReadAllBytes($configPath)
+} else {
+    $null
+}
 
 Publish-OpenBBRelease -SourceRoot $SourceRoot -Destination $staging `
     -PythonExecutable $PythonExecutable -ArtifactDirectory $ArtifactDirectory `
@@ -48,6 +55,11 @@ try {
     }
     if (Test-Path -LiteralPath $backup) {
         Move-Item -LiteralPath $backup -Destination $current
+        if ($configExisted) {
+            [IO.File]::WriteAllBytes($configPath, $previousConfig)
+        } elseif (Test-Path -LiteralPath $configPath) {
+            Remove-Item -LiteralPath $configPath -Force
+        }
         Start-Service -Name "OpenBBPortfolio"
     }
     throw
