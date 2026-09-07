@@ -1,5 +1,7 @@
 """SQLite-backed durable job store."""
 
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import json
@@ -881,8 +883,7 @@ class SqliteJobStore:
         except Exception:
             self._connection.execute("ROLLBACK")
             raise
-        else:
-            self._connection.execute("COMMIT")
+        self._connection.execute("COMMIT")
 
     def _row_to_schedule(self, row: sqlite3.Row) -> JobScheduleRecord:
         """Convert a SQLite row into a schedule record."""
