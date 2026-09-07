@@ -85,7 +85,7 @@ def test_default_params_validate_against_models():
     ("model", "params"),
     [
         (DailyScanParams, {"top_n": 3, "typo": True}),
-        (PruneSnapshotsParams, {"kepp": 10}),
+        (PruneSnapshotsParams, {"unknown_keep": 10}),
     ],
 )
 def test_job_params_reject_unknown_fields(model, params):
