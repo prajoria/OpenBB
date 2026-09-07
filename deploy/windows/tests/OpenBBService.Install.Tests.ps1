@@ -84,4 +84,15 @@ Describe "OpenBB service deployment" {
         Test-Path -LiteralPath $install | Should Be $false
         Test-Path -LiteralPath $data | Should Be $false
     }
+
+    It "rejects unsafe service names in the acceptance harness" {
+        $caught = $null
+        try {
+            & (Join-Path $DeployRoot "Test-OpenBBService.ps1") `
+                -ServiceName "OpenBBPortfolio' OR Name LIKE '%" -WhatIf
+        } catch {
+            $caught = $_
+        }
+        $caught | Should Not BeNullOrEmpty
+    }
 }

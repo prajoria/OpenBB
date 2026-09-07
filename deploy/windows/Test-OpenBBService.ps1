@@ -1,5 +1,6 @@
 [CmdletBinding(SupportsShouldProcess, ConfirmImpact = "High")]
 param(
+    [ValidatePattern("^[A-Za-z0-9_-]+$")]
     [string] $ServiceName = "OpenBBPortfolio",
     [string] $DataRoot = "$env:ProgramData\OpenBB Portfolio",
     [int] $TimeoutSeconds = 120,
@@ -79,6 +80,18 @@ function Assert-HttpEndpoint {
     }
 }
 
+function Assert-ServiceDoctor {
+    $doctorOutput = & $hostExecutable doctor --json --config $configPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Service-host doctor reported an unhealthy component."
+    }
+    try {
+        ($doctorOutput -join [Environment]::NewLine) | ConvertFrom-Json | Out-Null
+    } catch {
+        throw "Service-host doctor returned invalid JSON: $($_.Exception.Message)"
+    }
+}
+
 $startedAt = [DateTimeOffset]::UtcNow
 $service = Get-ServiceProcess
 if ($service.State -ne "Running") {
@@ -98,10 +111,7 @@ $hostExecutable = $hostProcess.ExecutablePath
 if (-not $hostExecutable) {
     throw "Could not resolve the service host executable."
 }
-& $hostExecutable doctor --json --config $configPath | ConvertFrom-Json | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "Service-host doctor reported an unhealthy component."
-}
+Assert-ServiceDoctor
 
 $token = Read-WidgetToken
 $headers = @{ Authorization = "Bearer $token" }
@@ -132,6 +142,14 @@ if ($ExerciseScmRecovery -and
         $replacementService.State -eq "Running" -and
             $replacementService.ProcessId -ne $hostProcessId
     } "SCM did not replace the service host after restart-budget exhaustion."
+    Wait-Until {
+        try {
+            Assert-ServiceDoctor
+            return $true
+        } catch {
+            return $false
+        }
+    } "The replacement service host did not become healthy."
     $scmRecoveryVerified = $true
 }
 
