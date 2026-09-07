@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path
 $logDir = Join-Path $repoRoot "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-$logFile = Join-Path $logDir "$LogName.log"
+$logFile = Join-Path $logDir ("{0}_{1}.log" -f $LogName, (Get-Date -Format "yyyy-MM-dd"))
 $python = @(
     (Join-Path $repoRoot ".venv_portfolio\Scripts\python.exe"),
     (Join-Path $repoRoot ".venv_win\Scripts\python.exe"),
