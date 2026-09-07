@@ -57,7 +57,7 @@ _COMMUNICATION_SNAPSHOT = ScanSnapshot(
         {
             "symbol": "META",
             "segment": "Communication Services",
-            "score": 0.71,
+            "score": -0.71,
             "direction": "short",
         },
     ],
