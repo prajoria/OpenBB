@@ -37,11 +37,13 @@ public static class ServiceHostApplication
                 .GetRequiredService<IOptions<ServiceHostOptions>>()
                 .Value;
             var configuredValues = options.Components
-                .SelectMany(component => component.Environment.Values);
+                .SelectMany(component => component.Environment.Values)
+                .ToList();
             if (!string.IsNullOrWhiteSpace(options.EnvironmentFile) &&
                 File.Exists(options.EnvironmentFile))
             {
-                return SecretRedactor.FromEnvironmentFile(options.EnvironmentFile);
+                configuredValues.AddRange(
+                    SecretRedactor.LoadEnvironmentFile(options.EnvironmentFile).Values);
             }
 
             return new SecretRedactor(configuredValues);
