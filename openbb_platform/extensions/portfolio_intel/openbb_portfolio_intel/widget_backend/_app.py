@@ -118,8 +118,7 @@ def _warm_openbb(builder: Callable[[], None] | None = None) -> None:
         logger.info("openbb warmup complete — live-wired widgets ready to serve")
     except Exception:  # noqa: BLE001 - startup must not die on warmup
         logger.warning(
-            "openbb warmup (prime) failed; live-wired widgets may serve "
-            "stub until the generated package is importable",
+            "openbb warmup (prime) failed; live-wired widgets may serve stub until the generated package is importable",
             exc_info=True,
         )
 
@@ -139,8 +138,7 @@ def _register_health_probers() -> None:
         register_default_probers()
     except Exception:  # noqa: BLE001 - startup must not die on probe wiring
         logger.warning(
-            "provider-health prober registration failed; strip will show "
-            "'unknown' until probers are available",
+            "provider-health prober registration failed; strip will show 'unknown' until probers are available",
             exc_info=True,
         )
 
@@ -168,9 +166,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        background_tasks = set(
-            getattr(_app.state, "background_tasks", set())
-        )
+        background_tasks = set(getattr(_app.state, "background_tasks", set()))
         for task in background_tasks:
             task.cancel()
         if background_tasks:
@@ -241,11 +237,7 @@ class _DataSourceHeaderMiddleware:
                     headers[_DATA_SOURCE_HEADER] = tier
                     # Let the (cross-origin) Workspace read the header too.
                     existing = headers.get("access-control-expose-headers")
-                    exposed = (
-                        _DATA_SOURCE_HEADER
-                        if not existing
-                        else (f"{existing}, {_DATA_SOURCE_HEADER}")
-                    )
+                    exposed = _DATA_SOURCE_HEADER if not existing else (f"{existing}, {_DATA_SOURCE_HEADER}")
                     headers["access-control-expose-headers"] = exposed
             await send(message)
 

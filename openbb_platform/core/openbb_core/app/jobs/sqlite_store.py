@@ -58,9 +58,7 @@ def _deserialize_json(value: str | None) -> Any:
     return None if value is None else json.loads(value)
 
 
-def _bounded_error_details(
-    error: Exception, *, prefix: str | None = None
-) -> tuple[str, str]:
+def _bounded_error_details(error: Exception, *, prefix: str | None = None) -> tuple[str, str]:
     """Return bounded error details suitable for persistence."""
     error_type = type(error).__name__[:MAX_ERROR_TYPE_LENGTH]
     message = str(error).strip() or repr(error)
@@ -83,9 +81,7 @@ def _serialize_schedule(
     return "interval", schedule.model_dump_json(), "UTC"
 
 
-def _deserialize_schedule(
-    kind: str | None, schedule_json: str | None
-) -> DailySchedule | IntervalSchedule | None:
+def _deserialize_schedule(kind: str | None, schedule_json: str | None) -> DailySchedule | IntervalSchedule | None:
     """Hydrate a schedule record from SQLite columns."""
     if kind is None or schedule_json is None:
         return None
@@ -206,9 +202,7 @@ class SqliteJobStore:
                     (definition.name,),
                 ).fetchone()
 
-                kind, schedule_json, timezone_name = _serialize_schedule(
-                    definition.schedule
-                )
+                kind, schedule_json, timezone_name = _serialize_schedule(definition.schedule)
                 default_params_json = _serialize_json(definition.default_params) or "{}"
                 enabled = bool(existing["enabled"]) if existing else False
                 if definition.schedule is not None:
@@ -217,18 +211,10 @@ class SqliteJobStore:
                 else:
                     enabled = False
 
-                last_scheduled_at = (
-                    _deserialize_datetime(existing["last_scheduled_at"])
-                    if existing
-                    else None
-                )
-                next_run_at = (
-                    _deserialize_datetime(existing["next_run_at"]) if existing else None
-                )
+                last_scheduled_at = _deserialize_datetime(existing["last_scheduled_at"]) if existing else None
+                next_run_at = _deserialize_datetime(existing["next_run_at"]) if existing else None
                 existing_schedule = (
-                    _deserialize_schedule(existing["schedule_kind"], existing["schedule_json"])
-                    if existing
-                    else None
+                    _deserialize_schedule(existing["schedule_kind"], existing["schedule_json"]) if existing else None
                 )
 
                 if definition.schedule is None or not enabled:
@@ -289,9 +275,7 @@ class SqliteJobStore:
 
     def list_schedules(self) -> list[JobScheduleRecord]:
         """Return all persisted schedule rows."""
-        rows = self._connection.execute(
-            "SELECT * FROM job_schedule ORDER BY job_name"
-        ).fetchall()
+        rows = self._connection.execute("SELECT * FROM job_schedule ORDER BY job_name").fetchall()
         return [self._row_to_schedule(row) for row in rows]
 
     def get_schedule(self, job_name: str) -> JobScheduleRecord:
@@ -609,8 +593,7 @@ class SqliteJobStore:
 
                 failed = current.fail(
                     error=AbandonedRunRecoveryError(
-                        "Worker lease expired; abandoned-run recovery would exceed "
-                        f"max_attempts={current.max_attempts}"
+                        f"Worker lease expired; abandoned-run recovery would exceed max_attempts={current.max_attempts}"
                     ),
                     finished_at=now_utc,
                 )
@@ -775,24 +758,12 @@ class SqliteJobStore:
 
         definition_count = self._count("SELECT COUNT(*) FROM job_schedule")
         total_runs = self._count("SELECT COUNT(*) FROM job_run")
-        queued_runs = self._count(
-            "SELECT COUNT(*) FROM job_run WHERE status = 'queued'"
-        )
-        running_runs = self._count(
-            "SELECT COUNT(*) FROM job_run WHERE status = 'running'"
-        )
-        succeeded_runs = self._count(
-            "SELECT COUNT(*) FROM job_run WHERE status = 'succeeded'"
-        )
-        warning_runs = self._count(
-            "SELECT COUNT(*) FROM job_run WHERE status = 'succeeded_with_warnings'"
-        )
-        failed_runs = self._count(
-            "SELECT COUNT(*) FROM job_run WHERE status = 'failed'"
-        )
-        cancelled_runs = self._count(
-            "SELECT COUNT(*) FROM job_run WHERE status = 'cancelled'"
-        )
+        queued_runs = self._count("SELECT COUNT(*) FROM job_run WHERE status = 'queued'")
+        running_runs = self._count("SELECT COUNT(*) FROM job_run WHERE status = 'running'")
+        succeeded_runs = self._count("SELECT COUNT(*) FROM job_run WHERE status = 'succeeded'")
+        warning_runs = self._count("SELECT COUNT(*) FROM job_run WHERE status = 'succeeded_with_warnings'")
+        failed_runs = self._count("SELECT COUNT(*) FROM job_run WHERE status = 'failed'")
+        cancelled_runs = self._count("SELECT COUNT(*) FROM job_run WHERE status = 'cancelled'")
         active_workers = self._count(
             "SELECT COUNT(*) FROM job_worker WHERE heartbeat_at >= ?",
             (_serialize_datetime(cutoff),),
@@ -819,14 +790,10 @@ class SqliteJobStore:
             """,
             (_serialize_datetime(now_utc),),
         )
-        latest_heartbeat_row = self._connection.execute(
-            "SELECT MAX(heartbeat_at) FROM job_worker"
-        ).fetchone()
+        latest_heartbeat_row = self._connection.execute("SELECT MAX(heartbeat_at) FROM job_worker").fetchone()
         latest_heartbeat = _deserialize_datetime(latest_heartbeat_row[0])
         worker_heartbeat_age_seconds = (
-            None
-            if latest_heartbeat is None
-            else max(0.0, (now_utc - latest_heartbeat).total_seconds())
+            None if latest_heartbeat is None else max(0.0, (now_utc - latest_heartbeat).total_seconds())
         )
         last_successful_run_by_job = {
             row["job_name"]: _deserialize_datetime(row["last_successful_run_at"])
@@ -901,11 +868,7 @@ class SqliteJobStore:
         """Convert a SQLite row into a persisted run model."""
         summary = _deserialize_json(row["result_json"])
         warnings = _deserialize_json(row["warnings_json"]) or []
-        result = (
-            JobResult(summary=summary or {}, warnings=warnings)
-            if summary is not None or warnings
-            else None
-        )
+        result = JobResult(summary=summary or {}, warnings=warnings) if summary is not None or warnings else None
         return JobRun(
             run_id=row["run_id"],
             job_name=row["job_name"],
@@ -983,9 +946,7 @@ class SqliteJobStore:
             ),
         )
 
-    def _get_run_in_transaction(
-        self, connection: sqlite3.Connection, run_id: str
-    ) -> JobRun:
+    def _get_run_in_transaction(self, connection: sqlite3.Connection, run_id: str) -> JobRun:
         """Load one run while holding a transaction."""
         row = connection.execute(
             "SELECT * FROM job_run WHERE run_id = ?",
