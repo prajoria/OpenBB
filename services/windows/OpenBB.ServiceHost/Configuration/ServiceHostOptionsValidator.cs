@@ -29,6 +29,12 @@ public sealed class ServiceHostOptionsValidator : IValidateOptions<ServiceHostOp
                 options.EnvironmentFile,
                 nameof(options.EnvironmentFile),
                 failures);
+            if (Path.IsPathFullyQualified(options.EnvironmentFile) &&
+                !File.Exists(options.EnvironmentFile))
+            {
+                failures.Add(
+                    $"{nameof(options.EnvironmentFile)} does not exist: {options.EnvironmentFile}");
+            }
         }
 
         ValidateUniqueValues(options.Components, failures);

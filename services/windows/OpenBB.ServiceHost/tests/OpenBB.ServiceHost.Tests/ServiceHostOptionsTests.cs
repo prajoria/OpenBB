@@ -29,6 +29,19 @@ public sealed class ServiceHostOptionsTests
         AssertFailure(result, "schemaVersion");
     }
 
+    [Fact]
+    public void Rejects_missing_environment_file()
+    {
+        var options = ValidOptions();
+        options.EnvironmentFile = Path.Combine(
+            Path.GetTempPath(),
+            $"{Guid.NewGuid():N}.env");
+
+        var result = Validate(options);
+
+        AssertFailure(result, "EnvironmentFile");
+    }
+
     [Theory]
     [InlineData("ExecutablePath")]
     [InlineData("WorkingDirectory")]
@@ -165,6 +178,7 @@ public sealed class ServiceHostOptionsTests
         var configPath = Path.Combine(directory.Path, "service.json");
         var executablePath = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, "tools", "python.exe");
         var workingDirectory = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, "OpenBB", "app");
+        await File.WriteAllTextAsync(environmentFile, "OPENBB_PROFILE=standard");
         await File.WriteAllTextAsync(
             configPath,
             $$"""

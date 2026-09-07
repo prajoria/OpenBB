@@ -12,6 +12,7 @@ public sealed partial class ComponentLogWriter : IDisposable
     public const long DefaultMaximumComponentBytes = 250L * 1024 * 1024;
 
     private static readonly UTF8Encoding Utf8NoBom = new(false);
+    private static readonly TimeSpan RetentionCheckInterval = TimeSpan.FromMinutes(1);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -25,6 +26,8 @@ public sealed partial class ComponentLogWriter : IDisposable
     private readonly int _retentionDays;
     private readonly long _maximumComponentBytes;
     private readonly object _writeLock = new();
+    private readonly Dictionary<string, DateTimeOffset> _nextRetentionChecks =
+        new(StringComparer.Ordinal);
     private bool _disposed;
 
     public ComponentLogWriter(
@@ -88,7 +91,12 @@ public sealed partial class ComponentLogWriter : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             File.AppendAllText(path, line + Environment.NewLine, Utf8NoBom);
-            ApplyRetention(safeComponent, timestamp);
+            if (!_nextRetentionChecks.TryGetValue(safeComponent, out var nextCheck) ||
+                timestamp >= nextCheck)
+            {
+                ApplyRetention(safeComponent, timestamp);
+                _nextRetentionChecks[safeComponent] = timestamp + RetentionCheckInterval;
+            }
         }
 
         return Task.CompletedTask;

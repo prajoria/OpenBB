@@ -112,6 +112,32 @@ public sealed class LoggingTests
     }
 
     [Fact]
+    public async Task Retention_scans_are_throttled_per_component()
+    {
+        using var directory = new TestLogDirectory();
+        var component = "jobs-worker";
+        var clock = new MutableTimeProvider(
+            new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.Zero));
+        var writer = new ComponentLogWriter(
+            directory.Path,
+            new SecretRedactor([]),
+            clock,
+            maxLineLength: 512,
+            retentionDays: 2);
+
+        await writer.WriteAsync(component, LogLevel.Information, "stdout", "first");
+        var expiredPath = Path.Combine(directory.Path, $"{component}-20260901.log");
+        await File.WriteAllTextAsync(expiredPath, "expired");
+
+        await writer.WriteAsync(component, LogLevel.Information, "stdout", "second");
+        Assert.True(File.Exists(expiredPath));
+
+        clock.UtcNow = clock.UtcNow.AddMinutes(1);
+        await writer.WriteAsync(component, LogLevel.Information, "stdout", "third");
+        Assert.False(File.Exists(expiredPath));
+    }
+
+    [Fact]
     public async Task Falls_back_to_minimal_record_when_metadata_envelope_exceeds_byte_limit()
     {
         using var directory = new TestLogDirectory();
