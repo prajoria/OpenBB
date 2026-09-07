@@ -2888,11 +2888,14 @@ def test_mysql_accepts_the_guard_its_own_ddl_creates(tmp_path: Path) -> None:
         )
         indexes = mysql_store_module._index_shapes(cur.fetchall())
 
-    # `live_key` is reported as a *generated* column, expression and all.
+    # `live_key` is reported as a *generated* column, expression and all —
+    # and its expression canonicalizes onto the one the guard demands, so
+    # the structural comparison in `_check_mysql_live_guard` is satisfied
+    # by the real schema rather than only by the refusal tests below.
     assert "live_key" in generation
-    expression = generation["live_key"].casefold()
-    assert all(
-        token in expression for token in store_module._LIVE_KEY_EXPRESSION_TOKENS
+    assert (
+        store_module._canonical_sql(generation["live_key"])
+        in store_module._LIVE_KEY_CANONICAL_FORMS
     )
     # ... and its UNIQUE index is reported under the name MySQL would use.
     guard = [index for index in indexes if index.name == "ux_pi_eod_snapshot_live"]
@@ -3062,6 +3065,177 @@ def test_mysql_refuses_a_unique_index_over_the_wrong_columns(tmp_path: Path) -> 
     )
 
     assert "live_key" in message
+
+
+def test_mysql_refuses_a_live_key_generated_from_an_inverted_comparison(
+    tmp_path: Path,
+) -> None:
+    """Mutation: `state != 'live'` -- the guard's exact inverse (PR #2062).
+
+    This is the false positive the substring check could not see. The
+    expression mentions every token the old check looked for -- `state`,
+    `live`, `dataset`, `entity_key` -- and means the opposite: `live_key`
+    is non-NULL on every row that is *not* LIVE, so the UNIQUE index
+    rejects a second staged run for a key (normal daily operation) while
+    leaving LIVE rows entirely unconstrained (the one thing it exists to
+    prevent).
+
+    Reverse-verified: restoring the old
+    ``all(token in expression for token in _LIVE_KEY_EXPRESSION_TOKENS)``
+    check accepts this table and construction succeeds.
+    """
+    message = _refusal(
+        tmp_path,
+        "inverted_live_key",
+        live_key_sql=(
+            "live_key TEXT GENERATED ALWAYS AS "
+            "(IIF(state != 'live', concat(dataset, char(31), entity_key), NULL)) "  # codespell:ignore
+            "STORED"
+        ),
+    )
+
+    assert "GENERATION_EXPRESSION" in message
+    assert store_module._LIVE_KEY_CANONICAL in message
+
+
+def test_mysql_refuses_a_live_key_whose_branches_are_swapped(tmp_path: Path) -> None:
+    """Mutation: right comparison, wrong branches -- THEN/ELSE exchanged.
+
+    ``IF(state = 'live', NULL, CONCAT(...))`` is the same inversion by
+    another route, and mentions the same four tokens. It is worth pinning
+    separately because a swap survives any check that looks only at the
+    *comparison* and never at which branch the key comes from.
+    """
+    message = _refusal(
+        tmp_path,
+        "swapped_live_key",
+        live_key_sql=(
+            "live_key TEXT GENERATED ALWAYS AS "
+            "(IIF(state = 'live', NULL, concat(dataset, char(31), entity_key))) "  # codespell:ignore
+            "STORED"
+        ),
+    )
+
+    assert "GENERATION_EXPRESSION" in message
+
+
+def test_mysql_refuses_a_live_key_keyed_on_the_wrong_state(tmp_path: Path) -> None:
+    """Mutation: a near-match literal -- `'live'` becomes `'staging'`.
+
+    Enforces "one STAGING row per key", which forbids the second daily
+    run and permits any number of LIVE rows. The token check accepted it
+    whenever the literal merely *contained* `live` too, so this pins the
+    literal itself, not its neighbourhood.
+    """
+    message = _refusal(
+        tmp_path,
+        "staging_live_key",
+        live_key_sql=(
+            "live_key TEXT GENERATED ALWAYS AS "
+            "(IIF(state = 'staging', concat(dataset, char(31), entity_key), NULL)) "  # codespell:ignore
+            "STORED"
+        ),
+    )
+
+    assert "GENERATION_EXPRESSION" in message
+
+
+def test_mysql_refuses_an_equivalent_but_differently_shaped_live_key(
+    tmp_path: Path,
+) -> None:
+    """The comparison is exact on purpose, and this pins that it is.
+
+    ``CONCAT(entity_key, CHAR(31), dataset)`` would enforce the invariant
+    just as well -- it is injective over the same pair -- and is refused
+    anyway. "Semantically equivalent" is not a property this check can
+    decide in general, so it decides the one question it can answer
+    honestly: *is this the expression this build ships?* Failing closed
+    on a table nobody in this repo creates costs an operator one
+    ``ALTER TABLE``, and the refusal quotes the canonical form to run.
+    """
+    message = _refusal(
+        tmp_path,
+        "reversed_live_key",
+        live_key_sql=(
+            "live_key TEXT GENERATED ALWAYS AS "
+            "(IIF(state = 'live', concat(entity_key, char(31), dataset), NULL)) "  # codespell:ignore
+            "STORED"
+        ),
+    )
+
+    assert store_module._LIVE_KEY_CANONICAL in message
+
+
+# The three forms below are what real servers hand back for the *one*
+# expression `_PI_EOD_SNAPSHOT_DDL` writes. They are the false-negative
+# half of the hardening: a structural check that refused any of these
+# would refuse every correctly-built production table, so the guard is
+# exercised against them directly rather than only against the SQLite
+# double's rendering.
+_SERVER_REPORTED_LIVE_KEY_EXPRESSIONS = (
+    # MySQL 8: backticked identifiers, charset introducer on the literal,
+    # `USING utf8mb4` inside CHAR(), and parentheses around the comparison.
+    "if((`state` = _utf8mb4'live'),concat(`dataset`,"
+    "char(31 using utf8mb4),`entity_key`),NULL)",
+    # MySQL 5.7 / MariaDB: same rewrite without the introducer.
+    "if((`state` = 'live'),concat(`dataset`,char(31),`entity_key`),NULL)",
+    # The DDL as typed, which is what a server that stores the text
+    # verbatim reports.
+    "IF(state = 'live',\n   CONCAT(dataset, CHAR(31 USING utf8mb4), entity_key),\n   NULL)",
+)
+
+
+@pytest.mark.parametrize("expression", _SERVER_REPORTED_LIVE_KEY_EXPRESSIONS)
+def test_mysql_live_guard_accepts_every_server_rendering_of_its_own_ddl(
+    expression: str,
+) -> None:
+    """No false negatives: server formatting must never look like tampering.
+
+    Reverse-verified: comparing the reported text to the DDL string
+    instead of canonicalizing it fails all three.
+    """
+    store_module._check_mysql_live_guard(
+        {"live_key": expression, "dataset": ""},
+        [
+            store_module._IndexShape(
+                name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+            )
+        ],
+    )
+
+
+def test_mysql_live_guard_rejects_every_near_match_of_its_own_ddl() -> None:
+    """The complement of the test above, at the same seam.
+
+    Each expression differs from the shipped one by exactly one edit that
+    a substring check cannot see, and every one of them mentions all four
+    tokens the old check required.
+    """
+    near_matches = (
+        # Inverted comparison.
+        "if((`state` <> _utf8mb4'live'),concat(`dataset`,char(31),`entity_key`),NULL)",
+        # Negated comparison.
+        "if(not(`state` = 'live'),concat(`dataset`,char(31),`entity_key`),NULL)",
+        # Swapped branches.
+        "if((`state` = 'live'),NULL,concat(`dataset`,char(31),`entity_key`))",
+        # An extra conjunct: one LIVE row per key *among validated rows*.
+        "if((`state` = 'live' and `validated` = 1),"
+        "concat(`dataset`,char(31),`entity_key`),NULL)",
+        # A separator that is not the unit separator, so `a` + `b|c` and
+        # `a|b` + `c` collide.
+        "if((`state` = 'live'),concat(`dataset`,char(124),`entity_key`),NULL)",
+        # Not generated at all: an ordinary column reports the empty string.
+        "",
+    )
+    guard = [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+        )
+    ]
+    for expression in near_matches:
+        with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+            store_module._check_mysql_live_guard({"live_key": expression}, guard)
+        assert "single-LIVE" in str(excinfo.value)
 
 
 def test_mysql_live_guard_refusal_is_not_a_pool_connection_fault(

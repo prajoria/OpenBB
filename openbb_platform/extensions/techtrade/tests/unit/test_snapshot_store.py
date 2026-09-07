@@ -1282,6 +1282,166 @@ def test_mysql_failure_warning_reports_the_env_db_path_when_arg_omitted(
     store.close()
 
 
+# ---------------------------------------------------------------------------
+# The fallback WARNING is a diagnosis, not a leak (PR #2062 review)
+# ---------------------------------------------------------------------------
+#
+# The line used to say the backend was "unreachable" and to interpolate
+# `str(exc)`. Both are wrong in the same direction: the wording names one
+# cause out of three (a missing optional dependency and a refused schema
+# are neither unreachable nor network faults), and the message body of a
+# driver exception routinely carries the DSN, the account that failed to
+# authenticate, or a fragment of the failing statement -- into a WARNING
+# that lands in shared logs. The type is what tells the three causes
+# apart, so the type is what is logged; the rest moves to DEBUG.
+
+_LEAKED_DETAIL = "s3kr1t-synthetic-fixture-never-a-real-credential"
+
+
+class _FakeDriverError(RuntimeError):
+    """Stands in for a driver exception whose message carries a secret."""
+
+
+def _raise_driver_error_with_credentials() -> None:
+    raise _FakeDriverError(
+        f"(1045, \"Access denied for user 'pi_bot'@'10.0.0.7' "
+        f'(using password: {_LEAKED_DETAIL})")'
+    )
+
+
+def _raise_missing_dependency() -> None:
+    raise ImportError("No module named 'pymysql'")
+
+
+def test_mysql_fallback_warning_names_the_exception_type_not_its_message(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    """The WARNING must diagnose without quoting the driver's message.
+
+    Reverse-verified: interpolating ``exc`` instead of its type puts the
+    credential fragment straight into ``caplog.text`` and fails the
+    ``_LEAKED_DETAIL`` assertion.
+    """
+    target = tmp_path / "leak-check.db"
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.setattr(
+        store_module, "_make_mysql_store", _raise_driver_error_with_credentials
+    )
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store(target)
+    try:
+        assert isinstance(store, SqliteSnapshotStore)
+        # Required by every caller of this seam, and by the tests above.
+        assert "falling back to SQLite" in caplog.text
+        assert str(target.expanduser().resolve()) in caplog.text
+        # The type is present, qualified by module so `OperationalError`
+        # from a driver is not confused with one from sqlite3.
+        assert "_FakeDriverError" in caplog.text
+        # ... and nothing from the message body is.
+        assert _LEAKED_DETAIL not in caplog.text
+        assert "pi_bot" not in caplog.text
+        assert "10.0.0.7" not in caplog.text
+    finally:
+        store.close()
+
+
+def test_mysql_fallback_warning_does_not_claim_a_network_fault(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    """An ``ImportError`` is not an unreachable server, and must not read as one.
+
+    The optional MySQL dependency being absent is the most common reason
+    this path is taken on a developer machine. Telling that developer the
+    backend is "unreachable" sends them to check a network they never
+    configured.
+    """
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_missing_dependency)
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store(tmp_path / "no-driver.db")
+    try:
+        assert isinstance(store, SqliteSnapshotStore)
+        assert "falling back to SQLite" in caplog.text
+        assert "unavailable" in caplog.text
+        assert "unreachable" not in caplog.text
+        assert "ImportError" in caplog.text
+    finally:
+        store.close()
+
+
+def test_mysql_fallback_warning_covers_a_refused_schema(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    """The third cause: a reachable, installed, *refusing* server.
+
+    ``SnapshotSchemaMismatch`` means the pool answered and the table it
+    holds is not this store's. Naming the type is what separates that
+    from the other two at a glance.
+    """
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+
+    def _refuse() -> None:
+        raise store_module.SnapshotSchemaMismatch("mysql: table is not ours")
+
+    monkeypatch.setattr(store_module, "_make_mysql_store", _refuse)
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store(tmp_path / "refused.db")
+    try:
+        assert isinstance(store, SqliteSnapshotStore)
+        assert "falling back to SQLite" in caplog.text
+        assert "SnapshotSchemaMismatch" in caplog.text
+    finally:
+        store.close()
+
+
+def test_mysql_fallback_keeps_the_full_exception_at_debug(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    """Withholding the message from WARNING must not destroy it.
+
+    An operator who needs the driver's own words turns on DEBUG for this
+    module and gets the whole traceback -- an opt-in, at a level that
+    does not land in shared WARNING-and-above sinks by default.
+    """
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.setattr(
+        store_module, "_make_mysql_store", _raise_driver_error_with_credentials
+    )
+    with caplog.at_level(logging.DEBUG, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store(tmp_path / "debug.db")
+    try:
+        assert isinstance(store, SqliteSnapshotStore)
+        debug_records = [
+            record for record in caplog.records if record.levelno == logging.DEBUG
+        ]
+        assert debug_records, "the swallowed exception must survive at DEBUG"
+        assert any(record.exc_info for record in debug_records)
+        assert _LEAKED_DETAIL in caplog.text
+    finally:
+        store.close()
+
+
+def test_exception_label_qualifies_non_builtin_types() -> None:
+    """Unit test for the label the WARNING carries.
+
+    ``OperationalError`` alone is ambiguous -- pymysql, sqlite3 and
+    several ORMs all ship one -- and the three send an operator to three
+    different places, so anything outside ``builtins`` is qualified by
+    module. Builtins are left bare because ``builtins.ImportError`` reads
+    as noise.
+    """
+    label = store_module._exception_label
+
+    assert label(ImportError("no pymysql")) == "ImportError"
+    assert label(ConnectionError("nope")) == "ConnectionError"
+    assert label(sqlite3.OperationalError("x")) == "sqlite3.OperationalError"
+    assert label(store_module.SnapshotSchemaMismatch("x")).endswith(
+        "store.SnapshotSchemaMismatch"
+    )
+    # The message never appears in the label.
+    assert _LEAKED_DETAIL not in label(_FakeDriverError(_LEAKED_DETAIL))
+
+
 def test_env_db_path_tilde_expands_to_the_real_home_dir_and_matches_the_warning(
     monkeypatch, tmp_path, caplog
 ) -> None:
@@ -1976,6 +2136,276 @@ def test_sqlite_index_predicate_is_read_from_the_where_clause_only(tmp_path) -> 
     # Read back off a real database: the predicate, and nothing else.
     assert guard.predicate == "state = 'live'"
     assert "CREATE" not in guard.predicate.upper()
+
+
+def test_sqlite_refuses_a_unique_index_predicated_on_not_live(tmp_path) -> None:
+    """Mutation: ``WHERE state != 'live'`` -- the guard's exact inverse.
+
+    This is the false positive a substring check cannot see (PR #2062
+    review): the predicate contains both ``state`` and ``live``, and
+    indexes the complement of the rows the invariant is about. Two LIVE
+    rows for one key are permitted; a second *staged* run for that key --
+    normal daily operation -- is rejected.
+
+    Reverse-verified: restoring the old
+    ``all(token in predicate for token in ("state", "live"))`` check
+    accepts this index and construction succeeds.
+    """
+    message = _sqlite_refusal(
+        tmp_path / "inverted_predicate.db",
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key) WHERE state != 'live'"
+        ),
+    )
+
+    assert "single-LIVE" in message
+    assert "state != 'live'" in message
+
+
+def test_sqlite_refuses_a_live_predicate_narrowed_by_an_extra_conjunct(
+    tmp_path,
+) -> None:
+    """Mutation: ``WHERE state = 'live' AND validated = 1``.
+
+    Mentions both tokens, contains a genuine equality to ``'live'``, and
+    still is not the guard: it enforces "one LIVE row per key *among
+    validated rows*", so an unvalidated LIVE row and a validated one
+    coexist for the same entity and readers resolve an arbitrary one. A
+    check that stopped at "an equality to 'live' appears somewhere" would
+    take it.
+    """
+    message = _sqlite_refusal(
+        tmp_path / "narrowed_predicate.db",
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key) "
+            "WHERE state = 'live' AND validated = 1"
+        ),
+    )
+
+    assert "single-LIVE" in message
+
+
+def test_sqlite_refuses_a_live_predicate_on_a_different_column(tmp_path) -> None:
+    """Mutation: the equality is to ``'live'``, but not on ``state``.
+
+    ``WHERE status = 'live'`` is a predicate over a column whose domain
+    (``ok``/``partial``/``stale``/``failed``) never contains ``live``, so
+    the index is empty and constrains nothing at all -- while reading, to
+    a token check, exactly like the guard.
+    """
+    message = _sqlite_refusal(
+        tmp_path / "wrong_column_predicate.db",
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key) WHERE status = 'live'"
+        ),
+    )
+
+    assert "single-LIVE" in message
+
+
+@pytest.mark.parametrize(
+    "predicate",
+    [
+        "state = 'live'",
+        "state='live'",
+        "state   =   'live'",
+        "\"state\" = 'live'",
+        "[state] = 'live'",
+        "`state` = 'live'",
+        "(state = 'live')",
+        "'live' = state",
+        "STATE = 'live'",
+    ],
+)
+def test_sqlite_accepts_every_harmless_spelling_of_the_live_predicate(
+    tmp_path, predicate: str
+) -> None:
+    """No false negatives: SQLite stores the ``WHERE`` clause as typed.
+
+    Every predicate here is the same index expressed differently --
+    quoting style, spacing, keyword case, a redundant paren, operand
+    order. An exact-text comparison would refuse all but the first and
+    lock out databases this store itself would accept.
+    """
+    db_path = tmp_path / f"variant_{abs(hash(predicate))}.db"
+    _seed_sqlite(
+        db_path,
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            f"ON pi_eod_snapshot(dataset, entity_key) WHERE {predicate}"
+        ),
+    )
+
+    store = SqliteSnapshotStore(db_path)
+    store.close()
+
+
+def test_canonical_sql_folds_formatting_and_preserves_meaning() -> None:
+    """Unit test for the shared canonicalizer both dialect guards rest on.
+
+    The guard tests above prove the *decisions*; this proves the rule
+    those decisions come from, at the seam where it is cheapest to read:
+    everything a server may rewrite folds together, everything that
+    changes what rows are indexed does not.
+    """
+    canonical = store_module._canonical_sql
+
+    # Quoting, case, whitespace, redundant parens, comments: all noise.
+    assert canonical("  ( \"state\"  =  'live' ) ") == "state='live'"
+    assert canonical("`state`=/* sep */'live' -- guard") == "state='live'"
+    # Charset introducers and `USING <charset>` are server decoration.
+    assert canonical("_utf8mb4'live'") == "'live'"
+    assert canonical("CHAR(31 USING utf8mb4)") == "char(31)"
+    # `IIF` is the same three-argument conditional as `IF`.  # codespell:ignore
+    assert canonical("IIF(a, b, c)") == canonical("if(a,b,c)")  # codespell:ignore
+
+    # Operators, operand order beyond `=`, literals and their case survive.
+    assert canonical("state != 'live'") != canonical("state = 'live'")
+    assert canonical("state <> 'live'") != canonical("state = 'live'")
+    assert canonical("not (state = 'live')") != canonical("state = 'live'")
+    assert canonical("state = 'LIVE'") != canonical("state = 'live'")
+    assert canonical("state = 'live' and validated = 1") != canonical("state = 'live'")
+    assert canonical("status = 'live'") != canonical("state = 'live'")
+    # A grouping paren is dropped; a call paren is not, so a wrapping
+    # function can never be folded away.
+    assert canonical("(state = 'live')") == canonical("state = 'live'")
+    assert canonical("lower(state) = 'live'") != canonical("state = 'live'")
+    # An empty/absent expression matches nothing.
+    assert canonical(None) == ""
+    assert canonical("") == ""
+
+
+# ---------------------------------------------------------------------------
+# Catalogue reads survive awkward index names (PR #2062 review)
+# ---------------------------------------------------------------------------
+#
+# `PRAGMA` arguments cannot be bound, so the index name read out of
+# `PRAGMA index_list` has to be interpolated into `PRAGMA index_info`.
+# Index names are free-form: `CREATE INDEX "ux live"`, `CREATE INDEX
+# "order"` and `CREATE INDEX "a""b"` are all legal SQLite. Interpolated
+# bare, each one is a syntax error raised as a raw `OperationalError` out
+# of the *constructor* -- before `_check_sqlite_live_guard` can say
+# anything -- so an operator whose unrelated index has a space in its name
+# gets a driver traceback instead of a schema verdict.
+
+
+_AWKWARD_INDEX_NAMES = [
+    "ux live spaced",
+    'ux "quoted" name',
+    "order",  # a bare SQL keyword
+    "ux-hyphen-named",
+    "ux.dotted.name",
+    "ux'apostrophe",
+]
+
+
+@pytest.mark.parametrize("index_name", _AWKWARD_INDEX_NAMES)
+def test_sqlite_reads_a_catalogue_holding_an_awkwardly_named_index(
+    tmp_path, index_name: str
+) -> None:
+    """An index this store did not create must not break construction.
+
+    The store is a guest in whatever database it is pointed at, and every
+    index on the table -- ours or not -- is read back while looking for
+    the guard. Reverse-verified: dropping ``_quote_identifier`` from
+    ``_pragma`` turns each of these into
+    ``sqlite3.OperationalError: near "...": syntax error`` raised from
+    ``SqliteSnapshotStore.__init__``.
+    """
+    db_path = tmp_path / f"awkward_{abs(hash(index_name))}.db"
+    _seed_sqlite(db_path, index_sql=_GOOD_LIVE_INDEX_SQL)
+    seeded = sqlite3.connect(str(db_path))
+    try:
+        quoted = '"' + index_name.replace('"', '""') + '"'
+        seeded.execute(f"CREATE INDEX {quoted} ON pi_eod_snapshot(job_run_id)")
+        seeded.commit()
+    finally:
+        seeded.close()
+
+    store = SqliteSnapshotStore(db_path)
+    try:
+        names = {
+            index.name
+            for index in store._table_indexes()  # pylint: disable=protected-access
+        }
+    finally:
+        store.close()
+
+    assert index_name in names
+    assert "ux_pi_eod_snapshot_live" in names
+
+
+class _PragmaFailingConnection:
+    """Proxy that fails one ``PRAGMA`` and delegates everything else.
+
+    Used to reach the branch a correctly-quoted identifier can no longer
+    reach: whatever residue is left once quoting has handled the names
+    SQLite itself can produce (a corrupted catalogue, an encoding the
+    driver rejects). The store must still speak schema, not driver.
+    """
+
+    def __init__(self, real: sqlite3.Connection, failing_pragma: str) -> None:
+        object.__setattr__(self, "_real", real)
+        object.__setattr__(self, "_failing_pragma", failing_pragma)
+
+    def execute(self, sql: str, *args):
+        if self._failing_pragma in sql:
+            raise sqlite3.OperationalError('near "live": syntax error')
+        return self._real.execute(sql, *args)
+
+    def __getattr__(self, name: str):
+        return getattr(object.__getattribute__(self, "_real"), name)
+
+    def __setattr__(self, name: str, value) -> None:
+        setattr(object.__getattribute__(self, "_real"), name, value)
+
+
+def test_sqlite_converts_an_unreadable_catalogue_into_a_schema_mismatch(
+    monkeypatch, tmp_path
+) -> None:
+    """A failed catalogue ``PRAGMA`` is a schema verdict, not a driver dump.
+
+    The point of the guard is that a store either proves the single-LIVE
+    invariant or refuses to be constructed. "The catalogue could not be
+    read" is a *refusal*, and callers that already handle
+    ``SnapshotSchemaMismatch`` (the factory's fallback path among them)
+    must not have to also catch ``sqlite3.OperationalError`` to get it.
+    The original driver error is kept as ``__cause__`` so nothing is lost.
+    """
+    real_connect = sqlite3.connect
+
+    def _proxy_connect(*args, **kwargs):
+        return _PragmaFailingConnection(real_connect(*args, **kwargs), "index_info")
+
+    monkeypatch.setattr(store_module.sqlite3, "connect", _proxy_connect)
+
+    with pytest.raises(store_module.SnapshotSchemaMismatch) as excinfo:
+        SqliteSnapshotStore(tmp_path / "unreadable.db")
+
+    message = str(excinfo.value)
+    assert "PRAGMA index_info" in message
+    assert "OperationalError" in message
+    assert "pi_eod_snapshot" in message
+    assert isinstance(excinfo.value.__cause__, sqlite3.OperationalError)
+
+
+def test_quote_identifier_escapes_embedded_quotes() -> None:
+    """The escaping rule itself, pinned at the seam.
+
+    SQLite doubles an embedded ``"`` inside a quoted identifier. Getting
+    this wrong would not raise -- it would silently address a *different*
+    index -- so it is asserted directly rather than only through the
+    catalogue tests above.
+    """
+    quote = store_module._quote_identifier
+
+    assert quote("plain") == '"plain"'
+    assert quote("ux live") == '"ux live"'
+    assert quote('a"b') == '"a""b"'
+    assert quote("order") == '"order"'
 
 
 # ---------------------------------------------------------------------------

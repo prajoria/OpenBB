@@ -489,30 +489,166 @@ _LIVE_UNIQUE_INDEX = "ux_pi_eod_snapshot_live"
 _MYSQL_LIVE_KEY_COLUMN = "live_key"
 _SQLITE_LIVE_INDEX_COLUMNS = ("dataset", "entity_key")
 
-# Tokens the server-normalized `GENERATION_EXPRESSION` of `live_key` must
-# mention. Checked as case-folded substrings rather than compared to the
-# DDL text, because MySQL rewrites the expression it stores (`IF(state =
-# 'live', CONCAT(dataset, CHAR(31 USING utf8mb4), entity_key), NULL)`
-# comes back as ``if((`state` = _utf8mb4'live'),concat(...),NULL)``) and
-# the exact rewrite differs by server version. What must not vary is that
-# the expression is keyed on the row's state *and* on both halves of the
-# identity: drop `state` and every row gets a non-NULL key (no row could
-# ever be staged twice); drop `entity_key` and two entities in one
-# dataset collide.
-_LIVE_KEY_EXPRESSION_TOKENS = ("state", "live", "dataset", "entity_key")
+# --- Structural comparison of the guard expressions (PR #2062 review) -----
+#
+# Both dialect guards used to ask only whether the server-reported text
+# *mentioned* a few tokens (`state`, `live`, ...). That is satisfied by
+# expressions which mean the opposite of the invariant: `state != 'live'`
+# contains both `state` and `live`, and `IF(state = 'live', NULL,
+# CONCAT(dataset, CHAR(31), entity_key))` contains all four — the first
+# keys `live_key` on every *non*-LIVE row, the second on every non-LIVE
+# row as well, and either one turns the UNIQUE index into a constraint on
+# the rows nobody promotes while leaving LIVE rows unconstrained. A
+# substring check cannot tell those apart from the real guard, so the
+# comparison is now *structural*: the reported expression is reduced to a
+# canonical token string and compared for equality against the canonical
+# form of the expression this module's DDL ships.
+#
+# Exact text comparison is impossible — no server hands back what was
+# typed. MySQL 8 rewrites
+#
+#     IF(state = 'live', CONCAT(dataset, CHAR(31 USING utf8mb4), entity_key), NULL)
+#
+# as ``if((`state` = _utf8mb4'live'),concat(`dataset`,char(31 using
+# utf8mb4),`entity_key`),NULL)``, and the exact rewrite differs by server
+# version. :func:`_canonical_sql` therefore folds away precisely the
+# things a server is free to change and nothing else: letter case of
+# keywords and identifiers, identifier quoting (`` `x` ``, ``"x"``,
+# ``[x]``), whitespace, comments, charset introducers (``_utf8mb4'live'``
+# -> ``'live'``), ``USING <charset>`` inside ``CHAR()``, and redundant
+# grouping parentheses. Operators, argument order, literal text and
+# literal case all survive — which is what makes `!=`, `<>`, a swapped
+# THEN/ELSE, a dropped `entity_key` or a `'staging'` literal a mismatch.
+_LIVE_KEY_CANONICAL = "if(state='live',concat(dataset,char(31),entity_key),null)"
 
-# Tokens SQLite's partial-index predicate must mention. The same
-# substring discipline as above, and for the same reason: SQLite stores
-# the `WHERE` clause as written, so `state='live'`, `state = 'live'` and
-# `"state" = 'live'` are all the same index and none of them is text-equal
-# to the DDL. What must hold is that the predicate is keyed on the state
-# column *and* selects the LIVE value.
-_SQLITE_LIVE_PREDICATE_TOKENS = ("state", "live")
+# `a = b` and `b = a` are the same predicate, and a server is free to
+# report either; nothing else is tolerated.
+_LIVE_KEY_CANONICAL_FORMS = frozenset(
+    {
+        _LIVE_KEY_CANONICAL,
+        "if('live'=state,concat(dataset,char(31),entity_key),null)",
+    }
+)
+
+# SQLite's partial-index predicate, under the same discipline. SQLite
+# stores the `WHERE` clause as written, so `state='live'`, `state = 'live'`
+# and `"state" = 'live'` are one index reported three ways — while
+# `state != 'live'` is a different index entirely, and used to pass.
+_SQLITE_LIVE_PREDICATE = "state='live'"
+_SQLITE_LIVE_PREDICATE_FORMS = frozenset({_SQLITE_LIVE_PREDICATE, "'live'=state"})
+
+# One SQL token. Ordered alternation matters: the string-literal and
+# comment branches come first so a `--` or a quote *inside* a literal is
+# consumed with it rather than restarting the scan mid-token.
+_SQL_TOKEN_RE = re.compile(
+    r"""
+      '(?:[^']|'')*'                 # 'live'  (doubled '' escapes)
+    | --[^\n]*                       # -- line comment
+    | (?s:/\*.*?\*/)                 # /* block comment */
+    | `(?:[^`]|``)*`                 # `state`   MySQL-quoted identifier
+    | "(?:[^"]|"")*"                 # "state"   ANSI-quoted identifier
+    | \[[^\]]*\]                     # [state]   bracket-quoted identifier
+    | [A-Za-z_$][A-Za-z_$0-9]*       # bare word: identifier, keyword, _utf8mb4
+    | \d+(?:\.\d+)?                  # 31
+    | <=>|<>|!=|>=|<=|\|\|           # multi-character operators
+    | [-+*/%(),.=<>!&|^~]            # single-character operators
+    """,
+    re.VERBOSE,
+)
+
+_SQL_WORD_RE = re.compile(r"[A-Za-z_$][A-Za-z_$0-9]*")
+
+# A charset introducer: `_utf8mb4'live'`. Only ever dropped when it sits
+# immediately before a string literal, so a column actually named `_x` is
+# untouched.
+_SQL_INTRODUCER_RE = re.compile(r"_[a-z0-9]+")
+
+# `IIF` is the same three-argument conditional as `IF` (SQLite and SQL  # codespell:ignore
+# Server spell it that way, and this repo's SQLite-backed MySQL double
+# emits it). Folding the spelling costs nothing semantically; every other
+# function name is compared as reported.
+_SQL_CONDITIONAL_SYNONYMS = {"iif": "if"}  # codespell:ignore
+
+
+def _unquote_identifier(token: str) -> str:
+    """Strip one layer of identifier quoting, undoubling any inner quote."""
+    if token.startswith("`"):
+        return token[1:-1].replace("``", "`")
+    if token.startswith('"'):
+        return token[1:-1].replace('""', '"')
+    return token[1:-1]
+
+
+def _canonical_sql(expression: str | None) -> str:
+    """Reduce a server-reported SQL expression to a comparable canonical form.
+
+    Folds exactly the variation a server may introduce without changing
+    meaning (see the block comment above :data:`_LIVE_KEY_CANONICAL`) and
+    preserves everything that carries meaning. An unparseable or empty
+    expression canonicalizes to ``""``, which matches no accepted form —
+    an ordinary (non-generated) column reports ``""`` and must be refused.
+
+    Grouping parentheses are dropped, call parentheses are kept: a ``(``
+    is a call only when the token before it is a bare word (a function
+    name). That is what folds MySQL's ``if((state = 'live'), ...)`` onto
+    the shipped ``IF(state = 'live', ...)`` without also folding
+    ``if(not(state = 'live'), ...)`` onto it — ``not`` survives as a
+    token either way.
+    """
+    tokens: list[str] = []
+    call_paren: list[bool] = []
+    skip_charset = False
+    for raw in _SQL_TOKEN_RE.findall(expression or ""):
+        if raw.startswith("--") or raw.startswith("/*"):
+            continue
+        if skip_charset:
+            skip_charset = False
+            if _SQL_WORD_RE.fullmatch(raw):
+                continue
+        if raw.startswith("'"):
+            if tokens and _SQL_INTRODUCER_RE.fullmatch(tokens[-1]):
+                tokens.pop()
+            tokens.append(raw)
+        elif raw[0] in '`"[':
+            tokens.append(_unquote_identifier(raw).casefold())
+        elif raw == "(":
+            is_call = bool(tokens) and _SQL_WORD_RE.fullmatch(tokens[-1]) is not None
+            call_paren.append(is_call)
+            if is_call:
+                tokens.append(raw)
+        elif raw == ")":
+            if call_paren and call_paren.pop():
+                tokens.append(raw)
+        else:
+            word = raw.casefold()
+            if word == "using":
+                # `CHAR(31 USING utf8mb4)` -> `char(31)`: the charset name
+                # is the next word, and is dropped with it.
+                skip_charset = True
+                continue
+            tokens.append(_SQL_CONDITIONAL_SYNONYMS.get(word, word))
+    return "".join(tokens)
+
 
 # Slices a partial index's predicate out of its `CREATE INDEX` statement.
 # `\bWHERE\b` cannot match inside an identifier (`somewhere`), and SQLite
 # forbids subqueries in an index predicate, so at most one `WHERE` appears.
 _INDEX_WHERE_RE = re.compile(r"\bWHERE\b(.*)$", re.IGNORECASE | re.DOTALL)
+
+
+def _quote_identifier(name: str) -> str:
+    """Double-quote an identifier for interpolation into a ``PRAGMA``.
+
+    ``PRAGMA`` arguments cannot be bound as parameters, so a catalogue-
+    derived index name has to be interpolated — and an index name is
+    free-form: ``CREATE INDEX "ux live"`` and ``CREATE INDEX "a""b"`` are
+    both legal. Interpolated bare, either one is a syntax error from
+    ``PRAGMA index_info``, which surfaces as a raw ``OperationalError``
+    from the constructor *before* the schema guard can say anything
+    useful (PR #2062 review). Quoting the name is what keeps the failure
+    inside the guard.
+    """
+    return '"' + name.replace('"', '""') + '"'
 
 
 @dataclass(frozen=True)
@@ -595,6 +731,16 @@ def _check_mysql_live_guard(
        ``UNIQUE`` over ``(dataset, entity_key)`` would (wrongly) forbid a
        second *staged* run for the same key.
 
+    The generation expression is matched *structurally* — canonicalized
+    by :func:`_canonical_sql` and compared for equality against
+    :data:`_LIVE_KEY_CANONICAL_FORMS` — rather than scanned for tokens.
+    A token scan accepts expressions that invert the invariant while
+    mentioning every expected word: ``IF(state != 'live', CONCAT(dataset,
+    CHAR(31), entity_key), NULL)`` keys ``live_key`` on every row that is
+    *not* LIVE, so the UNIQUE index then permits unlimited LIVE rows and
+    forbids a second staged one — the exact opposite of the invariant,
+    passing a check meant to prove it (PR #2062 review).
+
     The index is matched on its *shape*, not its name: an operator who
     rebuilt an equivalent unique index under a different name has not
     broken the invariant, and refusing them would be pedantry. The
@@ -605,16 +751,19 @@ def _check_mysql_live_guard(
             "mysql",
             f"the generated column {_MYSQL_LIVE_KEY_COLUMN!r} is missing",
         )
-    expression = generation[_MYSQL_LIVE_KEY_COLUMN].casefold()
-    absent = [token for token in _LIVE_KEY_EXPRESSION_TOKENS if token not in expression]
-    if absent:
+    expression = generation[_MYSQL_LIVE_KEY_COLUMN]
+    canonical = _canonical_sql(expression)
+    if canonical not in _LIVE_KEY_CANONICAL_FORMS:
         raise _live_guard_refusal(
             "mysql",
             f"column {_MYSQL_LIVE_KEY_COLUMN!r} is not generated from the "
-            f"expected expression (its GENERATION_EXPRESSION "
-            f"{generation[_MYSQL_LIVE_KEY_COLUMN]!r} never mentions {absent}); "
-            f"an ordinary column is NULL on every row, and a unique index "
-            f"over it constrains nothing",
+            f"expected expression (its GENERATION_EXPRESSION {expression!r} "
+            f"canonicalizes to {canonical!r}, not to {_LIVE_KEY_CANONICAL!r}); "
+            f"an ordinary column is NULL on every row so a unique index over "
+            f"it constrains nothing, and an expression that merely resembles "
+            f"the expected one — an inverted comparison, a swapped "
+            f"THEN/ELSE, a missing identity half — inverts or weakens the "
+            f"guard while still mentioning every expected word",
         )
     if not any(
         index.unique and index.columns == (_MYSQL_LIVE_KEY_COLUMN,) for index in indexes
@@ -664,20 +813,30 @@ def _check_sqlite_live_guard(indexes: Iterable[_IndexShape]) -> None:
     The predicate is required, not optional: a *total* unique index over
     ``(dataset, entity_key)`` would forbid a second staged run for one
     key, which is the store's normal daily operation.
+
+    The predicate is matched *structurally* — canonicalized by
+    :func:`_canonical_sql` and compared for equality against
+    :data:`_SQLITE_LIVE_PREDICATE_FORMS` — rather than scanned for the
+    tokens ``state`` and ``live``. A token scan accepts ``WHERE state !=
+    'live'``, which mentions both and indexes exactly the rows that are
+    *not* LIVE: unlimited LIVE rows for one key, and a second staged run
+    rejected. Requiring an explicit equality is what tells the guard
+    apart from its inverse (PR #2062 review).
     """
     for index in indexes:
-        predicate = index.predicate.casefold()
         if (
             index.unique
             and index.columns == _SQLITE_LIVE_INDEX_COLUMNS
-            and all(token in predicate for token in _SQLITE_LIVE_PREDICATE_TOKENS)
+            and _canonical_sql(index.predicate) in _SQLITE_LIVE_PREDICATE_FORMS
         ):
             return
     raise _live_guard_refusal(
         "sqlite",
-        f"no partial UNIQUE index over {_SQLITE_LIVE_INDEX_COLUMNS} with a "
-        f"\"state = 'live'\" predicate exists (expected "
-        f"{_LIVE_UNIQUE_INDEX!r})",
+        f"no partial UNIQUE index over {_SQLITE_LIVE_INDEX_COLUMNS} whose "
+        f"predicate is exactly \"state = 'live'\" exists (expected "
+        f"{_LIVE_UNIQUE_INDEX!r}); a predicate that merely mentions "
+        f"'state' and 'live' — \"state != 'live'\" above all — indexes the "
+        f"complement of the rows the invariant is about",
     )
 
 
@@ -1316,6 +1475,35 @@ class SqliteSnapshotStore:
                 mode,
             )
 
+    def _pragma(self, pragma: str, argument: str) -> list[sqlite3.Row]:
+        """Run ``PRAGMA <pragma>(<argument>)`` with the argument quoted.
+
+        ``PRAGMA`` arguments cannot be bound as parameters, so the table
+        or index name has to be interpolated. Index names come out of the
+        database's own catalogue and are free-form — ``CREATE INDEX "ux
+        live"``, ``CREATE INDEX "order"`` and ``CREATE INDEX "a""b"`` are
+        all legal — so an unquoted interpolation turns a merely
+        awkwardly-named index into a raw ``sqlite3.OperationalError``
+        raised from the constructor, before the schema guard can say
+        anything about it. Quoting handles the awkward names; converting
+        whatever is left into :class:`SnapshotSchemaMismatch` keeps the
+        one remaining failure mode ("this store cannot read the
+        catalogue, so it cannot prove the invariant") inside the guard's
+        vocabulary rather than the driver's (PR #2062 review).
+        """
+        try:
+            return self._conn.execute(
+                f"PRAGMA {pragma}({_quote_identifier(argument)})"  # noqa: S608
+            ).fetchall()
+        except (sqlite3.Error, ValueError) as exc:
+            raise SnapshotSchemaMismatch(
+                f"sqlite: PRAGMA {pragma} failed for {argument!r} "
+                f"({type(exc).__name__}: {exc}). The catalogue of table "
+                f"{_SNAPSHOT_TABLE!r} cannot be read, so neither its shape "
+                f"nor its single-LIVE guard can be verified. Refusing to "
+                f"use it."
+            ) from exc
+
     def _table_columns(self) -> list[str] | None:
         """Column names of an existing ``pi_eod_snapshot``, or ``None``."""
         exists = self._conn.execute(
@@ -1325,10 +1513,7 @@ class SqliteSnapshotStore:
         if exists is None:
             return None
         return [
-            record["name"]
-            for record in self._conn.execute(
-                f"PRAGMA table_info({_SNAPSHOT_TABLE})"  # noqa: S608
-            ).fetchall()
+            record["name"] for record in self._pragma("table_info", _SNAPSHOT_TABLE)
         ]
 
     def _table_indexes(self) -> list[_IndexShape]:
@@ -1348,6 +1533,13 @@ class SqliteSnapshotStore:
         predicated on the wrong state. Slicing at the first ``WHERE`` is
         unambiguous because SQLite forbids subqueries in an index
         predicate, so a partial index has exactly one.
+
+        Both PRAGMAs go through :meth:`_pragma`, which quotes the
+        interpolated name: ``index_list`` names a constant, but
+        ``index_info`` names whatever the catalogue reports, and an index
+        called ``"ux live"`` or ``"order"`` would otherwise be a raw
+        ``OperationalError`` out of the constructor instead of a
+        :class:`SnapshotSchemaMismatch` (PR #2062 review).
         """
         predicates = {
             record["name"]: _index_predicate(record["sql"])
@@ -1358,15 +1550,10 @@ class SqliteSnapshotStore:
             ).fetchall()
         }
         shapes: list[_IndexShape] = []
-        for record in self._conn.execute(
-            f"PRAGMA index_list({_SNAPSHOT_TABLE})"  # noqa: S608
-        ).fetchall():
+        for record in self._pragma("index_list", _SNAPSHOT_TABLE):
             name = record["name"]
             columns = tuple(
-                column["name"]
-                for column in self._conn.execute(
-                    f"PRAGMA index_info({name})"  # noqa: S608
-                ).fetchall()
+                column["name"] for column in self._pragma("index_info", name)
             )
             shapes.append(
                 _IndexShape(
@@ -1891,14 +2078,32 @@ class SqliteSnapshotStore:
 #
 # Mirrors the existing `execution.paper_engine.get_default_engine` /
 # `execution.order_sink.get_default_sink` seam: an env var picks the
-# backend, MySQL is the default, and a MySQL-unreachable server degrades
-# to SQLite with a WARNING rather than failing the caller outright. An
-# unrecognized `PI_SNAPSHOT_ENGINE` value raises `ValueError` loudly
-# (mirrors `get_default_sink`'s stricter convention) rather than being
-# silently treated as "sqlite".
+# backend, MySQL is the default, and a MySQL backend that cannot be
+# constructed — for any reason — degrades to SQLite with a WARNING rather
+# than failing the caller outright. An unrecognized `PI_SNAPSHOT_ENGINE`
+# value raises `ValueError` loudly (mirrors `get_default_sink`'s stricter
+# convention) rather than being silently treated as "sqlite".
 
 _ENV_SNAPSHOT_ENGINE = "PI_SNAPSHOT_ENGINE"
 _ENV_SNAPSHOT_DB = "PI_SNAPSHOT_DB"
+
+
+def _exception_label(exc: BaseException) -> str:
+    """Name an exception's *type* for a log line, without its message.
+
+    Qualified by module for anything outside ``builtins``, because
+    ``OperationalError`` alone does not say whether the driver, this
+    store's SQLite fallback, or something else raised it — and the three
+    send an operator to three different places. The message is
+    deliberately not included: driver messages routinely carry the DSN,
+    the account that failed to authenticate, or a fragment of the
+    failing statement (PR #2062 review).
+    """
+    kind = type(exc)
+    module = kind.__module__
+    if module in ("builtins", "__main__"):
+        return kind.__qualname__
+    return f"{module}.{kind.__qualname__}"
 
 
 def _make_mysql_store() -> SnapshotStore:
@@ -1910,7 +2115,7 @@ def _make_mysql_store() -> SnapshotStore:
     finished loading, and kept as a standalone module-level function
     (rather than inlined into :func:`get_default_snapshot_store`) so
     tests can monkeypatch ``store_module._make_mysql_store`` directly to
-    simulate a MySQL-unreachable server without a real connection pool.
+    simulate an unavailable MySQL backend without a real connection pool.
     """
     # pylint: disable=import-outside-toplevel,cyclic-import
     from openbb_techtrade.snapshot.mysql_store import (  # noqa: PLC0415
@@ -1928,11 +2133,14 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
     - ``PI_SNAPSHOT_ENGINE=mysql`` (default) — return a
       :class:`~openbb_techtrade.snapshot.mysql_store.MysqlSnapshotStore`
       against the shared ``fmp_cached`` connection pool. If construction
-      fails (missing dependency, unreachable pool, ...) a WARNING is
-      logged and the selector falls through to SQLite — mirrors the
-      ``get_default_engine`` graceful-fallback pattern from #1790/#1744.
-      Only the MySQL construction is guarded this way; a failure
-      constructing the SQLite fallback itself is never swallowed.
+      fails for *any* reason — a missing optional dependency
+      (``ImportError``), an unreachable or unauthenticated pool, or a
+      refused schema (:class:`SnapshotSchemaMismatch`) — a WARNING
+      naming the exception *type* is logged and the selector falls
+      through to SQLite, mirroring the ``get_default_engine``
+      graceful-fallback pattern from #1790/#1744. Only the MySQL
+      construction is guarded this way; a failure constructing the
+      SQLite fallback itself is never swallowed.
     - ``PI_SNAPSHOT_ENGINE=sqlite`` — force the file-backed
       :class:`SqliteSnapshotStore` at ``db_path`` (arg),
       ``$PI_SNAPSHOT_DB`` (env), or the per-user default
@@ -1943,10 +2151,10 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
       rather than treating "not mysql" as "must be sqlite").
 
     ``db_path`` takes precedence over ``$PI_SNAPSHOT_DB`` on both the
-    explicit-sqlite path and the mysql-unreachable fallback path. The
+    explicit-sqlite path and the MySQL-unavailable fallback path. The
     resolved SQLite path is computed once, up front, and immediately
-    normalized with ``expanduser().resolve()`` so the MySQL-unreachable
-    WARNING and the eventual ``SqliteSnapshotStore`` construction agree
+    normalized with ``expanduser().resolve()`` so the fallback WARNING
+    and the eventual ``SqliteSnapshotStore`` construction agree
     on the same absolute path. Without the ``expanduser()`` half, a
     literal ``~`` in ``$PI_SNAPSHOT_DB``/``db_path`` would not expand to
     the caller's home directory: ``Path.resolve()`` alone treats ``~``
@@ -1988,11 +2196,26 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
         try:
             return _make_mysql_store()
         except Exception as exc:  # noqa: BLE001
+            # "unavailable", not "unreachable": the failure is just as
+            # likely an `ImportError` (the optional MySQL dependency is
+            # not installed) or a `SnapshotSchemaMismatch` (the server is
+            # perfectly reachable and refused) as a network fault, and
+            # naming a network fault sends the operator to the wrong
+            # place. The exception *type* is what distinguishes the three,
+            # so it is logged; its *message* is not, because a driver's
+            # message can carry the DSN, the account it connected as, or
+            # a fragment of the statement that failed. Operators who need
+            # it turn on DEBUG for this module and get the whole
+            # traceback below (PR #2062 review).
             logger.warning(
-                "get_default_snapshot_store: MySQL backend unreachable (%s); "
+                "get_default_snapshot_store: MySQL backend unavailable (%s); "
                 "falling back to SQLite at %s",
-                exc,
+                _exception_label(exc),
                 resolved,
+            )
+            logger.debug(
+                "get_default_snapshot_store: MySQL backend construction failed",
+                exc_info=True,
             )
             # fall through to sqlite
 
