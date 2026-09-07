@@ -58,7 +58,10 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    (``conn.cursor()``) and rows arrive as mappings. Finally, PyMySQL
    connects without ``CLIENT.FOUND_ROWS``, so ``cursor.rowcount`` after
    an UPDATE counts rows *changed*, not rows *matched* — see
-   :meth:`validate`, which cannot use it to detect a race.
+   :meth:`validate`, which cannot use it to detect a race. Construction
+   also re-reads ``information_schema.TABLES.ENGINE`` and requires
+   ``InnoDB`` before the rollback-only behavior probe: a nontransactional
+   engine would make that rollback a lie and persist its synthetic rows.
 5. **Pinned binary collation.** MySQL resolves an unpinned string column
    to the charset's *default* collation, which is case- and
    accent-insensitive; SQLite's default is BINARY. Every key column and
@@ -321,7 +324,7 @@ _SELECT_SCHEMA_INDEXES = (
 # `openbb_techtrade.snapshot.store` for why the comment, and not a
 # companion version table, carries the stamp.
 _SELECT_SCHEMA_COMMENT = (
-    "SELECT TABLE_COMMENT FROM information_schema.TABLES "
+    "SELECT TABLE_COMMENT, ENGINE FROM information_schema.TABLES "
     "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s"
 )
 
@@ -342,6 +345,29 @@ _STAMP_SCHEMA_COMMENT = f"ALTER TABLE {_SNAPSHOT_TABLE} COMMENT = %s"
 # weak so a discarded pool cannot pin its entry — or the schema decision
 # taken against it — for the life of the process.
 _SCHEMA_READY: WeakKeyDictionary = WeakKeyDictionary()
+_MISSING_TABLE_METADATA = object()
+_TRANSACTIONAL_ENGINE = "InnoDB"
+
+
+def _check_storage_engine(engine: object) -> None:
+    """Require the transaction semantics the rollback-only probe depends on."""
+    if (
+        isinstance(engine, str)
+        and engine.casefold() == _TRANSACTIONAL_ENGINE.casefold()
+    ):
+        return
+    if engine is _MISSING_TABLE_METADATA:
+        reported = "missing metadata"
+    elif engine is None:
+        reported = "NULL"
+    else:
+        reported = repr(engine)
+    raise SnapshotSchemaMismatch(
+        f"mysql: table {_SNAPSHOT_TABLE!r} must use {_TRANSACTIONAL_ENGINE}; "
+        f"information_schema.TABLES reported ENGINE {reported}. The schema "
+        "behavior probe relies on transactional rollback, so refusing to "
+        "probe, stamp, or use this table."
+    )
 
 
 def _index_shapes(records: Iterable[Mapping[str, Any]]) -> list[_IndexShape]:
@@ -644,6 +670,12 @@ class MysqlSnapshotStore:
         case- and accent-blind — a strictly weaker invariant than the one
         SQLite's BINARY comparison enforces for the same calls.
 
+        Finally, the rollback-only empirical probe is safe only on InnoDB.
+        :meth:`_verify_schema` therefore requires the table's reported
+        ``ENGINE`` before the probe, an adoption stamp, or the ready-cache
+        mark. ``MyISAM``, any other engine, ``NULL``, and missing table
+        metadata all fail closed.
+
         The checks run once per pool (see :data:`_SCHEMA_READY`), and the
         refusal is raised *outside* the borrow so a schema fault is not
         logged by the shared pool as ``MySQL connection error``.
@@ -678,9 +710,11 @@ class MysqlSnapshotStore:
         the table that exists, not the table this build would have
         created.
 
-        The caller runs the empirical guard probe before acting on the returned
-        ``True``. A structurally plausible guard that behaves incorrectly
-        therefore remains unstamped when construction refuses it.
+        The table's storage engine is checked before the caller runs the
+        empirical guard probe or acts on the returned ``True``. A
+        nontransactional table is never probed, and a structurally plausible
+        guard that behaves incorrectly remains unstamped when construction
+        refuses it.
 
         The guard runs before the collation check only so its message
         wins when ``live_key`` is absent entirely — a missing column has
@@ -702,6 +736,12 @@ class MysqlSnapshotStore:
         _check_mysql_collations(collations)
         cur.execute(_SELECT_SCHEMA_COMMENT, (_SNAPSHOT_TABLE,))
         record = cur.fetchone()
+        engine = (
+            _MISSING_TABLE_METADATA
+            if record is None
+            else record.get("ENGINE", _MISSING_TABLE_METADATA)
+        )
+        _check_storage_engine(engine)
         stamped = _parse_schema_version_comment(
             record["TABLE_COMMENT"] if record is not None else None
         )
