@@ -96,6 +96,7 @@ from openbb_techtrade.snapshot.store import (
     FIELD_MAX_LENGTHS,
     RetentionPolicy,
     SnapshotFieldTooLong,
+    SnapshotPayloadNotAnObject,
     SnapshotRow,
     SnapshotSchemaMismatch,
     SnapshotState,
@@ -1034,7 +1035,13 @@ def _stage(  # pylint: disable=too-many-arguments
     return (dataset, entity_key, as_of_session, job_run_id)
 
 
-def _direct_insert(pool: _BasePool, *, job_run_id: str, state: str) -> None:
+def _direct_insert(
+    pool: _BasePool,
+    *,
+    job_run_id: str,
+    state: str,
+    payload_json: str = '{"rows": [{"symbol": "GOOG"}]}',
+) -> None:
     """Bypass the store to test the DB-level constraint directly."""
     with pool.get_connection() as conn:
         conn.begin()
@@ -1055,7 +1062,7 @@ def _direct_insert(pool: _BasePool, *, job_run_id: str, state: str) -> None:
                         job_run_id,
                         SnapshotStatus.OK.value,
                         state,
-                        '{"rows": [{"symbol": "GOOG"}]}',
+                        payload_json,
                     ),
                 )
             conn.commit()
@@ -1337,6 +1344,111 @@ def test_both_backends_refuse_the_same_over_long_value(
         assert sqlite_store.get_live("techtrade.movers", "sector=technology") is None
     finally:
         sqlite_store.close()
+
+
+# ---------------------------------------------------------------------------
+# Payload must be a JSON object, not just typed as one (#2062 review)
+# ---------------------------------------------------------------------------
+#
+# Mirrors ``test_snapshot_store.py``'s equivalent section: both backends
+# fall through the same shared ``_dumps_payload``/``_as_payload`` pair, so
+# the guard is exercised here against the MySQL double for parity, using
+# the identical non-dict/corrupted-JSON fixtures.
+
+_NON_DICT_PAYLOADS = [
+    pytest.param(["rows", {"symbol": "AAPL"}], id="list"),
+    pytest.param("just a string", id="scalar-str"),
+    pytest.param(42, id="scalar-int"),
+    pytest.param(None, id="null"),
+]
+
+
+@pytest.mark.parametrize("bad_payload", _NON_DICT_PAYLOADS)
+def test_stage_refuses_a_non_dict_payload(
+    store: MysqlSnapshotStore, pool: _FakePool, bad_payload: object
+) -> None:
+    """A list/scalar/``None`` payload is refused, and nothing is written."""
+    begins_before = pool.begins
+    with pytest.raises(SnapshotPayloadNotAnObject) as excinfo:
+        store.stage(
+            "techtrade.movers",
+            "sector=technology",
+            date(2026, 9, 4),
+            "run-1",
+            bad_payload,  # type: ignore[arg-type]
+        )
+    assert "payload must be a JSON object" in str(excinfo.value)
+    assert type(bad_payload).__name__ in str(excinfo.value)
+    # The refusal lands before the driver is touched at all -- see the
+    # matching field-length test above for why this is asserted
+    # independently of the exception type.
+    assert pool.begins == begins_before
+    inserts = [
+        sql for sql, _ in pool.statements if sql.lstrip().upper().startswith("INSERT")
+    ]
+    assert inserts == []
+
+
+def test_stage_accepts_and_round_trips_a_nested_dict_payload(
+    store: MysqlSnapshotStore,
+) -> None:
+    """A dict payload -- including nested lists/dicts/``None`` values -- survives."""
+    nested_payload = {
+        "rows": [
+            {"symbol": "AAPL", "close": 227.5, "flags": None},
+            {"symbol": "MSFT", "meta": {"sector": "tech", "tags": ["a", "b"]}},
+        ],
+        "summary": {"count": 2, "as_of": "2026-09-04"},
+    }
+    staged = _stage(store, payload=nested_payload)
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.payload == nested_payload
+
+
+_CORRUPTED_PAYLOAD_JSON = [
+    pytest.param("[1, 2, 3]", id="list"),
+    pytest.param('"just a string"', id="scalar-str"),
+    pytest.param("42", id="scalar-int"),
+    pytest.param("null", id="null"),
+    pytest.param("{not valid json", id="invalid-syntax"),
+]
+
+
+@pytest.mark.parametrize("payload_json", _CORRUPTED_PAYLOAD_JSON)
+def test_get_live_rejects_a_persisted_non_object_payload(
+    store: MysqlSnapshotStore, pool: _FakePool, payload_json: str
+) -> None:
+    """A corrupted/non-object persisted payload fails loudly on read.
+
+    Regression test for PR #2062 review: the shared decoder used to hand
+    back whatever ``json.loads`` returned, so a list/scalar/``None`` (or
+    invalid JSON) persisted under ``payload_json`` would silently violate
+    ``SnapshotRow.payload``'s ``dict`` contract instead of raising here.
+    """
+    _direct_insert(
+        pool, job_run_id="run-corrupt", state="live", payload_json=payload_json
+    )
+    with pytest.raises(SnapshotPayloadNotAnObject) as excinfo:
+        store.get_live("techtrade.movers", "sector=technology")
+    assert "payload must be a JSON object" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("payload_json", _CORRUPTED_PAYLOAD_JSON)
+def test_list_history_rejects_a_persisted_non_object_payload(
+    store: MysqlSnapshotStore, pool: _FakePool, payload_json: str
+) -> None:
+    """The same guard applies to every read path, not just ``get_live``."""
+    _direct_insert(
+        pool,
+        job_run_id="run-corrupt-history",
+        state="staging",
+        payload_json=payload_json,
+    )
+    with pytest.raises(SnapshotPayloadNotAnObject):
+        store.list_history("techtrade.movers", "sector=technology")
 
 
 # ---------------------------------------------------------------------------

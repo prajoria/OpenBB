@@ -265,7 +265,12 @@ class SnapshotStore(Protocol):
         engine_version: str | None = None,
         payload_schema_version: str | None = None,
     ) -> None:
-        """Write a run to STAGING; NEVER touches the LIVE view."""
+        """Write a run to STAGING; NEVER touches the LIVE view.
+
+        ``payload`` must be a JSON object (``dict``); every backend
+        raises :class:`SnapshotPayloadNotAnObject` and writes nothing if
+        it is not (#2062 review).
+        """
         ...  # pylint: disable=unnecessary-ellipsis
 
     def validate(  # pylint: disable=too-many-positional-arguments
@@ -1087,6 +1092,36 @@ def _scope_clause(
 # §3, 12.3 #8) without either one re-implementing the rule.
 
 
+class SnapshotPayloadNotAnObject(ValueError):
+    """A snapshot payload is not a JSON object, despite ``dict`` typing.
+
+    ``SnapshotRow.payload`` is typed ``dict`` (design spec §3.1) and every
+    consumer — the validator, the Terminal reader, callers merging or
+    indexing the payload — relies on that being real. ``dict`` is only a
+    type *hint*: a caller that stages a list/scalar/``None`` would
+    otherwise serialize to valid-but-wrong JSON, and a persisted row that
+    decodes to anything other than an object (a list, a scalar, ``null``,
+    or JSON that fails to parse at all — a hand-edited or corrupted row)
+    would otherwise be handed straight to a caller expecting ``.get``/
+    membership semantics (PR #2062 review). Raised at both boundaries this
+    module owns: before a non-dict payload is ever written
+    (:func:`_dumps_payload`) and when a persisted ``payload_json`` fails to
+    decode back to one (:func:`_as_payload`) — on both backends, since both
+    funnel through these same two shared functions.
+    """
+
+    def __init__(self, *, context: str, value: Any) -> None:
+        self.context = context
+        self.value_type = type(value).__name__
+        preview = repr(value)
+        if len(preview) > _PREVIEW_CHARS:
+            preview = preview[:_PREVIEW_CHARS] + "..."
+        super().__init__(
+            f"{context}: payload must be a JSON object (dict); got "
+            f"{self.value_type} ({preview})"
+        )
+
+
 def _as_session_date(value: Any) -> date:
     """Coerce a stored ``as_of_session`` to a plain ``date``."""
     if isinstance(value, datetime):
@@ -1112,12 +1147,32 @@ def _as_created_at(value: Any) -> datetime:
 
 
 def _as_payload(value: Any) -> dict:
-    """Coerce a stored payload column to a ``dict``."""
+    """Coerce a stored payload column to a ``dict``.
+
+    Read-boundary half of the #2062 review guard: a persisted
+    ``payload_json`` that decodes to a list, a scalar, or ``null`` — or
+    that is not valid JSON at all, e.g. a hand-edited or corrupted row —
+    would otherwise be handed to :class:`SnapshotRow` (and every caller
+    that trusts its ``payload: dict`` typing) as-is. Raising
+    :class:`SnapshotPayloadNotAnObject` here, at the one read seam both
+    backends share, turns that into a loud, attributable failure instead
+    of a confusing ``AttributeError``/``TypeError`` deep inside a caller.
+    """
     if isinstance(value, dict):
         return value
     if isinstance(value, (bytes, bytearray)):
         value = bytes(value).decode("utf-8")
-    return json.loads(value)
+    try:
+        decoded = json.loads(value)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise SnapshotPayloadNotAnObject(
+            context="persisted payload_json", value=value
+        ) from exc
+    if not isinstance(decoded, dict):
+        raise SnapshotPayloadNotAnObject(
+            context="persisted payload_json", value=decoded
+        )
+    return decoded
 
 
 def _row_from_mapping(record: Any) -> SnapshotRow:
@@ -1145,7 +1200,19 @@ def _row_from_mapping(record: Any) -> SnapshotRow:
 
 
 def _dumps_payload(payload: dict) -> str:
-    """Serialize a payload deterministically for storage."""
+    """Serialize a payload deterministically for storage.
+
+    Write-boundary half of the #2062 review guard: ``payload: dict`` is
+    only a type hint, and a caller that ignores it — staging a list,
+    scalar, or ``None`` — would otherwise serialize to valid-but-wrong
+    JSON that violates ``SnapshotRow.payload``'s contract for every
+    future reader. Checked here, at the one write seam both backends
+    share and *before* either ``execute()``/``cur.execute()`` is called,
+    so the refusal raises before any statement reaches the database and
+    no row is written.
+    """
+    if not isinstance(payload, dict):
+        raise SnapshotPayloadNotAnObject(context="stage() payload", value=payload)
     return json.dumps(payload, sort_keys=True, default=str)
 
 
@@ -1864,6 +1931,10 @@ class SqliteSnapshotStore:
             engine_version=engine_version,
             payload_schema_version=payload_schema_version,
         )
+        # Serialized (and shape-checked) *before* the transaction opens, so
+        # a non-dict payload raises without ever taking the write lock --
+        # matching the bounded-field guard just above (#2062 review).
+        payload_text = _dumps_payload(payload)
         with self._tx():
             self._conn.execute(
                 "INSERT INTO pi_eod_snapshot ("
@@ -1879,7 +1950,7 @@ class SqliteSnapshotStore:
                     job_run_id,
                     status.value,
                     SnapshotState.STAGING.value,
-                    _dumps_payload(payload),
+                    payload_text,
                     input_hash,
                     row_count,
                     engine_version,

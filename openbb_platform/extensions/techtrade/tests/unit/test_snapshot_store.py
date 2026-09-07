@@ -36,6 +36,7 @@ from openbb_techtrade.snapshot.store import (
     FIELD_MAX_LENGTHS,
     RetentionPolicy,
     SnapshotFieldTooLong,
+    SnapshotPayloadNotAnObject,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
@@ -1204,6 +1205,150 @@ def test_a_long_validation_reason_is_persisted_whole(tmp_path) -> None:
         assert result.reason == reason
         history = store.list_history(staged[0], staged[1])
         assert history[0].validation_reason == reason
+    finally:
+        store.close()
+
+
+# ---------------------------------------------------------------------------
+# Payload must be a JSON object, not just typed as one (#2062 review)
+# ---------------------------------------------------------------------------
+#
+# ``SnapshotRow.payload: dict`` is a type hint, not a runtime guarantee: a
+# caller that ignores it can still hand ``stage()`` a list, a scalar, or
+# ``None``, and a persisted ``payload_json`` can be edited (or corrupted) in
+# the database to decode to something other than an object. Both boundaries
+# are enforced in the one shared pair of functions
+# (``_dumps_payload``/``_as_payload``) both backends fall through, so the
+# guard is asserted once here and mirrored in
+# ``test_mysql_snapshot_store.py`` for parity.
+
+_NON_DICT_PAYLOADS = [
+    pytest.param(["rows", {"symbol": "AAPL"}], id="list"),
+    pytest.param("just a string", id="scalar-str"),
+    pytest.param(42, id="scalar-int"),
+    pytest.param(None, id="null"),
+]
+
+
+@pytest.mark.parametrize("bad_payload", _NON_DICT_PAYLOADS)
+def test_stage_refuses_a_non_dict_payload(tmp_path, bad_payload: object) -> None:
+    """A list/scalar/``None`` payload is refused, and nothing is written."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        with pytest.raises(SnapshotPayloadNotAnObject) as excinfo:
+            store.stage(
+                "techtrade.movers",
+                "sector=technology",
+                date(2026, 9, 4),
+                "run-1",
+                bad_payload,  # type: ignore[arg-type]
+            )
+        assert "payload must be a JSON object" in str(excinfo.value)
+        assert type(bad_payload).__name__ in str(excinfo.value)
+        rows = store._conn.execute(  # noqa: SLF001
+            "SELECT COUNT(*) FROM pi_eod_snapshot"
+        ).fetchone()
+        assert rows[0] == 0
+    finally:
+        store.close()
+
+
+def test_stage_accepts_and_round_trips_a_nested_dict_payload(tmp_path) -> None:
+    """A dict payload — including nested lists/dicts/``None`` values — survives."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        nested_payload = {
+            "rows": [
+                {"symbol": "AAPL", "close": 227.5, "flags": None},
+                {"symbol": "MSFT", "meta": {"sector": "tech", "tags": ["a", "b"]}},
+            ],
+            "summary": {"count": 2, "as_of": "2026-09-04"},
+        }
+        staged = _stage(store, payload=nested_payload)
+        assert store.validate(*staged).ok
+        assert store.promote(*staged)
+        live = store.get_live("techtrade.movers", "sector=technology")
+        assert live is not None
+        assert live.payload == nested_payload
+    finally:
+        store.close()
+
+
+def _direct_insert_raw_payload(
+    store: SqliteSnapshotStore, *, job_run_id: str, payload_json: str
+) -> None:
+    """Bypass ``stage()``/``_dumps_payload`` to persist an arbitrary payload column.
+
+    Simulates a corrupted or hand-edited row: real writes can never
+    produce a non-object ``payload_json`` once :func:`_dumps_payload`
+    guards ``stage()``, so the only way to exercise the read-boundary
+    guard is to insert directly, below the guard. The connection is
+    opened with ``isolation_level=None`` (autocommit), so this single
+    statement persists immediately -- no explicit transaction needed.
+    """
+    store._conn.execute(  # pylint: disable=protected-access
+        "INSERT INTO pi_eod_snapshot ("
+        "dataset, entity_key, as_of_session, created_at, job_run_id, "
+        "status, state, validated, validation_reason, payload_json, "
+        "input_hash, row_count, engine_version, payload_schema_version"
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, 1, '', ?, NULL, NULL, NULL, NULL)",
+        (
+            "techtrade.movers",
+            "sector=technology",
+            date(2026, 9, 9).isoformat(),
+            datetime(2026, 9, 9, tzinfo=timezone.utc).isoformat(),
+            job_run_id,
+            SnapshotStatus.OK.value,
+            SnapshotState.LIVE.value,
+            payload_json,
+        ),
+    )
+
+
+_CORRUPTED_PAYLOAD_JSON = [
+    pytest.param("[1, 2, 3]", id="list"),
+    pytest.param('"just a string"', id="scalar-str"),
+    pytest.param("42", id="scalar-int"),
+    pytest.param("null", id="null"),
+    pytest.param("{not valid json", id="invalid-syntax"),
+]
+
+
+@pytest.mark.parametrize("payload_json", _CORRUPTED_PAYLOAD_JSON)
+def test_get_live_rejects_a_persisted_non_object_payload(
+    tmp_path, payload_json: str
+) -> None:
+    """A corrupted/non-object persisted payload fails loudly on read.
+
+    Regression test for PR #2062 review: the shared decoder used to hand
+    back whatever ``json.loads`` returned, so a list/scalar/``None`` (or
+    invalid JSON) persisted under ``payload_json`` would silently violate
+    ``SnapshotRow.payload``'s ``dict`` contract instead of raising here.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        _direct_insert_raw_payload(
+            store, job_run_id="run-corrupt", payload_json=payload_json
+        )
+        with pytest.raises(SnapshotPayloadNotAnObject) as excinfo:
+            store.get_live("techtrade.movers", "sector=technology")
+        assert "payload must be a JSON object" in str(excinfo.value)
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize("payload_json", _CORRUPTED_PAYLOAD_JSON)
+def test_list_history_rejects_a_persisted_non_object_payload(
+    tmp_path, payload_json: str
+) -> None:
+    """The same guard applies to every read path, not just ``get_live``."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    try:
+        _direct_insert_raw_payload(
+            store, job_run_id="run-corrupt-history", payload_json=payload_json
+        )
+        with pytest.raises(SnapshotPayloadNotAnObject):
+            store.list_history("techtrade.movers", "sector=technology")
     finally:
         store.close()
 

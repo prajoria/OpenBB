@@ -683,6 +683,11 @@ class MysqlSnapshotStore:
             engine_version=engine_version,
             payload_schema_version=payload_schema_version,
         )
+        # Serialized (and shape-checked) *before* the transaction opens, so
+        # a non-dict payload raises without ever taking the connection's
+        # write lock -- matching the bounded-field guard just above and
+        # the SQLite backend (#2062 review).
+        payload_text = _dumps_payload(payload)
         with self.transaction() as conn, conn.cursor() as cur:
             cur.execute(
                 _INSERT_STAGED,
@@ -694,7 +699,7 @@ class MysqlSnapshotStore:
                     job_run_id,
                     status.value,
                     SnapshotState.STAGING.value,
-                    _dumps_payload(payload),
+                    payload_text,
                     input_hash,
                     row_count,
                     engine_version,

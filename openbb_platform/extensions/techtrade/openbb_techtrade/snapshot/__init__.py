@@ -39,6 +39,7 @@ from .store import (
     SNAPSHOT_SCHEMA_VERSION,
     RetentionPolicy,
     SnapshotFieldTooLong,
+    SnapshotPayloadNotAnObject,
     SnapshotRow,
     SnapshotSchemaMismatch,
     SnapshotState,
@@ -64,6 +65,7 @@ __all__ = [
     # not via ``import *``.
     "RetentionPolicy",
     "SnapshotFieldTooLong",
+    "SnapshotPayloadNotAnObject",
     "SnapshotRow",
     "SnapshotSchemaMismatch",
     "SnapshotState",
