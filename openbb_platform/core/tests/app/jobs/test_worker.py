@@ -497,3 +497,82 @@ def test_run_forever_processes_queued_work_before_next_poll(fast_service: JobSer
     thread.join(timeout=2)
 
     assert run.status == "succeeded"
+
+
+def test_stop_requested_during_cycle_prevents_a_new_claim():
+    """A stop observed before claim closes the check-then-claim shutdown race."""
+    stop_event = threading.Event()
+
+    class StopBeforeClaimService:
+        run_lease_timeout = timedelta(minutes=5)
+
+        def reconcile_definitions(self, now=None):
+            stop_event.set()
+
+        def heartbeat(self, worker_id, now=None, *, hostname=None):
+            pass
+
+        def recover_abandoned_runs(self, now=None):
+            return []
+
+        def enqueue_due(self, now=None):
+            return []
+
+        def claim_next(self, worker_id, now=None):
+            raise AssertionError("worker claimed new work after shutdown was requested")
+
+    worker = JobWorker(
+        service=StopBeforeClaimService(),  # type: ignore[arg-type]
+        worker_id="worker-1",
+    )
+
+    assert worker.run_once(now=BASE_TIME, stop_event=stop_event) is None
+
+
+def test_shutdown_finishes_active_job_but_does_not_claim_the_next(tmp_path: Path):
+    """Stop grants the active handler time to finish, then exits before another claim."""
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_handler(context: JobContext, params: SlowParams) -> JobResult:
+        started.set()
+        release.wait(timeout=5)
+        return JobResult(summary={"ok": True})
+
+    registry = JobRegistry(
+        [
+            JobDefinition(
+                name="slow.job",
+                description="Slow job",
+                params_model=SlowParams,
+                handler=slow_handler,
+                max_attempts=1,
+            )
+        ]
+    )
+    service = JobService(
+        store=SqliteJobStore(tmp_path / "jobs.db"),
+        registry=registry,
+        reconcile_now=BASE_TIME,
+    )
+    active = service.enqueue("slow.job", {}, now=BASE_TIME)
+    waiting = service.enqueue("slow.job", {}, now=BASE_TIME + timedelta(seconds=1))
+    worker = JobWorker(service=service, worker_id="worker-1")
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=worker.run_forever,
+        kwargs={"poll_seconds": 0.01, "stop_event": stop_event},
+    )
+
+    thread.start()
+    assert started.wait(timeout=5)
+    stop_event.set()
+    thread.join(timeout=0.05)
+    assert thread.is_alive(), "active handler was not given its shutdown grace period"
+
+    release.set()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive()
+    assert service.get_run(active.run_id).status == "succeeded"
+    assert service.get_run(waiting.run_id).status == "queued"

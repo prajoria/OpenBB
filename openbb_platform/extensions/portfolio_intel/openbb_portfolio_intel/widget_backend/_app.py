@@ -8,6 +8,7 @@ onto it without importing each other.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator, Callable
@@ -167,6 +168,15 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        background_tasks = set(
+            getattr(_app.state, "background_tasks", set())
+        )
+        for task in background_tasks:
+            task.cancel()
+        if background_tasks:
+            await asyncio.gather(*background_tasks, return_exceptions=True)
+        _app.state.background_tasks.clear()
+
         # Best-effort teardown of the pooled probe client so httpx doesn't warn
         # about an unclosed client at interpreter shutdown.
         try:
@@ -189,6 +199,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=_lifespan,
 )
+app.state.background_tasks = set()
 
 
 class _DataSourceHeaderMiddleware:

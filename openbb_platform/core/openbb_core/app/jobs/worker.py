@@ -91,12 +91,22 @@ class JobWorker:
             min(MAX_HEARTBEAT_SECONDS, lease_seconds / HEARTBEAT_LEASE_FRACTION),
         )
 
-    def run_once(self, now: datetime | None = None) -> JobOutcome | None:
+    def run_once(
+        self,
+        now: datetime | None = None,
+        stop_event: threading.Event | None = None,
+    ) -> JobOutcome | None:
         """Run one scheduling-and-execution cycle; claim and run at most one job."""
+        if stop_event is not None and stop_event.is_set():
+            return None
+
         self._service.reconcile_definitions(now)
         self._service.heartbeat(self._worker_id, now, hostname=self._hostname)
         self._service.recover_abandoned_runs(now)
         self._service.enqueue_due(now)
+
+        if stop_event is not None and stop_event.is_set():
+            return None
 
         run = self._service.claim_next(self._worker_id, now=now)
         if run is None:
@@ -116,7 +126,7 @@ class JobWorker:
         """
         event = stop_event or threading.Event()
         while not event.is_set():
-            outcome = self.run_once()
+            outcome = self.run_once(stop_event=event)
             if outcome is None:
                 event.wait(poll_seconds)
 

@@ -93,6 +93,15 @@ public sealed class ServiceHostOptionsValidator : IValidateOptions<ServiceHostOp
             failures.Add($"{prefix}.BindAddress must be a loopback IP address.");
         }
 
+        if (component.Arguments.Any(
+                argument => string.Equals(
+                    argument,
+                    "--reload",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            failures.Add($"{prefix}.Arguments cannot contain --reload.");
+        }
+
         ValidatePositive(component.ReadinessTimeout, $"{prefix}.ReadinessTimeout", failures);
         ValidatePositive(
             component.GracefulShutdownTimeout,
