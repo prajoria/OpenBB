@@ -18,7 +18,7 @@ from decimal import Decimal
 import pytest
 from openbb_techtrade.engine.movers import list_movers
 from openbb_techtrade.engine.plan import build_plans
-from openbb_techtrade.engine.scan import _rank_key, scan_segments
+from openbb_techtrade.engine.scan import ScanSegmentWarning, _rank_key, scan_segments
 from openbb_techtrade.models import MoverSignal, TradePlan
 
 _AS_OF = date(2024, 1, 12)
@@ -193,7 +193,7 @@ def test_scan_segments_skip_and_continue_on_segment_build_failure():
             raise RuntimeError("synthetic mover/panel failure")
         return [signals[(s, segment)] for s in (symbols or []) if (s, segment) in signals]
 
-    with pytest.warns(UserWarning, match="Energy"):
+    with pytest.warns(ScanSegmentWarning, match="Energy") as caught:
         plans = scan_segments(
             as_of=_AS_OF, simulate=False,
             candidate_fetcher=_candidate_fetcher(
@@ -203,6 +203,8 @@ def test_scan_segments_skip_and_continue_on_segment_build_failure():
             signal_fetcher=_boom_for_energy,
             level_fetcher=_level_fetcher(),
         )
+    assert caught[0].message.segment == "Energy"
+    assert caught[0].message.error_type == "RuntimeError"
     assert "Energy" not in {p.segment for p in plans}
     assert len({p.segment for p in plans}) == 10  # the other 10 sectors survive
 
