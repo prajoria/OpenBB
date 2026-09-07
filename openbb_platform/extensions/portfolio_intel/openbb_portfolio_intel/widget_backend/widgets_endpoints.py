@@ -21,9 +21,20 @@ import math
 import os
 import re
 import time
-from datetime import date, timedelta
+from datetime import (
+    date,
+    datetime as _datetime,
+    timedelta,
+    timezone as _timezone,
+)
+from functools import lru_cache
 
 from fastapi import HTTPException, Query, Request
+from openbb_core.api.dependency.jobs import get_job_service
+from openbb_techtrade.engine.scan_runner import DEFAULT_SEGMENTS
+from openbb_techtrade.snapshots.models import DEFAULT_SCAN_KIND, ScanSnapshot
+from openbb_techtrade.snapshots.sqlite import SqliteScanSnapshotStore
+from openbb_techtrade.snapshots.store import ScanSnapshotStore
 
 from openbb_portfolio_intel.basket_resolver import (
     BasketNotFoundError,
@@ -2242,32 +2253,14 @@ def equity_peer_multiples(
 # via ``JobService.enqueue`` and returns 202; it never calls
 # ``scan_segments()`` or any other computation directly.
 
-from datetime import (  # noqa: E402
-    datetime as _datetime,
-    timezone as _timezone,
-)
-
-from openbb_techtrade.engine.scan_runner import DEFAULT_SEGMENTS  # noqa: E402
-from openbb_techtrade.snapshots.models import (
-    DEFAULT_SCAN_KIND,
-    ScanSnapshot,
-)  # noqa: E402
-from openbb_techtrade.snapshots.sqlite import SqliteScanSnapshotStore  # noqa: E402
-from openbb_techtrade.snapshots.store import ScanSnapshotStore  # noqa: E402
-
-#: Module-level lazy singleton for the snapshot store.
-_scan_store: ScanSnapshotStore | None = None
-
 #: Staleness threshold: snapshots older than 26 hours are flagged.
 _STALE_HOURS = 26
 
 
+@lru_cache(maxsize=1)
 def _get_scan_store() -> ScanSnapshotStore:
     """Return (or create) the module-level snapshot store singleton."""
-    global _scan_store  # noqa: PLW0603
-    if _scan_store is None:
-        _scan_store = SqliteScanSnapshotStore()
-    return _scan_store
+    return SqliteScanSnapshotStore()
 
 
 def _snapshot_meta(snapshots: list[ScanSnapshot]) -> dict:
@@ -2345,8 +2338,7 @@ def tt_scan_segment_movers(
             snapshot.rows, key=lambda row: abs(float(row.get("score") or 0))
         )
         score = float(strongest.get("score") or 0)
-        direction = str(strongest.get("direction", "")).lower()
-        signed_score = -score if direction in {"short", "bearish", "sell"} else score
+        signed_score = score
         rows.append(
             {
                 "segment": snapshot.segment,
@@ -2415,14 +2407,6 @@ def tt_scan_trigger(request: Request) -> dict:
     scan computation directly.
     """
     _require_auth(request)
-    try:
-        from openbb_core.api.dependency.jobs import get_job_service
-    except ImportError:
-        raise HTTPException(
-            status_code=503,
-            detail="Jobs service unavailable — openbb-core jobs module not installed.",
-        ) from None
-
     try:
         service = get_job_service()
     except Exception:
