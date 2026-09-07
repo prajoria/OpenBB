@@ -132,16 +132,18 @@ public sealed class ChildProcess(
             return;
         }
 
-        _ = process.CloseMainWindow();
-        using var gracefulTimeout = new CancellationTokenSource(
-            Definition.GracefulShutdownTimeout);
-        try
+        if (process.CloseMainWindow())
         {
-            await process.WaitForExitAsync(gracefulTimeout.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (gracefulTimeout.IsCancellationRequested)
-        {
-            // Escalate below.
+            using var gracefulTimeout = new CancellationTokenSource(
+                Definition.GracefulShutdownTimeout);
+            try
+            {
+                await process.WaitForExitAsync(gracefulTimeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (gracefulTimeout.IsCancellationRequested)
+            {
+                // Escalate below.
+            }
         }
 
         if (!process.HasExited)

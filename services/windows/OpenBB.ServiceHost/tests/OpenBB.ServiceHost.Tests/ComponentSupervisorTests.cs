@@ -197,9 +197,9 @@ public sealed class ComponentSupervisorTests
             NullLogger<ChildProcess>.Instance);
 
         await child.StartAsync(CancellationToken.None);
-        await WaitUntilAsync(() => File.Exists(childPidPath));
+        var descendantPid = 0;
+        await WaitUntilAsync(() => TryReadProcessId(childPidPath, out descendantPid));
         var parentPid = child.Id;
-        var descendantPid = int.Parse(await File.ReadAllTextAsync(childPidPath));
 
         await child.StopAsync(CancellationToken.None);
 
@@ -267,9 +267,23 @@ public sealed class ComponentSupervisorTests
             using var process = Process.GetProcessById(processId);
             return process.HasExited;
         }
+
         catch (ArgumentException)
         {
             return true;
+        }
+    }
+
+    private static bool TryReadProcessId(string path, out int processId)
+    {
+        processId = 0;
+        try
+        {
+            return int.TryParse(File.ReadAllText(path), out processId);
+        }
+        catch (IOException)
+        {
+            return false;
         }
     }
 
