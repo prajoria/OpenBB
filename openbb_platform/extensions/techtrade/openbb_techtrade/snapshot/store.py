@@ -369,6 +369,46 @@ def _promotion_refusal(
     return None
 
 
+# --- Optimistic-concurrency vocabulary shared by both backends -------------
+#
+# Every lifecycle write is a *read, decide, write* sequence, and the row
+# can move in between (another worker promotes it, a replay supersedes
+# it). Both backends therefore re-assert what they read in the WHERE
+# clause of every write and treat "0 rows affected" as a refusal, using
+# these identical reasons so the two logs are diff-able.
+
+_VALIDATION_RACE_REASON = (
+    "row changed state between read and write; verdict not persisted"
+)
+_LIVE_RACE_REASON = "LIVE row changed between read and write"
+_CANDIDATE_RACE_REASON = "candidate row changed between read and write"
+_LIVE_COLLISION_REASON = "another writer already installed a LIVE row for this key"
+
+
+class _PromotionRefused(Exception):
+    """Internal signal: unwind ``promote()``'s transaction without an error.
+
+    Raised so the enclosing transaction context manager performs its
+    ``ROLLBACK`` — returning ``False`` from inside the ``with`` block
+    would *commit* whatever the refusal was meant to undo.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+def _is_integrity_error(exc: BaseException) -> bool:
+    """Report whether ``exc`` is a DB-API ``IntegrityError`` from any driver.
+
+    PEP 249 mandates the class *name* but no shared base class, and
+    importing ``mysql.connector`` here would drag a MySQL dependency into
+    the SQLite backend. Matching the name across the MRO keeps the check
+    dialect-agnostic (and also recognizes the test doubles' subclasses).
+    """
+    return any(base.__name__.endswith("IntegrityError") for base in type(exc).__mro__)
+
+
 def _kept_sessions(sessions: list, keep_sessions: int) -> list | None:
     """Return the newest ``keep_sessions`` values, or ``None`` if none drop.
 
@@ -494,10 +534,18 @@ class SqliteSnapshotStore:
         self._conn.executescript(_SQLITE_SCHEMA)
 
     @contextmanager
-    def _tx(self) -> Iterator[None]:
-        """Transaction scope — all-or-nothing for multi-statement writes."""
+    def _tx(self, *, immediate: bool = False) -> Iterator[None]:
+        """Transaction scope — all-or-nothing for multi-statement writes.
+
+        ``immediate=True`` opens with ``BEGIN IMMEDIATE``, taking SQLite's
+        database-wide write lock *before* the first read. That is this
+        dialect's stand-in for MySQL's ``SELECT ... FOR UPDATE``: SQLite
+        has no row locks, so serializing the whole read-decide-write
+        sequence is the only way to stop another connection committing
+        inside it.
+        """
         try:
-            self._conn.execute("BEGIN")
+            self._conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
             yield
             self._conn.execute("COMMIT")
         except Exception:
@@ -577,6 +625,12 @@ class SqliteSnapshotStore:
         Refuses (without mutating anything) if the row's state is not
         STAGING — a LIVE or SUPERSEDED row is immutable history and must
         never have its ``validated``/``validation_reason`` rewritten.
+
+        The state check is re-asserted in the UPDATE's WHERE clause: the
+        gate runs between the read and the write, so a concurrent
+        ``promote()`` can move the row in that window. Zero rows affected
+        means exactly that, and is reported as a refusal rather than
+        being mistaken for a persisted verdict.
         """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
@@ -591,10 +645,10 @@ class SqliteSnapshotStore:
         gate = validator or default_validator
         result = gate(row)
         with self._tx():
-            self._conn.execute(
+            changed = self._conn.execute(
                 "UPDATE pi_snapshot SET validated = ?, validation_reason = ? "
                 "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
-                "AND job_run_id = ?",
+                "AND job_run_id = ? AND state = ?",
                 (
                     1 if result.ok else 0,
                     result.reason,
@@ -602,8 +656,12 @@ class SqliteSnapshotStore:
                     entity_key,
                     as_of_session.isoformat(),
                     job_run_id,
+                    SnapshotState.STAGING.value,
                 ),
-            )
+            ).rowcount
+        if changed != 1:
+            logger.warning("snapshot validation refused: %s", _VALIDATION_RACE_REASON)
+            return ValidationResult(ok=False, reason=_VALIDATION_RACE_REASON)
         return result
 
     def promote(
@@ -621,40 +679,71 @@ class SqliteSnapshotStore:
         current LIVE rank (keep-last-good); else flips the prior LIVE row
         to superseded and this row to LIVE. Returns ``True`` on success,
         ``False`` on any refusal (logs a WARNING).
+
+        Concurrency: the whole read-decide-write sequence runs under
+        ``BEGIN IMMEDIATE`` (SQLite's only lock granularity), and both
+        writes additionally pin the exact rows that were read — the
+        demotion by the incumbent's primary key, the promotion by the
+        candidate's — with a ``state`` predicate. A row that moved in the
+        window yields zero affected rows and a refusal instead of a
+        silent clobber, and a unique-index collision from a writer that
+        bypassed this method is reported as ``False`` rather than raised.
         """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
-        candidate = self._get_row(dataset, entity_key, as_of_session, job_run_id)
-        live = self.get_live(dataset, entity_key)
-        refusal = _promotion_refusal(candidate, live)
-        if refusal is not None:
-            logger.warning("snapshot promotion refused: %s", refusal)
-            return False
-        with self._tx():
-            if live is not None:
-                self._conn.execute(
+        try:
+            with self._tx(immediate=True):
+                candidate = self._get_row(
+                    dataset, entity_key, as_of_session, job_run_id
+                )
+                live = self.get_live(dataset, entity_key)
+                refusal = _promotion_refusal(candidate, live)
+                if refusal is not None:
+                    raise _PromotionRefused(refusal)
+                if live is not None:
+                    self._demote(dataset, entity_key, live)
+                promoted = self._conn.execute(
                     "UPDATE pi_snapshot SET state = ? "
-                    "WHERE dataset = ? AND entity_key = ? AND state = ?",
+                    "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
+                    "AND job_run_id = ? AND state = ?",
                     (
-                        SnapshotState.SUPERSEDED.value,
+                        SnapshotState.LIVE.value,
                         dataset,
                         entity_key,
-                        SnapshotState.LIVE.value,
+                        as_of_session.isoformat(),
+                        job_run_id,
+                        SnapshotState.STAGING.value,
                     ),
-                )
-            self._conn.execute(
-                "UPDATE pi_snapshot SET state = ? "
-                "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
-                "AND job_run_id = ?",
-                (
-                    SnapshotState.LIVE.value,
-                    dataset,
-                    entity_key,
-                    as_of_session.isoformat(),
-                    job_run_id,
-                ),
-            )
+                ).rowcount
+                if promoted != 1:
+                    raise _PromotionRefused(_CANDIDATE_RACE_REASON)
+        except _PromotionRefused as refused:
+            logger.warning("snapshot promotion refused: %s", refused.reason)
+            return False
+        except Exception as exc:  # noqa: BLE001
+            if not _is_integrity_error(exc):
+                raise
+            logger.warning("snapshot promotion refused: %s", _LIVE_COLLISION_REASON)
+            return False
         return True
+
+    def _demote(self, dataset: str, entity_key: str, live: SnapshotRow) -> None:
+        """Supersede the exact incumbent row that was read, or refuse."""
+        demoted = self._conn.execute(
+            "UPDATE pi_snapshot SET state = ? "
+            "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
+            "AND job_run_id = ? AND state = ?",
+            (
+                SnapshotState.SUPERSEDED.value,
+                dataset,
+                entity_key,
+                live.as_of_session.isoformat(),
+                live.job_run_id,
+                SnapshotState.LIVE.value,
+            ),
+        ).rowcount
+        if demoted != 1:
+            raise _PromotionRefused(_LIVE_RACE_REASON)
 
     def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
         """Compute-free single-row read of ``state='live'``; ``None`` if absent."""

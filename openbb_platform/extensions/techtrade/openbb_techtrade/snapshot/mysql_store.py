@@ -64,14 +64,20 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from openbb_techtrade.snapshot.store import (
+    _CANDIDATE_RACE_REASON,
+    _LIVE_COLLISION_REASON,
+    _LIVE_RACE_REASON,
+    _VALIDATION_RACE_REASON,
     RetentionPolicy,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
     ValidationResult,
     _dumps_payload,
+    _is_integrity_error,
     _kept_sessions,
     _promotion_refusal,
+    _PromotionRefused,
     _restamp_live,
     _row_from_mapping,
     _should_skip,
@@ -134,6 +140,14 @@ _SELECT_LIVE = (
     f"SELECT {_COLUMNS} FROM pi_snapshot "
     "WHERE dataset = %s AND entity_key = %s AND state = %s"
 )
+
+# Locking variants. InnoDB takes an exclusive row lock for the rest of the
+# transaction, so the candidate and the incumbent LIVE row cannot move
+# between promote()'s read and its write. They are only ever issued on the
+# same connection that performs the writes — a lock taken on a different
+# pooled session would be released the moment that session went back.
+_SELECT_BY_PK_FOR_UPDATE = _SELECT_BY_PK + " FOR UPDATE"
+_SELECT_LIVE_FOR_UPDATE = _SELECT_LIVE + " FOR UPDATE"
 
 _SELECT_AS_OF = (
     f"SELECT {_COLUMNS} FROM pi_snapshot "
@@ -254,17 +268,25 @@ class MysqlSnapshotStore:
         entity_key: str,
         as_of_session: date,
         job_run_id: str,
+        *,
+        for_update: bool = False,
     ) -> SnapshotRow | None:
         """Fetch the exact row identified by the full primary key."""
         return cls._fetch_row(
-            conn, _SELECT_BY_PK, (dataset, entity_key, as_of_session, job_run_id)
+            conn,
+            _SELECT_BY_PK_FOR_UPDATE if for_update else _SELECT_BY_PK,
+            (dataset, entity_key, as_of_session, job_run_id),
         )
 
     @classmethod
-    def _get_live(cls, conn: Any, dataset: str, entity_key: str) -> SnapshotRow | None:
+    def _get_live(
+        cls, conn: Any, dataset: str, entity_key: str, *, for_update: bool = False
+    ) -> SnapshotRow | None:
         """Follow the explicit LIVE pointer — never "newest session wins"."""
         return cls._fetch_row(
-            conn, _SELECT_LIVE, (dataset, entity_key, SnapshotState.LIVE.value)
+            conn,
+            _SELECT_LIVE_FOR_UPDATE if for_update else _SELECT_LIVE,
+            (dataset, entity_key, SnapshotState.LIVE.value),
         )
 
     # --- Protocol methods ----------------------------------------------
@@ -321,6 +343,12 @@ class MysqlSnapshotStore:
 
         Refuses (without mutating anything) if the row's state is not
         STAGING — a LIVE or SUPERSEDED row is immutable history.
+
+        The gate runs *between* the read and the write, so the UPDATE
+        re-asserts ``state = 'staging'`` in its WHERE clause. If a
+        concurrent ``promote()`` moved the row in that window, zero rows
+        are affected and the verdict is refused rather than forged onto
+        a row that is no longer staged.
         """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
@@ -341,7 +369,7 @@ class MysqlSnapshotStore:
                 cur.execute(
                     "UPDATE pi_snapshot SET validated = %s, validation_reason = %s "
                     "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
-                    "AND job_run_id = %s",
+                    "AND job_run_id = %s AND state = %s",
                     (
                         1 if result.ok else 0,
                         result.reason,
@@ -349,10 +377,15 @@ class MysqlSnapshotStore:
                         entity_key,
                         as_of_session,
                         job_run_id,
+                        SnapshotState.STAGING.value,
                     ),
                 )
+                changed = cur.rowcount
             finally:
                 cur.close()
+        if changed != 1:
+            logger.warning("snapshot validation refused: %s", _VALIDATION_RACE_REASON)
+            return ValidationResult(ok=False, reason=_VALIDATION_RACE_REASON)
         return result
 
     def promote(
@@ -364,51 +397,87 @@ class MysqlSnapshotStore:
     ) -> bool:
         """Atomically promote a validated staged row to LIVE.
 
-        The candidate lookup, the incumbent-LIVE lookup, the demotion and
-        the promotion all run inside one transaction, so the generated
-        ``live_key`` unique constraint is never transiently violated and
-        no concurrent writer can slip a different LIVE row in between.
+        Everything runs in one transaction on one pooled connection: the
+        candidate and the incumbent LIVE row are read ``FOR UPDATE`` (so
+        InnoDB holds exclusive row locks on them for the rest of the
+        transaction), then the demotion and the promotion are pinned to
+        the exact rows that were read, each with a ``state`` predicate.
+        A row that moved anyway yields zero affected rows and a refusal
+        instead of a silent clobber; a ``live_key`` collision caused by a
+        writer that bypassed this method is reported as ``False`` rather
+        than leaking a driver ``IntegrityError`` to the caller.
+
         Returns ``True`` on success, ``False`` on any refusal (WARNING).
         """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
-        with self.transaction() as conn:
-            candidate = self._get_row(
-                conn, dataset, entity_key, as_of_session, job_run_id
-            )
-            live = self._get_live(conn, dataset, entity_key)
-            refusal = _promotion_refusal(candidate, live)
-            if refusal is not None:
-                logger.warning("snapshot promotion refused: %s", refusal)
-                return False
-            cur = conn.cursor()
-            try:
-                if live is not None:
-                    cur.execute(
-                        "UPDATE pi_snapshot SET state = %s "
-                        "WHERE dataset = %s AND entity_key = %s AND state = %s",
-                        (
-                            SnapshotState.SUPERSEDED.value,
-                            dataset,
-                            entity_key,
-                            SnapshotState.LIVE.value,
-                        ),
-                    )
+        try:
+            with self.transaction() as conn:
+                self._promote_locked(
+                    conn, dataset, entity_key, as_of_session, job_run_id
+                )
+        except _PromotionRefused as refused:
+            logger.warning("snapshot promotion refused: %s", refused.reason)
+            return False
+        except Exception as exc:  # noqa: BLE001
+            if not _is_integrity_error(exc):
+                raise
+            logger.warning("snapshot promotion refused: %s", _LIVE_COLLISION_REASON)
+            return False
+        return True
+
+    @classmethod
+    def _promote_locked(  # pylint: disable=too-many-positional-arguments
+        cls,
+        conn: Any,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+    ) -> None:
+        """Locking read + guarded writes; raises :class:`_PromotionRefused`."""
+        candidate = cls._get_row(
+            conn, dataset, entity_key, as_of_session, job_run_id, for_update=True
+        )
+        live = cls._get_live(conn, dataset, entity_key, for_update=True)
+        refusal = _promotion_refusal(candidate, live)
+        if refusal is not None:
+            raise _PromotionRefused(refusal)
+        cur = conn.cursor()
+        try:
+            if live is not None:
                 cur.execute(
                     "UPDATE pi_snapshot SET state = %s "
                     "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
-                    "AND job_run_id = %s",
+                    "AND job_run_id = %s AND state = %s",
                     (
-                        SnapshotState.LIVE.value,
+                        SnapshotState.SUPERSEDED.value,
                         dataset,
                         entity_key,
-                        as_of_session,
-                        job_run_id,
+                        live.as_of_session,
+                        live.job_run_id,
+                        SnapshotState.LIVE.value,
                     ),
                 )
-            finally:
-                cur.close()
-        return True
+                if cur.rowcount != 1:
+                    raise _PromotionRefused(_LIVE_RACE_REASON)
+            cur.execute(
+                "UPDATE pi_snapshot SET state = %s "
+                "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
+                "AND job_run_id = %s AND state = %s",
+                (
+                    SnapshotState.LIVE.value,
+                    dataset,
+                    entity_key,
+                    as_of_session,
+                    job_run_id,
+                    SnapshotState.STAGING.value,
+                ),
+            )
+            if cur.rowcount != 1:
+                raise _PromotionRefused(_CANDIDATE_RACE_REASON)
+        finally:
+            cur.close()
 
     def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
         """Compute-free single-row read of ``state='live'``; ``None`` if absent."""

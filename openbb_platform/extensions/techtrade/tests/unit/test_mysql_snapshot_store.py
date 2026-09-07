@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import inspect
 import itertools
+import logging
 import re
 import sqlite3
 from datetime import date, datetime, timezone
@@ -169,11 +170,26 @@ def _convert(name: str, value: Any) -> Any:
     return value
 
 
+_FOR_UPDATE_RE = re.compile(r"\s+FOR\s+UPDATE\s*$", re.I)
+
+
+def _to_sqlite(sql: str) -> str:
+    """Rewrite a MySQL statement for the SQLite engine behind the double.
+
+    ``SELECT ... FOR UPDATE`` is a real InnoDB row lock; SQLite has no
+    equivalent, so the clause is stripped for execution. Whether it was
+    *requested* is still recorded verbatim in ``pool.statements``, which
+    is what the locking tests assert on.
+    """
+    return _FOR_UPDATE_RE.sub("", sql).replace("%s", "?")
+
+
 class _FakeCursor:
     def __init__(self, conn: _FakeConnection, *, dictionary: bool) -> None:
         self._conn = conn
         self._dictionary = dictionary
         self._cursor = conn.raw.cursor()
+        self._executed: tuple[str, tuple] | None = None
 
     @property
     def rowcount(self) -> int:
@@ -195,10 +211,11 @@ class _FakeCursor:
         self._conn.record(sql, bound)
         try:
             self._cursor.execute(
-                sql.replace("%s", "?"), tuple(_adapt(value) for value in bound)
+                _to_sqlite(sql), tuple(_adapt(value) for value in bound)
             )
         except sqlite3.IntegrityError as exc:
             raise _FakeIntegrityError(str(exc)) from exc
+        self._executed = (sql, bound)
 
     def _shape(self, row: Any) -> Any:
         if row is None:
@@ -217,19 +234,34 @@ class _FakeCursor:
 
     def close(self) -> None:
         self._cursor.close()
+        # The interleaving hook runs here, not at execute() time: a
+        # half-stepped SQLite SELECT still holds a shared lock, which
+        # would make the *other* actor fail to commit instead of racing.
+        # Closing first mirrors the real driver, where a completed
+        # statement no longer blocks another session's write.
+        executed, self._executed = self._executed, None
+        if executed is not None:
+            self._conn.fire(*executed)
 
 
 class _FakeConnection:
-    def __init__(self, pool: _FakePool) -> None:
+    def __init__(
+        self, pool: _BasePool, raw: sqlite3.Connection, conn_id: int, *, owns_raw: bool
+    ) -> None:
         self._pool = pool
-        self.raw = pool.raw
+        self._owns_raw = owns_raw
+        self.raw = raw
+        self.conn_id = conn_id
 
     def cursor(self, dictionary: bool = False, buffered: bool = False) -> _FakeCursor:
         del buffered
         return _FakeCursor(self, dictionary=dictionary)
 
     def record(self, sql: str, params: tuple) -> None:
-        self._pool.statements.append((sql, params))
+        self._pool.record(self.conn_id, sql, params)
+
+    def fire(self, sql: str, params: tuple) -> None:
+        self._pool.fire(sql, params)
 
     def commit(self) -> None:
         self._pool.commits += 1
@@ -242,20 +274,94 @@ class _FakeConnection:
     def close(self) -> None:
         # Pooled connections are returned, not torn down.
         self._pool.returned += 1
+        if self._owns_raw:
+            self.raw.close()
 
 
-class _FakePool:
-    def __init__(self, path: Path | str) -> None:
-        self.raw = sqlite3.connect(str(path))
+class _BasePool:
+    """Bookkeeping shared by both pool doubles."""
+
+    def __init__(self) -> None:
         self.commits = 0
         self.rollbacks = 0
         self.handed_out = 0
         self.returned = 0
         self.statements: list[tuple[str, tuple]] = []
+        self.calls: list[tuple[int, str, tuple]] = []
+        self.after_execute: Any = None
+        self._ids = itertools.count(1)
+        self._in_hook = False
+
+    def record(self, conn_id: int, sql: str, params: tuple) -> None:
+        self.statements.append((sql, params))
+        self.calls.append((conn_id, sql, params))
+
+    def fire(self, sql: str, params: tuple) -> None:
+        """Run the interleaving hook, if any, after a statement executed.
+
+        Re-entrancy is suppressed so a hook that itself drives the store
+        (the whole point — it plays the *other* concurrent writer) cannot
+        recursively re-trigger itself.
+        """
+        if self.after_execute is None or self._in_hook:
+            return
+        self._in_hook = True
+        try:
+            self.after_execute(sql, params)
+        finally:
+            self._in_hook = False
+
+
+class _FakePool(_BasePool):
+    """Single-connection pool: fast, and enough for single-actor contracts."""
+
+    def __init__(self, path: Path | str) -> None:
+        super().__init__()
+        self.raw = sqlite3.connect(str(path))
 
     def get_connection(self) -> _FakeConnection:
         self.handed_out += 1
-        return _FakeConnection(self)
+        return _FakeConnection(self, self.raw, next(self._ids), owns_raw=False)
+
+
+class _RealisticPool(_BasePool):
+    """Pool whose connections are genuinely independent, like the real driver.
+
+    ``mysql-connector``'s ``get_connection()`` hands out a *distinct*
+    session with its own transaction; the single-connection
+    :class:`_FakePool` cannot express that, so it can never exhibit a
+    read-then-write race. Here each borrow opens its own SQLite
+    connection to the same file, so one actor's commit becomes visible
+    to another actor between its read and its write — exactly the
+    window ``promote()``/``validate()`` must defend.
+    """
+
+    def __init__(self, path: Path | str) -> None:
+        super().__init__()
+        self.path = str(path)
+
+    def get_connection(self) -> _FakeConnection:
+        self.handed_out += 1
+        raw = sqlite3.connect(self.path, timeout=1.0)
+        return _FakeConnection(self, raw, next(self._ids), owns_raw=True)
+
+    def query(self, sql: str, params: tuple = ()) -> list[tuple]:
+        """Out-of-band read for assertions (its own short-lived connection)."""
+        conn = sqlite3.connect(self.path, timeout=1.0)
+        try:
+            return conn.execute(sql, params).fetchall()
+        finally:
+            conn.close()
+
+    def live_job_run_ids(self) -> list[str]:
+        return [
+            row[0]
+            for row in self.query(
+                "SELECT job_run_id FROM pi_snapshot WHERE state = ? "
+                "ORDER BY job_run_id",
+                (SnapshotState.LIVE.value,),
+            )
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +377,16 @@ def pool(tmp_path: Path) -> _FakePool:
 @pytest.fixture
 def store(pool: _FakePool) -> MysqlSnapshotStore:
     return MysqlSnapshotStore(connection_pool=pool)
+
+
+@pytest.fixture
+def real_pool(tmp_path: Path) -> _RealisticPool:
+    return _RealisticPool(tmp_path / "snapshot_mysql_race.db")
+
+
+@pytest.fixture
+def real_store(real_pool: _RealisticPool) -> MysqlSnapshotStore:
+    return MysqlSnapshotStore(connection_pool=real_pool)
 
 
 _job_run_ids = itertools.count(1)
@@ -931,3 +1047,327 @@ def test_close_does_not_tear_down_the_shared_pool(
     # The pool is shared with the FMP cache; a second store must still work.
     second = MysqlSnapshotStore(connection_pool=pool)
     assert second.get_live("techtrade.movers", "sector=technology") is not None
+
+
+# ---------------------------------------------------------------------------
+# Concurrency: the read -> write window (review findings 1 and 2)
+# ---------------------------------------------------------------------------
+#
+# The single-connection `_FakePool` above cannot express a race: every
+# borrow is the same session, so nothing can commit "in between". These
+# tests therefore run on `_RealisticPool`, whose `get_connection()`
+# returns an independent session exactly like `mysql-connector`'s, and
+# drive a second actor from the double's `after_execute` hook so the
+# interleaving is deterministic rather than timing-dependent.
+
+_MYSQL_LOGGER = "openbb_techtrade.snapshot.mysql_store"
+
+
+def _hook_once(pool: _RealisticPool, needle: str, action: Any) -> dict:
+    """Fire `action()` exactly once, right after `needle` is executed."""
+    state = {"fired": False}
+
+    def _hook(sql: str, params: tuple) -> None:
+        del params
+        if state["fired"] or needle not in sql:
+            return
+        state["fired"] = True
+        action()
+
+    pool.after_execute = _hook
+    return state
+
+
+def test_validate_update_is_scoped_to_the_staging_state(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """Invariant: the validate UPDATE re-checks STAGING in its WHERE clause.
+
+    Reading the row and writing its verdict are two statements; without
+    a `state` predicate on the write, a row promoted in between has its
+    audit fields silently rewritten.
+    """
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+
+    updates = [
+        (sql, params)
+        for sql, params in pool.statements
+        if sql.lstrip().upper().startswith("UPDATE PI_SNAPSHOT SET VALIDATED")
+    ]
+    assert len(updates) == 1
+    sql, params = updates[0]
+    assert "AND state = %s" in sql
+    assert SnapshotState.STAGING.value in params
+
+
+def test_validate_refuses_when_the_row_leaves_staging_between_read_and_write(
+    real_store: MysqlSnapshotStore,
+    real_pool: _RealisticPool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Race guard: a concurrent promotion must void an in-flight validate.
+
+    The validator callable is the seam *between* validate's read and its
+    write, so promoting from inside it reproduces the window exactly. A
+    backend without the `state` predicate happily stamps the rejecting
+    verdict onto the now-LIVE row, forging its audit trail.
+    """
+    staged = _stage(real_store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert real_store.validate(*staged).ok
+    assert real_store.promote(*staged)
+
+    later = _stage(
+        real_store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 5),
+    )
+    other = MysqlSnapshotStore(connection_pool=real_pool)
+
+    def _forge(row: SnapshotRow) -> ValidationResult:
+        del row
+        # A different session promotes the row we just read.
+        assert other.validate(*later).ok
+        assert other.promote(*later)
+        return ValidationResult(ok=False, reason="forged-verdict")
+
+    with caplog.at_level(logging.WARNING, logger=_MYSQL_LOGGER):
+        result = real_store.validate(*later, validator=_forge)
+
+    assert result.ok is False
+    assert "forged-verdict" not in result.reason
+    assert "changed" in result.reason.lower()
+    assert [r for r in caplog.records if "validation refused" in r.getMessage()]
+
+    live = real_store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == later[3]
+    assert live.state == SnapshotState.LIVE
+    assert live.validated is True
+    assert live.validation_reason == ""
+
+
+def test_promote_locks_the_candidate_and_live_rows_on_one_connection(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """Invariant: promote's reads take row locks on its own transaction.
+
+    Reading the candidate and the incumbent LIVE row through a separate
+    pooled connection (or without `FOR UPDATE`) leaves the whole
+    lifecycle unserialised: the rows can move under the transaction that
+    is about to rewrite them.
+    """
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+
+    before = len(pool.calls)
+    assert store.promote(*staged)
+    promote_calls = pool.calls[before:]
+
+    selects = [
+        call for call in promote_calls if call[1].lstrip().upper().startswith("SELECT")
+    ]
+    assert len(selects) == 2, "promote must read the candidate and the LIVE row"
+    for _, sql, _params in selects:
+        assert re.search(
+            r"FOR\s+UPDATE\s*$", sql.strip(), re.I
+        ), f"promote read is not a locking read: {sql!r}"
+
+    conn_ids = {call[0] for call in promote_calls}
+    assert len(conn_ids) == 1, (
+        f"promote spread its statements over {len(conn_ids)} connections; "
+        "the locking reads must share the writing transaction"
+    )
+
+
+def test_promote_refuses_when_the_incumbent_live_row_moves_mid_transaction(
+    real_store: MysqlSnapshotStore,
+    real_pool: _RealisticPool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Race guard: never demote a LIVE row other than the one we read.
+
+    Without pinning the demotion to the incumbent's primary key, a
+    promotion that lands between our read and our write is silently
+    clobbered: we demote *its* row and install our own, losing a newer
+    good snapshot with no error anywhere.
+    """
+    incumbent = _stage(
+        real_store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+    )
+    assert real_store.validate(*incumbent).ok
+    assert real_store.promote(*incumbent)
+
+    mine = _stage(
+        real_store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+    )
+    theirs = _stage(
+        real_store,
+        payload={"rows": [{"symbol": "NVDA"}]},
+        as_of_session=date(2026, 9, 5),
+    )
+    assert real_store.validate(*mine).ok
+    assert real_store.validate(*theirs).ok
+
+    other = MysqlSnapshotStore(connection_pool=real_pool)
+    fired = _hook_once(
+        real_pool,
+        "state = %s FOR UPDATE",
+        lambda: other.promote(*theirs),
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_MYSQL_LOGGER):
+        promoted = real_store.promote(*mine)
+
+    assert fired["fired"], "the interleaving hook never ran — test is inert"
+    assert promoted is False
+    assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
+    assert real_pool.live_job_run_ids() == [theirs[3]]
+
+    states = {
+        row.job_run_id: row.state
+        for row in real_store.list_history("techtrade.movers", "sector=technology")
+    }
+    assert states[mine[3]] == SnapshotState.STAGING
+    assert states[theirs[3]] == SnapshotState.LIVE
+    assert states[incumbent[3]] == SnapshotState.SUPERSEDED
+
+
+def test_promote_refuses_when_the_candidate_is_promoted_concurrently(
+    real_store: MysqlSnapshotStore,
+    real_pool: _RealisticPool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Race guard: the promoting UPDATE must re-assert STAGING.
+
+    Two workers promoting the same staged run must not both report
+    success: exactly one performed the transition, and the loser has to
+    say so.
+    """
+    mine = _stage(real_store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert real_store.validate(*mine).ok
+
+    other = MysqlSnapshotStore(connection_pool=real_pool)
+    fired = _hook_once(
+        real_pool,
+        "state = %s FOR UPDATE",
+        lambda: other.promote(*mine),
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_MYSQL_LOGGER):
+        promoted = real_store.promote(*mine)
+
+    assert fired["fired"], "the interleaving hook never ran — test is inert"
+    assert promoted is False
+    assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
+    assert real_pool.live_job_run_ids() == [mine[3]]
+
+
+def test_promote_converts_a_concurrent_live_key_collision_into_a_refusal(
+    real_store: MysqlSnapshotStore,
+    real_pool: _RealisticPool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Race guard: a unique-key collision surfaces as False, not a traceback.
+
+    A writer that bypasses `promote()` can still install a LIVE row in
+    the window; the generated `live_key` unique key then rejects ours.
+    Callers of a boolean API must not have to catch a driver-specific
+    IntegrityError to survive that.
+    """
+    mine = _stage(real_store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert real_store.validate(*mine).ok
+
+    fired = _hook_once(
+        real_pool,
+        "state = %s FOR UPDATE",
+        lambda: _direct_insert(real_pool, job_run_id="run-outsider", state="live"),
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_MYSQL_LOGGER):
+        promoted = real_store.promote(*mine)
+
+    assert fired["fired"], "the interleaving hook never ran — test is inert"
+    assert promoted is False
+    assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
+    assert real_pool.live_job_run_ids() == ["run-outsider"]
+
+    rolled_back = real_pool.query(
+        "SELECT state FROM pi_snapshot WHERE job_run_id = ?", (mine[3],)
+    )
+    assert rolled_back == [(SnapshotState.STAGING.value,)]
+
+
+def _direct_supersede(pool: _RealisticPool, job_run_id: str) -> None:
+    """Out-of-band demotion, committed on its own connection."""
+    conn = pool.get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE pi_snapshot SET state = %s WHERE job_run_id = %s",
+            (SnapshotState.SUPERSEDED.value, job_run_id),
+        )
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(
+    real_store: MysqlSnapshotStore,
+    real_pool: _RealisticPool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Race guard: "0 rows demoted" must abort, even with nothing in the way.
+
+    Here no competing row takes over LIVE, so the unique key never fires
+    and nothing downstream would complain — the demotion's affected-row
+    count is the *only* evidence that the incumbent this promotion was
+    ranked against is gone. Proceeding would install our row on the
+    strength of a keep-last-good comparison against a row that no longer
+    exists.
+    """
+    incumbent = _stage(
+        real_store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+    )
+    assert real_store.validate(*incumbent).ok
+    assert real_store.promote(*incumbent)
+
+    mine = _stage(
+        real_store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+    )
+    assert real_store.validate(*mine).ok
+
+    fired = _hook_once(
+        real_pool,
+        "state = %s FOR UPDATE",
+        lambda: _direct_supersede(real_pool, incumbent[3]),
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_MYSQL_LOGGER):
+        promoted = real_store.promote(*mine)
+
+    assert fired["fired"], "the interleaving hook never ran - test is inert"
+    assert promoted is False
+    assert [
+        r
+        for r in caplog.records
+        if "promotion refused" in r.getMessage()
+        and "LIVE row changed" in r.getMessage()
+    ]
+    assert real_pool.live_job_run_ids() == []
+
+    states = {
+        row.job_run_id: row.state
+        for row in real_store.list_history("techtrade.movers", "sector=technology")
+    }
+    assert states[mine[3]] == SnapshotState.STAGING
+    assert states[incumbent[3]] == SnapshotState.SUPERSEDED

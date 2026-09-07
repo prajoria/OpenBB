@@ -15,15 +15,17 @@ tasks (#1963 Task 4+); see the design spec
 §3-4).
 """
 
-# ruff: noqa: D101, D102, D103, D105
+# ruff: noqa: D101, D102, D103, D105, SLF001
 
 from __future__ import annotations
 
 import itertools
+import logging
 import sqlite3
 from datetime import date, datetime, timezone
 
 import pytest
+from openbb_techtrade.snapshot import store as store_module
 from openbb_techtrade.snapshot.store import (
     RetentionPolicy,
     SnapshotRow,
@@ -504,3 +506,308 @@ def test_bounded_prune_preserves_live_when_its_session_predates_the_kept_window(
     assert {row.payload["rows"][0]["symbol"] for row in history} == {"GOOG", "MSFT"}
     assert len(history) == 2
     store.close()
+
+
+# ---------------------------------------------------------------------------
+# Concurrency: the read -> write window (review findings 1 and 2)
+# ---------------------------------------------------------------------------
+#
+# SQLite has no row locks, so `promote()` opens its transaction with
+# `BEGIN IMMEDIATE` (a database-wide write lock taken *before* the reads)
+# and re-asserts the state it read in every WHERE clause. The two
+# defences are tested separately: a second connection exercises the
+# genuinely unlocked `validate()` window, while the `_promotion_refusal`
+# seam injects a mutation into the middle of `promote()`'s transaction to
+# prove the WHERE-clause predicates are load-bearing rather than
+# decorative.
+
+_STORE_LOGGER = "openbb_techtrade.snapshot.store"
+
+
+def test_validate_refuses_when_the_row_leaves_staging_between_read_and_write(
+    tmp_path, caplog
+) -> None:
+    """Race guard: a concurrent promotion must void an in-flight validate.
+
+    `validate()` reads the row, runs the gate, then writes the verdict.
+    A second connection promoting in that window must not end up with a
+    rewritten `validated`/`validation_reason` on its LIVE row.
+    """
+    db_path = tmp_path / "snapshots.db"
+    store = SqliteSnapshotStore(db_path)
+    other = SqliteSnapshotStore(db_path)
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+
+    def _forge(row: SnapshotRow) -> ValidationResult:
+        del row
+        assert other.validate(*staged).ok
+        assert other.promote(*staged)
+        return ValidationResult(ok=False, reason="forged-verdict")
+
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        result = store.validate(*staged, validator=_forge)
+
+    assert result.ok is False
+    assert "forged-verdict" not in result.reason
+    assert "changed" in result.reason.lower()
+    assert [r for r in caplog.records if "validation refused" in r.getMessage()]
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.state == SnapshotState.LIVE
+    assert live.validated is True
+    assert live.validation_reason == ""
+
+
+def test_promote_takes_a_write_lock_before_reading_and_pins_what_it_read(
+    tmp_path,
+) -> None:
+    """Invariant: promote serialises itself and re-asserts the rows it read.
+
+    `BEGIN` (deferred) would let another writer commit between the reads
+    and the writes; `BEGIN IMMEDIATE` closes that window on SQLite. The
+    `state = ?` predicates are the second line of defence.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+
+    seen: list[str] = []
+    store._conn.set_trace_callback(seen.append)  # noqa: SLF001
+    try:
+        assert store.promote(*staged)
+    finally:
+        store._conn.set_trace_callback(None)  # noqa: SLF001
+
+    # `set_trace_callback` reports *expanded* SQL, so the literals below
+    # also prove which values were bound, not merely that a placeholder
+    # existed.
+    assert seen[0].strip().upper() == "BEGIN IMMEDIATE"
+    selects = [sql for sql in seen if sql.lstrip().upper().startswith("SELECT")]
+    assert len(selects) == 2, "promote must read the candidate and the LIVE row"
+    assert seen.index(selects[0]) > 0, "reads must happen inside the locked tx"
+
+    promoting = [
+        sql
+        for sql in seen
+        if sql.lstrip().upper().startswith("UPDATE") and "SET state = 'live'" in sql
+    ]
+    assert len(promoting) == 1
+    assert (
+        f"job_run_id = '{staged[3]}'" in promoting[0]
+    ), "the promoting UPDATE must target one row by primary key"
+    assert (
+        "AND state = 'staging'" in promoting[0]
+    ), "the promoting UPDATE must re-assert the state it read"
+
+
+def test_promote_refuses_when_the_incumbent_live_row_moves_mid_transaction(
+    tmp_path, caplog, monkeypatch
+) -> None:
+    """Race guard: never demote a LIVE row other than the one we read.
+
+    Injected at the seam between promote's reads and its writes: the
+    incumbent is superseded and a different row becomes LIVE. Demoting
+    "whatever is LIVE now" would silently discard that newer snapshot
+    and install ours instead.
+
+    The injected swap shares this transaction, so the refusal rolls it
+    back too — which is the point: a refused promotion leaves *nothing*
+    half-applied. What must never happen is `mine` ending up LIVE.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    incumbent = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, as_of_session=date(2026, 9, 3)
+    )
+    assert store.validate(*incumbent).ok
+    assert store.promote(*incumbent)
+
+    mine = _stage(
+        store, payload={"rows": [{"symbol": "MSFT"}]}, as_of_session=date(2026, 9, 4)
+    )
+    theirs = _stage(
+        store, payload={"rows": [{"symbol": "NVDA"}]}, as_of_session=date(2026, 9, 5)
+    )
+    assert store.validate(*mine).ok
+    assert store.validate(*theirs).ok
+
+    real_refusal = store_module._promotion_refusal  # noqa: SLF001
+    fired: list[int] = []
+
+    def _swap_live(candidate, live):
+        verdict = real_refusal(candidate, live)
+        if verdict is None and not fired:
+            fired.append(1)
+            store._conn.execute(  # noqa: SLF001
+                "UPDATE pi_snapshot SET state = ? WHERE job_run_id = ?",
+                (SnapshotState.SUPERSEDED.value, incumbent[3]),
+            )
+            store._conn.execute(  # noqa: SLF001
+                "UPDATE pi_snapshot SET state = ? WHERE job_run_id = ?",
+                (SnapshotState.LIVE.value, theirs[3]),
+            )
+        return verdict
+
+    monkeypatch.setattr(store_module, "_promotion_refusal", _swap_live)
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        promoted = store.promote(*mine)
+
+    assert fired, "the interleaving hook never ran - test is inert"
+    assert promoted is False
+    assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id != mine[3], "a refused promotion installed our row anyway"
+    assert live.job_run_id == incumbent[3]
+    states = {
+        row.job_run_id: row.state
+        for row in store.list_history("techtrade.movers", "sector=technology")
+    }
+    assert states[mine[3]] == SnapshotState.STAGING
+    assert states[theirs[3]] == SnapshotState.STAGING
+
+
+def test_promote_refuses_when_the_candidate_leaves_staging_mid_transaction(
+    tmp_path, caplog, monkeypatch
+) -> None:
+    """Race guard: the promoting UPDATE must re-assert STAGING.
+
+    If the candidate is no longer STAGING when the write lands, the
+    transition already happened (or was invalidated) elsewhere and this
+    caller must report `False` rather than claim it did the work.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    mine = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*mine).ok
+
+    real_refusal = store_module._promotion_refusal  # noqa: SLF001
+    fired: list[int] = []
+
+    def _steal(candidate, live):
+        verdict = real_refusal(candidate, live)
+        if verdict is None and not fired:
+            fired.append(1)
+            store._conn.execute(  # noqa: SLF001
+                "UPDATE pi_snapshot SET state = ? WHERE job_run_id = ?",
+                (SnapshotState.SUPERSEDED.value, mine[3]),
+            )
+        return verdict
+
+    monkeypatch.setattr(store_module, "_promotion_refusal", _steal)
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        promoted = store.promote(*mine)
+
+    assert fired, "the interleaving hook never ran - test is inert"
+    assert promoted is False
+    assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
+    assert store.get_live("techtrade.movers", "sector=technology") is None
+
+
+def test_promote_converts_a_live_key_collision_into_a_refusal(
+    tmp_path, caplog, monkeypatch
+) -> None:
+    """Race guard: a unique-index collision surfaces as False, not a traceback.
+
+    A writer bypassing `promote()` can install a LIVE row inside the
+    window; the partial unique index then rejects ours. A boolean API
+    must not make callers catch `sqlite3.IntegrityError`.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    mine = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*mine).ok
+
+    real_refusal = store_module._promotion_refusal  # noqa: SLF001
+    fired: list[int] = []
+
+    def _outsider(candidate, live):
+        verdict = real_refusal(candidate, live)
+        if verdict is None and not fired:
+            fired.append(1)
+            store._conn.execute(  # noqa: SLF001
+                "INSERT INTO pi_snapshot ("
+                "dataset, entity_key, as_of_session, created_at, job_run_id, "
+                "status, state, validated, validation_reason, payload_json, "
+                "input_hash, row_count, engine_version, payload_schema_version"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, 1, '', ?, NULL, NULL, NULL, NULL)",
+                (
+                    "techtrade.movers",
+                    "sector=technology",
+                    "2026-09-09",
+                    "2026-09-09T12:00:00+00:00",
+                    "run-outsider",
+                    SnapshotStatus.OK.value,
+                    SnapshotState.LIVE.value,
+                    '{"rows": [{"symbol": "GOOG"}]}',
+                ),
+            )
+        return verdict
+
+    monkeypatch.setattr(store_module, "_promotion_refusal", _outsider)
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        promoted = store.promote(*mine)
+
+    assert fired, "the interleaving hook never ran - test is inert"
+    assert promoted is False
+    assert [r for r in caplog.records if "promotion refused" in r.getMessage()]
+
+    # The whole transaction, outsider row included, was rolled back.
+    assert store.get_live("techtrade.movers", "sector=technology") is None
+    remaining = {
+        row.job_run_id
+        for row in store.list_history("techtrade.movers", "sector=technology")
+    }
+    assert remaining == {mine[3]}
+
+
+def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(
+    tmp_path, caplog, monkeypatch
+) -> None:
+    """Race guard: "0 rows demoted" must abort, even with nothing in the way.
+
+    No competing row takes over LIVE here, so the partial unique index
+    never fires: the demotion's affected-row count is the only evidence
+    that the incumbent this promotion was ranked against is gone.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    incumbent = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, as_of_session=date(2026, 9, 3)
+    )
+    assert store.validate(*incumbent).ok
+    assert store.promote(*incumbent)
+
+    mine = _stage(
+        store, payload={"rows": [{"symbol": "MSFT"}]}, as_of_session=date(2026, 9, 4)
+    )
+    assert store.validate(*mine).ok
+
+    real_refusal = store_module._promotion_refusal  # noqa: SLF001
+    fired: list[int] = []
+
+    def _vanish(candidate, live):
+        verdict = real_refusal(candidate, live)
+        if verdict is None and not fired:
+            fired.append(1)
+            store._conn.execute(  # noqa: SLF001
+                "UPDATE pi_snapshot SET state = ? WHERE job_run_id = ?",
+                (SnapshotState.SUPERSEDED.value, incumbent[3]),
+            )
+        return verdict
+
+    monkeypatch.setattr(store_module, "_promotion_refusal", _vanish)
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        promoted = store.promote(*mine)
+
+    assert fired, "the interleaving hook never ran - test is inert"
+    assert promoted is False
+    assert [
+        r
+        for r in caplog.records
+        if "promotion refused" in r.getMessage()
+        and "LIVE row changed" in r.getMessage()
+    ]
+    states = {
+        row.job_run_id: row.state
+        for row in store.list_history("techtrade.movers", "sector=technology")
+    }
+    assert states[mine[3]] == SnapshotState.STAGING
