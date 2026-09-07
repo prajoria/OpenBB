@@ -3969,7 +3969,7 @@ def test_mysql_live_guard_refusal_is_not_a_pool_connection_fault(
         pytest.param(_GOOD_LIVE_KEY_SQL, None, id="duplicate-live-is-allowed"),
         pytest.param(
             "live_key TEXT GENERATED ALWAYS AS "
-            "(IIF(state = 'staging', concat(dataset, char(31), entity_key), NULL)) "
+            "(IIF(state = 'staging', concat(dataset, char(31), entity_key), NULL)) "  # codespell:ignore
             "STORED",
             "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
             "ON pi_eod_snapshot(live_key)",
