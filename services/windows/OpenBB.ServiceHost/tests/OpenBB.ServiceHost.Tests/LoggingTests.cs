@@ -73,6 +73,9 @@ public sealed class LoggingTests
         var text = new UTF8Encoding(false, true).GetString(bytes);
         var line = Assert.Single(text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
         Assert.True(line.Length <= 512);
+        Assert.True(
+            Encoding.UTF8.GetByteCount(line) <= 512,
+            "UTF-8 encoded log line exceeded the configured bound.");
         Assert.Contains("café Δ", line);
         Assert.DoesNotContain("fixture-secret", line);
         Assert.DoesNotContain(Encoding.UTF8.GetPreamble(), bytes);
