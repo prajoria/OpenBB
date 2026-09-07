@@ -64,7 +64,7 @@ Describe "OpenBB service deployment" {
         $caught = $null
         try {
             & (Join-Path $DeployRoot "install-openbb-service.ps1") `
-                -SourceRoot ".\relative" -SkipServiceRegistration
+                -SourceRoot ".\relative"
         } catch {
             $caught = $_
         }
@@ -79,8 +79,7 @@ Describe "OpenBB service deployment" {
 
         & (Join-Path $DeployRoot "install-openbb-service.ps1") `
             -SourceRoot $RepoRoot -InstallRoot $install -DataRoot $data `
-            -ArtifactDirectory $artifacts -SkipPythonInstall `
-            -SkipServiceRegistration -WhatIf
+            -ArtifactDirectory $artifacts -SkipPythonInstall -WhatIf
 
         Test-Path -LiteralPath $install | Should Be $false
         Test-Path -LiteralPath $data | Should Be $false

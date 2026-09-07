@@ -132,6 +132,14 @@ function Publish-OpenBBRelease {
             @("-m", "pip", "install", "--disable-pip-version-check", "--no-input") +
             $packages)
     }
+    $hostExecutable = Join-Path $hostDirectory "OpenBB.ServiceHost.exe"
+    if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) {
+        throw "Published service executable was not found: $hostExecutable"
+    }
+    if (-not $SkipPythonInstall -and
+        -not (Test-Path -LiteralPath (Join-Path $Destination "python\Scripts\python.exe") -PathType Leaf)) {
+        throw "Service-owned Python executable was not created."
+    }
 }
 
 function Write-ServiceConfiguration {
