@@ -16,6 +16,10 @@ python = "^3.10"
 python-dotenv = "*"
 requests = "*"
 pandas = "*"
+openbb-core = "^1.6.10"
+
+[tool.poetry.plugins."openbb_job_extension"]
+portfolio_utils = "portfolio_utils.jobs:get_job_definitions"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
