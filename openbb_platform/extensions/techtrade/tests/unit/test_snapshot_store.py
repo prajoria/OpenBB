@@ -23,6 +23,7 @@ import itertools
 import logging
 import sqlite3
 from datetime import date, datetime, timezone
+from pathlib import Path
 
 import pytest
 from openbb_techtrade.snapshot import store as store_module
@@ -37,6 +38,7 @@ from openbb_techtrade.snapshot.store import (
     ValidationResult,
     canonical_key,
     default_validator,
+    get_default_snapshot_store,
 )
 
 
@@ -983,3 +985,148 @@ def test_a_long_validation_reason_is_persisted_whole(tmp_path) -> None:
         assert history[0].validation_reason == reason
     finally:
         store.close()
+
+
+# ---------------------------------------------------------------------------
+# get_default_snapshot_store — env-var driven backend selection (#1963 Task 5)
+# ---------------------------------------------------------------------------
+#
+# Mirrors execution.paper_engine's `TestFactory` suite: an env var picks the
+# backend, MySQL is the default, and a MySQL-unreachable server degrades to
+# SQLite with a WARNING instead of raising. `_make_mysql_store` is patched
+# on `store_module` (never a real connection pool) so these tests need no
+# live MySQL server and stay hermetic.
+
+
+def _raise_connection_error() -> None:
+    raise ConnectionError("could not connect to MySQL host")
+
+
+def test_selector_uses_sqlite_when_requested(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "sqlite")
+    store = get_default_snapshot_store(tmp_path / "snapshot.db")
+    assert isinstance(store, SqliteSnapshotStore)
+    store.close()
+
+
+def test_mysql_failure_warns_and_falls_back(monkeypatch, tmp_path, caplog) -> None:
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.setenv("PI_SNAPSHOT_DB", str(tmp_path / "fallback.db"))
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        store = get_default_snapshot_store()
+    assert isinstance(store, SqliteSnapshotStore)
+    assert "falling back to SQLite" in caplog.text
+    store.close()
+
+
+def test_selector_defaults_to_mysql_and_returns_the_constructed_store(
+    monkeypatch,
+) -> None:
+    """Invariant: with no env var set, the mysql path runs — not sqlite.
+
+    Patches `_make_mysql_store` to hand back a sentinel object (never a
+    real pool) and asserts the selector returns it unwrapped, proving both
+    that MySQL is the default backend and that a successful construction
+    is passed straight through rather than re-derived.
+    """
+    monkeypatch.delenv("PI_SNAPSHOT_ENGINE", raising=False)
+    sentinel = object()
+    monkeypatch.setattr(store_module, "_make_mysql_store", lambda: sentinel)
+    store = get_default_snapshot_store()
+    assert store is sentinel
+
+
+def test_selector_sqlite_arg_overrides_env_db_path(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "sqlite")
+    monkeypatch.setenv("PI_SNAPSHOT_DB", "/nonexistent/should-not-be-used.db")
+    arg_target = tmp_path / "arg.db"
+    store = get_default_snapshot_store(arg_target)
+    store.close()
+    assert arg_target.exists()
+    assert not Path("/nonexistent/should-not-be-used.db").exists()
+
+
+def test_selector_mysql_fallback_uses_env_db_path_when_arg_omitted(
+    monkeypatch, tmp_path
+) -> None:
+    fallback_target = tmp_path / "fallback.db"
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.setenv("PI_SNAPSHOT_DB", str(fallback_target))
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
+    store = get_default_snapshot_store()
+    store.close()
+    assert fallback_target.exists()
+
+
+def test_selector_does_not_swallow_sqlite_construction_errors(
+    monkeypatch, tmp_path
+) -> None:
+    """The MySQL-unreachable guard must not widen to cover SQLite too."""
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "sqlite")
+
+    def _broken_sqlite(db_path):
+        del db_path
+        raise ValueError("sqlite construction exploded")
+
+    monkeypatch.setattr(store_module, "SqliteSnapshotStore", _broken_sqlite)
+    with pytest.raises(ValueError, match="sqlite construction exploded"):
+        get_default_snapshot_store(tmp_path / "snapshot.db")
+
+
+def test_mysql_fallback_does_not_swallow_subsequent_sqlite_construction_errors(
+    monkeypatch, tmp_path
+) -> None:
+    """A broken fallback must still raise, not disappear behind the warning."""
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.setenv("PI_SNAPSHOT_DB", str(tmp_path / "fallback.db"))
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
+
+    def _broken_sqlite(db_path):
+        del db_path
+        raise ValueError("sqlite construction exploded")
+
+    monkeypatch.setattr(store_module, "SqliteSnapshotStore", _broken_sqlite)
+    with pytest.raises(ValueError, match="sqlite construction exploded"):
+        get_default_snapshot_store()
+
+
+def test_get_default_snapshot_store_persists_a_promoted_row_across_reopen(
+    monkeypatch, tmp_path
+) -> None:
+    """Acceptance (#1963 Task 5 Step 5): the real SQLite path round-trips.
+
+    Stage/validate/promote one synthetic non-personal row through the
+    factory-selected store, close it, reopen via the same factory call,
+    and confirm `get_live()` returns the persisted row with the same
+    date, UTC timestamp, payload, and provenance.
+    """
+    db_path = tmp_path / "snapshot.db"
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "sqlite")
+
+    store = get_default_snapshot_store(db_path)
+    staged = _stage(
+        store,
+        dataset="techtrade.movers",
+        entity_key="sector=technology",
+        as_of_session=date(2026, 9, 4),
+        job_run_id="run-acceptance-1",
+        payload={"rows": [{"symbol": "AAPL", "close": 227.5}]},
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    store.close()
+
+    reopened = get_default_snapshot_store(db_path)
+    live = reopened.get_live("techtrade.movers", "sector=technology")
+    reopened.close()
+
+    assert live is not None
+    assert live.as_of_session == date(2026, 9, 4)
+    assert live.created_at.tzinfo is not None
+    assert live.created_at.utcoffset().total_seconds() == 0
+    assert live.payload == {"rows": [{"symbol": "AAPL", "close": 227.5}]}
+    assert live.job_run_id == "run-acceptance-1"
+    assert live.dataset == "techtrade.movers"
+    assert live.entity_key == "sector=technology"
+    assert live.state == SnapshotState.LIVE

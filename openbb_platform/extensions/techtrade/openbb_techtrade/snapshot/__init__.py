@@ -20,6 +20,7 @@ from .store import (
     ValidationResult,
     canonical_key,
     default_validator,
+    get_default_snapshot_store,
 )
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "ValidationResult",
     "canonical_key",
     "default_validator",
+    "get_default_snapshot_store",
 ]

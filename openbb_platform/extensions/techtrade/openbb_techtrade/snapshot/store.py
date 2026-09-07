@@ -32,10 +32,17 @@ performs a live computation. That remains true for every concrete backend
 built on top of this contract.
 """
 
+# pylint: disable=too-many-lines
+# #1963 Task 5 added the `get_default_snapshot_store` factory (~75 lines),
+# pushing the module past pylint's 1000-line threshold. Splitting the
+# factory out feels premature — it is one cohesive selector next to the
+# backend it defaults to. Reconsider if a later task grows this further.
+
 from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -977,3 +984,81 @@ class SqliteSnapshotStore:
     def close(self) -> None:
         """Release the SQLite connection."""
         self._conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Factory — env-var driven backend selection (#1963 Task 5)
+# ---------------------------------------------------------------------------
+#
+# Mirrors the existing `execution.paper_engine.get_default_engine` /
+# `execution.order_sink.get_default_sink` seam: an env var picks the
+# backend, MySQL is the default, and a MySQL-unreachable server degrades
+# to SQLite with a WARNING rather than failing the caller outright.
+
+_ENV_SNAPSHOT_ENGINE = "PI_SNAPSHOT_ENGINE"
+_ENV_SNAPSHOT_DB = "PI_SNAPSHOT_DB"
+
+
+def _make_mysql_store() -> SnapshotStore:
+    """Import indirection for constructing a ``MysqlSnapshotStore``.
+
+    ``mysql_store`` imports the shared policy helpers from *this* module,
+    so importing it back at this module's top level would be circular.
+    The import is deferred to call time instead, once both modules have
+    finished loading, and kept as a standalone module-level function
+    (rather than inlined into :func:`get_default_snapshot_store`) so
+    tests can monkeypatch ``store_module._make_mysql_store`` directly to
+    simulate a MySQL-unreachable server without a real connection pool.
+    """
+    # pylint: disable=import-outside-toplevel,cyclic-import
+    from openbb_techtrade.snapshot.mysql_store import (  # noqa: PLC0415
+        _make_mysql_store as _build_mysql_store,
+    )
+
+    return _build_mysql_store()
+
+
+def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotStore:
+    """Return the configured EOD snapshot store.
+
+    Backend selection (#1963 Task 5):
+
+    - ``PI_SNAPSHOT_ENGINE=mysql`` (default) — return a
+      :class:`~openbb_techtrade.snapshot.mysql_store.MysqlSnapshotStore`
+      against the shared ``fmp_cached`` connection pool. If construction
+      fails (missing dependency, unreachable pool, ...) a WARNING is
+      logged and the selector falls through to SQLite — mirrors the
+      ``get_default_engine`` graceful-fallback pattern from #1790/#1744.
+      Only the MySQL construction is guarded this way; a failure
+      constructing the SQLite fallback itself is never swallowed.
+    - ``PI_SNAPSHOT_ENGINE=sqlite`` — force the file-backed
+      :class:`SqliteSnapshotStore` at ``db_path`` (arg),
+      ``$PI_SNAPSHOT_DB`` (env), or the per-user default
+      ``~/.portfolio_intel/snapshot.db``.
+
+    ``db_path`` takes precedence over ``$PI_SNAPSHOT_DB`` on both the
+    explicit-sqlite path and the mysql-unreachable fallback path.
+    """
+    backend = os.environ.get(_ENV_SNAPSHOT_ENGINE, "mysql").strip().lower()
+
+    if backend == "mysql":
+        try:
+            return _make_mysql_store()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "get_default_snapshot_store: MySQL backend unreachable (%s); "
+                "falling back to SQLite at ~/.portfolio_intel/snapshot.db",
+                exc,
+            )
+            # fall through to sqlite
+
+    resolved = (
+        Path(db_path)
+        if db_path is not None
+        else (
+            Path(os.environ[_ENV_SNAPSHOT_DB])
+            if os.environ.get(_ENV_SNAPSHOT_DB)
+            else Path.home() / ".portfolio_intel" / "snapshot.db"
+        )
+    )
+    return SqliteSnapshotStore(resolved)
