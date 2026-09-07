@@ -3472,7 +3472,17 @@ _SERVER_REPORTED_LIVE_KEY_EXPRESSIONS = (
 )
 
 
-@pytest.mark.parametrize("expression", _SERVER_REPORTED_LIVE_KEY_EXPRESSIONS)
+@pytest.mark.parametrize(
+    "expression",
+    _SERVER_REPORTED_LIVE_KEY_EXPRESSIONS,
+    ids=(
+        "mysql-8.4.9-exact-two-layer",
+        "mysql-8.0-two-layer-with-char-charset",
+        "mysql-8-one-layer-with-introducer",
+        "mysql-5.7-mariadb-one-layer",
+        "ddl-as-typed",
+    ),
+)
 def test_mysql_live_guard_accepts_every_server_rendering_of_its_own_ddl(
     expression: str,
 ) -> None:
@@ -3493,8 +3503,33 @@ def test_mysql_live_guard_accepts_every_server_rendering_of_its_own_ddl(
     )
 
 
-def test_mysql_live_guard_rejects_every_near_match_of_its_own_ddl() -> None:
-    """The complement of the test above, at the same seam.
+def test_mysql_live_guard_rejects_one_layer_literal_changed_by_outer_decode() -> None:
+    r"""A one-layer ``'\\live'`` literal must not be decoded as ``'live'``.
+
+    MySQL 5.7 and MariaDB report ordinary literal delimiters without the
+    extra escaping seen on MySQL 8.4.9.  In that representation ``\\`` is
+    the literal's own escape for one backslash.  Applying the 8.4.9 outer
+    decode anyway turns it into ``\l``; the literal decoder then drops that
+    second backslash and falsely recovers the accepted ``'live'`` value.
+    """
+    expression = (
+        r"if((`state` = _utf8mb4'\\live'),concat(`dataset`,"
+        r"char(31),`entity_key`),NULL)"
+    )
+    guard = [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+        )
+    ]
+
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        store_module._check_mysql_live_guard({"live_key": expression}, guard)
+
+    assert "single-LIVE" in str(excinfo.value)
+
+
+def test_mysql_live_guard_rejects_near_matches_in_one_layer_representation() -> None:
+    """Reject altered one-layer MySQL 5.7/MariaDB representations.
 
     Each expression differs from the shipped one by exactly one edit that
     a substring check cannot see, and every one of them mentions all four
@@ -3505,6 +3540,8 @@ def test_mysql_live_guard_rejects_every_near_match_of_its_own_ddl() -> None:
         "if((`state` <> _utf8mb4'live'),concat(`dataset`,char(31),`entity_key`),NULL)",
         # Negated comparison.
         "if(not(`state` = 'live'),concat(`dataset`,char(31),`entity_key`),NULL)",
+        # Wrong literal.
+        "if((`state` = 'staging'),concat(`dataset`,char(31),`entity_key`),NULL)",
         # Swapped branches.
         "if((`state` = 'live'),NULL,concat(`dataset`,char(31),`entity_key`))",
         # An extra conjunct: one LIVE row per key *among validated rows*.
@@ -3553,7 +3590,7 @@ _ESCAPED_NEAR_MATCH_LIVE_KEY_EXPRESSIONS = (
 
 
 @pytest.mark.parametrize("expression", _ESCAPED_NEAR_MATCH_LIVE_KEY_EXPRESSIONS)
-def test_mysql_live_guard_rejects_near_matches_in_the_servers_escaped_form(
+def test_mysql_live_guard_rejects_near_matches_in_two_layer_849_representation(
     expression: str,
 ) -> None:
     r"""Peeling MySQL's escaping must not cost the guard its teeth.

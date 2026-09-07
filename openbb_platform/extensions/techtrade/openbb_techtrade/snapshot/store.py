@@ -613,7 +613,7 @@ _LIVE_KEY_CANONICAL_FORMS = frozenset(
 _SQLITE_LIVE_PREDICATE = "state='live'"
 _SQLITE_LIVE_PREDICATE_FORMS = frozenset({_SQLITE_LIVE_PREDICATE, "'live'=state"})
 
-# --- MySQL's two layers of literal escaping (PR #2062 review) -------------
+# --- MySQL's optional outer layer of literal escaping (PR #2062 review) ---
 #
 # MySQL does not report a generated column's expression the way it prints
 # it: `information_schema` hands back the *printed* expression with a
@@ -629,22 +629,32 @@ _SQLITE_LIVE_PREDICATE_FORMS = frozenset({_SQLITE_LIVE_PREDICATE, "'live'=state"
 # `if(state='live\',...)`, which matches no accepted form — so the guard
 # refused every real server it was ever pointed at (#1963 live smoke).
 #
-# Two escaping layers are stacked, and both have to be peeled before the
-# scan can see a literal at all. Confirmed against 8.4.9 with a throwaway
-# probe table: a column generated from `IF(s = 'li''ve', ...)` is
-# reported as ``if((`s` = _utf8mb4\'li\\\'ve\'),...)`` and one generated
-# from `IF(s = 'a\\b', ...)` as ``if((`s` = _utf8mb4\'a\\\\b\'),...)``.
-# One plain unescape pass over the whole text yields the printed
-# expression, whose literals then carry MySQL's own backslash escaping —
-# which the token scan handles directly.
+# On 8.4.9 two escaping layers are stacked, and both have to be peeled
+# before the scan can see a literal at all. Confirmed with a throwaway probe
+# table: a column generated from `IF(s = 'li''ve', ...)` is reported as
+# ``if((`s` = _utf8mb4\'li\\\'ve\'),...)`` and one generated from
+# `IF(s = 'a\\b', ...)` as ``if((`s` = _utf8mb4\'a\\\\b\'),...)``. One
+# outer unescape pass yields the printed expression, whose literals then
+# carry MySQL's own backslash escaping — which the token scan handles.
+#
+# MySQL 5.7 and MariaDB report only that inner literal-syntax layer. The
+# outer pass cannot be unconditional: in their representation a changed
+# literal `'\\live'` means a leading backslash followed by `live`; outer
+# decoding changes it to `'\live'`, then literal decoding changes that to
+# `'live'`, falsely accepting a guard the store did not create. The outer
+# pass therefore runs only when every quote has 8.4.9's outer-layer marker:
+# an odd-length immediately-preceding run of backslashes. Any ordinary
+# delimiter (an even-length run, normally zero) proves the whole expression
+# is a one-layer representation.
 #
 # Neither layer exists on SQLite. `sqlite_master.sql` stores the text as
 # typed, and SQLite has no backslash escapes at all, so `'li\ve'` there
 # is the five-character value `li\ve`. Peeling escapes off a SQLite
 # predicate would *weaken* its guard: `state = 'li\ve'` would decode onto
 # `state = 'live'` and be accepted while indexing rows nothing ever
-# writes. Both layers are consequently MySQL-only, selected by the
-# caller, and nothing about the SQLite scan changed.
+# writes. MySQL literal decoding is consequently selected by the caller,
+# while outer-layer decoding is selected from the complete MySQL
+# representation; nothing about the SQLite scan changed.
 _SQL_BACKSLASH_ESCAPE_RE = re.compile(r"\\(?s:.)")
 
 # One escaped unit inside a MySQL string literal: a doubled quote or a
@@ -733,12 +743,36 @@ def _decode_backslash_escapes(text: str) -> str:
 
     The inverse of the pass MySQL applies to a generated column's printed
     expression before reporting it (see the block comment above
-    :data:`_SQL_BACKSLASH_ESCAPE_RE`). A text with no backslashes — every
-    expression this repo's DDL produces, on every server that does not
-    add the layer, and every SQLite predicate — is returned unchanged, so
-    applying it can only ever *add* the servers that do escape.
+    :data:`_SQL_BACKSLASH_ESCAPE_RE`). It must only be called after
+    :func:`_has_mysql_outer_escape_layer` identifies that representation:
+    applying it to a one-layer literal would decode that literal twice.
     """
     return _SQL_BACKSLASH_ESCAPE_RE.sub(lambda m: _decode_escape(m.group(0)), text)
+
+
+def _has_mysql_outer_escape_layer(text: str) -> bool:
+    r"""Return whether every quote carries MySQL 8.4.9's added escape layer.
+
+    That layer doubles existing backslashes and prefixes every single quote,
+    so every quote in the complete representation is preceded by an odd-length
+    run of backslashes. A one-layer MySQL 5.7/MariaDB expression has ordinary
+    delimiters, preceded by an even-length run (normally zero). Requiring at
+    least one quote and requiring *all* quotes to have odd parity makes the
+    decision from the representation itself and fails closed on mixed forms.
+    """
+    saw_quote = False
+    for index, character in enumerate(text):
+        if character != "'":
+            continue
+        saw_quote = True
+        preceding_backslashes = 0
+        cursor = index - 1
+        while cursor >= 0 and text[cursor] == "\\":
+            preceding_backslashes += 1
+            cursor -= 1
+        if preceding_backslashes % 2 == 0:
+            return False
+    return saw_quote
 
 
 def _canonical_literal(token: str, *, backslash_escapes: bool) -> str:
@@ -819,16 +853,15 @@ def _canonical_sql(expression: str | None, *, backslash_escapes: bool = False) -
 def _canonical_generation_expression(expression: str | None) -> str:
     """Canonicalize a ``GENERATION_EXPRESSION`` as MySQL reports it.
 
-    Peels ``information_schema``'s escaping of the whole text, then scans
-    the printed expression under MySQL's literal syntax — the two layers
-    described above :data:`_SQL_BACKSLASH_ESCAPE_RE`. Both are no-ops on
-    text a server reported without escaping (MySQL 5.7, MariaDB, and this
-    suite's SQLite-backed double all do), so one code path serves every
-    server.
+    When every quote shows evidence of MySQL 8.4.9's outer escape layer,
+    peels that layer before scanning the printed expression under MySQL's
+    literal syntax. MySQL 5.7, MariaDB, and this suite's SQLite-backed double
+    report only the literal-syntax layer, which must not be decoded twice.
     """
-    return _canonical_sql(
-        _decode_backslash_escapes(expression or ""), backslash_escapes=True
-    )
+    reported = expression or ""
+    if _has_mysql_outer_escape_layer(reported):
+        reported = _decode_backslash_escapes(reported)
+    return _canonical_sql(reported, backslash_escapes=True)
 
 
 # Slices a partial index's predicate out of its `CREATE INDEX` statement.
