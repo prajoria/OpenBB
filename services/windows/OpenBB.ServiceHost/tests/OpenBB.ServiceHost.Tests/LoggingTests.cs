@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using OpenBB.ServiceHost.Logging;
 
@@ -108,6 +109,53 @@ public sealed class LoggingTests
         Assert.False(File.Exists(futurePath));
         Assert.False(File.Exists(expiredPath));
         Assert.True(File.Exists(currentPath));
+    }
+
+    [Fact]
+    public async Task Falls_back_to_minimal_record_when_metadata_envelope_exceeds_byte_limit()
+    {
+        using var directory = new TestLogDirectory();
+        var clock = new MutableTimeProvider(
+            new DateTimeOffset(2026, 9, 6, 10, 0, 0, TimeSpan.Zero));
+        var component = new string('c', 80);
+        var eventName = new string('e', 80);
+        var correlationId = new string('r', 80);
+        var writer = new ComponentLogWriter(
+            directory.Path,
+            new SecretRedactor([]),
+            clock,
+            maxLineLength: 256);
+
+        await writer.WriteAsync(
+                component,
+                LogLevel.Warning,
+                eventName,
+                "payload",
+                correlationId: correlationId)
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        var path = Path.Combine(
+            directory.Path,
+            $"{component}-{clock.UtcNow:yyyyMMdd}.log");
+        var bytes = await File.ReadAllBytesAsync(path);
+        var text = new UTF8Encoding(false, true).GetString(bytes);
+        var line = Assert.Single(
+            text.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.True(
+            Encoding.UTF8.GetByteCount(line) <= 256,
+            "UTF-8 encoded log line exceeded the configured bound.");
+        Assert.DoesNotContain(Encoding.UTF8.GetPreamble(), bytes);
+
+        using var document = JsonDocument.Parse(line);
+        var root = document.RootElement;
+        Assert.Equal(
+            clock.UtcNow,
+            root.GetProperty("timestamp").GetDateTimeOffset());
+        Assert.Equal(LogLevel.Warning.ToString(), root.GetProperty("level").GetString());
+        Assert.True(root.GetProperty("truncated").GetBoolean());
+        Assert.False(root.TryGetProperty("component", out _));
+        Assert.False(root.TryGetProperty("event", out _));
+        Assert.False(root.TryGetProperty("correlationId", out _));
     }
 
     [Fact]
