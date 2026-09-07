@@ -1021,7 +1021,17 @@ class SqliteSnapshotStore:
     """
 
     def __init__(self, db_path: Path | str) -> None:
-        self._db_path = Path(db_path).resolve()
+        # ``expanduser()`` must run before ``resolve()``: ``resolve()``
+        # alone treats a leading ``~`` as an ordinary path segment, so a
+        # direct caller passing e.g. ``SqliteSnapshotStore("~/x.db")`` —
+        # bypassing :func:`get_default_snapshot_store`, which normalizes
+        # its own ``resolved`` path before ever reaching here — would
+        # otherwise get a literal ``~`` directory created under the
+        # current working directory instead of the caller's real home
+        # directory. Re-applying the normalization here (it is a no-op
+        # for already-normalized callers) makes the constructor safe on
+        # its own, not merely safe when reached through the factory.
+        self._db_path = Path(db_path).expanduser().resolve()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(
             str(self._db_path), check_same_thread=False, isolation_level=None
@@ -1638,14 +1648,18 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
     ``db_path`` takes precedence over ``$PI_SNAPSHOT_DB`` on both the
     explicit-sqlite path and the mysql-unreachable fallback path. The
     resolved SQLite path is computed once, up front, and immediately
-    normalized with ``expanduser().resolve()`` — the single point where
-    this happens — so the MySQL-unreachable WARNING and the eventual
-    ``SqliteSnapshotStore`` construction agree on the same absolute
-    path. Without the ``expanduser()`` half, a literal ``~`` in
-    ``$PI_SNAPSHOT_DB``/``db_path`` would not expand to the caller's home
-    directory: ``Path.resolve()`` alone treats ``~`` as an ordinary
-    path segment and would create it as a literal directory named
-    ``~`` under the current working directory instead.
+    normalized with ``expanduser().resolve()`` so the MySQL-unreachable
+    WARNING and the eventual ``SqliteSnapshotStore`` construction agree
+    on the same absolute path. Without the ``expanduser()`` half, a
+    literal ``~`` in ``$PI_SNAPSHOT_DB``/``db_path`` would not expand to
+    the caller's home directory: ``Path.resolve()`` alone treats ``~``
+    as an ordinary path segment and would create it as a literal
+    directory named ``~`` under the current working directory instead.
+    :class:`SqliteSnapshotStore.__init__` applies the same
+    ``expanduser().resolve()`` normalization independently, so this is
+    belt-and-braces here rather than the only guard: a caller that
+    constructs :class:`SqliteSnapshotStore` directly, bypassing this
+    factory, is protected too.
     """
     backend = os.environ.get(_ENV_SNAPSHOT_ENGINE, "mysql").strip().lower()
 

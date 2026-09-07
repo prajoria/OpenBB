@@ -1136,6 +1136,50 @@ def test_explicit_tilde_db_path_argument_also_expands(monkeypatch, tmp_path) -> 
         store.close()
 
 
+def test_direct_constructor_tilde_db_path_expands_and_never_creates_literal_tilde_dir(
+    monkeypatch, tmp_path
+) -> None:
+    """``SqliteSnapshotStore(...)`` itself must expand ``~``, not just the factory.
+
+    Regression/discriminator: :func:`get_default_snapshot_store` normalizes
+    its ``resolved`` path with ``expanduser().resolve()`` before ever
+    constructing a :class:`SqliteSnapshotStore`, but a caller that
+    constructs ``SqliteSnapshotStore`` *directly* — skipping the factory
+    entirely — used to reach a bare ``Path(db_path).resolve()`` in
+    ``__init__``. ``Path.resolve()`` does not expand ``~``; it treats it
+    as an ordinary path segment relative to the current working
+    directory. So a direct-constructor call with a ``~/...`` path used to
+    silently create a literal directory named ``~`` under cwd instead of
+    opening the database under the caller's real home directory.
+
+    This test constructs ``SqliteSnapshotStore`` directly (never touching
+    ``get_default_snapshot_store``), so it only passes if the
+    normalization lives in ``SqliteSnapshotStore.__init__`` itself.
+    Reverse-verified: reverting ``__init__`` to ``Path(db_path).resolve()``
+    makes both assertions below fail — the store opens under a literal
+    ``cwd/~/...`` path instead of ``fake_home``, and a literal ``~``
+    directory is left behind under cwd.
+    """
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+
+    expected = (fake_home / "direct-ctor" / "snapshot.db").resolve()
+    store = SqliteSnapshotStore(Path("~/direct-ctor/snapshot.db"))
+    try:
+        assert store._db_path == expected  # noqa: SLF001
+        assert expected.exists()
+        assert not (
+            cwd / "~"
+        ).exists(), "a literal '~' directory must never be created under cwd"
+    finally:
+        store.close()
+
+
 def test_mysql_failure_warning_reports_the_per_user_default_path(
     monkeypatch, caplog
 ) -> None:
