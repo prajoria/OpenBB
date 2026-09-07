@@ -1233,6 +1233,7 @@ def test_stage_refuses_an_over_long_bounded_field(
     """Every bounded field is checked, and nothing is written."""
     limit = FIELD_MAX_LENGTHS[field]
     begins_before = pool.begins
+    statements_before = len(pool.statements)
     with pytest.raises(SnapshotFieldTooLong) as excinfo:
         _stage(
             store,
@@ -1255,7 +1256,9 @@ def test_stage_refuses_an_over_long_bounded_field(
     # pointless BEGIN/ROLLBACK round-trip on the shared pool.
     assert pool.begins == begins_before
     inserts = [
-        sql for sql, _ in pool.statements if sql.lstrip().upper().startswith("INSERT")
+        sql
+        for sql, _ in pool.statements[statements_before:]
+        if sql.lstrip().upper().startswith("INSERT")
     ]
     assert inserts == []
 
@@ -1369,6 +1372,7 @@ def test_stage_refuses_a_non_dict_payload(
 ) -> None:
     """A list/scalar/``None`` payload is refused, and nothing is written."""
     begins_before = pool.begins
+    statements_before = len(pool.statements)
     with pytest.raises(SnapshotPayloadNotAnObject) as excinfo:
         store.stage(
             "techtrade.movers",
@@ -1384,7 +1388,9 @@ def test_stage_refuses_a_non_dict_payload(
     # independently of the exception type.
     assert pool.begins == begins_before
     inserts = [
-        sql for sql, _ in pool.statements if sql.lstrip().upper().startswith("INSERT")
+        sql
+        for sql, _ in pool.statements[statements_before:]
+        if sql.lstrip().upper().startswith("INSERT")
     ]
     assert inserts == []
 
@@ -3164,10 +3170,7 @@ def test_mysql_accepts_the_guard_its_own_ddl_creates(tmp_path: Path) -> None:
     # the structural comparison in `_check_mysql_live_guard` is satisfied
     # by the real schema rather than only by the refusal tests below.
     assert "live_key" in generation
-    assert (
-        store_module._canonical_generation_expression(generation["live_key"])
-        in store_module._LIVE_KEY_CANONICAL_FORMS
-    )
+    assert store_module._is_mysql_live_key_expression(generation["live_key"])
     # ... and its UNIQUE index is reported under the name MySQL would use.
     guard = [index for index in indexes if index.name == "ux_pi_eod_snapshot_live"]
     assert guard == [
@@ -3553,11 +3556,57 @@ def test_mysql_live_guard_rejects_unconsumed_assignment_punctuation(
         )
     ]
 
-    assert store_module._canonical_generation_expression(expression) == ""
+    assert store_module._generation_expression_tokens(expression) is None
     with pytest.raises(SnapshotSchemaMismatch) as excinfo:
         store_module._check_mysql_live_guard({"live_key": expression}, guard)
 
     assert "single-LIVE" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        pytest.param(
+            "if((`ſtate` = _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="unicode-casefold-identifier",
+        ),
+        pytest.param(
+            "if((`state`\v= _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="vertical-tab",
+        ),
+        pytest.param(
+            "(if((`state` = _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="unmatched-opening-parenthesis",
+        ),
+        pytest.param(
+            "if((`state` = _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL))",
+            id="unmatched-closing-parenthesis",
+        ),
+        pytest.param(
+            "`if(state='live',concat(dataset,char(31),entity_key),null)`",
+            id="whole-expression-quoted-identifier",
+        ),
+        pytest.param(
+            "if((`state` = _utf8mb4'live'),concat(`dataset`,"
+            "char(31 using utf16),`entity_key`),NULL)",
+            id="unapproved-char-charset",
+        ),
+    ],
+)
+def test_mysql_live_guard_rejects_structural_token_spoofs(expression: str) -> None:
+    """Only the exact typed expression and utf8mb4 decoration are accepted."""
+    guard = [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+        )
+    ]
+
+    with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+        store_module._check_mysql_live_guard({"live_key": expression}, guard)
 
 
 def test_mysql_live_guard_rejects_near_matches_in_one_layer_representation() -> None:
@@ -3627,7 +3676,7 @@ def test_mysql_live_guard_rejects_near_matches_in_two_layer_849_representation(
 ) -> None:
     r"""Peeling MySQL's escaping must not cost the guard its teeth.
 
-    Reverse-verified: mutating `_canonical_generation_expression` to
+    Reverse-verified: mutating `_generation_expression_tokens` to
     strip backslashes wholesale (``expression.replace("\\", "")``)
     keeps the accept test green and turns every case here into a false
     accept -- so these are the cases that pin the fix to *decoding* the
@@ -3657,18 +3706,18 @@ def test_mysql_live_guard_rejects_near_matches_in_two_layer_849_representation(
 _ESCAPED_GENERATION_EXPRESSIONS = (
     (
         "if((`s` = _utf8mb4\\'li\\\\\\'ve\\'),_utf8mb4\\'x\\',NULL)",
-        "if(s='li''ve','x',null)",
+        ("li've", "x"),
     ),
     (
         "if((`s` = _utf8mb4\\'a\\\\\\\\b\\'),_utf8mb4\\'y\\',NULL)",
-        "if(s='a\\b','y',null)",
+        ("a\\b", "y"),
     ),
 )
 
 
-@pytest.mark.parametrize("reported,canonical", _ESCAPED_GENERATION_EXPRESSIONS)
-def test_generation_expression_canonicalizer_recovers_the_literal_mysql_meant(
-    reported: str, canonical: str
+@pytest.mark.parametrize("reported,literal_values", _ESCAPED_GENERATION_EXPRESSIONS)
+def test_generation_expression_tokenizer_recovers_the_literal_mysql_meant(
+    reported: str, literal_values: tuple[str, ...]
 ) -> None:
     """Both escaping layers are peeled, and the literal survives intact.
 
@@ -3677,7 +3726,16 @@ def test_generation_expression_canonicalizer_recovers_the_literal_mysql_meant(
     of the expression is re-lexed as garbage); with only the inner pass
     neither case parses as a literal at all.
     """
-    assert store_module._canonical_generation_expression(reported) == canonical
+    tokens = store_module._generation_expression_tokens(reported)
+    assert tokens is not None
+    assert (
+        tuple(
+            token.value
+            for token in tokens
+            if token.kind is store_module._SqlTokenKind.STRING
+        )
+        == literal_values
+    )
 
 
 def test_sqlite_predicate_is_read_without_mysql_backslash_escapes() -> None:
@@ -3689,14 +3747,11 @@ def test_sqlite_predicate_is_read_without_mysql_backslash_escapes() -> None:
     the MySQL path must do -- would hand that index a pass, so the two
     dialects must not share one literal syntax.
 
-    Reverse-verified: defaulting `_canonical_sql`'s `backslash_escapes`
+    Reverse-verified: defaulting `_sql_tokens`'s `backslash_escapes`
     to ``True`` (or peeling in `_check_sqlite_live_guard`) makes the
     refusal below stop firing.
     """
-    assert (
-        store_module._canonical_sql(r"state = 'li\ve'")
-        not in store_module._SQLITE_LIVE_PREDICATE_FORMS
-    )
+    assert not store_module._is_sqlite_live_predicate(r"state = 'li\ve'")
     with pytest.raises(SnapshotSchemaMismatch):
         store_module._check_sqlite_live_guard(
             [
@@ -3742,6 +3797,55 @@ def test_mysql_live_guard_refusal_is_not_a_pool_connection_fault(
 
     assert pool.errors == []
     assert _pool_errors(caplog) == []
+
+
+@pytest.mark.parametrize(
+    ("live_key_sql", "index_sql"),
+    [
+        pytest.param(_GOOD_LIVE_KEY_SQL, None, id="duplicate-live-is-allowed"),
+        pytest.param(
+            "live_key TEXT GENERATED ALWAYS AS "
+            "(IIF(state = 'staging', concat(dataset, char(31), entity_key), NULL)) "
+            "STORED",
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(live_key)",
+            id="second-staged-row-is-refused",
+        ),
+    ],
+)
+def test_mysql_empirical_probe_rejects_wrong_guard_behavior(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    live_key_sql: str,
+    index_sql: str | None,
+) -> None:
+    """The engine must reject duplicate LIVE and allow duplicate STAGING."""
+    db_path = tmp_path / "empirical_guard.db"
+    _seed_table(db_path, live_key_sql=live_key_sql, index_sql=index_sql)
+    pool = _FakePool(db_path)
+    monkeypatch.setattr(mysql_store_module, "_check_mysql_live_guard", lambda *_: None)
+
+    with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert _table_comment(db_path) is None
+    assert pool.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 0
+    assert pool.closed_with_open_txn == 0
+    assert pool.errors == []
+
+
+def test_mysql_empirical_probe_rolls_back_every_probe_row(tmp_path: Path) -> None:
+    """A successful construction proves the guard without persisting samples."""
+    pool = _FakePool(tmp_path / "probe_rollback.db")
+
+    MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.begins == 1
+    assert pool.commits == 0
+    assert pool.rollbacks == 1
+    assert pool.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 0
+    assert pool.closed_with_open_txn == 0
+    assert pool.errors == []
 
 
 def test_mysql_index_probe_asks_information_schema_for_statistics() -> None:
@@ -4918,7 +5022,7 @@ def _live_mysql_store() -> Iterator[MysqlSnapshotStore]:
 @pytest.mark.requires_mysql
 @_requires_live_mysql
 def test_live_mysql_accepts_the_ddl_and_enforces_the_generated_live_key() -> None:
-    """The real server parses the DDL and honours the single-LIVE key."""
+    """The real server allows STAGING, rejects duplicate LIVE, and rolls back."""
     with _live_mysql_store() as store:
         staged = _stage(
             store,
@@ -4933,7 +5037,17 @@ def test_live_mysql_accepts_the_ddl_and_enforces_the_generated_live_key() -> Non
             get_connection_pool,
         )
 
-        with get_connection_pool().get_connection() as conn, conn.cursor() as cur:
+        pool = get_connection_pool()
+        with pool.get_connection() as conn:
+            mysql_store_module._probe_mysql_live_guard(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) AS n FROM pi_eod_snapshot WHERE dataset LIKE %s",
+                    (f"{store_module._LIVE_GUARD_PROBE_PREFIX}%",),
+                )
+                assert cur.fetchone()["n"] == 0
+
+        with pool.get_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT live_key FROM pi_eod_snapshot WHERE dataset = %s "
                 "AND state = 'live'",

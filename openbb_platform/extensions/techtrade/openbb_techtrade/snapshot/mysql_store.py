@@ -33,9 +33,11 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    that merely contains the delimiter. Both halves of that mechanism —
    the column *and* its unique index — are re-read from
    ``information_schema`` at construction and refused if absent or
-   malformed, because ``CREATE TABLE IF NOT EXISTS`` no-ops against a
+   malformed, then exercised with a transaction-rolled-back behavior
+   probe, because ``CREATE TABLE IF NOT EXISTS`` no-ops against a
    pre-existing table and takes every index declared inside it down with
-   it (PR #2062 review). See :func:`~openbb_techtrade.snapshot.store._check_mysql_live_guard`.
+   it (PR #2062 review). See
+   :func:`~openbb_techtrade.snapshot.store._check_mysql_live_guard`.
 3. **Explicit LIVE pointer.** "Current" is the row whose ``state`` is
    ``live`` — never "the row with the newest ``as_of_session``". A
    restamp/backfill/replay can legitimately leave LIVE pointing at an
@@ -107,11 +109,13 @@ from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from typing import Any
+from uuid import uuid4
 from weakref import WeakKeyDictionary
 
 from openbb_techtrade.snapshot.store import (
     _CANDIDATE_RACE_REASON,
     _LIVE_COLLISION_REASON,
+    _LIVE_GUARD_PROBE_PREFIX,
     _LIVE_RACE_REASON,
     _PRUNE_BATCH,
     _SNAPSHOT_TABLE,
@@ -134,6 +138,7 @@ from openbb_techtrade.snapshot.store import (
     _IndexShape,
     _is_integrity_error,
     _LifecycleRefused,
+    _live_guard_refusal,
     _parse_schema_version_comment,
     _promotion_refusal,
     _PromotionRefused,
@@ -270,6 +275,18 @@ _INSERT_STAGED = (
     ") VALUES (%s, %s, %s, %s, %s, %s, %s, 0, '', %s, %s, %s, %s, %s)"
 )
 
+_INSERT_LIVE_GUARD_PROBE = (
+    "INSERT INTO pi_eod_snapshot ("
+    "dataset, entity_key, as_of_session, created_at, job_run_id, status, state, "
+    "validated, validation_reason, payload_json, input_hash, row_count, "
+    "engine_version, payload_schema_version"
+    ") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+)
+_SELECT_LIVE_GUARD_PROBE = (
+    "SELECT job_run_id, state, live_key FROM pi_eod_snapshot "
+    "WHERE dataset = %s AND entity_key = %s ORDER BY job_run_id"
+)
+
 _SELECT_SCHEMA_COLUMNS = (
     "SELECT COLUMN_NAME, GENERATION_EXPRESSION, COLLATION_NAME "
     "FROM information_schema.COLUMNS "
@@ -313,7 +330,7 @@ _SELECT_SCHEMA_COMMENT = (
 # placeholder is a real bind even though DDL cannot be server-prepared.
 _STAMP_SCHEMA_COMMENT = f"ALTER TABLE {_SNAPSHOT_TABLE} COMMENT = %s"
 
-# Pools whose database has already had the DDL + shape check applied
+# Pools whose database has already had the DDL + shape and behavior checks applied
 # (#1963 review I3). ``ConnectionPool.get_connection()`` opens a *fresh*
 # ``pymysql.connect`` per borrow — it is not a pool in the pooling sense
 # — so a per-request widget store paid a full connect + DDL round trip
@@ -362,6 +379,89 @@ def _now_utc_naive() -> datetime:
     re-attaches ``timezone.utc`` on the way out.
     """
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _mysql_live_guard_probe_values(
+    dataset: str, job_run_id: str, state: SnapshotState
+) -> tuple[Any, ...]:
+    """Build one complete synthetic row for the rolled-back engine probe."""
+    return (
+        dataset,
+        "same-entity",
+        date(2000, 1, 1),
+        datetime(2000, 1, 1),
+        job_run_id,
+        SnapshotStatus.OK.value,
+        state.value,
+        0,
+        "",
+        "{}",
+        None,
+        None,
+        None,
+        None,
+    )
+
+
+def _probe_mysql_live_guard(conn: Any) -> None:
+    """Prove the generated key and unique index, then roll back all rows."""
+    dataset = f"{_LIVE_GUARD_PROBE_PREFIX}{uuid4().hex}"
+    conn.begin()
+    try:
+        with conn.cursor() as cur:
+            try:
+                for job_run_id, state in (
+                    ("staged-1", SnapshotState.STAGING),
+                    ("staged-2", SnapshotState.STAGING),
+                    ("live-1", SnapshotState.LIVE),
+                ):
+                    cur.execute(
+                        _INSERT_LIVE_GUARD_PROBE,
+                        _mysql_live_guard_probe_values(dataset, job_run_id, state),
+                    )
+            except Exception as exc:
+                if not _is_integrity_error(exc):
+                    raise
+                raise _live_guard_refusal(
+                    "mysql",
+                    "an empirical, rolled-back probe could not store two STAGING "
+                    "rows and one LIVE row for the same key",
+                ) from exc
+
+            cur.execute(_SELECT_LIVE_GUARD_PROBE, (dataset, "same-entity"))
+            expected_live_key = f"{dataset}\x1fsame-entity"
+            observed = {row["job_run_id"]: row["live_key"] for row in cur.fetchall()}
+            expected = {
+                "staged-1": None,
+                "staged-2": None,
+                "live-1": expected_live_key,
+            }
+            if observed != expected:
+                raise _live_guard_refusal(
+                    "mysql",
+                    "an empirical, rolled-back probe found that live_key is not "
+                    "NULL for STAGING rows and the exact dataset/entity key for "
+                    "a LIVE row",
+                )
+
+            try:
+                cur.execute(
+                    _INSERT_LIVE_GUARD_PROBE,
+                    _mysql_live_guard_probe_values(
+                        dataset, "live-2", SnapshotState.LIVE
+                    ),
+                )
+            except Exception as exc:
+                if not _is_integrity_error(exc):
+                    raise
+            else:
+                raise _live_guard_refusal(
+                    "mysql",
+                    "an empirical, rolled-back probe accepted two LIVE rows for "
+                    "the same key",
+                )
+    finally:
+        conn.rollback()
 
 
 class MysqlSnapshotStore:
@@ -526,7 +626,8 @@ class MysqlSnapshotStore:
         a hand-written annotation that no code reads.
 
         Neither check can see the third failure, which is why
-        :meth:`_verify_schema` also re-reads the single-LIVE guard: a
+        :meth:`_verify_schema` re-reads the single-LIVE guard and
+        :func:`_probe_mysql_live_guard` exercises it on the real engine: a
         pre-existing table with all fourteen shared columns but no
         generated ``live_key`` (or no UNIQUE index over it) passes shape
         *and* version and then lets two concurrent promotions install two
@@ -543,7 +644,7 @@ class MysqlSnapshotStore:
         case- and accent-blind — a strictly weaker invariant than the one
         SQLite's BINARY comparison enforces for the same calls.
 
-        The check runs once per pool (see :data:`_SCHEMA_READY`), and the
+        The checks run once per pool (see :data:`_SCHEMA_READY`), and the
         refusal is raised *outside* the borrow so a schema fault is not
         logged by the shared pool as ``MySQL connection error``.
 
@@ -558,7 +659,10 @@ class MysqlSnapshotStore:
             for ddl in _ALL_DDLS:
                 cur.execute(ddl)
             try:
-                self._verify_schema(cur)
+                needs_stamp = self._verify_schema(cur)
+                _probe_mysql_live_guard(conn)
+                if needs_stamp:
+                    cur.execute(_STAMP_SCHEMA_COMMENT, (_schema_version_comment(),))
             except SnapshotSchemaMismatch as mismatch:
                 refusal = mismatch
         if refusal is not None:
@@ -566,23 +670,17 @@ class MysqlSnapshotStore:
         _SCHEMA_READY[self._pool] = True
 
     @staticmethod
-    def _verify_schema(cur: Any) -> None:
-        """Check the table's shape, guard, collation and version stamp.
+    def _verify_schema(cur: Any) -> bool:
+        """Check schema metadata and report whether it needs a version stamp.
 
         Every probe asks the *server* (``information_schema``) rather than
         re-reading this module's own DDL text, so the answer describes
         the table that exists, not the table this build would have
         created.
 
-        Order matters. The single-LIVE guard and the key columns'
-        collation are both checked *before* the version stamp is read —
-        and therefore before an unstamped table would be adopted and
-        stamped — so a malformed table never leaves this method wearing
-        this build's version marker. They are also checked
-        unconditionally: a table that already carries a perfectly current
-        stamp gets exactly the same scrutiny, because the stamp proves
-        only who wrote the table, never that its keys survived (PR #2062
-        review).
+        The caller runs the empirical guard probe before acting on the returned
+        ``True``. A structurally plausible guard that behaves incorrectly
+        therefore remains unstamped when construction refuses it.
 
         The guard runs before the collation check only so its message
         wins when ``live_key`` is absent entirely — a missing column has
@@ -608,12 +706,8 @@ class MysqlSnapshotStore:
             record["TABLE_COMMENT"] if record is not None else None
         )
         _check_schema_version(stamped, backend="mysql")
-        # `_check_schema_version` has already narrowed `stamped` to either
-        # this build's own version or 0, so 0 is exactly the
-        # adopt-and-stamp case: a table of the right shape that predates
-        # the stamp, or one this build just created.
-        if stamped == 0:
-            cur.execute(_STAMP_SCHEMA_COMMENT, (_schema_version_comment(),))
+        # `_check_schema_version` narrowed this to the current version or 0.
+        return stamped == 0
 
     # --- private query helpers -----------------------------------------
 
