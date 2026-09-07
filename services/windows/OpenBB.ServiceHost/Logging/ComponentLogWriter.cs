@@ -122,12 +122,13 @@ public sealed partial class ComponentLogWriter : IDisposable
                     message = candidate
                 },
                 JsonOptions);
-            if (line.Length <= _maxLineLength)
+            var byteCount = Utf8NoBom.GetByteCount(line);
+            if (byteCount <= _maxLineLength)
             {
                 return line;
             }
 
-            var overflow = line.Length - _maxLineLength;
+            var overflow = byteCount - _maxLineLength;
             var keep = Math.Max(0, candidate.Length - overflow - 1);
             candidate = candidate[..keep] + "…";
         }
