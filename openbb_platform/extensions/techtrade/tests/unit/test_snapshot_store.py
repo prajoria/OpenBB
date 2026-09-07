@@ -3362,3 +3362,77 @@ def test_snapshot_package_mysql_store_attribute_is_a_stable_identity() -> None:
     # Second access resolves through the cached module attribute, not a
     # second `__getattr__` round trip -- still the identical class object.
     assert snapshot.MysqlSnapshotStore is MysqlSnapshotStore
+
+
+def test_snapshot_star_import_omits_the_optional_mysql_backend() -> None:
+    """PR #2062 review: ``__all__`` must not eagerly resolve the MySQL name.
+
+    ``from openbb_techtrade.snapshot import *`` makes Python call this
+    module's ``__getattr__`` for every name listed in ``__all__`` that
+    isn't already a plain module attribute -- so a naive fix that keeps
+    ``MysqlSnapshotStore`` in ``__all__`` would make star-import itself
+    trigger the deferred MySQL import, defeating the whole point of the
+    lazy ``__getattr__``. This is deliberately run in a subprocess with
+    ``openbb_fmp_cached``/PyMySQL simulated absent (via
+    ``sys.modules[name] = None``, which makes ``import`` raise
+    ``ImportError`` for that name -- see the ``import`` docs) so the
+    assertions are discriminating:
+
+    * star-import must succeed and must not bind or import the optional
+      backend at all -- this is what the fix actually changes.
+    * explicit ``from openbb_techtrade.snapshot import MysqlSnapshotStore``
+      must still succeed, unaffected by ``__all__`` -- ``mysql_store.py``
+      has no module-scope dependency on the optional stack, so merely
+      naming the class is still free.
+    * only *using* the optional backend -- constructing
+      ``MysqlSnapshotStore()`` with no injected pool, which is where
+      ``openbb_fmp_cached`` actually gets imported (see
+      ``MysqlSnapshotStore.__init__``) -- fails, and fails with the
+      missing-dependency error rather than some unrelated crash.
+
+    Reverse-verified: reverting ``snapshot/__init__.py`` to list
+    ``"MysqlSnapshotStore"`` in ``__all__`` makes the star-import step
+    below raise ``ImportError`` (no module named ``openbb_fmp_cached``),
+    because ``import *`` would eagerly resolve it through
+    ``__getattr__`` before the explicit-import step ever runs.
+    """
+    script = (
+        "import sys\n"
+        "sys.modules['pymysql'] = None\n"
+        "sys.modules['openbb_fmp_cached'] = None\n"
+        "from openbb_techtrade.snapshot import *  # noqa: F403\n"
+        "assert 'MysqlSnapshotStore' not in dir(), (\n"
+        "    'star import must not bind the optional MySQL export'\n"
+        ")\n"
+        "assert 'openbb_techtrade.snapshot.mysql_store' not in sys.modules, (\n"
+        "    'star import must not import mysql_store at all'\n"
+        ")\n"
+        "assert SqliteSnapshotStore is not None\n"
+        "assert get_default_snapshot_store is not None\n"
+        "assert canonical_key('sector=Technology') == 'sector=technology'\n"
+        "from openbb_techtrade.snapshot import MysqlSnapshotStore\n"
+        "assert MysqlSnapshotStore is not None, (\n"
+        "    'explicit import of the class name must still succeed -- '\n"
+        "    'mysql_store.py has no module-scope dependency on the '\n"
+        "    'optional stack'\n"
+        ")\n"
+        "try:\n"
+        "    MysqlSnapshotStore()\n"
+        "except ImportError:\n"
+        "    pass\n"
+        "else:\n"
+        "    raise AssertionError(\n"
+        "        'constructing MysqlSnapshotStore with the optional deps '\n"
+        "        'missing should fail, not silently succeed'\n"
+        "    )\n"
+        "print('OK')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip().endswith("OK")

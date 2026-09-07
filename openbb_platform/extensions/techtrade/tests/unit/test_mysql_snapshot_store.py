@@ -1375,11 +1375,23 @@ def test_mysql_store_signature_matches_protocol_and_sqlite(name: str) -> None:
 
 
 def test_snapshot_package_exports_both_backends() -> None:
+    """Both backends are reachable by explicit attribute/import.
+
+    ``MysqlSnapshotStore`` is deliberately *not* listed in ``__all__``
+    (PR #2062 review) so that ``from openbb_techtrade.snapshot import *``
+    cannot trigger the deferred MySQL import on a SQLite-only install;
+    see ``test_snapshot_star_import_omits_the_optional_mysql_backend``
+    in ``test_snapshot_store.py`` for the discriminating regression
+    test. Explicit access -- ``snapshot.MysqlSnapshotStore`` or
+    ``from openbb_techtrade.snapshot import MysqlSnapshotStore`` -- is
+    unaffected, because both resolve the single named attribute through
+    ``__getattr__`` directly, without consulting ``__all__``.
+    """
     from openbb_techtrade import snapshot  # noqa: PLC0415
 
     assert snapshot.MysqlSnapshotStore is MysqlSnapshotStore
     assert snapshot.SqliteSnapshotStore is SqliteSnapshotStore
-    assert "MysqlSnapshotStore" in snapshot.__all__
+    assert "MysqlSnapshotStore" not in snapshot.__all__
     assert "SqliteSnapshotStore" in snapshot.__all__
 
 

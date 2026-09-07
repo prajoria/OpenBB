@@ -16,6 +16,18 @@ ever gets a chance to fall back to :class:`~.store.SqliteSnapshotStore`.
 Deferring the import to first attribute access keeps this package's
 public contract surface importable regardless of which backend's
 dependencies are installed.
+
+``MysqlSnapshotStore`` is deliberately left out of ``__all__`` for the
+same reason: ``from openbb_techtrade.snapshot import *`` resolves every
+name in ``__all__`` eagerly (Python calls this module's ``__getattr__``
+for each one that isn't already a plain module attribute), so listing
+``MysqlSnapshotStore`` there would make star-import trigger the deferred
+MySQL import too -- breaking on a SQLite-only install exactly the
+scenario this module's lazy ``__getattr__`` exists to support. Explicit
+``from openbb_techtrade.snapshot import MysqlSnapshotStore`` still works
+(and is still typed, via the ``TYPE_CHECKING`` import below) because
+that form resolves the single named attribute through ``__getattr__``
+directly, without consulting ``__all__``.
 """
 
 from __future__ import annotations
@@ -45,7 +57,11 @@ if TYPE_CHECKING:  # pragma: no cover - type-checking only, never executed
 __all__ = [
     "FIELD_MAX_LENGTHS",
     "SNAPSHOT_SCHEMA_VERSION",
-    "MysqlSnapshotStore",
+    # "MysqlSnapshotStore" is intentionally omitted -- see the module
+    # docstring above. It remains available via explicit
+    # ``from openbb_techtrade.snapshot import MysqlSnapshotStore`` (and
+    # typed for that form via the ``TYPE_CHECKING`` import above), just
+    # not via ``import *``.
     "RetentionPolicy",
     "SnapshotFieldTooLong",
     "SnapshotRow",
