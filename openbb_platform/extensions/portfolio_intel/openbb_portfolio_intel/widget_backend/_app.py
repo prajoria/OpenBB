@@ -41,10 +41,14 @@ def _default_auto_build_off() -> None:
 
 _default_auto_build_off()
 
-import anyio  # noqa: E402
-from fastapi import FastAPI  # noqa: E402
-from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from starlette.datastructures import MutableHeaders  # noqa: E402
+import anyio  # noqa: E402  # pylint: disable=wrong-import-position
+from fastapi import FastAPI  # noqa: E402  # pylint: disable=wrong-import-position
+from fastapi.middleware.cors import (  # noqa: E402  # pylint: disable=wrong-import-position
+    CORSMiddleware,
+)
+from starlette.datastructures import (  # noqa: E402  # pylint: disable=wrong-import-position
+    MutableHeaders,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +135,7 @@ def _register_health_probers() -> None:
     keeps showing 'unknown' for any tier whose prober failed to register.
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from openbb_portfolio_intel.providers.health_probers import (
             register_default_probers,
         )
@@ -176,6 +181,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # Best-effort teardown of the pooled probe client so httpx doesn't warn
         # about an unclosed client at interpreter shutdown.
         try:
+            # pylint: disable=import-outside-toplevel
             from openbb_portfolio_intel.providers.health_probers import (
                 aclose_shared_client,
             )
@@ -223,6 +229,7 @@ class _DataSourceHeaderMiddleware:
 
         # Lazy import avoids an import cycle: widgets_endpoints imports ``app``
         # from this module, so importing it at module load would be circular.
+        # pylint: disable=import-outside-toplevel
         from openbb_portfolio_intel.widget_backend.widgets_endpoints import (
             _TIER_IN_USE,
         )
