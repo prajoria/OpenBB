@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from openbb_core.api.app_loader import AppLoader
 from openbb_core.api.router.commands import router as router_commands
 from openbb_core.api.router.coverage import router as router_coverage
+from openbb_core.api.router.jobs import router as router_jobs
 from openbb_core.api.router.system import router as router_system
 from openbb_core.app.service.auth_service import AuthService
 from openbb_core.app.service.system_service import SystemService
@@ -71,17 +72,21 @@ app.add_middleware(
     allow_methods=system.api_settings.cors.allow_methods,
     allow_headers=system.api_settings.cors.allow_headers,
 )
+routers = (
+    [AuthService().router, router_system, router_coverage, router_commands]
+    if Env().DEV_MODE
+    else (
+        [router_commands, router_coverage]
+        if hasattr(router_commands, "routes") and router_commands.routes
+        else [router_commands]
+    )
+)
+if Env().JOBS_ENABLED:
+    routers.append(router_jobs)
+
 AppLoader.add_routers(
     app=app,
-    routers=(
-        [AuthService().router, router_system, router_coverage, router_commands]
-        if Env().DEV_MODE
-        else (
-            [router_commands, router_coverage]
-            if hasattr(router_commands, "routes") and router_commands.routes
-            else [router_commands]
-        )
-    ),
+    routers=routers,
     prefix=system.api_settings.prefix,
 )
 AppLoader.add_openapi_tags(app)

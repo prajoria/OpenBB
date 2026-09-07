@@ -10,6 +10,7 @@ from openbb_core.app.model.abstract.singleton import SingletonMeta
 from openbb_core.app.model.extension import Extension
 
 if TYPE_CHECKING:
+    from openbb_core.app.jobs.registry import JobProvider, JobRegistry
     from openbb_core.app.router import Router
     from openbb_core.provider.abstract.provider import Provider
 
@@ -20,6 +21,7 @@ class OpenBBGroups(Enum):
     core = "openbb_core_extension"
     provider = "openbb_provider_extension"
     obbject = "openbb_obbject_extension"
+    job = "openbb_job_extension"
 
     @staticmethod
     def groups() -> list[str]:
@@ -28,6 +30,7 @@ class OpenBBGroups(Enum):
             OpenBBGroups.core.value,
             OpenBBGroups.provider.value,
             OpenBBGroups.obbject.value,
+            OpenBBGroups.job.value,
         ]
 
 
@@ -47,9 +50,13 @@ class ExtensionLoader(metaclass=SingletonMeta):
         self._provider_entry_points: EntryPoints = self._sorted_entry_points(
             group=OpenBBGroups.provider.value
         )
+        self._job_entry_points: EntryPoints = self._sorted_entry_points(
+            group=OpenBBGroups.job.value
+        )
         self._obbject_objects: dict[str, Extension] = {}
         self._core_objects: dict[str, Router] = {}
         self._provider_objects: dict[str, Provider] = {}
+        self._job_objects: dict[str, JobProvider] = {}
         self._on_command_output_callbacks: dict[str, list[Extension]] = {}
         self._register_command_output_callbacks()
 
@@ -84,12 +91,18 @@ class ExtensionLoader(metaclass=SingletonMeta):
         return self._provider_entry_points
 
     @property
+    def job_entry_points(self) -> EntryPoints:
+        """Return the job entry points."""
+        return self._job_entry_points
+
+    @property
     def entry_points(self) -> list[EntryPoints]:
         """Return the entry points."""
         return [
             self._core_entry_points,
             self._provider_entry_points,
             self._obbject_entry_points,
+            self._job_entry_points,
         ]
 
     @staticmethod
@@ -110,6 +123,10 @@ class ExtensionLoader(metaclass=SingletonMeta):
     def get_provider_entry_point(self, ext_name: str) -> EntryPoint | None:
         """Given an extension name, return the corresponding entry point."""
         return self._get_entry_point(self._provider_entry_points, ext_name)
+
+    def get_job_entry_point(self, ext_name: str) -> EntryPoint | None:
+        """Given an extension name, return the corresponding entry point."""
+        return self._get_entry_point(self._job_entry_points, ext_name)
 
     @property
     @lru_cache
@@ -137,6 +154,22 @@ class ExtensionLoader(metaclass=SingletonMeta):
             self._provider_entry_points, OpenBBGroups.provider
         )
         return self._provider_objects
+
+    @property
+    @lru_cache
+    def job_objects(self) -> dict[str, "JobProvider"]:
+        """Return a dict of job provider callables keyed by entry point name."""
+        self._job_objects = self._load_entry_points(
+            self._job_entry_points, OpenBBGroups.job
+        )
+        return self._job_objects
+
+    def build_job_registry(self) -> "JobRegistry":
+        """Build a job registry from installed openbb_job_extension providers."""
+        # pylint: disable=import-outside-toplevel
+        from openbb_core.app.jobs.registry import JobRegistry
+
+        return JobRegistry.discover(self.job_objects.values())
 
     @staticmethod
     def _sorted_entry_points(group: str) -> EntryPoints:
@@ -195,9 +228,32 @@ class ExtensionLoader(metaclass=SingletonMeta):
                     continue
             return entries
 
+        def load_job(eps: EntryPoints) -> dict[str, "JobProvider"]:
+            """
+            Return a dictionary of job provider callables.
+
+            Keys are entry point names and values are callables returning
+            lists of ``JobDefinition`` instances. Core never imports optional
+            extension modules directly; entry points are resolved lazily here.
+            """
+            entries: dict[str, Any] = {}
+            for ep in eps:
+                try:
+                    entry = ep.load()
+                except ModuleNotFoundError:
+                    continue
+                if not callable(entry):
+                    raise TypeError(
+                        f"Job extension '{ep.name}' must be callable and return "
+                        "a list of JobDefinition instances"
+                    )
+                entries[ep.name] = entry
+            return entries
+
         func = {
             OpenBBGroups.obbject: load_obbject,
             OpenBBGroups.core: load_core,
             OpenBBGroups.provider: load_provider,
+            OpenBBGroups.job: load_job,
         }
         return func[group](entry_points_)  # type: ignore

@@ -30,6 +30,7 @@ pyjwt = "^2.12.0"
 
 [tool.poetry.scripts]
 openbb-build = "openbb_core.build:main"
+openbb-jobs = "openbb_core.app.jobs.worker:main"
 
 [build-system]
 requires = ["poetry-core"]
