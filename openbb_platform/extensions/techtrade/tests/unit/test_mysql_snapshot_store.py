@@ -45,7 +45,7 @@ driver in four places so dialect leakage cannot pass silently:
    ``DictCursor``, so the backend must ask for a bare cursor.
 
 Column types for the read-side conversion are parsed out of the module's
-own ``_PI_SNAPSHOT_DDL``, so a ``DATE``/``DATETIME(6)`` column really is
+own ``_PI_EOD_SNAPSHOT_DDL``, so a ``DATE``/``DATETIME(6)`` column really is
 handed back as ``datetime.date``/``datetime.datetime`` exactly like the
 driver does.
 
@@ -83,7 +83,7 @@ from typing import Any
 import pytest
 from openbb_techtrade.snapshot import mysql_store as mysql_store_module
 from openbb_techtrade.snapshot.mysql_store import (
-    _PI_SNAPSHOT_DDL,
+    _PI_EOD_SNAPSHOT_DDL,
     MysqlSnapshotStore,
     _make_mysql_store,
 )
@@ -92,6 +92,7 @@ from openbb_techtrade.snapshot.store import (
     RetentionPolicy,
     SnapshotFieldTooLong,
     SnapshotRow,
+    SnapshotSchemaMismatch,
     SnapshotState,
     SnapshotStatus,
     SnapshotStore,
@@ -123,13 +124,34 @@ def _column_types(ddl: str) -> dict[str, str]:
     return types
 
 
-_COLUMN_TYPES = _column_types(_PI_SNAPSHOT_DDL)
+_COLUMN_TYPES = _column_types(_PI_EOD_SNAPSHOT_DDL)
 
 _VARCHAR_RE = re.compile(r"^\s+(\w+)\s+VARCHAR\((\d+)\)", re.M)
 
 # `live_key` is a generated column: its width is derived from the columns it
 # concatenates, so it is not a bound the *writer* can violate.
 _GENERATED_COLUMNS = frozenset({"live_key"})
+
+# Every string column the DDL declares, with the collation it pins (or
+# `None` when it pins none). The double translates that into SQLite's
+# `COLLATE` so an unpinned column behaves like MySQL's *default* —
+# case-insensitive — instead of silently inheriting SQLite's BINARY. That
+# is what makes the collation tests discriminating rather than a reading
+# of the DDL text back to itself.
+_TEXTUAL_COLUMN_RE = re.compile(
+    r"^\s+(?P<name>\w+)\s+(?P<type>VARCHAR\(\d+\)|CHAR\(\d+\)|LONGTEXT|TEXT)"
+    r"(?P<collate>\s+COLLATE\s+(?P<collation>\w+))?",
+    re.M,
+)
+
+
+def _column_collations(ddl: str) -> dict[str, str | None]:
+    """Map ``column -> pinned collation`` (``None`` when unpinned)."""
+    return {
+        match.group("name"): match.group("collation")
+        for match in _TEXTUAL_COLUMN_RE.finditer(ddl)
+        if match.group("name").upper() not in _NON_COLUMN_TOKENS
+    }
 
 
 def _column_widths(ddl: str) -> dict[str, int]:
@@ -141,7 +163,7 @@ def _column_widths(ddl: str) -> dict[str, int]:
     }
 
 
-_COLUMN_WIDTHS = _column_widths(_PI_SNAPSHOT_DDL)
+_COLUMN_WIDTHS = _column_widths(_PI_EOD_SNAPSHOT_DDL)
 
 
 def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
@@ -158,20 +180,33 @@ def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
     restores that difference, so a test that stages an over-long value
     fails here exactly as it would against a real server — which is what
     makes the length-guard tests discriminating rather than ceremonial.
+
+    Collation gets the same treatment, and for the same reason. MySQL
+    resolves an unpinned string column to the *charset's default*
+    collation, which is case- and accent-insensitive on every supported
+    server; SQLite would resolve it to BINARY. Left untranslated, a DDL
+    that dropped its ``COLLATE utf8mb4_bin`` would keep passing here
+    while silently changing key semantics on the real server. So a
+    pinned ``utf8mb4_bin`` becomes ``COLLATE BINARY`` and an *unpinned*
+    column becomes ``COLLATE NOCASE`` — the double's stand-in for
+    ``_ci``.
     """
     body = ddl.strip()
-    body = re.sub(r"\)\s*ENGINE=\w+\s+DEFAULT\s+CHARSET=\w+\s*$", ")", body)
+    body = re.sub(
+        r"\)\s*ENGINE=\w+\s+DEFAULT\s+CHARSET=\w+(\s+COLLATE=\w+)?\s*$", ")", body
+    )
     indexes: list[str] = []
 
     def _hoist_index(match: re.Match[str]) -> str:
         indexes.append(
             f"CREATE INDEX IF NOT EXISTS {match.group(1)} "
-            f"ON pi_snapshot ({match.group(2)})"
+            f"ON {_table_name(ddl)} ({match.group(2)})"
         )
         return ""
 
     body = re.sub(r"\n\s*INDEX (\w+) \(([^)]*)\),?", _hoist_index, body)
     body = re.sub(r"UNIQUE KEY \w+ \(([^)]*)\)", r"UNIQUE (\1)", body)
+    body = _apply_collations(body)
     body = body.replace("IF(state", "IIF(state")  # codespell:ignore
     body = body.replace("CHAR(31 USING utf8mb4)", "char(31)")
     body = body.replace("CONCAT(", "concat(")
@@ -183,6 +218,32 @@ def _ddl_to_sqlite(ddl: str) -> tuple[str, list[str]]:
     )
     body = re.sub(r"\)\s*$", f",\n{checks}\n)", body) if checks else body
     return body, indexes
+
+
+def _apply_collations(body: str) -> str:
+    """Rewrite each string column's collation into SQLite's vocabulary."""
+
+    def _rewrite(match: re.Match[str]) -> str:
+        if match.group("name").upper() in _NON_COLUMN_TOKENS:
+            return match.group(0)
+        head = f"{match.group(0)[: match.end('type') - match.start(0)]}"
+        collation = match.group("collation")
+        if collation is None:
+            # MySQL's utf8mb4 default collation is case-insensitive.
+            return f"{head} COLLATE NOCASE"
+        return f"{head} COLLATE {'BINARY' if collation.endswith('_bin') else 'NOCASE'}"
+
+    return _TEXTUAL_COLUMN_RE.sub(_rewrite, body)
+
+
+_TABLE_NAME_RE = re.compile(r"CREATE TABLE (?:IF NOT EXISTS )?(?P<name>\w+)\s*\(", re.I)
+
+
+def _table_name(ddl: str) -> str:
+    """Extract the table a ``CREATE TABLE`` statement declares."""
+    match = _TABLE_NAME_RE.search(ddl)
+    assert match is not None, f"not a CREATE TABLE statement: {ddl[:80]!r}"
+    return match.group("name")
 
 
 # ---------------------------------------------------------------------------
@@ -294,10 +355,7 @@ class _FakeCursor:
 
     def execute(self, sql: str, params: Any = None) -> None:
         if sql.lstrip().upper().startswith("CREATE TABLE"):
-            table_sql, indexes = _ddl_to_sqlite(sql)
-            self._cursor.execute(table_sql)
-            for index_sql in indexes:
-                self._cursor.execute(index_sql)
+            self._create_table(sql)
             return
         bound = tuple(params or ())
         if sql.count("%s") != len(bound):
@@ -305,6 +363,9 @@ class _FakeCursor:
                 f"Not all parameters were used in the SQL statement: "
                 f"{sql.count('%s')} placeholders vs {len(bound)} params"
             )
+        if "information_schema" in sql.lower():
+            self._describe_table(sql, bound)
+            return
         self._conn.record(sql, bound)
         if _WRITE_RE.match(sql):
             # An explicit transaction only takes SQLite's write lock here,
@@ -323,6 +384,48 @@ class _FakeCursor:
                 raise _FakeDataError(f"Data too long for column: {exc}") from exc
             raise _FakeIntegrityError(str(exc)) from exc
         self._executed = (sql, bound)
+
+    def _create_table(self, sql: str) -> None:
+        """Apply a ``CREATE TABLE`` the way MySQL would, indexes included.
+
+        MySQL declares the indexes *inside* ``CREATE TABLE``, so an
+        ``IF NOT EXISTS`` that finds an existing table creates nothing at
+        all — not the table, not its indexes. SQLite needs the indexes
+        hoisted into separate statements, so the double has to reproduce
+        that all-or-nothing behavior explicitly; otherwise a no-op'd
+        CREATE would still try to index columns a foreign table does not
+        have, and a name collision would surface as a driver error
+        instead of the silent no-op it really is.
+        """
+        table_sql, indexes = _ddl_to_sqlite(sql)
+        existed = (
+            self._cursor.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (_table_name(sql),),
+            ).fetchone()
+            is not None
+        )
+        self._cursor.execute(table_sql)
+        if existed:
+            return
+        for index_sql in indexes:
+            self._cursor.execute(index_sql)
+
+    def _describe_table(self, sql: str, bound: tuple) -> None:
+        """Answer the production ``information_schema.COLUMNS`` shape probe.
+
+        The store asks a real MySQL question (``SELECT COLUMN_NAME FROM
+        information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND
+        TABLE_NAME = %s``) — the double answers it from SQLite's own
+        catalogue rather than the store softening its query into
+        something portable. A table that does not exist yields no rows,
+        exactly as ``information_schema`` does.
+        """
+        assert "COLUMN_NAME" in sql, f"unexpected information_schema query: {sql!r}"
+        self._cursor.execute(
+            "SELECT name AS COLUMN_NAME FROM pragma_table_info(?)", bound
+        )
+        self._executed = None
 
     def _count_changed_rows(self, sql: str, bound: tuple) -> int | None:
         """Pre-compute MySQL's *changed*-row count for an ``UPDATE``.
@@ -563,7 +666,7 @@ class _RealisticPool(_BasePool):
         return [
             row[0]
             for row in self.query(
-                "SELECT job_run_id FROM pi_snapshot WHERE state = ? "
+                "SELECT job_run_id FROM pi_eod_snapshot WHERE state = ? "
                 "ORDER BY job_run_id",
                 (SnapshotState.LIVE.value,),
             )
@@ -633,7 +736,7 @@ def _direct_insert(pool: _BasePool, *, job_run_id: str, state: str) -> None:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO pi_snapshot ("
+                    "INSERT INTO pi_eod_snapshot ("
                     "dataset, entity_key, as_of_session, created_at, job_run_id, "
                     "status, state, validated, validation_reason, payload_json, "
                     "input_hash, row_count, engine_version, payload_schema_version"
@@ -667,8 +770,8 @@ def test_ddl_uses_native_date_and_datetime_columns() -> None:
     A ``TEXT``/``VARCHAR`` workaround (which SQLite is forced into) would
     lose index-friendly temporal ordering and server-side date math.
     """
-    assert re.search(r"\bas_of_session\s+DATE NOT NULL", _PI_SNAPSHOT_DDL)
-    assert re.search(r"\bcreated_at\s+DATETIME\(6\) NOT NULL", _PI_SNAPSHOT_DDL)
+    assert re.search(r"\bas_of_session\s+DATE NOT NULL", _PI_EOD_SNAPSHOT_DDL)
+    assert re.search(r"\bcreated_at\s+DATETIME\(6\) NOT NULL", _PI_EOD_SNAPSHOT_DDL)
     assert _COLUMN_TYPES["as_of_session"] == "DATE"
     assert _COLUMN_TYPES["created_at"] == "DATETIME"
 
@@ -680,17 +783,17 @@ def test_ddl_declares_generated_nullable_live_key_and_unique_key() -> None:
     ignore NULLs), so unlimited STAGING/SUPERSEDED history coexists with
     at most one LIVE row per ``(dataset, entity_key)``.
     """
-    assert re.search(r"\blive_key\s+VARCHAR\(512\)", _PI_SNAPSHOT_DDL)
-    assert "GENERATED ALWAYS AS" in _PI_SNAPSHOT_DDL
-    assert "IF(state = 'live'" in _PI_SNAPSHOT_DDL
-    assert "STORED" in _PI_SNAPSHOT_DDL
-    assert "UNIQUE KEY ux_pi_snapshot_live (live_key)" in _PI_SNAPSHOT_DDL
+    assert re.search(r"\blive_key\s+VARCHAR\(512\)", _PI_EOD_SNAPSHOT_DDL)
+    assert "GENERATED ALWAYS AS" in _PI_EOD_SNAPSHOT_DDL
+    assert "IF(state = 'live'" in _PI_EOD_SNAPSHOT_DDL
+    assert "STORED" in _PI_EOD_SNAPSHOT_DDL
+    assert "UNIQUE KEY ux_pi_eod_snapshot_live (live_key)" in _PI_EOD_SNAPSHOT_DDL
     # The generated expression must key on BOTH parts of the identity, or
     # two datasets sharing an entity_key would collide. The CHAR(31) unit
     # separator keeps the boundary unforgeable.
     assert re.search(
         r"CONCAT\(\s*dataset,\s*CHAR\(31[^)]*\),\s*entity_key\s*\)",
-        _PI_SNAPSHOT_DDL,
+        _PI_EOD_SNAPSHOT_DDL,
         re.S,
     )
 
@@ -724,7 +827,7 @@ def test_generated_live_key_is_null_for_non_live_rows(
     _direct_insert(pool, job_run_id="run-direct-staging", state="staging")
 
     rows = pool.raw.execute(
-        "SELECT state, live_key FROM pi_snapshot ORDER BY job_run_id"
+        "SELECT state, live_key FROM pi_eod_snapshot ORDER BY job_run_id"
     ).fetchall()
     assert len(rows) == 3
     assert all(live_key is None for _, live_key in rows)
@@ -1374,7 +1477,7 @@ def test_every_user_value_is_bound_with_percent_s(
         entity_key="sector=technology",
         payload={"rows": [{"symbol": "AAPL"}]},
         input_hash="hash-a",
-        job_run_id="run-injection'; DROP TABLE pi_snapshot; --",
+        job_run_id="run-injection'; DROP TABLE pi_eod_snapshot; --",
     )
     assert store.validate(*staged).ok
     assert store.promote(*staged)
@@ -1393,7 +1496,7 @@ def test_every_user_value_is_bound_with_percent_s(
             assert needle not in sql, f"user value interpolated into SQL: {sql!r}"
 
     # The table survived the injection-shaped job_run_id.
-    assert pool.raw.execute("SELECT COUNT(*) FROM pi_snapshot").fetchone()[0] >= 1
+    assert pool.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] >= 1
 
 
 def test_writes_commit_and_reads_do_not(
@@ -1448,7 +1551,7 @@ def test_a_failed_promote_rolls_back_the_demotion_it_already_wrote(
 
     rollbacks_before = pool.rollbacks
     pool.fail_on = lambda sql, params: (
-        sql.startswith("UPDATE pi_snapshot SET state")
+        sql.startswith("UPDATE pi_eod_snapshot SET state")
         and params[0] == SnapshotState.LIVE.value
     )
     with pytest.raises(_FakeMysqlError):
@@ -1613,7 +1716,7 @@ def test_rows_come_back_as_dict_cursor_mappings(
     assert store.promote(*staged)
     with pool.get_connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT dataset, state FROM pi_snapshot WHERE state = %s", ("live",)
+            "SELECT dataset, state FROM pi_eod_snapshot WHERE state = %s", ("live",)
         )
         record = cur.fetchone()
     assert isinstance(record, dict)
@@ -1843,7 +1946,7 @@ def test_refusals_are_invisible_to_the_real_pool_but_driver_faults_are_not(
     assert seam.book.rollbacks >= 1
 
     caplog.clear()
-    seam.book.fail_on = lambda sql, params: sql.startswith("UPDATE pi_snapshot SET")
+    seam.book.fail_on = lambda sql, params: sql.startswith("UPDATE pi_eod_snapshot SET")
     with caplog.at_level(logging.DEBUG), pytest.raises(_FakeMysqlError):
         store.validate(*staged)
     assert _pool_errors(caplog), (
@@ -1894,7 +1997,7 @@ def test_validate_update_is_scoped_to_the_staging_state(
     updates = [
         (sql, params)
         for sql, params in pool.statements
-        if sql.lstrip().upper().startswith("UPDATE PI_SNAPSHOT SET VALIDATED")
+        if sql.lstrip().upper().startswith("UPDATE PI_EOD_SNAPSHOT SET VALIDATED")
     ]
     assert len(updates) == 1
     sql, params = updates[0]
@@ -1970,7 +2073,7 @@ def test_validate_re_reads_the_row_under_a_lock_in_its_write_transaction(
     update_at = next(
         index
         for index, (_, sql, _) in enumerate(calls)
-        if sql.lstrip().upper().startswith("UPDATE PI_SNAPSHOT SET VALIDATED")
+        if sql.lstrip().upper().startswith("UPDATE PI_EOD_SNAPSHOT SET VALIDATED")
     )
     locked = [
         (conn_id, sql)
@@ -2185,7 +2288,7 @@ def test_promote_converts_a_concurrent_live_key_collision_into_a_refusal(
     )
 
     rolled_back = real_pool.query(
-        "SELECT state FROM pi_snapshot WHERE job_run_id = ?", (mine[3],)
+        "SELECT state FROM pi_eod_snapshot WHERE job_run_id = ?", (mine[3],)
     )
     assert rolled_back == [(SnapshotState.STAGING.value,)]
 
@@ -2197,7 +2300,7 @@ def _direct_supersede(pool: _RealisticPool, job_run_id: str) -> None:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE pi_snapshot SET state = %s WHERE job_run_id = %s",
+                    "UPDATE pi_eod_snapshot SET state = %s WHERE job_run_id = %s",
                     (SnapshotState.SUPERSEDED.value, job_run_id),
                 )
             conn.commit()
@@ -2260,3 +2363,493 @@ def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(
     }
     assert states[mine[3]] == SnapshotState.STAGING
     assert states[incumbent[3]] == SnapshotState.SUPERSEDED
+
+
+# ---------------------------------------------------------------------------
+# Table identity: no collision with the positions importer (#1963 review C1)
+# ---------------------------------------------------------------------------
+#
+# `portfolio_snapshot_importer` (#1744) ships its own `pi_snapshot` - a
+# completely different, account-scoped schema (`snapshot_id`,
+# `source_sha256`, `user_id`, plus a `pi_position` FK) - into the *same*
+# `openbb_fmp_cache_test` database through the *same* `get_connection_pool()`.
+# `CREATE TABLE IF NOT EXISTS` succeeds as a no-op against it, so a shared
+# name meant this store constructed healthy and then failed every operation
+# with "Unknown column 'dataset'" - while colliding a compute-free shared
+# cache with the PII-bearing table design spec 8 / #1965 says it must never
+# share.
+
+
+def _importer_snapshot_ddl() -> str:
+    from portfolio_snapshot_importer.mysql_store import (  # noqa: PLC0415
+        _PI_SNAPSHOT_DDL as _IMPORTER_DDL,
+    )
+
+    return _IMPORTER_DDL
+
+
+def test_snapshot_table_name_does_not_collide_with_the_positions_importer() -> None:
+    """Name regression: the two tables must never share an identifier."""
+    ours = _table_name(_PI_EOD_SNAPSHOT_DDL)
+    theirs = _table_name(_importer_snapshot_ddl())
+
+    assert ours == "pi_eod_snapshot"
+    assert theirs == "pi_snapshot"
+    assert ours != theirs, (
+        "the EOD snapshot store and the account-scoped positions importer "
+        "would share one table in one database"
+    )
+    # Indexes live in the same namespace on MySQL's information_schema and
+    # must not collide either.
+    ours_indexes = set(re.findall(r"(?:UNIQUE KEY|INDEX) (\w+)", _PI_EOD_SNAPSHOT_DDL))
+    theirs_indexes = set(
+        re.findall(r"(?:UNIQUE KEY|INDEX) (\w+)", _importer_snapshot_ddl())
+    )
+    assert ours_indexes and not (ours_indexes & theirs_indexes)
+
+
+def test_store_coexists_with_the_positions_importer_table_in_one_database(
+    tmp_path: Path,
+) -> None:
+    """Discriminating: the importer's table is already there, ours still works.
+
+    Reverse-verified: renaming `pi_eod_snapshot` back to `pi_snapshot`
+    makes construction raise `SnapshotSchemaMismatch` here (and, without
+    the shape check, makes every lifecycle call fail on a missing column).
+    """
+    pool = _FakePool(tmp_path / "shared.db")
+    importer_sql, importer_indexes = _ddl_to_sqlite(_importer_snapshot_ddl())
+    pool.raw.execute(importer_sql)
+    for index_sql in importer_indexes:
+        pool.raw.execute(index_sql)
+    pool.raw.execute(
+        "INSERT INTO pi_snapshot (snapshot_id, snapshot_date, user_id, "
+        "source_filename, source_sha256, imported_at, row_count_raw, "
+        "row_count_kept, row_count_skipped, schema_version) VALUES "
+        "('snap-1', '2026-09-04', 'user-1', 'positions.csv', 'a' , "
+        "'2026-09-04 12:00:00', 3, 3, 0, 1)"
+    )
+
+    store = MysqlSnapshotStore(connection_pool=pool)
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.payload["rows"][0]["symbol"] == "AAPL"
+
+    # The importer's row and shape survive untouched.
+    assert pool.raw.execute("SELECT COUNT(*) FROM pi_snapshot").fetchone()[0] == 1
+    importer_columns = {
+        row[1] for row in pool.raw.execute("PRAGMA table_info(pi_snapshot)").fetchall()
+    }
+    assert "snapshot_id" in importer_columns
+    assert "dataset" not in importer_columns
+
+
+# ---------------------------------------------------------------------------
+# Schema shape validation (#1963 review I1)
+# ---------------------------------------------------------------------------
+
+
+def test_mysql_refuses_a_foreign_table_of_the_same_name(tmp_path: Path) -> None:
+    """A `pi_eod_snapshot` that is not ours must fail at construction."""
+    pool = _FakePool(tmp_path / "foreign.db")
+    pool.raw.execute(
+        "CREATE TABLE pi_eod_snapshot (snapshot_id TEXT PRIMARY KEY, user_id TEXT)"
+    )
+
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert "pi_eod_snapshot" in str(excinfo.value)
+    assert "dataset" in str(excinfo.value)
+
+
+def test_a_schema_refusal_is_not_reported_to_the_pool_as_a_connection_fault(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A misconfigured schema is not a database fault.
+
+    `ConnectionPool.get_connection` logs `ERROR MySQL connection error`
+    for anything unwinding across it. The shape refusal is raised after
+    the borrow has closed, so the pool the FMP cache shares stays quiet.
+    """
+    pool = _FakePool(tmp_path / "foreign.db")
+    pool.raw.execute(
+        "CREATE TABLE pi_eod_snapshot (snapshot_id TEXT PRIMARY KEY, user_id TEXT)"
+    )
+
+    with caplog.at_level(logging.ERROR, logger=_POOL_LOGGER), pytest.raises(
+        SnapshotSchemaMismatch
+    ):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.errors == []
+    assert _pool_errors(caplog) == []
+
+
+def test_schema_probe_asks_information_schema_for_the_real_table(
+    tmp_path: Path,
+) -> None:
+    """The shape check must interrogate the server, not trust the DDL text."""
+    pool = _FakePool(tmp_path / "probe.db")
+    MysqlSnapshotStore(connection_pool=pool)
+
+    assert "information_schema" in mysql_store_module._SELECT_SCHEMA_COLUMNS.lower()
+    assert "DATABASE()" in mysql_store_module._SELECT_SCHEMA_COLUMNS
+
+
+# ---------------------------------------------------------------------------
+# Schema DDL runs once per pool (#1963 review I3)
+# ---------------------------------------------------------------------------
+
+
+def _create_table_statements(pool: _BasePool) -> list[str]:
+    return [
+        sql for sql, _ in pool.statements if sql.lstrip().upper().startswith("CREATE")
+    ]
+
+
+def test_repeated_store_construction_does_not_repeat_the_schema_ddl(
+    tmp_path: Path,
+) -> None:
+    """A per-request widget store must not pay a connect + DDL round trip.
+
+    `ConnectionPool.get_connection()` opens a *fresh* `pymysql.connect`
+    per borrow, so `_ensure_schema()` on every construction is a real
+    handshake, not a cached one.
+    """
+    pool = _RealisticPool(tmp_path / "once.db")
+    MysqlSnapshotStore(connection_pool=pool)
+    borrows_after_first = pool.handed_out
+
+    for _ in range(5):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.handed_out == borrows_after_first, (
+        "constructing a store against an already-prepared pool borrowed a "
+        "connection again"
+    )
+
+
+def test_a_different_pool_gets_its_own_schema_check(tmp_path: Path) -> None:
+    """Discriminating: the once-guard must never span two databases.
+
+    A process-wide boolean would skip the DDL for a *different* config -
+    the store would then run against a database with no table at all.
+    """
+    first = _FakePool(tmp_path / "first.db")
+    MysqlSnapshotStore(connection_pool=first)
+
+    second = _FakePool(tmp_path / "second.db")
+    store = MysqlSnapshotStore(connection_pool=second)
+
+    assert second.handed_out >= 1, "the second pool was never asked for a connection"
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    assert second.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 1
+
+
+# ---------------------------------------------------------------------------
+# Collation is pinned, not inherited (#1963 security review, Alert 2)
+# ---------------------------------------------------------------------------
+#
+# `DEFAULT CHARSET=utf8mb4` with no `COLLATE` resolves to the charset's
+# default collation - `utf8mb4_0900_ai_ci` on MySQL 8, `utf8mb4_general_ci`
+# on 5.7 - both case- AND accent-insensitive. That silently changes the
+# semantics of the only two DB-level guarantees this table has: the
+# `ux_pi_eod_snapshot_live` unique key (single LIVE row) and the primary
+# key (`job_run_id` identity). The double translates a pinned
+# `utf8mb4_bin` to SQLite's BINARY and an *unpinned* column to NOCASE, so
+# these assertions fail if the DDL ever loses its COLLATE.
+
+_KEY_COLUMNS = ("dataset", "entity_key", "job_run_id", "status", "state", "live_key")
+
+
+def test_ddl_pins_binary_collation_on_every_key_column() -> None:
+    collations = _column_collations(_PI_EOD_SNAPSHOT_DDL)
+    for column in _KEY_COLUMNS:
+        assert collations.get(column) == "utf8mb4_bin", (
+            f"{column} inherits the charset default collation, which is "
+            "case- and accent-insensitive on every supported MySQL version"
+        )
+
+
+def test_ddl_pins_binary_collation_on_the_table_itself() -> None:
+    """Belt and braces: a column added later must not silently be _ci."""
+    assert re.search(
+        r"ENGINE=InnoDB\s+DEFAULT\s+CHARSET=utf8mb4\s+COLLATE=utf8mb4_bin",
+        _PI_EOD_SNAPSHOT_DDL,
+    )
+
+
+def test_job_run_id_case_is_significant_on_mysql(store: MysqlSnapshotStore) -> None:
+    """Parity: `Run-1` and `run-1` are two rows, not a duplicate-key error.
+
+    `job_run_id` is never canonicalized. Under an `_ci` collation the
+    primary key folds the two together: SQLite inserts both, MySQL raises
+    `IntegrityError`. That breaks the module's binding parity claim in
+    the one place `_check_field_lengths` cannot see.
+
+    Reverse-verified: dropping `COLLATE utf8mb4_bin` from `job_run_id`
+    makes the double fold the two ids and this staging call raises.
+    """
+    _stage(store, payload={"rows": [{"symbol": "AAPL"}]}, job_run_id="run-case")
+    _stage(store, payload={"rows": [{"symbol": "AAPL"}]}, job_run_id="Run-Case")
+
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert {row.job_run_id for row in history} == {"run-case", "Run-Case"}
+
+
+def test_job_run_id_case_is_significant_on_both_backends(
+    store: MysqlSnapshotStore, tmp_path: Path
+) -> None:
+    """The same call must be accepted by both backends, identically."""
+    sqlite_store = SqliteSnapshotStore(tmp_path / "parity.db")
+    for target in (store, sqlite_store):
+        _stage(target, payload={"rows": [{"symbol": "AAPL"}]}, job_run_id="run-parity")
+        _stage(target, payload={"rows": [{"symbol": "AAPL"}]}, job_run_id="RUN-PARITY")
+        assert len(target.list_history("techtrade.movers", "sector=technology")) == 2
+    sqlite_store.close()
+
+
+def test_the_double_folds_case_when_a_column_is_unpinned(tmp_path: Path) -> None:
+    """Guards the guard: without this, the collation tests prove nothing.
+
+    Strips the ``COLLATE`` clauses out of the real DDL and shows the
+    double then behaves like MySQL's ``_ci`` default - the two
+    ``job_run_id`` values collide on the primary key. If this test ever
+    passes *without* raising, the double stopped modelling collation and
+    every assertion above became ceremonial.
+
+    Scope note: SQLite's ``NOCASE`` folds ASCII case only, so it models
+    the ``_ci`` half of ``utf8mb4_0900_ai_ci``. The accent-insensitive
+    half (the ``live_key`` collision path) is pinned statically by
+    ``test_ddl_pins_binary_collation_on_every_key_column``; no local
+    engine can reproduce MySQL's accent folding.
+    """
+    unpinned = _PI_EOD_SNAPSHOT_DDL.replace(" COLLATE utf8mb4_bin", "").replace(
+        " COLLATE=utf8mb4_bin", ""
+    )
+    assert "COLLATE" not in unpinned
+    table_sql, _ = _ddl_to_sqlite(unpinned)
+    conn = sqlite3.connect(str(tmp_path / "unpinned.db"), isolation_level=None)
+    conn.execute(table_sql)
+
+    insert = (
+        "INSERT INTO pi_eod_snapshot (dataset, entity_key, as_of_session, "
+        "created_at, job_run_id, status, state, validated, validation_reason, "
+        "payload_json) VALUES (?, ?, '2026-09-04', '2026-09-04 00:00:00', ?, "
+        "'ok', 'staging', 0, '', '{}')"
+    )
+    conn.execute(insert, ("techtrade.movers", "sector=technology", "run-1"))
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(insert, ("techtrade.movers", "sector=technology", "Run-1"))
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+# restamp_live is pinned to the row it copied (#1963 review I2)
+# ---------------------------------------------------------------------------
+
+
+def test_restamp_refuses_when_a_real_recompute_wins_the_race(
+    real_store: MysqlSnapshotStore,
+    real_pool: _RealisticPool,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Invariant: a stale copy never supersedes newer content.
+
+    `restamp_live` reads LIVE, then stages / validates / promotes in
+    separate transactions - on MySQL, separate pooled borrows. A genuine
+    recompute promoting inside that window would be superseded by the
+    copy of the *older* payload under a *newer* session date.
+
+    Reverse-verified: with `_promote_expecting_live` reduced to a plain
+    `promote()`, the restamp succeeds and LIVE reverts to AAPL.
+    """
+    original = _stage(
+        real_store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+    )
+    assert real_store.validate(*original).ok
+    assert real_store.promote(*original)
+
+    competitor = MysqlSnapshotStore(connection_pool=real_pool)
+    fired: list[str] = []
+    real_stage = real_store.stage
+
+    def _stage_then_recompute(*args, **kwargs):
+        real_stage(*args, **kwargs)
+        if fired:
+            return
+        recompute = _stage(
+            competitor,
+            payload={"rows": [{"symbol": "NVDA"}]},
+            as_of_session=date(2026, 9, 4),
+        )
+        assert competitor.validate(*recompute).ok
+        assert competitor.promote(*recompute)
+        fired.append(recompute[3])
+
+    real_store.stage = _stage_then_recompute  # type: ignore[method-assign]
+
+    with caplog.at_level(logging.WARNING, logger=_MYSQL_LOGGER):
+        restamped = real_store.restamp_live(
+            "techtrade.movers", "sector=technology", date(2026, 9, 5), "run-restamp"
+        )
+
+    assert fired, "the interleaving hook never ran - test is inert"
+    assert restamped is False
+    assert [
+        record
+        for record in caplog.records
+        if "promotion refused" in record.getMessage()
+        and "real recompute" in record.getMessage()
+    ]
+
+    real_store.stage = real_stage  # type: ignore[method-assign]
+    live = real_store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == fired[0]
+    assert live.payload["rows"][0]["symbol"] == "NVDA"
+    assert real_pool.live_job_run_ids() == [fired[0]]
+
+
+def test_restamp_still_succeeds_when_live_does_not_move(
+    store: MysqlSnapshotStore,
+) -> None:
+    """Guards the guard: the new gate must not refuse the ordinary path."""
+    _live_store(store, input_hash="same-input")
+    assert store.restamp_live(
+        "techtrade.movers", "sector=technology", date(2026, 9, 6), "run-restamp"
+    )
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.as_of_session == date(2026, 9, 6)
+    assert live.job_run_id == "run-restamp"
+
+
+# ---------------------------------------------------------------------------
+# prune scoping and statement shape (#1963 review I4)
+# ---------------------------------------------------------------------------
+
+
+def _store_with_two_datasets(store: MysqlSnapshotStore) -> None:
+    for dataset in ("techtrade.movers", "techtrade.segments"):
+        for symbol, as_of_session in (
+            ("AAPL", date(2026, 9, 2)),
+            ("MSFT", date(2026, 9, 3)),
+            ("GOOG", date(2026, 9, 4)),
+        ):
+            staged = _stage(
+                store,
+                payload={"rows": [{"symbol": symbol}]},
+                dataset=dataset,
+                as_of_session=as_of_session,
+            )
+            assert store.validate(*staged).ok
+            assert store.promote(*staged)
+
+
+def test_scoped_prune_leaves_a_neighbouring_dataset_untouched(
+    store: MysqlSnapshotStore,
+) -> None:
+    """The table is shared with the FMP cache; a job scopes its own sweep."""
+    _store_with_two_datasets(store)
+
+    assert (
+        store.prune(RetentionPolicy(keep_sessions=1), dataset="techtrade.movers") == 2
+    )
+
+    assert len(store.list_history("techtrade.movers", "sector=technology")) == 1
+    assert len(store.list_history("techtrade.segments", "sector=technology")) == 3
+
+
+def test_unscoped_prune_still_sweeps_every_dataset(store: MysqlSnapshotStore) -> None:
+    _store_with_two_datasets(store)
+    assert store.prune(RetentionPolicy(keep_sessions=1)) == 4
+    assert len(store.list_history("techtrade.movers", "sector=technology")) == 1
+    assert len(store.list_history("techtrade.segments", "sector=technology")) == 1
+
+
+def test_entity_scoped_prune_requires_its_dataset(store: MysqlSnapshotStore) -> None:
+    with pytest.raises(ValueError, match="requires dataset"):
+        store.prune(RetentionPolicy(keep_sessions=1), entity_key="sector=technology")
+
+
+def test_prune_is_set_based_not_a_round_trip_per_key(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """The write transaction is held for a bounded number of statements."""
+    for index in range(8):
+        for as_of_session in (date(2026, 9, 2), date(2026, 9, 3), date(2026, 9, 4)):
+            staged = _stage(
+                store,
+                payload={"rows": [{"symbol": "AAPL"}]},
+                entity_key=f"sector=sector{index}",
+                as_of_session=as_of_session,
+            )
+            assert store.validate(*staged).ok
+            assert store.promote(*staged)
+
+    before = len(pool.statements)
+    assert store.prune(RetentionPolicy(keep_sessions=1)) == 16
+    issued = [sql for sql, _ in pool.statements[before:]]
+
+    selects = [sql for sql in issued if sql.lstrip().upper().startswith("SELECT")]
+    deletes = [sql for sql in issued if sql.lstrip().upper().startswith("DELETE")]
+    assert len(selects) == 1, f"one SELECT for the whole sweep, saw {len(selects)}"
+    assert len(deletes) == 1, f"one batched DELETE for 8 keys, saw {len(deletes)}"
+    assert all("%s" in sql for sql in deletes)
+
+
+def test_prune_binds_every_scope_and_session_value(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    """No prune value is ever interpolated into SQL text."""
+    _store_with_two_datasets(store)
+    before = len(pool.statements)
+    store.prune(RetentionPolicy(keep_sessions=1), dataset="techtrade.movers")
+
+    for sql, params in pool.statements[before:]:
+        assert sql.count("%s") == len(params)
+        assert "techtrade.movers" not in sql
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_a_non_positive_history_limit_is_refused(
+    store: MysqlSnapshotStore, limit: int
+) -> None:
+    """`LIMIT -1` is unlimited on SQLite and a syntax error on MySQL."""
+    with pytest.raises(ValueError, match="limit"):
+        store.list_history("techtrade.movers", "sector=technology", limit=limit)
+
+
+def test_both_backends_support_the_same_context_manager_protocol(
+    store: MysqlSnapshotStore, tmp_path: Path
+) -> None:
+    """Parity: `with get_default_snapshot_store() as s:` works on either.
+
+    Without `__enter__`/`__exit__` on both, the selector hands back an
+    object that supports `with` on one backend and raises `TypeError` on
+    the other - which defeats the point of choosing behind a Protocol.
+    """
+    with store as entered:
+        assert entered is store
+    with SqliteSnapshotStore(tmp_path / "ctx.db") as sqlite_store:
+        assert sqlite_store.get_live("techtrade.movers", "sector=technology") is None
+
+
+def test_schema_mismatch_and_version_are_public(store: MysqlSnapshotStore) -> None:
+    """Callers need to catch the refusal and report the version they speak."""
+    from openbb_techtrade import snapshot  # noqa: PLC0415
+
+    del store
+    assert snapshot.SnapshotSchemaMismatch is SnapshotSchemaMismatch
+    assert "SnapshotSchemaMismatch" in snapshot.__all__
+    assert "SNAPSHOT_SCHEMA_VERSION" in snapshot.__all__
+    assert snapshot.SNAPSHOT_SCHEMA_VERSION >= 1

@@ -26,6 +26,14 @@ Design invariants this module encodes (see the spec for the full list):
   the payload is *about* (a ``date``); the latter is the wall-clock UTC
   instant of the write (a tz-aware ``datetime``). The two concepts must
   never collapse into a single timestamp.
+- **Namespaced table.** The table is ``pi_eod_snapshot``. ``pi_snapshot``
+  is already taken by ``portfolio_snapshot_importer``'s account-scoped
+  positions history in the same MySQL database — see the C1 note above
+  ``_SNAPSHOT_TABLE``.
+- **Schema identity is verified, not assumed.** Both backends refuse a
+  table of the right name and the wrong shape (or a foreign schema
+  version) with :class:`SnapshotSchemaMismatch`, because
+  ``CREATE TABLE IF NOT EXISTS`` cannot tell the two apart.
 
 Read path is compute-free: nothing in this module calls a provider or
 performs a live computation. That remains true for every concrete backend
@@ -44,7 +52,8 @@ import json
 import logging
 import os
 import sqlite3
-from collections.abc import Callable, Iterator
+import threading
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
@@ -93,9 +102,25 @@ class ValidationResult:
 
 @dataclass(frozen=True)
 class RetentionPolicy:
-    """Retention hook (design spec §3.3). ``None`` = keep-all, the v1 default."""
+    """Retention hook (design spec §3.3). ``None`` = keep-all, the v1 default.
+
+    ``keep_sessions`` is validated on construction. A negative value is
+    not a smaller window — it is a Python slice bound, so
+    ``sessions[:-1]`` would silently mean "delete only the *oldest*
+    session", the near-inverse of what the caller asked for. ``0`` is
+    legal and means "keep no session outside LIVE" (LIVE rows are never
+    pruned regardless).
+    """
 
     keep_sessions: int | None = None
+
+    def __post_init__(self) -> None:
+        """Reject a negative window before it can be read as a slice bound."""
+        if self.keep_sessions is not None and self.keep_sessions < 0:
+            raise ValueError(
+                "RetentionPolicy.keep_sessions must be None (keep-all) or "
+                f">= 0; got {self.keep_sessions!r}"
+            )
 
 
 @dataclass(frozen=True)
@@ -252,10 +277,24 @@ class SnapshotStore(Protocol):
         """
         ...  # pylint: disable=unnecessary-ellipsis
 
-    def prune(self, policy: RetentionPolicy | None = None) -> int:
+    def prune(
+        self,
+        policy: RetentionPolicy | None = None,
+        *,
+        dataset: str | None = None,
+        entity_key: str | None = None,
+    ) -> int:
         """Apply retention; return the number of rows removed.
 
         The default policy (``None``) keeps everything and returns ``0``.
+
+        ``dataset``/``entity_key`` scope the sweep (#1963 review I4). The
+        store is *shared*, so an unscoped call applies one caller's
+        window to every other dataset's history; passing ``dataset``
+        keeps a job's retention policy inside its own data. ``entity_key``
+        may only be given together with ``dataset`` — the same
+        ``entity_key`` string is reused across datasets, so scoping by it
+        alone would silently reach into a neighbour's history.
         """
         ...  # pylint: disable=unnecessary-ellipsis
 
@@ -274,10 +313,19 @@ class SnapshotStore(Protocol):
 # without strict mode a truncated ``job_run_id`` or ``input_hash`` is
 # corrupted provenance that no later read can detect.
 #
-# The values mirror ``_PI_SNAPSHOT_DDL`` exactly (a test asserts the two
+# The values mirror ``_PI_EOD_SNAPSHOT_DDL`` exactly (a test asserts the two
 # cannot drift apart). ``entity_key`` stops at 191 because 191 * 4 bytes
 # of utf8mb4 is the widest value InnoDB can put under the historical
 # 767-byte index prefix limit.
+#
+# The target server, stated explicitly because the two limits are easy to
+# confuse (#1963 review I5): **InnoDB with the DYNAMIC row format** (the
+# default since MySQL 5.7.9), whose index-key limit is 3072 bytes. The 767
+# figure is the rationale for *this one column's width* — the cheapest
+# point at which it also stays portable to COMPACT/REDUNDANT — not a claim
+# about the whole schema. The other two keys are sized against 3072:
+# ``live_key VARCHAR(512)`` is 2048 bytes and the four-column primary key
+# is 1791 (512 + 764 + 3 + 512). Both exceed 767 by design.
 
 FIELD_MAX_LENGTHS: dict[str, int] = {
     "dataset": 128,
@@ -327,6 +375,129 @@ def _check_field_lengths(**fields: str | None) -> None:
             raise SnapshotFieldTooLong(name, value, limit)
 
 
+def _check_limit(limit: int) -> None:
+    """Reject a non-positive ``list_history`` limit on both backends.
+
+    The dialects disagree about what a non-positive ``LIMIT`` means:
+    SQLite reads ``LIMIT -1`` as *unlimited*, MySQL rejects it as a
+    syntax error, and ``LIMIT 0`` returns nothing on both. Left
+    unvalidated, the same call is a full history dump on one backend and
+    a driver traceback on the other, which breaks the module's binding
+    parity claim. One shared guard, before either dialect is reached.
+    """
+    if limit <= 0:
+        raise ValueError(f"list_history limit must be >= 1; got {limit!r}")
+
+
+# --- Table identity + schema versioning (#1963 review C1/I1) --------------
+#
+# The table is namespaced ``pi_eod_snapshot`` rather than ``pi_snapshot``
+# because ``portfolio_snapshot_importer`` (#1744) already ships a
+# *different* ``pi_snapshot`` — account-scoped positions history, with a
+# ``snapshot_id`` primary key and a ``pi_position`` FK — into the very
+# same MySQL database through the very same ``get_connection_pool()``.
+# ``CREATE TABLE IF NOT EXISTS`` would have silently no-op'd against it,
+# leaving a store that constructs cleanly and then fails every operation
+# with "Unknown column 'dataset'", and colliding this compute-free shared
+# cache with the PII-bearing table design spec §8 / #1965 says it must
+# never share.
+#
+# The rename removes the collision; the shape + version check below is
+# what makes any *future* collision loud instead of silent, including the
+# one #1964/#1967 will create when they add columns.
+
+_SNAPSHOT_TABLE = "pi_eod_snapshot"
+
+SNAPSHOT_SCHEMA_VERSION = 1
+
+_EXPECTED_COLUMNS = frozenset(
+    {
+        "dataset",
+        "entity_key",
+        "as_of_session",
+        "created_at",
+        "job_run_id",
+        "status",
+        "state",
+        "validated",
+        "validation_reason",
+        "payload_json",
+        "input_hash",
+        "row_count",
+        "engine_version",
+        "payload_schema_version",
+    }
+)
+
+
+class SnapshotSchemaMismatch(RuntimeError):
+    """An existing ``pi_eod_snapshot`` table is not the one this code expects.
+
+    Raised at construction, before any lifecycle call, so an
+    incompatible or foreign table fails loudly at the seam instead of
+    surfacing later as an "Unknown column" from deep inside ``stage()``.
+    """
+
+
+def _check_schema_shape(columns: Iterable[str], *, backend: str) -> None:
+    """Fail loudly when the existing table is missing expected columns."""
+    missing = sorted(_EXPECTED_COLUMNS - set(columns))
+    if missing:
+        raise SnapshotSchemaMismatch(
+            f"{backend}: table {_SNAPSHOT_TABLE!r} exists but is missing "
+            f"{missing} — it belongs to another component or to an "
+            f"incompatible schema version. Refusing to use it. Expected "
+            f"schema version {SNAPSHOT_SCHEMA_VERSION}."
+        )
+
+
+def _check_schema_version(version: int, *, backend: str) -> None:
+    """Fail loudly on a table stamped by a different schema version."""
+    if version not in (0, SNAPSHOT_SCHEMA_VERSION):
+        raise SnapshotSchemaMismatch(
+            f"{backend}: table {_SNAPSHOT_TABLE!r} is stamped schema "
+            f"version {version}, but this build speaks version "
+            f"{SNAPSHOT_SCHEMA_VERSION}. Refusing to read or write it."
+        )
+
+
+def _prune_scope(dataset: str | None, entity_key: str | None) -> tuple[str | None, ...]:
+    """Canonicalize + validate a ``prune()`` scope (#1963 review I4).
+
+    ``entity_key`` alone is refused: the same entity label ("AAPL",
+    "sector=technology") is reused across datasets, so an unqualified
+    entity scope would silently sweep a neighbouring dataset's history.
+    """
+    if entity_key is not None and dataset is None:
+        raise ValueError(
+            "prune(entity_key=...) requires dataset=...; an entity_key is "
+            "only unique within a dataset"
+        )
+    return (
+        canonical_key(dataset) if dataset is not None else None,
+        canonical_key(entity_key) if entity_key is not None else None,
+    )
+
+
+def _scope_clause(
+    dataset: str | None, entity_key: str | None, placeholder: str
+) -> tuple[str, tuple]:
+    """Build the optional ``WHERE`` fragment for a scoped ``prune()``.
+
+    Returns SQL text assembled only from module-owned literals and the
+    dialect's own placeholder token; the scope values themselves are
+    returned separately, to be bound.
+    """
+    if dataset is None:
+        return "", ()
+    if entity_key is None:
+        return f" WHERE dataset = {placeholder}", (dataset,)
+    return (
+        f" WHERE dataset = {placeholder} AND entity_key = {placeholder}",
+        (dataset, entity_key),
+    )
+
+
 # --- Dialect-agnostic row conversion (#1963 Task 4) ------------------------
 #
 # SQLite has no native temporal types and stores ISO-8601 text; MySQL uses
@@ -370,7 +541,7 @@ def _as_payload(value: Any) -> dict:
 
 
 def _row_from_mapping(record: Any) -> SnapshotRow:
-    """Parse a raw ``pi_snapshot`` record into a typed ``SnapshotRow``.
+    """Parse a raw ``pi_eod_snapshot`` record into a typed ``SnapshotRow``.
 
     ``record`` is anything with name-based ``__getitem__`` — a
     ``sqlite3.Row`` or a PyMySQL ``DictCursor`` mapping.
@@ -453,6 +624,68 @@ _VALIDATION_RACE_REASON = (
 _LIVE_RACE_REASON = "LIVE row changed between read and write"
 _CANDIDATE_RACE_REASON = "candidate row changed between read and write"
 _LIVE_COLLISION_REASON = "another writer already installed a LIVE row for this key"
+_RESTAMP_RACE_REASON = (
+    "LIVE row was replaced by a real recompute while the restamp copy was "
+    "in flight; refusing to supersede newer content with an older payload"
+)
+
+
+class _RestampCapable(Protocol):
+    """Internal seam :func:`_restamp_live` needs beyond the public Protocol.
+
+    ``restamp_live`` cannot go through the public ``promote()``: it has
+    to pin the promotion to the exact LIVE row its payload was copied
+    from (#1963 review I2), and that expectation is a *backend*
+    obligation — only the backend can re-read LIVE inside the promoting
+    transaction. Keeping it on this private Protocol rather than
+    widening :class:`SnapshotStore` preserves the public contract's
+    signature parity: callers and the Terminal reader still see exactly
+    the ten spec'd methods.
+    """
+
+    def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
+        """Compute-free single-row read of ``state='live'``."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
+    def stage(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        payload: dict,
+        *,
+        status: SnapshotStatus = SnapshotStatus.OK,
+        input_hash: str | None = None,
+        row_count: int | None = None,
+        engine_version: str | None = None,
+        payload_schema_version: str | None = None,
+    ) -> None:
+        """Write a run to STAGING."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
+    def validate(  # pylint: disable=too-many-positional-arguments
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        validator: Callable[[SnapshotRow], ValidationResult] | None = None,
+    ) -> ValidationResult:
+        """Run the gate on the staged row."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
+    def _promote_expecting_live(  # pylint: disable=too-many-positional-arguments
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        *,
+        expected_live: SnapshotRow | None,
+    ) -> bool:
+        """Promote only while LIVE is still ``expected_live``."""
+        ...  # pylint: disable=unnecessary-ellipsis
 
 
 class _LifecycleRefused(Exception):
@@ -499,6 +732,53 @@ def _kept_sessions(sessions: list, keep_sessions: int) -> list | None:
     return sessions[:keep_sessions]
 
 
+def _doomed_triples(rows: Iterable[Any], keep_sessions: int) -> list[tuple]:
+    """Compute the ``(dataset, entity_key, as_of_session)`` set to delete.
+
+    ``rows`` is the *single* ``SELECT DISTINCT dataset, entity_key,
+    as_of_session ... ORDER BY dataset, entity_key, as_of_session DESC``
+    both backends issue — one round trip for the whole sweep instead of
+    a SELECT-then-DELETE pair per key (#1963 review I4). Deciding which
+    sessions survive stays here, in shared Python, so the two backends
+    can only disagree about SQL text.
+
+    LIVE rows are excluded by the DELETE's own ``state != 'live'``
+    predicate, not here: a LIVE row whose session falls outside the kept
+    window must survive, and its session must still count as one of the
+    key's distinct sessions.
+    """
+    grouped: dict[tuple, list] = {}
+    for record in rows:
+        key = (record["dataset"], record["entity_key"])
+        grouped.setdefault(key, []).append(record["as_of_session"])
+    doomed: list[tuple] = []
+    for (dataset, entity_key), sessions in grouped.items():
+        keep = _kept_sessions(sessions, keep_sessions)
+        if keep is None:
+            continue
+        kept = set(keep)
+        doomed.extend(
+            (dataset, entity_key, session)
+            for session in sessions
+            if session not in kept
+        )
+    return doomed
+
+
+# A DELETE binds three parameters per doomed session, so a batch of 500
+# is 1500 placeholders — comfortably inside SQLite's default 32k limit
+# and MySQL's max_allowed_packet, while keeping the write lock on a table
+# shared with the FMP cache held for a bounded number of statements
+# rather than one per key.
+_PRUNE_BATCH = 500
+
+
+def _batched(items: Sequence, size: int = _PRUNE_BATCH) -> Iterator[Sequence]:
+    """Yield ``items`` in bounded chunks (no ``itertools.batched`` on 3.10)."""
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
+
+
 def _should_skip(
     store: SnapshotStore, dataset: str, entity_key: str, input_hash: str
 ) -> bool:
@@ -508,7 +788,7 @@ def _should_skip(
 
 
 def _restamp_live(
-    store: SnapshotStore,
+    store: _RestampCapable,
     dataset: str,
     entity_key: str,
     as_of_session: date,
@@ -521,6 +801,17 @@ def _restamp_live(
     same stage -> validate -> promote path. The prior LIVE row is never
     mutated: ``promote()`` flips it to SUPERSEDED and it stays in history
     exactly like any other supersession.
+
+    **The copy is pinned to the row it was taken from (#1963 review
+    I2).** ``get_live`` here, ``stage``/``validate``/``promote`` each in
+    their own transaction (on MySQL, several separate pooled borrows) —
+    a genuine recompute can promote inside that window. Promoting the
+    copy afterwards would supersede the *newer* payload with the *older*
+    one under a *newer* session date: LIVE goes backwards in content
+    while going forwards in freshness, and the keep-last-good rank guard
+    cannot see it because the copy inherits the old row's status. The
+    final promote therefore re-reads LIVE inside its own transaction and
+    refuses unless it is still the exact row that was copied.
     """
     live = store.get_live(dataset, entity_key)
     if live is None:
@@ -542,7 +833,31 @@ def _restamp_live(
     if not result.ok:
         logger.warning("snapshot restamp refused: validation failed: %s", result.reason)
         return False
-    return store.promote(dataset, entity_key, as_of_session, job_run_id)
+    return store._promote_expecting_live(  # pylint: disable=protected-access
+        dataset, entity_key, as_of_session, job_run_id, expected_live=live
+    )
+
+
+def _live_identity(row: SnapshotRow | None) -> tuple | None:
+    """Primary-key identity of a LIVE row, for cross-transaction comparison."""
+    if row is None:
+        return None
+    return (row.dataset, row.entity_key, row.as_of_session, row.job_run_id)
+
+
+def _restamp_race_refusal(
+    expected: SnapshotRow | None, current: SnapshotRow | None
+) -> str | None:
+    """Return why a restamp may not promote, or ``None`` if it may.
+
+    Called with the LIVE row the payload was copied from and the LIVE row
+    read back inside the promoting transaction. Anything but the same
+    row means a real recompute landed in the window and the copy is now
+    stale.
+    """
+    if _live_identity(expected) != _live_identity(current):
+        return _RESTAMP_RACE_REASON
+    return None
 
 
 # --- SQLite backend (#1963 Task 2) -----------------------------------------
@@ -554,7 +869,7 @@ def _restamp_live(
 # "exactly one LIVE row per key" invariant; ``promote()``'s validated+rank
 # guard is the application-level half (spec §3.1 "LIVE resolution").
 _SQLITE_SCHEMA = """
-CREATE TABLE IF NOT EXISTS pi_snapshot (
+CREATE TABLE IF NOT EXISTS pi_eod_snapshot (
     dataset            TEXT NOT NULL,
     entity_key         TEXT NOT NULL,
     as_of_session      TEXT NOT NULL,
@@ -571,18 +886,46 @@ CREATE TABLE IF NOT EXISTS pi_snapshot (
     payload_schema_version TEXT,
     PRIMARY KEY (dataset, entity_key, as_of_session, job_run_id)
 );
-CREATE INDEX IF NOT EXISTS ix_pi_snapshot_live
-    ON pi_snapshot(dataset, entity_key, state);
-CREATE INDEX IF NOT EXISTS ix_pi_snapshot_latest
-    ON pi_snapshot(dataset, entity_key, as_of_session DESC, created_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_snapshot_live
-    ON pi_snapshot(dataset, entity_key) WHERE state = 'live';
+CREATE INDEX IF NOT EXISTS ix_pi_eod_snapshot_live
+    ON pi_eod_snapshot(dataset, entity_key, state);
+CREATE INDEX IF NOT EXISTS ix_pi_eod_snapshot_latest
+    ON pi_eod_snapshot(dataset, entity_key, as_of_session DESC, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_eod_snapshot_live
+    ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'live';
 """
 
 
 def _now_iso() -> str:
     """Wall-clock UTC instant of the write, ISO-8601 (spec §3, 12.3 #8)."""
     return datetime.now(timezone.utc).isoformat()
+
+
+# Design spec §4.6 makes this binding: the SQLite backend "serializes all
+# writes behind a module-level ``RLock`` inside a ``_tx()``
+# BEGIN/COMMIT/ROLLBACK context manager". It is module-level rather than
+# per-instance on purpose — two `SqliteSnapshotStore` objects opened on
+# the same file inside one process (the selector hands out a new store
+# per call; the tests do it deliberately) would otherwise serialize
+# against nothing. It is an `RLock`, not a `Lock`, because the shared
+# `_restamp_live` composition and the validator-gate seam re-enter the
+# store from inside a scope the same thread already holds.
+#
+# Why a lock at all, when sqlite3 is "thread-safe": the module serializes
+# individual C-API calls, but a transaction is *connection*-scoped. Two
+# threads sharing one `check_same_thread=False` connection share one
+# transaction, so thread B's `BEGIN IMMEDIATE` raises "cannot start a
+# transaction within a transaction" and B's rollback then aborts A's
+# in-flight transaction — splitting promote()'s demote/promote pair into
+# separately committed statements, which is exactly the partial LIVE
+# write safeguard #1 exists to prevent.
+_SQLITE_LOCK = threading.RLock()
+
+# 30s: long enough to ride out another *process*'s write transaction on
+# the same file (this store's own writes are short), short enough that a
+# genuinely wedged writer surfaces as an error instead of an infinite
+# hang. Only reachable across processes — in-process contention is
+# already serialized by `_SQLITE_LOCK`.
+_SQLITE_BUSY_TIMEOUT_MS = 30_000
 
 
 class SqliteSnapshotStore:
@@ -592,13 +935,25 @@ class SqliteSnapshotStore:
     ``get_as_of``/``list_history``/``close``. Task 3 adds ``should_skip``/
     ``restamp_live``/``prune`` on the same class.
 
-    Threading: mirrors ``SqlitePaperEngine`` — ``check_same_thread=False``
-    with ``isolation_level=None`` (autocommit) so every multi-statement
-    write goes through :meth:`_tx` for all-or-nothing semantics. Rows come
-    back as ``sqlite3.Row`` for name-based column access.
+    Threading: the connection is opened ``check_same_thread=False`` with
+    ``isolation_level=None`` (autocommit), and **every** statement —
+    write scopes via :meth:`_tx` and the bare reads alike — is issued
+    under the module-level :data:`_SQLITE_LOCK`. That lock is the whole
+    of the all-or-nothing guarantee on this backend: sqlite3
+    transactions are connection-scoped, so without it a second thread
+    entering :meth:`_tx` both fails to start its own transaction *and*
+    rolls back the first thread's. Rows come back as ``sqlite3.Row`` for
+    name-based column access.
+
+    Concurrency across *processes*: the file is opened in WAL mode with
+    a busy timeout, so a reader (the Terminal) never has to see
+    ``database is locked`` because a writer (the EOD job) holds
+    ``BEGIN IMMEDIATE``. WAL is attempted, not assumed — some network
+    filesystems refuse it — and a refusal degrades to the rollback
+    journal with a WARNING rather than failing construction.
 
     Read path is compute-free: every read method here only ever issues a
-    ``SELECT`` against ``pi_snapshot`` — none of them calls a provider or
+    ``SELECT`` against ``pi_eod_snapshot`` — none of them calls a provider or
     a compute/scan function.
     """
 
@@ -609,7 +964,83 @@ class SqliteSnapshotStore:
             str(self._db_path), check_same_thread=False, isolation_level=None
         )
         self._conn.row_factory = sqlite3.Row
+        with _SQLITE_LOCK:
+            self._configure_connection()
+            self._ensure_schema()
+
+    def __enter__(self) -> SqliteSnapshotStore:
+        """Enter a ``with`` block; the store is already usable on construction.
+
+        Present for parity with
+        :class:`~openbb_techtrade.snapshot.mysql_store.MysqlSnapshotStore`:
+        without it ``with get_default_snapshot_store() as store:`` works on
+        one backend and raises ``TypeError`` on the other, which defeats
+        the point of selecting a backend behind a Protocol.
+        """
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """Release the SQLite connection."""
+        self.close()
+
+    def _configure_connection(self) -> None:
+        """Set WAL + busy timeout so concurrent reads are never locked out.
+
+        In the default rollback-journal mode a reader that arrives while
+        the EOD writer holds ``BEGIN IMMEDIATE`` raises
+        ``sqlite3.OperationalError: database is locked``, straight out of
+        the always-available read path safeguard #9 promises. WAL lets
+        readers proceed against the last committed snapshot instead.
+        """
+        self._conn.execute(f"PRAGMA busy_timeout = {_SQLITE_BUSY_TIMEOUT_MS}")
+        mode = self._conn.execute("PRAGMA journal_mode = WAL").fetchone()[0]
+        if str(mode).lower() != "wal":
+            logger.warning(
+                "snapshot store: SQLite refused WAL at %s (journal_mode=%s); "
+                "concurrent readers may see 'database is locked' under a "
+                "long write",
+                self._db_path,
+                mode,
+            )
+
+    def _table_columns(self) -> list[str] | None:
+        """Column names of an existing ``pi_eod_snapshot``, or ``None``."""
+        exists = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (_SNAPSHOT_TABLE,),
+        ).fetchone()
+        if exists is None:
+            return None
+        return [
+            record["name"]
+            for record in self._conn.execute(
+                f"PRAGMA table_info({_SNAPSHOT_TABLE})"  # noqa: S608
+            ).fetchall()
+        ]
+
+    def _ensure_schema(self) -> None:
+        """Create the schema, or refuse an existing table that isn't ours.
+
+        ``CREATE TABLE IF NOT EXISTS`` succeeds as a *no-op* against a
+        pre-existing table of any shape, which is what would let a
+        foreign ``pi_eod_snapshot`` (or a future #1964/#1967 column
+        addition) produce a store that constructs cleanly and then fails
+        every operation with "no such column". The shape and version are
+        therefore checked before the DDL runs, and both failures are
+        loud (:class:`SnapshotSchemaMismatch`).
+
+        ``PRAGMA user_version`` is per *file*: ``PI_SNAPSHOT_DB`` must
+        point at a database dedicated to this store (the factory default
+        ``~/.portfolio_intel/snapshot.db`` is), not one shared with
+        another component that stamps its own version.
+        """
+        columns = self._table_columns()
+        if columns is not None:
+            _check_schema_shape(columns, backend="sqlite")
+            version = self._conn.execute("PRAGMA user_version").fetchone()[0]
+            _check_schema_version(int(version), backend="sqlite")
         self._conn.executescript(_SQLITE_SCHEMA)
+        self._conn.execute(f"PRAGMA user_version = {SNAPSHOT_SCHEMA_VERSION}")
 
     @contextmanager
     def _tx(self, *, immediate: bool = False) -> Iterator[None]:
@@ -621,14 +1052,37 @@ class SqliteSnapshotStore:
         has no row locks, so serializing the whole read-decide-write
         sequence is the only way to stop another connection committing
         inside it.
+
+        The whole body is held under :data:`_SQLITE_LOCK` (spec §4.6):
+        `BEGIN IMMEDIATE` locks the *database against other processes*,
+        but says nothing about two threads sharing this one connection —
+        they would share one transaction.
+
+        The rollback is conditional on a transaction actually being open
+        and is itself guarded. When the failure *was* the ``BEGIN`` (a
+        locked database, a nested transaction), an unconditional
+        ``ROLLBACK`` raises a second ``OperationalError`` that replaces
+        the first — and callers such as :meth:`promote` classify the
+        exception they see, so a displaced ``IntegrityError`` turns a
+        documented ``False`` into a raw driver traceback.
         """
+        with _SQLITE_LOCK:
+            try:
+                self._conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
+                yield
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._rollback_quietly()
+                raise
+
+    def _rollback_quietly(self) -> None:
+        """Roll back an open transaction without masking the original error."""
+        if not self._conn.in_transaction:
+            return
         try:
-            self._conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
-            yield
-            self._conn.execute("COMMIT")
-        except Exception:
             self._conn.execute("ROLLBACK")
-            raise
+        except sqlite3.Error:
+            logger.warning("snapshot rollback failed", exc_info=True)
 
     def _get_row(
         self, dataset: str, entity_key: str, as_of_session: date, job_run_id: str
@@ -637,15 +1091,16 @@ class SqliteSnapshotStore:
 
         Callers must pass already-canonicalized ``dataset``/``entity_key``.
         """
-        record = self._conn.execute(
-            "SELECT dataset, entity_key, as_of_session, created_at, "
-            "job_run_id, status, state, validated, validation_reason, "
-            "payload_json, input_hash, row_count, engine_version, "
-            "payload_schema_version FROM pi_snapshot "
-            "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
-            "AND job_run_id = ?",
-            (dataset, entity_key, as_of_session.isoformat(), job_run_id),
-        ).fetchone()
+        with _SQLITE_LOCK:
+            record = self._conn.execute(
+                "SELECT dataset, entity_key, as_of_session, created_at, "
+                "job_run_id, status, state, validated, validation_reason, "
+                "payload_json, input_hash, row_count, engine_version, "
+                "payload_schema_version FROM pi_eod_snapshot "
+                "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
+                "AND job_run_id = ?",
+                (dataset, entity_key, as_of_session.isoformat(), job_run_id),
+            ).fetchone()
         return _row_from_mapping(record) if record is not None else None
 
     # --- Protocol methods ---------------------------------------------
@@ -677,7 +1132,7 @@ class SqliteSnapshotStore:
         )
         with self._tx():
             self._conn.execute(
-                "INSERT INTO pi_snapshot ("
+                "INSERT INTO pi_eod_snapshot ("
                 "dataset, entity_key, as_of_session, created_at, job_run_id, "
                 "status, state, validated, validation_reason, payload_json, "
                 "input_hash, row_count, engine_version, payload_schema_version"
@@ -746,7 +1201,7 @@ class SqliteSnapshotStore:
                 if _validation_refusal(current) is not None:
                     raise _ValidationRefused(_VALIDATION_RACE_REASON)
                 self._conn.execute(
-                    "UPDATE pi_snapshot SET validated = ?, validation_reason = ? "
+                    "UPDATE pi_eod_snapshot SET validated = ?, validation_reason = ? "
                     "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
                     "AND job_run_id = ? AND state = ?",
                     (
@@ -789,6 +1244,43 @@ class SqliteSnapshotStore:
         silent clobber, and a unique-index collision from a writer that
         bypassed this method is reported as ``False`` rather than raised.
         """
+        return self._promote(dataset, entity_key, as_of_session, job_run_id)
+
+    def _promote_expecting_live(  # pylint: disable=too-many-positional-arguments
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        *,
+        expected_live: SnapshotRow | None,
+    ) -> bool:
+        """Promote only while LIVE is still ``expected_live`` (#1963 I2).
+
+        The restamp seam: identical to :meth:`promote` except that the
+        LIVE row read *inside* the transaction must be the same row the
+        caller copied its payload from. See :func:`_restamp_live`.
+        """
+        return self._promote(
+            dataset,
+            entity_key,
+            as_of_session,
+            job_run_id,
+            expected_live=expected_live,
+            expectation=True,
+        )
+
+    def _promote(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        *,
+        expected_live: SnapshotRow | None = None,
+        expectation: bool = False,
+    ) -> bool:
+        """Shared promote body; ``expectation`` pins the incumbent LIVE row."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
         try:
@@ -797,13 +1289,17 @@ class SqliteSnapshotStore:
                     dataset, entity_key, as_of_session, job_run_id
                 )
                 live = self.get_live(dataset, entity_key)
+                if expectation:
+                    moved = _restamp_race_refusal(expected_live, live)
+                    if moved is not None:
+                        raise _PromotionRefused(moved)
                 refusal = _promotion_refusal(candidate, live)
                 if refusal is not None:
                     raise _PromotionRefused(refusal)
                 if live is not None:
                     self._demote(dataset, entity_key, live)
                 promoted = self._conn.execute(
-                    "UPDATE pi_snapshot SET state = ? "
+                    "UPDATE pi_eod_snapshot SET state = ? "
                     "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
                     "AND job_run_id = ? AND state = ?",
                     (
@@ -830,7 +1326,7 @@ class SqliteSnapshotStore:
     def _demote(self, dataset: str, entity_key: str, live: SnapshotRow) -> None:
         """Supersede the exact incumbent row that was read, or refuse."""
         demoted = self._conn.execute(
-            "UPDATE pi_snapshot SET state = ? "
+            "UPDATE pi_eod_snapshot SET state = ? "
             "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
             "AND job_run_id = ? AND state = ?",
             (
@@ -849,14 +1345,15 @@ class SqliteSnapshotStore:
         """Compute-free single-row read of ``state='live'``; ``None`` if absent."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
-        record = self._conn.execute(
-            "SELECT dataset, entity_key, as_of_session, created_at, "
-            "job_run_id, status, state, validated, validation_reason, "
-            "payload_json, input_hash, row_count, engine_version, "
-            "payload_schema_version FROM pi_snapshot "
-            "WHERE dataset = ? AND entity_key = ? AND state = ?",
-            (dataset, entity_key, SnapshotState.LIVE.value),
-        ).fetchone()
+        with _SQLITE_LOCK:
+            record = self._conn.execute(
+                "SELECT dataset, entity_key, as_of_session, created_at, "
+                "job_run_id, status, state, validated, validation_reason, "
+                "payload_json, input_hash, row_count, engine_version, "
+                "payload_schema_version FROM pi_eod_snapshot "
+                "WHERE dataset = ? AND entity_key = ? AND state = ?",
+                (dataset, entity_key, SnapshotState.LIVE.value),
+            ).fetchone()
         return _row_from_mapping(record) if record is not None else None
 
     def get_as_of(
@@ -865,37 +1362,40 @@ class SqliteSnapshotStore:
         """Promoted row for a specific session (replay/compare-to-yesterday)."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
-        record = self._conn.execute(
-            "SELECT dataset, entity_key, as_of_session, created_at, "
-            "job_run_id, status, state, validated, validation_reason, "
-            "payload_json, input_hash, row_count, engine_version, "
-            "payload_schema_version FROM pi_snapshot "
-            "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
-            "AND state != ? ORDER BY created_at DESC LIMIT 1",
-            (
-                dataset,
-                entity_key,
-                as_of_session.isoformat(),
-                SnapshotState.STAGING.value,
-            ),
-        ).fetchone()
+        with _SQLITE_LOCK:
+            record = self._conn.execute(
+                "SELECT dataset, entity_key, as_of_session, created_at, "
+                "job_run_id, status, state, validated, validation_reason, "
+                "payload_json, input_hash, row_count, engine_version, "
+                "payload_schema_version FROM pi_eod_snapshot "
+                "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
+                "AND state != ? ORDER BY created_at DESC LIMIT 1",
+                (
+                    dataset,
+                    entity_key,
+                    as_of_session.isoformat(),
+                    SnapshotState.STAGING.value,
+                ),
+            ).fetchone()
         return _row_from_mapping(record) if record is not None else None
 
     def list_history(
         self, dataset: str, entity_key: str, limit: int = 50
     ) -> list[SnapshotRow]:
         """Newest-first rows for a key, retained for audit/replay/diffing."""
+        _check_limit(limit)
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
-        records = self._conn.execute(
-            "SELECT dataset, entity_key, as_of_session, created_at, "
-            "job_run_id, status, state, validated, validation_reason, "
-            "payload_json, input_hash, row_count, engine_version, "
-            "payload_schema_version FROM pi_snapshot "
-            "WHERE dataset = ? AND entity_key = ? "
-            "ORDER BY as_of_session DESC, created_at DESC LIMIT ?",
-            (dataset, entity_key, limit),
-        ).fetchall()
+        with _SQLITE_LOCK:
+            records = self._conn.execute(
+                "SELECT dataset, entity_key, as_of_session, created_at, "
+                "job_run_id, status, state, validated, validation_reason, "
+                "payload_json, input_hash, row_count, engine_version, "
+                "payload_schema_version FROM pi_eod_snapshot "
+                "WHERE dataset = ? AND entity_key = ? "
+                "ORDER BY as_of_session DESC, created_at DESC LIMIT ?",
+                (dataset, entity_key, limit),
+            ).fetchall()
         return [_row_from_mapping(record) for record in records]
 
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
@@ -924,7 +1424,13 @@ class SqliteSnapshotStore:
         """
         return _restamp_live(self, dataset, entity_key, as_of_session, job_run_id)
 
-    def prune(self, policy: RetentionPolicy | None = None) -> int:
+    def prune(
+        self,
+        policy: RetentionPolicy | None = None,
+        *,
+        dataset: str | None = None,
+        entity_key: str | None = None,
+    ) -> int:
         """Apply retention; return the number of rows removed.
 
         The default policy (``None``, or an explicit ``RetentionPolicy()``
@@ -935,50 +1441,51 @@ class SqliteSnapshotStore:
         ``state != 'live'`` filter below is an unconditional safety net,
         independent of whether a LIVE row's session lands inside the kept
         window.
+
+        ``dataset``/``entity_key`` scope the sweep (#1963 review I4). The
+        store is shared, so an unscoped bounded policy applies one
+        caller's window to *every* dataset's history; that is still
+        supported (it is the whole-store janitor) but it is logged, and
+        scoped calls are the recommended shape for a per-dataset job.
+
+        Shape: one ``SELECT DISTINCT`` for the whole sweep, then bounded
+        set-based ``DELETE``s of at most :data:`_PRUNE_BATCH` sessions
+        each — not a SELECT+DELETE round trip per key, which held the
+        write lock for O(#keys) statements.
         """
         if policy is None or policy.keep_sessions is None:
             return 0
-        keep_sessions = policy.keep_sessions
+        dataset, entity_key = _prune_scope(dataset, entity_key)
+        if dataset is None:
+            logger.info(
+                "snapshot prune: applying keep_sessions=%d to every dataset in "
+                "the shared store; pass dataset=... to scope it",
+                policy.keep_sessions,
+            )
+        scope_sql, scope_params = _scope_clause(dataset, entity_key, "?")
         deleted = 0
         with self._tx():
-            keys = self._conn.execute(
-                "SELECT DISTINCT dataset, entity_key FROM pi_snapshot"
+            # The only interpolation is `_scope_clause`'s module-owned
+            # fragment of literals and "?" tokens; values are bound.
+            rows = self._conn.execute(
+                "SELECT DISTINCT dataset, entity_key, as_of_session "  # noqa: S608
+                f"FROM pi_eod_snapshot{scope_sql} "
+                "ORDER BY dataset, entity_key, as_of_session DESC",
+                scope_params,
             ).fetchall()
-            for key in keys:
-                dataset_key, entity_key_key = key["dataset"], key["entity_key"]
-                sessions = [
-                    record["as_of_session"]
-                    for record in self._conn.execute(
-                        "SELECT DISTINCT as_of_session FROM pi_snapshot "
-                        "WHERE dataset = ? AND entity_key = ? "
-                        "ORDER BY as_of_session DESC",
-                        (dataset_key, entity_key_key),
-                    ).fetchall()
-                ]
-                keep = _kept_sessions(sessions, keep_sessions)
-                if keep is None:
-                    continue
-                # `condition` is built only from a fixed literal ("1 = 1") or
-                # a placeholders string of "?" — no external input reaches
-                # the SQL text itself, all values are bound via `params`.
-                if keep:
-                    placeholders = ", ".join("?" for _ in keep)
-                    condition = f"as_of_session NOT IN ({placeholders})"
-                    params = (
-                        dataset_key,
-                        entity_key_key,
-                        SnapshotState.LIVE.value,
-                        *keep,
-                    )
-                else:
-                    condition = "1 = 1"
-                    params = (dataset_key, entity_key_key, SnapshotState.LIVE.value)
-                cursor = self._conn.execute(
-                    "DELETE FROM pi_snapshot WHERE dataset = ? AND entity_key = ? "  # noqa: S608
-                    f"AND state != ? AND {condition}",
+            doomed = _doomed_triples(rows, policy.keep_sessions)
+            for batch in _batched(doomed):
+                # The only interpolation is a run of module-owned "(?, ?, ?)"
+                # placeholder tokens; every value is bound via `params`.
+                tuples = ", ".join("(?, ?, ?)" for _ in batch)
+                params = [SnapshotState.LIVE.value]
+                for triple in batch:
+                    params.extend(triple)
+                deleted += self._conn.execute(
+                    "DELETE FROM pi_eod_snapshot WHERE state != ? "  # noqa: S608
+                    f"AND (dataset, entity_key, as_of_session) IN ({tuples})",
                     params,
-                )
-                deleted += cursor.rowcount
+                ).rowcount
         return deleted
 
     def close(self) -> None:
@@ -1058,6 +1565,10 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
             f"got {backend!r}"
         )
 
+    # TODO(gh-1965): the resolved path is not yet checked against the
+    # `_validate_outside_repo` guard the portfolio importer uses. Design
+    # spec §8 requires an in-repo `PI_SNAPSHOT_DB` to raise; that guard
+    # lands with #1965, deliberately out of scope for #1963.
     resolved = (
         Path(db_path)
         if db_path is not None

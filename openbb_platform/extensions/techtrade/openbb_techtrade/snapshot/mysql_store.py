@@ -52,10 +52,21 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    connects without ``CLIENT.FOUND_ROWS``, so ``cursor.rowcount`` after
    an UPDATE counts rows *changed*, not rows *matched* — see
    :meth:`validate`, which cannot use it to detect a race.
+5. **Pinned binary collation.** MySQL resolves an unpinned string column
+   to the charset's *default* collation, which is case- and
+   accent-insensitive; SQLite's default is BINARY. Every key column and
+   the table itself therefore pin ``utf8mb4_bin``, or the primary key
+   and the single-LIVE unique key would mean different things on the two
+   backends (see the DDL comment below).
 
 Read path is compute-free: every read method only ever issues a
-``SELECT`` against ``pi_snapshot``; none of them calls a provider or a
-compute/scan function.
+``SELECT`` against ``pi_eod_snapshot``; none of them calls a provider or
+a compute/scan function.
+
+Table naming: ``pi_eod_snapshot``, **not** ``pi_snapshot`` — the latter
+is already taken, in this same database, by the account-scoped positions
+history of ``portfolio_snapshot_importer`` (#1744). See the C1 note in
+:mod:`openbb_techtrade.snapshot.store`.
 """
 
 # ruff: noqa: S608
@@ -71,26 +82,35 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from openbb_techtrade.snapshot.store import (
     _CANDIDATE_RACE_REASON,
     _LIVE_COLLISION_REASON,
     _LIVE_RACE_REASON,
+    _PRUNE_BATCH,
+    _SNAPSHOT_TABLE,
     _VALIDATION_RACE_REASON,
     RetentionPolicy,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
     ValidationResult,
+    _batched,
     _check_field_lengths,
+    _check_limit,
+    _check_schema_shape,
+    _doomed_triples,
     _dumps_payload,
     _is_integrity_error,
-    _kept_sessions,
     _LifecycleRefused,
     _promotion_refusal,
     _PromotionRefused,
+    _prune_scope,
     _restamp_live,
+    _restamp_race_refusal,
     _row_from_mapping,
+    _scope_clause,
     _should_skip,
     _validation_refusal,
     _ValidationRefused,
@@ -105,34 +125,58 @@ logger = logging.getLogger(__name__)
 # DDL — additive; never touches the corporate FMP cache tables.
 # ---------------------------------------------------------------------------
 
-_PI_SNAPSHOT_DDL = """
-CREATE TABLE IF NOT EXISTS pi_snapshot (
-    dataset                VARCHAR(128) NOT NULL,
-    entity_key             VARCHAR(191) NOT NULL,
+_PI_EOD_SNAPSHOT_DDL = """
+CREATE TABLE IF NOT EXISTS pi_eod_snapshot (
+    dataset                VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
+    entity_key             VARCHAR(191) COLLATE utf8mb4_bin NOT NULL,
     as_of_session          DATE NOT NULL,
     created_at             DATETIME(6) NOT NULL,
-    job_run_id             VARCHAR(128) NOT NULL,
-    status                 VARCHAR(16) NOT NULL,
-    state                  VARCHAR(16) NOT NULL,
+    job_run_id             VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
+    status                 VARCHAR(16) COLLATE utf8mb4_bin NOT NULL,
+    state                  VARCHAR(16) COLLATE utf8mb4_bin NOT NULL,
     validated              TINYINT(1) NOT NULL DEFAULT 0,
     validation_reason      TEXT NOT NULL,
     payload_json           LONGTEXT NOT NULL,
-    input_hash             VARCHAR(128),
+    input_hash             VARCHAR(128) COLLATE utf8mb4_bin,
     row_count              INT,
-    engine_version         VARCHAR(64),
-    payload_schema_version VARCHAR(64),
-    live_key               VARCHAR(512)
+    engine_version         VARCHAR(64) COLLATE utf8mb4_bin,
+    payload_schema_version VARCHAR(64) COLLATE utf8mb4_bin,
+    live_key               VARCHAR(512) COLLATE utf8mb4_bin
         GENERATED ALWAYS AS (
             IF(state = 'live',
                CONCAT(dataset, CHAR(31 USING utf8mb4), entity_key),
                NULL)
         ) STORED,
     PRIMARY KEY (dataset, entity_key, as_of_session, job_run_id),
-    UNIQUE KEY ux_pi_snapshot_live (live_key),
-    INDEX ix_pi_snapshot_live (dataset, entity_key, state),
-    INDEX ix_pi_snapshot_latest (dataset, entity_key, as_of_session, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    UNIQUE KEY ux_pi_eod_snapshot_live (live_key),
+    INDEX ix_pi_eod_snapshot_live (dataset, entity_key, state),
+    INDEX ix_pi_eod_snapshot_latest (dataset, entity_key, as_of_session, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
 """
+# Collation is pinned, not inherited (#1963 security review, Alert 2).
+# ``DEFAULT CHARSET=utf8mb4`` alone would take the charset's *default*
+# collation — ``utf8mb4_0900_ai_ci`` on MySQL 8, ``utf8mb4_general_ci``
+# on 5.7 — both case- **and** accent-insensitive. Two consequences, both
+# fatal to this table's contract:
+#
+# 1. ``ux_pi_eod_snapshot_live`` is the only DB-level enforcement of the
+#    single-LIVE invariant on MySQL. Under an ``_ai_ci`` collation two
+#    genuinely distinct canonical keys that differ only by an accent
+#    (``sector=cafe`` vs ``sector=café``) share one index entry, so once
+#    one is LIVE the other can *never* be promoted — and the refusal is
+#    logged as the routine "another writer already installed a LIVE row",
+#    misattributing the cause. ``canonical_key`` casefolds, so case is
+#    moot, but it does not normalize Unicode.
+# 2. ``job_run_id`` is never canonicalized at all. Under ``_ci`` the
+#    primary key treats ``Run-1`` and ``run-1`` as the same row: SQLite
+#    inserts two rows, MySQL raises a duplicate-key ``IntegrityError``.
+#    That breaks the binding parity claim below ("a call one accepts is
+#    a call the other accepts") in the one place ``_check_field_lengths``
+#    cannot see.
+#
+# Both the table default and every key column carry the collation
+# explicitly, so changing one without the other is visible in review.
+
 # The bounded VARCHAR widths above are mirrored by
 # ``store.FIELD_MAX_LENGTHS`` and enforced in Python before any write, so
 # the SQLite backend (which ignores widths) refuses exactly what MySQL
@@ -144,7 +188,7 @@ CREATE TABLE IF NOT EXISTS pi_snapshot (
 # still tops out at 64 KiB; a validator needing more should write a
 # pointer, not a novel.)
 
-_ALL_DDLS = (_PI_SNAPSHOT_DDL,)
+_ALL_DDLS = (_PI_EOD_SNAPSHOT_DDL,)
 
 _COLUMNS = (
     "dataset, entity_key, as_of_session, created_at, job_run_id, status, "
@@ -153,13 +197,13 @@ _COLUMNS = (
 )
 
 _SELECT_BY_PK = (
-    f"SELECT {_COLUMNS} FROM pi_snapshot "
+    f"SELECT {_COLUMNS} FROM pi_eod_snapshot "
     "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
     "AND job_run_id = %s"
 )
 
 _SELECT_LIVE = (
-    f"SELECT {_COLUMNS} FROM pi_snapshot "
+    f"SELECT {_COLUMNS} FROM pi_eod_snapshot "
     "WHERE dataset = %s AND entity_key = %s AND state = %s"
 )
 
@@ -172,24 +216,42 @@ _SELECT_BY_PK_FOR_UPDATE = _SELECT_BY_PK + " FOR UPDATE"
 _SELECT_LIVE_FOR_UPDATE = _SELECT_LIVE + " FOR UPDATE"
 
 _SELECT_AS_OF = (
-    f"SELECT {_COLUMNS} FROM pi_snapshot "
+    f"SELECT {_COLUMNS} FROM pi_eod_snapshot "
     "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
     "AND state != %s ORDER BY created_at DESC LIMIT 1"
 )
 
 _SELECT_HISTORY = (
-    f"SELECT {_COLUMNS} FROM pi_snapshot "
+    f"SELECT {_COLUMNS} FROM pi_eod_snapshot "
     "WHERE dataset = %s AND entity_key = %s "
     "ORDER BY as_of_session DESC, created_at DESC LIMIT %s"
 )
 
 _INSERT_STAGED = (
-    "INSERT INTO pi_snapshot ("
+    "INSERT INTO pi_eod_snapshot ("
     "dataset, entity_key, as_of_session, created_at, job_run_id, "
     "status, state, validated, validation_reason, payload_json, "
     "input_hash, row_count, engine_version, payload_schema_version"
     ") VALUES (%s, %s, %s, %s, %s, %s, %s, 0, '', %s, %s, %s, %s, %s)"
 )
+
+_SELECT_SCHEMA_COLUMNS = (
+    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s"
+)
+
+# Pools whose database has already had the DDL + shape check applied
+# (#1963 review I3). ``ConnectionPool.get_connection()`` opens a *fresh*
+# ``pymysql.connect`` per borrow — it is not a pool in the pooling sense
+# — so a per-request widget store paid a full connect + DDL round trip
+# on every construction. The pool object *is* the database identity here
+# (`get_connection_pool()` returns a process-wide singleton built from
+# one `DatabaseConfig`), so keying on it skips the redundant DDL without
+# ever skipping it for a *different* database: a store built on another
+# pool, another config, or a test double gets its own entry. The map is
+# weak so a discarded pool cannot pin its entry — or the schema decision
+# taken against it — for the life of the process.
+_SCHEMA_READY: WeakKeyDictionary = WeakKeyDictionary()
 
 
 def _now_utc_naive() -> datetime:
@@ -319,12 +381,35 @@ class MysqlSnapshotStore:
             logger.warning("snapshot rollback failed", exc_info=True)
 
     def _ensure_schema(self) -> None:
-        # DDL is implicitly committed by MySQL, so it deliberately runs on
-        # the autocommit session rather than inside `transaction()`, where
-        # a rollback would be a lie.
+        """Create the table if absent, then verify the one that is there.
+
+        ``CREATE TABLE IF NOT EXISTS`` succeeds as a **no-op** against a
+        pre-existing table of any shape. That is what made the original
+        ``pi_snapshot`` name a silent merge blocker: the account-scoped
+        ``portfolio_snapshot_importer`` table of the same name in the
+        same database would have absorbed the CREATE, left this store
+        constructing cleanly, and failed every later call with "Unknown
+        column 'dataset'". The rename fixes today's collision; this shape
+        check is what makes tomorrow's loud — including the one #1964 /
+        #1967 will create when they add columns.
+
+        The check runs once per pool (see :data:`_SCHEMA_READY`), and the
+        refusal is raised *outside* the borrow so a schema fault is not
+        logged by the shared pool as ``MySQL connection error``.
+
+        DDL is implicitly committed by MySQL, so it deliberately runs on
+        the autocommit session rather than inside ``transaction()``,
+        where a rollback would be a lie.
+        """
+        if _SCHEMA_READY.get(self._pool):
+            return
         with self._borrow() as conn, conn.cursor() as cur:
             for ddl in _ALL_DDLS:
                 cur.execute(ddl)
+            cur.execute(_SELECT_SCHEMA_COLUMNS, (_SNAPSHOT_TABLE,))
+            columns = [record["COLUMN_NAME"] for record in cur.fetchall()]
+        _check_schema_shape(columns, backend="mysql")
+        _SCHEMA_READY[self._pool] = True
 
     # --- private query helpers -----------------------------------------
 
@@ -483,7 +568,7 @@ class MysqlSnapshotStore:
             raise _ValidationRefused(_VALIDATION_RACE_REASON)
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE pi_snapshot SET validated = %s, validation_reason = %s "
+                "UPDATE pi_eod_snapshot SET validated = %s, validation_reason = %s "
                 "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
                 "AND job_run_id = %s AND state = %s",
                 (
@@ -518,12 +603,56 @@ class MysqlSnapshotStore:
 
         Returns ``True`` on success, ``False`` on any refusal (WARNING).
         """
+        return self._promote(dataset, entity_key, as_of_session, job_run_id)
+
+    def _promote_expecting_live(  # pylint: disable=too-many-positional-arguments
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        *,
+        expected_live: SnapshotRow | None,
+    ) -> bool:
+        """Promote only while LIVE is still ``expected_live`` (#1963 I2).
+
+        The restamp seam: identical to :meth:`promote` except that the
+        LIVE row read ``FOR UPDATE`` *inside* the transaction must be the
+        same row the caller copied its payload from. See
+        :func:`~openbb_techtrade.snapshot.store._restamp_live`.
+        """
+        return self._promote(
+            dataset,
+            entity_key,
+            as_of_session,
+            job_run_id,
+            expected_live=expected_live,
+            expectation=True,
+        )
+
+    def _promote(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        *,
+        expected_live: SnapshotRow | None = None,
+        expectation: bool = False,
+    ) -> bool:
+        """Shared promote body; ``expectation`` pins the incumbent LIVE row."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
         try:
             with self.transaction() as conn:
                 self._promote_locked(
-                    conn, dataset, entity_key, as_of_session, job_run_id
+                    conn,
+                    dataset,
+                    entity_key,
+                    as_of_session,
+                    job_run_id,
+                    expected_live=expected_live,
+                    expectation=expectation,
                 )
         except _PromotionRefused as refused:
             logger.warning("snapshot promotion refused: %s", refused.reason)
@@ -539,13 +668,16 @@ class MysqlSnapshotStore:
         return True
 
     @classmethod
-    def _promote_locked(  # pylint: disable=too-many-positional-arguments
+    def _promote_locked(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         cls,
         conn: Any,
         dataset: str,
         entity_key: str,
         as_of_session: date,
         job_run_id: str,
+        *,
+        expected_live: SnapshotRow | None = None,
+        expectation: bool = False,
     ) -> None:
         """Locking read + guarded writes; raises :class:`_PromotionRefused`.
 
@@ -561,11 +693,18 @@ class MysqlSnapshotStore:
         thing to the caller — ``promote()`` returns ``False`` — and
         keeping it inside the transaction scope stops a routine refusal
         being logged as a connection fault by the shared pool.
+
+        ``expectation=True`` adds the restamp gate: the locked LIVE row
+        must still be the row whose payload the caller copied (#1963 I2).
         """
         candidate = cls._get_row(
             conn, dataset, entity_key, as_of_session, job_run_id, for_update=True
         )
         live = cls._get_live(conn, dataset, entity_key, for_update=True)
+        if expectation:
+            moved = _restamp_race_refusal(expected_live, live)
+            if moved is not None:
+                raise _PromotionRefused(moved)
         refusal = _promotion_refusal(candidate, live)
         if refusal is not None:
             raise _PromotionRefused(refusal)
@@ -592,7 +731,7 @@ class MysqlSnapshotStore:
         with conn.cursor() as cur:
             if live is not None:
                 cur.execute(
-                    "UPDATE pi_snapshot SET state = %s "
+                    "UPDATE pi_eod_snapshot SET state = %s "
                     "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
                     "AND job_run_id = %s AND state = %s",
                     (
@@ -607,7 +746,7 @@ class MysqlSnapshotStore:
                 if cur.rowcount != 1:
                     raise _PromotionRefused(_LIVE_RACE_REASON)
             cur.execute(
-                "UPDATE pi_snapshot SET state = %s "
+                "UPDATE pi_eod_snapshot SET state = %s "
                 "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
                 "AND job_run_id = %s AND state = %s",
                 (
@@ -651,6 +790,7 @@ class MysqlSnapshotStore:
         self, dataset: str, entity_key: str, limit: int = 50
     ) -> list[SnapshotRow]:
         """Newest-first rows for a key, retained for audit/replay/diffing."""
+        _check_limit(limit)
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
         with self._read() as conn, conn.cursor() as cur:
@@ -681,7 +821,13 @@ class MysqlSnapshotStore:
         """
         return _restamp_live(self, dataset, entity_key, as_of_session, job_run_id)
 
-    def prune(self, policy: RetentionPolicy | None = None) -> int:
+    def prune(
+        self,
+        policy: RetentionPolicy | None = None,
+        *,
+        dataset: str | None = None,
+        entity_key: str | None = None,
+    ) -> int:
         """Apply retention; return the number of rows removed.
 
         The default policy (``None``, or ``RetentionPolicy()`` with
@@ -691,49 +837,53 @@ class MysqlSnapshotStore:
         The ``state != 'live'`` filter is an unconditional safety net,
         independent of whether the LIVE row's session lands inside the
         kept window.
+
+        ``dataset``/``entity_key`` scope the sweep (#1963 review I4) —
+        this table lives in the database the FMP cache uses, so an
+        unscoped bounded policy both applies one caller's window to every
+        other dataset and holds a write transaction for the whole sweep.
+        Scoped or not, the shape is one ``SELECT DISTINCT`` plus bounded
+        set-based ``DELETE``s of at most :data:`_PRUNE_BATCH` sessions,
+        rather than a SELECT+DELETE pair per key.
         """
         if policy is None or policy.keep_sessions is None:
             return 0
-        keep_sessions = policy.keep_sessions
+        dataset, entity_key = _prune_scope(dataset, entity_key)
+        if dataset is None:
+            logger.info(
+                "snapshot prune: applying keep_sessions=%d to every dataset in "
+                "the shared store; pass dataset=... to scope it",
+                policy.keep_sessions,
+            )
+        scope_sql, scope_params = _scope_clause(dataset, entity_key, "%s")
         deleted = 0
         with self.transaction() as conn, conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT dataset, entity_key FROM pi_snapshot", ())
-            keys = cur.fetchall()
-            for key in keys:
-                deleted += self._prune_key(
-                    cur, key["dataset"], key["entity_key"], keep_sessions
-                )
+            cur.execute(
+                "SELECT DISTINCT dataset, entity_key, as_of_session "
+                f"FROM pi_eod_snapshot{scope_sql} "
+                "ORDER BY dataset, entity_key, as_of_session DESC",
+                scope_params,
+            )
+            doomed = _doomed_triples(cur.fetchall(), policy.keep_sessions)
+            for batch in _batched(doomed, _PRUNE_BATCH):
+                deleted += self._delete_batch(cur, batch)
         return deleted
 
     @staticmethod
-    def _prune_key(cur: Any, dataset: str, entity_key: str, keep_sessions: int) -> int:
-        """Delete this key's non-LIVE rows outside the kept-session window."""
+    def _delete_batch(cur: Any, batch: Any) -> int:
+        """Delete one bounded batch of doomed ``(key, session)`` triples."""
+        # The only interpolation is a run of module-owned "(%s, %s, %s)"
+        # placeholder tokens; every value is bound via `params`.
+        tuples = ", ".join("(%s, %s, %s)" for _ in batch)
+        params: list = [SnapshotState.LIVE.value]
+        for triple in batch:
+            params.extend(triple)
         cur.execute(
-            "SELECT DISTINCT as_of_session FROM pi_snapshot "
-            "WHERE dataset = %s AND entity_key = %s "
-            "ORDER BY as_of_session DESC",
-            (dataset, entity_key),
-        )
-        sessions = [record["as_of_session"] for record in cur.fetchall()]
-        keep = _kept_sessions(sessions, keep_sessions)
-        if keep is None:
-            return 0
-        # `condition` is built only from a fixed literal ("1 = 1") or a
-        # placeholders string of "%s" — no external input reaches the SQL
-        # text itself, every value is bound via `params`.
-        if keep:
-            placeholders = ", ".join("%s" for _ in keep)
-            condition = f"as_of_session NOT IN ({placeholders})"
-            params: tuple = (dataset, entity_key, SnapshotState.LIVE.value, *keep)
-        else:
-            condition = "1 = 1"
-            params = (dataset, entity_key, SnapshotState.LIVE.value)
-        cur.execute(
-            "DELETE FROM pi_snapshot WHERE dataset = %s AND entity_key = %s "
-            f"AND state != %s AND {condition}",
+            "DELETE FROM pi_eod_snapshot WHERE state != %s "
+            f"AND (dataset, entity_key, as_of_session) IN ({tuples})",
             params,
         )
-        return cur.rowcount
+        return int(cur.rowcount)
 
     def close(self) -> None:
         """Shared pool — nothing to close per-store."""

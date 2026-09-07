@@ -22,7 +22,9 @@ from __future__ import annotations
 import itertools
 import logging
 import sqlite3
-from datetime import date, datetime, timezone
+import threading
+import time
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -228,7 +230,7 @@ def test_direct_second_live_insert_raises_integrity_error(tmp_path) -> None:
 
     with pytest.raises(sqlite3.IntegrityError):
         store._conn.execute(  # pylint: disable=protected-access
-            "INSERT INTO pi_snapshot ("
+            "INSERT INTO pi_eod_snapshot ("
             "dataset, entity_key, as_of_session, created_at, job_run_id, "
             "status, state, validated, validation_reason, payload_json, "
             "input_hash, row_count, engine_version, payload_schema_version"
@@ -696,11 +698,11 @@ def test_promote_refuses_when_the_incumbent_live_row_moves_mid_transaction(
         if verdict is None and not fired:
             fired.append(1)
             store._conn.execute(  # noqa: SLF001
-                "UPDATE pi_snapshot SET state = ? WHERE job_run_id = ?",
+                "UPDATE pi_eod_snapshot SET state = ? WHERE job_run_id = ?",
                 (SnapshotState.SUPERSEDED.value, incumbent[3]),
             )
             store._conn.execute(  # noqa: SLF001
-                "UPDATE pi_snapshot SET state = ? WHERE job_run_id = ?",
+                "UPDATE pi_eod_snapshot SET state = ? WHERE job_run_id = ?",
                 (SnapshotState.LIVE.value, theirs[3]),
             )
         return verdict
@@ -746,7 +748,7 @@ def test_promote_refuses_when_the_candidate_leaves_staging_mid_transaction(
         if verdict is None and not fired:
             fired.append(1)
             store._conn.execute(  # noqa: SLF001
-                "UPDATE pi_snapshot SET state = ? WHERE job_run_id = ?",
+                "UPDATE pi_eod_snapshot SET state = ? WHERE job_run_id = ?",
                 (SnapshotState.SUPERSEDED.value, mine[3]),
             )
         return verdict
@@ -782,7 +784,7 @@ def test_promote_converts_a_live_key_collision_into_a_refusal(
         if verdict is None and not fired:
             fired.append(1)
             store._conn.execute(  # noqa: SLF001
-                "INSERT INTO pi_snapshot ("
+                "INSERT INTO pi_eod_snapshot ("
                 "dataset, entity_key, as_of_session, created_at, job_run_id, "
                 "status, state, validated, validation_reason, payload_json, "
                 "input_hash, row_count, engine_version, payload_schema_version"
@@ -846,7 +848,7 @@ def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(
         if verdict is None and not fired:
             fired.append(1)
             store._conn.execute(  # noqa: SLF001
-                "UPDATE pi_snapshot SET state = ? WHERE job_run_id = ?",
+                "UPDATE pi_eod_snapshot SET state = ? WHERE job_run_id = ?",
                 (SnapshotState.SUPERSEDED.value, incumbent[3]),
             )
         return verdict
@@ -900,7 +902,7 @@ def test_stage_refuses_an_over_long_bounded_field(tmp_path, field: str) -> None:
         assert excinfo.value.limit == limit
         assert excinfo.value.length == limit + 1
         rows = store._conn.execute(  # noqa: SLF001
-            "SELECT COUNT(*) FROM pi_snapshot"
+            "SELECT COUNT(*) FROM pi_eod_snapshot"
         ).fetchone()
         assert rows[0] == 0
     finally:
@@ -1215,3 +1217,559 @@ def test_get_default_snapshot_store_persists_a_promoted_row_across_reopen(
     assert live.dataset == "techtrade.movers"
     assert live.entity_key == "sector=technology"
     assert live.state == SnapshotState.LIVE
+
+
+# ---------------------------------------------------------------------------
+# Schema identity + versioning (#1963 review C1 / I1)
+# ---------------------------------------------------------------------------
+#
+# `CREATE TABLE IF NOT EXISTS` is a *no-op* against a pre-existing table of
+# any shape. That is the mechanism that would have let the original
+# `pi_snapshot` name silently absorb the account-scoped positions table the
+# portfolio importer ships into the same database, leaving a store that
+# constructs cleanly and fails every later call. The table is now namespaced,
+# and an existing table of the wrong shape (or a table stamped by a different
+# schema version) fails loudly at construction instead.
+
+_FOREIGN_TABLE = """
+CREATE TABLE pi_eod_snapshot (
+    snapshot_id    TEXT PRIMARY KEY,
+    snapshot_date  TEXT NOT NULL,
+    user_id        TEXT NOT NULL,
+    source_sha256  TEXT NOT NULL
+)
+"""
+
+
+def test_sqlite_refuses_a_foreign_table_of_the_same_name(tmp_path) -> None:
+    """A table of our name that is not our table must fail at construction.
+
+    Without the shape check the store constructs, the selector's MySQL
+    fallback never fires, and every `stage`/`get_live` dies deep inside
+    the lifecycle with "no such column: dataset".
+    """
+    db_path = tmp_path / "snapshot.db"
+    seeded = sqlite3.connect(str(db_path))
+    seeded.executescript(_FOREIGN_TABLE)
+    seeded.close()
+
+    with pytest.raises(store_module.SnapshotSchemaMismatch) as excinfo:
+        SqliteSnapshotStore(db_path)
+
+    message = str(excinfo.value)
+    assert "pi_eod_snapshot" in message
+    # The operator is told *which* columns are missing, not just "bad table".
+    assert "dataset" in message
+    assert "payload_json" in message
+
+
+def test_sqlite_stamps_and_accepts_its_own_schema_version(tmp_path) -> None:
+    db_path = tmp_path / "snapshot.db"
+    store = SqliteSnapshotStore(db_path)
+    stamped = store._conn.execute("PRAGMA user_version").fetchone()[0]  # noqa: SLF001
+    store.close()
+
+    assert stamped == store_module.SNAPSHOT_SCHEMA_VERSION
+    # Reopening the file it just stamped must not be read as a mismatch.
+    reopened = SqliteSnapshotStore(db_path)
+    reopened.close()
+
+
+def test_sqlite_refuses_a_table_stamped_by_another_schema_version(tmp_path) -> None:
+    """A forward-version file is refused rather than silently downgraded.
+
+    The shape check alone cannot catch #1964/#1967 *adding* columns: the
+    table would still be a superset of what this build expects. The
+    version stamp is what makes that case loud in the other direction.
+    """
+    db_path = tmp_path / "snapshot.db"
+    SqliteSnapshotStore(db_path).close()
+    bumped = sqlite3.connect(str(db_path))
+    bumped.execute(f"PRAGMA user_version = {store_module.SNAPSHOT_SCHEMA_VERSION + 7}")
+    bumped.close()
+
+    with pytest.raises(store_module.SnapshotSchemaMismatch, match="schema"):
+        SqliteSnapshotStore(db_path)
+
+
+# ---------------------------------------------------------------------------
+# Thread safety (#1963 review C2 / security Alert 1; design spec 4.6)
+# ---------------------------------------------------------------------------
+#
+# The connection is opened `check_same_thread=False` and sqlite3
+# transactions are *connection*-scoped, so two threads inside `_tx()` share
+# one transaction: thread B's `BEGIN IMMEDIATE` raises "cannot start a
+# transaction within a transaction", and its rollback aborts thread A's
+# in-flight transaction — splitting promote()'s demote/promote pair into
+# separately committed statements. Spec 4.6 makes the module-level `RLock`
+# binding; these tests are what make it load-bearing.
+
+
+def _promote_in_threads(store, staged, monkeypatch, *, workers: int):
+    """Fire `workers` concurrent promotes with a widened read->write window."""
+    real_refusal = store_module._promotion_refusal  # noqa: SLF001
+
+    def _slow(candidate, live):
+        verdict = real_refusal(candidate, live)
+        # Hold the transaction open across a GIL switch so a second
+        # thread genuinely arrives *inside* the first one's `_tx()`.
+        time.sleep(0.02)
+        return verdict
+
+    monkeypatch.setattr(store_module, "_promotion_refusal", _slow)
+
+    barrier = threading.Barrier(workers)
+    results: list[bool] = []
+    errors: list[BaseException] = []
+    lock = threading.Lock()
+
+    def _worker(target) -> None:
+        barrier.wait()
+        try:
+            outcome = store.promote(*target)
+        except BaseException as exc:  # noqa: BLE001 - the point of the test
+            with lock:
+                errors.append(exc)
+            return
+        with lock:
+            results.append(outcome)
+
+    threads = [threading.Thread(target=_worker, args=(one,)) for one in staged]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+    assert not any(thread.is_alive() for thread in threads), "a promote deadlocked"
+    return results, errors
+
+
+def test_concurrent_promotes_from_many_threads_keep_exactly_one_live_row(
+    tmp_path, monkeypatch
+) -> None:
+    """Invariant: a shared connection never splits promote()'s two writes.
+
+    Reverse-verified: with `_SQLITE_LOCK` removed from `_tx()`, the
+    workers raise `OperationalError: cannot start a transaction within a
+    transaction` and the LIVE-row count assertion fails.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    staged = [
+        _stage(
+            store,
+            payload={"rows": [{"symbol": f"SYM{index}"}]},
+            as_of_session=date(2026, 9, 2) + timedelta(days=index),
+        )
+        for index in range(6)
+    ]
+    for one in staged:
+        assert store.validate(*one).ok
+
+    results, errors = _promote_in_threads(store, staged, monkeypatch, workers=6)
+
+    assert not errors, f"a concurrent promote raised: {errors!r}"
+    # Serialized promotes all succeed: every candidate is validated, in
+    # STAGING, and ranks equal to the incumbent.
+    assert results == [True] * len(staged)
+
+    live_rows = store._conn.execute(  # noqa: SLF001
+        "SELECT job_run_id FROM pi_eod_snapshot WHERE state = 'live'"
+    ).fetchall()
+    assert len(live_rows) == 1, "the single-LIVE invariant was broken by threading"
+    staging_rows = store._conn.execute(  # noqa: SLF001
+        "SELECT COUNT(*) FROM pi_eod_snapshot WHERE state = 'staging'"
+    ).fetchone()[0]
+    assert staging_rows == 0, "a promotion was lost between the two writes"
+    store.close()
+
+
+def test_reads_from_another_thread_are_serialized_against_a_write(
+    tmp_path, monkeypatch
+) -> None:
+    """A reader thread must never observe a half-applied promotion.
+
+    The demote and the promote are two statements on one connection. A
+    reader sharing that connection sees its *uncommitted* intermediate
+    state unless it is serialized behind the writer, so a naive reader
+    would find zero LIVE rows for a key that has one.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    incumbent = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, as_of_session=date(2026, 9, 3)
+    )
+    assert store.validate(*incumbent).ok
+    assert store.promote(*incumbent)
+    mine = _stage(
+        store, payload={"rows": [{"symbol": "MSFT"}]}, as_of_session=date(2026, 9, 4)
+    )
+    assert store.validate(*mine).ok
+
+    observed: list[str | None] = []
+    started = threading.Event()
+    real_demote = SqliteSnapshotStore._demote  # noqa: SLF001
+
+    def _reader() -> None:
+        started.wait(timeout=10)
+        live = store.get_live("techtrade.movers", "sector=technology")
+        observed.append(None if live is None else live.job_run_id)
+
+    def _demote_then_pause(self, dataset, entity_key, live):
+        real_demote(self, dataset, entity_key, live)
+        started.set()
+        # The window between the demote and the promote: exactly the
+        # interval in which the key transiently has no LIVE row.
+        time.sleep(0.05)
+
+    monkeypatch.setattr(SqliteSnapshotStore, "_demote", _demote_then_pause)
+    reader = threading.Thread(target=_reader)
+    reader.start()
+    assert store.promote(*mine)
+    reader.join(timeout=30)
+    assert not reader.is_alive(), "the reader deadlocked against the writer"
+
+    assert observed == [mine[3]], (
+        "the reader saw the inside of the promotion transaction "
+        f"(observed={observed!r})"
+    )
+    store.close()
+
+
+# ---------------------------------------------------------------------------
+# WAL + busy timeout (#1963 review I6)
+# ---------------------------------------------------------------------------
+
+
+def test_store_opens_the_file_in_wal_mode_with_a_busy_timeout(tmp_path) -> None:
+    """Cross-process reads must not fail while the EOD writer holds a lock.
+
+    In rollback-journal mode a reader arriving during a writer's
+    `BEGIN IMMEDIATE` raises `database is locked` — out of the read path
+    safeguard #9 promises is always available.
+
+    The timeout is asserted against the module's own constant, not
+    against "some positive number": `sqlite3.connect` already defaults
+    to 5 s, so a `>= 1000` assertion would pass with the PRAGMA deleted
+    (reverse-verified - it did).
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    journal = store._conn.execute("PRAGMA journal_mode").fetchone()[0]  # noqa: SLF001
+    timeout = store._conn.execute("PRAGMA busy_timeout").fetchone()[0]  # noqa: SLF001
+    store.close()
+
+    assert str(journal).lower() == "wal"
+    assert timeout == store_module._SQLITE_BUSY_TIMEOUT_MS  # noqa: SLF001
+    assert timeout > 5000, "must exceed sqlite3.connect's own 5 s default"
+
+
+def test_a_separate_process_style_reader_is_not_locked_out_by_a_writer(
+    tmp_path,
+) -> None:
+    """Discriminating: an *independent* connection reads during a write tx.
+
+    `_SQLITE_LOCK` cannot help here — the reader does not share the
+    store's connection, exactly like the Terminal reading the file the
+    EOD job is writing. Only WAL keeps it from raising.
+    """
+    db_path = tmp_path / "snapshots.db"
+    store = SqliteSnapshotStore(db_path)
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+    reader = sqlite3.connect(str(db_path), timeout=0.2)
+    try:
+        store._conn.execute("BEGIN IMMEDIATE")  # noqa: SLF001
+        store._conn.execute(  # noqa: SLF001
+            "UPDATE pi_eod_snapshot SET validation_reason = 'in-flight' "
+            "WHERE job_run_id = ?",
+            (staged[3],),
+        )
+        rows = reader.execute(
+            "SELECT state, validation_reason FROM pi_eod_snapshot"
+        ).fetchall()
+        store._conn.execute("ROLLBACK")  # noqa: SLF001
+    finally:
+        reader.close()
+
+    assert rows == [("live", "")], "the reader saw uncommitted or no data"
+    store.close()
+
+
+# ---------------------------------------------------------------------------
+# Transaction-scope error handling (#1963 review M1)
+# ---------------------------------------------------------------------------
+
+
+def test_a_failing_begin_is_not_masked_by_the_rollback(tmp_path) -> None:
+    """The error the caller sees must be the one that actually happened.
+
+    An unconditional `ROLLBACK` in `_tx()`'s handler raises its own
+    `OperationalError` when no transaction is open - displacing the
+    original. `promote()` *classifies* the exception it catches, so a
+    displaced `IntegrityError` turns a documented `False` into a raw
+    driver traceback.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+
+    class _RefusesBegin:
+        """Connection proxy whose ``BEGIN`` fails like a locked database."""
+
+        def __init__(self, conn) -> None:
+            self._conn = conn
+
+        def execute(self, sql, *args, **kwargs):
+            if sql.upper().startswith("BEGIN"):
+                raise sqlite3.OperationalError("database is locked")
+            return self._conn.execute(sql, *args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
+    store._conn = _RefusesBegin(store._conn)  # noqa: SLF001
+
+    with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+        store.stage(
+            "techtrade.movers",
+            "sector=technology",
+            date(2026, 9, 4),
+            "run-masked",
+            {"rows": []},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Input validation (#1963 review M2 / M3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("keep_sessions", [-1, -50])
+def test_a_negative_retention_window_is_refused(keep_sessions: int) -> None:
+    """`keep_sessions=-1` is a slice bound, not a smaller window.
+
+    `sessions[:-1]` silently means "delete only the *oldest* session" —
+    the near-inverse of the caller's intent.
+    """
+    with pytest.raises(ValueError, match="keep_sessions"):
+        RetentionPolicy(keep_sessions=keep_sessions)
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_a_non_positive_history_limit_is_refused(tmp_path, limit: int) -> None:
+    """Parity: SQLite reads `LIMIT -1` as unlimited, MySQL rejects it."""
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    with pytest.raises(ValueError, match="limit"):
+        store.list_history("techtrade.movers", "sector=technology", limit=limit)
+    store.close()
+
+
+# ---------------------------------------------------------------------------
+# restamp_live is pinned to the row it copied (#1963 review I2)
+# ---------------------------------------------------------------------------
+#
+# `restamp_live` reads LIVE, then stages / validates / promotes in separate
+# transactions. A genuine recompute promoting inside that window would be
+# superseded by the copy of the *older* payload under a *newer* session
+# date: LIVE goes backwards in content while going forwards in freshness.
+# The rank guard cannot see it - the copy inherits the old row's status.
+
+
+def _promote_a_real_recompute(db_path, *, symbol: str, as_of_session: date) -> str:
+    """Play the competing writer: promote a genuinely new payload."""
+    other = SqliteSnapshotStore(db_path)
+    staged = _stage(
+        other, payload={"rows": [{"symbol": symbol}]}, as_of_session=as_of_session
+    )
+    assert other.validate(*staged).ok
+    assert other.promote(*staged)
+    other.close()
+    return staged[3]
+
+
+def test_restamp_refuses_when_a_real_recompute_wins_the_race(tmp_path, caplog) -> None:
+    """Invariant: a stale copy never supersedes newer content.
+
+    Reverse-verified: with `_promote_expecting_live` reduced to a plain
+    `promote()`, the restamp succeeds and LIVE reverts to the AAPL copy.
+    """
+    db_path = tmp_path / "snapshots.db"
+    store = SqliteSnapshotStore(db_path)
+    original = _stage(
+        store, payload={"rows": [{"symbol": "AAPL"}]}, as_of_session=date(2026, 9, 3)
+    )
+    assert store.validate(*original).ok
+    assert store.promote(*original)
+
+    fired: list[str] = []
+    real_stage = store.stage
+
+    def _stage_then_recompute(*args, **kwargs):
+        real_stage(*args, **kwargs)
+        if not fired:
+            # The window: the copy has been taken and staged, the
+            # promote has not run yet.
+            fired.append(
+                _promote_a_real_recompute(
+                    db_path, symbol="NVDA", as_of_session=date(2026, 9, 4)
+                )
+            )
+
+    store.stage = _stage_then_recompute  # type: ignore[method-assign]
+
+    with caplog.at_level(logging.WARNING, logger=_STORE_LOGGER):
+        restamped = store.restamp_live(
+            "techtrade.movers", "sector=technology", date(2026, 9, 5), "run-restamp"
+        )
+
+    assert fired, "the interleaving hook never ran - test is inert"
+    assert restamped is False
+    assert [
+        record
+        for record in caplog.records
+        if "promotion refused" in record.getMessage()
+        and "real recompute" in record.getMessage()
+    ], "the refusal must name the restamp race, not a generic rank refusal"
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == fired[0]
+    assert (
+        live.payload["rows"][0]["symbol"] == "NVDA"
+    ), "the restamp superseded a newer recompute with an older payload"
+    assert live.as_of_session == date(2026, 9, 4)
+    store.close()
+
+
+def test_restamp_still_succeeds_when_live_does_not_move(tmp_path) -> None:
+    """Guards the guard: the new gate must not refuse the ordinary path."""
+    store = _live_store(tmp_path, input_hash="same-input")
+    assert store.restamp_live(
+        "techtrade.movers", "sector=technology", date(2026, 9, 6), "run-restamp"
+    )
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.as_of_session == date(2026, 9, 6)
+    assert live.job_run_id == "run-restamp"
+    store.close()
+
+
+# ---------------------------------------------------------------------------
+# prune scoping and statement shape (#1963 review I4)
+# ---------------------------------------------------------------------------
+
+
+def _store_with_two_datasets(tmp_path) -> SqliteSnapshotStore:
+    """Three sessions in each of two datasets; the newest is LIVE in both."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    for dataset in ("techtrade.movers", "techtrade.segments"):
+        for symbol, as_of_session in (
+            ("AAPL", date(2026, 9, 2)),
+            ("MSFT", date(2026, 9, 3)),
+            ("GOOG", date(2026, 9, 4)),
+        ):
+            staged = _stage(
+                store,
+                payload={"rows": [{"symbol": symbol}]},
+                dataset=dataset,
+                as_of_session=as_of_session,
+            )
+            assert store.validate(*staged).ok
+            assert store.promote(*staged)
+    return store
+
+
+def test_scoped_prune_leaves_a_neighbouring_dataset_untouched(tmp_path) -> None:
+    """Invariant: one caller's retention window is not everyone's.
+
+    The store is shared. Without a scope, a `techtrade.movers` job's
+    `keep_sessions=1` silently truncates `techtrade.segments` history it
+    knows nothing about.
+    """
+    store = _store_with_two_datasets(tmp_path)
+
+    removed = store.prune(RetentionPolicy(keep_sessions=1), dataset="techtrade.movers")
+
+    assert removed == 2
+    assert len(store.list_history("techtrade.movers", "sector=technology")) == 1
+    assert len(store.list_history("techtrade.segments", "sector=technology")) == 3
+    store.close()
+
+
+def test_unscoped_prune_still_sweeps_every_dataset(tmp_path) -> None:
+    """Guards the guard: the scope is opt-in, the janitor still works."""
+    store = _store_with_two_datasets(tmp_path)
+    assert store.prune(RetentionPolicy(keep_sessions=1)) == 4
+    assert len(store.list_history("techtrade.movers", "sector=technology")) == 1
+    assert len(store.list_history("techtrade.segments", "sector=technology")) == 1
+    store.close()
+
+
+def test_entity_scoped_prune_requires_its_dataset(tmp_path) -> None:
+    """An `entity_key` is only unique inside a dataset."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    with pytest.raises(ValueError, match="requires dataset"):
+        store.prune(RetentionPolicy(keep_sessions=1), entity_key="sector=technology")
+    store.close()
+
+
+def test_prune_scope_is_canonicalized_like_every_other_boundary(tmp_path) -> None:
+    """A scope passed in non-canonical form must still match stored rows."""
+    store = _store_with_two_datasets(tmp_path)
+    assert (
+        store.prune(
+            RetentionPolicy(keep_sessions=1),
+            dataset=" TechTrade.Movers ",
+            entity_key="sector = Technology",
+        )
+        == 2
+    )
+    assert len(store.list_history("techtrade.movers", "sector=technology")) == 1
+    assert len(store.list_history("techtrade.segments", "sector=technology")) == 3
+    store.close()
+
+
+def test_prune_is_set_based_not_a_round_trip_per_key(tmp_path) -> None:
+    """Invariant: the write lock is held for a bounded number of statements.
+
+    The shared table lives in the same database as the FMP cache, so a
+    SELECT+DELETE pair per `(dataset, entity_key)` held that lock for
+    O(#keys) round trips. One ranked SELECT plus batched DELETEs keeps
+    it bounded regardless of how many keys are on file.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    for index in range(8):
+        for as_of_session in (date(2026, 9, 2), date(2026, 9, 3), date(2026, 9, 4)):
+            staged = _stage(
+                store,
+                payload={"rows": [{"symbol": "AAPL"}]},
+                entity_key=f"sector=sector{index}",
+                as_of_session=as_of_session,
+            )
+            assert store.validate(*staged).ok
+            assert store.promote(*staged)
+
+    seen: list[str] = []
+    store._conn.set_trace_callback(seen.append)  # noqa: SLF001
+    try:
+        removed = store.prune(RetentionPolicy(keep_sessions=1))
+    finally:
+        store._conn.set_trace_callback(None)  # noqa: SLF001
+
+    assert removed == 16
+    selects = [sql for sql in seen if sql.lstrip().upper().startswith("SELECT")]
+    deletes = [sql for sql in seen if sql.lstrip().upper().startswith("DELETE")]
+    assert len(selects) == 1, f"one SELECT for the whole sweep, saw {len(selects)}"
+    assert len(deletes) == 1, f"one batched DELETE for 8 keys, saw {len(deletes)}"
+
+
+def test_prune_batches_a_sweep_larger_than_the_batch_size(tmp_path) -> None:
+    """Bounded, not unbounded: a huge sweep becomes several DELETEs."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    doomed = [
+        (f"techtrade.d{index}", "sector=technology", f"2026-09-{index % 28 + 1:02d}")
+        for index in range(store_module._PRUNE_BATCH + 5)  # noqa: SLF001
+    ]
+    batches = list(store_module._batched(doomed))  # noqa: SLF001
+    store.close()
+
+    assert len(batches) == 2
+    assert len(batches[0]) == store_module._PRUNE_BATCH  # noqa: SLF001
+    assert len(batches[1]) == 5
