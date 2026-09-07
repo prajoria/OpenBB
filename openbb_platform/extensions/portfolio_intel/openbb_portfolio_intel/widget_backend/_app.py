@@ -213,8 +213,8 @@ class _DataSourceHeaderMiddleware:
     single-user local dev viewer.
     """
 
-    def __init__(self, app: Any) -> None:
-        self.app = app
+    def __init__(self, asgi_app: Any) -> None:
+        self.app = asgi_app
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         if scope["type"] != "http":

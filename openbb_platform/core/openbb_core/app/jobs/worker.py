@@ -235,7 +235,7 @@ def _wait_for_terminal_run(
         time.sleep(poll_seconds)
 
 
-def cmd_list(args: argparse.Namespace) -> int:
+def cmd_list(_args: argparse.Namespace) -> int:
     """Print registered job definitions and their schedule state."""
     service = _build_service()
     for definition in service.list_definitions():
@@ -274,7 +274,7 @@ def cmd_worker(args: argparse.Namespace) -> int:
 
     stop_event = threading.Event()
 
-    def _handle_signal(signum: int, frame: Any) -> None:  # noqa: ARG001
+    def _handle_signal(_signum: int, _frame: Any) -> None:
         """Request a clean shutdown on interrupt/terminate signals."""
         stop_event.set()
 
