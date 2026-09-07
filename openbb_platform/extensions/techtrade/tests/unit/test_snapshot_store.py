@@ -1773,3 +1773,142 @@ def test_prune_batches_a_sweep_larger_than_the_batch_size(tmp_path) -> None:
     assert len(batches) == 2
     assert len(batches[0]) == store_module._PRUNE_BATCH  # noqa: SLF001
     assert len(batches[1]) == 5
+
+
+# ---------------------------------------------------------------------------
+# prune takes the write lock up front (#1963 whole-branch review)
+# ---------------------------------------------------------------------------
+#
+# `prune()` is a read-decide-write sequence: one ranked `SELECT DISTINCT`
+# picks the doomed `(dataset, entity_key, as_of_session)` triples, then the
+# `DELETE`s remove them. A *deferred* `BEGIN` takes only a read snapshot at
+# the SELECT, and in WAL mode another connection is free to commit inside
+# that window — after which the DELETE cannot upgrade to a write lock and
+# SQLite returns `SQLITE_BUSY_SNAPSHOT`, which the busy timeout
+# deliberately does not retry because retrying it can never succeed. Every
+# other read-decide-write scope in this backend already opens
+# `BEGIN IMMEDIATE`; prune was the one that did not.
+
+
+def test_prune_opens_its_transaction_with_begin_immediate(tmp_path) -> None:
+    """The lock is taken before the ranking read, not after it."""
+    store = _store_with_two_datasets(tmp_path)
+
+    seen: list[str] = []
+    store._conn.set_trace_callback(seen.append)  # noqa: SLF001
+    try:
+        assert store.prune(RetentionPolicy(keep_sessions=1)) == 4
+    finally:
+        store._conn.set_trace_callback(None)  # noqa: SLF001
+    store.close()
+
+    begins = [sql for sql in seen if sql.lstrip().upper().startswith("BEGIN")]
+    assert begins == ["BEGIN IMMEDIATE"], (
+        "prune opened a deferred transaction; its DELETE can then fail with "
+        f"SQLITE_BUSY_SNAPSHOT after a concurrent commit. Saw {begins}"
+    )
+
+
+def test_prune_survives_a_writer_that_commits_between_its_read_and_delete(
+    tmp_path,
+) -> None:
+    """Discriminating: the behavior the `IMMEDIATE` actually buys.
+
+    An independent connection tries to commit in the window between
+    prune's ranking `SELECT` and its `DELETE`. With the write lock
+    already held, that writer is the one that is refused and prune
+    completes. With a deferred `BEGIN`, prune holds only a WAL read
+    snapshot, the outsider's commit succeeds, and prune's own DELETE
+    then dies with `SQLITE_BUSY_SNAPSHOT` ("database is locked") — which
+    the busy timeout never retries. Reverse-verified: with
+    `immediate=True` removed, this test fails on that error.
+    """
+    store = _store_with_two_datasets(tmp_path)
+    outsider = sqlite3.connect(str(store._db_path), timeout=0)  # noqa: SLF001
+    intruded: list[BaseException | None] = []
+
+    def _intrude(sql: str) -> None:
+        # Fired at the start of the DELETE, i.e. after the ranking SELECT
+        # has run — the exact window a deferred transaction leaves open.
+        if intruded or not sql.lstrip().upper().startswith("DELETE"):
+            return
+        try:
+            outsider.execute(
+                "UPDATE pi_eod_snapshot SET validation_reason = 'outsider'"
+            )
+            outsider.commit()
+            intruded.append(None)
+        except sqlite3.OperationalError as exc:
+            intruded.append(exc)
+
+    store._conn.set_trace_callback(_intrude)  # noqa: SLF001
+    try:
+        removed = store.prune(RetentionPolicy(keep_sessions=1))
+    finally:
+        store._conn.set_trace_callback(None)  # noqa: SLF001
+        outsider.close()
+
+    assert intruded, "the interleaving hook never ran - the test is inert"
+    assert intruded[0] is not None, (
+        "the outsider committed inside prune's read -> delete window, which "
+        "means prune never held the write lock"
+    )
+    assert removed == 4
+    reasons = {
+        row.validation_reason
+        for row in store.list_history("techtrade.movers", "sector=technology")
+    }
+    assert reasons == {""}, "the locked-out writer's update landed anyway"
+    store.close()
+
+
+# ---------------------------------------------------------------------------
+# close() is serialized like every other statement (#1963 whole-branch review)
+# ---------------------------------------------------------------------------
+
+
+def test_close_waits_for_an_in_flight_write_on_another_thread(tmp_path) -> None:
+    """Closing a shared connection mid-transaction corrupts the writer.
+
+    The connection is opened `check_same_thread=False`, so `close()` from
+    a second thread lands in the middle of the first thread's open
+    transaction: its next statement raises `sqlite3.ProgrammingError:
+    Cannot operate on a closed database` and its half-written promote is
+    reported as a programming bug rather than committed or rolled back.
+    Holding `_SQLITE_LOCK` makes `close()` queue behind the write, like
+    every other statement in this backend.
+    """
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    entered = threading.Event()
+    release = threading.Event()
+    failures: list[BaseException] = []
+
+    def _writer() -> None:
+        try:
+            with store._tx(immediate=True):  # noqa: SLF001
+                entered.set()
+                release.wait(5)
+                store._conn.execute(  # noqa: SLF001
+                    "INSERT INTO pi_eod_snapshot ("
+                    "dataset, entity_key, as_of_session, created_at, job_run_id, "
+                    "status, state, validated, validation_reason, payload_json"
+                    ") VALUES ('d', 'e', '2026-09-04', '2026-09-04T00:00:00+00:00', "
+                    "'run-x', 'ok', 'staging', 0, '', '{}')"
+                )
+        except BaseException as exc:  # noqa: BLE001 - the point of the test
+            failures.append(exc)
+
+    writer = threading.Thread(target=_writer)
+    writer.start()
+    assert entered.wait(5), "the writer never entered its transaction"
+    closer = threading.Thread(target=store.close)
+    closer.start()
+    time.sleep(0.1)  # let close() reach the lock (or, unguarded, the close)
+    release.set()
+    writer.join(5)
+    closer.join(5)
+
+    assert failures == [], (
+        "close() tore the connection out from under an open transaction on "
+        f"another thread: {failures}"
+    )

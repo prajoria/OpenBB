@@ -58,6 +58,14 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    the table itself therefore pin ``utf8mb4_bin``, or the primary key
    and the single-LIVE unique key would mean different things on the two
    backends (see the DDL comment below).
+6. **Schema version stamped in the table ``COMMENT``.** MySQL has no
+   ``PRAGMA user_version``, so :data:`~openbb_techtrade.snapshot.store.SNAPSHOT_SCHEMA_VERSION`
+   is written into ``pi_eod_snapshot``'s own comment and read back from
+   ``information_schema.TABLES``. It is checked at construction in both
+   directions — a table stamped by a newer build and a table stamped by
+   an older one are both refused — because a column-shape check cannot
+   see either case: a newer schema is a *superset* of this build's
+   columns. See :meth:`MysqlSnapshotStore._ensure_schema`.
 
 Read path is compute-free: every read method only ever issues a
 ``SELECT`` against ``pi_eod_snapshot``; none of them calls a provider or
@@ -93,6 +101,7 @@ from openbb_techtrade.snapshot.store import (
     _VALIDATION_RACE_REASON,
     RetentionPolicy,
     SnapshotRow,
+    SnapshotSchemaMismatch,
     SnapshotState,
     SnapshotStatus,
     ValidationResult,
@@ -100,16 +109,19 @@ from openbb_techtrade.snapshot.store import (
     _check_field_lengths,
     _check_limit,
     _check_schema_shape,
+    _check_schema_version,
     _doomed_triples,
     _dumps_payload,
     _is_integrity_error,
     _LifecycleRefused,
+    _parse_schema_version_comment,
     _promotion_refusal,
     _PromotionRefused,
     _prune_scope,
     _restamp_live,
     _restamp_race_refusal,
     _row_from_mapping,
+    _schema_version_comment,
     _scope_clause,
     _should_skip,
     _validation_refusal,
@@ -240,6 +252,21 @@ _SELECT_SCHEMA_COLUMNS = (
     "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s"
 )
 
+# MySQL's answer to `PRAGMA user_version`. The version this build speaks is
+# stamped into the table's own COMMENT and read back out of the data
+# dictionary — see the rationale above `_SCHEMA_VERSION_MARKER` in
+# `openbb_techtrade.snapshot.store` for why the comment, and not a
+# companion version table, carries the stamp.
+_SELECT_SCHEMA_COMMENT = (
+    "SELECT TABLE_COMMENT FROM information_schema.TABLES "
+    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s"
+)
+
+# `ALTER TABLE ... COMMENT` is a metadata-only change (INSTANT on MySQL 8),
+# not a table rebuild. PyMySQL interpolates `%s` client-side, so the
+# placeholder is a real bind even though DDL cannot be server-prepared.
+_STAMP_SCHEMA_COMMENT = f"ALTER TABLE {_SNAPSHOT_TABLE} COMMENT = %s"
+
 # Pools whose database has already had the DDL + shape check applied
 # (#1963 review I3). ``ConnectionPool.get_connection()`` opens a *fresh*
 # ``pymysql.connect`` per borrow — it is not a pool in the pooling sense
@@ -351,10 +378,23 @@ class MysqlSnapshotStore:
         only once the borrow's ``with`` block has exited. Callers see the
         identical exception at the identical place; the pool shared with
         the FMP cache simply stops reporting routine lifecycle outcomes
-        as database faults. Genuine driver errors are *not* intercepted:
-        those really are faults and the pool should log them.
+        as database faults.
+
+        **An ``IntegrityError`` is held back the same way, and for the
+        same reason.** A constraint violation is a *statement* outcome on
+        a healthy session, not a connection fault: the clearest case is
+        ``stage()`` called twice with one ``job_run_id`` for the same
+        ``(dataset, entity_key, as_of_session)``, which is a caller bug
+        that would otherwise page an operator about the FMP cache's
+        database connection. It is held, not handled — the original
+        exception is re-raised unchanged to the caller, so ``stage()``
+        still fails loudly and ``promote()``'s existing safety net still
+        sees the COMMIT-time collision it converts to ``False``.
+
+        Genuine driver errors are *not* intercepted: those really are
+        faults and the pool should log them.
         """
-        refused: _LifecycleRefused | None = None
+        held: BaseException | None = None
         with self._borrow() as conn:
             conn.begin()
             committed = False
@@ -363,12 +403,16 @@ class MysqlSnapshotStore:
                 conn.commit()
                 committed = True
             except _LifecycleRefused as refusal:
-                refused = refusal
+                held = refusal
+            except Exception as exc:  # pylint: disable=broad-except
+                if not _is_integrity_error(exc):
+                    raise
+                held = exc
             finally:
                 if not committed:
                     self._restore(conn)
-        if refused is not None:
-            raise refused
+        if held is not None:
+            raise held
 
     @staticmethod
     def _restore(conn: Any) -> None:
@@ -389,9 +433,25 @@ class MysqlSnapshotStore:
         ``portfolio_snapshot_importer`` table of the same name in the
         same database would have absorbed the CREATE, left this store
         constructing cleanly, and failed every later call with "Unknown
-        column 'dataset'". The rename fixes today's collision; this shape
-        check is what makes tomorrow's loud — including the one #1964 /
-        #1967 will create when they add columns.
+        column 'dataset'". The rename fixes today's collision; the shape
+        **and version** checks are what make tomorrow's loud — including
+        the one #1964 / #1967 will create when they add columns.
+
+        The version half matters in a direction the shape check
+        structurally cannot see. A table written by a *newer* build is a
+        column superset of what this build expects, so every expected
+        column is present and the shape check passes; a table written by
+        an *older* build whose columns were re-typed or re-keyed rather
+        than removed passes it too. Both are refused here by comparing
+        the stamp in the table's ``COMMENT`` against
+        :data:`~openbb_techtrade.snapshot.store.SNAPSHOT_SCHEMA_VERSION`.
+
+        An unstamped table of the right shape (version ``0``) is adopted
+        and stamped, which is the same adopt-and-stamp SQLite performs
+        with ``PRAGMA user_version``. The stamp *replaces* any existing
+        comment: the shape check has already established that the table
+        is this store's, and a self-describing marker is worth more than
+        a hand-written annotation that no code reads.
 
         The check runs once per pool (see :data:`_SCHEMA_READY`), and the
         refusal is raised *outside* the borrow so a schema fault is not
@@ -403,13 +463,42 @@ class MysqlSnapshotStore:
         """
         if _SCHEMA_READY.get(self._pool):
             return
+        refusal: SnapshotSchemaMismatch | None = None
         with self._borrow() as conn, conn.cursor() as cur:
             for ddl in _ALL_DDLS:
                 cur.execute(ddl)
-            cur.execute(_SELECT_SCHEMA_COLUMNS, (_SNAPSHOT_TABLE,))
-            columns = [record["COLUMN_NAME"] for record in cur.fetchall()]
-        _check_schema_shape(columns, backend="mysql")
+            try:
+                self._verify_schema(cur)
+            except SnapshotSchemaMismatch as mismatch:
+                refusal = mismatch
+        if refusal is not None:
+            raise refusal
         _SCHEMA_READY[self._pool] = True
+
+    @staticmethod
+    def _verify_schema(cur: Any) -> None:
+        """Check the live table's shape and version stamp; stamp if unstamped.
+
+        Both probes ask the *server* (``information_schema``) rather than
+        re-reading this module's own DDL text, so the answer describes
+        the table that exists, not the table this build would have
+        created.
+        """
+        cur.execute(_SELECT_SCHEMA_COLUMNS, (_SNAPSHOT_TABLE,))
+        columns = [record["COLUMN_NAME"] for record in cur.fetchall()]
+        _check_schema_shape(columns, backend="mysql")
+        cur.execute(_SELECT_SCHEMA_COMMENT, (_SNAPSHOT_TABLE,))
+        record = cur.fetchone()
+        stamped = _parse_schema_version_comment(
+            record["TABLE_COMMENT"] if record is not None else None
+        )
+        _check_schema_version(stamped, backend="mysql")
+        # `_check_schema_version` has already narrowed `stamped` to either
+        # this build's own version or 0, so 0 is exactly the
+        # adopt-and-stamp case: a table of the right shape that predates
+        # the stamp, or one this build just created.
+        if stamped == 0:
+            cur.execute(_STAMP_SCHEMA_COMMENT, (_schema_version_comment(),))
 
     # --- private query helpers -----------------------------------------
 

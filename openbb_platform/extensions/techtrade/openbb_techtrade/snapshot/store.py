@@ -31,9 +31,13 @@ Design invariants this module encodes (see the spec for the full list):
   positions history in the same MySQL database — see the C1 note above
   ``_SNAPSHOT_TABLE``.
 - **Schema identity is verified, not assumed.** Both backends refuse a
-  table of the right name and the wrong shape (or a foreign schema
-  version) with :class:`SnapshotSchemaMismatch`, because
-  ``CREATE TABLE IF NOT EXISTS`` cannot tell the two apart.
+  table of the right name and the wrong shape with
+  :class:`SnapshotSchemaMismatch`, because ``CREATE TABLE IF NOT
+  EXISTS`` cannot tell the two apart — and both also refuse a table
+  stamped by a *different* schema version, in either direction, which
+  the shape check structurally cannot detect (a newer schema is a
+  column superset of this build's). SQLite stamps ``PRAGMA
+  user_version``; MySQL stamps the table's own ``COMMENT``.
 
 Read path is compute-free: nothing in this module calls a provider or
 performs a live computation. That remains true for every concrete backend
@@ -51,6 +55,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sqlite3
 import threading
 from collections.abc import Callable, Iterable, Iterator, Sequence
@@ -452,13 +457,71 @@ def _check_schema_shape(columns: Iterable[str], *, backend: str) -> None:
 
 
 def _check_schema_version(version: int, *, backend: str) -> None:
-    """Fail loudly on a table stamped by a different schema version."""
+    """Fail loudly on a table stamped by a different schema version.
+
+    ``0`` means *unstamped* on both backends (SQLite's default
+    ``PRAGMA user_version``; a MySQL table with no version marker in its
+    ``COMMENT``) and is accepted so a table this build created before
+    stamping existed can be adopted and stamped. Every other value that
+    is not this build's own is refused in **both** directions: a table
+    stamped by a newer build (this build is old) and a table stamped by
+    an older build (this build is new) are equally unusable, and neither
+    is detectable by a column-shape check — a newer schema is a superset
+    of the columns this build expects, and an older one that merely
+    *renamed* or re-typed a column is not.
+    """
     if version not in (0, SNAPSHOT_SCHEMA_VERSION):
         raise SnapshotSchemaMismatch(
             f"{backend}: table {_SNAPSHOT_TABLE!r} is stamped schema "
             f"version {version}, but this build speaks version "
             f"{SNAPSHOT_SCHEMA_VERSION}. Refusing to read or write it."
         )
+
+
+# MySQL has no `PRAGMA user_version`, so the stamp lives in the table's own
+# `COMMENT` — read back from `information_schema.TABLES.TABLE_COMMENT`.
+#
+# Why the comment rather than a companion `pi_eod_snapshot_schema` table:
+# the comment is a property *of the table*, so it cannot drift from it.
+# A companion table can be dropped, restored, or replicated separately
+# from the table it describes, and the failure mode of that drift is a
+# fresh empty `pi_eod_snapshot` wearing a stale version row — precisely
+# the silent mismatch this check exists to prevent. It also adds a second
+# object to a database this store is only a guest in (the corporate FMP
+# cache), which is what C1 was about in the first place.
+#
+# The marker is *searched for*, not compared for equality: some servers
+# decorate `TABLE_COMMENT` with their own text (older InnoDB builds
+# prefix `InnoDB free: ...`), and an operator may have annotated the
+# table by hand. A comment with no marker at all reads as version 0 —
+# "unstamped" — which is the same thing SQLite's default `user_version`
+# means, so both backends adopt-and-stamp in exactly one case.
+_SCHEMA_VERSION_MARKER = f"{_SNAPSHOT_TABLE} schema_version="
+_SCHEMA_VERSION_RE = re.compile(rf"{re.escape(_SCHEMA_VERSION_MARKER)}(\d+)")
+
+
+def _schema_version_comment() -> str:
+    """Build the stamp this build writes into the table's ``COMMENT``.
+
+    Built at call time, not import time, so the version is read from
+    :data:`SNAPSHOT_SCHEMA_VERSION` rather than baked into a module
+    constant — which is what lets a test stand in for "a build that
+    speaks a different version" by rebinding one name.
+    """
+    return (
+        f"{_SCHEMA_VERSION_MARKER}{SNAPSHOT_SCHEMA_VERSION} "
+        "openbb_techtrade EOD snapshot store (#1963)"
+    )
+
+
+def _parse_schema_version_comment(comment: str | None) -> int:
+    """Read the stamped schema version out of a MySQL ``TABLE_COMMENT``.
+
+    Returns ``0`` when the comment is absent, empty, or carries no
+    marker — the "unstamped" value :func:`_check_schema_version` accepts.
+    """
+    match = _SCHEMA_VERSION_RE.search(comment or "")
+    return int(match.group(1)) if match is not None else 0
 
 
 def _prune_scope(dataset: str | None, entity_key: str | None) -> tuple[str | None, ...]:
@@ -1452,6 +1515,17 @@ class SqliteSnapshotStore:
         set-based ``DELETE``s of at most :data:`_PRUNE_BATCH` sessions
         each — not a SELECT+DELETE round trip per key, which held the
         write lock for O(#keys) statements.
+
+        The transaction is ``BEGIN IMMEDIATE``: this is a read-decide-
+        write sequence, and a *deferred* ``BEGIN`` takes only a read
+        snapshot at the ``SELECT``. In WAL mode another connection is
+        free to commit inside that window, and the first ``DELETE`` then
+        fails to upgrade with ``SQLITE_BUSY_SNAPSHOT`` — an error the
+        busy timeout deliberately does not retry, because retrying it
+        cannot succeed. Taking the write lock up front is the same
+        stand-in for ``FOR UPDATE`` that :meth:`promote` uses, and it
+        also stops a concurrent writer's row from being ranked into the
+        kept window by the ``SELECT`` and then deleted by the ``DELETE``.
         """
         if policy is None or policy.keep_sessions is None:
             return 0
@@ -1464,7 +1538,7 @@ class SqliteSnapshotStore:
             )
         scope_sql, scope_params = _scope_clause(dataset, entity_key, "?")
         deleted = 0
-        with self._tx():
+        with self._tx(immediate=True):
             # The only interpolation is `_scope_clause`'s module-owned
             # fragment of literals and "?" tokens; values are bound.
             rows = self._conn.execute(
@@ -1489,8 +1563,19 @@ class SqliteSnapshotStore:
         return deleted
 
     def close(self) -> None:
-        """Release the SQLite connection."""
-        self._conn.close()
+        """Release the SQLite connection, under the same lock every call uses.
+
+        The lock is not ceremony here. The connection is shared across
+        threads (``check_same_thread=False``), so closing it while
+        another thread is inside :meth:`_tx` would abort that thread's
+        open transaction and turn its next statement into
+        ``sqlite3.ProgrammingError: Cannot operate on a closed
+        database`` — a half-written promote reported as a programming
+        bug. Taking :data:`_SQLITE_LOCK` makes ``close()`` wait for the
+        in-flight write to commit, exactly like any other statement.
+        """
+        with _SQLITE_LOCK:
+            self._conn.close()
 
 
 # ---------------------------------------------------------------------------

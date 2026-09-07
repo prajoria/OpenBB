@@ -82,7 +82,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from openbb_techtrade.snapshot import mysql_store as mysql_store_module
+from openbb_techtrade.snapshot import (
+    mysql_store as mysql_store_module,
+    store as store_module,
+)
 from openbb_techtrade.snapshot.mysql_store import (
     _PI_EOD_SNAPSHOT_DDL,
     MysqlSnapshotStore,
@@ -321,6 +324,23 @@ _UPDATE_RE = re.compile(
     re.I | re.S,
 )
 _ASSIGNMENT_RE = re.compile(r"^\s*(\w+)\s*=\s*%s\s*$")
+_ALTER_COMMENT_RE = re.compile(
+    r"^\s*ALTER\s+TABLE\s+(?P<table>\w+)\s+COMMENT\s*=\s*%s\s*$", re.I
+)
+
+# The double's stand-in for MySQL's data dictionary. SQLite has no table
+# comments, so `information_schema.TABLES.TABLE_COMMENT` is modelled by a
+# side table *in the same database file* — see `_FakeCursor._alter_table`
+# for why the file, and not the pool object, is the right home for it.
+_DICTIONARY_TABLE = "_fake_information_schema_tables"
+
+
+def _ensure_dictionary(cursor: sqlite3.Cursor) -> None:
+    """Create the double's ``information_schema.TABLES`` stand-in once."""
+    cursor.execute(
+        f"CREATE TABLE IF NOT EXISTS {_DICTIONARY_TABLE} ("
+        "table_name TEXT PRIMARY KEY, table_comment TEXT NOT NULL)"
+    )
 
 
 def _to_sqlite(sql: str) -> str:
@@ -364,6 +384,9 @@ class _FakeCursor:
                 f"Not all parameters were used in the SQL statement: "
                 f"{sql.count('%s')} placeholders vs {len(bound)} params"
             )
+        if sql.lstrip().upper().startswith("ALTER TABLE"):
+            self._alter_table(sql, bound)
+            return
         if "information_schema" in sql.lower():
             self._describe_table(sql, bound)
             return
@@ -413,18 +436,70 @@ class _FakeCursor:
             self._cursor.execute(index_sql)
 
     def _describe_table(self, sql: str, bound: tuple) -> None:
-        """Answer the production ``information_schema.COLUMNS`` shape probe.
+        """Answer the production ``information_schema`` probes.
 
-        The store asks a real MySQL question (``SELECT COLUMN_NAME FROM
-        information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND
-        TABLE_NAME = %s``) — the double answers it from SQLite's own
-        catalogue rather than the store softening its query into
-        something portable. A table that does not exist yields no rows,
-        exactly as ``information_schema`` does.
+        The store asks two real MySQL questions — ``SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS ...`` for the table's shape and
+        ``SELECT TABLE_COMMENT FROM information_schema.TABLES ...`` for
+        its schema-version stamp — and the double answers both from
+        SQLite's own catalogue rather than the store softening its
+        queries into something portable. A table that does not exist
+        yields no rows from either, exactly as ``information_schema``
+        does.
         """
+        if "TABLE_COMMENT" in sql:
+            self._select_table_comment(bound)
+            return
         assert "COLUMN_NAME" in sql, f"unexpected information_schema query: {sql!r}"
         self._cursor.execute(
             "SELECT name AS COLUMN_NAME FROM pragma_table_info(?)", bound
+        )
+        self._executed = None
+
+    def _select_table_comment(self, bound: tuple) -> None:
+        """Read a table's ``COMMENT`` out of the double's data dictionary.
+
+        MySQL returns exactly one row per existing table — ``''`` when
+        the table carries no comment — and *no* row for a table that
+        does not exist. Both are reproduced here, because the production
+        code distinguishes them (no row and an empty comment both read as
+        "unstamped", and getting that wrong would make the version check
+        untestable rather than merely wrong).
+        """
+        _ensure_dictionary(self._cursor)
+        self._cursor.execute(
+            "SELECT COALESCE(d.table_comment, '') AS TABLE_COMMENT "
+            f"FROM sqlite_master AS m LEFT JOIN {_DICTIONARY_TABLE} AS d "
+            "ON d.table_name = m.name "
+            "WHERE m.type = 'table' AND m.name = ?",
+            bound,
+        )
+        self._executed = None
+
+    def _alter_table(self, sql: str, bound: tuple) -> None:
+        """Apply ``ALTER TABLE <t> COMMENT = %s`` to the data dictionary.
+
+        SQLite has no table comments, so the double keeps them in a side
+        table *inside the same database file*. That placement is
+        load-bearing: MySQL's comment lives in the server's data
+        dictionary, so it is visible to every connection and every pool
+        that opens the database, and it outlives the process that wrote
+        it. A dict on the pool object would model none of that, and the
+        cross-build tests (an old binary meeting a table a newer binary
+        stamped) would silently degenerate into same-object bookkeeping.
+        """
+        self._conn.record(sql, bound)
+        match = _ALTER_COMMENT_RE.match(sql)
+        if match is None:  # pragma: no cover - keeps the double honest
+            raise _FakeProgrammingError(
+                f"the double only models `ALTER TABLE <t> COMMENT = %s`: {sql!r}"
+            )
+        _ensure_dictionary(self._cursor)
+        self._cursor.execute(
+            f"INSERT INTO {_DICTIONARY_TABLE} (table_name, table_comment) "
+            "VALUES (?, ?) ON CONFLICT(table_name) DO UPDATE SET "
+            "table_comment = excluded.table_comment",
+            (match.group("table"), bound[0]),
         )
         self._executed = None
 
@@ -1957,6 +2032,91 @@ def test_refusals_are_invisible_to_the_real_pool_but_driver_faults_are_not(
 
 
 # ---------------------------------------------------------------------------
+# A caller's duplicate key is a caller bug, not a connection fault
+# (#1963 whole-branch review)
+# ---------------------------------------------------------------------------
+#
+# `stage()` writes one row keyed `(dataset, entity_key, as_of_session,
+# job_run_id)`. Reusing a `job_run_id` for the same session violates that
+# primary key: a bug in the *caller* — the job scheduled two runs under one
+# id. The store must surface it unchanged (never swallow it: the second
+# payload really was not written) while keeping it out of the shared pool's
+# `ERROR MySQL connection error` path, which pages an operator about the
+# FMP cache's database. Same treatment as a lifecycle refusal: roll back
+# inside the borrow, re-raise after it closes.
+
+
+def test_a_duplicate_stage_is_the_callers_error_not_a_pool_fault(
+    store: MysqlSnapshotStore, pool: _FakePool, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Raised to the caller, invisible to the pool, and nothing written."""
+    _stage(store, payload={"rows": [{"symbol": "AAPL"}]}, job_run_id="run-dupe")
+    rollbacks_before = pool.rollbacks
+
+    with caplog.at_level(logging.DEBUG), pytest.raises(_FakeIntegrityError):
+        _stage(store, payload={"rows": [{"symbol": "MSFT"}]}, job_run_id="run-dupe")
+
+    assert pool.errors == [], (
+        "a caller's duplicate key unwound across ConnectionPool."
+        "get_connection; the shared pool logs that as a connection error"
+    )
+    assert _pool_errors(caplog) == []
+    assert pool.rollbacks == rollbacks_before + 1, "the failed write must roll back"
+    assert pool.closed_with_open_txn == 0
+    history = store.list_history("techtrade.movers", "sector=technology")
+    assert len(history) == 1, "the duplicate must not have been written"
+    assert history[0].payload["rows"][0]["symbol"] == "AAPL"
+
+
+def test_a_duplicate_stage_against_the_real_pool_is_raised_but_not_logged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The same claim, against the production ``ConnectionPool`` class.
+
+    The double's `errors` list only proves the store agrees with the
+    double. This drives the real borrow protocol, whose
+    ``logger.error("MySQL connection error: ...")`` is the thing an
+    operator actually sees.
+    """
+    seam = _SeamHarness(tmp_path, monkeypatch)
+    store = MysqlSnapshotStore(connection_pool=seam.pool)
+    _stage(store, payload={"rows": [{"symbol": "AAPL"}]}, job_run_id="run-dupe")
+
+    with caplog.at_level(logging.DEBUG), pytest.raises(_FakeIntegrityError) as excinfo:
+        _stage(store, payload={"rows": [{"symbol": "MSFT"}]}, job_run_id="run-dupe")
+
+    assert "UNIQUE" in str(excinfo.value) or "unique" in str(excinfo.value).lower()
+    assert _pool_errors(caplog) == []
+    assert seam.book.rollbacks >= 1
+    assert seam.book.closed_with_open_txn == 0
+
+
+def test_a_genuine_driver_fault_during_stage_still_reaches_the_pool(
+    store: MysqlSnapshotStore, pool: _FakePool, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Guards the guard: the hold-back is narrow, not blanket suppression.
+
+    Only an ``IntegrityError`` is a caller bug. A connection reset, a
+    lock-wait timeout or a disk-full error on the very same statement
+    really is a database fault, and must still cross the borrow so the
+    shared pool logs it. Reverse-verified: widening the hold-back in
+    ``transaction()`` to ``except Exception`` fails this test.
+    """
+    pool.fail_on = lambda sql, params: sql.startswith("INSERT INTO pi_eod_snapshot")
+
+    with caplog.at_level(logging.DEBUG), pytest.raises(_FakeMysqlError) as excinfo:
+        _stage(store, payload={"rows": [{"symbol": "AAPL"}]}, job_run_id="run-fault")
+
+    assert not isinstance(excinfo.value, _FakeIntegrityError)
+    assert _pool_errors(caplog), (
+        "a real driver failure must still reach the pool's error log — "
+        "holding integrity errors back must not swallow genuine faults"
+    )
+    assert pool.rollbacks >= 1
+    assert pool.closed_with_open_txn == 0
+
+
+# ---------------------------------------------------------------------------
 # Concurrency: the read -> write window (review findings 1 and 2)
 # ---------------------------------------------------------------------------
 #
@@ -2499,6 +2659,307 @@ def test_schema_probe_asks_information_schema_for_the_real_table(
 
     assert "information_schema" in mysql_store_module._SELECT_SCHEMA_COLUMNS.lower()
     assert "DATABASE()" in mysql_store_module._SELECT_SCHEMA_COLUMNS
+
+
+# ---------------------------------------------------------------------------
+# Schema *version* validation on MySQL (#1963 whole-branch review IMP-1)
+# ---------------------------------------------------------------------------
+#
+# The shape check above is blind in one direction and half-blind in the
+# other. `_check_schema_shape` only asks "is every column this build needs
+# present?", so:
+#
+#   * a table written by a *newer* build (#1964/#1967 adding columns) is a
+#     column superset — every expected column is there, the check passes,
+#     and this build then writes rows a newer reader will mis-handle; and
+#   * a table written by an *older* build that re-typed, re-collated or
+#     re-keyed a column rather than removing it passes just as silently.
+#
+# SQLite closes that hole with `PRAGMA user_version`. MySQL has no
+# equivalent, so the stamp lives in the table's own COMMENT and is read
+# back from `information_schema.TABLES`. These tests drive both directions
+# through the real production path, against a double whose comment store
+# is a persistent per-*database* dictionary (not a per-pool dict), because
+# "another build stamped this table" is only a meaningful scenario if the
+# stamp outlives the object that wrote it.
+
+
+def _table_comment(path: Path | str, table: str = "pi_eod_snapshot") -> str | None:
+    """Read a table's comment out of the double's data dictionary."""
+    conn = sqlite3.connect(str(path))
+    try:
+        _ensure_dictionary(conn.cursor())
+        row = conn.execute(
+            f"SELECT table_comment FROM {_DICTIONARY_TABLE} WHERE table_name = ?",
+            (table,),
+        ).fetchone()
+    finally:
+        conn.close()
+    return None if row is None else row[0]
+
+
+def _set_table_comment(
+    path: Path | str, comment: str, table: str = "pi_eod_snapshot"
+) -> None:
+    """Stamp a table comment out-of-band, as another build's ALTER would."""
+    conn = sqlite3.connect(str(path))
+    try:
+        _ensure_dictionary(conn.cursor())
+        conn.execute(
+            f"INSERT INTO {_DICTIONARY_TABLE} (table_name, table_comment) "
+            "VALUES (?, ?) ON CONFLICT(table_name) DO UPDATE SET "
+            "table_comment = excluded.table_comment",
+            (table, comment),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _version_stamp(version: int) -> str:
+    """Build a comment stamping ``version`` the way the store stamps it."""
+    return f"{store_module._SCHEMA_VERSION_MARKER}{version} written by another build"
+
+
+def _add_column(path: Path | str, column: str) -> None:
+    """Add a column out-of-band, as a newer build's migration would."""
+    conn = sqlite3.connect(str(path))
+    try:
+        conn.execute(f"ALTER TABLE pi_eod_snapshot ADD COLUMN {column}")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_mysql_stamps_the_schema_version_on_a_fresh_table(tmp_path: Path) -> None:
+    """A table this build creates carries this build's version stamp.
+
+    Without the stamp there is nothing for a later build to compare
+    against, so every mismatch test below would pass vacuously.
+    """
+    db_path = tmp_path / "stamped.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    comment = _table_comment(db_path)
+    assert comment is not None, "the fresh table was never stamped"
+    assert (
+        store_module._parse_schema_version_comment(comment)
+        == store_module.SNAPSHOT_SCHEMA_VERSION
+    )
+
+
+def test_mysql_refuses_a_table_stamped_by_a_newer_schema_version(
+    tmp_path: Path,
+) -> None:
+    """Old build, new schema: the column-shape check cannot see this.
+
+    The table is a *superset* of this build's columns, so
+    `_check_schema_shape` is satisfied. Only the version stamp makes it
+    loud.
+    """
+    db_path = tmp_path / "forward.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    newer = store_module.SNAPSHOT_SCHEMA_VERSION + 7
+    _set_table_comment(db_path, _version_stamp(newer))
+    _add_column(db_path, "quality_score REAL")
+
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    message = str(excinfo.value)
+    assert "mysql" in message
+    assert str(newer) in message
+    assert str(store_module.SNAPSHOT_SCHEMA_VERSION) in message
+
+
+def test_mysql_refuses_a_table_stamped_by_an_older_schema_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """New build, old schema: the other direction, equally invisible to shape.
+
+    `SNAPSHOT_SCHEMA_VERSION` is rebound to stand in for a later build.
+    That is enough to move *both* the stamp writer and the stamp checker
+    because each reads the module global at call time — which is the
+    property that makes a real version bump work at all.
+    """
+    db_path = tmp_path / "backward.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    assert _table_comment(db_path) is not None
+    stamped = store_module.SNAPSHOT_SCHEMA_VERSION
+
+    monkeypatch.setattr(store_module, "SNAPSHOT_SCHEMA_VERSION", stamped + 1)
+
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    message = str(excinfo.value)
+    assert f"stamped schema version {stamped}" in message
+    assert f"speaks version {stamped + 1}" in message
+
+
+def test_mysql_adopts_and_stamps_an_unstamped_table_of_the_right_shape(
+    tmp_path: Path,
+) -> None:
+    """Parity with SQLite's `user_version = 0`: unstamped is not a mismatch.
+
+    A table created before the stamp existed (or by a `CREATE TABLE` run
+    by hand) has the right shape and no marker. Refusing it would break
+    every existing deployment; the store adopts it and stamps it instead.
+    """
+    db_path = tmp_path / "legacy.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    _set_table_comment(db_path, "")
+
+    store = MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    assert (
+        store_module._parse_schema_version_comment(_table_comment(db_path))
+        == store_module.SNAPSHOT_SCHEMA_VERSION
+    ), "an unstamped table was adopted but never stamped"
+    staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+
+def test_a_foreign_comment_with_no_marker_also_reads_as_unstamped(
+    tmp_path: Path,
+) -> None:
+    """Robustness: a decorated comment must not be read as a version.
+
+    Older InnoDB builds prepend their own text to `TABLE_COMMENT`, and
+    operators annotate tables by hand. The marker is searched for, so a
+    comment carrying one *is* honoured even when it carries other text
+    too — and one carrying none reads as unstamped rather than blowing
+    up an `int()`.
+    """
+    db_path = tmp_path / "decorated.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    _set_table_comment(db_path, "InnoDB free: 5120 kB; owned by portfolio-intel")
+
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    assert (
+        store_module._parse_schema_version_comment(_table_comment(db_path))
+        == store_module.SNAPSHOT_SCHEMA_VERSION
+    )
+    decorated = f"InnoDB free: 5120 kB; {_version_stamp(99)}"
+    assert store_module._parse_schema_version_comment(decorated) == 99
+
+
+def test_a_schema_version_refusal_is_not_reported_to_the_pool_as_a_fault(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version mismatch is a deployment error, not a connection fault."""
+    db_path = tmp_path / "forward_quiet.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    _set_table_comment(
+        db_path, _version_stamp(store_module.SNAPSHOT_SCHEMA_VERSION + 7)
+    )
+    pool = _FakePool(db_path)
+
+    with caplog.at_level(logging.ERROR, logger=_POOL_LOGGER), pytest.raises(
+        SnapshotSchemaMismatch
+    ):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.errors == []
+    assert _pool_errors(caplog) == []
+
+
+def test_the_version_probe_asks_information_schema_for_the_table_comment() -> None:
+    """The stamp is read from the server's dictionary, not from the DDL text."""
+    probe = mysql_store_module._SELECT_SCHEMA_COMMENT
+    assert "information_schema.TABLES" in probe
+    assert "TABLE_COMMENT" in probe
+    assert "DATABASE()" in probe
+    assert (
+        mysql_store_module._STAMP_SCHEMA_COMMENT.count("%s") == 1
+    ), "the stamp must be a bound parameter, not interpolated text"
+
+
+def test_both_backends_refuse_the_same_forward_schema_version(tmp_path: Path) -> None:
+    """Parity: neither backend will read or write a newer build's table."""
+    sqlite_path = tmp_path / "parity_sqlite.db"
+    SqliteSnapshotStore(sqlite_path).close()
+    bumped = sqlite3.connect(str(sqlite_path))
+    bumped.execute(f"PRAGMA user_version = {store_module.SNAPSHOT_SCHEMA_VERSION + 7}")
+    bumped.close()
+
+    mysql_path = tmp_path / "parity_mysql.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(mysql_path))
+    _set_table_comment(
+        mysql_path, _version_stamp(store_module.SNAPSHOT_SCHEMA_VERSION + 7)
+    )
+
+    with pytest.raises(SnapshotSchemaMismatch, match="sqlite"):
+        SqliteSnapshotStore(sqlite_path)
+    with pytest.raises(SnapshotSchemaMismatch, match="mysql"):
+        MysqlSnapshotStore(connection_pool=_FakePool(mysql_path))
+
+
+# --- guards on the double itself -------------------------------------------
+#
+# The two tests below assert nothing about the production code. They assert
+# that the double models MySQL faithfully enough for the tests above to
+# mean what they claim: a comment that lived on the pool object, or a
+# `CREATE TABLE IF NOT EXISTS` that quietly re-stamped an existing table,
+# would make every version test pass for the wrong reason.
+
+
+def test_the_double_keeps_table_comments_in_the_database_not_the_pool(
+    tmp_path: Path,
+) -> None:
+    """MySQL's comment is server-side state: a new pool must still see it."""
+    db_path = tmp_path / "dictionary.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    other_pool = _FakePool(db_path)
+    with other_pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(mysql_store_module._SELECT_SCHEMA_COMMENT, ("pi_eod_snapshot",))
+        record = cur.fetchone()
+
+    assert record is not None, "a second pool could not see the stamp"
+    assert (
+        store_module._parse_schema_version_comment(record["TABLE_COMMENT"])
+        == store_module.SNAPSHOT_SCHEMA_VERSION
+    )
+
+
+def test_the_double_leaves_an_existing_comment_alone_on_create_if_not_exists(
+    tmp_path: Path,
+) -> None:
+    """`CREATE TABLE IF NOT EXISTS` is a no-op — comment included.
+
+    If the double reset the comment here, the forward-version test would
+    be testing the double's amnesia rather than the store's check.
+    """
+    db_path = tmp_path / "no_restamp.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    foreign = _version_stamp(store_module.SNAPSHOT_SCHEMA_VERSION + 7)
+    _set_table_comment(db_path, foreign)
+
+    pool = _FakePool(db_path)
+    with pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(_PI_EOD_SNAPSHOT_DDL)
+
+    assert _table_comment(db_path) == foreign
+
+
+def test_information_schema_returns_no_comment_row_for_a_missing_table(
+    tmp_path: Path,
+) -> None:
+    """No row (table absent) and `''` (no comment) are different answers.
+
+    The store distinguishes them only in that both read as version 0, but
+    a double that returned a row for a non-existent table would hide a
+    `TypeError` in the production `record is not None` branch.
+    """
+    pool = _FakePool(tmp_path / "absent.db")
+    with pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(mysql_store_module._SELECT_SCHEMA_COMMENT, ("pi_eod_snapshot",))
+        assert cur.fetchone() is None
+        cur.execute(_PI_EOD_SNAPSHOT_DDL)
+        cur.execute(mysql_store_module._SELECT_SCHEMA_COMMENT, ("pi_eod_snapshot",))
+        assert cur.fetchone() == {"TABLE_COMMENT": ""}
 
 
 # ---------------------------------------------------------------------------
