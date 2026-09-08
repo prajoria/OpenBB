@@ -1049,14 +1049,18 @@ class _IndexShape:
     Built from ``information_schema.STATISTICS`` on MySQL and from
     ``PRAGMA index_list`` / ``PRAGMA index_info`` on SQLite, so the check
     describes the index that *exists* rather than the one this build's
-    DDL would have created. ``predicate`` is SQLite's partial-index
-    ``WHERE`` text and is always empty on MySQL, which has no such thing.
+    DDL would have created. MySQL's ``sub_parts`` is positionally aligned
+    with ``columns`` so a functional key part (``COLUMN_NAME IS NULL``)
+    or prefix key part cannot disappear while catalogue rows are folded.
+    SQLite leaves it empty and uses ``predicate`` for its partial-index
+    ``WHERE`` text.
     """
 
     name: str
     unique: bool
-    columns: tuple[str, ...]
+    columns: tuple[str | None, ...]
     predicate: str = ""
+    sub_parts: tuple[int | None, ...] = ()
 
 
 class SnapshotSchemaMismatch(RuntimeError):
@@ -1188,12 +1192,17 @@ def _check_mysql_live_guard(
             f"guard while still mentioning every expected word",
         )
     if not any(
-        index.unique and index.columns == (_MYSQL_LIVE_KEY_COLUMN,) for index in indexes
+        index.unique
+        and index.columns == (_MYSQL_LIVE_KEY_COLUMN,)
+        and index.sub_parts == (None,)
+        for index in indexes
     ):
         raise _live_guard_refusal(
             "mysql",
-            f"no UNIQUE index over exactly ({_MYSQL_LIVE_KEY_COLUMN}) exists "
-            f"(expected {_LIVE_UNIQUE_INDEX!r})",
+            f"no UNIQUE index with exactly one full, nonfunctional "
+            f"{_MYSQL_LIVE_KEY_COLUMN!r} key part exists (expected "
+            f"{_LIVE_UNIQUE_INDEX!r}); composite, functional, and prefix "
+            f"indexes are not equivalent",
         )
 
 

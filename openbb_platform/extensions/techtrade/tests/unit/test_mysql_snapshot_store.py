@@ -453,6 +453,74 @@ _ALTER_COMMENT_RE = re.compile(
     r"^\s*ALTER\s+TABLE\s+(?P<table>\w+)\s+COMMENT\s*=\s*%s\s*$", re.I
 )
 _ENGINE_RE = re.compile(r"\bENGINE\s*=\s*(?P<engine>[A-Za-z0-9_]+)", re.I)
+_INDEX_COLUMNS_RE = re.compile(r"\bON\s+\w+\s*\(", re.I)
+_CREATE_TEMPORARY_LIKE_RE = re.compile(
+    r"^\s*CREATE\s+TEMPORARY\s+TABLE\s+"
+    r"`(?P<table>(?:``|[^`])+)`\s+LIKE\s+"
+    r"`(?P<source>(?:``|[^`])+)`\s*$",
+    re.I,
+)
+_DROP_TEMPORARY_RE = re.compile(
+    r"^\s*DROP\s+TEMPORARY\s+TABLE\s+IF\s+EXISTS\s+" r"`(?P<table>(?:``|[^`])+)`\s*$",
+    re.I,
+)
+
+
+def _index_terms(index_sql: str | None) -> tuple[str, ...]:
+    """Return top-level index terms from SQLite's stored CREATE INDEX SQL."""
+    if index_sql is None:
+        return ()
+    match = _INDEX_COLUMNS_RE.search(index_sql)
+    if match is None:
+        return ()
+    terms: list[str] = []
+    current: list[str] = []
+    depth = 1
+    quote: str | None = None
+    index = match.end()
+    while index < len(index_sql):
+        char = index_sql[index]
+        if quote is not None:
+            current.append(char)
+            if char == quote:
+                if index + 1 < len(index_sql) and index_sql[index + 1] == quote:
+                    current.append(index_sql[index + 1])
+                    index += 1
+                else:
+                    quote = None
+            elif char == "\\" and index + 1 < len(index_sql):
+                current.append(index_sql[index + 1])
+                index += 1
+        elif char in ("'", '"', "`"):
+            quote = char
+            current.append(char)
+        elif char == "(":
+            depth += 1
+            current.append(char)
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                terms.append("".join(current).strip())
+                return tuple(terms)
+            current.append(char)
+        elif char == "," and depth == 1:
+            terms.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    raise AssertionError(f"unterminated CREATE INDEX column list: {index_sql!r}")
+
+
+def _unquote_mysql_identifier(identifier: str) -> str:
+    """Undo MySQL's doubled-backtick identifier escaping."""
+    return identifier.replace("``", "`")
+
+
+def _quote_sqlite_identifier(identifier: str) -> str:
+    """Quote a generated clone/index name for the SQLite-backed double."""
+    return '"' + identifier.replace('"', '""') + '"'
+
 
 # The double's stand-in for MySQL's data dictionary. SQLite has no table
 # comments or storage-engine metadata, so `information_schema.TABLES` is
@@ -551,7 +619,14 @@ class _FakeCursor:
 
     def execute(self, sql: str, params: Any = None) -> None:
         self._answered = None
-        if sql.lstrip().upper().startswith("CREATE TABLE"):
+        statement = sql.lstrip().upper()
+        if statement.startswith("CREATE TEMPORARY TABLE"):
+            self._create_temporary_table_like(sql)
+            return
+        if statement.startswith("DROP TEMPORARY TABLE"):
+            self._drop_temporary_table(sql)
+            return
+        if statement.startswith("CREATE TABLE"):
             self._create_table(sql)
             return
         bound = tuple(params or ())
@@ -618,6 +693,61 @@ class _FakeCursor:
             engine=engine_match.group("engine") if engine_match is not None else None,
         )
 
+    def _create_temporary_table_like(self, sql: str) -> None:
+        """Clone a table's columns/indexes without copying its triggers."""
+        match = _CREATE_TEMPORARY_LIKE_RE.match(sql)
+        if match is None:
+            raise _FakeProgrammingError(
+                "the double only models "
+                "`CREATE TEMPORARY TABLE <quoted> LIKE <quoted>`"
+            )
+        table = _unquote_mysql_identifier(match.group("table"))
+        source = _unquote_mysql_identifier(match.group("source"))
+        self._conn.record(sql, ())
+        source_row = self._cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (source,),
+        ).fetchone()
+        if source_row is None:
+            raise _FakeProgrammingError(f"source table {source!r} does not exist")
+        source_sql = source_row[0]
+        declaration = _TABLE_NAME_RE.search(source_sql)
+        if declaration is None:
+            raise _FakeProgrammingError(
+                f"cannot parse source table declaration: {source_sql!r}"
+            )
+        quoted_table = _quote_sqlite_identifier(table)
+        clone_sql = (
+            f"CREATE TEMPORARY TABLE {quoted_table} ("
+            f"{source_sql[declaration.end():]}"
+        )
+        self._cursor.execute(clone_sql)
+
+        indexes = self._cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' "
+            "AND tbl_name = ? AND sql IS NOT NULL ORDER BY name",
+            (source,),
+        ).fetchall()
+        for position, (index_sql,) in enumerate(indexes, start=1):
+            terms = _index_terms(index_sql)
+            unique = bool(re.match(r"^\s*CREATE\s+UNIQUE\s+INDEX\b", index_sql, re.I))
+            clone_index = _quote_sqlite_identifier(f"{table}_index_{position}")
+            self._cursor.execute(
+                f"CREATE {'UNIQUE ' if unique else ''}INDEX {clone_index} "
+                f"ON {quoted_table} ({', '.join(terms)})"
+            )
+
+    def _drop_temporary_table(self, sql: str) -> None:
+        """Drop only the quoted connection-local clone named by production."""
+        match = _DROP_TEMPORARY_RE.match(sql)
+        if match is None:
+            raise _FakeProgrammingError(
+                "the double only models `DROP TEMPORARY TABLE IF EXISTS <quoted>`"
+            )
+        table = _unquote_mysql_identifier(match.group("table"))
+        self._conn.record(sql, ())
+        self._cursor.execute(f"DROP TABLE IF EXISTS {_quote_sqlite_identifier(table)}")
+
     def _describe_table(self, sql: str, bound: tuple) -> None:
         """Answer the production ``information_schema`` probes.
 
@@ -627,10 +757,10 @@ class _FakeCursor:
         ``SELECT ... FROM information_schema.STATISTICS ...`` for its
         indexes, and ``SELECT TABLE_COMMENT, ENGINE FROM
         information_schema.TABLES ...`` for its schema-version stamp and
-        storage engine — and the double answers all three from SQLite's
-        own catalogue rather than the store softening its queries into
-        something portable. A table that does not exist yields no rows
-        from any of them, exactly as ``information_schema`` does.
+        storage engine. The double answers all three from SQLite's own catalogue
+        rather than the store softening its queries into something portable.
+        A table that does not exist yields no rows from any of them, exactly
+        as ``information_schema`` does.
         """
         if "TABLE_COMMENT" in sql or "ENGINE" in sql:
             self._select_table_metadata(bound)
@@ -694,15 +824,36 @@ class _FakeCursor:
         implicit ``PRIMARY KEY`` index shows up here just as MySQL's
         ``PRIMARY`` does, which is what keeps a test that hopes the
         primary key will be mistaken for the single-LIVE guard honest.
+        Functional parts report ``COLUMN_NAME = NULL``. ``SUB_PART`` is
+        populated from the pool's explicit MySQL metadata overlay because
+        SQLite has no prefix-index syntax.
         """
-        self._cursor.execute(
-            'SELECT il.name AS INDEX_NAME, CASE il."unique" WHEN 1 THEN 0 ELSE 1 END '
-            "AS NON_UNIQUE, ii.seqno + 1 AS SEQ_IN_INDEX, ii.name AS COLUMN_NAME "
-            "FROM pragma_index_list(?) AS il JOIN pragma_index_info(il.name) AS ii "
-            "ORDER BY il.name, ii.seqno",
-            bound,
-        )
-        self._executed = None
+        table = bound[0]
+        indexes = self._cursor.execute(
+            'SELECT name, "unique" FROM pragma_index_list(?) ORDER BY name',
+            (table,),
+        ).fetchall()
+        rows: list[dict[str, Any]] = []
+        for index_name, unique in indexes:
+            parts = self._cursor.execute(
+                "SELECT seqno, name, key FROM pragma_index_xinfo(?) ORDER BY seqno",
+                (index_name,),
+            ).fetchall()
+            for seqno, column_name, is_key in parts:
+                if not is_key:
+                    continue
+                rows.append(
+                    {
+                        "INDEX_NAME": index_name,
+                        "NON_UNIQUE": 0 if unique else 1,
+                        "SEQ_IN_INDEX": seqno + 1,
+                        "COLUMN_NAME": column_name,
+                        "SUB_PART": self._conn._book.mysql_index_sub_parts.get(
+                            (index_name, seqno + 1)
+                        ),
+                    }
+                )
+        self._answer(rows)
 
     def _select_table_metadata(self, bound: tuple) -> None:
         """Read a table's ``COMMENT`` and ``ENGINE`` from the fake dictionary.
@@ -906,6 +1057,7 @@ class _BasePool:
         self.errors: list[BaseException] = []
         self.after_execute: Any = None
         self.fail_on: Any = None
+        self.mysql_index_sub_parts: dict[tuple[str, int], int] = {}
         self._ids = itertools.count(1)
         self._in_hook = False
 
@@ -3152,6 +3304,16 @@ def _seed_table_with_columns(path: Path, columns_sql: str, **seed: Any) -> None:
     _seed_table(path, columns_sql=columns_sql, **seed)
 
 
+def _temporary_tables(pool: _FakePool) -> list[str]:
+    """Return connection-local temporary tables still present on the fake session."""
+    return [
+        row[0]
+        for row in pool.raw.execute(
+            "SELECT name FROM sqlite_temp_master WHERE type = 'table' ORDER BY name"
+        ).fetchall()
+    ]
+
+
 def _redeclare(column: str, declaration: str) -> str:
     """Return `_BASE_COLUMNS_SQL` with one column's type clause replaced.
 
@@ -3215,7 +3377,10 @@ def test_mysql_accepts_the_guard_its_own_ddl_creates(tmp_path: Path) -> None:
     guard = [index for index in indexes if index.name == "ux_pi_eod_snapshot_live"]
     assert guard == [
         store_module._IndexShape(
-            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+            name="ux_pi_eod_snapshot_live",
+            unique=True,
+            columns=("live_key",),
+            sub_parts=(None,),
         )
     ]
     # The primary key is visible too, and must not be mistaken for it.
@@ -3348,6 +3513,74 @@ def test_mysql_accepts_case_insensitive_innodb_engine_metadata(tmp_path: Path) -
     assert pool.begins == 1
     assert pool.rollbacks == 1
     assert pool in mysql_store_module._SCHEMA_READY
+
+
+# ---------------------------------------------------------------------------
+# Trigger-isolated empirical probes (#2067 review follow-up)
+# ---------------------------------------------------------------------------
+
+
+def test_mysql_probe_never_invokes_production_trigger_side_effects(
+    tmp_path: Path,
+) -> None:
+    """The invariant probe runs on a trigger-free clone, never production."""
+    db_path = tmp_path / "trigger_ordering.db"
+    original_comment = "operator-owned triggered table"
+    _seed_table(db_path, comment=original_comment)
+    pool = _FakePool(db_path)
+    external_effects: list[str] = []
+    pool.raw.create_function(
+        "record_external_side_effect",
+        0,
+        lambda: external_effects.append("fired"),
+    )
+    pool.raw.execute(
+        "CREATE TRIGGER pi_eod_snapshot_audit AFTER INSERT ON pi_eod_snapshot "
+        "BEGIN SELECT record_external_side_effect(); END"
+    )
+
+    MysqlSnapshotStore(connection_pool=pool)
+
+    assert not external_effects, "a synthetic probe fired the production trigger"
+    assert pool.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 0
+    probe_inserts = [
+        sql
+        for sql, params in pool.statements
+        if sql.lstrip().upper().startswith("INSERT")
+        and any(
+            isinstance(value, str)
+            and value.startswith(store_module._LIVE_GUARD_PROBE_PREFIX)
+            for value in params
+        )
+    ]
+    assert probe_inserts
+    creates = [
+        sql
+        for sql, _ in pool.statements
+        if sql.lstrip().upper().startswith("CREATE TEMPORARY TABLE")
+    ]
+    assert len(creates) == 1
+    created = _CREATE_TEMPORARY_LIKE_RE.match(creates[0])
+    assert created is not None
+    quoted_clone = f"`{created.group('table')}`"
+    assert all(f"INTO {quoted_clone}" in sql for sql in probe_inserts)
+    assert all("INTO pi_eod_snapshot" not in sql for sql in probe_inserts)
+    assert _temporary_tables(pool) == []
+    assert pool.closed_with_open_txn == 0
+    assert pool.begins == 1
+    assert pool.rollbacks == 1
+    assert any(
+        sql == mysql_store_module._STAMP_SCHEMA_COMMENT for sql, _ in pool.statements
+    )
+    assert _table_comment(db_path) != original_comment
+    assert pool in mysql_store_module._SCHEMA_READY
+
+
+def test_mysql_quotes_generated_temporary_probe_identifiers() -> None:
+    """Backticks in an identifier cannot escape into executable SQL."""
+    quote = mysql_store_module._quote_mysql_identifier
+
+    assert quote("probe`name") == "`probe``name`"
 
 
 def test_mysql_refuses_a_table_with_no_live_key_column(tmp_path: Path) -> None:
@@ -3503,6 +3736,71 @@ def test_mysql_refuses_a_unique_index_over_the_wrong_columns(tmp_path: Path) -> 
     )
 
     assert "live_key" in message
+
+
+def test_mysql_refuses_a_composite_functional_live_guard_that_allows_cross_year_live(
+    tmp_path: Path,
+) -> None:
+    """A hidden functional part must not disappear from the index shape.
+
+    This is the production reproducer from #2067: both LIVE rows share one
+    ``live_key``, but the extra year part makes the composite values distinct.
+    The old catalogue fold dropped the ``COLUMN_NAME = NULL`` row, mistook the
+    index for ``UNIQUE(live_key)``, and its same-year probe also passed.
+    """
+    db_path = tmp_path / "functional_composite.db"
+    _seed_table(
+        db_path,
+        index_sql=(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live ON pi_eod_snapshot"
+            "(live_key, strftime('%Y', as_of_session))"
+        ),
+    )
+    pool = _FakePool(db_path)
+
+    with pool.get_connection() as conn, conn.cursor() as cur:
+        first = list(
+            mysql_store_module._mysql_live_guard_probe_values(
+                "same-dataset", "live-2025", SnapshotState.LIVE
+            )
+        )
+        second = list(
+            mysql_store_module._mysql_live_guard_probe_values(
+                "same-dataset", "live-2026", SnapshotState.LIVE
+            )
+        )
+        first[2] = date(2025, 12, 31)
+        second[2] = date(2026, 1, 1)
+        insert = (
+            "INSERT INTO pi_eod_snapshot ("
+            "dataset, entity_key, as_of_session, created_at, job_run_id, status, "
+            "state, validated, validation_reason, payload_json, input_hash, "
+            "row_count, engine_version, payload_schema_version"
+            ") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        )
+        cur.execute(insert, tuple(first))
+        cur.execute(insert, tuple(second))
+
+    assert (
+        pool.raw.execute(
+            "SELECT COUNT(*) FROM pi_eod_snapshot "
+            "WHERE dataset = 'same-dataset' AND state = 'live'"
+        ).fetchone()[0]
+        == 2
+    ), "fixture does not reproduce the cross-year LIVE invariant gap"
+    with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+        MysqlSnapshotStore(connection_pool=pool)
+
+
+def test_mysql_refuses_a_unique_prefix_index_over_live_key(tmp_path: Path) -> None:
+    """``UNIQUE(live_key(64))`` is not the full-column guard in the DDL."""
+    db_path = tmp_path / "prefix_live_key.db"
+    _seed_table(db_path)
+    pool = _FakePool(db_path)
+    pool.mysql_index_sub_parts[("ux_pi_eod_snapshot_live", 1)] = 64
+
+    with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+        MysqlSnapshotStore(connection_pool=pool)
 
 
 def test_mysql_refuses_a_live_key_generated_from_an_inverted_comparison(
@@ -3664,7 +3962,10 @@ def test_mysql_live_guard_accepts_every_server_rendering_of_its_own_ddl(
         {"live_key": expression, "dataset": ""},
         [
             store_module._IndexShape(
-                name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+                name="ux_pi_eod_snapshot_live",
+                unique=True,
+                columns=("live_key",),
+                sub_parts=(None,),
             )
         ],
     )
@@ -3685,7 +3986,10 @@ def test_mysql_live_guard_rejects_one_layer_literal_changed_by_outer_decode() ->
     )
     guard = [
         store_module._IndexShape(
-            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+            name="ux_pi_eod_snapshot_live",
+            unique=True,
+            columns=("live_key",),
+            sub_parts=(None,),
         )
     ]
 
@@ -3716,7 +4020,10 @@ def test_mysql_live_guard_rejects_unconsumed_assignment_punctuation(
     """A dropped colon must never turn MySQL assignment into equality."""
     guard = [
         store_module._IndexShape(
-            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+            name="ux_pi_eod_snapshot_live",
+            unique=True,
+            columns=("live_key",),
+            sub_parts=(None,),
         )
     ]
 
@@ -3765,7 +4072,10 @@ def test_mysql_live_guard_rejects_structural_token_spoofs(expression: str) -> No
     """Only the exact typed expression and utf8mb4 decoration are accepted."""
     guard = [
         store_module._IndexShape(
-            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+            name="ux_pi_eod_snapshot_live",
+            unique=True,
+            columns=("live_key",),
+            sub_parts=(None,),
         )
     ]
 
@@ -3800,7 +4110,10 @@ def test_mysql_live_guard_rejects_near_matches_in_one_layer_representation() -> 
     )
     guard = [
         store_module._IndexShape(
-            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+            name="ux_pi_eod_snapshot_live",
+            unique=True,
+            columns=("live_key",),
+            sub_parts=(None,),
         )
     ]
     for expression in near_matches:
@@ -3848,7 +4161,10 @@ def test_mysql_live_guard_rejects_near_matches_in_two_layer_849_representation(
     """
     guard = [
         store_module._IndexShape(
-            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+            name="ux_pi_eod_snapshot_live",
+            unique=True,
+            columns=("live_key",),
+            sub_parts=(None,),
         )
     ]
     with pytest.raises(SnapshotSchemaMismatch) as excinfo:
@@ -3994,20 +4310,66 @@ def test_mysql_empirical_probe_rejects_wrong_guard_behavior(
 
     assert _table_comment(db_path) is None
     assert pool.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 0
+    assert (
+        len(
+            [
+                sql
+                for sql, _ in pool.statements
+                if sql.lstrip().upper().startswith("CREATE TEMPORARY TABLE")
+            ]
+        )
+        == 1
+    )
+    assert (
+        len(
+            [
+                sql
+                for sql, _ in pool.statements
+                if sql.lstrip().upper().startswith("DROP TEMPORARY TABLE")
+            ]
+        )
+        == 1
+    )
+    assert _temporary_tables(pool) == []
     assert pool.closed_with_open_txn == 0
     assert pool.errors == []
 
 
 def test_mysql_empirical_probe_rolls_back_every_probe_row(tmp_path: Path) -> None:
-    """A successful construction proves the guard without persisting samples."""
+    """A successful probe rolls back rows and drops its temporary clone."""
     pool = _FakePool(tmp_path / "probe_rollback.db")
 
     MysqlSnapshotStore(connection_pool=pool)
 
+    creates = [
+        sql
+        for sql, _ in pool.statements
+        if sql.lstrip().upper().startswith("CREATE TEMPORARY TABLE")
+    ]
+    drops = [
+        sql
+        for sql, _ in pool.statements
+        if sql.lstrip().upper().startswith("DROP TEMPORARY TABLE")
+    ]
+    assert len(creates) == 1
+    assert len(drops) == 1
+    created = _CREATE_TEMPORARY_LIKE_RE.match(creates[0])
+    dropped = _DROP_TEMPORARY_RE.match(drops[0])
+    assert created is not None
+    assert dropped is not None
+    table = _unquote_mysql_identifier(created.group("table"))
+    assert table.startswith(mysql_store_module._LIVE_GUARD_TEMP_TABLE_PREFIX)
+    assert re.fullmatch(
+        rf"{re.escape(mysql_store_module._LIVE_GUARD_TEMP_TABLE_PREFIX)}[0-9a-f]{{32}}",
+        table,
+    )
+    assert dropped.group("table") == created.group("table")
+    assert _unquote_mysql_identifier(created.group("source")) == "pi_eod_snapshot"
     assert pool.begins == 1
     assert pool.commits == 0
     assert pool.rollbacks == 1
     assert pool.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 0
+    assert _temporary_tables(pool) == []
     assert pool.closed_with_open_txn == 0
     assert pool.errors == []
 
@@ -4021,11 +4383,13 @@ def test_mysql_index_probe_asks_information_schema_for_statistics() -> None:
     # Composite indexes arrive one row per column; the order is the
     # server's, so the query must ask for it.
     assert "SEQ_IN_INDEX" in probe
+    assert "EXPRESSION" not in probe
+    assert "SUB_PART" in probe
     assert "ORDER BY" in probe
 
 
-def test_index_shapes_reassembles_composite_indexes_in_server_order() -> None:
-    """`_index_shapes` folds STATISTICS rows without inventing an order."""
+def test_index_shapes_supports_pre_8013_metadata_and_preserves_null_parts() -> None:
+    """MySQL metadata without EXPRESSION still exposes functional sentinels."""
     shapes = mysql_store_module._index_shapes(
         [
             {
@@ -4033,36 +4397,42 @@ def test_index_shapes_reassembles_composite_indexes_in_server_order() -> None:
                 "NON_UNIQUE": 0,
                 "SEQ_IN_INDEX": 1,
                 "COLUMN_NAME": "dataset",
+                "SUB_PART": None,
             },
             {
                 "INDEX_NAME": "PRIMARY",
                 "NON_UNIQUE": 0,
                 "SEQ_IN_INDEX": 2,
                 "COLUMN_NAME": "entity_key",
+                "SUB_PART": None,
             },
             {
                 "INDEX_NAME": "ix_plain",
                 "NON_UNIQUE": 1,
                 "SEQ_IN_INDEX": 1,
                 "COLUMN_NAME": "live_key",
+                "SUB_PART": 64,
             },
-            # A functional index (MySQL 8.0.13+) reports no column name.
+            # A functional part is detectable from COLUMN_NAME = NULL alone.
             {
                 "INDEX_NAME": "ix_functional",
                 "NON_UNIQUE": 0,
                 "SEQ_IN_INDEX": 1,
                 "COLUMN_NAME": None,
+                "SUB_PART": None,
             },
         ]
     )
-
     by_name = {shape.name: shape for shape in shapes}
     assert by_name["PRIMARY"].columns == ("dataset", "entity_key")
+    assert by_name["PRIMARY"].columns == ("dataset", "entity_key")
+    assert getattr(by_name["PRIMARY"], "sub_parts", ()) == (None, None)
     assert by_name["PRIMARY"].unique
     assert not by_name["ix_plain"].unique
-    # A NULL column is dropped, never folded in as a phantom -- otherwise a
-    # functional unique index could masquerade as the `(live_key)` guard.
-    assert by_name["ix_functional"].columns == ()
+    assert getattr(by_name["ix_plain"], "sub_parts", ()) == (64,)
+    # A NULL column is still a real key part. Dropping it lets
+    # `(live_key, (YEAR(as_of_session)))` masquerade as `(live_key)`.
+    assert by_name["ix_functional"].columns == (None,)
 
 
 def test_mysql_guard_does_not_leak_into_the_shared_column_shape() -> None:
@@ -5324,3 +5694,38 @@ def test_live_mysql_pins_innodb_and_binary_collation_on_the_key_columns() -> Non
     # `_check_mysql_collations` refuses rather than skips.
     assert collations["row_count"] is None
     store_module._check_mysql_collations(collations)
+
+
+@pytest.mark.integration
+@pytest.mark.requires_mysql
+@_requires_live_mysql
+def test_live_mysql_has_exact_full_live_key_index() -> None:
+    """The deployed table exposes the pre-8.0.13-compatible guard metadata."""
+    with _live_mysql_store() as store:
+        del store
+        from openbb_fmp_cached.utils.database import (  # noqa: PLC0415
+            get_connection_pool,
+        )
+
+        with get_connection_pool().get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                mysql_store_module._SELECT_SCHEMA_INDEXES,
+                ("pi_eod_snapshot",),
+            )
+            indexes = mysql_store_module._index_shapes(cur.fetchall())
+
+    exact_guards = [
+        index
+        for index in indexes
+        if index.unique
+        and index.columns == ("live_key",)
+        and index.sub_parts == (None,)
+    ]
+    assert exact_guards == [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live",
+            unique=True,
+            columns=("live_key",),
+            sub_parts=(None,),
+        )
+    ]
