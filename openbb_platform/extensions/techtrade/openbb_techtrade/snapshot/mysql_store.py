@@ -33,10 +33,10 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    that merely contains the delimiter. Both halves of that mechanism —
    the column *and* its unique index — are re-read from
    ``information_schema`` at construction and refused if absent or
-   malformed, then exercised with a transaction-rolled-back behavior
-   probe, because ``CREATE TABLE IF NOT EXISTS`` no-ops against a
-   pre-existing table and takes every index declared inside it down with
-   it (PR #2062 review). See
+   malformed, then exercised on a connection-local, trigger-free
+   ``TEMPORARY TABLE ... LIKE pi_eod_snapshot`` clone, because ``CREATE
+   TABLE IF NOT EXISTS`` no-ops against a pre-existing table and takes
+   every index declared inside it down with it (PR #2062 review). See
    :func:`~openbb_techtrade.snapshot.store._check_mysql_live_guard`.
 3. **Explicit LIVE pointer.** "Current" is the row whose ``state`` is
    ``live`` — never "the row with the newest ``as_of_session``". A
@@ -60,11 +60,10 @@ Design deltas vs. :class:`~openbb_techtrade.snapshot.store.SqliteSnapshotStore`
    an UPDATE counts rows *changed*, not rows *matched* — see
    :meth:`validate`, which cannot use it to detect a race. Construction
    also re-reads ``information_schema.TABLES.ENGINE`` and requires
-   ``InnoDB`` before the rollback-only behavior probe: a nontransactional
-   engine would make that rollback a lie and persist its synthetic rows.
-   It also requires ``information_schema.TRIGGERS`` to report no trigger
-   on the table, because rollback cannot contain arbitrary trigger side
-   effects.
+   ``InnoDB`` before the rollback-only behavior probe. The production
+   table itself is never probed: ``CREATE TEMPORARY TABLE ... LIKE`` copies
+   its columns and indexes without copying triggers or data, and the clone
+   is dropped on every exit path.
 5. **Pinned binary collation.** MySQL resolves an unpinned string column
    to the charset's *default* collation, which is case- and
    accent-insensitive; SQLite's default is BINARY. Every key column and
@@ -281,17 +280,13 @@ _INSERT_STAGED = (
     ") VALUES (%s, %s, %s, %s, %s, %s, %s, 0, '', %s, %s, %s, %s, %s)"
 )
 
-_INSERT_LIVE_GUARD_PROBE = (
-    "INSERT INTO pi_eod_snapshot ("
+_LIVE_GUARD_PROBE_COLUMNS = (
     "dataset, entity_key, as_of_session, created_at, job_run_id, status, state, "
     "validated, validation_reason, payload_json, input_hash, row_count, "
     "engine_version, payload_schema_version"
-    ") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 )
-_SELECT_LIVE_GUARD_PROBE = (
-    "SELECT job_run_id, state, live_key FROM pi_eod_snapshot "
-    "WHERE dataset = %s AND entity_key = %s ORDER BY job_run_id"
-)
+_LIVE_GUARD_PROBE_BINDINGS = ", ".join(("%s",) * 14)
+_LIVE_GUARD_TEMP_TABLE_PREFIX = "__openbb_eod_guard_"
 
 _SELECT_SCHEMA_COLUMNS = (
     "SELECT COLUMN_NAME, GENERATION_EXPRESSION, COLLATION_NAME "
@@ -312,26 +307,17 @@ _SELECT_SCHEMA_COLUMNS = (
 # every row, so its UNIQUE index would constrain nothing); `STATISTICS`
 # below is MySQL's index catalogue — one row per index key part, ordered
 # by `SEQ_IN_INDEX`, with `NON_UNIQUE = 0` for a unique index. Functional
-# parts have `COLUMN_NAME = NULL` and carry `EXPRESSION`; prefix parts carry
-# `SUB_PART`. All three fields are needed to distinguish the exact full-column
-# guard from a composite functional or prefix index. Both catalogue probes
-# together are what `_check_mysql_live_guard` needs to prove the invariant
-# is actually enforced (PR #2062 review).
+# parts have `COLUMN_NAME = NULL`; prefix parts carry `SUB_PART`. Those
+# sentinels distinguish the exact full-column guard from a composite
+# functional or prefix index without selecting `STATISTICS.EXPRESSION`,
+# which does not exist before MySQL 8.0.13. Both catalogue probes together
+# are what `_check_mysql_live_guard` needs to prove the invariant is actually
+# enforced (PR #2062 review).
 _SELECT_SCHEMA_INDEXES = (
-    "SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, EXPRESSION, SUB_PART "
+    "SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, SUB_PART "
     "FROM information_schema.STATISTICS "
     "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s "
     "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
-)
-
-# A rollback can undo InnoDB row writes, but it cannot undo arbitrary work
-# performed by a trigger (for example, a call into a nontransactional table
-# or an external side effect). The empirical guard probe is therefore allowed
-# only when the production table has no triggers at all.
-_SELECT_SCHEMA_TRIGGERS = (
-    "SELECT TRIGGER_NAME FROM information_schema.TRIGGERS "
-    "WHERE TRIGGER_SCHEMA = DATABASE() AND EVENT_OBJECT_TABLE = %s "
-    "ORDER BY TRIGGER_NAME"
 )
 
 # MySQL's answer to `PRAGMA user_version`. The version this build speaks is
@@ -386,19 +372,6 @@ def _check_storage_engine(engine: object) -> None:
     )
 
 
-def _check_no_triggers(records: Iterable[Mapping[str, Any]]) -> None:
-    """Refuse to run synthetic invariant probes against a triggered table."""
-    names = [str(record.get("TRIGGER_NAME") or "<unnamed>") for record in records]
-    if names:
-        raise SnapshotSchemaMismatch(
-            f"mysql: table {_SNAPSHOT_TABLE!r} has trigger(s) "
-            f"{', '.join(repr(name) for name in names)}. The schema behavior "
-            "probe performs synthetic INSERTs, and transaction rollback cannot "
-            "guarantee that trigger side effects are reversible. Refusing to "
-            "probe, stamp, cache, or use this table."
-        )
-
-
 def _index_shapes(records: Iterable[Mapping[str, Any]]) -> list[_IndexShape]:
     """Fold ``information_schema.STATISTICS`` rows into one shape per index.
 
@@ -406,11 +379,11 @@ def _index_shapes(records: Iterable[Mapping[str, Any]]) -> list[_IndexShape]:
     spread over several rows and are re-assembled in ``SEQ_IN_INDEX`` order.
     ``NON_UNIQUE`` is 0 for a unique index (MySQL names the column for the
     negative). No row is dropped: functional parts report
-    ``COLUMN_NAME = NULL`` plus ``EXPRESSION``, and prefix parts report
-    ``SUB_PART``. Both are material to deciding whether the index is exactly
-    the full-column ``UNIQUE(live_key)`` guard.
+    ``COLUMN_NAME = NULL``, and prefix parts report ``SUB_PART``. Both are
+    material to deciding whether the index is exactly the full-column
+    ``UNIQUE(live_key)`` guard.
     """
-    parts: dict[str, list[tuple[int, str | None, str | None, int | None]]] = {}
+    parts: dict[str, list[tuple[int, str | None, int | None]]] = {}
     unique: dict[str, bool] = {}
     for record in records:
         name = record["INDEX_NAME"]
@@ -420,7 +393,6 @@ def _index_shapes(records: Iterable[Mapping[str, Any]]) -> list[_IndexShape]:
             (
                 int(record["SEQ_IN_INDEX"]),
                 record["COLUMN_NAME"],
-                record["EXPRESSION"],
                 None if sub_part is None else int(sub_part),
             )
         )
@@ -432,8 +404,7 @@ def _index_shapes(records: Iterable[Mapping[str, Any]]) -> list[_IndexShape]:
                 name=name,
                 unique=is_unique,
                 columns=tuple(part[1] for part in ordered),
-                expressions=tuple(part[2] for part in ordered),
-                sub_parts=tuple(part[3] for part in ordered),
+                sub_parts=tuple(part[2] for part in ordered),
             )
         )
     return shapes
@@ -472,65 +443,96 @@ def _mysql_live_guard_probe_values(
     )
 
 
+def _quote_mysql_identifier(identifier: str) -> str:
+    """Quote a module-owned MySQL identifier with doubled backticks."""
+    return f"`{identifier.replace('`', '``')}`"
+
+
+def _new_live_guard_temporary_table() -> str:
+    """Return a unique, connection-local probe table name."""
+    return f"{_LIVE_GUARD_TEMP_TABLE_PREFIX}{uuid4().hex}"
+
+
 def _probe_mysql_live_guard(conn: Any) -> None:
-    """Prove the generated key and unique index, then roll back all rows."""
+    """Prove the guard on a trigger-free temporary clone, then remove it."""
     dataset = f"{_LIVE_GUARD_PROBE_PREFIX}{uuid4().hex}"
-    conn.begin()
+    table = _quote_mysql_identifier(_new_live_guard_temporary_table())
+    source = _quote_mysql_identifier(_SNAPSHOT_TABLE)
+    insert = (
+        f"INSERT INTO {table} ({_LIVE_GUARD_PROBE_COLUMNS}) "
+        f"VALUES ({_LIVE_GUARD_PROBE_BINDINGS})"
+    )
+    select = (
+        f"SELECT job_run_id, state, live_key FROM {table} "
+        "WHERE dataset = %s AND entity_key = %s ORDER BY job_run_id"
+    )
+    clone_created = False
     try:
         with conn.cursor() as cur:
-            try:
-                for job_run_id, state in (
-                    ("staged-1", SnapshotState.STAGING),
-                    ("staged-2", SnapshotState.STAGING),
-                    ("live-1", SnapshotState.LIVE),
-                ):
-                    cur.execute(
-                        _INSERT_LIVE_GUARD_PROBE,
-                        _mysql_live_guard_probe_values(dataset, job_run_id, state),
+            cur.execute(f"CREATE TEMPORARY TABLE {table} LIKE {source}")
+        clone_created = True
+        conn.begin()
+        try:
+            with conn.cursor() as cur:
+                try:
+                    for job_run_id, state in (
+                        ("staged-1", SnapshotState.STAGING),
+                        ("staged-2", SnapshotState.STAGING),
+                        ("live-1", SnapshotState.LIVE),
+                    ):
+                        cur.execute(
+                            insert,
+                            _mysql_live_guard_probe_values(dataset, job_run_id, state),
+                        )
+                except Exception as exc:
+                    if not _is_integrity_error(exc):
+                        raise
+                    raise _live_guard_refusal(
+                        "mysql",
+                        "an empirical, rolled-back probe could not store two "
+                        "STAGING rows and one LIVE row for the same key",
+                    ) from exc
+
+                cur.execute(select, (dataset, "same-entity"))
+                expected_live_key = f"{dataset}\x1fsame-entity"
+                observed = {
+                    row["job_run_id"]: row["live_key"] for row in cur.fetchall()
+                }
+                expected = {
+                    "staged-1": None,
+                    "staged-2": None,
+                    "live-1": expected_live_key,
+                }
+                if observed != expected:
+                    raise _live_guard_refusal(
+                        "mysql",
+                        "an empirical, rolled-back probe found that live_key is "
+                        "not NULL for STAGING rows and the exact dataset/entity "
+                        "key for a LIVE row",
                     )
-            except Exception as exc:
-                if not _is_integrity_error(exc):
-                    raise
-                raise _live_guard_refusal(
-                    "mysql",
-                    "an empirical, rolled-back probe could not store two STAGING "
-                    "rows and one LIVE row for the same key",
-                ) from exc
 
-            cur.execute(_SELECT_LIVE_GUARD_PROBE, (dataset, "same-entity"))
-            expected_live_key = f"{dataset}\x1fsame-entity"
-            observed = {row["job_run_id"]: row["live_key"] for row in cur.fetchall()}
-            expected = {
-                "staged-1": None,
-                "staged-2": None,
-                "live-1": expected_live_key,
-            }
-            if observed != expected:
-                raise _live_guard_refusal(
-                    "mysql",
-                    "an empirical, rolled-back probe found that live_key is not "
-                    "NULL for STAGING rows and the exact dataset/entity key for "
-                    "a LIVE row",
-                )
-
-            try:
-                cur.execute(
-                    _INSERT_LIVE_GUARD_PROBE,
-                    _mysql_live_guard_probe_values(
-                        dataset, "live-2", SnapshotState.LIVE
-                    ),
-                )
-            except Exception as exc:
-                if not _is_integrity_error(exc):
-                    raise
-            else:
-                raise _live_guard_refusal(
-                    "mysql",
-                    "an empirical, rolled-back probe accepted two LIVE rows for "
-                    "the same key",
-                )
+                try:
+                    cur.execute(
+                        insert,
+                        _mysql_live_guard_probe_values(
+                            dataset, "live-2", SnapshotState.LIVE
+                        ),
+                    )
+                except Exception as exc:
+                    if not _is_integrity_error(exc):
+                        raise
+                else:
+                    raise _live_guard_refusal(
+                        "mysql",
+                        "an empirical, rolled-back probe accepted two LIVE rows "
+                        "for the same key",
+                    )
+        finally:
+            conn.rollback()
     finally:
-        conn.rollback()
+        if clone_created:
+            with conn.cursor() as cur:
+                cur.execute(f"DROP TEMPORARY TABLE IF EXISTS {table}")
 
 
 class MysqlSnapshotStore:
@@ -713,12 +715,12 @@ class MysqlSnapshotStore:
         case- and accent-blind — a strictly weaker invariant than the one
         SQLite's BINARY comparison enforces for the same calls.
 
-        Finally, the rollback-only empirical probe is safe only on InnoDB
-        and only when the table has no triggers. :meth:`_verify_schema`
-        therefore requires the table's reported ``ENGINE`` and an empty
-        ``information_schema.TRIGGERS`` result before the probe, an adoption
-        stamp, or the ready-cache mark. ``MyISAM``, any other engine, ``NULL``,
-        missing table metadata, and any trigger all fail closed.
+        Finally, :meth:`_verify_schema` requires the table's reported
+        ``ENGINE`` before the empirical probe, adoption stamp, or ready-cache
+        mark. The probe itself runs only on a connection-local ``TEMPORARY
+        TABLE ... LIKE`` clone, so production triggers and rows are never
+        involved. ``MyISAM``, any other engine, ``NULL``, and missing table
+        metadata all fail closed.
 
         The checks run once per pool (see :data:`_SCHEMA_READY`), and the
         refusal is raised *outside* the borrow so a schema fault is not
@@ -786,8 +788,6 @@ class MysqlSnapshotStore:
             else record.get("ENGINE", _MISSING_TABLE_METADATA)
         )
         _check_storage_engine(engine)
-        cur.execute(_SELECT_SCHEMA_TRIGGERS, (_SNAPSHOT_TABLE,))
-        _check_no_triggers(cur.fetchall())
         stamped = _parse_schema_version_comment(
             record["TABLE_COMMENT"] if record is not None else None
         )

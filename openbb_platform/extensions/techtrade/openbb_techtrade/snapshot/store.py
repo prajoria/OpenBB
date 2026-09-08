@@ -1049,18 +1049,17 @@ class _IndexShape:
     Built from ``information_schema.STATISTICS`` on MySQL and from
     ``PRAGMA index_list`` / ``PRAGMA index_info`` on SQLite, so the check
     describes the index that *exists* rather than the one this build's
-    DDL would have created. MySQL's ``expressions`` and ``sub_parts`` are
-    positionally aligned with ``columns`` so a functional key part
-    (``COLUMN_NAME IS NULL``) or prefix key part cannot disappear while
-    catalogue rows are folded. SQLite leaves both tuples empty and uses
-    ``predicate`` for its partial-index ``WHERE`` text.
+    DDL would have created. MySQL's ``sub_parts`` is positionally aligned
+    with ``columns`` so a functional key part (``COLUMN_NAME IS NULL``)
+    or prefix key part cannot disappear while catalogue rows are folded.
+    SQLite leaves it empty and uses ``predicate`` for its partial-index
+    ``WHERE`` text.
     """
 
     name: str
     unique: bool
     columns: tuple[str | None, ...]
     predicate: str = ""
-    expressions: tuple[str | None, ...] = ()
     sub_parts: tuple[int | None, ...] = ()
 
 
@@ -1195,7 +1194,6 @@ def _check_mysql_live_guard(
     if not any(
         index.unique
         and index.columns == (_MYSQL_LIVE_KEY_COLUMN,)
-        and index.expressions == (None,)
         and index.sub_parts == (None,)
         for index in indexes
     ):
