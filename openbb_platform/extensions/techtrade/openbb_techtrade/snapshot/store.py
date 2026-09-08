@@ -45,7 +45,8 @@ Design invariants this module encodes (see the spec for the full list):
   enforces "at most one LIVE row per ``(dataset, entity_key)``" differs
   by dialect — SQLite uses a *partial* unique index, MySQL (which has
   none) uses a generated nullable ``live_key`` column plus a plain
-  ``UNIQUE KEY`` — so each backend checks its own, at construction. A
+  ``UNIQUE KEY`` — so each backend checks its catalogue shape and runs a
+  transaction-rolled-back behavior probe at construction. A
   pre-existing table can pass the column-shape *and* version checks
   while carrying no such guard at all (``CREATE TABLE IF NOT EXISTS``
   no-ops, and with it every index declared inside it), which would let
@@ -92,6 +93,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -573,9 +575,8 @@ _MYSQL_BINARY_COLLATED_COLUMNS = (
 # row as well, and either one turns the UNIQUE index into a constraint on
 # the rows nobody promotes while leaving LIVE rows unconstrained. A
 # substring check cannot tell those apart from the real guard, so the
-# comparison is now *structural*: the reported expression is reduced to a
-# canonical token string and compared for equality against the canonical
-# form of the expression this module's DDL ships.
+# comparison is structural: a contiguous scanner emits typed tokens and a
+# narrow parser accepts only the grammar this module's DDL ships.
 #
 # Exact text comparison is impossible — no server hands back what was
 # typed. MySQL 8.4.9 rewrites
@@ -586,32 +587,13 @@ _MYSQL_BINARY_COLLATED_COLUMNS = (
 # `entity_key`),NULL)`` — 8.0 keeps the ``using utf8mb4`` inside
 # ``char()``, 5.7 and MariaDB drop the introducer, and the escaping of
 # the literal's delimiters is described below. The exact rewrite differs
-# by server version. :func:`_canonical_sql` therefore folds away
-# precisely the things a server is free to change and nothing else:
-# letter case of keywords and identifiers, identifier quoting
-# (`` `x` ``, ``"x"``, ``[x]``), whitespace, comments, charset
-# introducers (``_utf8mb4'live'`` -> ``'live'``), ``USING <charset>``
-# inside ``CHAR()``, redundant grouping parentheses, and the spelling of
-# a literal's escapes. Operators, argument order, literal text and
-# literal case all survive — which is what makes `!=`, `<>`, a swapped
-# THEN/ELSE, a dropped `entity_key` or a `'staging'` literal a mismatch.
+# by server version. The parser admits those known renderings explicitly:
+# ASCII keyword/identifier case, supported identifier quotes, comments,
+# balanced grouping, the exact ``_utf8mb4`` introducer, and the exact
+# ``USING utf8mb4`` clause inside ``CHAR(31)``. Token kinds, operators,
+# argument order, and literal values remain distinct.
 _LIVE_KEY_CANONICAL = "if(state='live',concat(dataset,char(31),entity_key),null)"
-
-# `a = b` and `b = a` are the same predicate, and a server is free to
-# report either; nothing else is tolerated.
-_LIVE_KEY_CANONICAL_FORMS = frozenset(
-    {
-        _LIVE_KEY_CANONICAL,
-        "if('live'=state,concat(dataset,char(31),entity_key),null)",
-    }
-)
-
-# SQLite's partial-index predicate, under the same discipline. SQLite
-# stores the `WHERE` clause as written, so `state='live'`, `state = 'live'`
-# and `"state" = 'live'` are one index reported three ways — while
-# `state != 'live'` is a different index entirely, and used to pass.
 _SQLITE_LIVE_PREDICATE = "state='live'"
-_SQLITE_LIVE_PREDICATE_FORMS = frozenset({_SQLITE_LIVE_PREDICATE, "'live'=state"})
 
 # --- MySQL's optional outer layer of literal escaping (PR #2062 review) ---
 #
@@ -673,22 +655,23 @@ _MYSQL_ESCAPE_SEQUENCES = {
     "Z": "\x1a",
 }
 
-# One SQL token. Ordered alternation matters: the string-literal and
-# comment branches come first so a `--` or a quote *inside* a literal is
-# consumed with it rather than restarting the scan mid-token. The literal
-# branch is the one piece that differs by dialect, so it is substituted
-# in rather than written twice.
+# One SQL token. Named alternatives preserve token kinds; joining their text
+# would erase the distinction between one quoted identifier and a complete
+# expression. The literal branch differs by dialect and is substituted.
 _SQL_SCAN_PATTERN = r"""
-      {literal}                      # 'live'
-    | --[^\n]*                       # -- line comment
-    | (?s:/\*.*?\*/)                 # /* block comment */
-    | `(?:[^`]|``)*`                 # `state`   MySQL-quoted identifier
-    | "(?:[^"]|"")*"                 # "state"   ANSI-quoted identifier
-    | \[[^\]]*\]                     # [state]   bracket-quoted identifier
-    | [A-Za-z_$][A-Za-z_$0-9]*       # bare word: identifier, keyword, _utf8mb4
-    | \d+(?:\.\d+)?                  # 31
-    | <=>|<>|!=|>=|<=|\|\|           # multi-character operators
-    | [-+*/%(),.=<>!&|^~]            # single-character operators
+      (?P<string>{literal})
+    | (?P<line_comment>--[^\r\n]*)
+    | (?P<block_comment>(?s:/\*.*?\*/))
+    | (?P<quoted_identifier>`(?:[^`]|``)*`)
+    | (?P<double_quoted_identifier>"(?:[^"]|"")*")
+    | (?P<bracket_identifier>\[[^\]]*\])
+    | (?P<word>[A-Za-z_$][A-Za-z_$0-9]*)
+    | (?P<number>\d+(?:\.\d+)?)
+    | (?P<operator><=>|<>|!=|>=|<=|\|\||[-+*/%.=<>!&|^~])
+    | (?P<left_parenthesis>\()
+    | (?P<right_parenthesis>\))
+    | (?P<comma>,)
+    | (?P<semicolon>;)
     """
 
 # Doubled `''` only — a backslash is an ordinary character, which is what
@@ -703,18 +686,39 @@ _SQL_TOKEN_ESCAPED_RE = re.compile(
     _SQL_SCAN_PATTERN.format(literal=r"'(?:[^'\\]|''|\\(?s:.))*'"), re.VERBOSE
 )
 
-_SQL_WORD_RE = re.compile(r"[A-Za-z_$][A-Za-z_$0-9]*")
+# These are the only characters emitted by this module's DDL or by the
+# supported server renderings. In particular, vertical tab is not SQL
+# whitespace in SQLite and no Unicode character may become an ASCII identifier
+# through case folding.
+_SQL_WHITESPACE = frozenset(" \t\r\n")
+_SQL_ALLOWED_CHARACTERS = frozenset(chr(code) for code in range(0x20, 0x7F)) | (
+    _SQL_WHITESPACE
+)
 
-# A charset introducer: `_utf8mb4'live'`. Only ever dropped when it sits
-# immediately before a string literal, so a column actually named `_x` is
-# untouched.
-_SQL_INTRODUCER_RE = re.compile(r"_[a-z0-9]+")
 
-# `IIF` is the same three-argument conditional as `IF` (SQLite and SQL  # codespell:ignore
-# Server spell it that way, and this repo's SQLite-backed MySQL double
-# emits it). Folding the spelling costs nothing semantically; every other
-# function name is compared as reported.
-_SQL_CONDITIONAL_SYNONYMS = {"iif": "if"}  # codespell:ignore
+class _SqlTokenKind(str, Enum):
+    """Kinds retained by the guard scanner."""
+
+    WORD = "word"
+    QUOTED_IDENTIFIER = "quoted_identifier"
+    STRING = "string"
+    NUMBER = "number"
+    OPERATOR = "operator"
+    LEFT_PARENTHESIS = "left_parenthesis"
+    RIGHT_PARENTHESIS = "right_parenthesis"
+    COMMA = "comma"
+    SEMICOLON = "semicolon"
+    COMMENT = "comment"
+
+
+@dataclass(frozen=True)
+class _SqlToken:
+    """One lossless token identity plus its source span."""
+
+    kind: _SqlTokenKind
+    value: str
+    start: int = field(compare=False)
+    end: int = field(compare=False)
 
 
 def _unquote_identifier(token: str) -> str:
@@ -775,83 +779,93 @@ def _has_mysql_outer_escape_layer(text: str) -> bool:
     return saw_quote
 
 
-def _canonical_literal(token: str, *, backslash_escapes: bool) -> str:
-    r"""Re-emit a string literal from its value under one escaping scheme.
-
-    Two spellings of one literal (``'li''ve'`` and, on MySQL, ``'li\'ve'``)
-    become one canonical token, and two *different* literals stay
-    different: the value is decoded, then re-emitted with only ``''``
-    doubling. Literal case is preserved, which is what keeps ``'live'``
-    and ``'staging'`` — or ``'live'`` and ``'LIVE'`` — apart.
-    """
+def _literal_value(token: str, *, backslash_escapes: bool) -> str:
+    r"""Decode a string literal without discarding its token kind."""
     body = token[1:-1]
     if backslash_escapes:
-        value = _SQL_LITERAL_ESCAPE_RE.sub(lambda m: _decode_escape(m.group(0)), body)
-    else:
-        value = body.replace("''", "'")
-    return "'" + value.replace("'", "''") + "'"
+        return _SQL_LITERAL_ESCAPE_RE.sub(
+            lambda match: _decode_escape(match.group(0)), body
+        )
+    return body.replace("''", "'")
 
 
-def _canonical_sql(expression: str | None, *, backslash_escapes: bool = False) -> str:
-    r"""Reduce a server-reported SQL expression to a comparable canonical form.
-
-    Folds exactly the variation a server may introduce without changing
-    meaning (see the block comment above :data:`_LIVE_KEY_CANONICAL`) and
-    preserves everything that carries meaning. An unparseable or empty
-    expression canonicalizes to ``""``, which matches no accepted form —
-    an ordinary (non-generated) column reports ``""`` and must be refused.
-
-    Grouping parentheses are dropped, call parentheses are kept: a ``(``
-    is a call only when the token before it is a bare word (a function
-    name). That is what folds MySQL's ``if((state = 'live'), ...)`` onto
-    the shipped ``IF(state = 'live', ...)`` without also folding
-    ``if(not(state = 'live'), ...)`` onto it — ``not`` survives as a
-    token either way.
-
-    ``backslash_escapes`` selects the dialect's *literal* syntax and
-    nothing else. MySQL reads ``\'`` inside a literal as a quote; SQLite
-    reads it as a backslash followed by the literal's closing quote, so
-    the flag must stay off for a SQLite predicate or ``state = 'li\ve'``
-    would be read as ``state = 'live'`` and accepted (PR #2062 review).
-    """
+def _scan_sql(
+    expression: str | None,
+    *,
+    backslash_escapes: bool = False,
+    ascii_only: bool = True,
+) -> tuple[_SqlToken, ...] | None:
+    """Scan all SQL text into typed tokens, or fail closed with ``None``."""
+    reported = expression or ""
+    if ascii_only and any(
+        character not in _SQL_ALLOWED_CHARACTERS for character in reported
+    ):
+        return None
     token_re = _SQL_TOKEN_ESCAPED_RE if backslash_escapes else _SQL_TOKEN_RE
-    tokens: list[str] = []
-    call_paren: list[bool] = []
-    skip_charset = False
-    for raw in token_re.findall(expression or ""):
-        if raw.startswith("--") or raw.startswith("/*"):
+    tokens: list[_SqlToken] = []
+    cursor = 0
+    depth = 0
+    kinds = {
+        "string": _SqlTokenKind.STRING,
+        "line_comment": _SqlTokenKind.COMMENT,
+        "block_comment": _SqlTokenKind.COMMENT,
+        "quoted_identifier": _SqlTokenKind.QUOTED_IDENTIFIER,
+        "double_quoted_identifier": _SqlTokenKind.QUOTED_IDENTIFIER,
+        "bracket_identifier": _SqlTokenKind.QUOTED_IDENTIFIER,
+        "word": _SqlTokenKind.WORD,
+        "number": _SqlTokenKind.NUMBER,
+        "operator": _SqlTokenKind.OPERATOR,
+        "left_parenthesis": _SqlTokenKind.LEFT_PARENTHESIS,
+        "right_parenthesis": _SqlTokenKind.RIGHT_PARENTHESIS,
+        "comma": _SqlTokenKind.COMMA,
+        "semicolon": _SqlTokenKind.SEMICOLON,
+    }
+    while cursor < len(reported):
+        if reported[cursor] in _SQL_WHITESPACE:
+            cursor += 1
             continue
-        if skip_charset:
-            skip_charset = False
-            if _SQL_WORD_RE.fullmatch(raw):
-                continue
-        if raw.startswith("'"):
-            if tokens and _SQL_INTRODUCER_RE.fullmatch(tokens[-1]):
-                tokens.pop()
-            tokens.append(_canonical_literal(raw, backslash_escapes=backslash_escapes))
-        elif raw[0] in '`"[':
-            tokens.append(_unquote_identifier(raw).casefold())
-        elif raw == "(":
-            is_call = bool(tokens) and _SQL_WORD_RE.fullmatch(tokens[-1]) is not None
-            call_paren.append(is_call)
-            if is_call:
-                tokens.append(raw)
-        elif raw == ")":
-            if call_paren and call_paren.pop():
-                tokens.append(raw)
-        else:
-            word = raw.casefold()
-            if word == "using":
-                # `CHAR(31 USING utf8mb4)` -> `char(31)`: the charset name
-                # is the next word, and is dropped with it.
-                skip_charset = True
-                continue
-            tokens.append(_SQL_CONDITIONAL_SYNONYMS.get(word, word))
-    return "".join(tokens)
+        match = token_re.match(reported, cursor)
+        if match is None:
+            return None
+        raw = match.group(0)
+        unterminated_comment = reported.startswith("/*", cursor) and not raw.startswith(
+            "/*"
+        )
+        if reported.startswith("*/", cursor) or unterminated_comment:
+            return None
+        kind = kinds[match.lastgroup or ""]
+        value = raw
+        if kind is _SqlTokenKind.STRING:
+            value = _literal_value(raw, backslash_escapes=backslash_escapes)
+        elif kind is _SqlTokenKind.WORD:
+            value = raw.lower()
+        elif kind is _SqlTokenKind.QUOTED_IDENTIFIER:
+            value = _unquote_identifier(raw).lower()
+        elif kind is _SqlTokenKind.LEFT_PARENTHESIS:
+            depth += 1
+        elif kind is _SqlTokenKind.RIGHT_PARENTHESIS:
+            if depth == 0:
+                return None
+            depth -= 1
+        tokens.append(_SqlToken(kind=kind, value=value, start=cursor, end=match.end()))
+        cursor = match.end()
+    return tuple(tokens) if depth == 0 else None
 
 
-def _canonical_generation_expression(expression: str | None) -> str:
-    """Canonicalize a ``GENERATION_EXPRESSION`` as MySQL reports it.
+def _sql_tokens(
+    expression: str | None, *, backslash_escapes: bool = False
+) -> tuple[_SqlToken, ...] | None:
+    """Return the expression's structured, comment-free token stream."""
+    scanned = _scan_sql(expression, backslash_escapes=backslash_escapes)
+    if scanned is None:
+        return None
+    return tuple(token for token in scanned if token.kind is not _SqlTokenKind.COMMENT)
+
+
+def _generation_expression_tokens(
+    expression: str | None,
+) -> tuple[_SqlToken, ...] | None:
+    """Tokenize a ``GENERATION_EXPRESSION`` as MySQL reports it.
 
     When every quote shows evidence of MySQL 8.4.9's outer escape layer,
     peels that layer before scanning the printed expression under MySQL's
@@ -861,13 +875,156 @@ def _canonical_generation_expression(expression: str | None) -> str:
     reported = expression or ""
     if _has_mysql_outer_escape_layer(reported):
         reported = _decode_backslash_escapes(reported)
-    return _canonical_sql(reported, backslash_escapes=True)
+    return _sql_tokens(reported, backslash_escapes=True)
 
 
-# Slices a partial index's predicate out of its `CREATE INDEX` statement.
-# `\bWHERE\b` cannot match inside an identifier (`somewhere`), and SQLite
-# forbids subqueries in an index predicate, so at most one `WHERE` appears.
-_INDEX_WHERE_RE = re.compile(r"\bWHERE\b(.*)$", re.IGNORECASE | re.DOTALL)
+class _SqlTokenParser:
+    """Small cursor over the exact guard grammar."""
+
+    def __init__(self, tokens: Sequence[_SqlToken]) -> None:
+        self.tokens = tokens
+        self.position = 0
+
+    @property
+    def done(self) -> bool:
+        """Return whether every token was consumed."""
+        return self.position == len(self.tokens)
+
+    def take(self, kind: _SqlTokenKind, value: str | None = None) -> bool:
+        """Consume one token of ``kind`` and optional exact value."""
+        if self.done:
+            return False
+        token = self.tokens[self.position]
+        if token.kind is not kind or (value is not None and token.value != value):
+            return False
+        self.position += 1
+        return True
+
+    def take_word(self, *values: str) -> bool:
+        """Consume one bare ASCII word from ``values``."""
+        if self.done:
+            return False
+        token = self.tokens[self.position]
+        if token.kind is not _SqlTokenKind.WORD or token.value not in values:
+            return False
+        self.position += 1
+        return True
+
+    def take_identifier(self, value: str) -> bool:
+        """Consume one bare or quoted identifier with an exact ASCII name."""
+        if self.done:
+            return False
+        token = self.tokens[self.position]
+        if token.kind not in (
+            _SqlTokenKind.WORD,
+            _SqlTokenKind.QUOTED_IDENTIFIER,
+        ):
+            return False
+        if token.value != value:
+            return False
+        self.position += 1
+        return True
+
+
+def _parse_grouped(parser: _SqlTokenParser, inner: Callable[[], bool]) -> bool:
+    """Parse ``inner`` with zero or more balanced grouping parentheses."""
+    wrappers = 0
+    while parser.take(_SqlTokenKind.LEFT_PARENTHESIS):
+        wrappers += 1
+    if not inner():
+        return False
+    return all(parser.take(_SqlTokenKind.RIGHT_PARENTHESIS) for _ in range(wrappers))
+
+
+def _parse_live_literal(parser: _SqlTokenParser, *, mysql: bool) -> bool:
+    """Parse the exact ``'live'`` literal and MySQL's one allowed introducer."""
+    if mysql and parser.take_word("_utf8mb4"):
+        pass
+    return parser.take(_SqlTokenKind.STRING, "live")
+
+
+def _parse_live_equality(parser: _SqlTokenParser, *, mysql: bool) -> bool:
+    """Parse ``state = 'live'`` or its commuted equality."""
+    start = parser.position
+    if (
+        parser.take_identifier("state")
+        and parser.take(_SqlTokenKind.OPERATOR, "=")
+        and _parse_live_literal(parser, mysql=mysql)
+    ):
+        return True
+    parser.position = start
+    if (
+        _parse_live_literal(parser, mysql=mysql)
+        and parser.take(_SqlTokenKind.OPERATOR, "=")
+        and parser.take_identifier("state")
+    ):
+        return True
+    parser.position = start
+    return False
+
+
+def _parse_char_31(parser: _SqlTokenParser) -> bool:
+    """Parse only ``CHAR(31)`` and ``CHAR(31 USING utf8mb4)``."""
+    if not (
+        parser.take_word("char")
+        and parser.take(_SqlTokenKind.LEFT_PARENTHESIS)
+        and parser.take(_SqlTokenKind.NUMBER, "31")
+    ):
+        return False
+    if parser.take_word("using") and not parser.take_word("utf8mb4"):
+        return False
+    return parser.take(_SqlTokenKind.RIGHT_PARENTHESIS)
+
+
+def _parse_live_key_concat(parser: _SqlTokenParser) -> bool:
+    """Parse the exact injective key expression."""
+    return (
+        parser.take_word("concat")
+        and parser.take(_SqlTokenKind.LEFT_PARENTHESIS)
+        and parser.take_identifier("dataset")
+        and parser.take(_SqlTokenKind.COMMA)
+        and _parse_char_31(parser)
+        and parser.take(_SqlTokenKind.COMMA)
+        and parser.take_identifier("entity_key")
+        and parser.take(_SqlTokenKind.RIGHT_PARENTHESIS)
+    )
+
+
+def _parse_live_key_conditional(parser: _SqlTokenParser) -> bool:
+    """Parse the exact generated-column conditional."""
+    return (
+        parser.take_word("if", "iif")  # codespell:ignore
+        and parser.take(_SqlTokenKind.LEFT_PARENTHESIS)
+        and _parse_grouped(parser, lambda: _parse_live_equality(parser, mysql=True))
+        and parser.take(_SqlTokenKind.COMMA)
+        and _parse_live_key_concat(parser)
+        and parser.take(_SqlTokenKind.COMMA)
+        and parser.take_word("null")
+        and parser.take(_SqlTokenKind.RIGHT_PARENTHESIS)
+    )
+
+
+def _is_mysql_live_key_expression(expression: str | None) -> bool:
+    """Match only the generated-column grammar this module ships."""
+    tokens = _generation_expression_tokens(expression)
+    if not tokens:
+        return False
+    parser = _SqlTokenParser(tokens)
+    return _parse_grouped(parser, lambda: _parse_live_key_conditional(parser)) and (
+        parser.done
+    )
+
+
+def _is_sqlite_live_predicate(expression: str | None) -> bool:
+    """Match only ``state = 'live'`` (in either equality order)."""
+    tokens = _sql_tokens(expression)
+    if not tokens:
+        return False
+    parser = _SqlTokenParser(tokens)
+    return (
+        _parse_grouped(parser, lambda: _parse_live_equality(parser, mysql=False))
+        and parser.done
+    )
 
 
 def _quote_identifier(name: str) -> str:
@@ -940,6 +1097,38 @@ def _live_guard_refusal(backend: str, detail: str) -> SnapshotSchemaMismatch:
     )
 
 
+_LIVE_GUARD_PROBE_PREFIX = "__openbb_single_live_probe__"
+_SQLITE_LIVE_GUARD_PROBE_INSERT = (
+    "INSERT INTO pi_eod_snapshot ("
+    "dataset, entity_key, as_of_session, created_at, job_run_id, status, state, "
+    "validated, validation_reason, payload_json, input_hash, row_count, "
+    "engine_version, payload_schema_version"
+    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+)
+
+
+def _live_guard_probe_values(
+    dataset: str, job_run_id: str, state: SnapshotState
+) -> tuple[Any, ...]:
+    """Build one complete synthetic row for a rolled-back guard probe."""
+    return (
+        dataset,
+        "same-entity",
+        "2000-01-01",
+        "2000-01-01T00:00:00.000000+00:00",
+        job_run_id,
+        SnapshotStatus.OK.value,
+        state.value,
+        0,
+        "",
+        "{}",
+        None,
+        None,
+        None,
+        None,
+    )
+
+
 def _check_mysql_live_guard(
     generation: dict[str, str], indexes: Iterable[_IndexShape]
 ) -> None:
@@ -965,11 +1154,10 @@ def _check_mysql_live_guard(
        ``UNIQUE`` over ``(dataset, entity_key)`` would (wrongly) forbid a
        second *staged* run for the same key.
 
-    The generation expression is matched *structurally* — canonicalized
-    by :func:`_canonical_generation_expression` and compared for equality
-    against :data:`_LIVE_KEY_CANONICAL_FORMS` — rather than scanned for
-    tokens. A token scan accepts expressions that invert the invariant
-    while mentioning every expected word: ``IF(state != 'live',
+    The generation expression is matched as a typed token grammar by
+    :func:`_is_mysql_live_key_expression`, rather than flattened into text
+    or scanned for words. A word scan accepts expressions that invert the
+    invariant while mentioning every expected word: ``IF(state != 'live',
     CONCAT(dataset, CHAR(31), entity_key), NULL)`` keys ``live_key`` on
     every row that is *not* LIVE, so the UNIQUE index then permits
     unlimited LIVE rows and forbids a second staged one — the exact
@@ -987,13 +1175,12 @@ def _check_mysql_live_guard(
             f"the generated column {_MYSQL_LIVE_KEY_COLUMN!r} is missing",
         )
     expression = generation[_MYSQL_LIVE_KEY_COLUMN]
-    canonical = _canonical_generation_expression(expression)
-    if canonical not in _LIVE_KEY_CANONICAL_FORMS:
+    if not _is_mysql_live_key_expression(expression):
         raise _live_guard_refusal(
             "mysql",
             f"column {_MYSQL_LIVE_KEY_COLUMN!r} is not generated from the "
             f"expected expression (its GENERATION_EXPRESSION {expression!r} "
-            f"canonicalizes to {canonical!r}, not to {_LIVE_KEY_CANONICAL!r}); "
+            f"does not parse as {_LIVE_KEY_CANONICAL!r}); "
             f"an ordinary column is NULL on every row so a unique index over "
             f"it constrains nothing, and an expression that merely resembles "
             f"the expected one — an inverted comparison, a swapped "
@@ -1088,14 +1275,26 @@ def _index_predicate(sql: str | None) -> str:
     caller's token check discriminating.
 
     ``None`` (the implicit index behind a ``PRIMARY KEY``) and a
-    non-partial index both yield ``""``. Slicing at the first ``WHERE``
-    is unambiguous: SQLite forbids subqueries in an index predicate, so
-    at most one appears.
+    non-partial index both yield ``""``. Only a bare, top-level ``WHERE``
+    token is a clause boundary. A quoted index name or comment may contain
+    the same word and must not donate a fake predicate.
     """
     if not sql:
         return ""
-    match = _INDEX_WHERE_RE.search(sql)
-    return match.group(1).strip() if match else ""
+    # The guard expression itself is ASCII-only, but an unrelated quoted
+    # index name may legitimately contain Unicode. Its token stays opaque.
+    tokens = _scan_sql(sql, ascii_only=False)
+    if tokens is None:
+        return ""
+    depth = 0
+    for token in tokens:
+        if token.kind is _SqlTokenKind.LEFT_PARENTHESIS:
+            depth += 1
+        elif token.kind is _SqlTokenKind.RIGHT_PARENTHESIS:
+            depth -= 1
+        elif depth == 0 and token.kind is _SqlTokenKind.WORD and token.value == "where":
+            return sql[token.end :].strip()
+    return ""
 
 
 def _check_sqlite_live_guard(indexes: Iterable[_IndexShape]) -> None:
@@ -1114,11 +1313,10 @@ def _check_sqlite_live_guard(indexes: Iterable[_IndexShape]) -> None:
     ``(dataset, entity_key)`` would forbid a second staged run for one
     key, which is the store's normal daily operation.
 
-    The predicate is matched *structurally* — canonicalized by
-    :func:`_canonical_sql` and compared for equality against
-    :data:`_SQLITE_LIVE_PREDICATE_FORMS` — rather than scanned for the
-    tokens ``state`` and ``live``. A token scan accepts ``WHERE state !=
-    'live'``, which mentions both and indexes exactly the rows that are
+    The predicate is matched as an exact typed-token grammar by
+    :func:`_is_sqlite_live_predicate`, rather than flattened into text or
+    scanned for the words ``state`` and ``live``. A word scan accepts
+    ``WHERE state != 'live'``, which mentions both and indexes exactly the rows that are
     *not* LIVE: unlimited LIVE rows for one key, and a second staged run
     rejected. Requiring an explicit equality is what tells the guard
     apart from its inverse (PR #2062 review).
@@ -1127,7 +1325,7 @@ def _check_sqlite_live_guard(indexes: Iterable[_IndexShape]) -> None:
         if (
             index.unique
             and index.columns == _SQLITE_LIVE_INDEX_COLUMNS
-            and _canonical_sql(index.predicate) in _SQLITE_LIVE_PREDICATE_FORMS
+            and _is_sqlite_live_predicate(index.predicate)
         ):
             return
     raise _live_guard_refusal(
@@ -1138,6 +1336,50 @@ def _check_sqlite_live_guard(indexes: Iterable[_IndexShape]) -> None:
         f"'state' and 'live' — \"state != 'live'\" above all — indexes the "
         f"complement of the rows the invariant is about",
     )
+
+
+def _probe_sqlite_live_guard(conn: sqlite3.Connection) -> None:
+    """Prove the real SQLite guard and roll back every synthetic row."""
+    dataset = f"{_LIVE_GUARD_PROBE_PREFIX}{uuid4().hex}"
+    savepoint = "openbb_single_live_guard_probe"
+    conn.execute(f"SAVEPOINT {savepoint}")
+    try:
+        try:
+            conn.execute(
+                _SQLITE_LIVE_GUARD_PROBE_INSERT,
+                _live_guard_probe_values(dataset, "staged-1", SnapshotState.STAGING),
+            )
+            conn.execute(
+                _SQLITE_LIVE_GUARD_PROBE_INSERT,
+                _live_guard_probe_values(dataset, "staged-2", SnapshotState.STAGING),
+            )
+            conn.execute(
+                _SQLITE_LIVE_GUARD_PROBE_INSERT,
+                _live_guard_probe_values(dataset, "live-1", SnapshotState.LIVE),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise _live_guard_refusal(
+                "sqlite",
+                "an empirical, rolled-back probe could not store two STAGING "
+                "rows and one LIVE row for the same key",
+            ) from exc
+
+        try:
+            conn.execute(
+                _SQLITE_LIVE_GUARD_PROBE_INSERT,
+                _live_guard_probe_values(dataset, "live-2", SnapshotState.LIVE),
+            )
+        except sqlite3.IntegrityError:
+            pass
+        else:
+            raise _live_guard_refusal(
+                "sqlite",
+                "an empirical, rolled-back probe accepted two LIVE rows for "
+                "the same key",
+            )
+    finally:
+        conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+        conn.execute(f"RELEASE SAVEPOINT {savepoint}")
 
 
 def _check_schema_version(version: int, *, backend: str) -> None:
@@ -1936,9 +2178,8 @@ class SqliteSnapshotStore:
         guard's own name (``ux_pi_eod_snapshot_live``) contains the token
         ``live``, so a predicate check run against the full SQL text
         would pass for *any* index wearing that name, including one
-        predicated on the wrong state. Slicing at the first ``WHERE`` is
-        unambiguous because SQLite forbids subqueries in an index
-        predicate, so a partial index has exactly one.
+        predicated on the wrong state. The extractor therefore finds a
+        bare, top-level ``WHERE`` token, skipping quoted names and comments.
 
         Both PRAGMAs go through :meth:`_pragma`, which quotes the
         interpolated name: ``index_list`` names a constant, but
@@ -1991,6 +2232,10 @@ class SqliteSnapshotStore:
         index back from the catalogue is the only way to know which of
         the two happened (PR #2062 review).
 
+        A savepoint-scoped probe then asks the actual index to allow two
+        STAGING rows and reject a second LIVE row for a random synthetic key.
+        It is always rolled back before the schema version is stamped.
+
         ``PRAGMA user_version`` is per *file*: ``PI_SNAPSHOT_DB`` must
         point at a database dedicated to this store (the factory default
         ``~/.portfolio_intel/snapshot.db`` is), not one shared with
@@ -2010,6 +2255,7 @@ class SqliteSnapshotStore:
             )
         self._conn.executescript(_SQLITE_SCHEMA)
         _check_sqlite_live_guard(self._table_indexes())
+        _probe_sqlite_live_guard(self._conn)
         self._conn.execute(f"PRAGMA user_version = {SNAPSHOT_SCHEMA_VERSION}")
 
     @contextmanager

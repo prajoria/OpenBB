@@ -38,6 +38,7 @@ from openbb_techtrade.snapshot.store import (
     SnapshotFieldTooLong,
     SnapshotPayloadNotAnObject,
     SnapshotRow,
+    SnapshotSchemaMismatch,
     SnapshotState,
     SnapshotStatus,
     SqliteSnapshotStore,
@@ -356,10 +357,18 @@ def test_newer_ok_supersedes_prior_ok_and_history_retains_both(tmp_path) -> None
     store.close()
 
 
-def test_direct_second_live_insert_raises_integrity_error(tmp_path) -> None:
-    """Invariant: the partial unique index blocks a second LIVE row at the DB layer."""
+def test_partial_unique_index_allows_staged_rows_and_refuses_second_live(
+    tmp_path,
+) -> None:
+    """The real index permits STAGING history and rejects a duplicate LIVE."""
     store = SqliteSnapshotStore(tmp_path / "snapshot.db")
     staged = _stage(store, payload={"rows": [{"symbol": "AAPL"}]})
+    second_staged = _stage(
+        store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        job_run_id="run-second-staged",
+    )
+    assert second_staged != staged
     assert store.validate(*staged).ok
     assert store.promote(*staged)
 
@@ -2654,6 +2663,7 @@ def test_sqlite_refuses_a_live_predicate_on_a_different_column(tmp_path) -> None
         "[state] = 'live'",
         "`state` = 'live'",
         "(state = 'live')",
+        "\t(\r\n\"state\"\t=\n'live')",
         "'live' = state",
         "STATE = 'live'",
     ],
@@ -2681,54 +2691,174 @@ def test_sqlite_accepts_every_harmless_spelling_of_the_live_predicate(
     store.close()
 
 
-def test_canonical_sql_folds_formatting_and_preserves_meaning() -> None:
-    """Unit test for the shared canonicalizer both dialect guards rest on.
+def test_structured_sql_matcher_folds_formatting_but_preserves_meaning() -> None:
+    """Only harmless SQLite renderings match the exact predicate grammar."""
+    matches = store_module._is_sqlite_live_predicate
 
-    The guard tests above prove the *decisions*; this proves the rule
-    those decisions come from, at the seam where it is cheapest to read:
-    everything a server may rewrite folds together, everything that
-    changes what rows are indexed does not.
-    """
-    canonical = store_module._canonical_sql
+    assert matches("  ( \"state\"  =  'live' ) ")
+    assert matches("`state`=/* sep */'live' -- guard")
+    assert matches("'live' = [STATE]")
+    assert not matches("state != 'live'")
+    assert not matches("state <> 'live'")
+    assert not matches("not (state = 'live')")
+    assert not matches("state = 'LIVE'")
+    assert not matches("state = 'live' and validated = 1")
+    assert not matches("status = 'live'")
+    assert not matches("lower(state) = 'live'")
+    assert not matches(None)
+    assert not matches("")
 
-    # Quoting, case, whitespace, redundant parens, comments: all noise.
-    assert canonical("  ( \"state\"  =  'live' ) ") == "state='live'"
-    assert canonical("`state`=/* sep */'live' -- guard") == "state='live'"
-    # Charset introducers and `USING <charset>` are server decoration.
-    assert canonical("_utf8mb4'live'") == "'live'"
-    assert canonical("CHAR(31 USING utf8mb4)") == "char(31)"
-    # `IIF` is the same three-argument conditional as `IF`.  # codespell:ignore
-    assert canonical("IIF(a, b, c)") == canonical("if(a,b,c)")  # codespell:ignore
+    # SQLite has no backslash escapes: this is the value ``li\ve``, not
+    # ``live``. MySQL decoding is selected only by its generation-expression
+    # scanner.
+    assert not matches(r"state = 'li\ve'")
 
-    # Operators, operand order beyond `=`, literals and their case survive.
-    assert canonical("state != 'live'") != canonical("state = 'live'")
-    assert canonical("state <> 'live'") != canonical("state = 'live'")
-    assert canonical("not (state = 'live')") != canonical("state = 'live'")
-    assert canonical("state = 'LIVE'") != canonical("state = 'live'")
-    assert canonical("state = 'live' and validated = 1") != canonical("state = 'live'")
-    assert canonical("status = 'live'") != canonical("state = 'live'")
-    # A grouping paren is dropped; a call paren is not, so a wrapping
-    # function can never be folded away.
-    assert canonical("(state = 'live')") == canonical("state = 'live'")
-    assert canonical("lower(state) = 'live'") != canonical("state = 'live'")
-    # An empty/absent expression matches nothing.
-    assert canonical(None) == ""
-    assert canonical("") == ""
+    # One quoted identifier remains one typed token. It cannot impersonate
+    # the three tokens in the real predicate when text is concatenated.
+    real = store_module._sql_tokens("state = 'live'")
+    quoted_whole = store_module._sql_tokens("\"state = 'live'\"")
+    assert real is not None and quoted_whole is not None
+    assert len(real) == 3
+    assert len(quoted_whole) == 1
+    assert real != quoted_whole
 
-    # `backslash_escapes` selects the dialect's literal syntax and nothing
-    # else. SQLite has no backslash escapes -- `'li\ve'` there is the
-    # five-character value `li\ve`, a literal no row ever equals -- so the
-    # default must read it that way; MySQL reads the same text as `'live'`.
-    assert canonical(r"state = 'li\ve'") != canonical("state = 'live'")
-    assert canonical(r"state = 'li\ve'", backslash_escapes=True) == canonical(
-        "state = 'live'"
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        pytest.param("state := 'live'", id="assignment-operator"),
+        pytest.param("state : = 'live'", id="colon-between-tokens"),
+        pytest.param("state = 'live';", id="statement-terminator"),
+        pytest.param("state \N{FULLWIDTH COLON}= 'live'", id="unicode-punctuation"),
+        pytest.param("state\u200b = 'live'", id="unicode-format-control"),
+        pytest.param("state\x00 = 'live'", id="nul-control"),
+        pytest.param("state\x1f = 'live'", id="unit-separator-control"),
+        pytest.param("@state = 'live'", id="unrecognized-leading-gap"),
+        pytest.param("state @ = 'live'", id="unrecognized-interior-gap"),
+        pytest.param("state = 'live'@", id="unrecognized-trailing-gap"),
+        pytest.param("\"state = 'live'", id="unterminated-quoted-identifier"),
+        pytest.param("state = 'live' '", id="unterminated-string-literal"),
+        pytest.param("state = 'live' /* never closed", id="unterminated-block-comment"),
+        pytest.param("state = 'live' */", id="unopened-block-comment"),
+    ],
+)
+def test_sql_matcher_fails_closed_when_the_scan_cannot_consume_input(
+    expression: str,
+) -> None:
+    """Unknown or malformed text must not disappear between token matches."""
+    assert not store_module._is_sqlite_live_predicate(expression)
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        pytest.param("state='live'", id="compact"),
+        pytest.param("  ( \"state\"  =  'live' ) \n", id="quoted-and-grouped"),
+        pytest.param("`state`=/* separator */'live' -- guard", id="comments"),
+        pytest.param("'live' = [state]", id="reversed-and-bracketed"),
+    ],
+)
+def test_sql_matcher_consumes_every_character_in_valid_sql(expression: str) -> None:
+    """Fail-closed scanning must retain every supported SQLite spelling."""
+    assert store_module._is_sqlite_live_predicate(expression)
+
+
+@pytest.mark.parametrize(
+    "predicate",
+    [
+        pytest.param("\"ſtate\" = 'live'", id="unicode-casefold-identifier"),
+        pytest.param("state\v = 'live'", id="vertical-tab"),
+        pytest.param("(state = 'live'", id="unmatched-opening-parenthesis"),
+        pytest.param("state = 'live')", id="unmatched-closing-parenthesis"),
+        pytest.param("\"state = 'live'\"", id="whole-expression-quoted-identifier"),
+    ],
+)
+def test_sqlite_live_guard_rejects_structural_token_spoofs(predicate: str) -> None:
+    """Text that flattens to the expected spelling is not the expected AST."""
+    guard = [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live",
+            unique=True,
+            columns=("dataset", "entity_key"),
+            predicate=predicate,
+        )
+    ]
+
+    with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+        store_module._check_sqlite_live_guard(guard)
+
+
+def test_sqlite_index_predicate_skips_where_inside_a_quoted_index_name(
+    tmp_path,
+) -> None:
+    """A quoted name cannot donate a fake predicate to the catalogue guard."""
+    index_sql = (
+        "CREATE UNIQUE INDEX \"decoy WHERE state = 'live' --\" "
+        "ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'staging'"
     )
-    # Under MySQL's syntax the two spellings of one literal fold together,
-    # and two different literals still do not.
-    assert canonical(r"'li\'ve'", backslash_escapes=True) == canonical("'li''ve'")
-    assert canonical(r"'\\live'", backslash_escapes=True) != canonical("'live'")
-    # `\%` and `\_` keep their backslash, exactly as MySQL does.
-    assert canonical(r"'a\%b'", backslash_escapes=True) == r"'a\%b'"
+    assert store_module._index_predicate(index_sql) == "state = 'staging'"
+
+    db_path = tmp_path / "quoted_where.db"
+    _seed_sqlite(db_path, index_sql=_HIJACKED_INDEX_SQL)
+    seeded = sqlite3.connect(str(db_path))
+    try:
+        seeded.execute(index_sql)
+        seeded.commit()
+    finally:
+        seeded.close()
+
+    with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+        SqliteSnapshotStore(db_path)
+
+
+@pytest.mark.parametrize(
+    "index_sql",
+    [
+        pytest.param(_HIJACKED_INDEX_SQL, id="duplicate-live-is-allowed"),
+        pytest.param(
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(dataset, entity_key)",
+            id="second-staged-row-is-refused",
+        ),
+    ],
+)
+def test_sqlite_empirical_probe_rejects_wrong_guard_behavior(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, index_sql: str
+) -> None:
+    """The real index must reject duplicate LIVE and allow duplicate STAGING."""
+    db_path = tmp_path / "empirical_guard.db"
+    _seed_sqlite(db_path, index_sql=index_sql)
+    monkeypatch.setattr(store_module, "_check_sqlite_live_guard", lambda indexes: None)
+    constructed = None
+    try:
+        with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+            constructed = SqliteSnapshotStore(db_path)
+    finally:
+        if constructed is not None:
+            constructed.close()
+
+    inspected = sqlite3.connect(str(db_path))
+    try:
+        assert (
+            inspected.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 0
+        )
+        assert inspected.execute("PRAGMA user_version").fetchone()[0] == 0
+    finally:
+        inspected.close()
+
+
+def test_sqlite_empirical_probe_rolls_back_every_probe_row(tmp_path) -> None:
+    """A successful construction leaves no synthetic guard-probe rows."""
+    store = SqliteSnapshotStore(tmp_path / "probe_rollback.db")
+    try:
+        count = store._conn.execute(  # pylint: disable=protected-access
+            "SELECT COUNT(*) FROM pi_eod_snapshot WHERE dataset LIKE ?",
+            (f"{store_module._LIVE_GUARD_PROBE_PREFIX}%",),
+        ).fetchone()[0]
+    finally:
+        store.close()
+
+    assert count == 0
 
 
 # ---------------------------------------------------------------------------

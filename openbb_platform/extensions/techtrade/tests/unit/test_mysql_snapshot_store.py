@@ -452,11 +452,13 @@ _ASSIGNMENT_RE = re.compile(r"^\s*(\w+)\s*=\s*%s\s*$")
 _ALTER_COMMENT_RE = re.compile(
     r"^\s*ALTER\s+TABLE\s+(?P<table>\w+)\s+COMMENT\s*=\s*%s\s*$", re.I
 )
+_ENGINE_RE = re.compile(r"\bENGINE\s*=\s*(?P<engine>[A-Za-z0-9_]+)", re.I)
 
 # The double's stand-in for MySQL's data dictionary. SQLite has no table
-# comments, so `information_schema.TABLES.TABLE_COMMENT` is modelled by a
-# side table *in the same database file* — see `_FakeCursor._alter_table`
-# for why the file, and not the pool object, is the right home for it.
+# comments or storage-engine metadata, so `information_schema.TABLES` is
+# modelled by a side table *in the same database file* — see
+# `_FakeCursor._alter_table` for why the file, and not the pool object, is
+# the right home for it.
 _DICTIONARY_TABLE = "_fake_information_schema_tables"
 
 # `pragma_table_xinfo`'s `hidden` flag: 2 = VIRTUAL generated, 3 = STORED
@@ -489,7 +491,26 @@ def _ensure_dictionary(cursor: sqlite3.Cursor) -> None:
     """Create the double's ``information_schema.TABLES`` stand-in once."""
     cursor.execute(
         f"CREATE TABLE IF NOT EXISTS {_DICTIONARY_TABLE} ("
-        "table_name TEXT PRIMARY KEY, table_comment TEXT NOT NULL)"
+        "table_name TEXT PRIMARY KEY, table_comment TEXT, table_engine TEXT)"
+    )
+
+
+def _record_table_metadata(
+    cursor: sqlite3.Cursor,
+    table: str,
+    *,
+    comment: str | None,
+    engine: str | None,
+) -> None:
+    """Record the TABLES row a real MySQL server would expose."""
+    _ensure_dictionary(cursor)
+    cursor.execute(
+        f"INSERT INTO {_DICTIONARY_TABLE} "
+        "(table_name, table_comment, table_engine) VALUES (?, ?, ?) "
+        "ON CONFLICT(table_name) DO UPDATE SET "
+        "table_comment = excluded.table_comment, "
+        "table_engine = excluded.table_engine",
+        (table, comment, engine),
     )
 
 
@@ -589,6 +610,13 @@ class _FakeCursor:
             return
         for index_sql in indexes:
             self._cursor.execute(index_sql)
+        engine_match = _ENGINE_RE.search(sql)
+        _record_table_metadata(
+            self._cursor,
+            _table_name(sql),
+            comment="",
+            engine=engine_match.group("engine") if engine_match is not None else None,
+        )
 
     def _describe_table(self, sql: str, bound: tuple) -> None:
         """Answer the production ``information_schema`` probes.
@@ -597,15 +625,15 @@ class _FakeCursor:
         GENERATION_EXPRESSION FROM information_schema.COLUMNS ...`` for
         the table's shape and which of its columns are *generated*,
         ``SELECT ... FROM information_schema.STATISTICS ...`` for its
-        indexes, and ``SELECT TABLE_COMMENT FROM
-        information_schema.TABLES ...`` for its schema-version stamp —
-        and the double answers all three from SQLite's own catalogue
-        rather than the store softening its queries into something
-        portable. A table that does not exist yields no rows from any of
-        them, exactly as ``information_schema`` does.
+        indexes, and ``SELECT TABLE_COMMENT, ENGINE FROM
+        information_schema.TABLES ...`` for its schema-version stamp and
+        storage engine — and the double answers all three from SQLite's
+        own catalogue rather than the store softening its queries into
+        something portable. A table that does not exist yields no rows
+        from any of them, exactly as ``information_schema`` does.
         """
-        if "TABLE_COMMENT" in sql:
-            self._select_table_comment(bound)
+        if "TABLE_COMMENT" in sql or "ENGINE" in sql:
+            self._select_table_metadata(bound)
             return
         if "STATISTICS" in sql:
             self._select_indexes(bound)
@@ -676,19 +704,19 @@ class _FakeCursor:
         )
         self._executed = None
 
-    def _select_table_comment(self, bound: tuple) -> None:
-        """Read a table's ``COMMENT`` out of the double's data dictionary.
+    def _select_table_metadata(self, bound: tuple) -> None:
+        """Read a table's ``COMMENT`` and ``ENGINE`` from the fake dictionary.
 
         MySQL returns exactly one row per existing table — ``''`` when
-        the table carries no comment — and *no* row for a table that
-        does not exist. Both are reproduced here, because the production
-        code distinguishes them (no row and an empty comment both read as
-        "unstamped", and getting that wrong would make the version check
-        untestable rather than merely wrong).
+        the table carries no comment and a canonical storage-engine name —
+        and *no* row for a table that does not exist. Those distinctions
+        are reproduced here because the production code treats missing,
+        NULL, and non-InnoDB engine metadata as separate refusal evidence.
         """
         _ensure_dictionary(self._cursor)
         self._cursor.execute(
-            "SELECT COALESCE(d.table_comment, '') AS TABLE_COMMENT "
+            "SELECT COALESCE(d.table_comment, '') AS TABLE_COMMENT, "
+            "d.table_engine AS ENGINE "
             f"FROM sqlite_master AS m LEFT JOIN {_DICTIONARY_TABLE} AS d "
             "ON d.table_name = m.name "
             "WHERE m.type = 'table' AND m.name = ?",
@@ -1233,6 +1261,7 @@ def test_stage_refuses_an_over_long_bounded_field(
     """Every bounded field is checked, and nothing is written."""
     limit = FIELD_MAX_LENGTHS[field]
     begins_before = pool.begins
+    statements_before = len(pool.statements)
     with pytest.raises(SnapshotFieldTooLong) as excinfo:
         _stage(
             store,
@@ -1255,7 +1284,9 @@ def test_stage_refuses_an_over_long_bounded_field(
     # pointless BEGIN/ROLLBACK round-trip on the shared pool.
     assert pool.begins == begins_before
     inserts = [
-        sql for sql, _ in pool.statements if sql.lstrip().upper().startswith("INSERT")
+        sql
+        for sql, _ in pool.statements[statements_before:]
+        if sql.lstrip().upper().startswith("INSERT")
     ]
     assert inserts == []
 
@@ -1369,6 +1400,7 @@ def test_stage_refuses_a_non_dict_payload(
 ) -> None:
     """A list/scalar/``None`` payload is refused, and nothing is written."""
     begins_before = pool.begins
+    statements_before = len(pool.statements)
     with pytest.raises(SnapshotPayloadNotAnObject) as excinfo:
         store.stage(
             "techtrade.movers",
@@ -1384,7 +1416,9 @@ def test_stage_refuses_a_non_dict_payload(
     # independently of the exception type.
     assert pool.begins == begins_before
     inserts = [
-        sql for sql, _ in pool.statements if sql.lstrip().upper().startswith("INSERT")
+        sql
+        for sql, _ in pool.statements[statements_before:]
+        if sql.lstrip().upper().startswith("INSERT")
     ]
     assert inserts == []
 
@@ -2972,6 +3006,12 @@ def test_mysql_refuses_a_foreign_table_of_the_same_name(tmp_path: Path) -> None:
     pool.raw.execute(
         "CREATE TABLE pi_eod_snapshot (snapshot_id TEXT PRIMARY KEY, user_id TEXT)"
     )
+    _record_table_metadata(
+        pool.raw.cursor(),
+        "pi_eod_snapshot",
+        comment=None,
+        engine="InnoDB",
+    )
 
     with pytest.raises(SnapshotSchemaMismatch) as excinfo:
         MysqlSnapshotStore(connection_pool=pool)
@@ -2992,6 +3032,12 @@ def test_a_schema_refusal_is_not_reported_to_the_pool_as_a_connection_fault(
     pool = _FakePool(tmp_path / "foreign.db")
     pool.raw.execute(
         "CREATE TABLE pi_eod_snapshot (snapshot_id TEXT PRIMARY KEY, user_id TEXT)"
+    )
+    _record_table_metadata(
+        pool.raw.cursor(),
+        "pi_eod_snapshot",
+        comment=None,
+        engine="InnoDB",
     )
 
     with caplog.at_level(logging.ERROR, logger=_POOL_LOGGER), pytest.raises(
@@ -3071,6 +3117,7 @@ def _seed_table(
         "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live ON pi_eod_snapshot(live_key)"
     ),
     comment: str | None = None,
+    engine: str | None = "InnoDB",
 ) -> None:
     """Pre-create a `pi_eod_snapshot` with a chosen guard (or none)."""
     columns = columns_sql.rstrip()
@@ -3084,13 +3131,12 @@ def _seed_table(
         )
         if index_sql is not None:
             conn.execute(index_sql)
-        if comment is not None:
-            _ensure_dictionary(conn.cursor())
-            conn.execute(
-                f"INSERT INTO {_DICTIONARY_TABLE} (table_name, table_comment) "
-                "VALUES (?, ?)",
-                ("pi_eod_snapshot", comment),
-            )
+        _record_table_metadata(
+            conn.cursor(),
+            "pi_eod_snapshot",
+            comment=comment,
+            engine=engine,
+        )
     finally:
         conn.close()
 
@@ -3164,10 +3210,7 @@ def test_mysql_accepts_the_guard_its_own_ddl_creates(tmp_path: Path) -> None:
     # the structural comparison in `_check_mysql_live_guard` is satisfied
     # by the real schema rather than only by the refusal tests below.
     assert "live_key" in generation
-    assert (
-        store_module._canonical_generation_expression(generation["live_key"])
-        in store_module._LIVE_KEY_CANONICAL_FORMS
-    )
+    assert store_module._is_mysql_live_key_expression(generation["live_key"])
     # ... and its UNIQUE index is reported under the name MySQL would use.
     guard = [index for index in indexes if index.name == "ux_pi_eod_snapshot_live"]
     assert guard == [
@@ -3181,6 +3224,130 @@ def test_mysql_accepts_the_guard_its_own_ddl_creates(tmp_path: Path) -> None:
         for index in indexes
         if index.name != "ux_pi_eod_snapshot_live"
     )
+
+
+# ---------------------------------------------------------------------------
+# Transactional storage-engine verification (PR #2062 final review)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("engine", "reported"),
+    [
+        pytest.param("MyISAM", "MyISAM", id="myisam"),
+        pytest.param("MEMORY", "MEMORY", id="other-nontransactional"),
+        pytest.param(None, "NULL", id="null"),
+    ],
+)
+def test_mysql_refuses_a_non_innodb_storage_engine(
+    tmp_path: Path, engine: str | None, reported: str
+) -> None:
+    """Rollback-only verification is valid only for an InnoDB table."""
+    db_path = tmp_path / f"{reported.lower()}_engine.db"
+    _seed_table(db_path, engine=engine)
+
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    message = str(excinfo.value)
+    assert "InnoDB" in message
+    assert reported in message
+    assert "pi_eod_snapshot" in message
+
+
+@pytest.mark.parametrize(
+    ("metadata", "reported"),
+    [
+        pytest.param(None, "missing", id="missing-row"),
+        pytest.param({"TABLE_COMMENT": ""}, "missing", id="missing-engine-field"),
+        pytest.param(
+            {"TABLE_COMMENT": "", "ENGINE": None},
+            "NULL",
+            id="null-engine-field",
+        ),
+    ],
+)
+def test_mysql_refuses_missing_storage_engine_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    metadata: dict[str, Any] | None,
+    reported: str,
+) -> None:
+    """Missing dictionary evidence must not be treated as transactional."""
+
+    def _answer_metadata(cur: _FakeCursor, _bound: tuple) -> None:
+        cur._answer([] if metadata is None else [dict(metadata)])
+
+    monkeypatch.setattr(_FakeCursor, "_select_table_metadata", _answer_metadata)
+    pool = _FakePool(tmp_path / "missing_engine_metadata.db")
+
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        MysqlSnapshotStore(connection_pool=pool)
+
+    message = str(excinfo.value)
+    assert "InnoDB" in message
+    assert reported in message
+
+
+def test_mysql_checks_engine_before_probe_stamp_or_ready_mark(tmp_path: Path) -> None:
+    """A MyISAM table receives no rollback-only writes or schema adoption."""
+    db_path = tmp_path / "ordering.db"
+    original_comment = "operator-owned legacy table"
+    _seed_table(db_path, comment=original_comment, engine="MyISAM")
+    pool = _FakePool(db_path)
+
+    with pytest.raises(SnapshotSchemaMismatch, match="MyISAM"):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.begins == 0, "the rollback-only behavior probe ran before ENGINE"
+    assert pool.rollbacks == 0
+    assert not any(
+        any(
+            isinstance(value, str)
+            and value.startswith(store_module._LIVE_GUARD_PROBE_PREFIX)
+            for value in params
+        )
+        for _, params in pool.statements
+    )
+    assert not any(
+        sql == mysql_store_module._STAMP_SCHEMA_COMMENT for sql, _ in pool.statements
+    )
+    assert _table_comment(db_path) == original_comment
+    assert pool not in mysql_store_module._SCHEMA_READY
+
+
+def test_mysql_engine_refusal_is_not_a_pool_connection_fault(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A nontransactional table is a schema fault, not a pool failure."""
+    db_path = tmp_path / "engine_quiet.db"
+    _seed_table(db_path, engine="MyISAM")
+    pool = _FakePool(db_path)
+
+    with caplog.at_level(logging.ERROR, logger=_POOL_LOGGER), pytest.raises(
+        SnapshotSchemaMismatch, match="MyISAM"
+    ):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.errors == []
+    assert _pool_errors(caplog) == []
+
+
+def test_mysql_accepts_case_insensitive_innodb_engine_metadata(tmp_path: Path) -> None:
+    """The server's canonical engine name may differ only in letter case."""
+    db_path = tmp_path / "innodb.db"
+    _seed_table(db_path, engine="iNnOdB")
+    pool = _FakePool(db_path)
+
+    MysqlSnapshotStore(connection_pool=pool)
+    with pool.get_connection() as conn, conn.cursor() as cur:
+        cur.execute(mysql_store_module._SELECT_SCHEMA_COMMENT, ("pi_eod_snapshot",))
+        metadata = cur.fetchone()
+
+    assert metadata["ENGINE"] == "iNnOdB"
+    assert pool.begins == 1
+    assert pool.rollbacks == 1
+    assert pool in mysql_store_module._SCHEMA_READY
 
 
 def test_mysql_refuses_a_table_with_no_live_key_column(tmp_path: Path) -> None:
@@ -3528,6 +3695,84 @@ def test_mysql_live_guard_rejects_one_layer_literal_changed_by_outer_decode() ->
     assert "single-LIVE" in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    "expression",
+    [
+        pytest.param(
+            "if((`state` := _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="one-layer-assignment",
+        ),
+        pytest.param(
+            "if((`state` := _utf8mb4\\'live\\'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="two-layer-assignment",
+        ),
+    ],
+)
+def test_mysql_live_guard_rejects_unconsumed_assignment_punctuation(
+    expression: str,
+) -> None:
+    """A dropped colon must never turn MySQL assignment into equality."""
+    guard = [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+        )
+    ]
+
+    assert store_module._generation_expression_tokens(expression) is None
+    with pytest.raises(SnapshotSchemaMismatch) as excinfo:
+        store_module._check_mysql_live_guard({"live_key": expression}, guard)
+
+    assert "single-LIVE" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        pytest.param(
+            "if((`ſtate` = _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="unicode-casefold-identifier",
+        ),
+        pytest.param(
+            "if((`state`\v= _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="vertical-tab",
+        ),
+        pytest.param(
+            "(if((`state` = _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL)",
+            id="unmatched-opening-parenthesis",
+        ),
+        pytest.param(
+            "if((`state` = _utf8mb4'live'),concat(`dataset`,"
+            "char(31),`entity_key`),NULL))",
+            id="unmatched-closing-parenthesis",
+        ),
+        pytest.param(
+            "`if(state='live',concat(dataset,char(31),entity_key),null)`",
+            id="whole-expression-quoted-identifier",
+        ),
+        pytest.param(
+            "if((`state` = _utf8mb4'live'),concat(`dataset`,"
+            "char(31 using utf16),`entity_key`),NULL)",
+            id="unapproved-char-charset",
+        ),
+    ],
+)
+def test_mysql_live_guard_rejects_structural_token_spoofs(expression: str) -> None:
+    """Only the exact typed expression and utf8mb4 decoration are accepted."""
+    guard = [
+        store_module._IndexShape(
+            name="ux_pi_eod_snapshot_live", unique=True, columns=("live_key",)
+        )
+    ]
+
+    with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+        store_module._check_mysql_live_guard({"live_key": expression}, guard)
+
+
 def test_mysql_live_guard_rejects_near_matches_in_one_layer_representation() -> None:
     """Reject altered one-layer MySQL 5.7/MariaDB representations.
 
@@ -3595,7 +3840,7 @@ def test_mysql_live_guard_rejects_near_matches_in_two_layer_849_representation(
 ) -> None:
     r"""Peeling MySQL's escaping must not cost the guard its teeth.
 
-    Reverse-verified: mutating `_canonical_generation_expression` to
+    Reverse-verified: mutating `_generation_expression_tokens` to
     strip backslashes wholesale (``expression.replace("\\", "")``)
     keeps the accept test green and turns every case here into a false
     accept -- so these are the cases that pin the fix to *decoding* the
@@ -3625,18 +3870,18 @@ def test_mysql_live_guard_rejects_near_matches_in_two_layer_849_representation(
 _ESCAPED_GENERATION_EXPRESSIONS = (
     (
         "if((`s` = _utf8mb4\\'li\\\\\\'ve\\'),_utf8mb4\\'x\\',NULL)",
-        "if(s='li''ve','x',null)",
+        ("li've", "x"),
     ),
     (
         "if((`s` = _utf8mb4\\'a\\\\\\\\b\\'),_utf8mb4\\'y\\',NULL)",
-        "if(s='a\\b','y',null)",
+        ("a\\b", "y"),
     ),
 )
 
 
-@pytest.mark.parametrize("reported,canonical", _ESCAPED_GENERATION_EXPRESSIONS)
-def test_generation_expression_canonicalizer_recovers_the_literal_mysql_meant(
-    reported: str, canonical: str
+@pytest.mark.parametrize("reported,literal_values", _ESCAPED_GENERATION_EXPRESSIONS)
+def test_generation_expression_tokenizer_recovers_the_literal_mysql_meant(
+    reported: str, literal_values: tuple[str, ...]
 ) -> None:
     """Both escaping layers are peeled, and the literal survives intact.
 
@@ -3645,7 +3890,16 @@ def test_generation_expression_canonicalizer_recovers_the_literal_mysql_meant(
     of the expression is re-lexed as garbage); with only the inner pass
     neither case parses as a literal at all.
     """
-    assert store_module._canonical_generation_expression(reported) == canonical
+    tokens = store_module._generation_expression_tokens(reported)
+    assert tokens is not None
+    assert (
+        tuple(
+            token.value
+            for token in tokens
+            if token.kind is store_module._SqlTokenKind.STRING
+        )
+        == literal_values
+    )
 
 
 def test_sqlite_predicate_is_read_without_mysql_backslash_escapes() -> None:
@@ -3657,14 +3911,11 @@ def test_sqlite_predicate_is_read_without_mysql_backslash_escapes() -> None:
     the MySQL path must do -- would hand that index a pass, so the two
     dialects must not share one literal syntax.
 
-    Reverse-verified: defaulting `_canonical_sql`'s `backslash_escapes`
+    Reverse-verified: defaulting `_sql_tokens`'s `backslash_escapes`
     to ``True`` (or peeling in `_check_sqlite_live_guard`) makes the
     refusal below stop firing.
     """
-    assert (
-        store_module._canonical_sql(r"state = 'li\ve'")
-        not in store_module._SQLITE_LIVE_PREDICATE_FORMS
-    )
+    assert not store_module._is_sqlite_live_predicate(r"state = 'li\ve'")
     with pytest.raises(SnapshotSchemaMismatch):
         store_module._check_sqlite_live_guard(
             [
@@ -3710,6 +3961,55 @@ def test_mysql_live_guard_refusal_is_not_a_pool_connection_fault(
 
     assert pool.errors == []
     assert _pool_errors(caplog) == []
+
+
+@pytest.mark.parametrize(
+    ("live_key_sql", "index_sql"),
+    [
+        pytest.param(_GOOD_LIVE_KEY_SQL, None, id="duplicate-live-is-allowed"),
+        pytest.param(
+            "live_key TEXT GENERATED ALWAYS AS "
+            "(IIF(state = 'staging', concat(dataset, char(31), entity_key), NULL)) "  # codespell:ignore
+            "STORED",
+            "CREATE UNIQUE INDEX ux_pi_eod_snapshot_live "
+            "ON pi_eod_snapshot(live_key)",
+            id="second-staged-row-is-refused",
+        ),
+    ],
+)
+def test_mysql_empirical_probe_rejects_wrong_guard_behavior(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    live_key_sql: str,
+    index_sql: str | None,
+) -> None:
+    """The engine must reject duplicate LIVE and allow duplicate STAGING."""
+    db_path = tmp_path / "empirical_guard.db"
+    _seed_table(db_path, live_key_sql=live_key_sql, index_sql=index_sql)
+    pool = _FakePool(db_path)
+    monkeypatch.setattr(mysql_store_module, "_check_mysql_live_guard", lambda *_: None)
+
+    with pytest.raises(SnapshotSchemaMismatch, match="single-LIVE"):
+        MysqlSnapshotStore(connection_pool=pool)
+
+    assert _table_comment(db_path) is None
+    assert pool.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 0
+    assert pool.closed_with_open_txn == 0
+    assert pool.errors == []
+
+
+def test_mysql_empirical_probe_rolls_back_every_probe_row(tmp_path: Path) -> None:
+    """A successful construction proves the guard without persisting samples."""
+    pool = _FakePool(tmp_path / "probe_rollback.db")
+
+    MysqlSnapshotStore(connection_pool=pool)
+
+    assert pool.begins == 1
+    assert pool.commits == 0
+    assert pool.rollbacks == 1
+    assert pool.raw.execute("SELECT COUNT(*) FROM pi_eod_snapshot").fetchone()[0] == 0
+    assert pool.closed_with_open_txn == 0
+    assert pool.errors == []
 
 
 def test_mysql_index_probe_asks_information_schema_for_statistics() -> None:
@@ -3986,6 +4286,7 @@ def test_the_version_probe_asks_information_schema_for_the_table_comment() -> No
     probe = mysql_store_module._SELECT_SCHEMA_COMMENT
     assert "information_schema.TABLES" in probe
     assert "TABLE_COMMENT" in probe
+    assert "ENGINE" in probe
     assert "DATABASE()" in probe
     assert (
         mysql_store_module._STAMP_SCHEMA_COMMENT.count("%s") == 1
@@ -4075,7 +4376,7 @@ def test_information_schema_returns_no_comment_row_for_a_missing_table(
         assert cur.fetchone() is None
         cur.execute(_PI_EOD_SNAPSHOT_DDL)
         cur.execute(mysql_store_module._SELECT_SCHEMA_COMMENT, ("pi_eod_snapshot",))
-        assert cur.fetchone() == {"TABLE_COMMENT": ""}
+        assert cur.fetchone() == {"TABLE_COMMENT": "", "ENGINE": "InnoDB"}
 
 
 # ---------------------------------------------------------------------------
@@ -4886,7 +5187,7 @@ def _live_mysql_store() -> Iterator[MysqlSnapshotStore]:
 @pytest.mark.requires_mysql
 @_requires_live_mysql
 def test_live_mysql_accepts_the_ddl_and_enforces_the_generated_live_key() -> None:
-    """The real server parses the DDL and honours the single-LIVE key."""
+    """The real server allows STAGING, rejects duplicate LIVE, and rolls back."""
     with _live_mysql_store() as store:
         staged = _stage(
             store,
@@ -4901,7 +5202,17 @@ def test_live_mysql_accepts_the_ddl_and_enforces_the_generated_live_key() -> Non
             get_connection_pool,
         )
 
-        with get_connection_pool().get_connection() as conn, conn.cursor() as cur:
+        pool = get_connection_pool()
+        with pool.get_connection() as conn:
+            mysql_store_module._probe_mysql_live_guard(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) AS n FROM pi_eod_snapshot WHERE dataset LIKE %s",
+                    (f"{store_module._LIVE_GUARD_PROBE_PREFIX}%",),
+                )
+                assert cur.fetchone()["n"] == 0
+
+        with pool.get_connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT live_key FROM pi_eod_snapshot WHERE dataset = %s "
                 "AND state = 'live'",
@@ -4972,15 +5283,15 @@ def test_live_mysql_round_trips_every_protocol_entry_point() -> None:
 @pytest.mark.integration
 @pytest.mark.requires_mysql
 @_requires_live_mysql
-def test_live_mysql_pins_binary_collation_on_the_key_columns() -> None:
-    """The server reports the collation the DDL asked for, not the default.
+def test_live_mysql_pins_innodb_and_binary_collation_on_the_key_columns() -> None:
+    """The server reports InnoDB and the collations the DDL asked for.
 
     Runs the *production* check over the *production* probe's answer, so
-    it proves the two agree on a real server: that the column names the
-    check requires are names `information_schema` actually reports, and
-    that `utf8mb4_bin` is the spelling this MySQL version returns for a
-    column the DDL pinned. The double cannot answer either question --
-    it renders both sides itself.
+    it proves they agree on a real server: that the table engine and column
+    names the check requires are values `information_schema` actually
+    reports, and that `utf8mb4_bin` is the spelling this MySQL version
+    returns for a column the DDL pinned. The double cannot answer those
+    questions -- it renders both sides itself.
     """
     with _live_mysql_store() as store:
         del store
@@ -4997,7 +5308,14 @@ def test_live_mysql_pins_binary_collation_on_the_key_columns() -> None:
                 record["COLUMN_NAME"]: record["COLLATION_NAME"]
                 for record in cur.fetchall()
             }
+            cur.execute(
+                mysql_store_module._SELECT_SCHEMA_COMMENT,
+                ("pi_eod_snapshot",),
+            )
+            table_metadata = cur.fetchone()
 
+    assert table_metadata is not None
+    assert table_metadata["ENGINE"].casefold() == "innodb"
     for column in store_module._MYSQL_BINARY_COLLATED_COLUMNS:
         assert (
             collations[column] == "utf8mb4_bin"
