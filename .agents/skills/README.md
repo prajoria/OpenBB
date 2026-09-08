@@ -3,6 +3,13 @@
 This directory holds **project-scoped skills** discovered by VS Code Copilot and
 Claude Code (each subfolder has a `SKILL.md` with YAML frontmatter).
 
+## Repository model policy
+
+Every skill that launches an agent or subagent must explicitly use
+`gpt-5.6-sol`. A skill must not recommend or dispatch an execution agent on a
+different model, model alias, cost tier, or fallback. Product models being
+deployed, trained, evaluated, or documented are outside this execution policy.
+
 ## Why these live in the repo
 
 Most folders here are **mirrored from user scope** (`~/.agents/skills/`) so the
@@ -21,4 +28,5 @@ Plugin **commands** are vendored separately under `.claude/commands/`.
 
 These are static copies. To re-sync after updating skills in user scope, re-copy
 the changed folders from `~/.agents/skills/` (skip the two project-specific ones
-above). The vendored skills are safe to delete individually if unwanted.
+above), then reapply and validate the repository model policy. The vendored
+skills are safe to delete individually if unwanted.

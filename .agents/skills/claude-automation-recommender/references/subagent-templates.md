@@ -1,6 +1,8 @@
 # Subagent Recommendations
 
-Subagents are specialized Claude instances that run in parallel, each with their own context window and tool access. They're ideal for focused reviews, analysis, or generation tasks.
+Subagents are specialized `gpt-5.6-sol` instances that run in parallel, each
+with their own context window and tool access. They're ideal for focused
+reviews, analysis, or generation tasks.
 
 **Note**: These are common patterns. Design custom subagents based on the codebase's specific review and analysis needs.
 
@@ -16,7 +18,7 @@ Subagents are specialized Claude instances that run in parallel, each with their
 | Team wants consistent review | Quality focus |
 
 **Value**: Runs code review in parallel while you continue working
-**Model**: sonnet (balanced quality/speed)
+**Model**: `gpt-5.6-sol`
 **Tools**: Read, Grep, Glob, Bash
 
 ---
@@ -32,7 +34,7 @@ Subagents are specialized Claude instances that run in parallel, each with their
 | API keys in code | Environment variable patterns |
 
 **Value**: Catches OWASP vulnerabilities, auth issues, data exposure
-**Model**: sonnet
+**Model**: `gpt-5.6-sol`
 **Tools**: Read, Grep, Glob (read-only for safety)
 
 ---
@@ -47,7 +49,7 @@ Subagents are specialized Claude instances that run in parallel, each with their
 | Testing framework configured | jest, pytest, vitest in deps |
 
 **Value**: Generates tests matching project conventions
-**Model**: sonnet
+**Model**: `gpt-5.6-sol`
 **Tools**: Read, Write, Grep, Glob
 
 ---
@@ -65,7 +67,7 @@ Subagents are specialized Claude instances that run in parallel, each with their
 | Undocumented APIs | Routes without docs |
 
 **Value**: Generates OpenAPI specs, endpoint documentation
-**Model**: sonnet
+**Model**: `gpt-5.6-sol`
 **Tools**: Read, Write, Grep, Glob
 
 ---
@@ -81,7 +83,7 @@ Subagents are specialized Claude instances that run in parallel, each with their
 | Complex algorithms | Nested loops, recursion |
 
 **Value**: Finds N+1 queries, O(n²) algorithms, memory leaks
-**Model**: sonnet
+**Model**: `gpt-5.6-sol`
 **Tools**: Read, Grep, Glob, Bash
 
 ---
@@ -96,7 +98,7 @@ Subagents are specialized Claude instances that run in parallel, each with their
 | User-facing UI | Not just API project |
 
 **Value**: Catches accessibility issues, UX problems, responsive design gaps
-**Model**: sonnet
+**Model**: `gpt-5.6-sol`
 **Tools**: Read, Grep, Glob
 
 ---
@@ -113,7 +115,7 @@ Subagents are specialized Claude instances that run in parallel, each with their
 | Major version behind | Significant version gaps |
 
 **Value**: Updates dependencies incrementally with testing
-**Model**: sonnet
+**Model**: `gpt-5.6-sol`
 **Tools**: Read, Write, Bash, Grep
 
 ---
@@ -128,7 +130,7 @@ Subagents are specialized Claude instances that run in parallel, each with their
 | Refactoring planned | Architectural changes |
 
 **Value**: Plans and executes migrations incrementally
-**Model**: opus (complex reasoning needed)
+**Model**: `gpt-5.6-sol`
 **Tools**: Read, Write, Grep, Glob, Bash
 
 ---
@@ -164,11 +166,8 @@ Subagents go in `.claude/agents/`:
 
 ## Model Selection Guide
 
-| Model | Best For | Trade-off |
-|-------|----------|-----------|
-| **haiku** | Simple, repetitive checks | Fast, cheap, less thorough |
-| **sonnet** | Most review/analysis tasks | Balanced (recommended default) |
-| **opus** | Complex migrations, architecture | Thorough, slower, more expensive |
+Use `gpt-5.6-sol` for every recommended subagent. Specify the full model ID
+explicitly; do not use aliases or substitute another model.
 
 ---
 
