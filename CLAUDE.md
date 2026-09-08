@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Required Agent Model
+
+Use `gpt-5.6-sol` exclusively for every agent and subagent working on this
+repository. Specify it explicitly on every dispatch that accepts a model. If it
+is unavailable, stop and report the blocker; do not substitute another model.
+This restriction applies to execution agents, not models deployed, trained,
+evaluated, or documented by the product.
+
 ## Workspace override — Portfolio Validation checkout
 
 These rules apply whenever the repository is opened from

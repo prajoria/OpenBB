@@ -185,5 +185,5 @@ Run a comprehensive pull request review using multiple specialized agents, each 
 - Agents run autonomously and return detailed reports
 - Each agent focuses on its specialty for deep analysis
 - Results are actionable with specific file:line references
-- Agents use appropriate models for their complexity
+- Every agent explicitly uses `gpt-5.6-sol`
 - All agents available in `/agents` list

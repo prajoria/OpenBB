@@ -1,5 +1,13 @@
 # Agent Instructions
 
+## Required Agent Model
+
+Use `gpt-5.6-sol` exclusively for every agent and subagent working on this
+repository. Specify it explicitly on every dispatch that accepts a model. If it
+is unavailable, stop and report the blocker; do not substitute another model.
+This restriction applies to execution agents, not models deployed, trained,
+evaluated, or documented by the product.
+
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
 > **Architecture in one line:** Issues live in a local Dolt database
