@@ -6,7 +6,9 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from decimal import Decimal
+from uuid import UUID
 
+from openbb_techtrade.execution.broker_contract import OrderReceipt
 from openbb_techtrade.execution.order_sink import (
     OrderBatch,
     OrderTicket,
@@ -354,4 +356,14 @@ def deserialize_approved_batch(payload_json: str) -> OrderBatch:
             if context is not None
             else None
         ),
+    )
+
+
+def order_receipt_from_row(row: sqlite3.Row) -> OrderReceipt:
+    """Convert one SQLite audit-order row to its public receipt."""
+    return OrderReceipt(
+        order_uuid=UUID(row["order_uuid"]),
+        broker_order_id=row["broker_order_id"],
+        status=row["status"],
+        error=row["error"],
     )

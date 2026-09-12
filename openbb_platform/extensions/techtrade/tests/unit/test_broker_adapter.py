@@ -858,6 +858,36 @@ class TestExecutionGateway:
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert raised.value.receipt.orders[0].broker_order_id == "live-1"
 
+    def test_broker_and_failure_audit_errors_keep_reconciliation_receipt(
+        self,
+        audit: SqliteExecutionAuditStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        gateway = _gateway(
+            LiveBrokerAdapter(_FakeLiveClient(fail_at=0), account_id="fake-live"),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT")
+        monkeypatch.setattr(
+            audit,
+            "record_failure",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                sqlite3.OperationalError("disk full")
+            ),
+        )
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+        assert raised.value.receipt.submission_id
+
     def test_malformed_live_acknowledgements_require_reconciliation(
         self, audit: SqliteExecutionAuditStore
     ) -> None:
@@ -1243,6 +1273,42 @@ class TestExecutionGateway:
             )
         assert "fake cancel failure" not in audit.get_order(order_uuid).error
         assert audit.get_order(order_uuid).status == "CANCEL_RECONCILIATION_REQUIRED"
+
+    def test_broker_and_cancel_audit_errors_stay_typed(
+        self,
+        audit: SqliteExecutionAuditStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class FailingCancelEngine(_FakePaperEngine):
+            def cancel_order(self, order_id: str, reason: str = "") -> None:
+                raise RuntimeError("fake cancel failure")
+
+        gateway = _gateway(
+            PaperBrokerAdapter(FailingCancelEngine()),
+            audit,
+            mode=ExecutionMode.PAPER,
+        )
+        batch = _batch("MSFT")
+        receipt = gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(batch),
+        )
+        monkeypatch.setattr(
+            audit,
+            "record_cancel",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                sqlite3.OperationalError("disk full")
+            ),
+        )
+
+        with pytest.raises(CancellationError, match="audit persistence"):
+            gateway.cancel(
+                receipt.orders[0].order_uuid,
+                confirmation=gateway.expected_cancel_confirmation(
+                    receipt.orders[0].order_uuid
+                ),
+            )
 
     def test_concurrent_cancel_reserves_single_broker_call(
         self, tmp_path: Path

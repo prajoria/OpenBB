@@ -40,6 +40,7 @@ from openbb_techtrade.execution.broker_contract import (
 from openbb_techtrade.execution.execution_audit_schema import (
     deserialize_approved_batch,
     ensure_schema,
+    order_receipt_from_row,
     serialize_approved_batch,
 )
 from openbb_techtrade.execution.order_sink import OrderBatch
@@ -451,7 +452,7 @@ class SqliteExecutionAuditStore:
             ).fetchone()
             if row is None:
                 raise ExecutionError(f"unknown audited order UUID {order_uuid}")
-            order = _order_from_row(row)
+            order = order_receipt_from_row(row)
             if order.status == "CANCELLED":
                 return order, False
             if order.status in {"CANCELLING", "CANCEL_RECONCILIATION_REQUIRED"}:
@@ -495,7 +496,7 @@ class SqliteExecutionAuditStore:
             ).fetchone()
         if row is None:
             raise ExecutionError(f"unknown audited order UUID {order_uuid}")
-        return _order_from_row(row)
+        return order_receipt_from_row(row)
 
     def get_order_context(
         self, order_uuid: uuid.UUID
@@ -511,7 +512,7 @@ class SqliteExecutionAuditStore:
         if row is None:
             raise ExecutionError(f"unknown audited order UUID {order_uuid}")
         return (
-            _order_from_row(row),
+            order_receipt_from_row(row),
             ExecutionMode(row["mode"]),
             row["broker_id"],
             row["account_id"],
@@ -668,7 +669,7 @@ class SqliteExecutionAuditStore:
             plan_id=submission["plan_id"],
             batch_sha256=submission["batch_sha256"],
             status=SubmissionStatus(submission["status"]),
-            orders=tuple(_order_from_row(row) for row in rows),
+            orders=tuple(order_receipt_from_row(row) for row in rows),
             created_at=_from_iso(submission["created_at"]),
             updated_at=_from_iso(submission["updated_at"]),
             error=submission["error"],
@@ -806,23 +807,33 @@ class ExecutionGateway:
             )
             malformed = malformed_completed or malformed_failed
             trusted_completed = () if malformed else exc.completed
-            failed = self.audit_store.record_failure(
-                receipt.submission_id,
-                error=str(exc),
-                completed=trusted_completed,
-                failed_order_uuid=(None if malformed else exc.failed_order_uuid),
-                outcome_unknown=exc.outcome_unknown or malformed,
-            )
+            try:
+                failed = self.audit_store.record_failure(
+                    receipt.submission_id,
+                    error=str(exc),
+                    completed=trusted_completed,
+                    failed_order_uuid=(None if malformed else exc.failed_order_uuid),
+                    outcome_unknown=exc.outcome_unknown or malformed,
+                )
+            except Exception:
+                failed = reconciliation_receipt(
+                    receipt,
+                    trusted_completed,
+                    str(exc),
+                )
             raise ExecutionSubmissionError(str(exc), failed) from exc
         except Exception as exc:
             safe_error = f"broker operation failed ({type(exc).__name__})"
-            failed = self.audit_store.record_failure(
-                receipt.submission_id,
-                error=safe_error,
-                completed=(),
-                failed_order_uuid=None,
-                outcome_unknown=True,
-            )
+            try:
+                failed = self.audit_store.record_failure(
+                    receipt.submission_id,
+                    error=safe_error,
+                    completed=(),
+                    failed_order_uuid=None,
+                    outcome_unknown=True,
+                )
+            except Exception:
+                failed = reconciliation_receipt(receipt, (), safe_error)
             raise ExecutionSubmissionError(safe_error, failed) from exc
         try:
             return self.audit_store.record_success(
@@ -894,11 +905,14 @@ class ExecutionGateway:
             self.adapter.cancel_order(order.broker_order_id)
         except Exception as exc:
             safe_error = f"broker cancellation failed ({type(exc).__name__})"
-            self.audit_store.record_cancel(
-                order_uuid,
-                status="CANCEL_RECONCILIATION_REQUIRED",
-                error=safe_error,
-            )
+            try:
+                self.audit_store.record_cancel(
+                    order_uuid,
+                    status="CANCEL_RECONCILIATION_REQUIRED",
+                    error=safe_error,
+                )
+            except Exception:
+                safe_error += "; audit persistence failed, reconciliation required"
             raise CancellationError(safe_error) from exc
         try:
             return self.audit_store.record_cancel(order_uuid, status="CANCELLED")
@@ -965,15 +979,6 @@ def get_default_broker_adapter(
 def get_default_paper_broker_id() -> str:
     """Return the configured paper broker/ledger identity without writes."""
     return f"paper-engine-{paper_engine_module.get_default_execution_scope_id()}"
-
-
-def _order_from_row(row: sqlite3.Row) -> OrderReceipt:
-    return OrderReceipt(
-        order_uuid=uuid.UUID(row["order_uuid"]),
-        broker_order_id=row["broker_order_id"],
-        status=row["status"],
-        error=row["error"],
-    )
 
 
 def _now() -> datetime:
