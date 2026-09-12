@@ -265,6 +265,7 @@ class LiveBrokerAdapter:
                     "live broker returned an empty order identifier",
                     completed=completed,
                     failed_order_uuid=order_uuid,
+                    outcome_unknown=True,
                 )
             completed.append(BrokerOrderAck(order_uuid, str(broker_order_id)))
         return tuple(completed)

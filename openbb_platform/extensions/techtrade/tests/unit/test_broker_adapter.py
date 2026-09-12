@@ -155,6 +155,21 @@ class TestAdapterContract:
         assert "fake broker rejected order" not in str(raised.value)
         assert "RuntimeError" in str(raised.value)
 
+    def test_empty_live_acknowledgement_requires_reconciliation(self) -> None:
+        class EmptyAckClient(_FakeLiveClient):
+            def submit_order(self, ticket: OrderTicket, *, client_order_id: str) -> str:
+                return ""
+
+        adapter = LiveBrokerAdapter(EmptyAckClient(), account_id="fake-live")
+
+        with pytest.raises(BrokerBatchError) as raised:
+            adapter.submit_batch(
+                _batch("MSFT"),
+                (UUID("00000000-0000-4000-8000-000000000001"),),
+            )
+
+        assert raised.value.outcome_unknown is True
+
 
 class TestExecutionGateway:
     def test_submission_requires_all_gates(
