@@ -558,7 +558,8 @@ def test_promote_many_is_all_or_nothing(tmp_path) -> None:
     assert store.get_live("techtrade.movers", "symbol=MSFT") is None
     assert {
         row.job_run_id: row.state
-        for row in store.rows_for_job("new-a") + store.rows_for_job("new-b")
+        for row in store.list_history("techtrade.movers", "symbol=AAPL")
+        + store.list_history("techtrade.movers", "symbol=MSFT")
     } == {
         "new-a": SnapshotState.STAGING,
         "new-b": SnapshotState.STAGING,
@@ -1840,15 +1841,10 @@ def test_mysql_fallback_warning_covers_a_refused_schema(
         store.close()
 
 
-def test_mysql_fallback_keeps_the_full_exception_at_debug(
+def test_mysql_fallback_sanitizes_debug_exception(
     monkeypatch, tmp_path, caplog
 ) -> None:
-    """Withholding the message from WARNING must not destroy it.
-
-    An operator who needs the driver's own words turns on DEBUG for this
-    module and gets the whole traceback -- an opt-in, at a level that
-    does not land in shared WARNING-and-above sinks by default.
-    """
+    """Debug logging must not reintroduce a driver message hidden at WARNING."""
     monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
     monkeypatch.setattr(
         store_module, "_make_mysql_store", _raise_driver_error_with_credentials
@@ -1860,9 +1856,10 @@ def test_mysql_fallback_keeps_the_full_exception_at_debug(
         debug_records = [
             record for record in caplog.records if record.levelno == logging.DEBUG
         ]
-        assert debug_records, "the swallowed exception must survive at DEBUG"
-        assert any(record.exc_info for record in debug_records)
-        assert _LEAKED_DETAIL in caplog.text
+        assert debug_records
+        assert all(record.exc_info is None for record in debug_records)
+        assert _LEAKED_DETAIL not in caplog.text
+        assert "DriverError" in caplog.text
     finally:
         store.close()
 

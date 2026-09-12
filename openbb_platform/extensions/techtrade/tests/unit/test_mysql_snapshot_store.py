@@ -1853,6 +1853,20 @@ def test_mysql_rejects_registered_pii_dataset(pool: _FakePool) -> None:
         store.prune(RetentionPolicy(keep_sessions=0))
 
 
+def test_mysql_rejects_unregistered_reserved_pii_namespace(
+    store: MysqlSnapshotStore,
+) -> None:
+    with pytest.raises(PiiSharedStoreViolation):
+        _stage(
+            store,
+            dataset="pi.account.weights",
+            payload={"synthetic": True},
+            job_run_id="reserved-pii",
+        )
+    with pytest.raises(PiiSharedStoreViolation):
+        store.get_live("pi.account.weights", "portfolio=private")
+
+
 def test_mysql_rejects_padded_job_run_ids(store: MysqlSnapshotStore) -> None:
     with pytest.raises(ValueError, match="job_run_id"):
         _stage(

@@ -763,7 +763,9 @@ class MysqlSnapshotStore:
     def _reject_pii(self, dataset: str) -> None:
         """Refuse shared-store mutation for a registered PII dataset."""
         definition = self._dataset_registry.get(dataset)
-        if definition is not None and definition.pii_scoped:
+        if (definition is not None and definition.pii_scoped) or (
+            definition is None and canonical_key(dataset).startswith("pi.")
+        ):
             raise PiiSharedStoreViolation(
                 "PII-scoped snapshots cannot be written to shared MySQL storage"
             )
@@ -1440,6 +1442,7 @@ class MysqlSnapshotStore:
             (canonical_key(dataset), canonical_key(entity), session, run_id)
             for dataset, entity, session, run_id in candidates
         ]
+        normalized.sort(key=lambda candidate: candidate[:2])
         for _dataset, _entity, _session, run_id in normalized:
             _check_job_run_id(run_id)
         for dataset, _entity, _session, _run_id in normalized:
@@ -1473,6 +1476,7 @@ class MysqlSnapshotStore:
             (canonical_key(dataset), canonical_key(entity), session, run_id)
             for dataset, entity, session, run_id in candidates
         ]
+        normalized.sort(key=lambda candidate: candidate[:2])
         _check_job_run_id(job_run_id)
         for _dataset, _entity, _session, run_id in normalized:
             _check_job_run_id(run_id)

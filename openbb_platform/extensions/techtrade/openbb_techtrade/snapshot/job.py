@@ -1,5 +1,7 @@
 """Snapshot-job value types and privacy-safe error vocabulary."""
 
+# pylint: disable=unnecessary-ellipsis
+
 from __future__ import annotations
 
 import re

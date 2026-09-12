@@ -2919,6 +2919,7 @@ class SqliteSnapshotStore:
             (canonical_key(dataset), canonical_key(entity), session, run_id)
             for dataset, entity, session, run_id in candidates
         ]
+        normalized.sort(key=lambda candidate: candidate[:2])
         for _dataset, _entity, _session, run_id in normalized:
             _check_job_run_id(run_id)
         try:
@@ -2950,6 +2951,7 @@ class SqliteSnapshotStore:
             (canonical_key(dataset), canonical_key(entity), session, run_id)
             for dataset, entity, session, run_id in candidates
         ]
+        normalized.sort(key=lambda candidate: candidate[:2])
         _check_job_run_id(job_run_id)
         for _dataset, _entity, _session, run_id in normalized:
             _check_job_run_id(run_id)
@@ -3410,6 +3412,7 @@ class SqliteSnapshotStore:
     def rows_for_job(self, job_run_id: str) -> list[SnapshotRow]:
         """Return snapshot rows staged by one durable job."""
         _check_job_run_id(job_run_id)
+        job = self.get_job(job_run_id)
         with _SQLITE_LOCK:
             records = self._conn.execute(
                 "SELECT dataset, entity_key, as_of_session, created_at, "
@@ -3419,7 +3422,12 @@ class SqliteSnapshotStore:
                 "WHERE job_run_id = ? ORDER BY entity_key",
                 (job_run_id,),
             ).fetchall()
-        return [_row_from_mapping(record) for record in records]
+        rows = [_row_from_mapping(record) for record in records]
+        if job is None and rows:
+            raise SnapshotJobTransitionError(
+                "snapshot rows have no corresponding job record"
+            )
+        return rows
 
     def prune(
         self,
@@ -3643,8 +3651,8 @@ def get_default_snapshot_store(
                 resolved,
             )
             logger.debug(
-                "get_default_snapshot_store: MySQL backend construction failed",
-                exc_info=True,
+                "get_default_snapshot_store: MySQL backend construction failed (%s)",
+                _exception_label(exc),
             )
             # fall through to sqlite
 

@@ -1,5 +1,7 @@
 """Standalone main-thread orchestration for post-close snapshot refreshes."""
 
+# pylint: disable=unnecessary-ellipsis
+
 from __future__ import annotations
 
 import argparse
@@ -174,34 +176,35 @@ class SnapshotRefreshOrchestrator:
                     input_hash = snapshot_input_hash(
                         computed.inputs, computed.engine_version
                     )
-                    store.stage(
-                        definition.name,
-                        raw_key,
-                        as_of_session,
-                        job_run_id,
-                        computed.payload,
-                        status=SnapshotStatus.OK,
-                        input_hash=input_hash,
-                        row_count=computed.row_count,
-                        engine_version=computed.engine_version,
-                        payload_schema_version=computed.payload_schema_version,
-                    )
-                    verdict = store.validate(
-                        definition.name, raw_key, as_of_session, job_run_id
-                    )
-                    if not verdict.ok:
-                        failures[raw_key] = "validation_failed"
-                        continue
-                    successes.append(
-                        (
-                            definition.name,
-                            canonical_key(raw_key),
-                            as_of_session,
-                            job_run_id,
-                        )
-                    )
                 except Exception as exc:  # noqa: BLE001
                     failures[raw_key] = exc
+                    continue
+                store.stage(
+                    definition.name,
+                    raw_key,
+                    as_of_session,
+                    job_run_id,
+                    computed.payload,
+                    status=SnapshotStatus.OK,
+                    input_hash=input_hash,
+                    row_count=computed.row_count,
+                    engine_version=computed.engine_version,
+                    payload_schema_version=computed.payload_schema_version,
+                )
+                verdict = store.validate(
+                    definition.name, raw_key, as_of_session, job_run_id
+                )
+                if not verdict.ok:
+                    failures[raw_key] = "validation_failed"
+                    continue
+                successes.append(
+                    (
+                        definition.name,
+                        canonical_key(raw_key),
+                        as_of_session,
+                        job_run_id,
+                    )
+                )
 
             store.record_job_errors(job_run_id, failures)
             if failures:
