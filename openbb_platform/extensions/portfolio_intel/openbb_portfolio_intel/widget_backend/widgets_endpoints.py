@@ -3672,7 +3672,15 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
                     "bound to plan_id"
                 )
         else:
-            batch = _build_t5_demo_batch(plan_id)
+            batch = (
+                _resolve_t5_approved_batch(plan_id)
+                if plan_id
+                else _build_t5_demo_batch("")
+            )
+            if batch is None:
+                raise ExecutionGateError(
+                    "paper execution plan_id has no server-side T4 approval"
+                )
         adapter = get_default_broker_adapter(
             mode=mode,
             account_id=(

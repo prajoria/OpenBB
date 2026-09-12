@@ -295,7 +295,15 @@ class _WidgetFakeLiveClient:
 def test_approve_plan_registers_server_validated_batch(
     monkeypatch: pytest.MonkeyPatch, clean_env
 ) -> None:
-    batch = _build_t5_demo_batch("validated-plan")
+    from decimal import Decimal
+
+    from openbb_techtrade.execution.order_sink import OrderBatch, OrderTicket
+
+    batch = OrderBatch(
+        tickets=(OrderTicket("TSLA", "Buy", Decimal("2")),),
+        plan_id="validated-plan",
+        verdict_gate_pass=True,
+    )
     request_id = "00000000-0000-4000-8000-000000000171"
 
     async def approved_builder(_plan, approval_id):
@@ -319,6 +327,18 @@ def test_approve_plan_registers_server_validated_batch(
     assert restored is not None
     assert restored.sha256() == batch.sha256()
     store.close()
+
+    monkeypatch.setenv("PI_ALLOW_T5_EXECUTE", "true")
+    execution = _client.post(
+        "/tt/execute/write-batch",
+        params={
+            "verdict": "PASS",
+            "confirm": "yes",
+            "plan_id": f"t4-{request_id}",
+        },
+    )
+    assert execution.status_code == 200
+    assert execution.json()["batch_sha"] == batch.sha_short()
 
 
 def test_default_approval_builder_uses_server_generated_orders(
