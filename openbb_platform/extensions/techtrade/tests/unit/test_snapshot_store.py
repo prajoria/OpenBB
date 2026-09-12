@@ -1993,9 +1993,13 @@ def test_direct_constructor_tilde_db_path_expands_and_never_creates_literal_tild
 
 
 def test_mysql_failure_warning_reports_the_per_user_default_path(
-    monkeypatch, caplog
+    monkeypatch, tmp_path, caplog
 ) -> None:
-    """With no arg and no env var, the WARNING must name the real default."""
+    """With no path override, the warning names an isolated per-user default."""
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
     monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
     monkeypatch.delenv("PI_SNAPSHOT_DB", raising=False)
     monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
@@ -2006,8 +2010,10 @@ def test_mysql_failure_warning_reports_the_per_user_default_path(
         store = get_default_snapshot_store()
     try:
         assert isinstance(store, SqliteSnapshotStore)
+        assert store._db_path == expected_default  # noqa: SLF001
         assert "falling back to SQLite" in caplog.text
         assert str(expected_default) in caplog.text
+        assert expected_default.is_file()
     finally:
         store.close()
 
