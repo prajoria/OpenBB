@@ -37,6 +37,9 @@ techtrade = "openbb_techtrade.techtrade_router:router"
 [tool.poetry.plugins."openbb_job_extension"]
 techtrade = "openbb_techtrade.jobs:get_job_definitions"
 
+[tool.poetry.plugins."openbb_snapshot_dataset"]
+techtrade_movers = "openbb_techtrade.snapshot.adapters:MoversSnapshotAdapter"
+
 [tool.poetry.plugins."openbb_backtest_strategies"]
 # Advertise the techtrade confluence SignalStrategy to openbb-backtest's plugin discovery.
 # backtest auto-discovers this strategy *only when both packages are installed* -- the
