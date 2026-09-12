@@ -166,7 +166,7 @@ class TestAdapterContract:
                 ),
             )
 
-        assert len(raised.value.completed) == 1
+        assert raised.value.completed == ()
         assert raised.value.outcome_unknown is True
         assert len(client.calls) == 1
 

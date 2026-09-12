@@ -104,15 +104,19 @@ def require_live_trading_principal(
     if isinstance(raw, TradingPrincipal):
         principal = raw
     elif isinstance(raw, Mapping):
+        raw_principal_id = raw.get("principal_id")
+        if not isinstance(raw_principal_id, str):
+            raise HTTPException(status_code=403, detail="live principal unavailable")
         principal = TradingPrincipal(
-            principal_id=str(raw.get("principal_id", "")),
+            principal_id=raw_principal_id,
             roles=frozenset(raw.get("roles", ())),
             account_ids=frozenset(raw.get("account_ids", ())),
         )
     else:
         raise HTTPException(status_code=403, detail="live principal unavailable")
     if (
-        not _ACCOUNT_ID_RE.fullmatch(principal.principal_id)
+        not isinstance(principal.principal_id, str)
+        or not _ACCOUNT_ID_RE.fullmatch(principal.principal_id)
         or principal.principal_id == "legacy-unassigned"
     ):
         raise HTTPException(status_code=403, detail="live principal unavailable")

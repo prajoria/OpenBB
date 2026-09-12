@@ -117,6 +117,7 @@ class LiveBrokerAdapter:
                     ticket,
                     client_order_id=str(order_uuid),
                 )
+                self._verify_identity()
             except Exception as exc:
                 raise BrokerBatchError(
                     f"live broker submission failed ({type(exc).__name__})",
@@ -138,6 +139,7 @@ class LiveBrokerAdapter:
         """Cancel through the injected live client."""
         self._verify_identity()
         self._client.cancel_order(broker_order_id)
+        self._verify_identity()
 
     def _verify_identity(self) -> None:
         if (

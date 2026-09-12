@@ -248,6 +248,28 @@ class TestBrokerExecutionGateway:
         assert "principal" in response.json()["detail"]
         assert fake.calls == []
 
+    def test_live_mode_rejects_null_principal(
+        self, monkeypatch: pytest.MonkeyPatch, clean_env
+    ) -> None:
+        monkeypatch.setenv("PI_ALLOW_T5_EXECUTE", "true")
+        monkeypatch.setenv("PI_ALLOW_T5_LIVE", "true")
+        monkeypatch.setenv("PI_T5_BROKER_MODE", "live")
+        monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
+        app.state.t5_execution_principal_resolver = lambda _request: {
+            "principal_id": None,
+            "roles": {"live-trader"},
+            "account_ids": {"fake-live"},
+        }
+        app.state.t5_live_broker_client = _WidgetFakeLiveClient()
+
+        response = _client.post(
+            "/tt/execute/write-batch",
+            params={"verdict": "PASS", "plan_id": "missing", "confirm": "irrelevant"},
+        )
+
+        assert response.status_code == 403
+        assert "principal" in response.json()["detail"]
+
     @pytest.mark.parametrize(
         ("roles", "accounts", "expected"),
         [
