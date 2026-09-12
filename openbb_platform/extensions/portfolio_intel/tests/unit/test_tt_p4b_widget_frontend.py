@@ -637,6 +637,16 @@ class TestPaperStatusMarkdown:
         assert "Paper Trading Engine" in body
         assert "No batches submitted yet" in body
 
+    def test_empty_existing_db_is_not_initialized(
+        self, clean_env, tmp_path: Path
+    ) -> None:
+        (tmp_path / "paper.db").touch()
+
+        response = _client.get("/tt/execute/paper-status")
+
+        assert response.status_code == 200
+        assert response.json()["account"] is None
+
     def test_after_batch_shows_state(
         self, monkeypatch: pytest.MonkeyPatch, clean_env
     ) -> None:
@@ -657,6 +667,9 @@ class TestPaperStatusMarkdown:
         from openbb_techtrade.execution import paper_engine
 
         class FakeEngine:
+            def is_initialized(self):
+                return True
+
             def get_account(self):
                 return SimpleNamespace(
                     account_id="mysql-paper",
@@ -680,6 +693,7 @@ class TestPaperStatusMarkdown:
 
         def strict_engine(**kwargs):
             assert kwargs["allow_fallback"] is False
+            assert kwargs["initialize"] is False
             return FakeEngine()
 
         monkeypatch.setattr(paper_engine, "get_default_engine", strict_engine)

@@ -365,6 +365,12 @@ def _t(hour: int = 12, minute: int = 0) -> datetime:
 
 
 class TestAccountLifecycle:
+    def test_read_only_open_does_not_initialize_schema(self, pool: _FakePool) -> None:
+        MysqlPaperEngine(connection_pool=pool, initialize=False)
+        assert not any(
+            statement.startswith("CREATE TABLE") for statement in pool.statements
+        )
+
     def test_account_seeded_on_first_open(self, engine: MysqlPaperEngine) -> None:
         acct = engine.get_account()
         assert acct.account_id == "paper"
@@ -1056,6 +1062,22 @@ class TestScopeIsolation:
             connection_pool=pool,
             run_id="alpha",
             strategy_id="beta-gamma",
+        )
+
+        assert first.execution_scope_id != second.execution_scope_id
+
+    def test_execution_scope_id_includes_database(self, tmp_path: Path) -> None:
+        first_pool = _FakePool(tmp_path / "first.db")
+        first_pool.database = "first"
+        second_pool = _FakePool(tmp_path / "second.db")
+        second_pool.database = "second"
+        first = MysqlPaperEngine(
+            connection_pool=first_pool,
+            initialize=False,
+        )
+        second = MysqlPaperEngine(
+            connection_pool=second_pool,
+            initialize=False,
         )
 
         assert first.execution_scope_id != second.execution_scope_id

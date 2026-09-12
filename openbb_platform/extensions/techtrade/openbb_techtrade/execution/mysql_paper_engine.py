@@ -210,6 +210,8 @@ class MysqlPaperEngine:
         strategy_id: str = "default",
         account_id: str = "paper",
         starting_cash: Decimal = Decimal("100000"),
+        *,
+        initialize: bool = True,
     ) -> None:
         if connection_pool is None:
             # pylint: disable=import-outside-toplevel
@@ -222,8 +224,9 @@ class MysqlPaperEngine:
         self._run_id = run_id
         self._strategy_id = strategy_id
         self._account_id = account_id
-        self._ensure_schema()
-        self._ensure_account(starting_cash)
+        if initialize:
+            self._ensure_schema()
+            self._ensure_account(starting_cash)
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -329,11 +332,52 @@ class MysqlPaperEngine:
     @property
     def execution_scope_id(self) -> str:
         """Return the MySQL run/strategy ledger identity."""
+        try:
+            params = self._pool.connection_params
+        except (AttributeError, TypeError):
+            params = {}
+        database_scope = (
+            str(params.get("host", "")),
+            str(params.get("port", "")),
+            str(
+                params.get(
+                    "database",
+                    getattr(
+                        self._pool,
+                        "database",
+                        getattr(self._pool, "path", ""),
+                    ),
+                )
+            ),
+        )
         identity = (
-            f"{len(self._run_id)}:{self._run_id}"
+            f"{database_scope!r}:{len(self._run_id)}:{self._run_id}"
             f"{len(self._strategy_id)}:{self._strategy_id}"
         )
         return f"mysql-{uuid.uuid5(_EXECUTION_SCOPE_NAMESPACE, identity)}"
+
+    def is_initialized(self) -> bool:
+        """Check table and scoped-account presence without creating either."""
+        with self._acquire() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) AS table_count FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_name = %s",
+                ("pi_paper_account",),
+            )
+            (table_count,) = _row_values(cur.fetchone(), ("table_count",))
+            if not table_count:
+                cur.close()
+                return False
+            where, params = self._scope_where()
+            cur.execute(
+                f"SELECT 1 AS account_exists FROM pi_paper_account "
+                f"WHERE {where} LIMIT 1",
+                params,
+            )
+            exists = cur.fetchone() is not None
+            cur.close()
+            return exists
 
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Insert every ticket as a PENDING order; returns order_ids."""

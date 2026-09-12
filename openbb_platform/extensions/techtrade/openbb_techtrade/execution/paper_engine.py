@@ -276,6 +276,10 @@ class PaperEngine(Protocol):
         """Return a stable backend/ledger identity without exposing paths."""
         raise NotImplementedError
 
+    def is_initialized(self) -> bool:
+        """Return whether the schema and scoped account already exist."""
+        raise NotImplementedError
+
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Persist every ticket in ``batch`` as a PENDING order.
 
@@ -436,6 +440,8 @@ class SqlitePaperEngine:
         db_path: Path | str,
         account_id: str = "paper",
         starting_cash: Decimal = Decimal("100000"),
+        *,
+        initialize: bool = True,
     ) -> None:
         self._db_path = Path(db_path).resolve()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -445,8 +451,9 @@ class SqlitePaperEngine:
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON;")
-        self._conn.executescript(_SCHEMA)
-        self._ensure_account(starting_cash)
+        if initialize:
+            self._conn.executescript(_SCHEMA)
+            self._ensure_account(starting_cash)
 
     # --- lifecycle helpers ------------------------------------------------
 
@@ -502,6 +509,20 @@ class SqlitePaperEngine:
         """Return a non-sensitive identity for this SQLite ledger."""
         digest = hashlib.sha256(str(self._db_path).encode("utf-8")).hexdigest()[:16]
         return f"sqlite-{digest}"
+
+    def is_initialized(self) -> bool:
+        """Check schema/account presence without creating either."""
+        table = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'pi_paper_account'"
+        ).fetchone()
+        if table is None:
+            return False
+        account = self._conn.execute(
+            "SELECT 1 FROM pi_paper_account WHERE account_id = ?",
+            (self._account_id,),
+        ).fetchone()
+        return account is not None
 
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Insert every ticket as a PENDING order. Returns order_ids."""
@@ -1048,6 +1069,7 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
     strategy_id: str = "default",
     *,
     allow_fallback: bool = True,
+    initialize: bool = True,
 ) -> PaperEngine:
     """Return the configured paper engine.
 
@@ -1081,6 +1103,7 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
                 strategy_id=strategy_id,
                 account_id=account_id,
                 starting_cash=starting_cash,
+                initialize=initialize,
             )
         except Exception as exc:  # noqa: BLE001
             if not allow_fallback:
@@ -1094,7 +1117,10 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
 
     resolved = Path(db_path) if db_path is not None else config.paper_db_path()
     return SqlitePaperEngine(
-        resolved, account_id=account_id, starting_cash=starting_cash
+        resolved,
+        account_id=account_id,
+        starting_cash=starting_cash,
+        initialize=initialize,
     )
 
 

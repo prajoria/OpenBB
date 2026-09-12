@@ -3283,8 +3283,20 @@ def tt_execute_paper_status_markdown(request: Request) -> str:
             "and P&L here."
         )
 
-    engine = get_default_engine(db_path=db_path, allow_fallback=False)
+    engine = get_default_engine(
+        db_path=db_path,
+        allow_fallback=False,
+        initialize=False,
+    )
     try:
+        if not engine.is_initialized():
+            return (
+                "## Paper Trading Engine\n\n"
+                "**No batches submitted yet.**\n\n"
+                "Submit a batch via the Execute Bridge widget "
+                "(`POST /tt/execute/write-batch`) to see cash, positions, "
+                "and P&L here."
+            )
         acct = engine.get_account()
         positions = engine.get_positions()
         pending = engine.get_orders(status=OrderStatus.PENDING)
@@ -4000,8 +4012,20 @@ def tt_execute_paper_status(request: Request) -> dict:
             "note": "No paper.db yet — submit a batch via /tt/execute/write-batch",
         }
 
-    engine = get_default_engine(db_path=db_path, allow_fallback=False)
+    engine = get_default_engine(
+        db_path=db_path,
+        allow_fallback=False,
+        initialize=False,
+    )
     try:
+        if not engine.is_initialized():
+            return {
+                "account": None,
+                "positions": [],
+                "pending_order_count": 0,
+                "filled_order_count": 0,
+                "note": "No initialized paper ledger yet",
+            }
         acct = engine.get_account()
         positions = engine.get_positions()
         pending = len(engine.get_orders(status=OrderStatus.PENDING))

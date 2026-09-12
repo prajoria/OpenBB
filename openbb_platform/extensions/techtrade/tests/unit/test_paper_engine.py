@@ -27,6 +27,7 @@ R7.11 mutation-twin notes on every load-bearing assertion.
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -89,6 +90,18 @@ def _t(hour: int = 12, minute: int = 0) -> datetime:
 
 
 class TestAccountLifecycle:
+    def test_read_only_open_does_not_initialize_schema(self, db_path: Path) -> None:
+        db_path.touch()
+        eng = SqlitePaperEngine(db_path, initialize=False)
+        eng.close()
+
+        with sqlite3.connect(db_path) as conn:
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' "
+                "AND name LIKE 'pi_paper_%'"
+            ).fetchall()
+        assert tables == []
+
     def test_account_seeded_on_first_open(self, engine: SqlitePaperEngine) -> None:
         acct = engine.get_account()
         assert acct.account_id == "paper"
