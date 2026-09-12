@@ -110,7 +110,15 @@ def transaction(self) -> Iterator[Any]:
             raise
 ```
 
-- [ ] **Step 3: Run targeted tests and verify GREEN**
+- [ ] **Step 3: Lock rows used to derive ledger mutations**
+
+Append `FOR UPDATE` to the scoped order reads in `record_fill()` and
+`cancel_order()`, and to the account, open-lot, and materialized-position reads
+inside fill side effects. This keeps concurrent connections from validating or
+calculating updates from stale rows after explicit transactions make the
+production path usable.
+
+- [ ] **Step 4: Run targeted tests and verify GREEN**
 
 Run the Task 1 pytest command.
 

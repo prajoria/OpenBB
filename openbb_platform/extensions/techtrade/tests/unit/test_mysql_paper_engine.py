@@ -19,12 +19,16 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
+from openbb_fmp_cached.utils import database
 from openbb_techtrade.execution.mysql_paper_engine import (
     _PI_PAPER_ACCOUNT_DDL,
     _PI_PAPER_FILL_DDL,
@@ -131,17 +135,19 @@ def _rewrite(sql: str) -> str:
         return _DDL_MAP[sql]
     # Strip MySQL-only INDEX clauses in CREATE TABLE (not that we hit them
     # since DDLs are mapped above), then rewrite placeholders.
-    out = sql.replace("%s", "?")
+    out = sql.replace("%s", "?").replace(" FOR UPDATE", "")
     # sqlite doesn't grok DATETIME/ENUM in generic SELECT/UPDATE; the DDLs
     # already mapped. Nothing else to rewrite.
     return out
 
 
 class _CursorShim:
-    def __init__(self, real: sqlite3.Cursor) -> None:
+    def __init__(self, real: sqlite3.Cursor, statements: list[str]) -> None:
         self._real = real
+        self._statements = statements
 
     def execute(self, sql: str, params: tuple | None = None) -> Any:
+        self._statements.append(sql)
         return self._real.execute(_rewrite(sql), params or ())
 
     def executemany(self, sql: str, seq: list[tuple]) -> Any:
@@ -158,30 +164,46 @@ class _CursorShim:
 
 
 class _SqliteConn:
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(
+        self, conn: sqlite3.Connection, events: list[str], statements: list[str]
+    ) -> None:
         self._conn = conn
+        self._events = events
+        self._statements = statements
 
-    def cursor(self, dictionary: bool = False) -> Any:  # noqa: ARG002
-        return _CursorShim(self._conn.cursor())
+    def cursor(self) -> Any:
+        return _CursorShim(self._conn.cursor(), self._statements)
+
+    def begin(self) -> None:
+        self._events.append("begin")
+        self._conn.execute("BEGIN")
 
     def commit(self) -> None:
+        self._events.append("commit")
         self._conn.commit()
 
     def rollback(self) -> None:
+        self._events.append("rollback")
         self._conn.rollback()
 
     def close(self) -> None:
-        # Pool caller closes wrapper; keep underlying conn alive.
-        pass
+        self._events.append("close")
 
 
 class _FakePool:
     def __init__(self, path: Path | str = ":memory:") -> None:
         self._conn = sqlite3.connect(str(path))
         self._conn.row_factory = sqlite3.Row
+        self.events: list[str] = []
+        self.statements: list[str] = []
 
-    def get_connection(self) -> _SqliteConn:
-        return _SqliteConn(self._conn)
+    @contextmanager
+    def get_connection(self) -> Iterator[_SqliteConn]:
+        self.events.append("enter")
+        try:
+            yield _SqliteConn(self._conn, self.events, self.statements)
+        finally:
+            self.events.append("exit")
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +270,101 @@ class TestAccountLifecycle:
     def test_protocol_conformance(self, engine: MysqlPaperEngine) -> None:
         """R7.11 twin: renaming submit_batch breaks isinstance()."""
         assert isinstance(engine, PaperEngine)
+
+
+class TestConnectionPoolContract:
+    def test_write_begins_and_commits(
+        self, engine: MysqlPaperEngine, pool: _FakePool
+    ) -> None:
+        pool.events.clear()
+
+        engine.submit_batch(_batch(_tk("MSFT")))
+
+        assert pool.events == ["enter", "begin", "commit", "exit"]
+
+    def test_failed_write_rolls_back(
+        self, engine: MysqlPaperEngine, pool: _FakePool
+    ) -> None:
+        [order_id] = engine.submit_batch(_batch(_tk("MSFT", qty="1000")))
+        pool.events.clear()
+
+        with pytest.raises(PaperEngineError, match="cash negative"):
+            engine.record_fill(
+                order_id,
+                price=Decimal("200"),
+                filled_qty=Decimal("1000"),
+                at=_t(),
+            )
+
+        assert pool.events == ["enter", "begin", "rollback", "exit"]
+        assert engine.get_fills() == []
+        assert engine.get_orders()[0].status == OrderStatus.PENDING
+        assert engine.get_account().cash == Decimal("100000")
+
+    def test_read_does_not_begin(
+        self, engine: MysqlPaperEngine, pool: _FakePool
+    ) -> None:
+        pool.events.clear()
+
+        engine.get_account()
+
+        assert pool.events == ["enter", "exit"]
+
+    def test_fill_and_cancel_lock_mutated_rows(
+        self, engine: MysqlPaperEngine, pool: _FakePool
+    ) -> None:
+        [buy_order] = engine.submit_batch(_batch(_tk("MSFT")))
+        engine.record_fill(buy_order, Decimal("1"), Decimal("10"), _t())
+        [sell_order] = engine.submit_batch(_batch(_tk("MSFT", action="Sell", qty="1")))
+        [cancel_order] = engine.submit_batch(_batch(_tk("AAPL")))
+        pool.statements.clear()
+
+        engine.record_fill(sell_order, Decimal("2"), Decimal("1"), _t(13))
+        engine.cancel_order(cancel_order)
+
+        locking_reads = [
+            statement for statement in pool.statements if "FOR UPDATE" in statement
+        ]
+        assert any("FROM pi_paper_account" in statement for statement in locking_reads)
+        assert sum("FROM pi_paper_order" in statement for statement in locking_reads) == 2
+        assert any("FROM _pi_paper_lot" in statement for statement in locking_reads)
+        assert any("FROM pi_paper_position" in statement for statement in locking_reads)
+
+    def test_real_connection_pool_context_manager_contract(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        events: list[str] = []
+        statements: list[str] = []
+        sqlite_conn = sqlite3.connect(":memory:")
+        sqlite_conn.row_factory = sqlite3.Row
+        connection = _SqliteConn(sqlite_conn, events, statements)
+        connect = MagicMock(return_value=connection)
+        monkeypatch.setattr(database.pymysql, "connect", connect)
+        config = MagicMock()
+        config.connection_params = {}
+        pool = database.ConnectionPool(config)
+
+        engine = MysqlPaperEngine(
+            connection_pool=pool,
+            starting_cash=Decimal("12345"),
+        )
+
+        assert engine.get_account().cash == Decimal("12345")
+        assert events == [
+            "begin",
+            "commit",
+            "close",
+            "begin",
+            "commit",
+            "close",
+            "close",
+        ]
+        assert connect.call_count == 3
+        assert all(call.kwargs["autocommit"] is True for call in connect.call_args_list)
+        assert all(
+            call.kwargs["cursorclass"] is database.pymysql.cursors.DictCursor
+            for call in connect.call_args_list
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -728,10 +845,10 @@ class TestFillMode:
     ) -> None:
         [oid] = engine.submit_batch(_batch(_tk("MSFT", qty="10")))
         engine.record_fill(oid, price=Decimal("400"), filled_qty=Decimal("10"), at=_t())
-        conn = pool.get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT fill_mode FROM pi_paper_fill")
-        rows = cur.fetchall()
+        with pool.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT fill_mode FROM pi_paper_fill")
+            rows = cur.fetchall()
         modes = {r[0] for r in rows}
         assert modes == {"OPERATOR_RECORDED"}
 
@@ -749,10 +866,10 @@ class TestFillMode:
             at=_t(),
             fill_mode="BAR_SIMULATED",
         )
-        conn = pool.get_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT fill_mode FROM pi_paper_fill")
-        rows = cur.fetchall()
+        with pool.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT fill_mode FROM pi_paper_fill")
+            rows = cur.fetchall()
         assert rows[0][0] == "BAR_SIMULATED"
 
 

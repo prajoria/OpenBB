@@ -51,10 +51,13 @@ The existing operation boundaries remain unchanged:
 - schema creation and account bootstrap remain atomic write scopes;
 - order submission, fill processing, and cancellation each remain one atomic
   transaction;
+- fill and cancellation transactions lock the order rows they validate, while
+  fill side effects lock account, lot, and position rows before deriving new
+  values so concurrent pooled sessions cannot overfill or lose ledger updates;
 - account, position, order, and fill reads borrow a connection without opening
   a transaction.
 
-No SQL, domain model, factory selection, or SQLite implementation changes are
+No domain model, factory selection, or SQLite implementation changes are
 required.
 
 ## Testing
@@ -69,7 +72,8 @@ The SQLite-backed double will model PyMySQL instead of mysql-connector:
 Tests will first prove the current implementation cannot construct against that
 contract. They will then verify successful writes begin and commit, failed
 writes roll back, reads do not begin transactions, and the pool—not the
-engine—owns connection cleanup.
+engine—owns connection cleanup. SQL-contract assertions will verify that rows
+used to derive fill and cancellation updates are selected `FOR UPDATE`.
 
 A separate contract test will instantiate the real shared `ConnectionPool`
 while monkeypatching `pymysql.connect`. Constructing and reading through
