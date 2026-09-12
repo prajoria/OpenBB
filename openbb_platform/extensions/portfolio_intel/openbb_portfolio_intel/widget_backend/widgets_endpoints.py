@@ -18,6 +18,8 @@ effects (``main.py`` does that).
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import math
 import os
@@ -3385,7 +3387,11 @@ def _build_t5_demo_batch(plan_id: str):
     )
 
 
-def register_t5_approved_batch(batch: object) -> None:
+def register_t5_approved_batch(
+    batch: object,
+    *,
+    request_sha256: str = "",
+) -> None:
     """Persist an immutable, server-approved T4 batch for live execution."""
     from pathlib import Path  # noqa: PLC0415
 
@@ -3410,12 +3416,16 @@ def register_t5_approved_batch(batch: object) -> None:
         )
     )
     try:
-        store.register_approved_batch(batch)
+        store.register_approved_batch(batch, request_sha256=request_sha256)
     finally:
         store.close()
 
 
-def _resolve_t5_approved_batch(plan_id: str):
+def _resolve_t5_approved_batch(
+    plan_id: str,
+    *,
+    request_sha256: str | None = None,
+):
     """Load a server-approved batch from the cross-worker audit database."""
     from pathlib import Path  # noqa: PLC0415
 
@@ -3432,7 +3442,7 @@ def _resolve_t5_approved_batch(plan_id: str):
         )
     )
     try:
-        return store.get_approved_batch(plan_id)
+        return store.get_approved_batch(plan_id, request_sha256=request_sha256)
     finally:
         store.close()
 
@@ -3455,12 +3465,7 @@ async def _build_server_approved_t5_batch(
         "symbol",
         "segment",
         "preset",
-        "risk",
         "as_of",
-        "method",
-        "thresholds",
-        "horizon_years",
-        "provider",
     }
     unknown = set(plan_request) - allowed
     if unknown:
@@ -3469,12 +3474,11 @@ async def _build_server_approved_t5_batch(
             detail=f"unsupported approval fields: {sorted(unknown)}",
         )
     symbol = _validate_symbol(str(plan_request.get("symbol", "")))
-    plans = await asyncio.to_thread(
-        build_plans,
+    plans = build_plans(
         symbols=[symbol],
         segment=plan_request.get("segment"),
         preset=plan_request.get("preset", "trend_follow"),
-        risk=float(plan_request.get("risk", 0.01)),
+        risk=0.01,
         as_of=plan_request.get("as_of"),
     )
     if len(plans) != 1:
@@ -3482,13 +3486,7 @@ async def _build_server_approved_t5_batch(
             status_code=400,
             detail="server-side planning did not produce exactly one trade plan",
         )
-    validated_plan, report = await validate_plan(
-        plans[0],
-        method=plan_request.get("method", "wfo"),
-        thresholds=plan_request.get("thresholds"),
-        horizon_years=int(plan_request.get("horizon_years", 5)),
-        provider=plan_request.get("provider"),
-    )
+    validated_plan, report = await validate_plan(plans[0])
     if getattr(report, "verdict", "") != "robust":
         raise HTTPException(
             status_code=400,
@@ -3517,6 +3515,10 @@ async def tt_execute_approve_plan(
     _require_auth(request)
     from uuid import UUID  # noqa: PLC0415
 
+    from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
+        ExecutionGateError,
+    )
+
     try:
         approval_id = f"t4-{UUID(approval_request_id)}"
     except ValueError as exc:
@@ -3524,7 +3526,16 @@ async def tt_execute_approve_plan(
             status_code=400,
             detail="approval_request_id must be a canonical UUID",
         ) from exc
-    batch = _resolve_t5_approved_batch(approval_id)
+    request_sha256 = hashlib.sha256(
+        json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    try:
+        batch = _resolve_t5_approved_batch(
+            approval_id,
+            request_sha256=request_sha256,
+        )
+    except ExecutionGateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if batch is None:
         builder = getattr(
             request.app.state,
@@ -3543,7 +3554,7 @@ async def tt_execute_approve_plan(
             pre_execution_positions=built.pre_execution_positions,
             plan_context=built.plan_context,
         )
-        register_t5_approved_batch(batch)
+        register_t5_approved_batch(batch, request_sha256=request_sha256)
 
     mode = os.environ.get("PI_T5_BROKER_MODE", "paper").strip()
     if mode == "live":

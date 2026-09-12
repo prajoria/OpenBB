@@ -369,6 +369,7 @@ class SqliteExecutionAuditStore:
                 );
                 CREATE TABLE IF NOT EXISTS pi_execution_approval (
                     plan_id TEXT PRIMARY KEY,
+                    request_sha256 TEXT NOT NULL,
                     batch_sha256 TEXT NOT NULL,
                     batch_json TEXT NOT NULL,
                     approved_at TEXT NOT NULL
@@ -379,7 +380,12 @@ class SqliteExecutionAuditStore:
         """Close this store's owned SQLite connection."""
         self._conn.close()
 
-    def register_approved_batch(self, batch: OrderBatch) -> None:
+    def register_approved_batch(
+        self,
+        batch: OrderBatch,
+        *,
+        request_sha256: str = "",
+    ) -> None:
         """Persist a server-validated immutable batch for cross-worker use."""
         if not batch.plan_id or not batch.verdict_gate_pass:
             raise ExecutionGateError(
@@ -408,35 +414,51 @@ class SqliteExecutionAuditStore:
         }
         with self._lock, self._conn:
             existing = self._conn.execute(
-                "SELECT batch_sha256 FROM pi_execution_approval WHERE plan_id = ?",
+                "SELECT request_sha256, batch_sha256 FROM pi_execution_approval "
+                "WHERE plan_id = ?",
                 (batch.plan_id,),
             ).fetchone()
-            if existing is not None and existing["batch_sha256"] != batch.sha256():
-                raise ExecutionGateError(
-                    "approval plan_id is already bound to different batch content"
-                )
+            if existing is not None:
+                if existing["request_sha256"] != request_sha256:
+                    raise ExecutionGateError(
+                        "approval UUID is bound to a different approval request"
+                    )
+                if existing["batch_sha256"] != batch.sha256():
+                    raise ExecutionGateError(
+                        "approval plan_id is already bound to different batch content"
+                    )
             self._conn.execute(
                 "INSERT OR IGNORE INTO pi_execution_approval "
-                "(plan_id, batch_sha256, batch_json, approved_at) "
-                "VALUES (?, ?, ?, ?)",
+                "(plan_id, request_sha256, batch_sha256, batch_json, approved_at) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (
                     batch.plan_id,
+                    request_sha256,
                     batch.sha256(),
                     json.dumps(payload, sort_keys=True),
                     _to_iso(_now()),
                 ),
             )
 
-    def get_approved_batch(self, plan_id: str) -> OrderBatch | None:
+    def get_approved_batch(
+        self,
+        plan_id: str,
+        *,
+        request_sha256: str | None = None,
+    ) -> OrderBatch | None:
         """Restore a server-approved batch and verify its stored content hash."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT batch_sha256, batch_json FROM pi_execution_approval "
-                "WHERE plan_id = ?",
+                "SELECT request_sha256, batch_sha256, batch_json "
+                "FROM pi_execution_approval WHERE plan_id = ?",
                 (plan_id,),
             ).fetchone()
         if row is None:
             return None
+        if request_sha256 is not None and row["request_sha256"] != request_sha256:
+            raise ExecutionGateError(
+                "approval UUID is bound to a different approval request"
+            )
         payload = json.loads(row["batch_json"])
         tickets = tuple(
             OrderTicket(

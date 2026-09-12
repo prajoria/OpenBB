@@ -340,6 +340,14 @@ def test_approve_plan_registers_server_validated_batch(
     assert execution.status_code == 200
     assert execution.json()["batch_sha"] == batch.sha_short()
 
+    mismatched_retry = _client.post(
+        "/tt/execute/approve-plan",
+        params={"approval_request_id": request_id},
+        json={"symbol": "AAPL"},
+    )
+    assert mismatched_retry.status_code == 409
+    assert "different approval request" in mismatched_retry.json()["detail"]
+
 
 def test_default_approval_builder_uses_server_generated_orders(
     monkeypatch: pytest.MonkeyPatch,
@@ -375,15 +383,34 @@ def test_default_approval_builder_uses_server_generated_orders(
 
     batch = asyncio.run(
         _build_server_approved_t5_batch(
-            {"symbol": "MSFT", "risk": 0.01},
+            {"symbol": "MSFT"},
             "t4-server-generated",
         )
     )
 
     assert captured["symbols"] == ["MSFT"]
+    assert captured["risk"] == 0.01
     assert batch.tickets[0].symbol == "MSFT"
     assert batch.tickets[0].quantity == Decimal("3")
     assert batch.plan_id == "t4-server-generated"
+
+
+def test_default_approval_builder_rejects_validation_policy_overrides() -> None:
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException, match="unsupported approval fields"):
+        asyncio.run(
+            _build_server_approved_t5_batch(
+                {
+                    "symbol": "MSFT",
+                    "thresholds": {
+                        "pbo_robust": 2,
+                        "dsr_robust": -1,
+                    },
+                },
+                "t4-policy-bypass",
+            )
+        )
 
 
 def test_cancel_reports_missing_techtrade_dependency(
