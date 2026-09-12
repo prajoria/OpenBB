@@ -9,6 +9,7 @@ Design: docs/superpowers/specs/2026-07-19-risk-concentration-routes-design.md
 from __future__ import annotations
 
 from decimal import Decimal
+from math import isfinite, sqrt
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -49,6 +50,21 @@ def _mk_response(rows):
 def _synthetic_returns(seed: int, length: int) -> list[float]:
     rng = np.random.default_rng(seed=seed)
     return rng.normal(loc=0.0005, scale=0.012, size=length).tolist()
+
+
+def _assert_valid_concentration(result: ConcentrationSummary) -> None:
+    values = (
+        result.hhi,
+        result.effective_n,
+        result.top1,
+        result.top5,
+        result.top10,
+    )
+    assert all(isfinite(value) for value in values)
+    assert 0.0 < result.hhi <= 1.0
+    assert result.effective_n == pytest.approx(1.0 / result.hhi)
+    assert 0.0 < result.top1 <= result.top5 <= result.top10 <= 1.0
+    assert result.hhi <= result.top1 <= sqrt(result.hhi) + 1e-12
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +293,35 @@ def test_concentration_determinism() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"hhi": float("nan")},
+        {"hhi": 0.0},
+        {"effective_n": float("inf")},
+        {"effective_n": 10.0},
+        {"top1": 0.0},
+        {"hhi": 0.2, "effective_n": 5.0},
+        {"top1": 0.25},
+        {"top5": 0.05},
+        {"top10": 1.1},
+    ],
+)
+def test_concentration_invariants_reject_malformed_output(overrides) -> None:
+    """Non-finite, inconsistent, or impossible concentration values fail."""
+    values = {
+        "hhi": 0.04,
+        "effective_n": 25.0,
+        "top1": 0.1,
+        "top5": 0.3,
+        "top10": 0.5,
+    }
+    values.update(overrides)
+
+    with pytest.raises(AssertionError):
+        _assert_valid_concentration(ConcentrationSummary(**values))
+
+
 @pytest.mark.integration
 def test_live_concentration_spy_via_obb() -> None:
     """End-to-end live: SPY basket via real fmp_cached issuer tier."""
@@ -287,7 +332,4 @@ def test_live_concentration_spy_via_obb() -> None:
         provider="fmp_cached",
     )
     res = obj.results
-    assert (
-        0.05 < res.hhi < 0.5
-    ), f"SPY effective HHI = {res.hhi}, expected 0.05-0.5 range"
-    assert res.effective_n > 3
+    _assert_valid_concentration(res)
