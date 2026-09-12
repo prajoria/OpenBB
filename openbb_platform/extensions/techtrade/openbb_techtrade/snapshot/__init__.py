@@ -70,6 +70,7 @@ from .semantics import (
     build_eod_display,
     last_completed_session,
     snapshot_staleness,
+    validate_calendar_name,
 )
 from .store import (
     FIELD_MAX_LENGTHS,
@@ -144,6 +145,7 @@ __all__ = [
     "UnsupportedPayloadSchema",
     "techtrade_entity_key",
     "validate_techtrade_snapshot",
+    "validate_calendar_name",
 ]
 
 

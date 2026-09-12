@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from datetime import date
 
 from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
+from openbb_techtrade.snapshot.semantics import validate_calendar_name
 from openbb_techtrade.snapshot.store import (
     SnapshotRow,
     ValidationResult,
@@ -112,8 +113,10 @@ def validate_techtrade_snapshot(
         return ValidationResult(False, "as_of_session must be an ISO date")
     if payload_session != row.as_of_session:
         return ValidationResult(False, "payload session does not match snapshot session")
-    if not str(row.payload["exchange_calendar"]).strip():
-        return ValidationResult(False, "exchange_calendar must be non-empty")
+    try:
+        validate_calendar_name(str(row.payload["exchange_calendar"]))
+    except ValueError as exc:
+        return ValidationResult(False, str(exc))
 
     row_verdict = _validate_rows(rows)
     if not row_verdict.ok:

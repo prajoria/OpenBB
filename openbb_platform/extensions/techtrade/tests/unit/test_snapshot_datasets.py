@@ -150,6 +150,16 @@ def test_validator_rejects_implausible_row_count_drop() -> None:
     assert "70%" in verdict.reason
 
 
+def test_validator_rejects_unknown_exchange_calendar() -> None:
+    payload = _payload([])
+    payload["exchange_calendar"] = "NOT-A-CALENDAR"
+
+    verdict = validate_techtrade_snapshot(_row(payload, row_count=0))
+
+    assert not verdict.ok
+    assert "unknown exchange calendar" in verdict.reason
+
+
 class _InvalidAdapter:
     name = DATASET
 
