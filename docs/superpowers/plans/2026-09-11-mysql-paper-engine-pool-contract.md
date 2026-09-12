@@ -59,9 +59,13 @@ def test_read_does_not_begin(engine, pool):
 
 Instantiate the real `ConnectionPool` with a config mock whose
 `connection_params` is `{}`. Monkeypatch
-`openbb_fmp_cached.utils.database.pymysql.connect` to return the SQLite-backed
-connection, then construct `MysqlPaperEngine` and call `get_account()`. Assert
-the connect mock received `cursorclass=DictCursor` and `autocommit=True`.
+`openbb_fmp_cached.utils.database.pymysql.connect` to open a fresh
+SQLite-backed connection per borrow, then construct `MysqlPaperEngine` and call
+`get_account()`. Assert the connect mock received `cursorclass=DictCursor` and
+`autocommit=True`. Add a deterministic two-session interleaving test that
+pauses one fill after reading prior fills, observes the other session waiting
+on the simulated `FOR UPDATE` order lock, and confirms the second fill rejects
+an overfill after the first commits.
 
 - [ ] **Step 3: Run the new tests and verify RED**
 

@@ -76,7 +76,10 @@ Tests will first prove the current implementation cannot construct against that
 contract. They will then verify successful writes begin and commit, failed
 writes roll back, reads do not begin transactions, and the pool—not the
 engine—owns connection cleanup. SQL-contract assertions will verify that rows
-used to derive fill and cancellation updates are selected `FOR UPDATE`.
+used to derive fill and cancellation updates are selected `FOR UPDATE`. A
+deterministic two-session interleaving test will pause the first fill after its
+prior-fill read, prove the second session blocks on the order-row lock, and
+verify that it observes the committed first fill and rejects an overfill.
 
 A separate contract test will instantiate the real shared `ConnectionPool`
 while monkeypatching `pymysql.connect`. Constructing and reading through

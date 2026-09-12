@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -219,6 +220,101 @@ class _FakePool:
             self.events.append("exit")
 
 
+class _InterleavingCursor(_CursorShim):
+    def __init__(
+        self,
+        real: sqlite3.Cursor,
+        statements: list[str],
+        connection: _InterleavingConn,
+    ) -> None:
+        super().__init__(real, statements)
+        self._connection = connection
+
+    def execute(self, sql: str, params: tuple | None = None) -> Any:
+        if "FROM pi_paper_order" in sql and "FOR UPDATE" in sql:
+            self._connection.acquire_order_lock()
+        result = super().execute(sql, params)
+        if (
+            threading.current_thread().name == "fill-first"
+            and "SELECT filled_qty FROM pi_paper_fill" in sql
+        ):
+            self._connection.pool.first_prior_read.set()
+            if not self._connection.pool.second_lock_attempt.wait(timeout=5):
+                raise TimeoutError("second fill did not attempt the order lock")
+        return result
+
+
+class _InterleavingConn(_SqliteConn):
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        pool: _InterleavingPool,
+    ) -> None:
+        super().__init__(
+            conn,
+            pool.events,
+            pool.statements,
+            owns_raw=True,
+        )
+        self.pool = pool
+        self._holds_order_lock = False
+
+    def cursor(self) -> Any:
+        return _InterleavingCursor(self._conn.cursor(), self._statements, self)
+
+    def acquire_order_lock(self) -> None:
+        if threading.current_thread().name == "fill-second":
+            self.pool.second_lock_attempt.set()
+        if not self.pool.order_lock.acquire(timeout=5):
+            raise TimeoutError("timed out acquiring simulated order row lock")
+        self._holds_order_lock = True
+
+    def _release_order_lock(self) -> None:
+        if self._holds_order_lock:
+            self._holds_order_lock = False
+            self.pool.order_lock.release()
+
+    def commit(self) -> None:
+        try:
+            super().commit()
+        finally:
+            self._release_order_lock()
+
+    def rollback(self) -> None:
+        try:
+            super().rollback()
+        finally:
+            self._release_order_lock()
+
+    def close(self) -> None:
+        self._release_order_lock()
+        super().close()
+
+
+class _InterleavingPool:
+    """Independent SQLite sessions with a simulated InnoDB order-row lock."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.events: list[str] = []
+        self.statements: list[str] = []
+        self.order_lock = threading.Lock()
+        self.first_prior_read = threading.Event()
+        self.second_lock_attempt = threading.Event()
+
+    @contextmanager
+    def get_connection(self) -> Iterator[_InterleavingConn]:
+        raw = sqlite3.connect(self.path, timeout=5)
+        raw.row_factory = sqlite3.Row
+        conn = _InterleavingConn(raw, self)
+        self.events.append("enter")
+        try:
+            yield conn
+        finally:
+            conn.close()
+            self.events.append("exit")
+
+
 # ---------------------------------------------------------------------------
 # fixtures
 # ---------------------------------------------------------------------------
@@ -348,6 +444,46 @@ class TestConnectionPoolContract:
         assert sum("FROM pi_paper_order" in statement for statement in locking_reads) == 2
         assert any("FROM _pi_paper_lot" in statement for statement in locking_reads)
         assert any("FROM pi_paper_position" in statement for statement in locking_reads)
+
+    def test_concurrent_fills_serialize_across_independent_connections(
+        self, tmp_path: Path
+    ) -> None:
+        pool = _InterleavingPool(tmp_path / "concurrent_fills.db")
+        engine = MysqlPaperEngine(connection_pool=pool)
+        [order_id] = engine.submit_batch(_batch(_tk("MSFT", qty="10")))
+        fills = []
+        failures: list[BaseException] = []
+
+        def record_fill() -> None:
+            try:
+                fills.append(
+                    engine.record_fill(
+                        order_id,
+                        price=Decimal("100"),
+                        filled_qty=Decimal("6"),
+                        at=_t(),
+                    )
+                )
+            except BaseException as exc:  # noqa: BLE001 - surfaced in main thread
+                failures.append(exc)
+
+        first = threading.Thread(target=record_fill, name="fill-first")
+        second = threading.Thread(target=record_fill, name="fill-second")
+        first.start()
+        assert pool.first_prior_read.wait(timeout=5)
+        second.start()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert len(fills) == 1
+        assert len(failures) == 1
+        assert isinstance(failures[0], PaperEngineError)
+        assert "overfill" in str(failures[0])
+        assert len(engine.get_fills()) == 1
+        assert engine.get_orders()[0].status is OrderStatus.PARTIAL
+        assert engine.get_account().cash == Decimal("99400")
 
     def test_real_connection_pool_context_manager_contract(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
