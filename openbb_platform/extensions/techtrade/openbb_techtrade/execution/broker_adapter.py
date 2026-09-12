@@ -60,7 +60,11 @@ class SqliteExecutionAuditStore:
     """Durable idempotency and append-only audit journal."""
 
     def __init__(self, path: Path | str) -> None:
-        self.path = Path(path)
+        requested_path = Path(path)
+        if not requested_path.is_absolute() or ".." in requested_path.parts:
+            message = "execution audit path must be absolute and traversal-free"
+            raise ExecutionConfigurationError(message)
+        self.path = requested_path
         prepare_private_audit_directory(self.path.parent, self.path.name)
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         secure_owner_only(self.path, directory=False)

@@ -288,6 +288,20 @@ class TestExecutionGateway:
         with pytest.raises(PermissionError, match="must not contain links"):
             SqliteExecutionAuditStore(linked / "audit.db")
 
+    def test_audit_store_rejects_relative_path_without_touching_cwd(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        with pytest.raises(
+            ExecutionConfigurationError,
+            match="absolute and traversal-free",
+        ):
+            SqliteExecutionAuditStore("audit.db")
+
+        assert not (tmp_path / ".openbb-execution-audit").exists()
+        assert not (tmp_path / "audit.db").exists()
+
     def test_reserved_legacy_principal_is_rejected(
         self, audit: SqliteExecutionAuditStore
     ) -> None:

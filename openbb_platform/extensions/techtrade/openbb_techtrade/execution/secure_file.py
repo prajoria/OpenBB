@@ -25,6 +25,10 @@ def secure_owner_only(path: Path, *, directory: bool) -> None:
 
 def prepare_private_audit_directory(path: Path, audit_filename: str) -> None:
     """Create or verify a dedicated audit directory, then lock it to its owner."""
+    if not path.is_absolute() or path == Path.cwd() or path.parent == path:
+        raise PermissionError(
+            "execution audit database requires an absolute dedicated directory"
+        )
     marker = path / ".openbb-execution-audit"
     for component in (path, *path.parents):
         if component.exists() and _is_link(component):
