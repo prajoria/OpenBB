@@ -103,6 +103,18 @@ def _is_finite(v: object) -> bool:
         return False
 
 
+def _ichimoku_current_frame(result: object) -> object | None:
+    """Return current Ichimoku values from direct-frame or legacy tuple output."""
+    candidate = result[0] if isinstance(result, tuple) and result else result
+    if (
+        candidate is None
+        or not hasattr(candidate, "columns")
+        or not hasattr(candidate, "iloc")
+    ):
+        return None
+    return candidate
+
+
 def _compute_trend_ext(df: object, config: IndicatorConfig) -> dict[str, float]:
     """Extended trend family: classic keys PLUS Aroon Up/Down/Osc PLUS Ichimoku Cloud.
 
@@ -186,11 +198,9 @@ def _compute_trend_ext(df: object, config: IndicatorConfig) -> dict[str, float]:
         except (IndexError, ValueError):
             ichimoku_result = None
 
-        # pandas_ta returns a 2-tuple: (current_frame, forward_projection).
-        # We want part 0 (current-bar values) with cols ISA_9, ISB_26.
-        current = None
-        if isinstance(ichimoku_result, tuple) and len(ichimoku_result) >= 1:
-            current = ichimoku_result[0]
+        # pandas-ta-classic returns the current frame directly; older pandas-ta
+        # releases return (current_frame, forward_projection).
+        current = _ichimoku_current_frame(ichimoku_result)
 
         if current is not None and len(current) > 0 and len(df) > 0:
             # Compute confirmed position by scanning the last

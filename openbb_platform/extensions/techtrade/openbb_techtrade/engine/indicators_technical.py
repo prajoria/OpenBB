@@ -17,9 +17,9 @@ rsi / adx ``scalar=100``), so those are left at their defaults.
 Graceful degradation is the safety net: when ``openbb_technical`` is not
 importable (as in this checkout), or any technical call raises,
 :func:`technical_panel` delegates wholesale to the #72
-:func:`~openbb_techtrade.engine.indicators.build_indicator_panel`, returning a
-panel byte-identical to classic. ``openbb`` is imported lazily inside the function
-body, never at module top level, matching the engine-wide lazy-import convention.
+:func:`~openbb_techtrade.engine.indicators.build_indicator_panel`, preserving the
+requested panel selector. ``openbb`` is imported lazily inside the function body,
+never at module top level, matching the engine-wide lazy-import convention.
 """
 
 from __future__ import annotations
@@ -422,4 +422,10 @@ def technical_panel(
             symbol,
             exc_info=True,
         )
-        return build_indicator_panel(symbol, as_of, ohlcv_rows, config=config)
+        return build_indicator_panel(
+            symbol,
+            as_of,
+            ohlcv_rows,
+            config=config,
+            panel_config=panel_config,
+        )
