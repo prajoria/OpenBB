@@ -45,6 +45,8 @@ import hashlib
 import logging
 import os
 import re
+import threading
+import uuid
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
@@ -121,6 +123,7 @@ def _reject_formula_lead(field_name: str, value: str) -> None:
 
 #: Batch SHA short-form used in filenames (first N chars of the full SHA).
 _SHA_SHORT_LEN = 8
+_ARTIFACT_PUBLISH_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -542,15 +545,16 @@ class PaperOrderSink:
 
     @staticmethod
     def _atomic_write(final_path: Path, writer) -> None:
-        tmp_path = final_path.with_name(final_path.name + ".tmp")
+        tmp_path = final_path.with_name(f"{final_path.name}.{uuid.uuid4()}.tmp")
         try:
             writer(tmp_path)
+            with _ARTIFACT_PUBLISH_LOCK:
+                os.replace(tmp_path, final_path)
         except Exception:
             # Clean up the partial temp so a retry starts clean.
             with contextlib.suppress(FileNotFoundError):
                 tmp_path.unlink()
             raise
-        os.replace(tmp_path, final_path)
 
 
 def _sha_from_stem(stem: str) -> str | None:
