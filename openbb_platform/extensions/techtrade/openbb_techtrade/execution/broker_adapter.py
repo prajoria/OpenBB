@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sqlite3
 import threading
 import uuid
@@ -13,6 +12,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from openbb_techtrade.execution import paper_engine as paper_engine_module
+from openbb_techtrade.execution.broker_backends import (
+    LiveBrokerAdapter,
+    PaperBrokerAdapter,
+)
 from openbb_techtrade.execution.broker_contract import (
     AuditEvent,
     BrokerAdapter,
@@ -42,137 +45,6 @@ from openbb_techtrade.execution.order_sink import OrderBatch
 from openbb_techtrade.execution.paper_engine import PaperEngine
 
 _ORDER_NAMESPACE = uuid.UUID("f55055b1-f9c6-4e9c-8f77-3cf6704f26e6")
-_ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-
-
-class PaperBrokerAdapter:
-    """Adapt the existing transactional paper engine to ``BrokerAdapter``."""
-
-    mode = ExecutionMode.PAPER
-
-    def __init__(self, engine: PaperEngine, account_id: str = "paper") -> None:
-        if engine.account_id != account_id:
-            raise ExecutionConfigurationError(
-                "paper engine account does not match configured account_id"
-            )
-        self.engine = engine
-        self._account_id = account_id
-        self._broker_id = f"paper-engine-{engine.execution_scope_id}"
-
-    @property
-    def broker_id(self) -> str:
-        """Return the concrete paper ledger identity."""
-        return self._broker_id
-
-    @property
-    def account_id(self) -> str:
-        """Return the paper account scope."""
-        return self._account_id
-
-    def submit_batch(
-        self,
-        batch: OrderBatch,
-        order_uuids: Sequence[uuid.UUID],
-    ) -> tuple[BrokerOrderAck, ...]:
-        """Submit through the paper engine and map its acknowledgements."""
-        broker_ids = self.engine.submit_batch(batch, plan_id=batch.plan_id)
-        if len(broker_ids) != len(order_uuids):
-            raise BrokerBatchError(
-                "paper engine returned an acknowledgement count that does not "
-                "match the submitted batch",
-                outcome_unknown=True,
-            )
-        return tuple(
-            BrokerOrderAck(order_uuid=order_uuid, broker_order_id=broker_id)
-            for order_uuid, broker_id in zip(order_uuids, broker_ids, strict=True)
-        )
-
-    def cancel_order(self, broker_order_id: str) -> None:
-        """Cancel through the paper engine."""
-        self.engine.cancel_order(broker_order_id, reason="T5 execution gateway")
-
-
-class LiveBrokerAdapter:
-    """Adapt an explicitly injected live client without reading credentials."""
-
-    mode = ExecutionMode.LIVE
-
-    def __init__(self, client: LiveBrokerClient, *, account_id: str) -> None:
-        if not _ACCOUNT_ID_RE.fullmatch(account_id):
-            raise ExecutionConfigurationError(
-                "live broker adapter account_id must match "
-                f"{_ACCOUNT_ID_RE.pattern!r}"
-            )
-        client_account = str(client.account_id)
-        if client_account != account_id:
-            raise ExecutionConfigurationError(
-                "live broker client account does not match configured account_id"
-            )
-        client_broker = str(client.broker_id)
-        if not _ACCOUNT_ID_RE.fullmatch(client_broker):
-            raise ExecutionConfigurationError(
-                "live broker client broker_id must match " f"{_ACCOUNT_ID_RE.pattern!r}"
-            )
-        self._client = client
-        self._account_id = account_id
-        self._broker_id = client_broker
-
-    @property
-    def broker_id(self) -> str:
-        """Return the broker-verified provider identity."""
-        return self._broker_id
-
-    @property
-    def account_id(self) -> str:
-        """Return the configured live account scope."""
-        return self._account_id
-
-    def submit_batch(
-        self,
-        batch: OrderBatch,
-        order_uuids: Sequence[uuid.UUID],
-    ) -> tuple[BrokerOrderAck, ...]:
-        """Submit each ticket with its reserved client-order UUID."""
-        if len(batch.tickets) != len(order_uuids):
-            raise BrokerBatchError("order UUID count does not match the batch")
-        completed: list[BrokerOrderAck] = []
-        for ticket, order_uuid in zip(batch.tickets, order_uuids, strict=True):
-            try:
-                self._verify_identity()
-                broker_order_id = self._client.submit_order(
-                    ticket,
-                    client_order_id=str(order_uuid),
-                )
-            except Exception as exc:
-                raise BrokerBatchError(
-                    f"live broker submission failed ({type(exc).__name__})",
-                    completed=completed,
-                    failed_order_uuid=order_uuid,
-                    outcome_unknown=True,
-                ) from exc
-            if not broker_order_id:
-                raise BrokerBatchError(
-                    "live broker returned an empty order identifier",
-                    completed=completed,
-                    failed_order_uuid=order_uuid,
-                    outcome_unknown=True,
-                )
-            completed.append(BrokerOrderAck(order_uuid, str(broker_order_id)))
-        return tuple(completed)
-
-    def cancel_order(self, broker_order_id: str) -> None:
-        """Cancel through the injected live client."""
-        self._verify_identity()
-        self._client.cancel_order(broker_order_id)
-
-    def _verify_identity(self) -> None:
-        if (
-            str(self._client.account_id) != self._account_id
-            or str(self._client.broker_id) != self._broker_id
-        ):
-            raise ExecutionConfigurationError(
-                "live broker client identity changed after adapter construction"
-            )
 
 
 class SqliteExecutionAuditStore:
@@ -399,6 +271,7 @@ class SqliteExecutionAuditStore:
         acknowledgements: Sequence[BrokerOrderAck],
     ) -> SubmissionReceipt:
         """Record all broker acknowledgements and terminal success."""
+        self._reserve_live_broker_ids(submission_id, acknowledgements)
         with self._lock, self._conn:
             for ack in acknowledgements:
                 self._conn.execute(
@@ -431,6 +304,13 @@ class SqliteExecutionAuditStore:
         outcome_unknown: bool = False,
     ) -> SubmissionReceipt:
         """Persist terminal failure while retaining partial acknowledgements."""
+        try:
+            self._reserve_live_broker_ids(submission_id, completed)
+        except BrokerBatchError as exc:
+            error = str(exc)
+            completed = ()
+            failed_order_uuid = None
+            outcome_unknown = True
         status = (
             SubmissionStatus.RECONCILIATION_REQUIRED
             if outcome_unknown
@@ -494,6 +374,64 @@ class SqliteExecutionAuditStore:
                 failed_order_uuid,
             )
             return self._read_submission(submission_id)
+
+    def _reserve_live_broker_ids(
+        self,
+        submission_id: uuid.UUID,
+        acknowledgements: Sequence[BrokerOrderAck],
+    ) -> None:
+        """Atomically prevent broker IDs from aliasing within a live scope."""
+        if not acknowledgements:
+            return
+        with self._lock, self._conn:
+            scope = self._conn.execute(
+                "SELECT mode, broker_id, account_id FROM pi_execution_submission "
+                "WHERE submission_id = ?",
+                (str(submission_id),),
+            ).fetchone()
+            if scope is None or scope["mode"] != ExecutionMode.LIVE.value:
+                return
+            for ack in acknowledgements:
+                legacy = self._conn.execute(
+                    "SELECT 1 FROM pi_execution_broker_order "
+                    "WHERE mode = 'live' AND broker_id = 'legacy-unassigned' "
+                    "AND account_id = ? AND broker_order_id = ?",
+                    (scope["account_id"], ack.broker_order_id),
+                ).fetchone()
+                if legacy is not None:
+                    raise BrokerBatchError(
+                        "legacy broker order ownership requires reconciliation",
+                        outcome_unknown=True,
+                    )
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO pi_execution_broker_order "
+                    "(mode, broker_id, account_id, broker_order_id, order_uuid, "
+                    "submission_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        scope["mode"],
+                        scope["broker_id"],
+                        scope["account_id"],
+                        ack.broker_order_id,
+                        str(ack.order_uuid),
+                        str(submission_id),
+                    ),
+                )
+                owner = self._conn.execute(
+                    "SELECT order_uuid FROM pi_execution_broker_order "
+                    "WHERE mode = ? AND broker_id = ? AND account_id = ? "
+                    "AND broker_order_id = ?",
+                    (
+                        scope["mode"],
+                        scope["broker_id"],
+                        scope["account_id"],
+                        ack.broker_order_id,
+                    ),
+                ).fetchone()
+                if owner["order_uuid"] != str(ack.order_uuid):
+                    raise BrokerBatchError(
+                        "broker order identifier already belongs to another order",
+                        outcome_unknown=True,
+                    )
 
     def reserve_cancel(self, order_uuid: uuid.UUID) -> tuple[OrderReceipt, bool]:
         """Atomically reserve one cancellation before calling the broker."""
@@ -873,10 +811,20 @@ class ExecutionGateway:
                 outcome_unknown=True,
             )
             raise ExecutionSubmissionError(safe_error, failed) from exc
-        return self.audit_store.record_success(
-            receipt.submission_id,
-            acknowledgements,
-        )
+        try:
+            return self.audit_store.record_success(
+                receipt.submission_id,
+                acknowledgements,
+            )
+        except BrokerBatchError as exc:
+            failed = self.audit_store.record_failure(
+                receipt.submission_id,
+                error=str(exc),
+                completed=(),
+                failed_order_uuid=None,
+                outcome_unknown=True,
+            )
+            raise ExecutionSubmissionError(str(exc), failed) from exc
 
     def cancel(
         self,
@@ -885,7 +833,7 @@ class ExecutionGateway:
         confirmation: str,
     ) -> CancellationReceipt:
         """Cancel an acknowledged order with a separate explicit confirmation."""
-        self._validate_common_gates()
+        self._validate_adapter_mode()
         expected = self.expected_cancel_confirmation(order_uuid)
         if confirmation != expected:
             raise ExecutionConfirmationError(
@@ -926,14 +874,17 @@ class ExecutionGateway:
             raise ExecutionGateError(
                 "PI_ALLOW_T5_EXECUTE=true is required before execution"
             )
+        self._validate_adapter_mode()
+        if self.adapter.mode is ExecutionMode.LIVE and not self.live_enabled:
+            raise ExecutionGateError(
+                "PI_ALLOW_T5_LIVE=true is required for live execution"
+            )
+
+    def _validate_adapter_mode(self) -> None:
         if self.adapter.mode is not self.configured_mode:
             raise ExecutionGateError(
                 f"adapter mode {self.adapter.mode.value!r} does not match "
                 f"configured mode {self.configured_mode.value!r}"
-            )
-        if self.adapter.mode is ExecutionMode.LIVE and not self.live_enabled:
-            raise ExecutionGateError(
-                "PI_ALLOW_T5_LIVE=true is required for live execution"
             )
 
 

@@ -57,6 +57,25 @@ CREATE TABLE IF NOT EXISTS pi_execution_audit_event (
 )
 """
 
+_BROKER_ORDER_DDL = """
+CREATE TABLE IF NOT EXISTS pi_execution_broker_order (
+    mode TEXT NOT NULL,
+    broker_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    broker_order_id TEXT NOT NULL,
+    order_uuid TEXT NOT NULL UNIQUE,
+    submission_id TEXT NOT NULL,
+    PRIMARY KEY(mode, broker_id, account_id, broker_order_id)
+)
+"""
+
+_META_DDL = """
+CREATE TABLE IF NOT EXISTS pi_execution_schema_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+)
+"""
+
 _APPROVAL_DDL = """
 CREATE TABLE IF NOT EXISTS pi_execution_approval (
     plan_id TEXT PRIMARY KEY,
@@ -86,8 +105,25 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             "account_id",
         }.issubset(approval_columns):
             _migrate_approval(conn, approval_columns)
-        for ddl in (_SUBMISSION_DDL, _ORDER_DDL, _EVENT_DDL, _APPROVAL_DDL):
+        for ddl in (
+            _SUBMISSION_DDL,
+            _ORDER_DDL,
+            _EVENT_DDL,
+            _BROKER_ORDER_DDL,
+            _APPROVAL_DDL,
+            _META_DDL,
+        ):
             conn.execute(ddl)
+        migrated = conn.execute(
+            "SELECT 1 FROM pi_execution_schema_meta "
+            "WHERE key = 'live_broker_backfill_v1'"
+        ).fetchone()
+        if migrated is None:
+            _backfill_live_broker_orders(conn)
+            conn.execute(
+                "INSERT INTO pi_execution_schema_meta (key, value) VALUES (?, ?)",
+                ("live_broker_backfill_v1", "complete"),
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -178,6 +214,34 @@ def _migrate_approval(
             "batch_json, approved_at FROM _pi_execution_approval_v1"
         )
     conn.execute("DROP TABLE _pi_execution_approval_v1")
+
+
+def _backfill_live_broker_orders(conn: sqlite3.Connection) -> None:
+    """Reserve existing live broker IDs and reject historical collisions."""
+    rows = conn.execute(
+        "SELECT s.mode, s.broker_id, s.account_id, o.broker_order_id, "
+        "o.order_uuid, o.submission_id "
+        "FROM pi_execution_order o JOIN pi_execution_submission s "
+        "ON o.submission_id = s.submission_id "
+        "WHERE s.mode = 'live' AND o.broker_order_id IS NOT NULL"
+    ).fetchall()
+    for row in rows:
+        conn.execute(
+            "INSERT OR IGNORE INTO pi_execution_broker_order "
+            "(mode, broker_id, account_id, broker_order_id, order_uuid, "
+            "submission_id) VALUES (?, ?, ?, ?, ?, ?)",
+            tuple(row),
+        )
+        owner = conn.execute(
+            "SELECT order_uuid FROM pi_execution_broker_order "
+            "WHERE mode = ? AND broker_id = ? AND account_id = ? "
+            "AND broker_order_id = ?",
+            tuple(row)[:4],
+        ).fetchone()
+        if owner["order_uuid"] != row["order_uuid"]:
+            raise RuntimeError(
+                "historical live broker-order collision requires reconciliation"
+            )
 
 
 def serialize_approved_batch(batch: OrderBatch) -> str:

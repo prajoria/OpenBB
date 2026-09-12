@@ -275,6 +275,17 @@ class TestExecutionGateway:
                 "2026-01-01T00:00:00+00:00",
             ),
         )
+        conn.execute(
+            "INSERT INTO pi_execution_order VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "00000000-0000-4000-8000-000000000002",
+                "00000000-0000-4000-8000-000000000001",
+                0,
+                "legacy-broker-order",
+                "SUBMITTED",
+                None,
+            ),
+        )
         conn.commit()
         conn.close()
 
@@ -291,11 +302,21 @@ class TestExecutionGateway:
         foreign_parent = store._conn.execute(  # noqa: SLF001
             "PRAGMA foreign_key_list(pi_execution_order)"
         ).fetchone()[2]
+        broker_owner = store._conn.execute(  # noqa: SLF001
+            "SELECT order_uuid FROM pi_execution_broker_order "
+            "WHERE broker_order_id = 'legacy-broker-order'"
+        ).fetchone()
+        migration_marker = store._conn.execute(  # noqa: SLF001
+            "SELECT value FROM pi_execution_schema_meta "
+            "WHERE key = 'live_broker_backfill_v1'"
+        ).fetchone()
         store.close()
 
         assert row["principal_id"] == "legacy-unassigned"
         assert {"principal_id", "broker_id", "account_id"} <= columns
         assert foreign_parent == "pi_execution_submission"
+        assert broker_owner["order_uuid"] == "00000000-0000-4000-8000-000000000002"
+        assert migration_marker["value"] == "complete"
 
         reopened = SqliteExecutionAuditStore(path)
         with pytest.raises(UnknownSubmissionStateError, match="legacy live"):
@@ -307,6 +328,25 @@ class TestExecutionGateway:
                 plan_id="legacy-plan",
                 batch_sha256="a" * 64,
                 order_count=1,
+            )
+        fresh, _ = reopened.reserve(
+            mode=ExecutionMode.LIVE,
+            broker_id="fake-broker",
+            account_id="fake-live",
+            principal_id="alice",
+            plan_id="new-plan",
+            batch_sha256="b" * 64,
+            order_count=1,
+        )
+        with pytest.raises(BrokerBatchError, match="legacy broker order"):
+            reopened.record_success(
+                fresh.submission_id,
+                (
+                    BrokerOrderAck(
+                        fresh.orders[0].order_uuid,
+                        "legacy-broker-order",
+                    ),
+                ),
             )
         reopened.close()
 
@@ -972,6 +1012,70 @@ class TestExecutionGateway:
         assert second == first
         assert engine.cancelled == ["paper-0"]
         assert first.status == "CANCELLED"
+
+    def test_live_kill_switch_does_not_block_cancellation(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        client = _FakeLiveClient()
+        gateway = _gateway(
+            LiveBrokerAdapter(client, account_id="fake-live"),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT")
+        receipt = gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(batch),
+        )
+        order_uuid = receipt.orders[0].order_uuid
+        gateway.execute_enabled = False
+        gateway.live_enabled = False
+
+        cancelled = gateway.cancel(
+            order_uuid,
+            confirmation=gateway.expected_cancel_confirmation(order_uuid),
+        )
+
+        assert cancelled.status == "CANCELLED"
+        assert client.cancelled == ["live-1"]
+
+    def test_live_broker_id_cannot_alias_prior_submission(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        class ReusedIdClient(_FakeLiveClient):
+            def submit_order(self, ticket: OrderTicket, *, client_order_id: str) -> str:
+                self.calls.append((ticket, client_order_id))
+                return "same-broker-id"
+
+        client = ReusedIdClient()
+        gateway = _gateway(
+            LiveBrokerAdapter(client, account_id="fake-live"),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        first = _batch("MSFT")
+        second = OrderBatch(
+            tickets=_batch("AAPL").tickets,
+            plan_id="second-plan",
+            verdict_gate_pass=True,
+        )
+        gateway.submit(
+            first,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(first),
+        )
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                second,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(second),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
 
     def test_cancel_replay_keeps_its_order_timestamp(
         self, audit: SqliteExecutionAuditStore
