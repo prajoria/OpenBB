@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,7 @@ os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 from fastapi.testclient import TestClient  # noqa: E402
 from openbb_portfolio_intel.widget_backend.main import app  # noqa: E402
 from openbb_portfolio_intel.widget_backend.widgets_endpoints import (  # noqa: E402
+    _build_server_approved_t5_batch,
     _build_t5_demo_batch,
     register_t5_approved_batch,
 )
@@ -294,21 +296,74 @@ def test_approve_plan_registers_server_validated_batch(
     monkeypatch: pytest.MonkeyPatch, clean_env
 ) -> None:
     batch = _build_t5_demo_batch("validated-plan")
+    request_id = "00000000-0000-4000-8000-000000000171"
 
-    async def approved_builder(_plan):
+    async def approved_builder(_plan, approval_id):
+        assert approval_id == f"t4-{request_id}"
         return batch
 
     app.state.t5_plan_approval_builder = approved_builder
-    response = _client.post("/tt/execute/approve-plan", json={"plan": "payload"})
+    response = _client.post(
+        "/tt/execute/approve-plan",
+        params={"approval_request_id": request_id},
+        json={"symbol": "MSFT"},
+    )
 
     assert response.status_code == 200
-    assert response.json()["plan_id"] == "validated-plan"
+    assert response.json()["plan_id"] == f"t4-{request_id}"
     assert response.json()["batch_sha"] == batch.sha256()
     from openbb_techtrade.execution.broker_adapter import SqliteExecutionAuditStore
 
     store = SqliteExecutionAuditStore(os.environ["PI_T5_EXECUTION_AUDIT_DB"])
-    assert store.get_approved_batch("validated-plan") == batch
+    restored = store.get_approved_batch(f"t4-{request_id}")
+    assert restored is not None
+    assert restored.sha256() == batch.sha256()
     store.close()
+
+
+def test_default_approval_builder_uses_server_generated_orders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from decimal import Decimal
+
+    from openbb_techtrade.engine import plan as plan_module
+    from openbb_techtrade.models import Order
+    from openbb_techtrade.validation import backtest_bridge
+
+    server_plan = SimpleNamespace(
+        orders=[
+            Order(
+                symbol="MSFT",
+                side="buy",
+                quantity=Decimal("3"),
+                order_type="market",
+                intent="entry",
+            )
+        ]
+    )
+    captured: dict = {}
+
+    def build_plans(**kwargs):
+        captured.update(kwargs)
+        return [server_plan]
+
+    async def validate_plan(plan, **kwargs):
+        return plan, SimpleNamespace(verdict="robust")
+
+    monkeypatch.setattr(plan_module, "build_plans", build_plans)
+    monkeypatch.setattr(backtest_bridge, "validate_plan", validate_plan)
+
+    batch = asyncio.run(
+        _build_server_approved_t5_batch(
+            {"symbol": "MSFT", "risk": 0.01},
+            "t4-server-generated",
+        )
+    )
+
+    assert captured["symbols"] == ["MSFT"]
+    assert batch.tickets[0].symbol == "MSFT"
+    assert batch.tickets[0].quantity == Decimal("3")
+    assert batch.plan_id == "t4-server-generated"
 
 
 def test_cancel_reports_missing_techtrade_dependency(

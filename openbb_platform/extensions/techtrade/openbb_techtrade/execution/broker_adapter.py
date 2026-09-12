@@ -279,12 +279,12 @@ class LiveBrokerAdapter:
         order_uuids: Sequence[uuid.UUID],
     ) -> tuple[BrokerOrderAck, ...]:
         """Submit each ticket with its reserved client-order UUID."""
-        self._verify_identity()
         if len(batch.tickets) != len(order_uuids):
             raise BrokerBatchError("order UUID count does not match the batch")
         completed: list[BrokerOrderAck] = []
         for ticket, order_uuid in zip(batch.tickets, order_uuids, strict=True):
             try:
+                self._verify_identity()
                 broker_order_id = self._client.submit_order(
                     ticket,
                     client_order_id=str(order_uuid),

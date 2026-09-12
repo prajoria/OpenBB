@@ -3437,44 +3437,69 @@ def _resolve_t5_approved_batch(plan_id: str):
         store.close()
 
 
-async def _build_server_approved_t5_batch(plan_payload: dict):
-    """Validate a T4 plan server-side and return its executable entry batch."""
-    from openbb_techtrade.engine.orders import generate_orders  # noqa: PLC0415
+async def _build_server_approved_t5_batch(
+    plan_request: dict,
+    approval_id: str,
+):
+    """Build a plan from server data, validate it, and return its entry batch."""
+    from openbb_techtrade.engine.plan import build_plans  # noqa: PLC0415
     from openbb_techtrade.execution.order_sink import (  # noqa: PLC0415
         OrderBatch,
         tickets_from_orders,
     )
-    from openbb_techtrade.models import TradePlan  # noqa: PLC0415
     from openbb_techtrade.validation.backtest_bridge import (  # noqa: PLC0415
         validate_plan,
     )
 
-    plan = TradePlan.model_validate(plan_payload)
-    validated_plan, report = await validate_plan(plan)
+    allowed = {
+        "symbol",
+        "segment",
+        "preset",
+        "risk",
+        "as_of",
+        "method",
+        "thresholds",
+        "horizon_years",
+        "provider",
+    }
+    unknown = set(plan_request) - allowed
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported approval fields: {sorted(unknown)}",
+        )
+    symbol = _validate_symbol(str(plan_request.get("symbol", "")))
+    plans = await asyncio.to_thread(
+        build_plans,
+        symbols=[symbol],
+        segment=plan_request.get("segment"),
+        preset=plan_request.get("preset", "trend_follow"),
+        risk=float(plan_request.get("risk", 0.01)),
+        as_of=plan_request.get("as_of"),
+    )
+    if len(plans) != 1:
+        raise HTTPException(
+            status_code=400,
+            detail="server-side planning did not produce exactly one trade plan",
+        )
+    validated_plan, report = await validate_plan(
+        plans[0],
+        method=plan_request.get("method", "wfo"),
+        thresholds=plan_request.get("thresholds"),
+        horizon_years=int(plan_request.get("horizon_years", 5)),
+        provider=plan_request.get("provider"),
+    )
     if getattr(report, "verdict", "") != "robust":
         raise HTTPException(
             status_code=400,
             detail="T4 validation did not produce a robust verdict",
         )
-    canonical_orders = generate_orders(
-        validated_plan.signal,
-        entry=validated_plan.recommendation.entry_price,
-        stop=validated_plan.recommendation.stop_price,
-        target=validated_plan.recommendation.target_price,
-        qty=validated_plan.position_size,
-        rule=validated_plan.rule,
-    )
-    tickets = tuple(tickets_from_orders(canonical_orders))
+    tickets = tuple(tickets_from_orders(validated_plan.orders))
     if not tickets:
         raise HTTPException(
             status_code=400,
             detail="validated T4 plan contains no executable entry orders",
         )
-    provisional = OrderBatch(tickets=tickets, verdict_gate_pass=True)
-    approval_id = (
-        f"t4-{validated_plan.symbol}-{validated_plan.as_of.isoformat()}-"
-        f"{provisional.sha_short()}"
-    )
     return OrderBatch(
         tickets=tickets,
         plan_id=approval_id,
@@ -3483,16 +3508,42 @@ async def _build_server_approved_t5_batch(plan_payload: dict):
 
 
 @app.post("/tt/execute/approve-plan")
-async def tt_execute_approve_plan(request: Request, plan: dict) -> dict:
+async def tt_execute_approve_plan(
+    request: Request,
+    plan: dict,
+    approval_request_id: str,
+) -> dict:
     """Run the server-owned T4 validation handoff and register its exact batch."""
     _require_auth(request)
-    builder = getattr(
-        request.app.state,
-        "t5_plan_approval_builder",
-        _build_server_approved_t5_batch,
-    )
-    batch = await builder(plan)
-    register_t5_approved_batch(batch)
+    from uuid import UUID  # noqa: PLC0415
+
+    try:
+        approval_id = f"t4-{UUID(approval_request_id)}"
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="approval_request_id must be a canonical UUID",
+        ) from exc
+    batch = _resolve_t5_approved_batch(approval_id)
+    if batch is None:
+        builder = getattr(
+            request.app.state,
+            "t5_plan_approval_builder",
+            _build_server_approved_t5_batch,
+        )
+        built = await builder(plan, approval_id)
+        from openbb_techtrade.execution.order_sink import OrderBatch  # noqa: PLC0415
+
+        batch = OrderBatch(
+            tickets=built.tickets,
+            plan_id=approval_id,
+            verdict_gate_pass=True,
+            generated_at=built.generated_at,
+            pricing=built.pricing,
+            pre_execution_positions=built.pre_execution_positions,
+            plan_context=built.plan_context,
+        )
+        register_t5_approved_batch(batch)
 
     mode = os.environ.get("PI_T5_BROKER_MODE", "paper").strip()
     if mode == "live":

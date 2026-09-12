@@ -57,11 +57,12 @@ The existing T5 stack is a partial execution path:
 The live client boundary is intentionally vendor-neutral. Alpaca, IBKR, or a
 safe fake can implement the same methods without changing the gateway.
 `POST /tt/execute/approve-plan` is the production handoff: it runs T4
-validation server-side (or a server-injected equivalent), regenerates the
-executable order legs from the validated signal/rule/recommendation instead of
-trusting caller-supplied orders, registers only a robust immutable batch in the
-cross-worker audit database, and returns its approval ID and confirmation
-phrase.
+planning and validation server-side from a narrow symbol/risk request (or uses
+a server-injected equivalent), never accepts caller-supplied executable order
+legs, registers only a robust immutable batch in the cross-worker audit
+database, and returns its approval ID and confirmation phrase. A caller-supplied
+UUID makes approval retries idempotent while each new approval gets a distinct
+execution identity.
 
 ## Safety and confirmation
 

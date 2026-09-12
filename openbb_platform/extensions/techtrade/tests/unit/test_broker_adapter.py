@@ -122,13 +122,41 @@ class TestAdapterContract:
         adapter = LiveBrokerAdapter(client, account_id="fake-live")
         client.account_id = "different-account"
 
-        with pytest.raises(ExecutionConfigurationError, match="identity changed"):
+        with pytest.raises(BrokerBatchError) as raised:
             adapter.submit_batch(
                 _batch("MSFT"),
                 (UUID("00000000-0000-4000-8000-000000000001"),),
             )
 
+        assert raised.value.completed == ()
+        assert raised.value.outcome_unknown is True
         assert client.calls == []
+
+    def test_live_adapter_rechecks_identity_before_each_order(self) -> None:
+        class SwitchingClient(_FakeLiveClient):
+            def submit_order(self, ticket: OrderTicket, *, client_order_id: str) -> str:
+                result = super().submit_order(
+                    ticket,
+                    client_order_id=client_order_id,
+                )
+                self.account_id = "switched-account"
+                return result
+
+        client = SwitchingClient()
+        adapter = LiveBrokerAdapter(client, account_id="fake-live")
+
+        with pytest.raises(BrokerBatchError) as raised:
+            adapter.submit_batch(
+                _batch("MSFT", "AAPL"),
+                (
+                    UUID("00000000-0000-4000-8000-000000000001"),
+                    UUID("00000000-0000-4000-8000-000000000002"),
+                ),
+            )
+
+        assert len(raised.value.completed) == 1
+        assert raised.value.outcome_unknown is True
+        assert len(client.calls) == 1
 
     @pytest.mark.parametrize("account_id", ["", " ", "live account", "../live"])
     def test_live_adapter_rejects_unsafe_account_scope(self, account_id: str) -> None:
