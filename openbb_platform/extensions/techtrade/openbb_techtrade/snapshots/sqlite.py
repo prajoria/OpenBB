@@ -112,19 +112,17 @@ class SqliteScanSnapshotStore:
         busy_timeout_ms: int = 5_000,
     ) -> None:
         legacy_override = os.environ.get(SCAN_DB_ENV)
+        override_path = Path(legacy_override).expanduser() if legacy_override else None
         requested_path = Path(path) if path is not None else None
+        candidate_path = requested_path or override_path
         migration_source = (
-            Path(legacy_override).expanduser()
-            if legacy_override
-            else (
-                requested_path
-                if requested_path is not None and _has_legacy_table(requested_path)
-                else None
-            )
+            candidate_path
+            if candidate_path is not None and _has_legacy_table(candidate_path)
+            else None
         )
         sqlite_path = (
-            requested_path
-            if requested_path is not None and migration_source is None
+            candidate_path
+            if candidate_path is not None and migration_source is None
             else None
         )
         self._store: Any = (
@@ -193,12 +191,9 @@ class SqliteScanSnapshotStore:
         dataset = _dataset(snapshot.kind)
         entity_key = _entity_key(snapshot.segment)
         payload = _payload(snapshot)
-        existing_job = self._store.get_job(snapshot.snapshot_id)
-        if (
-            existing_job is not None
-            and self.read_by_id(snapshot.snapshot_id) is not None
-        ):
+        if self.read_by_id(snapshot.snapshot_id) is not None:
             raise ValueError("snapshot_id already exists")
+        existing_job = self._store.get_job(snapshot.snapshot_id)
         job_run_id = (
             snapshot.snapshot_id
             if existing_job is None
