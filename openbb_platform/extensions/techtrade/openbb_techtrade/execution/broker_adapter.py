@@ -800,16 +800,23 @@ class ExecutionGateway:
         order_uuids = tuple(order.order_uuid for order in receipt.orders)
         try:
             acknowledgements = self.adapter.submit_batch(batch, order_uuids)
-            if len(acknowledgements) != len(order_uuids) or {
-                ack.order_uuid for ack in acknowledgements
-            } != set(order_uuids):
+            ack_uuids = {ack.order_uuid for ack in acknowledgements}
+            duplicate_broker_ids = len(
+                {ack.broker_order_id for ack in acknowledgements}
+            ) != len(acknowledgements)
+            if (
+                len(acknowledgements) != len(order_uuids)
+                or ack_uuids != set(order_uuids)
+                or duplicate_broker_ids
+            ):
                 reserved = set(order_uuids)
                 validated: list[BrokerOrderAck] = []
-                seen: set[uuid.UUID] = set()
-                for ack in acknowledgements:
-                    if ack.order_uuid in reserved and ack.order_uuid not in seen:
-                        validated.append(ack)
-                        seen.add(ack.order_uuid)
+                if not duplicate_broker_ids:
+                    seen: set[uuid.UUID] = set()
+                    for ack in acknowledgements:
+                        if ack.order_uuid in reserved and ack.order_uuid not in seen:
+                            validated.append(ack)
+                            seen.add(ack.order_uuid)
                 raise BrokerBatchError(
                     "adapter acknowledgements do not match reserved order UUIDs",
                     completed=validated,

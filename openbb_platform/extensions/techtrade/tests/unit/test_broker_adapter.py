@@ -822,6 +822,41 @@ class TestExecutionGateway:
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert raised.value.receipt.orders[0].status == "UNKNOWN"
 
+    def test_duplicate_broker_acknowledgements_require_reconciliation(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        class DuplicateAckAdapter:
+            mode = ExecutionMode.LIVE
+            broker_id = "fake-broker"
+            account_id = "fake-live"
+
+            def submit_batch(self, batch, order_uuids):
+                return tuple(
+                    BrokerOrderAck(order_uuid, "duplicate-broker-id")
+                    for order_uuid in order_uuids
+                )
+
+            def cancel_order(self, broker_order_id):
+                return None
+
+        gateway = _gateway(
+            DuplicateAckAdapter(),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT", "AAPL")
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+        assert {order.status for order in raised.value.receipt.orders} == {"UNKNOWN"}
+
     def test_reserved_unknown_outcome_fails_closed(
         self, audit: SqliteExecutionAuditStore
     ) -> None:
