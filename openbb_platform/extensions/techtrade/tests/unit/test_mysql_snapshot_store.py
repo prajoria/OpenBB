@@ -78,7 +78,7 @@ import sqlite3
 import unicodedata
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -87,10 +87,20 @@ from openbb_techtrade.snapshot import (
     mysql_store as mysql_store_module,
     store as store_module,
 )
+from openbb_techtrade.snapshot.job import (
+    SnapshotJobAlreadyRunning,
+    SnapshotJobState,
+    SnapshotJobTransitionError,
+)
 from openbb_techtrade.snapshot.mysql_store import (
     _PI_EOD_SNAPSHOT_DDL,
     MysqlSnapshotStore,
     _make_mysql_store,
+)
+from openbb_techtrade.snapshot.registry import (
+    DatasetDefinition,
+    PiiSharedStoreViolation,
+    SnapshotDatasetRegistry,
 )
 from openbb_techtrade.snapshot.store import (
     FIELD_MAX_LENGTHS,
@@ -136,7 +146,7 @@ _VARCHAR_RE = re.compile(r"^\s+(\w+)\s+VARCHAR\((\d+)\)", re.M)
 
 # `live_key` is a generated column: its width is derived from the columns it
 # concatenates, so it is not a bound the *writer* can violate.
-_GENERATED_COLUMNS = frozenset({"live_key"})
+_GENERATED_COLUMNS = frozenset({"live_key", "running_dataset"})
 
 # Every string column the DDL declares, with the collation it pins (or
 # `None` when it pins none). The double translates that into SQLite's
@@ -635,6 +645,14 @@ class _FakeCursor:
                 f"Not all parameters were used in the SQL statement: "
                 f"{sql.count('%s')} placeholders vs {len(bound)} params"
             )
+        if "GET_LOCK" in statement:
+            self._conn.record(sql, bound)
+            self._answer([{"acquired": 1}])
+            return
+        if "RELEASE_LOCK" in statement:
+            self._conn.record(sql, bound)
+            self._answer([{"released": 1}])
+            return
         if sql.lstrip().upper().startswith("ALTER TABLE"):
             self._alter_table(sql, bound)
             return
@@ -765,6 +783,9 @@ class _FakeCursor:
         if "TABLE_COMMENT" in sql or "ENGINE" in sql:
             self._select_table_metadata(bound)
             return
+        if "KEY_COLUMN_USAGE" in sql:
+            self._select_foreign_keys(bound)
+            return
         if "STATISTICS" in sql:
             self._select_indexes(bound)
             return
@@ -830,11 +851,12 @@ class _FakeCursor:
         """
         table = bound[0]
         indexes = self._cursor.execute(
-            'SELECT name, "unique" FROM pragma_index_list(?) ORDER BY name',
+            'SELECT name, "unique", origin FROM pragma_index_list(?) ORDER BY name',
             (table,),
         ).fetchall()
         rows: list[dict[str, Any]] = []
-        for index_name, unique in indexes:
+        for index_name, unique, origin in indexes:
+            reported_name = "PRIMARY" if origin == "pk" else index_name
             parts = self._cursor.execute(
                 "SELECT seqno, name, key FROM pragma_index_xinfo(?) ORDER BY seqno",
                 (index_name,),
@@ -844,7 +866,7 @@ class _FakeCursor:
                     continue
                 rows.append(
                     {
-                        "INDEX_NAME": index_name,
+                        "INDEX_NAME": reported_name,
                         "NON_UNIQUE": 0 if unique else 1,
                         "SEQ_IN_INDEX": seqno + 1,
                         "COLUMN_NAME": column_name,
@@ -854,6 +876,27 @@ class _FakeCursor:
                     }
                 )
         self._answer(rows)
+
+    def _select_foreign_keys(self, bound: tuple) -> None:
+        """Expose SQLite foreign keys in MySQL KEY_COLUMN_USAGE shape."""
+        table = bound[0]
+        rows = self._cursor.execute(
+            'SELECT id, seq, "table", "from", "to" '
+            "FROM pragma_foreign_key_list(?) ORDER BY id, seq",
+            (table,),
+        ).fetchall()
+        self._answer(
+            [
+                {
+                    "CONSTRAINT_NAME": f"fk_{foreign_id}",
+                    "COLUMN_NAME": source,
+                    "REFERENCED_TABLE_NAME": referenced_table,
+                    "REFERENCED_COLUMN_NAME": target,
+                    "ORDINAL_POSITION": sequence + 1,
+                }
+                for foreign_id, sequence, referenced_table, source, target in rows
+            ]
+        )
 
     def _select_table_metadata(self, bound: tuple) -> None:
         """Read a table's ``COMMENT`` and ``ENGINE`` from the fake dictionary.
@@ -1221,6 +1264,7 @@ def _direct_insert(
     job_run_id: str,
     state: str,
     payload_json: str = '{"rows": [{"symbol": "GOOG"}]}',
+    point: bool = False,
 ) -> None:
     """Bypass the store to test the DB-level constraint directly."""
     with pool.get_connection() as conn:
@@ -1245,6 +1289,19 @@ def _direct_insert(
                         payload_json,
                     ),
                 )
+                if point:
+                    cur.execute(
+                        "REPLACE INTO pi_eod_live_pointer ("
+                        "dataset, entity_key, as_of_session, job_run_id, updated_at"
+                        ") VALUES (%s, %s, %s, %s, %s)",
+                        (
+                            "techtrade.movers",
+                            "sector=technology",
+                            date(2026, 9, 9),
+                            job_run_id,
+                            datetime(2026, 9, 9, 12, 0, 0),
+                        ),
+                    )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -1615,7 +1672,11 @@ def test_get_live_rejects_a_persisted_non_object_payload(
     ``SnapshotRow.payload``'s ``dict`` contract instead of raising here.
     """
     _direct_insert(
-        pool, job_run_id="run-corrupt", state="live", payload_json=payload_json
+        pool,
+        job_run_id="run-corrupt",
+        state="live",
+        payload_json=payload_json,
+        point=True,
     )
     with pytest.raises(SnapshotPayloadNotAnObject) as excinfo:
         store.get_live("techtrade.movers", "sector=technology")
@@ -1658,6 +1719,7 @@ def test_protocol_surface_is_the_full_contract() -> None:
         "promote",
         "prune",
         "restamp_live",
+        "rollback",
         "should_skip",
         "stage",
         "validate",
@@ -1720,6 +1782,119 @@ def test_make_mysql_store_uses_the_shared_fmp_cached_pool(
 def test_fresh_store_has_no_live_snapshot(store: MysqlSnapshotStore) -> None:
     assert store.get_live("techtrade.movers", "sector=technology") is None
     store.close()
+
+
+def test_mysql_rejects_registered_pii_dataset(pool: _FakePool) -> None:
+    registry = SnapshotDatasetRegistry(
+        [
+            DatasetDefinition(
+                name="pi.account.weights",
+                pii_scoped=True,
+                payload_schema_version="1",
+                readers={"1": lambda payload: payload},
+            )
+        ]
+    )
+    store = MysqlSnapshotStore(connection_pool=pool, dataset_registry=registry)
+
+    with pytest.raises(PiiSharedStoreViolation):
+        _stage(
+            store,
+            dataset="pi.account.weights",
+            payload={"weights": [0.5, 0.5]},
+        )
+
+    assert not pool.raw.execute(
+        "SELECT 1 FROM pi_eod_snapshot WHERE dataset = 'pi.account.weights'"
+    ).fetchall()
+
+    with pytest.raises(PiiSharedStoreViolation):
+        store.start_job(
+            "pi.account.weights",
+            "private-job",
+            started_at=datetime(2026, 9, 11, 21, tzinfo=timezone.utc),
+        )
+
+    pool.raw.execute(
+        "INSERT INTO snapshot_job ("
+        "job_run_id, dataset, started_at, state, n_ok, n_failed"
+        ") VALUES (?, ?, ?, ?, 0, 0)",
+        (
+            "injected-private-job",
+            "pi.account.weights",
+            "2026-09-11 21:00:00",
+            "running",
+        ),
+    )
+    with pytest.raises(PiiSharedStoreViolation):
+        store.record_job_errors(
+            "injected-private-job", {"portfolio=private": "provider_timeout"}
+        )
+
+    pool.raw.execute(
+        "INSERT INTO pi_eod_snapshot ("
+        "dataset, entity_key, as_of_session, created_at, job_run_id, "
+        "status, state, validated, validation_reason, payload_json"
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, 1, '', ?)",
+        (
+            "pi.account.weights",
+            "portfolio=private",
+            "2026-09-11",
+            "2026-09-11 21:00:00",
+            "orphan-private-job",
+            "ok",
+            "staging",
+            '{"synthetic":true}',
+        ),
+    )
+    with pytest.raises(PiiSharedStoreViolation):
+        store.rows_for_job("orphan-private-job")
+    with pytest.raises(PiiSharedStoreViolation):
+        store.prune(RetentionPolicy(keep_sessions=0))
+
+
+def test_mysql_rejects_unregistered_reserved_pii_namespace(
+    store: MysqlSnapshotStore,
+) -> None:
+    with pytest.raises(PiiSharedStoreViolation):
+        _stage(
+            store,
+            dataset="pi.account.weights",
+            payload={"synthetic": True},
+            job_run_id="reserved-pii",
+        )
+    with pytest.raises(PiiSharedStoreViolation):
+        store.get_live("pi.account.weights", "portfolio=private")
+
+
+def test_mysql_rejects_padded_job_run_ids(store: MysqlSnapshotStore) -> None:
+    with pytest.raises(ValueError, match="job_run_id"):
+        _stage(
+            store,
+            payload={"rows": [{"symbol": "AAPL"}]},
+            job_run_id="run-padded ",
+        )
+    store.start_job(
+        "techtrade.movers",
+        "run-clean",
+        started_at=datetime(2026, 9, 11, 21, tzinfo=timezone.utc),
+    )
+    with pytest.raises(ValueError, match="job_run_id"):
+        store.get_job("run-clean ")
+    staged = _stage(
+        store,
+        entity_key="symbol=AAPL",
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="snapshot-clean",
+    )
+    with pytest.raises(ValueError, match="job_run_id"):
+        store.validate(*staged[:-1], "snapshot-clean ")
+    assert store.validate(*staged).ok
+    with pytest.raises(ValueError, match="job_run_id"):
+        store.promote(*staged[:-1], "snapshot-clean ")
+    assert store.promote(*staged)
+    with pytest.raises(ValueError, match="job_run_id"):
+        store.rollback(*staged[:-1], "snapshot-clean ")
 
 
 def test_clean_stage_validate_promote_is_atomic(store: MysqlSnapshotStore) -> None:
@@ -1827,6 +2002,366 @@ def test_partial_cannot_displace_ok(store: MysqlSnapshotStore) -> None:
     assert live is not None
     assert live.payload["rows"][0]["symbol"] == "AAPL"
     assert live.job_run_id == ok_staged[3]
+
+
+def test_partial_without_an_incumbent_never_moves_mysql_pointer(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    partial = _stage(
+        store,
+        status=SnapshotStatus.PARTIAL,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        job_run_id="partial-only",
+    )
+    assert store.validate(*partial).ok
+
+    assert not store.promote(*partial)
+    assert store.get_live("techtrade.movers", "sector=technology") is None
+    assert (
+        pool.raw.execute("SELECT COUNT(*) FROM pi_eod_live_pointer").fetchone()[0] == 0
+    )
+
+
+def test_mysql_rollback_repoints_exact_good_history(store: MysqlSnapshotStore) -> None:
+    first = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+        job_run_id="first",
+    )
+    second = _stage(
+        store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+        job_run_id="second",
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+    assert store.validate(*second).ok
+    assert store.promote(*second)
+
+    assert store.rollback(
+        "techtrade.movers", "sector=technology", date(2026, 9, 3), "first"
+    )
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == "first"
+
+
+def test_mysql_rollback_repairs_pointer_when_target_label_is_already_live(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    first = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+        job_run_id="first",
+    )
+    second = _stage(
+        store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+        job_run_id="second",
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+    assert store.validate(*second).ok
+    assert store.promote(*second)
+    pool.raw.execute(
+        "UPDATE pi_eod_snapshot SET state = 'superseded' WHERE job_run_id = ?",
+        ("second",),
+    )
+    pool.raw.execute(
+        "UPDATE pi_eod_snapshot SET state = 'live' WHERE job_run_id = ?",
+        ("first",),
+    )
+
+    assert store.rollback(
+        "techtrade.movers", "sector=technology", date(2026, 9, 3), "first"
+    )
+    assert store.get_live("techtrade.movers", "sector=technology").job_run_id == "first"
+
+
+def test_mysql_live_read_uses_pointer_not_history_state(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    pointed = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="pointed",
+    )
+    assert store.validate(*pointed).ok
+    assert store.promote(*pointed)
+
+    pool.raw.execute(
+        "UPDATE pi_eod_snapshot SET state = 'superseded' WHERE job_run_id = ?",
+        ("pointed",),
+    )
+    _direct_insert(pool, job_run_id="state-only", state="live")
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == "pointed"
+
+
+def test_mysql_audit_state_drift_does_not_freeze_next_promotion(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    first = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+        job_run_id="pointed",
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+    pool.raw.execute(
+        "UPDATE pi_eod_snapshot SET state = 'superseded' WHERE job_run_id = ?",
+        ("pointed",),
+    )
+    second = _stage(
+        store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+        job_run_id="next",
+    )
+    assert store.validate(*second).ok
+
+    assert store.promote(*second)
+    assert store.get_live("techtrade.movers", "sector=technology").job_run_id == "next"
+
+
+def test_mysql_prune_protects_pointer_target_when_audit_state_drifts(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    staged = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="pointed",
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    pool.raw.execute(
+        "UPDATE pi_eod_snapshot SET state = 'superseded' WHERE job_run_id = ?",
+        ("pointed",),
+    )
+
+    assert (
+        store.prune(RetentionPolicy(keep_sessions=0), dataset="techtrade.movers") == 0
+    )
+    assert (
+        store.get_live("techtrade.movers", "sector=technology").job_run_id == "pointed"
+    )
+
+
+def test_mysql_job_single_flight_reclaims_only_after_two_hours(
+    store: MysqlSnapshotStore,
+) -> None:
+    started = datetime(2026, 9, 11, 21, tzinfo=timezone.utc)
+    store.start_job("techtrade.movers", "job-1", started_at=started)
+
+    with pytest.raises(SnapshotJobAlreadyRunning):
+        store.start_job(
+            "techtrade.movers",
+            "job-2",
+            started_at=started + timedelta(minutes=5),
+        )
+
+    replacement = store.start_job(
+        "techtrade.movers",
+        "job-3",
+        started_at=started + timedelta(hours=2, seconds=1),
+    )
+    stale = store.get_job("job-1")
+    assert stale is not None
+    assert stale.state is SnapshotJobState.FAILED
+    assert stale.error == "stale_reclaimed"
+    assert replacement.state is SnapshotJobState.RUNNING
+
+
+def test_mysql_job_errors_drive_targeted_retry_without_raw_messages(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    started = datetime(2026, 9, 11, 21, tzinfo=timezone.utc)
+    store.start_job("techtrade.movers", "job-1", started_at=started)
+    store.record_job_errors(
+        "job-1",
+        {
+            "symbol=AAPL": RuntimeError("sensitive response"),
+            "symbol=MSFT": "provider_timeout",
+        },
+    )
+    finished = store.finish_job(
+        "job-1",
+        SnapshotJobState.PARTIAL,
+        n_ok=3,
+        n_failed=2,
+        error="partial_failure",
+        finished_at=started + timedelta(minutes=10),
+    )
+
+    assert finished.n_ok == 3
+    assert finished.n_failed == 2
+    assert store.retry_entity_keys("job-1") == ["symbol=aapl", "symbol=msft"]
+    stored = {
+        row[0]
+        for row in pool.raw.execute(
+            "SELECT error FROM snapshot_job_error WHERE job_run_id = ?",
+            ("job-1",),
+        )
+    }
+    assert stored == {"RuntimeError", "provider_timeout"}
+    assert "sensitive response" not in repr(stored)
+
+
+def test_mysql_lost_job_lease_is_not_logged_as_connection_failure(
+    store: MysqlSnapshotStore, pool: _FakePool
+) -> None:
+    started = datetime(2026, 9, 11, 21, tzinfo=timezone.utc)
+    store.start_job("techtrade.movers", "job-finished", started_at=started)
+    store.finish_job(
+        "job-finished",
+        SnapshotJobState.SUCCEEDED,
+        n_ok=1,
+        n_failed=0,
+        finished_at=started + timedelta(minutes=1),
+    )
+    errors_before = list(pool.errors)
+
+    with pytest.raises(SnapshotJobTransitionError):
+        store.finish_job(
+            "job-finished",
+            SnapshotJobState.FAILED,
+            n_ok=0,
+            n_failed=1,
+            finished_at=started + timedelta(minutes=2),
+        )
+
+    assert pool.errors == errors_before
+
+
+def test_mysql_job_error_rejects_overlength_retry_key_before_write(
+    store: MysqlSnapshotStore,
+) -> None:
+    started = datetime(2026, 9, 11, 21, tzinfo=timezone.utc)
+    store.start_job("techtrade.movers", "job-long-key", started_at=started)
+
+    with pytest.raises(SnapshotFieldTooLong, match="entity_key"):
+        store.record_job_errors(
+            "job-long-key", {"x" * (FIELD_MAX_LENGTHS["entity_key"] + 1): "timeout"}
+        )
+
+    assert store.retry_entity_keys("job-long-key") == []
+
+
+def test_mysql_reclaimed_worker_cannot_publish_after_losing_lease(
+    store: MysqlSnapshotStore,
+) -> None:
+    started = datetime(2026, 9, 11, 21, tzinfo=timezone.utc)
+    store.start_job("techtrade.movers", "stale-run", started_at=started)
+    staged = _stage(
+        store,
+        entity_key="symbol=AAPL",
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="stale-run",
+    )
+    assert store.validate(*staged).ok
+    store.start_job(
+        "techtrade.movers",
+        "replacement",
+        started_at=started + timedelta(hours=2, seconds=1),
+    )
+
+    with pytest.raises(SnapshotJobTransitionError, match="lease"):
+        store.publish_job(
+            "stale-run",
+            [staged],
+            finished_at=started + timedelta(hours=2, minutes=5),
+        )
+
+    assert store.get_live("techtrade.movers", "symbol=AAPL") is None
+    with pytest.raises(SnapshotJobTransitionError, match="running"):
+        store.record_job_errors("stale-run", {"symbol=AAPL": "late_failure"})
+    assert store.retry_entity_keys("stale-run") == []
+
+
+def test_mysql_refuses_job_table_without_single_flight_guard(tmp_path: Path) -> None:
+    db_path = tmp_path / "missing-job-guard.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    connection = _connect(str(db_path))
+    connection.execute("DROP INDEX ux_snapshot_job_running")
+    connection.commit()
+    connection.close()
+
+    with pytest.raises(SnapshotSchemaMismatch, match="snapshot_job"):
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+
+def test_mysql_refuses_nontransactional_live_pointer_table(tmp_path: Path) -> None:
+    db_path = tmp_path / "pointer-engine.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    connection = _connect(str(db_path))
+    cursor = connection.cursor()
+    _ensure_dictionary(cursor)
+    cursor.execute(
+        f"UPDATE {_DICTIONARY_TABLE} SET table_engine = ? WHERE table_name = ?",
+        ("MyISAM", "pi_eod_live_pointer"),
+    )
+    connection.commit()
+    connection.close()
+
+    with pytest.raises(SnapshotSchemaMismatch, match="InnoDB"):
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+
+def test_mysql_refuses_live_pointer_without_snapshot_foreign_key(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "pointer-foreign-key.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    connection = _connect(str(db_path))
+    connection.execute("DROP TABLE pi_eod_live_pointer")
+    connection.execute("""
+        CREATE TABLE pi_eod_live_pointer (
+            dataset TEXT COLLATE BINARY NOT NULL,
+            entity_key TEXT COLLATE BINARY NOT NULL,
+            as_of_session DATE NOT NULL,
+            job_run_id TEXT COLLATE BINARY NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (dataset, entity_key)
+        )
+        """)
+    _record_table_metadata(
+        connection.cursor(),
+        "pi_eod_live_pointer",
+        comment="",
+        engine="InnoDB",
+    )
+    connection.commit()
+    connection.close()
+
+    with pytest.raises(SnapshotSchemaMismatch, match="foreign key"):
+        MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+
+def test_mysql_promote_many_is_all_or_nothing(store: MysqlSnapshotStore) -> None:
+    first = _stage(
+        store,
+        entity_key="symbol=AAPL",
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="new-a",
+    )
+    second = _stage(
+        store,
+        entity_key="symbol=MSFT",
+        payload={"rows": [{"symbol": "MSFT"}]},
+        job_run_id="new-b",
+    )
+    assert store.validate(*first).ok
+
+    assert not store.promote_many([first, second])
+    assert store.get_live("techtrade.movers", "symbol=AAPL") is None
+    assert store.get_live("techtrade.movers", "symbol=MSFT") is None
 
 
 def test_newer_ok_supersedes_prior_ok_and_history_retains_both(
@@ -2902,7 +3437,7 @@ def test_promote_refuses_when_the_incumbent_live_row_moves_mid_transaction(
     other = MysqlSnapshotStore(connection_pool=real_pool)
     fired = _hook_once(
         real_pool,
-        "state = %s FOR UPDATE",
+        "FROM pi_eod_live_pointer AS p",
         lambda: other.promote(*theirs),
     )
 
@@ -2940,7 +3475,7 @@ def test_promote_refuses_when_the_candidate_is_promoted_concurrently(
     other = MysqlSnapshotStore(connection_pool=real_pool)
     fired = _hook_once(
         real_pool,
-        "state = %s FOR UPDATE",
+        "FROM pi_eod_live_pointer AS p",
         lambda: other.promote(*mine),
     )
 
@@ -2970,7 +3505,7 @@ def test_promote_converts_a_concurrent_live_key_collision_into_a_refusal(
 
     fired = _hook_once(
         real_pool,
-        "state = %s FOR UPDATE",
+        "FROM pi_eod_live_pointer AS p",
         lambda: _direct_insert(real_pool, job_run_id="run-outsider", state="live"),
     )
 
@@ -3040,7 +3575,7 @@ def test_promote_refuses_when_the_incumbent_live_row_vanishes_mid_transaction(
 
     fired = _hook_once(
         real_pool,
-        "state = %s FOR UPDATE",
+        "FROM pi_eod_live_pointer AS p",
         lambda: _direct_supersede(real_pool, incumbent[3]),
     )
 
@@ -4532,6 +5067,120 @@ def test_mysql_stamps_the_schema_version_on_a_fresh_table(tmp_path: Path) -> Non
         store_module._parse_schema_version_comment(comment)
         == store_module.SNAPSHOT_SCHEMA_VERSION
     )
+
+
+def test_mysql_migrates_v1_live_state_into_authoritative_pointer(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "version-1.db"
+    initial = MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    staged = _stage(
+        initial,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="legacy-live",
+    )
+    assert initial.validate(*staged).ok
+    assert initial.promote(*staged)
+
+    legacy = _connect(str(db_path))
+    legacy.execute("DROP TABLE pi_eod_live_pointer")
+    legacy.commit()
+    legacy.close()
+    _set_table_comment(db_path, _version_stamp(1))
+
+    migrated = MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    live = migrated.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == "legacy-live"
+    assert (
+        store_module._parse_schema_version_comment(_table_comment(db_path))
+        == store_module.SNAPSHOT_SCHEMA_VERSION
+    )
+
+
+def test_mysql_v2_migration_restores_job_run_lookup_index(tmp_path: Path) -> None:
+    db_path = tmp_path / "version-2-index.db"
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    connection = _connect(str(db_path))
+    connection.execute("DROP INDEX ix_pi_eod_snapshot_job_run")
+    connection.commit()
+    connection.close()
+    _set_table_comment(db_path, _version_stamp(2))
+
+    MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    inspected = _connect(str(db_path))
+    try:
+        indexes = {
+            row[1] for row in inspected.execute("PRAGMA index_list(pi_eod_snapshot)")
+        }
+    finally:
+        inspected.close()
+    assert "ix_pi_eod_snapshot_job_run" in indexes
+
+
+def test_mysql_schema_setup_is_serialized_by_advisory_lock(
+    pool: _FakePool,
+) -> None:
+    MysqlSnapshotStore(connection_pool=pool)
+
+    sql = [statement for statement, _params in pool.statements]
+    acquired = next(i for i, statement in enumerate(sql) if "GET_LOCK" in statement)
+    released = next(i for i, statement in enumerate(sql) if "RELEASE_LOCK" in statement)
+    create = next(
+        i
+        for i, statement in enumerate(sql)
+        if statement.lstrip().upper().startswith("CREATE TEMPORARY TABLE")
+    )
+    assert acquired < create < released
+
+
+def test_mysql_reseeds_missing_pointer_for_current_schema(tmp_path: Path) -> None:
+    db_path = tmp_path / "current-missing-pointer.db"
+    initial = MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    staged = _stage(
+        initial,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="existing-live",
+    )
+    assert initial.validate(*staged).ok
+    assert initial.promote(*staged)
+    connection = _connect(str(db_path))
+    connection.execute("DROP TABLE pi_eod_live_pointer")
+    connection.commit()
+    connection.close()
+
+    reopened = MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    live = reopened.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == "existing-live"
+
+
+def test_mysql_reseeds_individual_missing_pointer_rows(tmp_path: Path) -> None:
+    db_path = tmp_path / "current-incomplete-pointer.db"
+    initial = MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+    for entity, run_id in (("symbol=AAPL", "run-a"), ("symbol=MSFT", "run-b")):
+        staged = _stage(
+            initial,
+            entity_key=entity,
+            payload={"rows": [{"symbol": entity}]},
+            job_run_id=run_id,
+        )
+        assert initial.validate(*staged).ok
+        assert initial.promote(*staged)
+    connection = _connect(str(db_path))
+    connection.execute(
+        "DELETE FROM pi_eod_live_pointer WHERE entity_key = ?",
+        ("symbol=msft",),
+    )
+    connection.commit()
+    connection.close()
+
+    reopened = MysqlSnapshotStore(connection_pool=_FakePool(db_path))
+
+    assert reopened.get_live("techtrade.movers", "symbol=AAPL").job_run_id == "run-a"
+    assert reopened.get_live("techtrade.movers", "symbol=MSFT").job_run_id == "run-b"
 
 
 def test_mysql_refuses_a_table_stamped_by_a_newer_schema_version(

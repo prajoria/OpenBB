@@ -28,6 +28,7 @@ import threading
 import time
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -145,6 +146,53 @@ def test_default_validator_rejects_empty_payload_and_negative_rows() -> None:
     ).ok
 
 
+# --- #1964: authoritative LIVE pointer + provenance hash -----------------
+
+
+def test_snapshot_input_hash_includes_engine_version() -> None:
+    inputs = {"symbols": ["AAPL"], "close": [100.0]}
+
+    first = store_module.snapshot_input_hash(inputs, "engine-a")
+    same = store_module.snapshot_input_hash(inputs, "engine-a")
+    changed = store_module.snapshot_input_hash(inputs, "engine-b")
+
+    assert first == same
+    assert first != changed
+    assert len(first) == 64
+
+
+def test_snapshot_input_hash_requires_an_engine_version() -> None:
+    with pytest.raises(ValueError, match="engine_version"):
+        store_module.snapshot_input_hash({"symbols": ["AAPL"]}, " ")
+
+
+def test_snapshot_input_hash_preserves_input_types() -> None:
+    assert store_module.snapshot_input_hash(
+        {"value": "1.0"}, "engine-a"
+    ) != store_module.snapshot_input_hash({"value": 1.0}, "engine-a")
+    with pytest.raises(TypeError, match="unsupported snapshot input type"):
+        store_module.snapshot_input_hash({"value": Decimal("1.0")}, "engine-a")
+
+
+def test_engine_version_change_forces_recompute(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    inputs = {"symbols": ["AAPL"], "close": [100.0]}
+    first_hash = store_module.snapshot_input_hash(inputs, "engine-a")
+    changed_hash = store_module.snapshot_input_hash(inputs, "engine-b")
+    staged = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        input_hash=first_hash,
+        engine_version="engine-a",
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+
+    assert store.should_skip("techtrade.movers", "sector=technology", first_hash)
+    assert not store.should_skip("techtrade.movers", "sector=technology", changed_hash)
+    store.close()
+
+
 def _promotion_candidate(
     *,
     validated: bool,
@@ -201,7 +249,7 @@ def test_promotion_refusal_distinguishes_missing_from_unvalidated_candidate() ->
     )
     assert (
         store_module._promotion_refusal(worse_candidate, live_ok)
-        == "candidate status is worse than LIVE"
+        == "candidate status is not clean"
     )
 
     # 5. A fully eligible candidate is allowed through (no refusal).
@@ -321,6 +369,201 @@ def test_partial_cannot_displace_ok(tmp_path) -> None:
     assert live is not None
     assert live.payload["rows"][0]["symbol"] == "AAPL"
     assert live.job_run_id == ok_staged[3]
+    store.close()
+
+
+def test_partial_without_an_incumbent_never_moves_live_pointer(tmp_path) -> None:
+    """A partial run is retained for retry but is never a LIVE answer."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    partial = _stage(
+        store,
+        status=SnapshotStatus.PARTIAL,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 5),
+        job_run_id="partial-only",
+    )
+    assert store.validate(*partial).ok
+
+    assert not store.promote(*partial)
+    assert store.get_live("techtrade.movers", "sector=technology") is None
+    assert (
+        store._conn.execute(  # noqa: SLF001
+            "SELECT COUNT(*) FROM pi_eod_live_pointer"
+        ).fetchone()[0]
+        == 0
+    )
+    store.close()
+
+
+def test_live_read_uses_pointer_not_history_state_scan(tmp_path) -> None:
+    """The promoted pointer remains authoritative if an audit label drifts."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    first = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+        job_run_id="pointed",
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+
+    with store._tx(immediate=True):  # noqa: SLF001
+        store._conn.execute(  # noqa: SLF001
+            "UPDATE pi_eod_snapshot SET state = 'superseded' "
+            "WHERE dataset = ? AND entity_key = ? AND job_run_id = ?",
+            ("techtrade.movers", "sector=technology", "pointed"),
+        )
+        store._conn.execute(  # noqa: SLF001
+            "INSERT INTO pi_eod_snapshot ("
+            "dataset, entity_key, as_of_session, created_at, job_run_id, "
+            "status, state, validated, validation_reason, payload_json"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "techtrade.movers",
+                "sector=technology",
+                "2026-09-04",
+                "2026-09-04T22:00:00.000000+00:00",
+                "state-only",
+                "ok",
+                "live",
+                1,
+                "",
+                '{"rows":[{"symbol":"WRONG"}]}',
+            ),
+        )
+
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == "pointed"
+    store.close()
+
+
+def test_audit_state_drift_does_not_freeze_next_promotion(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    first = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+        job_run_id="pointed",
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+    store._conn.execute(  # noqa: SLF001
+        "UPDATE pi_eod_snapshot SET state = 'superseded' WHERE job_run_id = ?",
+        ("pointed",),
+    )
+    second = _stage(
+        store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+        job_run_id="next",
+    )
+    assert store.validate(*second).ok
+
+    assert store.promote(*second)
+    assert store.get_live("techtrade.movers", "sector=technology").job_run_id == "next"
+    store.close()
+
+
+def test_prune_protects_pointer_target_when_audit_state_drifts(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    staged = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="pointed",
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    store._conn.execute(  # noqa: SLF001
+        "UPDATE pi_eod_snapshot SET state = 'superseded' WHERE job_run_id = ?",
+        ("pointed",),
+    )
+
+    assert (
+        store.prune(RetentionPolicy(keep_sessions=0), dataset="techtrade.movers") == 0
+    )
+    assert (
+        store.get_live("techtrade.movers", "sector=technology").job_run_id == "pointed"
+    )
+    store.close()
+
+
+def test_rollback_repoints_an_exact_validated_good_row(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    first = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+        job_run_id="first",
+    )
+    second = _stage(
+        store,
+        payload={"rows": [{"symbol": "MSFT"}]},
+        as_of_session=date(2026, 9, 4),
+        job_run_id="second",
+    )
+    assert store.validate(*first).ok
+    assert store.promote(*first)
+    assert store.validate(*second).ok
+    assert store.promote(*second)
+
+    assert store.rollback(
+        "techtrade.movers", "sector=technology", date(2026, 9, 3), "first"
+    )
+    live = store.get_live("techtrade.movers", "sector=technology")
+    assert live is not None
+    assert live.job_run_id == "first"
+    assert live.state is SnapshotState.LIVE
+    store.close()
+
+
+def test_rollback_refuses_non_ok_or_unknown_history(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    partial = _stage(
+        store,
+        status=SnapshotStatus.PARTIAL,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        as_of_session=date(2026, 9, 3),
+        job_run_id="partial",
+    )
+    assert store.validate(*partial).ok
+
+    assert not store.rollback(
+        "techtrade.movers", "sector=technology", date(2026, 9, 3), "partial"
+    )
+    assert not store.rollback(
+        "techtrade.movers", "sector=technology", date(2026, 9, 2), "missing"
+    )
+    store.close()
+
+
+def test_promote_many_is_all_or_nothing(tmp_path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    first = _stage(
+        store,
+        entity_key="symbol=AAPL",
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="new-a",
+    )
+    second = _stage(
+        store,
+        entity_key="symbol=MSFT",
+        payload={"rows": [{"symbol": "MSFT"}]},
+        job_run_id="new-b",
+    )
+    assert store.validate(*first).ok
+
+    assert not store.promote_many([first, second])
+    assert store.get_live("techtrade.movers", "symbol=AAPL") is None
+    assert store.get_live("techtrade.movers", "symbol=MSFT") is None
+    assert {
+        row.job_run_id: row.state
+        for row in store.list_history("techtrade.movers", "symbol=AAPL")
+        + store.list_history("techtrade.movers", "symbol=MSFT")
+    } == {
+        "new-a": SnapshotState.STAGING,
+        "new-b": SnapshotState.STAGING,
+    }
     store.close()
 
 
@@ -1312,6 +1555,18 @@ def _direct_insert_raw_payload(
             payload_json,
         ),
     )
+    store._conn.execute(  # pylint: disable=protected-access
+        "INSERT INTO pi_eod_live_pointer ("
+        "dataset, entity_key, as_of_session, job_run_id, updated_at"
+        ") VALUES (?, ?, ?, ?, ?)",
+        (
+            "techtrade.movers",
+            "sector=technology",
+            date(2026, 9, 9).isoformat(),
+            job_run_id,
+            datetime(2026, 9, 9, tzinfo=timezone.utc).isoformat(),
+        ),
+    )
 
 
 _CORRUPTED_PAYLOAD_JSON = [
@@ -1420,6 +1675,16 @@ def test_mysql_failure_warns_and_falls_back(monkeypatch, tmp_path, caplog) -> No
     assert isinstance(store, SqliteSnapshotStore)
     assert "falling back to SQLite" in caplog.text
     store.close()
+
+
+def test_authoritative_mysql_selector_fails_closed(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
+    monkeypatch.setattr(store_module, "_make_mysql_store", _raise_connection_error)
+
+    with pytest.raises(ConnectionError):
+        get_default_snapshot_store(tmp_path / "must-not-open.db", allow_fallback=False)
+
+    assert not (tmp_path / "must-not-open.db").exists()
 
 
 def test_mysql_failure_warning_reports_the_db_path_argument(
@@ -1576,15 +1841,10 @@ def test_mysql_fallback_warning_covers_a_refused_schema(
         store.close()
 
 
-def test_mysql_fallback_keeps_the_full_exception_at_debug(
+def test_mysql_fallback_sanitizes_debug_exception(
     monkeypatch, tmp_path, caplog
 ) -> None:
-    """Withholding the message from WARNING must not destroy it.
-
-    An operator who needs the driver's own words turns on DEBUG for this
-    module and gets the whole traceback -- an opt-in, at a level that
-    does not land in shared WARNING-and-above sinks by default.
-    """
+    """Debug logging must not reintroduce a driver message hidden at WARNING."""
     monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
     monkeypatch.setattr(
         store_module, "_make_mysql_store", _raise_driver_error_with_credentials
@@ -1596,9 +1856,10 @@ def test_mysql_fallback_keeps_the_full_exception_at_debug(
         debug_records = [
             record for record in caplog.records if record.levelno == logging.DEBUG
         ]
-        assert debug_records, "the swallowed exception must survive at DEBUG"
-        assert any(record.exc_info for record in debug_records)
-        assert _LEAKED_DETAIL in caplog.text
+        assert debug_records
+        assert all(record.exc_info is None for record in debug_records)
+        assert _LEAKED_DETAIL not in caplog.text
+        assert "DriverError" in caplog.text
     finally:
         store.close()
 
@@ -2195,6 +2456,36 @@ def test_sqlite_stamps_and_accepts_its_own_schema_version(tmp_path) -> None:
     # Reopening the file it just stamped must not be read as a mismatch.
     reopened = SqliteSnapshotStore(db_path)
     reopened.close()
+
+
+def test_sqlite_migrates_v1_live_state_into_authoritative_pointer(tmp_path) -> None:
+    db_path = tmp_path / "snapshot-v1.db"
+    store = SqliteSnapshotStore(db_path)
+    staged = _stage(
+        store,
+        payload={"rows": [{"symbol": "AAPL"}]},
+        job_run_id="legacy-live",
+    )
+    assert store.validate(*staged).ok
+    assert store.promote(*staged)
+    store.close()
+
+    legacy = sqlite3.connect(str(db_path))
+    legacy.execute("DROP TABLE pi_eod_live_pointer")
+    legacy.execute("PRAGMA user_version = 1")
+    legacy.close()
+
+    migrated = SqliteSnapshotStore(db_path)
+    try:
+        live = migrated.get_live("techtrade.movers", "sector=technology")
+        assert live is not None
+        assert live.job_run_id == "legacy-live"
+        assert (
+            migrated._conn.execute("PRAGMA user_version").fetchone()[0]  # noqa: SLF001
+            == store_module.SNAPSHOT_SCHEMA_VERSION
+        )
+    finally:
+        migrated.close()
 
 
 @pytest.mark.parametrize(
@@ -3684,7 +3975,7 @@ def test_snapshot_package_lazily_imports_the_mysql_backend() -> None:
         ")\n"
         "print('OK')\n"
     )
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603 - fixed interpreter and inline test script
         [sys.executable, "-c", script],
         capture_output=True,
         text=True,
@@ -3783,7 +4074,7 @@ def test_snapshot_star_import_omits_the_optional_mysql_backend() -> None:
         "    )\n"
         "print('OK')\n"
     )
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603 - fixed interpreter and inline test script
         [sys.executable, "-c", script],
         capture_output=True,
         text=True,
