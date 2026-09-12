@@ -10,7 +10,14 @@ from openbb_techtrade.models import Mover, MoverList
 from openbb_techtrade.snapshot.adapters import (
     EventKind,
     MarketEvent,
+    MembershipSnapshot,
     MoversSnapshotAdapter,
+    TechTradeSnapshotAdapter,
+    get_snapshot_adapters,
+)
+from openbb_techtrade.snapshot.datasets import (
+    SURVIVORSHIP_UNCORRECTED,
+    TECHTRADE_DATASETS,
 )
 from openbb_techtrade.snapshot.job import SnapshotJobState
 from openbb_techtrade.snapshot.refresh import SnapshotRefreshOrchestrator
@@ -226,3 +233,73 @@ def test_pyproject_advertises_movers_snapshot_adapter() -> None:
         'techtrade_movers = '
         '"openbb_techtrade.snapshot.adapters:MoversSnapshotAdapter"'
     ) in text
+    for suffix, adapter in (
+        ("scan", "ScanSnapshotAdapter"),
+        ("signals", "SignalsSnapshotAdapter"),
+        ("plan", "PlanSnapshotAdapter"),
+        ("orders", "OrdersSnapshotAdapter"),
+        ("simulate", "SimulateSnapshotAdapter"),
+        ("validate", "ValidateSnapshotAdapter"),
+        ("tune", "TuneSnapshotAdapter"),
+        ("audit", "AuditSnapshotAdapter"),
+    ):
+        assert (
+            f'techtrade_{suffix} = '
+            f'"openbb_techtrade.snapshot.adapters:{adapter}"'
+        ) in text
+
+
+def test_adapter_registry_covers_every_consumer_dataset() -> None:
+    assert tuple(get_snapshot_adapters()) == TECHTRADE_DATASETS
+
+
+def test_sensitive_dataset_is_explicitly_survivorship_uncorrected() -> None:
+    adapter = TechTradeSnapshotAdapter(
+        "techtrade.validate",
+        compute_fn=lambda _segment, _session: [{"symbol": "AAPL", "verdict": "robust"}],
+        segments=[TECH],
+    )
+
+    computed = adapter.compute("segment=information technology", SESSION)
+
+    assert computed.payload["survivorship"] == SURVIVORSHIP_UNCORRECTED
+    assert computed.payload["universe_membership"] == []
+
+
+def test_exact_as_of_membership_marks_sensitive_dataset_corrected() -> None:
+    adapter = TechTradeSnapshotAdapter(
+        "techtrade.audit",
+        compute_fn=lambda _segment, _session: [
+            {"symbol": "AAPL", "event": "replayed"},
+            {"symbol": "OLD", "event": "replayed"},
+        ],
+        segments=[TECH],
+        membership_fetcher=lambda _segment, _session: MembershipSnapshot(
+            as_of_session=SESSION,
+            exchange_calendar="XNYS",
+            symbols=("AAPL",),
+        ),
+    )
+
+    computed = adapter.compute("segment=information technology", SESSION)
+
+    assert computed.payload["survivorship"] == "corrected"
+    assert computed.payload["universe_membership"] == ["AAPL"]
+    assert [row["symbol"] for row in computed.payload["rows"]] == ["AAPL"]
+
+
+def test_wrong_session_membership_does_not_claim_correction() -> None:
+    adapter = TechTradeSnapshotAdapter(
+        "techtrade.tune",
+        compute_fn=lambda _segment, _session: [{"symbol": "AAPL"}],
+        segments=[TECH],
+        membership_fetcher=lambda _segment, _session: MembershipSnapshot(
+            as_of_session=date(2026, 9, 10),
+            exchange_calendar="XNYS",
+            symbols=("AAPL",),
+        ),
+    )
+
+    computed = adapter.compute("segment=information technology", SESSION)
+
+    assert computed.payload["survivorship"] == SURVIVORSHIP_UNCORRECTED
