@@ -48,6 +48,8 @@ def _batch(*symbols: str) -> OrderBatch:
 
 
 class _FakePaperEngine:
+    execution_scope_id = "fake-ledger"
+
     def __init__(self) -> None:
         self.submissions = 0
         self.cancelled: list[str] = []
@@ -546,7 +548,7 @@ class TestExecutionGateway:
         assert second == first
         assert engine.submissions == 1
         assert first.status is SubmissionStatus.SUBMITTED
-        assert first.broker_id == "paper-engine"
+        assert first.broker_id == "paper-engine-fake-ledger"
         assert first.principal_id == "paper"
         assert len(first.orders) == 2
         assert len({order.order_uuid for order in first.orders}) == 2
@@ -857,6 +859,45 @@ class TestExecutionGateway:
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert {order.status for order in raised.value.receipt.orders} == {"UNKNOWN"}
 
+    def test_overlapping_completed_and_failed_ack_is_all_unknown(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        class OverlappingAckAdapter:
+            mode = ExecutionMode.LIVE
+            broker_id = "fake-broker"
+            account_id = "fake-live"
+
+            def submit_batch(self, batch, order_uuids):
+                ack = BrokerOrderAck(order_uuids[0], "broker-1")
+                raise BrokerBatchError(
+                    "contradictory response",
+                    completed=(ack,),
+                    failed_order_uuid=order_uuids[0],
+                )
+
+            def cancel_order(self, broker_order_id):
+                return None
+
+        gateway = _gateway(
+            OverlappingAckAdapter(),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT", "AAPL")
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert {order.status for order in raised.value.receipt.orders} == {"UNKNOWN"}
+        assert all(
+            order.broker_order_id is None for order in raised.value.receipt.orders
+        )
+
     def test_reserved_unknown_outcome_fails_closed(
         self, audit: SqliteExecutionAuditStore
     ) -> None:
@@ -865,7 +906,7 @@ class TestExecutionGateway:
         batch = _batch("MSFT")
         audit.reserve(
             mode=ExecutionMode.PAPER,
-            broker_id="paper-engine",
+            broker_id=gateway.adapter.broker_id,
             account_id="paper",
             principal_id="paper",
             plan_id=batch.plan_id,

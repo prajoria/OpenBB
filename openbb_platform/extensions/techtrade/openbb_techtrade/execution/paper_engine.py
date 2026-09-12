@@ -49,6 +49,7 @@ Non-goals for P3.a
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import sqlite3
@@ -268,6 +269,11 @@ class PaperEngine(Protocol):
     @property
     def account_id(self) -> str:
         """Return the ledger account identity."""
+        raise NotImplementedError
+
+    @property
+    def execution_scope_id(self) -> str:
+        """Return a stable backend/ledger identity without exposing paths."""
         raise NotImplementedError
 
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
@@ -490,6 +496,12 @@ class SqlitePaperEngine:
     def account_id(self) -> str:
         """Return this engine's ledger account identity."""
         return self._account_id
+
+    @property
+    def execution_scope_id(self) -> str:
+        """Return a non-sensitive identity for this SQLite ledger."""
+        digest = hashlib.sha256(str(self._db_path).encode("utf-8")).hexdigest()[:16]
+        return f"sqlite-{digest}"
 
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Insert every ticket as a PENDING order. Returns order_ids."""

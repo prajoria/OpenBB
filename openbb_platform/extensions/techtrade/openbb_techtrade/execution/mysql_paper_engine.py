@@ -86,6 +86,7 @@ FillMode = Literal["OPERATOR_RECORDED", "BAR_SIMULATED", "ACTIVITY_CSV_IMPORTED"
 _VALID_FILL_MODES: frozenset[str] = frozenset(
     {"OPERATOR_RECORDED", "BAR_SIMULATED", "ACTIVITY_CSV_IMPORTED"}
 )
+_EXECUTION_SCOPE_NAMESPACE = uuid.UUID("cd6ea134-5078-4f4b-9794-a2b36017f60f")
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +325,15 @@ class MysqlPaperEngine:
     def account_id(self) -> str:
         """Return this engine's scoped ledger account identity."""
         return self._account_id
+
+    @property
+    def execution_scope_id(self) -> str:
+        """Return the MySQL run/strategy ledger identity."""
+        identity = (
+            f"{len(self._run_id)}:{self._run_id}"
+            f"{len(self._strategy_id)}:{self._strategy_id}"
+        )
+        return f"mysql-{uuid.uuid5(_EXECUTION_SCOPE_NAMESPACE, identity)}"
 
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Insert every ticket as a PENDING order; returns order_ids."""

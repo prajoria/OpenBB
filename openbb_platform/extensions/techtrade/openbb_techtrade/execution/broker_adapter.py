@@ -49,7 +49,6 @@ class PaperBrokerAdapter:
     """Adapt the existing transactional paper engine to ``BrokerAdapter``."""
 
     mode = ExecutionMode.PAPER
-    broker_id = "paper-engine"
 
     def __init__(self, engine: PaperEngine, account_id: str = "paper") -> None:
         if engine.account_id != account_id:
@@ -58,6 +57,12 @@ class PaperBrokerAdapter:
             )
         self.engine = engine
         self._account_id = account_id
+        self._broker_id = f"paper-engine-{engine.execution_scope_id}"
+
+    @property
+    def broker_id(self) -> str:
+        """Return the concrete paper ledger identity."""
+        return self._broker_id
 
     @property
     def account_id(self) -> str:
@@ -823,12 +828,25 @@ class ExecutionGateway:
                     outcome_unknown=True,
                 )
         except BrokerBatchError as exc:
+            completed_uuids = {ack.order_uuid for ack in exc.completed}
+            completed_broker_ids = {ack.broker_order_id for ack in exc.completed}
+            malformed_completed = (
+                len(completed_uuids) != len(exc.completed)
+                or not completed_uuids.issubset(order_uuids)
+                or len(completed_broker_ids) != len(exc.completed)
+            )
+            malformed_failed = exc.failed_order_uuid is not None and (
+                exc.failed_order_uuid not in order_uuids
+                or exc.failed_order_uuid in completed_uuids
+            )
+            malformed = malformed_completed or malformed_failed
+            trusted_completed = () if malformed else exc.completed
             failed = self.audit_store.record_failure(
                 receipt.submission_id,
                 error=str(exc),
-                completed=exc.completed,
-                failed_order_uuid=exc.failed_order_uuid,
-                outcome_unknown=exc.outcome_unknown,
+                completed=trusted_completed,
+                failed_order_uuid=(None if malformed else exc.failed_order_uuid),
+                outcome_unknown=exc.outcome_unknown or malformed,
             )
             raise ExecutionSubmissionError(str(exc), failed) from exc
         except Exception as exc:

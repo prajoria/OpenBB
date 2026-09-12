@@ -1046,6 +1046,20 @@ class TestUnrealized:
 
 
 class TestScopeIsolation:
+    def test_execution_scope_id_is_unambiguous(self, pool: _FakePool) -> None:
+        first = MysqlPaperEngine(
+            connection_pool=pool,
+            run_id="alpha-beta",
+            strategy_id="gamma",
+        )
+        second = MysqlPaperEngine(
+            connection_pool=pool,
+            run_id="alpha",
+            strategy_id="beta-gamma",
+        )
+
+        assert first.execution_scope_id != second.execution_scope_id
+
     def test_two_engines_different_scope_no_cross_contamination(
         self, pool: _FakePool
     ) -> None:

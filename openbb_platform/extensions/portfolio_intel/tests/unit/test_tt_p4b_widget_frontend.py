@@ -302,13 +302,17 @@ class TestBrokerExecutionGateway:
             ExecutionMode,
             SqliteExecutionAuditStore,
         )
+        from openbb_techtrade.execution.paper_engine import SqlitePaperEngine
 
         monkeypatch.setenv("PI_ALLOW_T5_EXECUTE", "true")
         batch = _build_t5_demo_batch("")
+        engine = SqlitePaperEngine(tmp_path / "paper.db")
+        broker_id = f"paper-engine-{engine.execution_scope_id}"
+        engine.close()
         store = SqliteExecutionAuditStore(tmp_path / "execution-audit.db")
         store.reserve(
             mode=ExecutionMode.PAPER,
-            broker_id="paper-engine",
+            broker_id=broker_id,
             account_id="paper",
             principal_id="paper",
             plan_id=batch.plan_id,
@@ -344,7 +348,11 @@ class TestBrokerExecutionGateway:
             "/tt/execute/cancel",
             params={
                 "order_uuid": str(order_uuid),
-                "confirm": f"CANCEL PAPER paper-engine paper paper {order_uuid}",
+                "confirm": (
+                    f"CANCEL PAPER {submitted['broker_id']} "
+                    f"{submitted['account_id']} {submitted['principal_id']} "
+                    f"{order_uuid}"
+                ),
             },
         )
 
@@ -359,6 +367,10 @@ class TestBrokerExecutionGateway:
             "/tt/execute/write-batch?verdict=PASS&confirm=yes"
         ).json()
         order_uuid = submitted["order_uuids"][0]
+        confirmation = (
+            f"CANCEL PAPER {submitted['broker_id']} "
+            f"{submitted['account_id']} {submitted['principal_id']} {order_uuid}"
+        )
 
         rejected = _client.post(
             "/tt/execute/cancel",
@@ -368,14 +380,14 @@ class TestBrokerExecutionGateway:
             "/tt/execute/cancel",
             params={
                 "order_uuid": order_uuid,
-                "confirm": f"CANCEL PAPER paper-engine paper paper {order_uuid}",
+                "confirm": confirmation,
             },
         )
         replay = _client.post(
             "/tt/execute/cancel",
             params={
                 "order_uuid": order_uuid,
-                "confirm": f"CANCEL PAPER paper-engine paper paper {order_uuid}",
+                "confirm": confirmation,
             },
         )
 
