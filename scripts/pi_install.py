@@ -28,7 +28,10 @@ def is_editable(distribution_name: str) -> bool:
         metadata = json.loads(direct_url)
     except (json.JSONDecodeError, TypeError):
         return False
-    return metadata.get("dir_info", {}).get("editable") is True
+    if not isinstance(metadata, dict):
+        return False
+    directory_info = metadata.get("dir_info")
+    return isinstance(directory_info, dict) and directory_info.get("editable") is True
 
 
 def require_editable(names: tuple[str, ...] = DISTRIBUTIONS) -> None:

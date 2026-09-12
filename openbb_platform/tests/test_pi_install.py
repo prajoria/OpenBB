@@ -87,6 +87,8 @@ def test_install_dry_run_has_no_side_effects(monkeypatch, tmp_path):
         (json.dumps({"dir_info": {"editable": True}}), True),
         (json.dumps({"dir_info": {}}), False),
         (json.dumps({"dir_info": {"editable": False}}), False),
+        (json.dumps({"dir_info": None}), False),
+        (json.dumps([]), False),
         (None, False),
         ("not-json", False),
     ],
@@ -137,7 +139,11 @@ def test_repository_root_is_derived_from_script_location():
 def test_installer_restores_editability_after_raw_pip_clobber():
     repo_root = pi_install.REPO_ROOT
     venv_dir = repo_root / ".dev-cycle" / "pi-install-integration-venv"
-    python = venv_dir / "Scripts" / "python.exe"
+    python = (
+        venv_dir / "Scripts" / "python.exe"
+        if os.name == "nt"
+        else venv_dir / "bin" / "python"
+    )
     extensions = repo_root / "openbb_platform" / "extensions"
 
     probe = (
