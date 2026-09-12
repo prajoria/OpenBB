@@ -841,13 +841,16 @@ class ExecutionGateway:
                 acknowledgements,
             )
         except BrokerBatchError as exc:
-            failed = self.audit_store.record_failure(
-                receipt.submission_id,
-                error=str(exc),
-                completed=(),
-                failed_order_uuid=None,
-                outcome_unknown=True,
-            )
+            try:
+                failed = self.audit_store.record_failure(
+                    receipt.submission_id,
+                    error=str(exc),
+                    completed=(),
+                    failed_order_uuid=None,
+                    outcome_unknown=True,
+                )
+            except Exception:
+                failed = reconciliation_receipt(receipt, (), str(exc))
             raise ExecutionSubmissionError(str(exc), failed) from exc
         except Exception as exc:
             safe_error = (

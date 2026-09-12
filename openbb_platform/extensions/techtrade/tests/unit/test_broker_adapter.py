@@ -858,6 +858,43 @@ class TestExecutionGateway:
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert raised.value.receipt.orders[0].broker_order_id == "live-1"
 
+    def test_broker_id_collision_and_audit_failure_keep_typed_receipt(
+        self,
+        audit: SqliteExecutionAuditStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        gateway = _gateway(
+            LiveBrokerAdapter(_FakeLiveClient(), account_id="fake-live"),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT")
+        monkeypatch.setattr(
+            audit,
+            "record_success",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                BrokerBatchError("broker ID collision", outcome_unknown=True)
+            ),
+        )
+        monkeypatch.setattr(
+            audit,
+            "record_failure",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                sqlite3.OperationalError("disk full")
+            ),
+        )
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+        assert raised.value.receipt.submission_id
+
     def test_broker_and_failure_audit_errors_keep_reconciliation_receipt(
         self,
         audit: SqliteExecutionAuditStore,
