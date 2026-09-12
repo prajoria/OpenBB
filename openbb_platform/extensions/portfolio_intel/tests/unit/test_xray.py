@@ -125,6 +125,49 @@ def test_look_through_raises_on_bad_top_level_weights() -> None:
         look_through(bad, {})
 
 
+def test_look_through_normalizes_underlying_rounding_drift() -> None:
+    """A nearly complete provider vector is normalized before composition."""
+    provider = {
+        "SPY": [
+            Holding("AAPL", Decimal("0.6")),
+            Holding("MSFT", Decimal("0.397")),
+        ]
+    }
+
+    result = look_through([Holding("SPY", Decimal("1"))], provider)
+
+    assert sum(result.effective.values()) == Decimal("1")
+    assert result.effective == {
+        "AAPL": Decimal("0.6") / Decimal("0.997"),
+        "MSFT": Decimal("0.397") / Decimal("0.997"),
+    }
+
+
+@pytest.mark.parametrize(
+    "weights",
+    [
+        (Decimal("0.006"), Decimal("0.004")),
+        (Decimal("-0.1"), Decimal("1.1")),
+        (Decimal("0"), Decimal("0")),
+        (Decimal("NaN"), Decimal("1")),
+        (Decimal("Infinity"), Decimal("1")),
+    ],
+)
+def test_look_through_rejects_invalid_underlying_weights(
+    weights: tuple[Decimal, Decimal],
+) -> None:
+    """Malformed child vectors fail instead of distorting effective weights."""
+    provider = {
+        "SPY": [
+            Holding("AAPL", weights[0]),
+            Holding("MSFT", weights[1]),
+        ]
+    }
+
+    with pytest.raises(ValueError, match=r"SPY.*weights"):
+        look_through([Holding("SPY", Decimal("1"))], provider)
+
+
 def test_look_through_unresolved_symbol_tracked_but_included() -> None:
     """Missing holdings data → symbol kept at face value; noted in unresolved is only
     for explicit provider misses, per the docstring.

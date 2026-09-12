@@ -28,7 +28,7 @@ Issues shipped by this module:
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 # Fund-of-fund recursion safety cap. Real ETFs don't nest this deep; if
@@ -39,6 +39,10 @@ DEFAULT_MAX_DEPTH = 5
 # Allowed drift of position-weight sum from 1.0 before we raise. Real
 # holdings tables have rounding; 1bp tolerance is generous but bounded.
 DEFAULT_WEIGHT_TOLERANCE = Decimal("0.0001")
+
+# Provider holdings commonly omit a small cash residual or carry rounded
+# percentages. Accept at most 1% drift, then normalize before composition.
+DEFAULT_UNDERLYING_WEIGHT_TOLERANCE = Decimal("0.01")
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,7 @@ def look_through(
     _validate_weights(portfolio, weight_tolerance)
 
     effective: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
+    normalized_provider: dict[str, list[Holding]] = {}
     unresolved: list[str] = []
     depth_reached = 0
 
@@ -133,8 +138,13 @@ def look_through(
             effective[h.symbol] += effective_weight
             return
 
+        normalized = normalized_provider.get(h.symbol)
+        if normalized is None:
+            normalized = _normalize_underlying_weights(h.symbol, underlying)
+            normalized_provider[h.symbol] = normalized
+
         # Recurse.
-        for child in underlying:
+        for child in normalized:
             _unwrap(child, effective_weight, depth + 1)
 
     for holding in portfolio:
@@ -155,6 +165,29 @@ def _validate_weights(portfolio: list[Holding], tolerance: Decimal) -> None:
             f"portfolio weights must sum to 1.0 (±{tolerance}); got {total}. "
             "Normalize inputs before calling look_through()."
         )
+
+
+def _normalize_underlying_weights(
+    parent_symbol: str,
+    holdings: list[Holding],
+    tolerance: Decimal = DEFAULT_UNDERLYING_WEIGHT_TOLERANCE,
+) -> list[Holding]:
+    """Validate and normalize one non-empty provider holdings vector."""
+    if any(not holding.weight.is_finite() or holding.weight < 0 for holding in holdings):
+        raise ValueError(
+            f"{parent_symbol}: holdings weights must be finite and non-negative"
+        )
+
+    total = sum((holding.weight for holding in holdings), Decimal("0"))
+    if total <= 0 or abs(total - Decimal("1")) > tolerance:
+        raise ValueError(
+            f"{parent_symbol}: holdings weights must sum to 1.0 "
+            f"(±{tolerance}); got {total}"
+        )
+
+    if total == Decimal("1"):
+        return holdings
+    return [replace(holding, weight=holding.weight / total) for holding in holdings]
 
 
 # ---------------------------------------------------------------------------

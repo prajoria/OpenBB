@@ -27,7 +27,8 @@ composition boundary used by X-Ray, concentration, and What-If.
   issuer total (`0.99775977`) and ordinary source rounding, while rejecting percent/fraction
   double-conversion and materially truncated datasets.
 - Accepted child weights are divided by their total before recursion. This makes effective
-  weights sum to the parent allocation exactly rather than carrying provider rounding drift.
+  weights sum to the parent allocation within Decimal arithmetic precision rather than
+  carrying provider rounding drift.
 - Empty provider lists retain the existing unresolved-symbol fallback.
 - Validation failures raise `ValueError` with the parent symbol and observed defect; they are
   not silently converted to unresolved data.
@@ -39,4 +40,3 @@ normalized to one, and non-finite or negative child weights fail. Existing exact
 unresolved, depth-limit, route, concentration, and What-If tests verify preserved semantics.
 The real-path harness will run live SPY look-through and concentration and record normalized
 effective total plus concentration metrics.
-

@@ -27,7 +27,7 @@
 - Consumes: `look_through(portfolio, holdings_provider, max_depth, weight_tolerance)`.
 - Produces: normalized effective weights or a parent-specific `ValueError`.
 
-- [ ] **Step 1: Add failing malformed-vector tests**
+- [x] **Step 1: Add failing malformed-vector tests**
 
 ```python
 def test_look_through_rejects_materially_unnormalized_underlyings() -> None:
@@ -43,7 +43,7 @@ def test_look_through_rejects_materially_unnormalized_underlyings() -> None:
 
 Also parameterize negative, `NaN`, and infinite child weights.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 Run:
 
@@ -53,13 +53,13 @@ Run:
 
 Expected: new cases fail because child vectors are not validated.
 
-- [ ] **Step 3: Add minimal validation and normalization**
+- [x] **Step 3: Add minimal validation and normalization**
 
 Add a `0.01` child-vector tolerance and a private helper that returns immutable replacement
 `Holding` rows with `weight / total`. Call it lazily from recursive look-through and cache the
 normalized vector by parent symbol.
 
-- [ ] **Step 4: Verify GREEN and preserved semantics**
+- [x] **Step 4: Verify GREEN and preserved semantics**
 
 Run:
 
@@ -69,14 +69,13 @@ Run:
 
 Expected: all selected tests pass.
 
-- [ ] **Step 5: Run diagnostics and real-path verification**
+- [x] **Step 5: Run diagnostics and real-path verification**
 
 Run Ruff on both modified Python files. Then call the live SPY X-Ray and concentration routes;
 record that effective weights sum to one and all concentration invariants pass in
 `.dev-cycle/verify-phase6.log`.
 
-- [ ] **Step 6: Commit and update PR #2074**
+- [x] **Step 6: Commit and update PR #2074**
 
 Commit with `Refs #2077`, push the existing branch, and add a standalone `Closes #2077` line
 to the PR body.
-
