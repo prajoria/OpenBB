@@ -84,6 +84,42 @@ def test_legacy_daily_scan_definition_accepts_durable_schedule_params() -> None:
     assert params.top_n == 5
 
 
+def test_legacy_daily_scan_forwards_all_supported_parameters(monkeypatch) -> None:
+    captured: dict = {}
+
+    def adapters(**kwargs):
+        captured["adapter_kwargs"] = kwargs
+        return {"techtrade.movers": object(), "techtrade.scan": object()}
+
+    def execute(datasets, selected_adapters, *, now=None):
+        captured["datasets"] = datasets
+        captured["adapters"] = selected_adapters
+        captured["now"] = now
+        return JobResult(summary={"datasets": {}}, warnings=[])
+
+    monkeypatch.setattr(jobs_module, "get_snapshot_adapters", adapters)
+    monkeypatch.setattr(jobs_module, "_execute_datasets", execute)
+    definition = _by_name()["techtrade.daily_scan"]
+    result = definition.handler(
+        _context(definition.name),
+        DailyScanParams(
+            segments=["Energy"],
+            top_n=5,
+            preset="breakout",
+            as_of="2026-09-11",
+        ),
+    )
+
+    assert isinstance(result, JobResult)
+    assert captured["adapter_kwargs"] == {
+        "segments": ["Energy"],
+        "movers_top_n": 5,
+        "scan_top_n": 5,
+        "preset": "breakout",
+    }
+    assert captured["now"].date() == date(2026, 9, 11)
+
+
 class _Adapter:
     name = "techtrade.movers"
 
@@ -149,6 +185,30 @@ def test_prune_handler_uses_generic_store(monkeypatch, tmp_path: Path) -> None:
     )
 
     assert result.summary == {"deleted": 0, "keep_sessions": 2}
+
+
+def test_prune_handler_scopes_retention_to_techtrade_datasets(monkeypatch) -> None:
+    class _Store:
+        def __init__(self):
+            self.datasets: list[str] = []
+
+        def prune(self, _policy, *, dataset):
+            self.datasets.append(dataset)
+            return 1
+
+        def close(self):
+            return None
+
+    store = _Store()
+    monkeypatch.setattr(jobs_module, "get_default_snapshot_store", lambda: store)
+    definition = _by_name()["techtrade.prune_snapshots"]
+
+    result = definition.handler(
+        _context(definition.name), PruneSnapshotsParams(keep_sessions=2)
+    )
+
+    assert store.datasets == list(TECHTRADE_DATASETS)
+    assert result.summary["deleted"] == len(TECHTRADE_DATASETS)
 
 
 def test_eod_handler_raises_when_every_dataset_fails(

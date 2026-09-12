@@ -361,7 +361,12 @@ def test_public_event_provider_refreshes_sources_on_same_session() -> None:
     assert provider(SESSION, ["NVDA"]) == [MarketEvent("NVDA", EventKind.EARNINGS)]
 
 
-def _plan_stub(symbol: str = "NVDA", segment: str = TECH):
+def _plan_stub(
+    symbol: str = "NVDA",
+    segment: str = TECH,
+    *,
+    simulated_fills: list | None = None,
+):
     recommendation = SimpleNamespace(
         action="BUY",
         conviction="High",
@@ -387,19 +392,21 @@ def _plan_stub(symbol: str = "NVDA", segment: str = TECH):
         recommendation=recommendation,
         position_size=Decimal("10"),
         orders=[SimpleNamespace()],
-        simulated_fills=[],
+        simulated_fills=simulated_fills or [],
     )
 
 
 def test_scan_adapter_runs_canonical_scan_once_and_flattens_by_segment() -> None:
-    calls: list[date] = []
+    calls: list[tuple[date, int, str]] = []
 
-    def scan_fetcher(*, as_of: date):
-        calls.append(as_of)
+    def scan_fetcher(*, as_of: date, top_n: int, preset: str):
+        calls.append((as_of, top_n, preset))
         return [_plan_stub("NVDA", TECH), _plan_stub("XOM", ENERGY)]
 
     adapter = ScanSnapshotAdapter(
         segments=[TECH, ENERGY],
+        top_n=5,
+        preset="breakout",
         scan_fetcher=scan_fetcher,
         event_fetcher=lambda _session, _symbols: [],
     )
@@ -407,7 +414,7 @@ def test_scan_adapter_runs_canonical_scan_once_and_flattens_by_segment() -> None
     tech = adapter.compute("segment=information technology", SESSION)
     energy = adapter.compute("segment=energy", SESSION)
 
-    assert calls == [SESSION]
+    assert calls == [(SESSION, 5, "breakout")]
     assert tech.payload["rows"][0]["symbol"] == "NVDA"
     assert tech.payload["rows"][0]["score"] == 0.9
     assert energy.payload["rows"][0]["symbol"] == "XOM"
@@ -427,9 +434,23 @@ def test_simulation_adapter_materializes_planned_pnl_trajectory() -> None:
 
 
 def test_audit_adapter_materializes_replay_forward_contract() -> None:
+    fills = [
+        SimpleNamespace(
+            side="buy",
+            quantity=Decimal("10"),
+            price=Decimal("100"),
+            commission=Decimal("0"),
+        ),
+        SimpleNamespace(
+            side="sell",
+            quantity=Decimal("10"),
+            price=Decimal("108"),
+            commission=Decimal("0"),
+        ),
+    ]
     adapter = AuditSnapshotAdapter(
         segments=[TECH],
-        plans_fetcher=lambda _segment, _session: [_plan_stub()],
+        plans_fetcher=lambda _segment, _session: [_plan_stub(simulated_fills=fills)],
         event_fetcher=lambda _session, _symbols: [],
     )
 
@@ -442,8 +463,20 @@ def test_audit_adapter_materializes_replay_forward_contract() -> None:
         "deviation_bps",
     } <= row.keys()
     assert row["replay_pnl"] == 100.0
-    assert row["forward_pnl"] == 0.0
-    assert row["deviation_bps"] == -1000.0
+    assert row["forward_pnl"] == 80.0
+    assert row["deviation_bps"] == -200.0
+
+
+def test_audit_adapter_skips_plans_without_forward_fills() -> None:
+    adapter = AuditSnapshotAdapter(
+        segments=[TECH],
+        plans_fetcher=lambda _segment, _session: [_plan_stub()],
+        event_fetcher=lambda _session, _symbols: [],
+    )
+
+    rows = adapter.compute("segment=information technology", SESSION).payload["rows"]
+
+    assert rows == []
 
 
 def test_snapshot_tuning_disables_persistence(monkeypatch) -> None:

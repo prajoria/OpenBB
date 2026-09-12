@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date, datetime, time, timezone
 from typing import Any, cast
 
 from openbb_core.app.jobs.models import (
@@ -87,12 +88,24 @@ class DailyScanParams(BaseModel):
 def _execute_datasets(
     datasets_to_run: list[str],
     adapters: dict[str, Any],
+    *,
+    now: datetime | None = None,
 ) -> JobResult:
     store = get_default_snapshot_store()
-    orchestrator = SnapshotRefreshOrchestrator(
-        SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY),
-        DEFAULT_DATASET_REGISTRY,
-        adapters,
+    router = SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY)
+    orchestrator = (
+        SnapshotRefreshOrchestrator(
+            router,
+            DEFAULT_DATASET_REGISTRY,
+            adapters,
+            clock=lambda: now,
+        )
+        if now is not None
+        else SnapshotRefreshOrchestrator(
+            router,
+            DEFAULT_DATASET_REGISTRY,
+            adapters,
+        )
     )
     datasets: dict[str, dict[str, Any]] = {}
     warnings: list[str] = []
@@ -136,10 +149,19 @@ def _run_daily_scan(context: JobContext, params: BaseModel) -> JobResult:
     adapters = get_snapshot_adapters(
         segments=legacy.segments,
         movers_top_n=legacy.top_n,
+        scan_top_n=legacy.top_n,
+        preset=legacy.preset,
+    )
+    requested_date = date.fromisoformat(legacy.as_of) if legacy.as_of else None
+    requested_now = (
+        datetime.combine(requested_date, time(23, 59), tzinfo=timezone.utc)
+        if requested_date is not None
+        else None
     )
     return _execute_datasets(
         ["techtrade.movers", "techtrade.scan"],
         adapters,
+        now=requested_now,
     )
 
 
@@ -148,7 +170,13 @@ def _run_prune_snapshots(context: JobContext, params: BaseModel) -> JobResult:
     params = cast(PruneSnapshotsParams, params)
     store = get_default_snapshot_store()
     try:
-        deleted = store.prune(RetentionPolicy(keep_sessions=params.keep_sessions))
+        deleted = sum(
+            store.prune(
+                RetentionPolicy(keep_sessions=params.keep_sessions),
+                dataset=dataset,
+            )
+            for dataset in TECHTRADE_DATASETS
+        )
     finally:
         store.close()
     return JobResult(
@@ -159,7 +187,7 @@ def _run_prune_snapshots(context: JobContext, params: BaseModel) -> JobResult:
 
 def get_job_definitions() -> list[JobDefinition]:
     """Return post-close refresh and retention job definitions."""
-    timezone = _default_timezone()
+    schedule_timezone = _default_timezone()
     return [
         JobDefinition(
             name="techtrade.daily_scan",
@@ -178,7 +206,7 @@ def get_job_definitions() -> list[JobDefinition]:
             schedule=DailySchedule(
                 hour=18,
                 minute=0,
-                timezone=timezone,
+                timezone=schedule_timezone,
                 weekdays=_TRADING_WEEKDAYS,
             ),
             default_params={"datasets": list(TECHTRADE_DATASETS)},
@@ -190,7 +218,7 @@ def get_job_definitions() -> list[JobDefinition]:
             description="Prune canonical TechTrade EOD snapshot history.",
             params_model=PruneSnapshotsParams,
             handler=_run_prune_snapshots,
-            schedule=DailySchedule(hour=19, minute=0, timezone=timezone),
+            schedule=DailySchedule(hour=19, minute=0, timezone=schedule_timezone),
             default_params={"keep_sessions": 10},
             max_attempts=1,
             overlap_policy="forbid",

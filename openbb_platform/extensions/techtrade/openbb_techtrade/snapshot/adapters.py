@@ -474,6 +474,8 @@ def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any
     """Compare planned target P&L with persisted forward simulation fills."""
     rows: list[dict[str, Any]] = []
     for plan in plans:
+        if not plan.simulated_fills:
+            continue
         recommendation = plan.recommendation
         quantity = float(plan.position_size)
         entry = float(recommendation.entry_price)
@@ -510,6 +512,8 @@ class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
         self,
         *,
         segments: Iterable[str] | None = None,
+        top_n: int = 10,
+        preset: str = "trend_follow",
         scan_fetcher: Callable[..., list[TradePlan]] | None = None,
         event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
     ) -> None:
@@ -524,7 +528,11 @@ class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
             nonlocal cached_session, cached_rows
             if cached_session != session:
                 cached_rows = {}
-                for plan in fetcher(as_of=session):
+                for plan in fetcher(
+                    as_of=session,
+                    top_n=top_n,
+                    preset=preset,
+                ):
                     cached_rows.setdefault(plan.segment, []).append(plan_to_row(plan))
                 cached_session = session
             return list(cached_rows.get(segment, ()))
@@ -630,11 +638,17 @@ def get_snapshot_adapters(
     *,
     segments: Iterable[str] | None = None,
     movers_top_n: int = 10,
+    scan_top_n: int = 10,
+    preset: str = "trend_follow",
 ) -> dict[str, TechTradeSnapshotAdapter]:
     """Return the installed TechTrade snapshot adapters by dataset name."""
     adapters: tuple[TechTradeSnapshotAdapter, ...] = (
         MoversSnapshotAdapter(segments=segments, top_n=movers_top_n),
-        ScanSnapshotAdapter(segments=segments),
+        ScanSnapshotAdapter(
+            segments=segments,
+            top_n=scan_top_n,
+            preset=preset,
+        ),
         SignalsSnapshotAdapter(),
         PlanSnapshotAdapter(),
         OrdersSnapshotAdapter(),

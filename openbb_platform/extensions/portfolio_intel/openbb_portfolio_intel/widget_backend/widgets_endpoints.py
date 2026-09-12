@@ -2348,9 +2348,11 @@ def _read_snapshot_rows(
             if not isinstance(raw, dict):
                 continue
             row_symbol = str(raw.get("symbol") or "").strip().upper()
-            if normalized_symbol and row_symbol and row_symbol != normalized_symbol:
+            if normalized_symbol and row_symbol != normalized_symbol:
                 continue
-            rows.append(dict(raw))
+            materialized = dict(raw)
+            materialized.setdefault("segment", payload.get("segment"))
+            rows.append(materialized)
     return rows, snapshots
 
 
@@ -2455,17 +2457,37 @@ def _fresh_empty_rows(context: str) -> list[dict]:
     return [{"note": f"Latest EOD snapshot completed with no result ({context})."}]
 
 
-def _segment_for_symbol(symbol: str) -> tuple[str, list[SnapshotRow]]:
-    """Resolve a symbol's segment only from materialized scan rows."""
-    rows, snapshots = _read_snapshot_rows("techtrade.scan", symbol=symbol)
-    segments = sorted(
-        {
+def _segments_for_symbol(symbol: str) -> tuple[list[str], list[SnapshotRow]]:
+    """Resolve every materialized or as-of-membership segment for a symbol."""
+    normalized = symbol.strip().upper()
+    segments: set[str] = set()
+    snapshots: list[SnapshotRow] = []
+    for dataset in (
+        "techtrade.scan",
+        "techtrade.movers",
+        "techtrade.signals",
+        "techtrade.plan",
+    ):
+        rows, source_snapshots = _read_snapshot_rows(dataset, symbol=normalized)
+        snapshots.extend(source_snapshots)
+        segments.update(
             str(row["segment"])
             for row in rows
             if isinstance(row.get("segment"), str) and row["segment"]
+        )
+    store = _get_snapshot_store()
+    for candidate in GICS_SECTOR_ETFS:
+        snapshot = store.get_live("techtrade.tune", techtrade_entity_key(candidate))
+        if snapshot is None:
+            continue
+        membership = {
+            str(item).strip().upper()
+            for item in snapshot.payload.get("universe_membership", [])
         }
-    )
-    return (segments[0] if len(segments) == 1 else ""), snapshots
+        if normalized in membership:
+            segments.add(candidate)
+            snapshots.append(snapshot)
+    return sorted(segments), snapshots
 
 
 def _decorate_rows(rows: list[dict], meta: dict) -> list[dict]:
@@ -3103,16 +3125,25 @@ def tt_validation_verdict(
 
 
 @app.get("/tt/tuning/report")
-def tt_tuning_report(request: Request, symbol: str = "AAPL") -> list[dict[str, object]]:
+def tt_tuning_report(
+    request: Request, symbol: str = "AAPL", segment: str = ""
+) -> list[dict[str, object]]:
     """Return the persisted tuning report rows (#1698)."""
     _require_auth(request)
     sym = _validate_symbol(symbol)
-    segment, scan_snapshots = _segment_for_symbol(sym)
-    rows, snapshots = (
-        _read_snapshot_rows("techtrade.tune", segment=segment)
-        if segment
-        else ([], scan_snapshots)
+    requested_segments, source_snapshots = (
+        ([_validate_segment(segment)], []) if segment else _segments_for_symbol(sym)
     )
+    rows: list[dict] = []
+    snapshots: list[SnapshotRow] = []
+    for requested_segment in requested_segments:
+        segment_rows, segment_snapshots = _read_snapshot_rows(
+            "techtrade.tune", segment=requested_segment
+        )
+        rows.extend(segment_rows)
+        snapshots.extend(segment_snapshots)
+    if not snapshots:
+        snapshots = source_snapshots
     meta = _snapshot_meta(snapshots, symbol=sym)
     if not rows:
         rows = (

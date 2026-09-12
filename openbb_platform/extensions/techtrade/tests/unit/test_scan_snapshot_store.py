@@ -353,3 +353,67 @@ def test_prune_rolls_back_all_scopes_when_one_delete_fails(store):
 
     assert len(store.list_snapshots(kind="daily_scan", segment="Energy")) == 3
     assert len(store.list_snapshots(kind="daily_scan", segment="Financials")) == 3
+
+
+def test_default_facade_uses_configured_canonical_backend(monkeypatch):
+    """No explicit legacy path may create a second SQLite authority."""
+    backend = object()
+    monkeypatch.delenv(SCAN_DB_ENV, raising=False)
+    monkeypatch.setattr(
+        "openbb_techtrade.snapshots.sqlite.get_default_snapshot_store",
+        lambda: backend,
+    )
+
+    store = SqliteScanSnapshotStore()
+
+    assert store._store is backend
+
+
+def test_canonical_multi_segment_job_round_trips_facade_ids(tmp_path):
+    """Facade IDs remain unique when canonical rows share one job ID."""
+    from openbb_techtrade.snapshot.registry import DEFAULT_DATASET_REGISTRY
+    from openbb_techtrade.snapshot.store import SqliteSnapshotStore
+
+    db = tmp_path / "canonical-multi.db"
+    canonical = SqliteSnapshotStore(db)
+    canonical.start_job("techtrade.scan", "shared-job")
+    successes = []
+    for segment in ("Energy", "Financials"):
+        key = f"segment={segment}"
+        payload = {
+            "rows": [{"symbol": segment[0]}],
+            "segment": segment,
+            "as_of_session": _SESSION.isoformat(),
+            "exchange_calendar": "XNYS",
+        }
+        canonical.stage(
+            "techtrade.scan",
+            key,
+            _SESSION,
+            "shared-job",
+            payload,
+            row_count=1,
+            engine_version="test",
+            payload_schema_version="1",
+        )
+        definition = DEFAULT_DATASET_REGISTRY.require("techtrade.scan")
+        assert canonical.validate(
+            "techtrade.scan",
+            key,
+            _SESSION,
+            "shared-job",
+            lambda row: definition.validator(row, None),
+        ).ok
+        successes.append(("techtrade.scan", key, _SESSION, "shared-job"))
+    canonical.publish_job("shared-job", successes)
+    canonical.close()
+
+    facade = SqliteScanSnapshotStore(db)
+    try:
+        energy = facade.read_latest(kind="daily_scan", segment="Energy")
+        financials = facade.read_latest(kind="daily_scan", segment="Financials")
+        assert energy.snapshot_id != financials.snapshot_id
+        assert facade.read_by_id(energy.snapshot_id).segment == "Energy"
+        assert facade.read_by_id(financials.snapshot_id).segment == "Financials"
+    finally:
+        facade.close()

@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import os
+from hashlib import sha256
 from pathlib import Path
+from typing import Any
 
 from openbb_techtrade import config
+from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
 from openbb_techtrade.snapshot.datasets import validate_techtrade_snapshot
+from openbb_techtrade.snapshot.job import SnapshotJobState
 from openbb_techtrade.snapshot.store import (
+    RetentionPolicy,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
     SqliteSnapshotStore,
     _row_from_mapping,
     canonical_key,
+    get_default_snapshot_store,
     snapshot_input_hash,
 )
 from openbb_techtrade.snapshots.models import DEFAULT_SCAN_KIND, ScanSnapshot
@@ -64,8 +70,9 @@ def _payload(snapshot: ScanSnapshot) -> dict:
 
 def _to_snapshot(row: SnapshotRow) -> ScanSnapshot:
     legacy = row.payload.get("legacy", {})
+    digest = sha256(f"{row.dataset}\x1f{row.entity_key}".encode()).hexdigest()[:16]
     return ScanSnapshot(
-        snapshot_id=str(legacy.get("snapshot_id") or row.job_run_id),
+        snapshot_id=str(legacy.get("snapshot_id") or f"{row.job_run_id}~{digest}"),
         kind=str(legacy.get("kind") or DEFAULT_SCAN_KIND),
         segment=str(row.payload.get("segment") or row.entity_key.split("=", 1)[-1]),
         as_of_session=row.as_of_session,
@@ -85,14 +92,23 @@ class SqliteScanSnapshotStore:
         *,
         busy_timeout_ms: int = 5_000,
     ) -> None:
-        self._store = SqliteSnapshotStore(path or default_scan_db_path())
-        self._store._conn.execute(  # pylint: disable=protected-access
-            f"PRAGMA busy_timeout = {int(busy_timeout_ms)}"
+        legacy_override = os.environ.get(SCAN_DB_ENV)
+        sqlite_path = path if path is not None else legacy_override
+        self._store: Any = (
+            SqliteSnapshotStore(sqlite_path)
+            if sqlite_path is not None
+            else get_default_snapshot_store()
         )
+        if isinstance(self._store, SqliteSnapshotStore):
+            self._store._conn.execute(  # pylint: disable=protected-access
+                f"PRAGMA busy_timeout = {int(busy_timeout_ms)}"
+            )
 
     @property
     def path(self) -> Path:
         """Return the canonical SQLite database path."""
+        if not isinstance(self._store, SqliteSnapshotStore):
+            raise RuntimeError("configured canonical backend is not SQLite")
         return self._store._db_path  # pylint: disable=protected-access
 
     def initialize(self) -> None:
@@ -107,27 +123,23 @@ class SqliteScanSnapshotStore:
         dataset = _dataset(snapshot.kind)
         entity_key = _entity_key(snapshot.segment)
         payload = _payload(snapshot)
-        duplicate = self._store._conn.execute(  # pylint: disable=protected-access
-            "SELECT 1 FROM pi_eod_snapshot WHERE dataset LIKE ? "
-            "AND job_run_id = ? LIMIT 1",
-            (f"{_DATASET_PREFIX}%", snapshot.snapshot_id),
-        ).fetchone()
-        if duplicate is not None:
+        if self._store.get_job(snapshot.snapshot_id) is not None:
             raise ValueError("snapshot_id already exists")
-        self._store.stage(
-            dataset,
-            entity_key,
-            snapshot.as_of_session,
-            snapshot.snapshot_id,
-            payload,
-            status=SnapshotStatus.OK,
-            input_hash=snapshot_input_hash(payload, "legacy-compat-1"),
-            row_count=snapshot.row_count,
-            engine_version="legacy-compat-1",
-            payload_schema_version="1",
-        )
-        previous = self._store.get_live(dataset, entity_key)
+        self._store.start_job(dataset, snapshot.snapshot_id)
         try:
+            self._store.stage(
+                dataset,
+                entity_key,
+                snapshot.as_of_session,
+                snapshot.snapshot_id,
+                payload,
+                status=SnapshotStatus.OK,
+                input_hash=snapshot_input_hash(payload, "legacy-compat-1"),
+                row_count=snapshot.row_count,
+                engine_version="legacy-compat-1",
+                payload_schema_version="1",
+            )
+            previous = self._store.get_live(dataset, entity_key)
             verdict = self._store.validate(
                 dataset,
                 entity_key,
@@ -137,23 +149,30 @@ class SqliteScanSnapshotStore:
             )
             if not verdict.ok:
                 raise ValueError(f"snapshot validation failed: {verdict.reason}")
-            if not self._store.promote(
-                dataset, entity_key, snapshot.as_of_session, snapshot.snapshot_id
-            ):
-                raise ValueError("snapshot promotion refused")
-        except BaseException:
-            with self._store._tx(immediate=True):  # pylint: disable=protected-access
-                self._store._conn.execute(  # pylint: disable=protected-access
-                    "DELETE FROM pi_eod_snapshot WHERE dataset = ? "
-                    "AND entity_key = ? AND as_of_session = ? AND job_run_id = ? "
-                    "AND state = ?",
+            self._store.publish_job(
+                snapshot.snapshot_id,
+                [
                     (
                         dataset,
                         entity_key,
-                        snapshot.as_of_session.isoformat(),
+                        snapshot.as_of_session,
                         snapshot.snapshot_id,
-                        SnapshotState.STAGING.value,
-                    ),
+                    )
+                ],
+            )
+        except BaseException:
+            job = self._store.get_job(snapshot.snapshot_id)
+            if job is not None and job.state is SnapshotJobState.RUNNING:
+                self._store.record_job_errors(
+                    snapshot.snapshot_id,
+                    {entity_key: "validation_failed"},
+                )
+                self._store.finish_job(
+                    snapshot.snapshot_id,
+                    SnapshotJobState.FAILED,
+                    n_ok=0,
+                    n_failed=1,
+                    error="validation_failed",
                 )
             raise
         return snapshot
@@ -165,25 +184,43 @@ class SqliteScanSnapshotStore:
 
     def read_by_id(self, snapshot_id: str) -> ScanSnapshot | None:
         """Return one historical legacy DTO by its snapshot identifier."""
-        records = self._store._conn.execute(  # pylint: disable=protected-access
-            "SELECT dataset, entity_key, as_of_session, created_at, job_run_id, "
-            "status, state, validated, validation_reason, payload_json, "
-            "input_hash, row_count, engine_version, payload_schema_version "
-            "FROM pi_eod_snapshot WHERE dataset LIKE ? AND job_run_id = ? "
-            "AND state != ?",
-            (
-                f"{_DATASET_PREFIX}%",
-                snapshot_id,
-                SnapshotState.STAGING.value,
-            ),
-        ).fetchall()
-        if not records:
+        job_run_id = snapshot_id
+        job = self._store.get_job(job_run_id)
+        if job is None and "~" in snapshot_id:
+            job_run_id = snapshot_id.rsplit("~", 1)[0]
+            job = self._store.get_job(job_run_id)
+        if job is None:
             return None
-        if len(records) != 1:
+        visible = [
+            row
+            for row in self._store.rows_for_job(job_run_id)
+            if row.dataset.startswith(_DATASET_PREFIX)
+            and row.state is not SnapshotState.STAGING
+        ]
+        matching = [
+            row for row in visible if _to_snapshot(row).snapshot_id == snapshot_id
+        ]
+        if not matching:
+            return None
+        if len(matching) != 1:
             raise ValueError("snapshot_id is ambiguous")
-        return _to_snapshot(_row_from_mapping(records[0]))
+        return _to_snapshot(matching[0])
 
     def _history_rows(self, kind: str | None, segment: str | None) -> list[SnapshotRow]:
+        if not isinstance(self._store, SqliteSnapshotStore):
+            datasets = [_dataset(kind or DEFAULT_SCAN_KIND)]
+            segments = [segment] if segment is not None else list(GICS_SECTOR_ETFS)
+            return [
+                row
+                for dataset in datasets
+                for candidate in segments
+                for row in self._store.list_history(
+                    dataset,
+                    _entity_key(candidate),
+                    limit=2_147_483_647,
+                )
+                if row.state is not SnapshotState.STAGING
+            ]
         select = (
             "SELECT dataset, entity_key, as_of_session, created_at, job_run_id, "
             "status, state, validated, validation_reason, payload_json, "
@@ -243,6 +280,15 @@ class SqliteScanSnapshotStore:
         """Keep the newest legacy-compatible rows per dataset and segment."""
         if keep < 0:
             raise ValueError("keep must be non-negative")
+        if not isinstance(self._store, SqliteSnapshotStore):
+            datasets = {_dataset(snapshot.kind) for snapshot in self.list_snapshots()}
+            return sum(
+                self._store.prune(
+                    RetentionPolicy(keep_sessions=keep),
+                    dataset=dataset,
+                )
+                for dataset in datasets
+            )
         deleted = 0
         with self._store._tx(immediate=True):  # pylint: disable=protected-access
             history_by_scope: dict[tuple[str, str], list[SnapshotRow]] = {}
