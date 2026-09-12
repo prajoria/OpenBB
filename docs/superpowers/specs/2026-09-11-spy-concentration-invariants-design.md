@@ -18,7 +18,10 @@ behavior remains unchanged.
 
 ## Design
 
-Only `test_live_concentration_spy_via_obb` changes. The test will assert:
+Only the risk-router test module changes. A shared SPY-specific assertion helper will
+validate the live result, and a parametrized unit test will prove that representative
+malformed values and the unresolved single-symbol fallback are rejected. The helper will
+assert:
 
 - `hhi` is finite and in `(0, 1]`;
 - `effective_n` is finite and equals `1 / hhi` within floating-point tolerance;
