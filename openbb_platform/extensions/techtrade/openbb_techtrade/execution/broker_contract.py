@@ -74,6 +74,40 @@ class BrokerBatchError(ExecutionError):
         self.outcome_unknown = outcome_unknown
 
 
+def validate_partial_acknowledgements(
+    completed: Sequence[BrokerOrderAck],
+    reserved_order_uuids: Sequence[uuid.UUID],
+    failed_order_uuid: uuid.UUID | None,
+) -> tuple[tuple[BrokerOrderAck, ...], bool]:
+    """Return trustworthy partial acknowledgements and whether input was malformed."""
+    completed = tuple(completed)
+    if not all(
+        isinstance(ack, BrokerOrderAck)
+        and isinstance(ack.order_uuid, uuid.UUID)
+        and isinstance(ack.broker_order_id, str)
+        and bool(ack.broker_order_id.strip())
+        for ack in completed
+    ) or (
+        failed_order_uuid is not None and not isinstance(failed_order_uuid, uuid.UUID)
+    ):
+        return (), True
+    completed_uuids = {ack.order_uuid for ack in completed}
+    completed_broker_ids = {ack.broker_order_id for ack in completed}
+    malformed = (
+        len(completed_uuids) != len(completed)
+        or not completed_uuids.issubset(reserved_order_uuids)
+        or len(completed_broker_ids) != len(completed)
+        or (
+            failed_order_uuid is not None
+            and (
+                failed_order_uuid not in reserved_order_uuids
+                or failed_order_uuid in completed_uuids
+            )
+        )
+    )
+    return (() if malformed else completed), malformed
+
+
 @dataclass(frozen=True)
 class OrderReceipt:
     """Durable state for one submitted order."""

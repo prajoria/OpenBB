@@ -36,6 +36,7 @@ from openbb_techtrade.execution.broker_contract import (
     SubmissionStatus,
     UnknownSubmissionStateError,
     reconciliation_receipt,
+    validate_partial_acknowledgements,
 )
 from openbb_techtrade.execution.execution_audit_schema import (
     deserialize_approved_batch,
@@ -784,25 +785,11 @@ class ExecutionGateway:
                     outcome_unknown=True,
                 )
         except BrokerBatchError as exc:
-            completed_uuids = {ack.order_uuid for ack in exc.completed}
-            completed_broker_ids = {ack.broker_order_id for ack in exc.completed}
-            invalid_completed_ids = any(
-                not isinstance(ack.broker_order_id, str)
-                or not ack.broker_order_id.strip()
-                for ack in exc.completed
+            trusted_completed, malformed = validate_partial_acknowledgements(
+                exc.completed,
+                order_uuids,
+                exc.failed_order_uuid,
             )
-            malformed_completed = (
-                len(completed_uuids) != len(exc.completed)
-                or not completed_uuids.issubset(order_uuids)
-                or len(completed_broker_ids) != len(exc.completed)
-                or invalid_completed_ids
-            )
-            malformed_failed = exc.failed_order_uuid is not None and (
-                exc.failed_order_uuid not in order_uuids
-                or exc.failed_order_uuid in completed_uuids
-            )
-            malformed = malformed_completed or malformed_failed
-            trusted_completed = () if malformed else exc.completed
             try:
                 failed = self.audit_store.record_failure(
                     receipt.submission_id,
