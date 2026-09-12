@@ -3224,14 +3224,16 @@ def tt_execute_bridge(request: Request, verdict: str = "PASS") -> str:
         "## Execute Bridge: READY\n\n"
         f"Verdict gate: **PASS** — bridge ready to submit. {ready_signal}\n\n"
         "### Next steps\n\n"
-        "1. **Write batch** — `POST /tt/execute/write-batch"
+        "1. **Approve a live plan** — `POST /tt/execute/approve-plan` runs "
+        "server-side T4 validation and returns a bound approval ID.\n"
+        "2. **Write batch** — `POST /tt/execute/write-batch"
         "?verdict=PASS&confirm=yes` for paper mode (triple-gate: env + "
         "verdict + confirm).\n"
-        "2. **Choose mode explicitly** — `PI_T5_BROKER_MODE=paper` is the "
+        "3. **Choose mode explicitly** — `PI_T5_BROKER_MODE=paper` is the "
         "safe default. Live additionally requires `PI_ALLOW_T5_LIVE=true`, "
         "`PI_T5_LIVE_ACCOUNT_ID`, an injected client, and the exact "
         "batch-bound confirmation phrase.\n"
-        "3. **Cancel safely** — `POST /tt/execute/cancel` requires a separate "
+        "4. **Cancel safely** — `POST /tt/execute/cancel` requires a separate "
         "order-UUID-bound confirmation phrase.\n\n"
         "> See `docs/superpowers/specs/2026-08-03-t5-e2e-test-guide.md` "
         "for the E2E test guide."
@@ -3283,7 +3285,7 @@ def tt_execute_paper_status_markdown(request: Request) -> str:
             "and P&L here."
         )
 
-    engine = get_default_engine(db_path=db_path)
+    engine = get_default_engine(db_path=db_path, allow_fallback=False)
     try:
         acct = engine.get_account()
         positions = engine.get_positions()
@@ -3412,6 +3414,82 @@ def _resolve_t5_approved_batch(plan_id: str):
     if batch.sha256() != approved_sha:
         return None
     return batch
+
+
+async def _build_server_approved_t5_batch(plan_payload: dict):
+    """Validate a T4 plan server-side and return its executable entry batch."""
+    from openbb_techtrade.execution.order_sink import (  # noqa: PLC0415
+        OrderBatch,
+        tickets_from_orders,
+    )
+    from openbb_techtrade.models import TradePlan  # noqa: PLC0415
+    from openbb_techtrade.validation.backtest_bridge import (  # noqa: PLC0415
+        validate_plan,
+    )
+
+    plan = TradePlan.model_validate(plan_payload)
+    validated_plan, report = await validate_plan(plan)
+    if getattr(report, "verdict", "") != "robust":
+        raise HTTPException(
+            status_code=400,
+            detail="T4 validation did not produce a robust verdict",
+        )
+    tickets = tuple(tickets_from_orders(validated_plan.orders))
+    if not tickets:
+        raise HTTPException(
+            status_code=400,
+            detail="validated T4 plan contains no executable entry orders",
+        )
+    provisional = OrderBatch(tickets=tickets, verdict_gate_pass=True)
+    approval_id = (
+        f"t4-{validated_plan.symbol}-{validated_plan.as_of.isoformat()}-"
+        f"{provisional.sha_short()}"
+    )
+    return OrderBatch(
+        tickets=tickets,
+        plan_id=approval_id,
+        verdict_gate_pass=True,
+    )
+
+
+@app.post("/tt/execute/approve-plan")
+async def tt_execute_approve_plan(request: Request, plan: dict) -> dict:
+    """Run the server-owned T4 validation handoff and register its exact batch."""
+    _require_auth(request)
+    builder = getattr(
+        request.app.state,
+        "t5_plan_approval_builder",
+        _build_server_approved_t5_batch,
+    )
+    batch = await builder(plan)
+    register_t5_approved_batch(batch)
+
+    mode = os.environ.get("PI_T5_BROKER_MODE", "paper").strip()
+    if mode == "live":
+        client = getattr(request.app.state, "t5_live_broker_client", None)
+        account_id = os.environ.get("PI_T5_LIVE_ACCOUNT_ID", "")
+        if (
+            client is None
+            or str(getattr(client, "account_id", "")) != account_id
+            or not getattr(client, "broker_id", "")
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail="live broker identity is not configured for this approval",
+            )
+        broker_id = str(client.broker_id)
+    else:
+        mode = "paper"
+        broker_id = "paper-engine"
+        account_id = "paper"
+    return {
+        "plan_id": batch.plan_id,
+        "batch_sha": batch.sha256(),
+        "verdict": "PASS",
+        "confirmation": (
+            f"SUBMIT {mode.upper()} {broker_id} {account_id} {batch.sha256()}"
+        ),
+    }
 
 
 @app.post("/tt/execute/write-batch")
@@ -3743,7 +3821,7 @@ def tt_execute_paper_status(request: Request) -> dict:
             "note": "No paper.db yet — submit a batch via /tt/execute/write-batch",
         }
 
-    engine = get_default_engine(db_path=db_path)
+    engine = get_default_engine(db_path=db_path, allow_fallback=False)
     try:
         acct = engine.get_account()
         positions = engine.get_positions()

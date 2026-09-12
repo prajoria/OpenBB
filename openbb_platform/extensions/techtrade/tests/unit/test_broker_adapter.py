@@ -14,6 +14,7 @@ import pytest
 from openbb_techtrade.execution.broker_adapter import (
     BrokerAdapter,
     BrokerBatchError,
+    BrokerOrderAck,
     CancellationError,
     ExecutionConfigurationError,
     ExecutionConfirmationError,
@@ -58,6 +59,8 @@ class _FakePaperEngine:
 @dataclass
 class _FakeLiveClient:
     fail_at: int | None = None
+    account_id: str = "fake-live"
+    broker_id: str = "fake-broker"
 
     def __post_init__(self) -> None:
         self.calls: list[tuple[OrderTicket, str]] = []
@@ -106,6 +109,26 @@ class TestAdapterContract:
             LiveBrokerAdapter(_FakeLiveClient(), account_id="fake-live"),
             BrokerAdapter,
         )
+
+    def test_live_adapter_rejects_client_account_mismatch(self) -> None:
+        with pytest.raises(ExecutionConfigurationError, match="account"):
+            LiveBrokerAdapter(
+                _FakeLiveClient(account_id="actual-account"),
+                account_id="confirmed-account",
+            )
+
+    def test_live_adapter_rechecks_client_identity_before_submit(self) -> None:
+        client = _FakeLiveClient()
+        adapter = LiveBrokerAdapter(client, account_id="fake-live")
+        client.account_id = "different-account"
+
+        with pytest.raises(ExecutionConfigurationError, match="identity changed"):
+            adapter.submit_batch(
+                _batch("MSFT"),
+                (UUID("00000000-0000-4000-8000-000000000001"),),
+            )
+
+        assert client.calls == []
 
     @pytest.mark.parametrize("account_id", ["", " ", "live account", "../live"])
     def test_live_adapter_rejects_unsafe_account_scope(self, account_id: str) -> None:
@@ -225,6 +248,7 @@ class TestExecutionGateway:
         assert second == first
         assert engine.submissions == 1
         assert first.status is SubmissionStatus.SUBMITTED
+        assert first.broker_id == "paper-engine"
         assert len(first.orders) == 2
         assert len({order.order_uuid for order in first.orders}) == 2
         assert all(order.order_uuid.version == 5 for order in first.orders)
@@ -275,6 +299,7 @@ class TestExecutionGateway:
                 outcomes.append(
                     store.reserve(
                         mode=ExecutionMode.PAPER,
+                        broker_id="paper-engine",
                         account_id="paper",
                         batch_sha256="a" * 64,
                         order_count=1,
@@ -357,6 +382,38 @@ class TestExecutionGateway:
             gateway.submit(batch, verdict="PASS", confirmation=confirmation)
         assert len(client.calls) == 1
 
+    def test_malformed_live_acknowledgements_require_reconciliation(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        class MalformedLiveAdapter:
+            mode = ExecutionMode.LIVE
+            broker_id = "fake-broker"
+            account_id = "fake-live"
+
+            def submit_batch(self, batch, order_uuids):
+                return (BrokerOrderAck(UUID(int=1), "possibly-accepted"),)
+
+            def cancel_order(self, broker_order_id):
+                return None
+
+        gateway = _gateway(
+            MalformedLiveAdapter(),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT")
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+        assert raised.value.receipt.orders[0].broker_order_id is None
+
     def test_reserved_unknown_outcome_fails_closed(
         self, audit: SqliteExecutionAuditStore
     ) -> None:
@@ -365,6 +422,7 @@ class TestExecutionGateway:
         batch = _batch("MSFT")
         audit.reserve(
             mode=ExecutionMode.PAPER,
+            broker_id="paper-engine",
             account_id="paper",
             batch_sha256=batch.sha256(),
             order_count=1,

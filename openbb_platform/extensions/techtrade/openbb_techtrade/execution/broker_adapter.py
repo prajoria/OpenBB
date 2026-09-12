@@ -100,6 +100,7 @@ class SubmissionReceipt:
 
     submission_id: uuid.UUID
     mode: ExecutionMode
+    broker_id: str
     account_id: str
     batch_sha256: str
     status: SubmissionStatus
@@ -153,6 +154,11 @@ class BrokerAdapter(Protocol):
         ...
 
     @property
+    def broker_id(self) -> str:
+        """Stable broker/provider identity used by the audit scope."""
+        ...
+
+    @property
     def account_id(self) -> str:
         """Backend account scope (never a credential)."""
         ...
@@ -174,6 +180,16 @@ class BrokerAdapter(Protocol):
 class LiveBrokerClient(Protocol):
     """Injected vendor client boundary; implementations may perform I/O."""
 
+    @property
+    def broker_id(self) -> str:
+        """Return the broker-verified provider identifier."""
+        ...
+
+    @property
+    def account_id(self) -> str:
+        """Return the account identity verified by the broker session."""
+        ...
+
     def submit_order(self, ticket: OrderTicket, *, client_order_id: str) -> str:
         """Submit one ticket and return the vendor order identifier."""
         ...
@@ -187,6 +203,7 @@ class PaperBrokerAdapter:
     """Adapt the existing transactional paper engine to ``BrokerAdapter``."""
 
     mode = ExecutionMode.PAPER
+    broker_id = "paper-engine"
 
     def __init__(self, engine: PaperEngine, account_id: str = "paper") -> None:
         self.engine = engine
@@ -230,8 +247,24 @@ class LiveBrokerAdapter:
                 "live broker adapter account_id must match "
                 f"{_ACCOUNT_ID_RE.pattern!r}"
             )
+        client_account = str(client.account_id)
+        if client_account != account_id:
+            raise ExecutionConfigurationError(
+                "live broker client account does not match configured account_id"
+            )
+        client_broker = str(client.broker_id)
+        if not _ACCOUNT_ID_RE.fullmatch(client_broker):
+            raise ExecutionConfigurationError(
+                "live broker client broker_id must match " f"{_ACCOUNT_ID_RE.pattern!r}"
+            )
         self._client = client
         self._account_id = account_id
+        self._broker_id = client_broker
+
+    @property
+    def broker_id(self) -> str:
+        """Return the broker-verified provider identity."""
+        return self._broker_id
 
     @property
     def account_id(self) -> str:
@@ -244,6 +277,7 @@ class LiveBrokerAdapter:
         order_uuids: Sequence[uuid.UUID],
     ) -> tuple[BrokerOrderAck, ...]:
         """Submit each ticket with its reserved client-order UUID."""
+        self._verify_identity()
         if len(batch.tickets) != len(order_uuids):
             raise BrokerBatchError("order UUID count does not match the batch")
         completed: list[BrokerOrderAck] = []
@@ -272,7 +306,17 @@ class LiveBrokerAdapter:
 
     def cancel_order(self, broker_order_id: str) -> None:
         """Cancel through the injected live client."""
+        self._verify_identity()
         self._client.cancel_order(broker_order_id)
+
+    def _verify_identity(self) -> None:
+        if (
+            str(self._client.account_id) != self._account_id
+            or str(self._client.broker_id) != self._broker_id
+        ):
+            raise ExecutionConfigurationError(
+                "live broker client identity changed after adapter construction"
+            )
 
 
 class SqliteExecutionAuditStore:
@@ -292,13 +336,14 @@ class SqliteExecutionAuditStore:
                 CREATE TABLE IF NOT EXISTS pi_execution_submission (
                     submission_id TEXT PRIMARY KEY,
                     mode TEXT NOT NULL,
+                    broker_id TEXT NOT NULL,
                     account_id TEXT NOT NULL,
                     batch_sha256 TEXT NOT NULL,
                     status TEXT NOT NULL,
                     error TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    UNIQUE(mode, account_id, batch_sha256)
+                    UNIQUE(mode, broker_id, account_id, batch_sha256)
                 );
                 CREATE TABLE IF NOT EXISTS pi_execution_order (
                     order_uuid TEXT PRIMARY KEY,
@@ -329,6 +374,7 @@ class SqliteExecutionAuditStore:
         self,
         *,
         mode: ExecutionMode,
+        broker_id: str,
         account_id: str,
         batch_sha256: str,
         order_count: int,
@@ -339,11 +385,13 @@ class SqliteExecutionAuditStore:
             now = _now()
             inserted = self._conn.execute(
                 "INSERT OR IGNORE INTO pi_execution_submission "
-                "(submission_id, mode, account_id, batch_sha256, status, "
-                "error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "(submission_id, mode, broker_id, account_id, batch_sha256, "
+                "status, error, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     str(submission_id),
                     mode.value,
+                    broker_id,
                     account_id,
                     batch_sha256,
                     SubmissionStatus.SUBMITTING.value,
@@ -355,8 +403,9 @@ class SqliteExecutionAuditStore:
             if inserted == 0:
                 row = self._conn.execute(
                     "SELECT submission_id FROM pi_execution_submission "
-                    "WHERE mode = ? AND account_id = ? AND batch_sha256 = ?",
-                    (mode.value, account_id, batch_sha256),
+                    "WHERE mode = ? AND broker_id = ? AND account_id = ? "
+                    "AND batch_sha256 = ?",
+                    (mode.value, broker_id, account_id, batch_sha256),
                 ).fetchone()
                 return self._read_submission(uuid.UUID(row["submission_id"])), False
             for ordinal in range(order_count):
@@ -380,7 +429,11 @@ class SqliteExecutionAuditStore:
             self._append_event(
                 submission_id,
                 "SUBMISSION_RESERVED",
-                {"mode": mode.value, "batch_sha256": batch_sha256},
+                {
+                    "mode": mode.value,
+                    "broker_id": broker_id,
+                    "batch_sha256": batch_sha256,
+                },
             )
             return self._read_submission(submission_id), True
 
@@ -524,18 +577,23 @@ class SqliteExecutionAuditStore:
 
     def get_order_context(
         self, order_uuid: uuid.UUID
-    ) -> tuple[OrderReceipt, ExecutionMode, str]:
+    ) -> tuple[OrderReceipt, ExecutionMode, str, str]:
         """Return order plus its submission mode/account scope."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT o.*, s.mode, s.account_id "
+                "SELECT o.*, s.mode, s.broker_id, s.account_id "
                 "FROM pi_execution_order o JOIN pi_execution_submission s "
                 "ON o.submission_id = s.submission_id WHERE o.order_uuid = ?",
                 (str(order_uuid),),
             ).fetchone()
         if row is None:
             raise ExecutionError(f"unknown audited order UUID {order_uuid}")
-        return _order_from_row(row), ExecutionMode(row["mode"]), row["account_id"]
+        return (
+            _order_from_row(row),
+            ExecutionMode(row["mode"]),
+            row["broker_id"],
+            row["account_id"],
+        )
 
     def record_cancel(
         self,
@@ -545,7 +603,7 @@ class SqliteExecutionAuditStore:
         error: str | None = None,
     ) -> CancellationReceipt:
         """Record cancellation success/failure and append an event."""
-        order, _mode, _account = self.get_order_context(order_uuid)
+        order, _mode, _broker, _account = self.get_order_context(order_uuid)
         if order.broker_order_id is None:
             raise ExecutionError(f"order {order_uuid} has no broker acknowledgement")
         with self._lock, self._conn:
@@ -674,6 +732,7 @@ class SqliteExecutionAuditStore:
         return SubmissionReceipt(
             submission_id=submission_id,
             mode=ExecutionMode(submission["mode"]),
+            broker_id=submission["broker_id"],
             account_id=submission["account_id"],
             batch_sha256=submission["batch_sha256"],
             status=SubmissionStatus(submission["status"]),
@@ -706,14 +765,14 @@ class ExecutionGateway:
         """Return the exact batch/account/mode-bound submission phrase."""
         return (
             f"SUBMIT {self.adapter.mode.value.upper()} "
-            f"{self.adapter.account_id} {batch.sha256()}"
+            f"{self.adapter.broker_id} {self.adapter.account_id} {batch.sha256()}"
         )
 
     def expected_cancel_confirmation(self, order_uuid: uuid.UUID) -> str:
         """Return the exact order/account/mode-bound cancellation phrase."""
         return (
             f"CANCEL {self.adapter.mode.value.upper()} "
-            f"{self.adapter.account_id} {order_uuid}"
+            f"{self.adapter.broker_id} {self.adapter.account_id} {order_uuid}"
         )
 
     def submit(
@@ -738,6 +797,7 @@ class ExecutionGateway:
 
         receipt, is_new = self.audit_store.reserve(
             mode=self.adapter.mode,
+            broker_id=self.adapter.broker_id,
             account_id=self.adapter.account_id,
             batch_sha256=batch.sha256(),
             order_count=len(batch.tickets),
@@ -759,9 +819,17 @@ class ExecutionGateway:
             if len(acknowledgements) != len(order_uuids) or {
                 ack.order_uuid for ack in acknowledgements
             } != set(order_uuids):
+                reserved = set(order_uuids)
+                validated: list[BrokerOrderAck] = []
+                seen: set[uuid.UUID] = set()
+                for ack in acknowledgements:
+                    if ack.order_uuid in reserved and ack.order_uuid not in seen:
+                        validated.append(ack)
+                        seen.add(ack.order_uuid)
                 raise BrokerBatchError(
                     "adapter acknowledgements do not match reserved order UUIDs",
-                    completed=acknowledgements,
+                    completed=validated,
+                    outcome_unknown=self.adapter.mode is ExecutionMode.LIVE,
                 )
         except BrokerBatchError as exc:
             failed = self.audit_store.record_failure(
@@ -801,8 +869,14 @@ class ExecutionGateway:
                 "explicit confirmation did not match the configured mode, "
                 "account, and order"
             )
-        order, mode, account_id = self.audit_store.get_order_context(order_uuid)
-        if mode is not self.adapter.mode or account_id != self.adapter.account_id:
+        order, mode, broker_id, account_id = self.audit_store.get_order_context(
+            order_uuid
+        )
+        if (
+            mode is not self.adapter.mode
+            or broker_id != self.adapter.broker_id
+            or account_id != self.adapter.account_id
+        ):
             raise ExecutionGateError(
                 "audited order does not belong to the configured adapter scope"
             )

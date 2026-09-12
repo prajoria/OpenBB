@@ -46,14 +46,19 @@ The existing T5 stack is a partial execution path:
   MySQL implementation when configured.
 - `LiveBrokerAdapter` wraps an injected `LiveBrokerClient` protocol. It imports
   no vendor SDK, reads no credentials, and cannot make a network call unless an
-  application explicitly injects a client. Client order UUIDs are passed to
-  the client as idempotency keys.
+  application explicitly injects a client. The client must expose its
+  broker-verified provider and account identities, which must match the
+  configured scope before every submit/cancel. Client order UUIDs are passed
+  to the client as idempotency keys.
 - `SqliteExecutionAuditStore` is a local durable journal with submission,
   per-order, and append-only event rows. A unique `(mode, account,
   batch_sha256)` key prevents a second execution of the same batch.
 
 The live client boundary is intentionally vendor-neutral. Alpaca, IBKR, or a
-safe fake can implement the same four methods without changing the gateway.
+safe fake can implement the same methods without changing the gateway.
+`POST /tt/execute/approve-plan` is the production handoff: it runs T4
+validation server-side (or a server-injected equivalent), registers only a
+robust immutable batch, and returns its approval ID and confirmation phrase.
 
 ## Safety and confirmation
 
@@ -86,7 +91,8 @@ Each submission and submitted order receives a full RFC 4122 UUID. Order UUIDs
 are derived deterministically from the submission UUID and ordinal so retries
 use the same client-order IDs.
 
-The audit store reserves the idempotency key before any broker side effect.
+The audit store reserves the `(mode, broker_id, account_id, batch_sha256)`
+idempotency key before any broker side effect.
 Terminal retries return the stored receipt without invoking the adapter.
 Retries against an in-progress/unknown-outcome submission fail closed for
 operator reconciliation rather than risking a duplicate.

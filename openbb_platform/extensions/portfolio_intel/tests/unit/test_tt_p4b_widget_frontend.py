@@ -44,6 +44,8 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("PI_T5_LIVE_ACCOUNT_ID", raising=False)
     if hasattr(app.state, "t5_live_broker_client"):
         del app.state.t5_live_broker_client
+    if hasattr(app.state, "t5_plan_approval_builder"):
+        del app.state.t5_plan_approval_builder
     _T5_APPROVED_BATCHES.clear()
 
 
@@ -61,6 +63,7 @@ class TestExecuteBridgeMarkdown:
         assert r.status_code == 200
         body = r.json()  # markdown endpoint returns json-string
         assert "write-batch" in body
+        assert "approve-plan" in body
         assert "confirm=yes" in body
         assert "PI_ALLOW_T5_EXECUTE" in body
         assert "PI_T5_BROKER_MODE" in body
@@ -117,7 +120,7 @@ class TestBrokerExecutionGateway:
         monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
         app.state.t5_live_broker_client = _WidgetFakeLiveClient()
         batch = _build_t5_demo_batch("")
-        confirm = f"SUBMIT LIVE fake-live {batch.sha256()}"
+        confirm = f"SUBMIT LIVE fake-broker fake-live {batch.sha256()}"
         register_t5_approved_batch(batch)
 
         response = _client.post(
@@ -143,7 +146,7 @@ class TestBrokerExecutionGateway:
         app.state.t5_live_broker_client = fake
         batch = _build_t5_demo_batch("")
         register_t5_approved_batch(batch)
-        confirm = f"SUBMIT LIVE fake-live {batch.sha256()}"
+        confirm = f"SUBMIT LIVE fake-broker fake-live {batch.sha256()}"
 
         response = _client.post(
             "/tt/execute/write-batch",
@@ -174,7 +177,7 @@ class TestBrokerExecutionGateway:
             params={
                 "verdict": "PASS",
                 "plan_id": batch.plan_id,
-                "confirm": f"SUBMIT LIVE fake-live {batch.sha256()}",
+                "confirm": f"SUBMIT LIVE fake-broker fake-live {batch.sha256()}",
             },
         )
 
@@ -195,6 +198,7 @@ class TestBrokerExecutionGateway:
         store = SqliteExecutionAuditStore(tmp_path / "execution-audit.db")
         store.reserve(
             mode=ExecutionMode.PAPER,
+            broker_id="paper-engine",
             account_id="paper",
             batch_sha256=batch.sha256(),
             order_count=len(batch.tickets),
@@ -228,7 +232,7 @@ class TestBrokerExecutionGateway:
             "/tt/execute/cancel",
             params={
                 "order_uuid": str(order_uuid),
-                "confirm": f"CANCEL PAPER paper {order_uuid}",
+                "confirm": f"CANCEL PAPER paper-engine paper {order_uuid}",
             },
         )
 
@@ -252,14 +256,14 @@ class TestBrokerExecutionGateway:
             "/tt/execute/cancel",
             params={
                 "order_uuid": order_uuid,
-                "confirm": f"CANCEL PAPER paper {order_uuid}",
+                "confirm": f"CANCEL PAPER paper-engine paper {order_uuid}",
             },
         )
         replay = _client.post(
             "/tt/execute/cancel",
             params={
                 "order_uuid": order_uuid,
-                "confirm": f"CANCEL PAPER paper {order_uuid}",
+                "confirm": f"CANCEL PAPER paper-engine paper {order_uuid}",
             },
         )
 
@@ -270,6 +274,9 @@ class TestBrokerExecutionGateway:
 
 
 class _WidgetFakeLiveClient:
+    account_id = "fake-live"
+    broker_id = "fake-broker"
+
     def __init__(self) -> None:
         self.calls: list[tuple[object, str]] = []
 
@@ -279,6 +286,23 @@ class _WidgetFakeLiveClient:
 
     def cancel_order(self, broker_order_id: str) -> None:
         return None
+
+
+def test_approve_plan_registers_server_validated_batch(
+    monkeypatch: pytest.MonkeyPatch, clean_env
+) -> None:
+    batch = _build_t5_demo_batch("validated-plan")
+
+    async def approved_builder(_plan):
+        return batch
+
+    app.state.t5_plan_approval_builder = approved_builder
+    response = _client.post("/tt/execute/approve-plan", json={"plan": "payload"})
+
+    assert response.status_code == 200
+    assert response.json()["plan_id"] == "validated-plan"
+    assert response.json()["batch_sha"] == batch.sha256()
+    assert "validated-plan" in _T5_APPROVED_BATCHES
 
 
 def test_cancel_reports_missing_techtrade_dependency(
