@@ -137,6 +137,10 @@ def _rewrite(sql: str) -> str:
     # Strip MySQL-only INDEX clauses in CREATE TABLE (not that we hit them
     # since DDLs are mapped above), then rewrite placeholders.
     out = sql.replace("%s", "?").replace(" FOR UPDATE", "")
+    out = out.replace(
+        "ON DUPLICATE KEY UPDATE account_id = account_id",
+        "ON CONFLICT(run_id, strategy_id, account_id) DO NOTHING",
+    )
     # sqlite doesn't grok DATETIME/ENUM in generic SELECT/UPDATE; the DDLs
     # already mapped. Nothing else to rewrite.
     return out
@@ -268,13 +272,19 @@ class TestAccountLifecycle:
         assert acct.realized_pl == Decimal("0")
 
     def test_reopening_same_pool_preserves_account(self, pool: _FakePool) -> None:
-        """R7.11 twin: dropping SELECT-before-INSERT in _ensure_account
-        would raise PK violation on the second open.
+        """R7.11 twin: dropping the no-op upsert clause in _ensure_account
+        would raise a PK violation on the second open.
         """
         MysqlPaperEngine(connection_pool=pool, starting_cash=Decimal("50000"))
+        pool.statements.clear()
         eng2 = MysqlPaperEngine(connection_pool=pool, starting_cash=Decimal("999999"))
         acct = eng2.get_account()
         assert acct.starting_cash == Decimal("50000")
+        assert any("ON DUPLICATE KEY UPDATE" in sql for sql in pool.statements)
+        assert not any(
+            "SELECT account_id FROM pi_paper_account" in sql
+            for sql in pool.statements
+        )
 
     def test_protocol_conformance(self, engine: MysqlPaperEngine) -> None:
         """R7.11 twin: renaming submit_batch breaks isinstance()."""

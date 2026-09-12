@@ -49,7 +49,9 @@ roll back before re-raising any exception.
 The existing operation boundaries remain unchanged:
 
 - schema creation remains idempotent but is not atomic because MySQL DDL
-  implicitly commits; account bootstrap remains an atomic DML write scope;
+  implicitly commits; account bootstrap uses a single no-op upsert so
+  concurrent constructors preserve the first account seed without a
+  check-then-insert race;
 - order submission, fill processing, and cancellation each remain one atomic
   transaction;
 - fill and cancellation transactions lock the order rows they validate, while

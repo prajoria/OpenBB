@@ -116,7 +116,10 @@ Append `FOR UPDATE` to the scoped order reads in `record_fill()` and
 `cancel_order()`, and to the account, open-lot, and materialized-position reads
 inside fill side effects. This keeps concurrent connections from validating or
 calculating updates from stale rows after explicit transactions make the
-production path usable.
+production path usable. Replace account bootstrap's check-then-insert with an
+`INSERT ... ON DUPLICATE KEY UPDATE` no-op so concurrent constructors cannot
+split execution between MySQL and a fallback backend after a duplicate-key
+error.
 
 - [ ] **Step 4: Run targeted tests and verify GREEN**
 

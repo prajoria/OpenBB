@@ -272,38 +272,24 @@ class MysqlPaperEngine:
 
     def _ensure_account(self, starting_cash: Decimal) -> None:
         """Idempotent: second call with a different starting_cash is a no-op."""
-        where, params = self._scope_where()
         with self.transaction() as conn:
             cur = conn.cursor()
             cur.execute(
-                f"SELECT account_id FROM pi_paper_account WHERE {where}",
-                params,
-            )
-            row = cur.fetchone()
-            if row is None:
-                cur.execute(
-                    "INSERT INTO pi_paper_account "
-                    "(run_id, strategy_id, account_id, starting_cash, "
-                    "cash, realized_pl, created_at) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        self._run_id,
-                        self._strategy_id,
-                        self._account_id,
-                        str(starting_cash),
-                        str(starting_cash),
-                        "0",
-                        _now_utc(),
-                    ),
-                )
-                logger.info(
-                    "MysqlPaperEngine: created account (run=%s, strat=%s, "
-                    "acct=%s) with starting cash %s",
+                "INSERT INTO pi_paper_account "
+                "(run_id, strategy_id, account_id, starting_cash, "
+                "cash, realized_pl, created_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE account_id = account_id",
+                (
                     self._run_id,
                     self._strategy_id,
                     self._account_id,
-                    starting_cash,
-                )
+                    str(starting_cash),
+                    str(starting_cash),
+                    "0",
+                    _now_utc(),
+                ),
+            )
             cur.close()
 
     # ------------------------------------------------------------------
