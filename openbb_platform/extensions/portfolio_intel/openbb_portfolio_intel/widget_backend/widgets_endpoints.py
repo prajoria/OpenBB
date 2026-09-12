@@ -3777,7 +3777,13 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
         )
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    sink = PaperOrderSink(out_dir)
+    artifact_dir = (
+        out_dir / f"approval-{hashlib.sha256(batch.plan_id.encode()).hexdigest()[:16]}"
+        if plan_id
+        else out_dir
+    )
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    sink = PaperOrderSink(artifact_dir)
     art = sink.write_batch(batch)
 
     audit_path = Path(

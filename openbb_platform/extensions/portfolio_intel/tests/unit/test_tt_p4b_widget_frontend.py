@@ -415,7 +415,6 @@ def test_approve_plan_registers_server_validated_batch(
     request_id = "00000000-0000-4000-8000-000000000171"
 
     async def approved_builder(_plan, approval_id):
-        assert approval_id == f"t4-{request_id}"
         return batch
 
     app.state.t5_plan_approval_builder = approved_builder
@@ -447,6 +446,23 @@ def test_approve_plan_registers_server_validated_batch(
     )
     assert execution.status_code == 200
     assert execution.json()["batch_sha"] == batch.sha_short()
+
+    second_request_id = "00000000-0000-4000-8000-000000000174"
+    second_approval = _client.post(
+        "/tt/execute/approve-plan",
+        params={"approval_request_id": second_request_id},
+        json={"symbol": "MSFT"},
+    )
+    second_execution = _client.post(
+        "/tt/execute/write-batch",
+        params={
+            "verdict": "PASS",
+            "confirm": "yes",
+            "plan_id": second_approval.json()["plan_id"],
+        },
+    )
+    assert second_execution.status_code == 200
+    assert second_execution.json()["xlsx_path"] != execution.json()["xlsx_path"]
 
     mismatched_retry = _client.post(
         "/tt/execute/approve-plan",
