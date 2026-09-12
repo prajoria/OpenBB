@@ -451,6 +451,21 @@ class TestCancel:
 
 
 class TestFactory:
+    def test_strict_mysql_mode_does_not_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from openbb_techtrade.execution import mysql_paper_engine
+
+        monkeypatch.setattr(paper_engine_module.config, "paper_engine", lambda: "mysql")
+        monkeypatch.setattr(
+            mysql_paper_engine,
+            "MysqlPaperEngine",
+            lambda **kwargs: (_ for _ in ()).throw(RuntimeError("mysql unavailable")),
+        )
+
+        with pytest.raises(RuntimeError, match="mysql unavailable"):
+            get_default_engine(allow_fallback=False)
+
     def test_factory_uses_central_config(self, tmp_path, monkeypatch) -> None:
         target = tmp_path / "central-config.db"
         monkeypatch.setattr(

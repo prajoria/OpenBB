@@ -22,6 +22,7 @@ import logging
 import math
 import os
 import re
+import threading
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
@@ -3383,6 +3384,36 @@ def _build_t5_demo_batch(plan_id: str):
     )
 
 
+_T5_APPROVED_BATCHES: dict[str, tuple[object, str]] = {}
+_T5_APPROVED_BATCHES_LOCK = threading.RLock()
+
+
+def register_t5_approved_batch(batch: object) -> None:
+    """Register an immutable, server-approved T4 batch for live execution."""
+    plan_id = getattr(batch, "plan_id", "")
+    if not plan_id:
+        raise ValueError("approved T5 batch requires a non-empty plan_id")
+    if getattr(batch, "verdict_gate_pass", False) is not True:
+        raise ValueError("approved T5 batch requires verdict_gate_pass=True")
+    batch_sha = getattr(batch, "sha256", lambda: "")()
+    if not batch_sha:
+        raise ValueError("approved T5 batch requires a content SHA")
+    with _T5_APPROVED_BATCHES_LOCK:
+        _T5_APPROVED_BATCHES[plan_id] = (batch, batch_sha)
+
+
+def _resolve_t5_approved_batch(plan_id: str):
+    """Return a server-approved batch only while its content SHA is unchanged."""
+    with _T5_APPROVED_BATCHES_LOCK:
+        approved = _T5_APPROVED_BATCHES.get(plan_id)
+    if approved is None:
+        return None
+    batch, approved_sha = approved
+    if batch.sha256() != approved_sha:
+        return None
+    return batch
+
+
 @app.post("/tt/execute/write-batch")
 def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
     request: Request,
@@ -3474,10 +3505,7 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
     try:
         mode = ExecutionMode(os.environ.get("PI_T5_BROKER_MODE", "paper").strip())
         if mode is ExecutionMode.LIVE:
-            approved_batches = getattr(
-                request.app.state, "t5_approved_order_batches", {}
-            )
-            batch = approved_batches.get(plan_id)
+            batch = _resolve_t5_approved_batch(plan_id)
             if batch is None or not batch.verdict_gate_pass:
                 raise ExecutionGateError(
                     "live execution requires a server-side T4 approval "
@@ -3581,20 +3609,29 @@ def tt_execute_cancel(
 ) -> dict:
     """Cancel one audited paper/live order through the configured adapter."""
     _require_auth(request)
-    from pathlib import Path  # noqa: PLC0415
-    from uuid import UUID  # noqa: PLC0415
+    try:
+        from pathlib import Path  # noqa: PLC0415
+        from uuid import UUID  # noqa: PLC0415
 
-    from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
-        CancellationError,
-        ExecutionConfigurationError,
-        ExecutionError,
-        ExecutionGateError,
-        ExecutionGateway,
-        ExecutionMode,
-        SqliteExecutionAuditStore,
-        UnknownSubmissionStateError,
-        get_default_broker_adapter,
-    )
+        from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
+            CancellationError,
+            ExecutionConfigurationError,
+            ExecutionError,
+            ExecutionGateError,
+            ExecutionGateway,
+            ExecutionMode,
+            SqliteExecutionAuditStore,
+            UnknownSubmissionStateError,
+            get_default_broker_adapter,
+        )
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"t5_dependencies_missing: {exc}. Install openbb_techtrade "
+                "editable to enable the T5 execute endpoints."
+            ),
+        ) from exc
 
     try:
         parsed_uuid = UUID(order_uuid)

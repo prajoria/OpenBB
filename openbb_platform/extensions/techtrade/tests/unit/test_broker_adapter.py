@@ -515,7 +515,11 @@ class TestFactory:
         engine = _FakePaperEngine()
         monkeypatch.setattr(
             "openbb_techtrade.execution.paper_engine.get_default_engine",
-            lambda **kwargs: engine,
+            lambda **kwargs: (
+                engine
+                if kwargs["allow_fallback"] is False
+                else pytest.fail("audited execution must disable backend fallback")
+            ),
         )
         adapter = get_default_broker_adapter(
             mode=ExecutionMode.PAPER,

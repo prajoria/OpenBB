@@ -1024,6 +1024,8 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
     starting_cash: Decimal = Decimal("100000"),
     run_id: str = "live",
     strategy_id: str = "default",
+    *,
+    allow_fallback: bool = True,
 ) -> PaperEngine:
     """Return the configured paper engine.
 
@@ -1031,10 +1033,10 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
 
     - ``PI_PAPER_ENGINE=mysql`` (default) — return
       :class:`~openbb_techtrade.execution.mysql_paper_engine.MysqlPaperEngine`
-      against the shared FMP-cache MySQL pool. On MySQL-unreachable
-      (import fails or pool raises), we emit a WARNING and fall back
-      to SQLite — matches the ``MySqlPortfolioStore`` graceful-fallback
-      pattern from #1744.
+      against the shared FMP-cache MySQL pool. On MySQL-unreachable,
+      ``allow_fallback=True`` emits a warning and falls back to SQLite.
+      Audited execution passes ``allow_fallback=False`` so a transient
+      outage cannot switch the backend underneath an existing order.
     - ``PI_PAPER_ENGINE=sqlite`` — force the file-backed
       :class:`SqlitePaperEngine` under ``~/.portfolio_intel/paper.db``
       (or ``PI_PAPER_DB``).
@@ -1059,6 +1061,8 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
                 starting_cash=starting_cash,
             )
         except Exception as exc:  # noqa: BLE001
+            if not allow_fallback:
+                raise
             logger.warning(
                 "get_default_engine: MySQL backend unreachable (%s); "
                 "falling back to SQLite at ~/.portfolio_intel/paper.db",

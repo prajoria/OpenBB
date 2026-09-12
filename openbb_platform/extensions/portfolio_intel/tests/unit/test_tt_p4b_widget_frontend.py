@@ -16,7 +16,9 @@ os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 from fastapi.testclient import TestClient  # noqa: E402
 from openbb_portfolio_intel.widget_backend.main import app  # noqa: E402
 from openbb_portfolio_intel.widget_backend.widgets_endpoints import (  # noqa: E402
+    _T5_APPROVED_BATCHES,
     _build_t5_demo_batch,
+    register_t5_approved_batch,
 )
 
 _client = TestClient(app)
@@ -42,8 +44,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("PI_T5_LIVE_ACCOUNT_ID", raising=False)
     if hasattr(app.state, "t5_live_broker_client"):
         del app.state.t5_live_broker_client
-    if hasattr(app.state, "t5_approved_order_batches"):
-        del app.state.t5_approved_order_batches
+    _T5_APPROVED_BATCHES.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +118,7 @@ class TestBrokerExecutionGateway:
         app.state.t5_live_broker_client = _WidgetFakeLiveClient()
         batch = _build_t5_demo_batch("")
         confirm = f"SUBMIT LIVE fake-live {batch.sha256()}"
-        app.state.t5_approved_order_batches = {batch.plan_id: batch}
+        register_t5_approved_batch(batch)
 
         response = _client.post(
             "/tt/execute/write-batch",
@@ -141,7 +142,7 @@ class TestBrokerExecutionGateway:
         fake = _WidgetFakeLiveClient()
         app.state.t5_live_broker_client = fake
         batch = _build_t5_demo_batch("")
-        app.state.t5_approved_order_batches = {batch.plan_id: batch}
+        register_t5_approved_batch(batch)
         confirm = f"SUBMIT LIVE fake-live {batch.sha256()}"
 
         response = _client.post(
@@ -278,6 +279,31 @@ class _WidgetFakeLiveClient:
 
     def cancel_order(self, broker_order_id: str) -> None:
         return None
+
+
+def test_cancel_reports_missing_techtrade_dependency(
+    monkeypatch: pytest.MonkeyPatch, clean_env
+) -> None:
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fail_broker_adapter(name, *args, **kwargs):
+        if name == "openbb_techtrade.execution.broker_adapter":
+            raise ImportError("simulated missing techtrade")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_broker_adapter)
+    response = _client.post(
+        "/tt/execute/cancel",
+        params={
+            "order_uuid": "00000000-0000-4000-8000-000000000001",
+            "confirm": "anything",
+        },
+    )
+
+    assert response.status_code == 500
+    assert "t5_dependencies_missing" in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------
