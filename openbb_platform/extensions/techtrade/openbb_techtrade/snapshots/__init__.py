@@ -1,11 +1,14 @@
-"""TechTrade scan snapshot persistence (issue #1934).
+"""Compatibility API for TechTrade scan snapshots (issue #1934).
 
 Public surface:
 
 - :class:`ScanSnapshot` -- the append-only, widget-ready snapshot record;
 - :func:`plan_to_row` -- narrows a ``TradePlan`` to a JSON-safe row;
 - :class:`ScanSnapshotStore` -- the persistence protocol;
-- :class:`SqliteScanSnapshotStore` -- the single-host SQLite implementation.
+- :class:`SqliteScanSnapshotStore` -- a facade over the canonical generic store.
+
+No persistence schema lives in this package. New writers and readers use
+``openbb_techtrade.snapshot`` directly.
 """
 
 from openbb_techtrade.snapshots.models import (

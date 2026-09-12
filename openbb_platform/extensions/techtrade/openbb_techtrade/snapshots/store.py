@@ -1,10 +1,8 @@
-"""Persistence contract for TechTrade scan snapshots (issue #1934).
+"""Legacy compatibility contract for TechTrade scan snapshots (issue #1934).
 
 ``ScanSnapshotStore`` is a ``Protocol`` so neither ``run_scan`` nor the Morning
-Scan widgets depend on SQLite. The initial implementation is
-:class:`~openbb_techtrade.snapshots.sqlite.SqliteScanSnapshotStore`, but the seam
-leaves room for a MySQL/Postgres adapter when multi-host reads are required --
-exactly the same discipline the core ``JobStore`` protocol uses.
+Scan widgets depend on SQLite. The initial implementation is a facade over :mod:`openbb_techtrade.snapshot`; it does not
+own a second persistence schema or LIVE-selection policy.
 """
 
 from __future__ import annotations

@@ -9,6 +9,7 @@ committed snapshot).
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import sqlite3
 
 import pytest
 from openbb_techtrade.snapshots import (
@@ -228,3 +229,22 @@ def test_computed_at_must_be_timezone_aware():
             as_of_session=_SESSION,
             computed_at=datetime(2024, 1, 12, 8, 30),  # naive
         )
+
+
+def test_legacy_facade_uses_only_canonical_snapshot_tables(tmp_path):
+    db = tmp_path / "canonical.db"
+    store = SqliteScanSnapshotStore(db)
+    store.write_snapshot(_snapshot())
+    store.close()
+
+    with sqlite3.connect(db) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+
+    assert "pi_eod_snapshot" in tables
+    assert "pi_eod_live_pointer" in tables
+    assert "scan_snapshot" not in tables
