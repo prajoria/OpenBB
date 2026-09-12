@@ -116,3 +116,7 @@ This cycle does not alter execution semantics, FMP database code, widget/viewer
 code, risk calculations, snapshot consumers, or the snapshot path safety guard.
 It changes only configuration acquisition at existing selector seams and the
 developer installation workflow.
+
+The portfolio-intel status widget independently interprets
+`PI_PAPER_ENGINE`; aligning that viewer-only status path with the validated
+getter is tracked in #2072 and remains outside this cycle.
