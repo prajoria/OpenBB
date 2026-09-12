@@ -3439,6 +3439,7 @@ def _resolve_t5_approved_batch(plan_id: str):
 
 async def _build_server_approved_t5_batch(plan_payload: dict):
     """Validate a T4 plan server-side and return its executable entry batch."""
+    from openbb_techtrade.engine.orders import generate_orders  # noqa: PLC0415
     from openbb_techtrade.execution.order_sink import (  # noqa: PLC0415
         OrderBatch,
         tickets_from_orders,
@@ -3455,7 +3456,15 @@ async def _build_server_approved_t5_batch(plan_payload: dict):
             status_code=400,
             detail="T4 validation did not produce a robust verdict",
         )
-    tickets = tuple(tickets_from_orders(validated_plan.orders))
+    canonical_orders = generate_orders(
+        validated_plan.signal,
+        entry=validated_plan.recommendation.entry_price,
+        stop=validated_plan.recommendation.stop_price,
+        target=validated_plan.recommendation.target_price,
+        qty=validated_plan.position_size,
+        rule=validated_plan.rule,
+    )
+    tickets = tuple(tickets_from_orders(canonical_orders))
     if not tickets:
         raise HTTPException(
             status_code=400,
@@ -3508,7 +3517,8 @@ async def tt_execute_approve_plan(request: Request, plan: dict) -> dict:
         "batch_sha": batch.sha256(),
         "verdict": "PASS",
         "confirmation": (
-            f"SUBMIT {mode.upper()} {broker_id} {account_id} {batch.sha256()}"
+            f"SUBMIT {mode.upper()} {broker_id} {account_id} "
+            f"{batch.plan_id} {batch.sha256()}"
         ),
     }
 

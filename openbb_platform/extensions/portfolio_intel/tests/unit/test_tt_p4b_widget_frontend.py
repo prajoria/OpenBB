@@ -118,7 +118,7 @@ class TestBrokerExecutionGateway:
         monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
         app.state.t5_live_broker_client = _WidgetFakeLiveClient()
         batch = _build_t5_demo_batch("")
-        confirm = f"SUBMIT LIVE fake-broker fake-live {batch.sha256()}"
+        confirm = f"SUBMIT LIVE fake-broker fake-live {batch.plan_id} {batch.sha256()}"
         register_t5_approved_batch(batch)
 
         response = _client.post(
@@ -144,7 +144,7 @@ class TestBrokerExecutionGateway:
         app.state.t5_live_broker_client = fake
         batch = _build_t5_demo_batch("")
         register_t5_approved_batch(batch)
-        confirm = f"SUBMIT LIVE fake-broker fake-live {batch.sha256()}"
+        confirm = f"SUBMIT LIVE fake-broker fake-live {batch.plan_id} {batch.sha256()}"
 
         response = _client.post(
             "/tt/execute/write-batch",
@@ -175,7 +175,10 @@ class TestBrokerExecutionGateway:
             params={
                 "verdict": "PASS",
                 "plan_id": batch.plan_id,
-                "confirm": f"SUBMIT LIVE fake-broker fake-live {batch.sha256()}",
+                "confirm": (
+                    f"SUBMIT LIVE fake-broker fake-live "
+                    f"{batch.plan_id} {batch.sha256()}"
+                ),
             },
         )
 
@@ -198,6 +201,7 @@ class TestBrokerExecutionGateway:
             mode=ExecutionMode.PAPER,
             broker_id="paper-engine",
             account_id="paper",
+            plan_id=batch.plan_id,
             batch_sha256=batch.sha256(),
             order_count=len(batch.tickets),
         )

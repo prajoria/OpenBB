@@ -276,6 +276,32 @@ class TestExecutionGateway:
             "SUBMISSION_SUCCEEDED",
         }
 
+    def test_distinct_approvals_with_same_tickets_execute_independently(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        engine = _FakePaperEngine()
+        gateway = _gateway(PaperBrokerAdapter(engine), audit, mode=ExecutionMode.PAPER)
+        first_batch = _batch("MSFT")
+        second_batch = OrderBatch(
+            tickets=first_batch.tickets,
+            plan_id="second-approval",
+            verdict_gate_pass=True,
+        )
+
+        first = gateway.submit(
+            first_batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(first_batch),
+        )
+        second = gateway.submit(
+            second_batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(second_batch),
+        )
+
+        assert first.submission_id != second.submission_id
+        assert engine.submissions == 2
+
     def test_audit_replays_after_store_reopen(self, tmp_path: Path) -> None:
         path = tmp_path / "execution-audit.db"
         engine = _FakePaperEngine()
@@ -318,6 +344,7 @@ class TestExecutionGateway:
                         mode=ExecutionMode.PAPER,
                         broker_id="paper-engine",
                         account_id="paper",
+                        plan_id="plan-concurrent",
                         batch_sha256="a" * 64,
                         order_count=1,
                     )
@@ -441,6 +468,7 @@ class TestExecutionGateway:
             mode=ExecutionMode.PAPER,
             broker_id="paper-engine",
             account_id="paper",
+            plan_id=batch.plan_id,
             batch_sha256=batch.sha256(),
             order_count=1,
         )

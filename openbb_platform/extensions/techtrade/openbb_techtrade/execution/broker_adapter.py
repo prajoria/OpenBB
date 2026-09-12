@@ -103,6 +103,7 @@ class SubmissionReceipt:
     mode: ExecutionMode
     broker_id: str
     account_id: str
+    plan_id: str
     batch_sha256: str
     status: SubmissionStatus
     orders: tuple[OrderReceipt, ...]
@@ -339,12 +340,13 @@ class SqliteExecutionAuditStore:
                     mode TEXT NOT NULL,
                     broker_id TEXT NOT NULL,
                     account_id TEXT NOT NULL,
+                    plan_id TEXT NOT NULL,
                     batch_sha256 TEXT NOT NULL,
                     status TEXT NOT NULL,
                     error TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    UNIQUE(mode, broker_id, account_id, batch_sha256)
+                    UNIQUE(mode, broker_id, account_id, plan_id, batch_sha256)
                 );
                 CREATE TABLE IF NOT EXISTS pi_execution_order (
                     order_uuid TEXT PRIMARY KEY,
@@ -471,6 +473,7 @@ class SqliteExecutionAuditStore:
         mode: ExecutionMode,
         broker_id: str,
         account_id: str,
+        plan_id: str,
         batch_sha256: str,
         order_count: int,
     ) -> tuple[SubmissionReceipt, bool]:
@@ -480,14 +483,15 @@ class SqliteExecutionAuditStore:
             now = _now()
             inserted = self._conn.execute(
                 "INSERT OR IGNORE INTO pi_execution_submission "
-                "(submission_id, mode, broker_id, account_id, batch_sha256, "
-                "status, error, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(submission_id, mode, broker_id, account_id, plan_id, "
+                "batch_sha256, status, error, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     str(submission_id),
                     mode.value,
                     broker_id,
                     account_id,
+                    plan_id,
                     batch_sha256,
                     SubmissionStatus.SUBMITTING.value,
                     None,
@@ -499,8 +503,8 @@ class SqliteExecutionAuditStore:
                 row = self._conn.execute(
                     "SELECT submission_id FROM pi_execution_submission "
                     "WHERE mode = ? AND broker_id = ? AND account_id = ? "
-                    "AND batch_sha256 = ?",
-                    (mode.value, broker_id, account_id, batch_sha256),
+                    "AND plan_id = ? AND batch_sha256 = ?",
+                    (mode.value, broker_id, account_id, plan_id, batch_sha256),
                 ).fetchone()
                 return self._read_submission(uuid.UUID(row["submission_id"])), False
             for ordinal in range(order_count):
@@ -527,6 +531,7 @@ class SqliteExecutionAuditStore:
                 {
                     "mode": mode.value,
                     "broker_id": broker_id,
+                    "plan_id": plan_id,
                     "batch_sha256": batch_sha256,
                 },
             )
@@ -829,6 +834,7 @@ class SqliteExecutionAuditStore:
             mode=ExecutionMode(submission["mode"]),
             broker_id=submission["broker_id"],
             account_id=submission["account_id"],
+            plan_id=submission["plan_id"],
             batch_sha256=submission["batch_sha256"],
             status=SubmissionStatus(submission["status"]),
             orders=tuple(_order_from_row(row) for row in rows),
@@ -860,7 +866,8 @@ class ExecutionGateway:
         """Return the exact batch/account/mode-bound submission phrase."""
         return (
             f"SUBMIT {self.adapter.mode.value.upper()} "
-            f"{self.adapter.broker_id} {self.adapter.account_id} {batch.sha256()}"
+            f"{self.adapter.broker_id} {self.adapter.account_id} "
+            f"{batch.plan_id} {batch.sha256()}"
         )
 
     def expected_cancel_confirmation(self, order_uuid: uuid.UUID) -> str:
@@ -894,6 +901,7 @@ class ExecutionGateway:
             mode=self.adapter.mode,
             broker_id=self.adapter.broker_id,
             account_id=self.adapter.account_id,
+            plan_id=batch.plan_id,
             batch_sha256=batch.sha256(),
             order_count=len(batch.tickets),
         )
