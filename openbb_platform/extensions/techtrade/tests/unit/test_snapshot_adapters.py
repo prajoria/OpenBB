@@ -4,12 +4,15 @@
 
 from __future__ import annotations
 
+import warnings
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
 import openbb_techtrade.snapshot.adapters as adapters_module
+import pytest
+from openbb_techtrade.engine.scan import ScanSegmentWarning
 from openbb_techtrade.models import Mover, MoverList
 from openbb_techtrade.snapshot.adapters import (
     AuditSnapshotAdapter,
@@ -417,10 +420,57 @@ def test_scan_adapter_runs_canonical_scan_once_and_flattens_by_segment() -> None
     assert calls == [(SESSION, 5, "breakout")]
     assert tech.payload["rows"][0]["symbol"] == "NVDA"
     assert tech.payload["rows"][0]["score"] == 0.9
+    assert tech.payload["preset"] == "breakout"
+    assert tech.payload["params"] == {"top_n": 5, "preset": "breakout"}
     assert energy.payload["rows"][0]["symbol"] == "XOM"
 
 
-def test_simulation_adapter_materializes_planned_pnl_trajectory() -> None:
+def test_scan_adapter_raises_for_segment_reported_failed() -> None:
+    def scan_fetcher(**_kwargs):
+        warnings.warn(ScanSegmentWarning(ENERGY, TimeoutError()), stacklevel=2)
+        return [_plan_stub("NVDA", TECH)]
+
+    adapter = ScanSnapshotAdapter(
+        segments=[TECH, ENERGY],
+        scan_fetcher=scan_fetcher,
+        event_fetcher=lambda _session, _symbols: [],
+    )
+
+    adapter.compute("segment=information technology", SESSION)
+    with pytest.raises(RuntimeError, match="scan_segment_failed"):
+        adapter.compute("segment=energy", SESSION)
+
+
+def test_simulation_adapter_materializes_actual_fill_pnl() -> None:
+    fills = [
+        SimpleNamespace(
+            side="buy",
+            quantity=Decimal("10"),
+            price=Decimal("100"),
+            commission=Decimal("0"),
+            timestamp=datetime(2026, 9, 12, 14, tzinfo=timezone.utc),
+        ),
+        SimpleNamespace(
+            side="sell",
+            quantity=Decimal("10"),
+            price=Decimal("108"),
+            commission=Decimal("0"),
+            timestamp=datetime(2026, 9, 12, 15, tzinfo=timezone.utc),
+        ),
+    ]
+    adapter = SimulateSnapshotAdapter(
+        segments=[TECH],
+        plans_fetcher=lambda _segment, _session: [_plan_stub(simulated_fills=fills)],
+        event_fetcher=lambda _session, _symbols: [],
+    )
+
+    rows = adapter.compute("segment=information technology", SESSION).payload["rows"]
+
+    assert [row["pnl"] for row in rows] == [0.0, 80.0]
+    assert all(row["source"] == "simulated_fill" for row in rows)
+
+
+def test_simulation_adapter_is_honestly_empty_without_fills() -> None:
     adapter = SimulateSnapshotAdapter(
         segments=[TECH],
         plans_fetcher=lambda _segment, _session: [_plan_stub()],
@@ -429,8 +479,7 @@ def test_simulation_adapter_materializes_planned_pnl_trajectory() -> None:
 
     rows = adapter.compute("segment=information technology", SESSION).payload["rows"]
 
-    assert [row["scenario"] for row in rows] == ["stop", "entry", "target"]
-    assert [row["pnl"] for row in rows] == [-50.0, 0.0, 100.0]
+    assert rows == []
 
 
 def test_audit_adapter_materializes_replay_forward_contract() -> None:

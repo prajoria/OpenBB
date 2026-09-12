@@ -340,6 +340,10 @@ class SnapshotStore(Protocol):
         """Newest-first rows for a key, retained for audit/replay/diffing."""
         ...  # pylint: disable=unnecessary-ellipsis
 
+    def list_datasets(self, prefix: str | None = None) -> list[str]:
+        """Return canonical dataset names, optionally restricted by prefix."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
         """Report whether the LIVE row already carries this ``input_hash``.
 
@@ -3230,6 +3234,22 @@ class SqliteSnapshotStore:
                 (dataset, entity_key, limit),
             ).fetchall()
         return [_row_from_mapping(record) for record in records]
+
+    def list_datasets(self, prefix: str | None = None) -> list[str]:
+        """Return canonical dataset names, optionally restricted by prefix."""
+        if prefix is None:
+            query = "SELECT DISTINCT dataset FROM pi_eod_snapshot ORDER BY dataset"
+            params: tuple[Any, ...] = ()
+        else:
+            canonical_prefix = canonical_key(prefix)
+            query = (
+                "SELECT DISTINCT dataset FROM pi_eod_snapshot "
+                "WHERE substr(dataset, 1, ?) = ? ORDER BY dataset"
+            )
+            params = (len(canonical_prefix), canonical_prefix)
+        with _SQLITE_LOCK:
+            records = self._conn.execute(query, params).fetchall()
+        return [str(record["dataset"]) for record in records]
 
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
         """Report whether the LIVE row already carries this ``input_hash``.

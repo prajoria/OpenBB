@@ -311,3 +311,39 @@ def test_export_reads_materialized_plans_not_scan_rows(tmp_path: Path) -> None:
     assert "PLAN_ONLY" in body
     assert "SCAN_ONLY" not in body
     store.close()
+
+
+def test_completed_empty_plan_export_is_not_reported_missing(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "empty-export.db")
+    _seed(store, "techtrade.plan", [], earnings_symbols=[])
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        body = _client.get("/tt/scan/export").json()
+    assert "Latest EOD snapshot completed" in body
+    assert "No EOD snapshot available" not in body
+    store.close()
+
+
+def test_tuning_inherits_symbol_scoped_earnings_annotation(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "tuning-earnings.db")
+    _seed(
+        store,
+        "techtrade.scan",
+        [{"symbol": "NVDA", "segment": SEGMENT}],
+        earnings_symbols=["NVDA"],
+    )
+    _seed(
+        store,
+        "techtrade.tune",
+        [{"param": "atr_period"}],
+        earnings_symbols=[],
+    )
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        rows = _client.get("/tt/tuning/report?symbol=NVDA").json()
+    assert all(row["earnings_annotation"] == "Reports before next open" for row in rows)
+    store.close()

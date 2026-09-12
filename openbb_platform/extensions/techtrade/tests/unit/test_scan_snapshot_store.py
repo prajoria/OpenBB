@@ -105,6 +105,24 @@ def test_read_latest_returns_newest_per_segment(store):
     assert [r["symbol"] for r in latest.rows] == ["NEW"]
 
 
+def test_out_of_order_write_does_not_move_legacy_live_backward(store):
+    """A late import with older computed metadata cannot replace latest."""
+    newer = _snapshot(
+        computed_at=datetime(2024, 1, 12, 9, 0, tzinfo=UTC),
+        rows=_rows("NEW"),
+    )
+    older = _snapshot(
+        computed_at=datetime(2024, 1, 12, 8, 0, tzinfo=UTC),
+        rows=_rows("OLD"),
+    )
+    store.write_snapshot(newer)
+    store.write_snapshot(older)
+
+    latest = store.read_latest(kind="daily_scan", segment="Energy")
+
+    assert latest.snapshot_id == newer.snapshot_id
+
+
 def test_read_latest_is_scoped_by_kind_and_segment(store):
     """Latest reads never cross kind or segment boundaries."""
     store.write_snapshot(_snapshot(segment="Energy", rows=_rows("ENE")))
@@ -189,6 +207,12 @@ def test_prune_noop_when_within_retention(store):
     store.write_snapshot(_snapshot(rows=_rows("A")))
     assert store.prune_snapshots(keep=10) == 0
     assert len(store.list_snapshots()) == 1
+
+
+def test_prune_rejects_zero_retention(store):
+    """The facade cannot promise deletion of its authoritative LIVE row."""
+    with pytest.raises(ValueError, match="at least 1"):
+        store.prune_snapshots(keep=0)
 
 
 def test_last_good_survives_a_failed_later_write(store):
@@ -385,6 +409,8 @@ def test_canonical_multi_segment_job_round_trips_facade_ids(tmp_path):
             "segment": segment,
             "as_of_session": _SESSION.isoformat(),
             "exchange_calendar": "XNYS",
+            "preset": "breakout",
+            "params": {"top_n": 5, "preset": "breakout"},
         }
         canonical.stage(
             "techtrade.scan",
@@ -413,6 +439,8 @@ def test_canonical_multi_segment_job_round_trips_facade_ids(tmp_path):
         energy = facade.read_latest(kind="daily_scan", segment="Energy")
         financials = facade.read_latest(kind="daily_scan", segment="Financials")
         assert energy.snapshot_id != financials.snapshot_id
+        assert energy.preset == "breakout"
+        assert energy.params["top_n"] == 5
         assert facade.read_by_id(energy.snapshot_id).segment == "Energy"
         assert facade.read_by_id(financials.snapshot_id).segment == "Financials"
     finally:

@@ -2593,10 +2593,15 @@ def tt_scan_export(request: Request) -> str:
             "- [Download CSV](#) — snapshot of the current scan table\n"
             "- [Copy JSON](#) — machine-readable copy\n"
         )
+    empty_message = (
+        "Latest EOD snapshot completed with no materialized plans."
+        if snapshots
+        else "No EOD snapshot available — run the post-close snapshot job."
+    )
     return (
-        "### Export Scan\n\n"
+        "### Export Plans\n\n"
         f"{_snapshot_markdown_header(meta)}\n\n"
-        "> No EOD snapshot available — run the post-close snapshot job.\n"
+        f"> {empty_message}\n"
     )
 
 
@@ -3142,9 +3147,7 @@ def tt_tuning_report(
         )
         rows.extend(segment_rows)
         snapshots.extend(segment_snapshots)
-    if not snapshots:
-        snapshots = source_snapshots
-    meta = _snapshot_meta(snapshots, symbol=sym)
+    meta = _snapshot_meta([*snapshots, *source_snapshots], symbol=sym)
     if not rows:
         rows = (
             _fresh_empty_rows(f"tuning symbol={sym}")

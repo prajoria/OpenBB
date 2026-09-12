@@ -4089,3 +4089,25 @@ def test_snapshot_star_import_omits_the_optional_mysql_backend() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip().endswith("OK")
+
+
+def test_list_datasets_filters_by_canonical_prefix(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "datasets.db")
+    for dataset, run_id in (
+        ("techtrade.scan", "scan"),
+        ("techtrade.scan.custom", "custom"),
+        ("techtrade.plan", "plan"),
+    ):
+        store.stage(
+            dataset,
+            "segment=energy",
+            date(2026, 9, 11),
+            run_id,
+            {"rows": []},
+        )
+
+    assert store.list_datasets(prefix="techtrade.scan") == [
+        "techtrade.scan",
+        "techtrade.scan.custom",
+    ]
+    store.close()

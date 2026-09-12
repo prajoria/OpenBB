@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -16,6 +17,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from openbb_techtrade.engine.movers import list_movers
+from openbb_techtrade.engine.scan import ScanSegmentWarning
 from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
 from openbb_techtrade.models import TradePlan
 from openbb_techtrade.snapshot.datasets import (
@@ -255,6 +257,7 @@ class TechTradeSnapshotAdapter:
         calendar: str = DEFAULT_EXCHANGE_CALENDAR,
         event_fetcher: EventFetcher = _no_events,
         membership_fetcher: MembershipFetcher = _no_membership,
+        payload_metadata: Mapping[str, object] | None = None,
     ) -> None:
         if name not in TECHTRADE_DATASETS:
             raise ValueError("unknown TechTrade snapshot dataset")
@@ -264,6 +267,7 @@ class TechTradeSnapshotAdapter:
         self._calendar = calendar
         self._event_fetcher = event_fetcher
         self._membership_fetcher = membership_fetcher
+        self._payload_metadata = dict(payload_metadata or {})
         for segment in self._segments:
             techtrade_entity_key(segment)
 
@@ -323,6 +327,7 @@ class TechTradeSnapshotAdapter:
             "excluded_symbols": sorted(inactive),
             "survivorship": survivorship,
             "universe_membership": membership_symbols,
+            **_jsonable(self._payload_metadata),
         }
         return ComputedSnapshot(
             payload=payload,
@@ -418,28 +423,30 @@ def _simulations(segment: str, session: date) -> list[dict[str, Any]]:
 
 
 def _planned_trajectories(plans: Iterable[TradePlan]) -> list[dict[str, Any]]:
-    """Build an explicit stop/entry/target P&L scenario for each plan."""
+    """Build cumulative marked P&L only from actual simulation fills."""
     rows: list[dict[str, Any]] = []
     for plan in plans:
-        recommendation = plan.recommendation
-        entry = float(recommendation.entry_price)
-        quantity = float(plan.position_size)
-        direction = -1.0 if recommendation.action == "SELL_SHORT" else 1.0
-        for day, (scenario, price) in enumerate(
-            (
-                ("stop", float(recommendation.stop_price)),
-                ("entry", entry),
-                ("target", float(recommendation.target_price)),
-            )
-        ):
+        cash = 0.0
+        position = 0.0
+        for day, fill in enumerate(plan.simulated_fills):
+            quantity = float(fill.quantity)
+            price = float(fill.price)
+            commission = float(fill.commission)
+            if fill.side in ("sell", "sell_short"):
+                cash += quantity * price - commission
+                position -= quantity
+            else:
+                cash -= quantity * price + commission
+                position += quantity
             rows.append(
                 {
                     "symbol": plan.symbol,
                     "segment": plan.segment,
                     "day": day,
-                    "scenario": scenario,
+                    "timestamp": fill.timestamp.isoformat(),
                     "price": price,
-                    "pnl": round((price - entry) * quantity * direction, 8),
+                    "pnl": round(cash + position * price, 8),
+                    "source": "simulated_fill",
                 }
             )
     return rows
@@ -523,18 +530,30 @@ class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
         fetcher = scan_fetcher or scan_segments
         cached_session: date | None = None
         cached_rows: dict[str, list[dict[str, Any]]] = {}
+        failed_segments: set[str] = set()
 
         def compute_scan(segment: str, session: date) -> list[dict[str, Any]]:
-            nonlocal cached_session, cached_rows
+            nonlocal cached_session, cached_rows, failed_segments
             if cached_session != session:
                 cached_rows = {}
-                for plan in fetcher(
-                    as_of=session,
-                    top_n=top_n,
-                    preset=preset,
-                ):
+                failed_segments = set()
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    plans = fetcher(
+                        as_of=session,
+                        top_n=top_n,
+                        preset=preset,
+                    )
+                failed_segments = {
+                    item.message.segment
+                    for item in caught
+                    if isinstance(item.message, ScanSegmentWarning)
+                }
+                for plan in plans:
                     cached_rows.setdefault(plan.segment, []).append(plan_to_row(plan))
                 cached_session = session
+            if segment in failed_segments:
+                raise RuntimeError("scan_segment_failed")
             return list(cached_rows.get(segment, ()))
 
         super().__init__(
@@ -542,6 +561,10 @@ class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
             compute_fn=compute_scan,
             segments=segments,
             event_fetcher=event_fetcher,
+            payload_metadata={
+                "preset": preset,
+                "params": {"top_n": top_n, "preset": preset},
+            },
         )
 
 

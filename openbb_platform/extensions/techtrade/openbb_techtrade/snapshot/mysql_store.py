@@ -1770,6 +1770,26 @@ class MysqlSnapshotStore:
             records = cur.fetchall()
         return [_row_from_mapping(record) for record in records]
 
+    def list_datasets(self, prefix: str | None = None) -> list[str]:
+        """Return canonical dataset names, optionally restricted by prefix."""
+        if prefix is None:
+            query = "SELECT DISTINCT dataset FROM pi_eod_snapshot ORDER BY dataset"
+            params: tuple = ()
+        else:
+            canonical_prefix = canonical_key(prefix)
+            query = (
+                "SELECT DISTINCT dataset FROM pi_eod_snapshot "
+                "WHERE LEFT(dataset, %s) = %s ORDER BY dataset"
+            )
+            params = (len(canonical_prefix), canonical_prefix)
+        with self._read() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            records = cur.fetchall()
+        return [
+            str(record["dataset"] if isinstance(record, Mapping) else record[0])
+            for record in records
+        ]
+
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
         """Report whether the LIVE row already carries this ``input_hash``.
 

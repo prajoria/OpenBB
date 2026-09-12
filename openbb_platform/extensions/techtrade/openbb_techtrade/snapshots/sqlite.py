@@ -77,8 +77,8 @@ def _to_snapshot(row: SnapshotRow) -> ScanSnapshot:
         segment=str(row.payload.get("segment") or row.entity_key.split("=", 1)[-1]),
         as_of_session=row.as_of_session,
         computed_at=legacy.get("computed_at") or row.created_at,
-        preset=legacy.get("preset"),
-        params=legacy.get("params") or {},
+        preset=legacy.get("preset", row.payload.get("preset")),
+        params=legacy.get("params") or row.payload.get("params") or {},
         rows=row.payload.get("rows") or [],
     )
 
@@ -160,6 +160,17 @@ class SqliteScanSnapshotStore:
                     )
                 ],
             )
+            if (
+                previous is not None
+                and snapshot.computed_at < _to_snapshot(previous).computed_at
+                and not self._store.rollback(
+                    dataset,
+                    entity_key,
+                    previous.as_of_session,
+                    previous.job_run_id,
+                )
+            ):
+                raise RuntimeError("failed to preserve newer LIVE snapshot")
         except BaseException:
             job = self._store.get_job(snapshot.snapshot_id)
             if job is not None and job.state is SnapshotJobState.RUNNING:
@@ -208,7 +219,11 @@ class SqliteScanSnapshotStore:
 
     def _history_rows(self, kind: str | None, segment: str | None) -> list[SnapshotRow]:
         if not isinstance(self._store, SqliteSnapshotStore):
-            datasets = [_dataset(kind or DEFAULT_SCAN_KIND)]
+            datasets = (
+                [_dataset(kind)]
+                if kind is not None
+                else self._store.list_datasets(prefix=_DATASET_PREFIX)
+            )
             segments = [segment] if segment is not None else list(GICS_SECTOR_ETFS)
             return [
                 row
@@ -278,8 +293,8 @@ class SqliteScanSnapshotStore:
 
     def prune_snapshots(self, *, keep: int = 10) -> int:
         """Keep the newest legacy-compatible rows per dataset and segment."""
-        if keep < 0:
-            raise ValueError("keep must be non-negative")
+        if keep < 1:
+            raise ValueError("keep must be at least 1")
         if not isinstance(self._store, SqliteSnapshotStore):
             datasets = {_dataset(snapshot.kind) for snapshot in self.list_snapshots()}
             return sum(
