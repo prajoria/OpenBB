@@ -1716,6 +1716,7 @@ def test_protocol_surface_is_the_full_contract() -> None:
         "delete_history",
         "get_as_of",
         "get_live",
+        "get_live_many",
         "list_datasets",
         "list_history",
         "promote",

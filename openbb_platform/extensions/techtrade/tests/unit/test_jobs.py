@@ -86,6 +86,7 @@ def test_prune_accepts_legacy_keep_alias() -> None:
 
 def test_legacy_daily_scan_definition_accepts_durable_schedule_params() -> None:
     definition = _by_name()["techtrade.daily_scan"]
+    assert definition.default_params["top_n"] == 10
     params = DailyScanParams(
         segments=["Information Technology"],
         top_n=5,

@@ -373,3 +373,82 @@ def test_symbol_badge_ignores_unrelated_stale_segment(tmp_path: Path) -> None:
         body = _client.get("/tt/position/signal-card?symbol=NVDA").json()
     assert "As of 2026-09-11 XNYS close" in body
     store.close()
+
+
+def test_aggregate_movers_marks_incomplete_sector_coverage(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "partial-coverage.db")
+    _seed(store, "techtrade.movers", _rows_by_dataset()["techtrade.movers"])
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        body = _client.get("/tt/scan/segment-movers").json()
+    assert body["is_partial"] is True
+    assert body["freshness"] == "red"
+    assert len(body["missing_segments"]) == 10
+    store.close()
+
+
+def test_excluded_symbol_has_targeted_warning(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "excluded.db")
+    payload = {
+        "rows": [],
+        "segment": SEGMENT,
+        "as_of_session": SESSION.isoformat(),
+        "exchange_calendar": "XNYS",
+        "earnings_symbols": [],
+        "excluded_symbols": ["NVDA"],
+        "exclusion_reasons": {"NVDA": "halted"},
+        "survivorship": "not-applicable",
+    }
+    store.stage(
+        "techtrade.signals",
+        KEY,
+        SESSION,
+        "excluded",
+        payload,
+        row_count=0,
+        engine_version="test",
+        payload_schema_version="1",
+    )
+    definition = DEFAULT_DATASET_REGISTRY.require("techtrade.signals")
+    assert store.validate(
+        "techtrade.signals",
+        KEY,
+        SESSION,
+        "excluded",
+        lambda row: definition.validator(row, None),
+    ).ok
+    assert store.promote("techtrade.signals", KEY, SESSION, "excluded")
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        body = _client.get("/tt/position/signal-card?symbol=NVDA").json()
+    assert "excluded" in body.lower()
+    assert "halted" in body.lower()
+    store.close()
+
+
+def test_tuning_lookup_uses_batched_live_reads(monkeypatch) -> None:
+    class _BatchStore:
+        def __init__(self):
+            self.calls = 0
+
+        def get_live(self, *_args):
+            raise AssertionError("single-row read used")
+
+        def get_live_many(self, _dataset, _entity_keys):
+            self.calls += 1
+            return {}
+
+    store = _BatchStore()
+    monkeypatch.setattr(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        lambda: store,
+    )
+
+    response = _client.get("/tt/tuning/report?symbol=NVDA")
+
+    assert response.status_code == 200
+    assert store.calls <= 5

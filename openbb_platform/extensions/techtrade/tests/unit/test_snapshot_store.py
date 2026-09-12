@@ -4111,3 +4111,26 @@ def test_list_datasets_filters_by_canonical_prefix(tmp_path: Path) -> None:
         "techtrade.scan.custom",
     ]
     store.close()
+
+
+def test_get_live_many_returns_only_requested_live_keys(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "live-many.db")
+    for key, run_id in (("segment=energy", "energy"), ("segment=financials", "fin")):
+        store.stage(
+            "techtrade.scan",
+            key,
+            date(2026, 9, 11),
+            run_id,
+            {"rows": [{"symbol": run_id}]},
+        )
+        assert store.validate("techtrade.scan", key, date(2026, 9, 11), run_id).ok
+        assert store.promote("techtrade.scan", key, date(2026, 9, 11), run_id)
+
+    rows = store.get_live_many(
+        "techtrade.scan",
+        ["segment=ENERGY", "segment=missing"],
+    )
+
+    assert list(rows) == ["segment=energy"]
+    assert rows["segment=energy"].payload["rows"][0]["symbol"] == "energy"
+    store.close()

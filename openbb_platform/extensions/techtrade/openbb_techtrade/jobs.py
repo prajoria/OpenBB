@@ -206,7 +206,7 @@ def get_job_definitions() -> list[JobDefinition]:
             description="Compatibility alias for the canonical EOD movers and scan refresh.",
             params_model=DailyScanParams,
             handler=_run_daily_scan,
-            default_params={"top_n": 3, "preset": "trend_follow"},
+            default_params={"top_n": 10, "preset": "trend_follow"},
             schedule=DailySchedule(
                 hour=18,
                 minute=5,

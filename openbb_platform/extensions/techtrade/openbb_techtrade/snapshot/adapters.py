@@ -288,6 +288,11 @@ class TechTradeSnapshotAdapter:
             for event in events
             if event.kind in (EventKind.DELISTED, EventKind.HALTED)
         }
+        exclusion_reasons = {
+            event.symbol: event.kind.value
+            for event in events
+            if event.kind in (EventKind.DELISTED, EventKind.HALTED)
+        }
         earnings = sorted(
             {event.symbol for event in events if event.kind is EventKind.EARNINGS}
         )
@@ -325,6 +330,7 @@ class TechTradeSnapshotAdapter:
             "exchange_calendar": self._calendar,
             "earnings_symbols": earnings,
             "excluded_symbols": sorted(inactive),
+            "exclusion_reasons": exclusion_reasons,
             "survivorship": survivorship,
             "universe_membership": membership_symbols,
             **_jsonable(self._payload_metadata),

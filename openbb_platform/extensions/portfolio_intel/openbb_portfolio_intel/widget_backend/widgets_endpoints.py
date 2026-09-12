@@ -2336,8 +2336,17 @@ def _read_snapshot_rows(
     empty_snapshots: list[SnapshotRow] = []
     definition = DEFAULT_DATASET_REGISTRY.require(dataset)
     normalized_symbol = symbol.strip().upper()
-    for candidate in segments:
-        snapshot = store.get_live(dataset, techtrade_entity_key(candidate))
+    keys = [techtrade_entity_key(candidate) for candidate in segments]
+    if hasattr(store, "get_live_many"):
+        live_rows = store.get_live_many(dataset, keys)
+    else:  # compatibility for lightweight test doubles
+        live_rows = {
+            key: snapshot
+            for key in keys
+            if (snapshot := store.get_live(dataset, key)) is not None
+        }
+    for key in keys:
+        snapshot = live_rows.get(key)
         if snapshot is None:
             continue
         payload = definition.read(snapshot.payload, snapshot.payload_schema_version)
@@ -2345,6 +2354,25 @@ def _read_snapshot_rows(
         if not isinstance(payload_rows, list):
             continue
         matched = False
+        excluded = {
+            str(item).strip().upper() for item in payload.get("excluded_symbols", [])
+        }
+        if normalized_symbol and normalized_symbol in excluded:
+            reasons = payload.get("exclusion_reasons") or {}
+            reason = (
+                str(reasons.get(normalized_symbol) or "inactive")
+                if isinstance(reasons, dict)
+                else "inactive"
+            )
+            rows.append(
+                {
+                    "symbol": normalized_symbol,
+                    "segment": payload.get("segment"),
+                    "excluded": True,
+                    "note": f"Symbol excluded from EOD snapshot ({reason}).",
+                }
+            )
+            matched = True
         for raw in payload_rows:
             if not isinstance(raw, dict):
                 continue
@@ -2372,7 +2400,12 @@ def _read_snapshot_rows(
     return rows, snapshots
 
 
-def _snapshot_meta(snapshots: list[SnapshotRow], *, symbol: str = "") -> dict:
+def _snapshot_meta(
+    snapshots: list[SnapshotRow],
+    *,
+    symbol: str = "",
+    expected_segments: tuple[str, ...] = (),
+) -> dict:
     """Build exchange-aware, conservative metadata for a snapshot response."""
     if not snapshots:
         display = build_eod_display(None, datetime.now(timezone.utc))
@@ -2386,6 +2419,8 @@ def _snapshot_meta(snapshots: list[SnapshotRow], *, symbol: str = "") -> dict:
             "exchange_calendar": "XNYS",
             "earnings_annotation": None,
             "survivorship": None,
+            "is_partial": False,
+            "missing_segments": list(expected_segments),
         }
     now = datetime.now(timezone.utc)
     computed_at = min(snapshot.created_at for snapshot in snapshots)
@@ -2423,12 +2458,26 @@ def _snapshot_meta(snapshots: list[SnapshotRow], *, symbol: str = "") -> dict:
         for snapshot in snapshots
         if snapshot.payload.get("survivorship")
     }
+    present_segments = {
+        str(snapshot.payload.get("segment"))
+        for snapshot in snapshots
+        if snapshot.payload.get("segment")
+    }
+    missing_segments = [
+        segment for segment in expected_segments if segment not in present_segments
+    ]
+    is_partial = bool(missing_segments)
     return {
         "computed_at": computed_at.isoformat(),
         "as_of_session": as_of_session.isoformat(),
-        "is_stale": display.color.value != "green",
-        "freshness": display.color.value,
-        "badge": display.label,
+        "is_stale": display.color.value != "green" or is_partial,
+        "freshness": "red" if is_partial else display.color.value,
+        "badge": (
+            f"Incomplete EOD snapshot coverage "
+            f"({len(present_segments)}/{len(expected_segments)}) · {display.label}"
+            if is_partial
+            else display.label
+        ),
         "disclaimer": display.disclaimer,
         "exchange_calendar": calendar,
         "earnings_annotation": display.earnings_annotation,
@@ -2437,6 +2486,8 @@ def _snapshot_meta(snapshots: list[SnapshotRow], *, symbol: str = "") -> dict:
             if SURVIVORSHIP_UNCORRECTED in survivorship_values
             else next(iter(survivorship_values), None)
         ),
+        "is_partial": is_partial,
+        "missing_segments": missing_segments,
     }
 
 
@@ -2492,8 +2543,17 @@ def _segments_for_symbol(symbol: str) -> tuple[list[str], list[SnapshotRow]]:
             if isinstance(row.get("segment"), str) and row["segment"]
         )
     store = _get_snapshot_store()
-    for candidate in GICS_SECTOR_ETFS:
-        snapshot = store.get_live("techtrade.tune", techtrade_entity_key(candidate))
+    keys = [techtrade_entity_key(candidate) for candidate in GICS_SECTOR_ETFS]
+    if hasattr(store, "get_live_many"):
+        tuning_snapshots = store.get_live_many("techtrade.tune", keys)
+    else:
+        tuning_snapshots = {
+            key: snapshot
+            for key in keys
+            if (snapshot := store.get_live("techtrade.tune", key)) is not None
+        }
+    for candidate, key in zip(GICS_SECTOR_ETFS, keys):
+        snapshot = tuning_snapshots.get(key)
         if snapshot is None:
             continue
         membership = {
@@ -2543,7 +2603,7 @@ def tt_scan_segment_movers(
     """
     _require_auth(request)
     source_rows, snapshots = _read_snapshot_rows("techtrade.movers")
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(snapshots, expected_segments=tuple(GICS_SECTOR_ETFS))
     rows = []
     by_segment: dict[str, list[dict]] = {}
     for row in source_rows:
@@ -2582,7 +2642,10 @@ def tt_scan_table(request: Request, segment: str = "") -> dict:
     if segment:
         segment = _validate_segment(segment)
     rows, snapshots = _read_snapshot_rows("techtrade.scan", segment=segment)
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(
+        snapshots,
+        expected_segments=(segment,) if segment else tuple(GICS_SECTOR_ETFS),
+    )
     if not rows:
         context = f"scan table{f' segment={segment}' if segment else ''}"
         rows = _fresh_empty_rows(context) if snapshots else _loud_empty_rows(context)
@@ -2595,7 +2658,7 @@ def tt_scan_export(request: Request) -> str:
     """Export button markdown (#1692) — CSV export link for the scan."""
     _require_auth(request)
     rows, snapshots = _read_snapshot_rows("techtrade.plan")
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(snapshots, expected_segments=tuple(GICS_SECTOR_ETFS))
     if rows:
         symbols = ", ".join(
             sorted({str(row["symbol"]) for row in rows if row.get("symbol")})
@@ -3053,6 +3116,11 @@ def tt_position_signal_card(request: Request, symbol: str = "AAPL") -> str:
             f"> {message}"
         )
     signal = rows[0]
+    if signal.get("excluded"):
+        return (
+            f"## {sym} — Active Signal\n\n{_snapshot_markdown_header(meta)}\n\n"
+            f"> {signal['note']}"
+        )
     return (
         f"## {sym} — Active Signal\n\n"
         f"{_snapshot_markdown_header(meta)}\n\n"
@@ -3080,6 +3148,11 @@ def tt_position_plan_card(request: Request, symbol: str = "AAPL") -> str:
             f"> {message}"
         )
     plan = rows[0]
+    if plan.get("excluded"):
+        return (
+            f"## {sym} — Trading Plan\n\n{_snapshot_markdown_header(meta)}\n\n"
+            f"> {plan['note']}"
+        )
     recommendation = plan.get("recommendation")
     values = recommendation if isinstance(recommendation, dict) else plan
     return (

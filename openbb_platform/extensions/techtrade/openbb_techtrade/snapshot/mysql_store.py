@@ -336,7 +336,7 @@ _SELECT_BY_PK = (
 )
 
 _SELECT_LIVE = (
-    "SELECT s.dataset, s.entity_key, s.as_of_session, s.created_at, "
+    "SELECT s.dataset, s.entity_key, s.as_of_session, s.created_at, "  # noqa: S608
     "s.job_run_id, s.status, s.state, s.validated, s.validation_reason, "
     "s.payload_json, s.input_hash, s.row_count, s.engine_version, "
     "s.payload_schema_version FROM pi_eod_live_pointer AS p "
@@ -1649,6 +1649,34 @@ class MysqlSnapshotStore:
         self._reject_pii(dataset)
         with self._read() as conn:
             return self._get_live(conn, dataset, entity_key)
+
+    def get_live_many(
+        self, dataset: str, entity_keys: Iterable[str]
+    ) -> dict[str, SnapshotRow]:
+        """Read multiple LIVE keys in one backend round trip."""
+        dataset = canonical_key(dataset)
+        keys = list(dict.fromkeys(canonical_key(key) for key in entity_keys))
+        if not keys:
+            return {}
+        self._reject_pii(dataset)
+        placeholders = ",".join("%s" for _ in keys)
+        query = (  # noqa: S608 - only generated placeholders are interpolated
+            "SELECT s.dataset, s.entity_key, s.as_of_session, s.created_at, "
+            "s.job_run_id, s.status, s.state, s.validated, "
+            "s.validation_reason, s.payload_json, s.input_hash, s.row_count, "
+            "s.engine_version, s.payload_schema_version "
+            "FROM pi_eod_live_pointer AS p "
+            "JOIN pi_eod_snapshot AS s "
+            "ON s.dataset = p.dataset AND s.entity_key = p.entity_key "
+            "AND s.as_of_session = p.as_of_session "
+            "AND s.job_run_id = p.job_run_id "
+            f"WHERE p.dataset = %s AND p.entity_key IN ({placeholders})"  # noqa: S608
+        )
+        with self._read() as conn, conn.cursor() as cur:
+            cur.execute(query, (dataset, *keys))
+            records = cur.fetchall()
+        rows = [_row_from_mapping(record) for record in records]
+        return {row.entity_key: row for row in rows}
 
     def rollback(
         self,
