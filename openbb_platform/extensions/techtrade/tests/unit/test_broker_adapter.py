@@ -134,14 +134,12 @@ class TestAdapterContract:
         adapter = LiveBrokerAdapter(client, account_id="fake-live")
         client.account_id = "different-account"
 
-        with pytest.raises(BrokerBatchError) as raised:
+        with pytest.raises(ExecutionConfigurationError, match="identity changed"):
             adapter.submit_batch(
                 _batch("MSFT"),
                 (UUID("00000000-0000-4000-8000-000000000001"),),
             )
 
-        assert raised.value.completed == ()
-        assert raised.value.outcome_unknown is True
         assert client.calls == []
 
     def test_live_adapter_rechecks_identity_before_each_order(self) -> None:

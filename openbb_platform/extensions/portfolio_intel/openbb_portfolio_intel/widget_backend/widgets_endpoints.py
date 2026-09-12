@@ -3838,6 +3838,18 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
         live_enabled=os.environ.get("PI_ALLOW_T5_LIVE", "").strip().lower() == "true",
         principal_id=principal_id,
     )
+    try:
+        gateway.validate_submission(
+            batch,
+            verdict=verdict,
+            confirmation=resolved_confirmation,
+        )
+    except ExecutionGateError as exc:
+        audit_store.close()
+        engine = getattr(adapter, "engine", None)
+        if engine is not None:
+            engine.close()
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     out_dir = Path(
         os.environ.get(

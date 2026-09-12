@@ -367,3 +367,18 @@ def order_receipt_from_row(row: sqlite3.Row) -> OrderReceipt:
         status=row["status"],
         error=row["error"],
     )
+
+
+def utc_now() -> datetime:
+    """Return the current timezone-aware UTC timestamp."""
+    return datetime.now(timezone.utc)
+
+
+def to_iso(value: datetime) -> str:
+    """Normalize a timestamp to UTC ISO text."""
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def from_iso(value: str) -> datetime:
+    """Parse stored ISO text and normalize it to UTC."""
+    return datetime.fromisoformat(value).astimezone(timezone.utc)

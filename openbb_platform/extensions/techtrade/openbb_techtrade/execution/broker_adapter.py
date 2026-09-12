@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import uuid
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from openbb_techtrade.execution import paper_engine as paper_engine_module
@@ -40,8 +40,11 @@ from openbb_techtrade.execution.broker_contract import (
 from openbb_techtrade.execution.execution_audit_schema import (
     deserialize_approved_batch,
     ensure_schema,
+    from_iso as _from_iso,
     order_receipt_from_row,
     serialize_approved_batch,
+    to_iso as _to_iso,
+    utc_now as _now,
 )
 from openbb_techtrade.execution.order_sink import OrderBatch
 from openbb_techtrade.execution.paper_engine import PaperEngine
@@ -724,18 +727,7 @@ class ExecutionGateway:
         confirmation: str,
     ) -> SubmissionReceipt:
         """Validate gates, reserve audit identity, and submit exactly once."""
-        self._validate_common_gates()
-        if verdict != "PASS":
-            raise ExecutionGateError("verdict gate requires exact PASS")
-        if not batch.verdict_gate_pass:
-            raise ExecutionGateError("batch verdict was not persisted as passed")
-        expected = self.expected_confirmation(batch)
-        if confirmation != expected:
-            raise ExecutionConfirmationError(
-                "explicit confirmation did not match the configured mode, "
-                "account, and batch"
-            )
-
+        self.validate_submission(batch, verdict=verdict, confirmation=confirmation)
         receipt, is_new = self.audit_store.reserve(
             mode=self.adapter.mode,
             broker_id=self.adapter.broker_id,
@@ -873,6 +865,26 @@ class ExecutionGateway:
                 )
             raise ExecutionSubmissionError(safe_error, failed) from exc
 
+    def validate_submission(
+        self,
+        batch: OrderBatch,
+        *,
+        verdict: str,
+        confirmation: str,
+    ) -> None:
+        """Validate every submission gate without creating durable state."""
+        self._validate_common_gates()
+        if verdict != "PASS":
+            raise ExecutionGateError("verdict gate requires exact PASS")
+        if not batch.verdict_gate_pass:
+            raise ExecutionGateError("batch verdict was not persisted as passed")
+        expected = self.expected_confirmation(batch)
+        if confirmation != expected:
+            raise ExecutionConfirmationError(
+                "explicit confirmation did not match the configured mode, "
+                "account, and batch"
+            )
+
     def cancel(
         self,
         order_uuid: uuid.UUID,
@@ -982,15 +994,3 @@ def get_default_broker_adapter(
 def get_default_paper_broker_id() -> str:
     """Return the configured paper broker/ledger identity without writes."""
     return f"paper-engine-{paper_engine_module.get_default_execution_scope_id()}"
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _to_iso(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat()
-
-
-def _from_iso(value: str) -> datetime:
-    return datetime.fromisoformat(value).astimezone(timezone.utc)

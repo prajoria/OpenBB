@@ -113,6 +113,15 @@ class LiveBrokerAdapter:
         for ticket, order_uuid in zip(batch.tickets, order_uuids, strict=True):
             try:
                 self._verify_identity()
+            except ExecutionConfigurationError as exc:
+                if completed:
+                    raise BrokerBatchError(
+                        "live broker identity changed between order submissions",
+                        completed=completed,
+                        outcome_unknown=True,
+                    ) from exc
+                raise
+            try:
                 broker_order_id = self._client.submit_order(
                     ticket,
                     client_order_id=str(order_uuid),
@@ -132,7 +141,16 @@ class LiveBrokerAdapter:
                     failed_order_uuid=order_uuid,
                     outcome_unknown=True,
                 )
-            completed.append(BrokerOrderAck(order_uuid, str(broker_order_id)))
+            acknowledgement = BrokerOrderAck(order_uuid, str(broker_order_id))
+            try:
+                self._verify_identity()
+            except ExecutionConfigurationError as exc:
+                raise BrokerBatchError(
+                    "live broker identity changed after accepting an order",
+                    completed=(*completed, acknowledgement),
+                    outcome_unknown=True,
+                ) from exc
+            completed.append(acknowledgement)
         return tuple(completed)
 
     def cancel_order(self, broker_order_id: str) -> None:

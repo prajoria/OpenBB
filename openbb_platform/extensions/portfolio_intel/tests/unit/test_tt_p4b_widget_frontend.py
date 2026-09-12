@@ -158,6 +158,8 @@ class TestBrokerExecutionGateway:
 
         assert response.status_code == 403
         assert "PI_ALLOW_T5_LIVE" in response.json()["detail"]
+        output_dir = Path(os.environ["PI_T5_EXECUTE_OUTPUT_DIR"])
+        assert not output_dir.exists() or not list(output_dir.rglob("*.csv"))
 
     def test_live_mode_uses_only_injected_fake_client(
         self, monkeypatch: pytest.MonkeyPatch, clean_env
