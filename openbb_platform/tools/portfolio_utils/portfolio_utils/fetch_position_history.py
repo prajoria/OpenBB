@@ -302,6 +302,7 @@ def _fetch_one_symbol_history(
     start_date,
     end_date,
     credentials: dict | None,
+    database: str | None = None,
 ) -> dict[str, Any]:
     """Fetch/cache one symbol's daily history via fmp_cached (default provider call).
 
@@ -314,6 +315,25 @@ def _fetch_one_symbol_history(
     jobs handler may inject a different callable with the same shape to avoid a
     live fmp_cached/MySQL dependency.
     """
+    from openbb_fmp_cached.utils.database import database_override
+
+    with database_override(database):
+        return _fetch_one_symbol_history_in_scope(
+            symbol,
+            start_date=start_date,
+            end_date=end_date,
+            credentials=credentials,
+        )
+
+
+def _fetch_one_symbol_history_in_scope(
+    symbol: str,
+    *,
+    start_date,
+    end_date,
+    credentials: dict | None,
+) -> dict[str, Any]:
+    """Execute one history fetch inside the caller's database scope."""
     from openbb_fmp_cached.models.equity_historical import (
         FMPCachedEquityHistoricalQueryParams,
         _analyze_cache_gaps,
@@ -403,6 +423,7 @@ def fetch_history(
     years: int = 10,
     dry_run: bool = False,
     *,
+    database: str | None = None,
     fetch_one_fn: Callable[..., dict[str, Any]] | None = None,
     api_key_resolver: Callable[[], str | None] = _resolve_api_key,
     should_cancel: Callable[[], bool] | None = None,
@@ -415,7 +436,8 @@ def fetch_history(
     (cooperative cancellation) so a long-running warm can stop early without
     losing partial progress; failures at the item level are caught and recorded
     in ``stats["failed"]`` (skip-and-continue), never silently swallowed above
-    that granularity.
+    that granularity. ``database`` is applied request-locally only to the default
+    fmp_cached fetcher; injected collaborators retain their existing signature.
 
     Returns dict with stats, including ``"cancelled"`` when ``should_cancel``
     stopped the run before every symbol was processed.
@@ -438,11 +460,12 @@ def fetch_history(
 
     using_default_fetcher = fetch_one_fn is None
     if using_default_fetcher:
-        from openbb_fmp_cached.utils.database import init_database
+        from openbb_fmp_cached.utils.database import database_override, init_database
 
         # One-time database init (tables already exist; skipped via env var)
         try:
-            init_database()
+            with database_override(database):
+                init_database()
         except Exception as e:
             print(f"  WARNING: Database init issue: {e}\n")
         fetch_one_fn = _fetch_one_symbol_history
@@ -459,12 +482,14 @@ def fetch_history(
 
         t0 = time.time()
         try:
-            outcome = fetch_one_fn(
-                symbol,
-                start_date=start_date,
-                end_date=end_date,
-                credentials=credentials,
-            )
+            fetch_kwargs = {
+                "start_date": start_date,
+                "end_date": end_date,
+                "credentials": credentials,
+            }
+            if using_default_fetcher:
+                fetch_kwargs["database"] = database
+            outcome = fetch_one_fn(symbol, **fetch_kwargs)
             elapsed = time.time() - t0
             rows = outcome["rows"]
             first = outcome.get("first", "N/A")
@@ -581,6 +606,7 @@ def run_position_history_warm(
         resolved_symbols,
         years=years,
         dry_run=dry_run,
+        database=database,
         fetch_one_fn=fetch_one_fn,
         api_key_resolver=api_key_resolver,
         should_cancel=should_cancel,
