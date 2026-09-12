@@ -1673,6 +1673,34 @@ class MysqlSnapshotStore:
         with self._read() as conn:
             return self._get_live(conn, dataset, entity_key)
 
+    def archive(
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+    ) -> bool:
+        """Move a validated OK staging row to history without changing LIVE."""
+        dataset = canonical_key(dataset)
+        entity_key = canonical_key(entity_key)
+        self._reject_pii(dataset)
+        with self.transaction() as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE pi_eod_snapshot SET state = %s "
+                "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
+                "AND job_run_id = %s AND state = %s AND validated = 1 AND status = %s",
+                (
+                    SnapshotState.SUPERSEDED.value,
+                    dataset,
+                    entity_key,
+                    as_of_session,
+                    job_run_id,
+                    SnapshotState.STAGING.value,
+                    SnapshotStatus.OK.value,
+                ),
+            )
+            return cur.rowcount == 1
+
     def get_live_many(
         self, dataset: str, entity_keys: Iterable[str]
     ) -> dict[str, SnapshotRow]:

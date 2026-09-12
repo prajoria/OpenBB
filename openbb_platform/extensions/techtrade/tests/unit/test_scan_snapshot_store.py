@@ -117,8 +117,7 @@ def test_out_of_order_write_does_not_move_legacy_live_backward(store):
         rows=_rows("OLD"),
     )
     store.write_snapshot(newer)
-    with pytest.raises(ValueError, match="older than current LIVE"):
-        store.write_snapshot(older)
+    store.write_snapshot(older)
 
     latest = store.read_latest(kind="daily_scan", segment="Energy")
 

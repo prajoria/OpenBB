@@ -121,6 +121,7 @@ class SnapshotRefreshOrchestrator:
                 getattr(adapter, "calendar_name", "XNYS"),
             )
             successes: list[tuple[str, str, date, str]] = []
+            baselines: dict[tuple[str, str], SnapshotRow | None] = {}
             if retry_job_run_id is None:
                 keys = list(
                     dict.fromkeys(canonical_key(key) for key in adapter.entity_keys())
@@ -134,7 +135,10 @@ class SnapshotRefreshOrchestrator:
                     not in (SnapshotJobState.PARTIAL, SnapshotJobState.FAILED)
                 ):
                     raise ValueError("retry source is not a job for this dataset")
-                as_of_session = last_completed_session(prior.started_at)
+                as_of_session = last_completed_session(
+                    prior.started_at,
+                    getattr(adapter, "calendar_name", "XNYS"),
+                )
                 keys = store.retry_entity_keys(retry_job_run_id)
                 if not keys:
                     raise ValueError("retry source has no failed entity keys")
@@ -155,6 +159,8 @@ class SnapshotRefreshOrchestrator:
                     raise ValueError("retry source session lineage is inconsistent")
                 for row in prior_rows:
                     definition.read(row.payload, row.payload_schema_version)
+                    baseline_key = (definition.name, row.entity_key)
+                    baselines[baseline_key] = store.get_live(*baseline_key)
                     store.stage(
                         definition.name,
                         row.entity_key,
@@ -186,6 +192,9 @@ class SnapshotRefreshOrchestrator:
 
             failures: dict[str, BaseException | str] = {}
             for raw_key in keys:
+                canonical_entity = canonical_key(raw_key)
+                baseline_key = (definition.name, canonical_entity)
+                baselines[baseline_key] = store.get_live(*baseline_key)
                 try:
                     computed = adapter.compute(raw_key, as_of_session)
                     definition.read(computed.payload, computed.payload_schema_version)
@@ -229,7 +238,7 @@ class SnapshotRefreshOrchestrator:
                 successes.append(
                     (
                         definition.name,
-                        canonical_key(raw_key),
+                        canonical_entity,
                         as_of_session,
                         job_run_id,
                     )
@@ -261,6 +270,7 @@ class SnapshotRefreshOrchestrator:
                 finished_at=utc_datetime(self._clock()),
                 require_newer=retry_job_run_id is not None,
                 require_not_older=True,
+                expected_live=baselines,
             )
             completed = True
             return job

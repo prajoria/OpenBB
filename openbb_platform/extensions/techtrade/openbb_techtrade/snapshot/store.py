@@ -324,6 +324,16 @@ class SnapshotStore(Protocol):
         """Atomically repoint LIVE to an exact validated, successful row."""
         ...  # pylint: disable=unnecessary-ellipsis
 
+    def archive(
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+    ) -> bool:
+        """Move a validated OK staging row to history without changing LIVE."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
     def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
         """Compute-free single-row read of ``state='live'``; ``None`` if absent."""
         ...  # pylint: disable=unnecessary-ellipsis
@@ -2724,6 +2734,33 @@ class SqliteSnapshotStore:
                 (dataset, entity_key, as_of_session.isoformat(), job_run_id),
             ).fetchone()
         return _row_from_mapping(record) if record is not None else None
+
+    def archive(
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+    ) -> bool:
+        """Move a validated OK staging row to history without changing LIVE."""
+        dataset = canonical_key(dataset)
+        entity_key = canonical_key(entity_key)
+        with self._tx(immediate=True):
+            changed = self._conn.execute(
+                "UPDATE pi_eod_snapshot SET state = ? "
+                "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
+                "AND job_run_id = ? AND state = ? AND validated = 1 AND status = ?",
+                (
+                    SnapshotState.SUPERSEDED.value,
+                    dataset,
+                    entity_key,
+                    as_of_session.isoformat(),
+                    job_run_id,
+                    SnapshotState.STAGING.value,
+                    SnapshotStatus.OK.value,
+                ),
+            ).rowcount
+        return changed == 1
 
     def get_live_many(
         self, dataset: str, entity_keys: Iterable[str]

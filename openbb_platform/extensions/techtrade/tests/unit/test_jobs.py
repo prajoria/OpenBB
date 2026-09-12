@@ -63,7 +63,7 @@ def test_default_fanout_excludes_unavailable_optional_workloads(monkeypatch) -> 
 
     assert "techtrade.validate" not in defaults
     assert "techtrade.tune" not in defaults
-    assert "techtrade.audit" in defaults
+    assert "techtrade.audit" not in defaults
 
 
 def test_timezone_env_override(monkeypatch) -> None:
@@ -131,6 +131,16 @@ def test_legacy_daily_scan_forwards_all_supported_parameters(monkeypatch) -> Non
         "preset": "breakout",
     }
     assert captured["now"].date() == date(2026, 9, 11)
+
+
+def test_legacy_daily_scan_rejects_future_as_of() -> None:
+    definition = _by_name()["techtrade.daily_scan"]
+
+    with pytest.raises(ValueError, match="last completed XNYS session"):
+        definition.handler(
+            _context(definition.name),
+            DailyScanParams(as_of="2099-01-01"),
+        )
 
 
 class _Adapter:

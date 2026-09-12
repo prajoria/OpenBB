@@ -465,7 +465,7 @@ def test_simulation_adapter_materializes_actual_fill_pnl() -> None:
         plans_fetcher=lambda _segment, _session: [
             _plan_stub(
                 simulated_fills=fills,
-                validation={"replay_pnl": 100.0},
+                validation={"oos_metrics": {"total_return": 0.10}},
             )
         ],
         event_fetcher=lambda _session, _symbols: [],
@@ -489,6 +489,22 @@ def test_simulation_adapter_is_honestly_empty_without_fills() -> None:
     assert rows == []
 
 
+def test_simulation_requires_the_full_time_stop_window(monkeypatch) -> None:
+    plan = _plan_stub()
+    monkeypatch.setattr(adapters_module, "_plans", lambda _segment, _session: [plan])
+    monkeypatch.setattr(
+        adapters_module,
+        "_forward_bars",
+        lambda _symbol, _start, _end: [object()],
+    )
+    monkeypatch.setattr(
+        "openbb_techtrade.execution.broker.simulate",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("premature simulation")),
+    )
+
+    assert adapters_module._simulated_plans(TECH, SESSION) == []
+
+
 def test_audit_adapter_materializes_replay_forward_contract() -> None:
     fills = [
         SimpleNamespace(
@@ -509,7 +525,7 @@ def test_audit_adapter_materializes_replay_forward_contract() -> None:
         plans_fetcher=lambda _segment, _session: [
             _plan_stub(
                 simulated_fills=fills,
-                validation={"replay_pnl": 100.0},
+                validation={"oos_metrics": {"total_return": 0.10}},
             )
         ],
         event_fetcher=lambda _session, _symbols: [],

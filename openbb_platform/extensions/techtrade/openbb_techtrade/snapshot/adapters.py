@@ -437,14 +437,14 @@ def _plans(segment: str, session: date) -> list[TradePlan]:
     return build_plans(segment=segment, as_of=session)
 
 
-def _forward_bars(symbol: str, session: date) -> list[object]:
+def _forward_bars(symbol: str, start_session: date, end_session: date) -> list[object]:
     from openbb import obb
 
     equity = getattr(obb, "equity")
     result = equity.price.historical(
         symbol=symbol,
-        start_date=session.isoformat(),
-        end_date=session.isoformat(),
+        start_date=start_session.isoformat(),
+        end_date=end_session.isoformat(),
         provider="fmp_cached",
     )
     return list(result.results or ())
@@ -454,11 +454,16 @@ def _simulated_plans(segment: str, session: date) -> list[TradePlan]:
     from openbb_techtrade.engine.movers import resolve_session
     from openbb_techtrade.execution.broker import simulate
 
-    signal_session = resolve_session(session - timedelta(days=1), "XNYS")
+    signal_session = resolve_session(session - timedelta(days=45), "XNYS")
     simulated: list[TradePlan] = []
     for plan in _plans(segment, signal_session):
-        bars = _forward_bars(plan.symbol, session)
-        if not bars or not plan.orders:
+        bars = _forward_bars(
+            plan.symbol,
+            signal_session + timedelta(days=1),
+            session,
+        )
+        required_bars = plan.recommendation.time_stop_bars or 1
+        if len(bars) < required_bars or not plan.orders:
             continue
         fills = simulate(plan.orders, bars)
         if fills:
@@ -476,10 +481,6 @@ def _orders(segment: str, session: date) -> list[dict[str, Any]]:
             row.setdefault("as_of", session.isoformat())
             rows.append(row)
     return rows
-
-
-def _simulations(segment: str, session: date) -> list[dict[str, Any]]:
-    return _planned_trajectories(_plans(segment, session))
 
 
 def _planned_trajectories(plans: Iterable[TradePlan]) -> list[dict[str, Any]]:
@@ -534,7 +535,17 @@ def _tuning(segment: str, session: date) -> object:
 
 
 def _audit(segment: str, session: date) -> list[dict[str, Any]]:
-    return _audit_rows(_simulated_plans(segment, session), session)
+    return _audit_rows(_audited_plans(segment, session), session)
+
+
+def _audited_plans(segment: str, session: date) -> list[TradePlan]:
+    from openbb_techtrade.validation.backtest_bridge import validate_plan
+
+    audited: list[TradePlan] = []
+    for plan in _simulated_plans(segment, session):
+        updated, _report = asyncio.run(validate_plan(plan))
+        audited.append(updated)
+    return audited
 
 
 def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any]]:
@@ -544,14 +555,22 @@ def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any
         if not plan.simulated_fills:
             continue
         validation = getattr(plan, "validation", None)
-        replay_value = (
-            validation.get("replay_pnl")
+        oos_metrics = (
+            validation.get("oos_metrics")
             if isinstance(validation, Mapping)
-            else getattr(validation, "replay_pnl", None)
+            else getattr(validation, "oos_metrics", None)
         )
-        if replay_value is None:
+        replay_return = (
+            oos_metrics.get("total_return")
+            if isinstance(oos_metrics, Mapping)
+            else getattr(oos_metrics, "total_return", None)
+        )
+        if replay_return is None:
             continue
-        replay_pnl = float(replay_value)
+        notional = abs(
+            float(plan.recommendation.entry_price) * float(plan.position_size)
+        )
+        replay_pnl = float(replay_return) * notional
         cash = 0.0
         position = 0.0
         mark = 0.0
@@ -565,9 +584,6 @@ def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any
                 cash -= quantity * mark + float(fill.commission)
                 position += quantity
         forward_pnl = cash + position * mark
-        notional = abs(
-            float(plan.recommendation.entry_price) * float(plan.position_size)
-        )
         deviation_bps = (
             (forward_pnl - replay_pnl) / notional * 10_000 if notional else 0.0
         )
@@ -717,7 +733,7 @@ class AuditSnapshotAdapter(TechTradeSnapshotAdapter):
         self,
         *,
         segments: Iterable[str] | None = None,
-        plans_fetcher: Callable[[str, date], list[TradePlan]] = _simulated_plans,
+        plans_fetcher: Callable[[str, date], list[TradePlan]] = _audited_plans,
         event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
     ) -> None:
         super().__init__(

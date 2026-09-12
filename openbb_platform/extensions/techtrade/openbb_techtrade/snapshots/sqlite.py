@@ -152,11 +152,7 @@ class SqliteScanSnapshotStore:
         """Retain the old no-op hook; construction initializes the schema."""
 
     def _migrate_legacy_history(self, source: Path) -> None:
-        if not source.is_file() or (
-            isinstance(self._store, SqliteSnapshotStore)
-            and source.resolve()
-            == self._store._db_path  # pylint: disable=protected-access
-        ):
+        if not source.is_file():
             return
         with sqlite3.connect(
             f"file:{source.as_posix()}?mode=ro", uri=True
@@ -236,19 +232,32 @@ class SqliteScanSnapshotStore:
                 previous is not None
                 and snapshot.computed_at < _to_snapshot(previous).computed_at
             ):
-                raise ValueError("snapshot is older than current LIVE")
-            self._store.publish_job(
-                job_run_id,
-                [
-                    (
-                        dataset,
-                        entity_key,
-                        snapshot.as_of_session,
-                        job_run_id,
-                    )
-                ],
-                expected_live={(dataset, entity_key): previous},
-            )
+                if not self._store.archive(
+                    dataset,
+                    entity_key,
+                    snapshot.as_of_session,
+                    job_run_id,
+                ):
+                    raise RuntimeError("failed to archive older snapshot")
+                self._store.finish_job(
+                    job_run_id,
+                    SnapshotJobState.SUCCEEDED,
+                    n_ok=1,
+                    n_failed=0,
+                )
+            else:
+                self._store.publish_job(
+                    job_run_id,
+                    [
+                        (
+                            dataset,
+                            entity_key,
+                            snapshot.as_of_session,
+                            job_run_id,
+                        )
+                    ],
+                    expected_live={(dataset, entity_key): previous},
+                )
         except BaseException:
             job = self._store.get_job(job_run_id)
             if job is not None and job.state is SnapshotJobState.RUNNING:
@@ -306,7 +315,12 @@ class SqliteScanSnapshotStore:
             datasets = (
                 [_dataset(kind)]
                 if kind is not None
-                else self._store.list_datasets(prefix=_DATASET_PREFIX)
+                else [
+                    dataset
+                    for dataset in self._store.list_datasets(prefix=_DATASET_PREFIX)
+                    if dataset == _DATASET_PREFIX
+                    or dataset.startswith(f"{_DATASET_PREFIX}.")
+                ]
             )
             return [
                 row
@@ -345,18 +359,28 @@ class SqliteScanSnapshotStore:
                 (SnapshotState.STAGING.value, _dataset(kind)),
             ).fetchall()
         elif segment is not None:
+            namespace = f"{_DATASET_PREFIX}."
             records = connection.execute(
-                select + " AND dataset LIKE ? AND entity_key = ?",
+                select + " AND (dataset = ? OR substr(dataset, 1, ?) = ?) "
+                "AND entity_key = ?",
                 (
                     SnapshotState.STAGING.value,
-                    f"{_DATASET_PREFIX}%",
+                    _DATASET_PREFIX,
+                    len(namespace),
+                    namespace,
                     _entity_key(segment),
                 ),
             ).fetchall()
         else:
+            namespace = f"{_DATASET_PREFIX}."
             records = connection.execute(
-                select + " AND dataset LIKE ?",
-                (SnapshotState.STAGING.value, f"{_DATASET_PREFIX}%"),
+                select + " AND (dataset = ? OR substr(dataset, 1, ?) = ?)",
+                (
+                    SnapshotState.STAGING.value,
+                    _DATASET_PREFIX,
+                    len(namespace),
+                    namespace,
+                ),
             ).fetchall()
         return [_row_from_mapping(record) for record in records]
 

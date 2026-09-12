@@ -53,6 +53,7 @@ def _default_eod_datasets() -> list[str]:
     if find_spec("openbb_backtest") is None:
         available.remove("techtrade.validate")
         available.remove("techtrade.tune")
+        available.remove("techtrade.audit")
     elif find_spec("tuneta") is None:
         available.remove("techtrade.tune")
     return available

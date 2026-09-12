@@ -314,6 +314,31 @@ def test_normal_backfill_cannot_replace_newer_live_session(tmp_path: Path) -> No
     store.close()
 
 
+def test_retry_uses_the_adapter_exchange_calendar(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    adapter = _Adapter()
+    adapter.calendar_name = "XLON"
+    adapter.fail = {"symbol=msft"}
+    london_after_close = datetime(2026, 9, 11, 18, tzinfo=timezone.utc)
+    registry = _registry()
+    ids = iter(["partial", "retry"])
+    orchestrator = SnapshotRefreshOrchestrator(
+        SnapshotStoreRouter(store, None, registry),
+        registry,
+        {DATASET: adapter},
+        clock=lambda: london_after_close,
+        job_id_factory=lambda: next(ids),
+    )
+    partial = orchestrator.run(DATASET)
+    adapter.fail.clear()
+
+    retried = orchestrator.run(DATASET, retry_job_run_id=partial.job_run_id)
+
+    assert retried.state is SnapshotJobState.SUCCEEDED
+    assert store.get_live(DATASET, "symbol=AAPL").as_of_session == date(2026, 9, 11)
+    store.close()
+
+
 def test_retry_refuses_prior_payload_without_registered_schema_reader(
     tmp_path: Path,
 ) -> None:
