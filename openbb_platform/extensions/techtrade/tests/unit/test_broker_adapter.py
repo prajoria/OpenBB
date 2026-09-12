@@ -335,7 +335,7 @@ class TestExecutionGateway:
         assert migration_marker["value"] == "complete"
 
         reopened = SqliteExecutionAuditStore(path)
-        with pytest.raises(UnknownSubmissionStateError, match="legacy live"):
+        with pytest.raises(UnknownSubmissionStateError, match="legacy submission"):
             reopened.reserve(
                 mode=ExecutionMode.LIVE,
                 broker_id="fake-broker",

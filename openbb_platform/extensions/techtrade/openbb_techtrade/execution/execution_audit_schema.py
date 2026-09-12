@@ -160,11 +160,7 @@ def _migrate_submission(conn: sqlite3.Connection) -> None:
                 row["mode"],
                 row["broker_id"] if "broker_id" in columns else "legacy-unassigned",
                 row["account_id"],
-                (
-                    "paper"
-                    if row["mode"] == "paper" and "broker_id" in columns
-                    else "legacy-unassigned"
-                ),
+                "legacy-unassigned",
                 row["plan_id"] if "plan_id" in columns else "legacy-unassigned",
                 row["batch_sha256"],
                 row["status"],

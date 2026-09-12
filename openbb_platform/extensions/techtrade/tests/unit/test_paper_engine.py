@@ -41,6 +41,7 @@ from openbb_techtrade.execution.paper_engine import (
     PaperEngine,
     PaperEngineError,
     SqlitePaperEngine,
+    _identity_key,
     get_default_engine,
 )
 
@@ -134,6 +135,9 @@ class TestAccountLifecycle:
 
 
 class TestSubmitBatch:
+    def test_order_identity_encoding_is_unambiguous(self) -> None:
+        assert _identity_key("a:b", "c") != _identity_key("a", "b:c")
+
     def test_batch_creates_pending_orders(self, engine: SqlitePaperEngine) -> None:
         ids = engine.submit_batch(_batch(_tk("MSFT", qty="10"), _tk("AAPL", qty="20")))
         assert len(ids) == 2
@@ -179,6 +183,22 @@ class TestSubmitBatch:
         )
 
         assert engine.submit_batch(batch, plan_id="legacy-plan") == expected
+
+    def test_legacy_duplicate_tickets_fail_closed(
+        self,
+        engine: SqlitePaperEngine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        batch = _batch(_tk("MSFT"), _tk("MSFT"))
+        engine.submit_batch(batch, plan_id="legacy-duplicates")
+        monkeypatch.setattr(
+            paper_engine_module,
+            "_new_order_id",
+            lambda _identity: "ord_00000000-0000-4000-8000-000000000999",
+        )
+
+        with pytest.raises(PaperEngineError, match="identity set"):
+            engine.submit_batch(batch, plan_id="legacy-duplicates")
 
     def test_batch_sha_stamped_on_orders(self, engine: SqlitePaperEngine) -> None:
         """R7.11 twin: dropping batch_sha256 from the INSERT breaks the

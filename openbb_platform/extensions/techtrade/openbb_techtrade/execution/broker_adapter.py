@@ -177,7 +177,7 @@ class SqliteExecutionAuditStore:
     ) -> tuple[SubmissionReceipt, bool]:
         """Reserve the idempotency key before any broker side effect."""
         with self._lock, self._conn:
-            if mode is ExecutionMode.LIVE:
+            if mode in {ExecutionMode.PAPER, ExecutionMode.LIVE}:
                 legacy = self._conn.execute(
                     "SELECT submission_id FROM pi_execution_submission "
                     "WHERE mode = ? AND account_id = ? "
@@ -189,7 +189,7 @@ class SqliteExecutionAuditStore:
                 ).fetchone()
                 if legacy is not None:
                     raise UnknownSubmissionStateError(
-                        "legacy live submission ownership is unknown; reconcile "
+                        "legacy submission ownership is unknown; reconcile "
                         "before submitting this approval"
                     )
             submission_id = uuid.uuid4()
@@ -341,7 +341,7 @@ class SqliteExecutionAuditStore:
                     {"error": error},
                     failed_order_uuid,
                 )
-            elif outcome_unknown:
+            if outcome_unknown:
                 unknown_rows = self._conn.execute(
                     "SELECT order_uuid FROM pi_execution_order "
                     "WHERE submission_id = ? AND status = 'PLANNED'",

@@ -538,7 +538,9 @@ class SqlitePaperEngine:
         submitted_at = _now_iso()
         order_ids = (
             [
-                _new_order_id(f"{self._account_id}:{plan_id}:{batch_sha}:{ordinal}")
+                _new_order_id(
+                    _identity_key(self._account_id, plan_id, batch_sha, str(ordinal))
+                )
                 for ordinal, _ticket in enumerate(tickets)
             ]
             if plan_id
@@ -1171,6 +1173,11 @@ def _new_order_id(identity: str) -> str:
     return f"ord_{uuid.uuid5(_ORDER_ID_NAMESPACE, identity)}"
 
 
+def _identity_key(*parts: str) -> str:
+    """Encode variable-length identity components without delimiter ambiguity."""
+    return "".join(f"{len(part)}:{part}" for part in parts)
+
+
 def _legacy_order_ids_in_ticket_order(
     rows, tickets
 ) -> list[str] | None:  # noqa: ANN001
@@ -1185,6 +1192,8 @@ def _legacy_order_ids_in_ticket_order(
             row["limit_price"] or "",
         )
         by_signature.setdefault(signature, []).append(row["order_id"])
+    if any(len(order_ids) > 1 for order_ids in by_signature.values()):
+        return None
     ordered: list[str] = []
     for ticket in tickets:
         signature = (

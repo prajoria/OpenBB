@@ -3946,6 +3946,7 @@ def tt_execute_cancel(
             mode=mode,
             account_id=account_id,
             live_client=getattr(request.app.state, "t5_live_broker_client", None),
+            initialize=False,
         )
     except (ValueError, ExecutionConfigurationError) as exc:
         raise HTTPException(

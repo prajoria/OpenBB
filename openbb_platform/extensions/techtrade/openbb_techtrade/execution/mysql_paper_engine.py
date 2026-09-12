@@ -76,6 +76,7 @@ from openbb_techtrade.execution.paper_engine import (
     PaperPosition,
     PaperPositionMarked,
     Side,
+    _identity_key,
     _legacy_order_ids_in_ticket_order,
     _new_order_id,
 )
@@ -393,8 +394,14 @@ class MysqlPaperEngine:
         order_ids = (
             [
                 _new_order_id(
-                    f"{self._run_id}:{self._strategy_id}:{self._account_id}:"
-                    f"{plan_id}:{batch_sha}:{ordinal}"
+                    _identity_key(
+                        self._run_id,
+                        self._strategy_id,
+                        self._account_id,
+                        plan_id,
+                        batch_sha,
+                        str(ordinal),
+                    )
                 )
                 for ordinal, _ticket in enumerate(tickets)
             ]
