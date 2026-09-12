@@ -28,6 +28,7 @@ R7.11 mutation-twin notes on every load-bearing assertion.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -135,6 +136,66 @@ class TestAccountLifecycle:
 
 
 class TestSubmitBatch:
+    def test_submission_reserves_sqlite_writer_before_idempotency_read(
+        self, engine: SqlitePaperEngine
+    ) -> None:
+        statements: list[str] = []
+        engine._conn.set_trace_callback(statements.append)  # noqa: SLF001
+
+        engine.submit_batch(_batch(_tk("MSFT")), plan_id="serialized")
+
+        assert "BEGIN IMMEDIATE" in statements
+
+    def test_shared_engine_serializes_concurrent_transactions(
+        self, engine: SqlitePaperEngine
+    ) -> None:
+        barrier = threading.Barrier(2)
+        errors: list[Exception] = []
+
+        def submit(plan_id: str, symbol: str) -> None:
+            barrier.wait(timeout=5)
+            try:
+                engine.submit_batch(_batch(_tk(symbol)), plan_id=plan_id)
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        workers = [
+            threading.Thread(target=submit, args=("plan-a", "MSFT")),
+            threading.Thread(target=submit, args=("plan-b", "AAPL")),
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=5)
+
+        assert errors == []
+        assert len(engine.get_orders()) == 2
+
+    def test_shared_engine_blocks_reads_during_write_transaction(
+        self, engine: SqlitePaperEngine
+    ) -> None:
+        writer_started = threading.Event()
+        release_writer = threading.Event()
+        reader_finished = threading.Event()
+
+        def hold_write() -> None:
+            with engine._tx():  # noqa: SLF001
+                writer_started.set()
+                release_writer.wait(timeout=5)
+
+        writer = threading.Thread(target=hold_write)
+        reader = threading.Thread(
+            target=lambda: (engine.get_orders(), reader_finished.set())
+        )
+        writer.start()
+        assert writer_started.wait(timeout=5)
+        reader.start()
+        assert not reader_finished.wait(timeout=0.1)
+        release_writer.set()
+        writer.join(timeout=5)
+        reader.join(timeout=5)
+        assert reader_finished.is_set()
+
     def test_order_identity_encoding_is_unambiguous(self) -> None:
         assert _identity_key("a:b", "c") != _identity_key("a", "b:c")
 

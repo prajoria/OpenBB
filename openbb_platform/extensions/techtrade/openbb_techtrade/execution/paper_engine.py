@@ -53,15 +53,17 @@ import hashlib
 import logging
 import re
 import sqlite3
+import threading
 import uuid
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
+from functools import wraps
 from pathlib import Path
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, TypeVar, cast, runtime_checkable
 
 from openbb_techtrade import config
 
@@ -107,6 +109,18 @@ _ACTION_TO_SIDE: dict[str, Side] = {
 }
 
 _SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9./\-]{0,15}$")
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _with_connection_lock(method: _F) -> _F:
+    """Serialize access to the engine's shared SQLite connection."""
+
+    @wraps(method)
+    def wrapped(self, *args: Any, **kwargs: Any) -> Any:
+        with self.connection_lock:
+            return method(self, *args, **kwargs)
+
+    return cast(_F, wrapped)
 
 
 class PaperEngineError(RuntimeError):
@@ -446,6 +460,7 @@ class SqlitePaperEngine:
         self._db_path = Path(db_path).resolve()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._account_id = account_id
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(
             str(self._db_path), check_same_thread=False, isolation_level=None
         )
@@ -485,14 +500,16 @@ class SqlitePaperEngine:
     @contextmanager
     def _tx(self) -> Iterator[None]:
         """Transaction scope — all-or-nothing for multi-row updates."""
-        try:
-            self._conn.execute("BEGIN")
-            yield
-            self._conn.execute("COMMIT")
-        except Exception:
-            self._conn.execute("ROLLBACK")
-            raise
+        with self._lock:
+            try:
+                self._conn.execute("BEGIN IMMEDIATE")
+                yield
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
 
+    @_with_connection_lock
     def close(self) -> None:
         """Release the SQLite connection."""
         self._conn.close()
@@ -505,11 +522,17 @@ class SqlitePaperEngine:
         return self._account_id
 
     @property
+    def connection_lock(self) -> threading.RLock:
+        """Return the reentrant lock guarding the shared connection."""
+        return self._lock
+
+    @property
     def execution_scope_id(self) -> str:
         """Return a non-sensitive identity for this SQLite ledger."""
         digest = hashlib.sha256(str(self._db_path).encode("utf-8")).hexdigest()[:16]
         return f"sqlite-{digest}"
 
+    @_with_connection_lock
     def is_initialized(self) -> bool:
         """Check schema/account presence without creating either."""
         table = self._conn.execute(
@@ -723,6 +746,7 @@ class SqlitePaperEngine:
             )
         logger.info("cancel_order: order %r CANCELLED (reason=%r)", order_id, reason)
 
+    @_with_connection_lock
     def get_account(self) -> PaperAccount:
         """Return the current single-account snapshot (cash + realized_pl)."""
         row = self._conn.execute(
@@ -742,6 +766,7 @@ class SqlitePaperEngine:
             created_at=_from_iso(row["created_at"]),
         )
 
+    @_with_connection_lock
     def get_positions(self) -> list[PaperPosition]:
         """Return every non-zero materialized position for this account."""
         rows = self._conn.execute(
@@ -761,6 +786,7 @@ class SqlitePaperEngine:
             for r in rows
         ]
 
+    @_with_connection_lock
     def get_orders(self, status: OrderStatus | None = None) -> list[PaperOrder]:
         """Return this account's orders, optionally filtered by status."""
         if status is None:
@@ -777,6 +803,7 @@ class SqlitePaperEngine:
             ).fetchall()
         return [_row_to_order(r) for r in rows]
 
+    @_with_connection_lock
     def get_fills(self, since: datetime | None = None) -> list[PaperFill]:
         """Return recorded fills, optionally filtered by ``filled_at >= since``."""
         if since is None:
@@ -798,6 +825,7 @@ class SqlitePaperEngine:
 
     # -- P3.b unrealized P&L -------------------------------------------
 
+    @_with_connection_lock
     def get_positions_with_unrealized(
         self, pricing: Mapping[str, Decimal]
     ) -> list[PaperPositionMarked]:
@@ -860,6 +888,7 @@ class SqlitePaperEngine:
             )
         return results
 
+    @_with_connection_lock
     def get_account_equity(self, pricing: Mapping[str, Decimal]) -> PaperEquity:
         """See :class:`PaperEngine` for the contract."""
         acct = self.get_account()
