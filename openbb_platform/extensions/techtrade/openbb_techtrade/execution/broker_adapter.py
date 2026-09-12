@@ -308,15 +308,17 @@ class SqliteExecutionAuditStore:
             if mode is ExecutionMode.LIVE:
                 legacy = self._conn.execute(
                     "SELECT submission_id FROM pi_execution_submission "
-                    "WHERE mode = ? AND broker_id = ? AND account_id = ? "
+                    "WHERE mode = ? AND account_id = ? "
                     "AND principal_id = 'legacy-unassigned' "
-                    "AND plan_id = ? AND batch_sha256 = ?",
+                    "AND batch_sha256 = ? "
+                    "AND (broker_id = ? OR broker_id = 'legacy-unassigned') "
+                    "AND (plan_id = ? OR plan_id = 'legacy-unassigned')",
                     (
                         mode.value,
-                        broker_id,
                         account_id,
-                        plan_id,
                         batch_sha256,
+                        broker_id,
+                        plan_id,
                     ),
                 ).fetchone()
                 if legacy is not None:
@@ -809,14 +811,20 @@ class ExecutionGateway:
             duplicate_broker_ids = len(
                 {ack.broker_order_id for ack in acknowledgements}
             ) != len(acknowledgements)
+            invalid_broker_ids = any(
+                not isinstance(ack.broker_order_id, str)
+                or not ack.broker_order_id.strip()
+                for ack in acknowledgements
+            )
             if (
                 len(acknowledgements) != len(order_uuids)
                 or ack_uuids != set(order_uuids)
                 or duplicate_broker_ids
+                or invalid_broker_ids
             ):
                 reserved = set(order_uuids)
                 validated: list[BrokerOrderAck] = []
-                if not duplicate_broker_ids:
+                if not duplicate_broker_ids and not invalid_broker_ids:
                     seen: set[uuid.UUID] = set()
                     for ack in acknowledgements:
                         if ack.order_uuid in reserved and ack.order_uuid not in seen:
@@ -830,10 +838,16 @@ class ExecutionGateway:
         except BrokerBatchError as exc:
             completed_uuids = {ack.order_uuid for ack in exc.completed}
             completed_broker_ids = {ack.broker_order_id for ack in exc.completed}
+            invalid_completed_ids = any(
+                not isinstance(ack.broker_order_id, str)
+                or not ack.broker_order_id.strip()
+                for ack in exc.completed
+            )
             malformed_completed = (
                 len(completed_uuids) != len(exc.completed)
                 or not completed_uuids.issubset(order_uuids)
                 or len(completed_broker_ids) != len(exc.completed)
+                or invalid_completed_ids
             )
             malformed_failed = exc.failed_order_uuid is not None and (
                 exc.failed_order_uuid not in order_uuids

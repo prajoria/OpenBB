@@ -108,14 +108,35 @@ def _migrate_submission(conn: sqlite3.Connection) -> None:
         "ALTER TABLE pi_execution_submission RENAME TO _pi_execution_submission_v1"
     )
     conn.execute(_SUBMISSION_DDL)
-    conn.execute(
+    legacy_rows = conn.execute("SELECT * FROM _pi_execution_submission_v1").fetchall()
+    migrated_rows = []
+    for row in legacy_rows:
+        columns = set(row.keys())
+        migrated_rows.append(
+            (
+                row["submission_id"],
+                row["mode"],
+                row["broker_id"] if "broker_id" in columns else "legacy-unassigned",
+                row["account_id"],
+                (
+                    "paper"
+                    if row["mode"] == "paper" and "broker_id" in columns
+                    else "legacy-unassigned"
+                ),
+                row["plan_id"] if "plan_id" in columns else "legacy-unassigned",
+                row["batch_sha256"],
+                row["status"],
+                row["error"],
+                row["created_at"],
+                row["updated_at"],
+            )
+        )
+    conn.executemany(
         "INSERT INTO pi_execution_submission "
         "(submission_id, mode, broker_id, account_id, principal_id, plan_id, "
         "batch_sha256, status, error, created_at, updated_at) "
-        "SELECT submission_id, mode, broker_id, account_id, "
-        "CASE WHEN mode = 'paper' THEN 'paper' ELSE 'legacy-unassigned' END, "
-        "plan_id, batch_sha256, status, error, created_at, updated_at "
-        "FROM _pi_execution_submission_v1"
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        migrated_rows,
     )
     if has_order_table:
         conn.execute(_ORDER_DDL)

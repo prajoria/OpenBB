@@ -76,6 +76,7 @@ from openbb_techtrade.execution.paper_engine import (
     PaperPosition,
     PaperPositionMarked,
     Side,
+    _legacy_order_ids_in_ticket_order,
     _new_order_id,
 )
 
@@ -402,6 +403,59 @@ class MysqlPaperEngine:
         )
         with self.transaction() as conn:
             cur = conn.cursor()
+            if plan_id:
+                where, scope_params = self._scope_where(
+                    "plan_id = %s AND batch_sha256 = %s"
+                )
+                cur.execute(
+                    f"SELECT order_id, symbol, side, quantity, order_type, "
+                    f"limit_price FROM pi_paper_order WHERE {where}",
+                    (*scope_params, plan_id, batch_sha),
+                )
+                existing = cur.fetchall()
+                if existing:
+                    existing_ids = {
+                        _row_values(row, ("order_id",))[0] for row in existing
+                    }
+                    if existing_ids == set(order_ids):
+                        cur.close()
+                        return order_ids
+                    normalized = [
+                        dict(
+                            zip(
+                                (
+                                    "order_id",
+                                    "symbol",
+                                    "side",
+                                    "quantity",
+                                    "order_type",
+                                    "limit_price",
+                                ),
+                                _row_values(
+                                    row,
+                                    (
+                                        "order_id",
+                                        "symbol",
+                                        "side",
+                                        "quantity",
+                                        "order_type",
+                                        "limit_price",
+                                    ),
+                                ),
+                                strict=True,
+                            )
+                        )
+                        for row in existing
+                    ]
+                    legacy_ids = _legacy_order_ids_in_ticket_order(normalized, tickets)
+                    if legacy_ids is not None:
+                        cur.close()
+                        return legacy_ids
+                    cur.close()
+                    raise PaperEngineError(
+                        "submit_batch: plan/batch idempotency key exists with "
+                        "an unexpected order count; reconcile the audit rows"
+                    )
             for order_id, t in zip(order_ids, tickets, strict=True):
                 _validate_symbol(t.symbol)
                 side = _action_to_side(t.action)

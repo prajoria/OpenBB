@@ -153,6 +153,33 @@ class TestSubmitBatch:
         assert second == first
         assert len(engine.get_orders()) == 2
 
+    def test_retry_accepts_legacy_random_order_ids(
+        self,
+        engine: SqlitePaperEngine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        batch = _batch(_tk("MSFT"), _tk("AAPL"))
+        engine.submit_batch(batch, plan_id="legacy-plan")
+        expected = [
+            "ord_ffffffff-ffff-4fff-8fff-ffffffffffff",
+            "ord_00000000-0000-4000-8000-000000000001",
+        ]
+        engine._conn.execute(  # noqa: SLF001
+            "UPDATE pi_paper_order SET order_id = ? WHERE symbol = 'MSFT'",
+            (expected[0],),
+        )
+        engine._conn.execute(  # noqa: SLF001
+            "UPDATE pi_paper_order SET order_id = ? WHERE symbol = 'AAPL'",
+            (expected[1],),
+        )
+        monkeypatch.setattr(
+            paper_engine_module,
+            "_new_order_id",
+            lambda _identity: "ord_00000000-0000-4000-8000-000000000999",
+        )
+
+        assert engine.submit_batch(batch, plan_id="legacy-plan") == expected
+
     def test_batch_sha_stamped_on_orders(self, engine: SqlitePaperEngine) -> None:
         """R7.11 twin: dropping batch_sha256 from the INSERT breaks the
         reconciliation-by-batch query that P5 will need.

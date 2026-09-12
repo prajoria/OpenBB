@@ -32,6 +32,7 @@ from uuid import UUID
 
 import pytest
 from openbb_fmp_cached.utils import database
+from openbb_techtrade.execution import mysql_paper_engine as mysql_paper_engine_module
 from openbb_techtrade.execution.mysql_paper_engine import (
     _PI_PAPER_ACCOUNT_DDL,
     _PI_PAPER_FILL_DDL,
@@ -657,6 +658,36 @@ class TestSubmitBatch:
             "ON DUPLICATE KEY UPDATE order_id = order_id" in statement
             for statement in pool.statements
         )
+
+    def test_retry_accepts_legacy_random_order_ids(
+        self,
+        engine: MysqlPaperEngine,
+        pool: _FakePool,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        batch = _batch(_tk("MSFT"), _tk("AAPL"))
+        engine.submit_batch(batch, plan_id="legacy-plan")
+        expected = [
+            "ord_ffffffff-ffff-4fff-8fff-ffffffffffff",
+            "ord_00000000-0000-4000-8000-000000000001",
+        ]
+        with pool.get_connection() as conn:
+            conn._conn.execute(  # noqa: SLF001
+                "UPDATE pi_paper_order SET order_id = ? WHERE symbol = 'MSFT'",
+                (expected[0],),
+            )
+            conn._conn.execute(  # noqa: SLF001
+                "UPDATE pi_paper_order SET order_id = ? WHERE symbol = 'AAPL'",
+                (expected[1],),
+            )
+            conn._conn.commit()  # noqa: SLF001
+        monkeypatch.setattr(
+            mysql_paper_engine_module,
+            "_new_order_id",
+            lambda _identity: "ord_00000000-0000-4000-8000-000000000999",
+        )
+
+        assert engine.submit_batch(batch, plan_id="legacy-plan") == expected
 
     def test_batch_sha_stamped(self, engine: MysqlPaperEngine) -> None:
         """R7.11 twin: dropping batch_sha256 breaks reconciliation-by-batch."""

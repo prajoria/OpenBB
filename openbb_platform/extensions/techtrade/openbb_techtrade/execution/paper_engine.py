@@ -547,7 +547,8 @@ class SqlitePaperEngine:
         with self._tx():
             if plan_id:
                 existing = self._conn.execute(
-                    "SELECT order_id FROM pi_paper_order "
+                    "SELECT order_id, symbol, side, quantity, order_type, "
+                    "limit_price FROM pi_paper_order "
                     "WHERE account_id = ? AND plan_id = ? AND batch_sha256 = ?",
                     (self._account_id, plan_id, batch_sha),
                 ).fetchall()
@@ -555,6 +556,9 @@ class SqlitePaperEngine:
                     existing_ids = {row["order_id"] for row in existing}
                     if existing_ids == set(order_ids):
                         return order_ids
+                    legacy_ids = _legacy_order_ids_in_ticket_order(existing, tickets)
+                    if legacy_ids is not None:
+                        return legacy_ids
                     raise PaperEngineError(
                         "submit_batch: plan/batch idempotency key exists with "
                         "a different order identity set; reconcile the audit rows"
@@ -1165,6 +1169,36 @@ _ORDER_ID_NAMESPACE = uuid.UUID("2b5b9db9-9e57-46d6-bc90-cb2ae341fe15")
 def _new_order_id(identity: str) -> str:
     """Deterministic UUID for an idempotent account/batch/ordinal identity."""
     return f"ord_{uuid.uuid5(_ORDER_ID_NAMESPACE, identity)}"
+
+
+def _legacy_order_ids_in_ticket_order(
+    rows, tickets
+) -> list[str] | None:  # noqa: ANN001
+    """Map legacy random IDs back to ticket order using persisted fields."""
+    by_signature: dict[tuple[str, ...], list[str]] = {}
+    for row in rows:
+        signature = (
+            row["symbol"],
+            row["side"],
+            row["quantity"],
+            row["order_type"],
+            row["limit_price"] or "",
+        )
+        by_signature.setdefault(signature, []).append(row["order_id"])
+    ordered: list[str] = []
+    for ticket in tickets:
+        signature = (
+            ticket.symbol,
+            _action_to_side(ticket.action).value,
+            str(ticket.quantity),
+            ticket.order_type,
+            str(ticket.limit_price) if ticket.limit_price is not None else "",
+        )
+        candidates = by_signature.get(signature)
+        if not candidates:
+            return None
+        ordered.append(candidates.pop())
+    return ordered if not any(by_signature.values()) else None
 
 
 def _now_iso() -> str:

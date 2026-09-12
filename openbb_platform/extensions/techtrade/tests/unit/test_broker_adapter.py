@@ -243,11 +243,10 @@ class TestExecutionGateway:
         conn.executescript("""
             CREATE TABLE pi_execution_submission (
                 submission_id TEXT PRIMARY KEY, mode TEXT NOT NULL,
-                broker_id TEXT NOT NULL, account_id TEXT NOT NULL,
-                plan_id TEXT NOT NULL, batch_sha256 TEXT NOT NULL,
+                account_id TEXT NOT NULL, batch_sha256 TEXT NOT NULL,
                 status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                UNIQUE(mode, broker_id, account_id, plan_id, batch_sha256)
+                UNIQUE(mode, account_id, batch_sha256)
             );
             CREATE TABLE pi_execution_approval (
                 plan_id TEXT PRIMARY KEY, request_sha256 TEXT NOT NULL,
@@ -264,14 +263,11 @@ class TestExecutionGateway:
             );
             """)
         conn.execute(
-            "INSERT INTO pi_execution_submission VALUES "
-            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO pi_execution_submission VALUES " "(?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 "00000000-0000-4000-8000-000000000001",
                 "live",
-                "fake-broker",
                 "fake-live",
-                "legacy-plan",
                 "a" * 64,
                 "FAILED",
                 None,
@@ -858,6 +854,37 @@ class TestExecutionGateway:
 
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert {order.status for order in raised.value.receipt.orders} == {"UNKNOWN"}
+
+    def test_blank_broker_acknowledgement_requires_reconciliation(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        class BlankAckAdapter:
+            mode = ExecutionMode.PAPER
+            broker_id = "paper-engine-test"
+            account_id = "paper"
+
+            def submit_batch(self, batch, order_uuids):
+                return (BrokerOrderAck(order_uuids[0], "  "),)
+
+            def cancel_order(self, broker_order_id):
+                return None
+
+        gateway = _gateway(
+            BlankAckAdapter(),
+            audit,
+            mode=ExecutionMode.PAPER,
+        )
+        batch = _batch("MSFT")
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+        assert raised.value.receipt.orders[0].status == "UNKNOWN"
 
     def test_overlapping_completed_and_failed_ack_is_all_unknown(
         self, audit: SqliteExecutionAuditStore
