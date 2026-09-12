@@ -452,6 +452,26 @@ class TestExecutionGateway:
         assert restored is not None
         assert restored.generated_at == first.generated_at
 
+    def test_approval_retry_rejects_changed_audit_context(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        first = OrderBatch(
+            tickets=_batch("MSFT").tickets,
+            plan_id="same-approval",
+            verdict_gate_pass=True,
+            pricing={"MSFT": Decimal("100")},
+        )
+        changed = OrderBatch(
+            tickets=first.tickets,
+            plan_id=first.plan_id,
+            verdict_gate_pass=True,
+            pricing={"MSFT": Decimal("200")},
+        )
+        audit.register_approved_batch(first, request_sha256="a" * 64)
+
+        with pytest.raises(ExecutionGateError, match="different content"):
+            audit.register_approved_batch(changed, request_sha256="a" * 64)
+
     def test_submission_requires_all_gates(
         self, audit: SqliteExecutionAuditStore
     ) -> None:

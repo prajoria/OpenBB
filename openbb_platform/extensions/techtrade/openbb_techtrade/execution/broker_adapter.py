@@ -239,6 +239,14 @@ class SqliteExecutionAuditStore:
                 raise ExecutionGateError(
                     "approval UUID is already bound to different content or owner"
                 )
+            stored_context = json.loads(stored["batch_json"])
+            expected_context = json.loads(expected_json)
+            stored_context.pop("generated_at", None)
+            expected_context.pop("generated_at", None)
+            if stored_context != expected_context:
+                raise ExecutionGateError(
+                    "approval UUID is already bound to different content or owner"
+                )
 
     def get_approved_batch(
         self,
