@@ -452,14 +452,15 @@ class TestTechnicalPanelExtendedFallbackForwarding:
     ignored on the fallback path — a bug that would only surface once
     family PRs land."""
 
-    def test_extended_forwarded_to_fallback(self, ohlcv_df):
+    def test_extended_forwarded_to_fallback(self, ohlcv_df, monkeypatch):
         from openbb_techtrade.engine import indicators_technical
         from openbb_techtrade.engine.panel_config import PANEL_CLASSIC, PANEL_EXTENDED
 
         as_of = date(2024, 5, 20)
         records = _ohlcv_records(ohlcv_df)
-        # obb.technical is not installed in the test env, so both go
-        # through the deterministic builder fallback.
+        monkeypatch.setattr(
+            indicators_technical, "_obb_technical_available", lambda: False
+        )
         classic = indicators_technical.technical_panel(
             symbol="TEST", as_of=as_of, ohlcv_rows=records,
             panel_config=PANEL_CLASSIC,

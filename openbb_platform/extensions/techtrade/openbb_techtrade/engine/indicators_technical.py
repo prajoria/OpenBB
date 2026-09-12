@@ -318,7 +318,8 @@ def technical_panel(
     periods), while ``volume`` (``obv_slope`` / ``cmf``) and ``candles`` are filled
     from the #72 classic helpers -- one source per indicator. When ``technical`` is
     absent, or any technical call raises, the whole panel is delegated to the #72
-    :func:`build_indicator_panel`, yielding a result byte-identical to classic.
+    :func:`build_indicator_panel`, preserving ``panel_config``. Classic requests
+    remain byte-identical to classic; extended requests retain their extended keys.
 
     The live ``obb`` object is obtained through the injectable ``obb_loader`` seam
     (default :func:`_load_obb`), mirroring the engine-wide DI convention so unit
