@@ -261,6 +261,8 @@ def look_through(
         - If any position weight is negative (shorts not supported this cut).
         - If ``basket`` weights don't sum to ~1.0 (propagated from
           :func:`xray.look_through`).
+        - If reachable provider holdings contain invalid weights or their total
+          falls outside the provider's accepted normalization tolerance.
     """
     positions = [
         BasketPosition(symbol=str(r["symbol"]), weight=Decimal(str(r["weight"])))

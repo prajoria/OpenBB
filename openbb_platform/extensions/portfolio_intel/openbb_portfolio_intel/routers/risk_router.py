@@ -260,7 +260,8 @@ def concentration(
     Raises
     ------
     ValueError
-        Empty basket, or any negative weight.
+        Empty basket, any negative position weight, or malformed/unnormalized
+        reachable provider holdings.
     """
     pairs = _positions_from_basket(basket)
 
