@@ -209,6 +209,7 @@ def refresh_one_etf(
     *,
     dry_run: bool,
     api_key: str | None,  # noqa: ARG001 - signature compat; see _resolve_api_key NOTE
+    database: str | None = None,
     holdings_fn: Callable[[str], Any] | None = None,
 ) -> tuple[str, int, str | None, float, str | None]:
     """Call obb.etf.holdings for one ETF; return a (status) tuple.
@@ -220,18 +221,23 @@ def refresh_one_etf(
     ``holdings_fn`` (default: a lazy ``obb.etf.holdings(symbol=etf,
     provider="fmp_cached")`` call) is injectable so tests and the jobs handler
     can exercise this per-ETF call without a live provider/network dependency.
+    ``database`` scopes every downstream fmp_cached cache operation without
+    mutating process-global configuration.
     """
     if dry_run:
         return (etf, 0, None, 0.0, None)
 
     started = time.monotonic()
     try:
-        if holdings_fn is not None:
-            result = holdings_fn(etf)
-        else:
-            from openbb import obb  # noqa: PLC0415
+        from openbb_fmp_cached.utils.database import database_override  # noqa: PLC0415
 
-            result = obb.etf.holdings(symbol=etf, provider="fmp_cached")
+        with database_override(database):
+            if holdings_fn is not None:
+                result = holdings_fn(etf)
+            else:
+                from openbb import obb  # noqa: PLC0415
+
+                result = obb.etf.holdings(symbol=etf, provider="fmp_cached")
     except Exception as exc:  # noqa: BLE001
         elapsed_ms = (time.monotonic() - started) * 1000
         first_line = str(exc).splitlines()[0] if str(exc) else exc.__class__.__name__
@@ -253,6 +259,7 @@ def refresh_universe(
     *,
     dry_run: bool,
     api_key: str | None,
+    database: str | None = None,
     holdings_fn: Callable[[str], Any] | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
@@ -266,6 +273,8 @@ def refresh_universe(
     is injectable end-to-end. ``should_cancel`` is polled between ETFs
     (cooperative cancellation); when it returns ``True`` the loop stops and
     ``stats["cancelled"]`` is set, leaving any remaining ETFs unprocessed.
+    ``database`` is forwarded only when explicit, preserving injected
+    collaborators that implement the legacy signature.
     """
     should_cancel = should_cancel or (lambda: False)
     stats: dict[str, Any] = {
@@ -280,9 +289,14 @@ def refresh_universe(
             stats["cancelled"] = True
             break
 
-        result = refresh_one_etf(
-            etf, dry_run=dry_run, api_key=api_key, holdings_fn=holdings_fn
-        )
+        refresh_kwargs = {
+            "dry_run": dry_run,
+            "api_key": api_key,
+            "holdings_fn": holdings_fn,
+        }
+        if database is not None:
+            refresh_kwargs["database"] = database
+        result = refresh_one_etf(etf, **refresh_kwargs)
         _, row_count, data_source, elapsed_ms, error = result
         if error is not None:
             stats["errored"] += 1
@@ -388,6 +402,7 @@ def run_etf_holdings_warm(
         universe,
         dry_run=dry_run,
         api_key=api_key,
+        database=database,
         holdings_fn=holdings_fn,
         should_cancel=should_cancel,
     )
@@ -488,18 +503,12 @@ def main() -> int:
 
     _setup_logging(args.verbose)
 
-    # --database: set DB_NAME so DatabaseConfig (and therefore _connect) target
-    # the chosen DB. Mirrors the #93 review-fix pattern for enrich_cusip_figi.py.
-    if args.database:
-        os.environ["DB_NAME"] = args.database
-
     # --api-key: export to os.environ['FMP_API_KEY'] BEFORE the lazy
     # ``from openbb import obb`` import fires inside refresh_one_etf so the
     # provider's own resolver picks it up. Pre-fix (bd-2k86) the flag was
     # documented as an override but had no runtime effect — the resolved
     # value was threaded to refresh_one_etf but marked ``# noqa: ARG001 -
     # reserved for future explicit-key plumbing`` and never reached obb.
-    # Mirrors the --database → os.environ['DB_NAME'] pattern above.
     # ``.strip()`` guards against ``--api-key "  "`` polluting env with
     # whitespace that would then survive the credentials loader's
     # ``if not value`` truthy check and surface as an opaque provider error;

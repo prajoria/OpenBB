@@ -6,11 +6,15 @@ import json
 import logging
 import os
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 import pymysql.cursors
 
 logger = logging.getLogger(__name__)
+_database_override: ContextVar[str | None] = ContextVar(
+    "fmp_cached_database_override", default=None
+)
 
 
 class DatabaseConfig:
@@ -181,15 +185,24 @@ class DatabaseConfig:
 class ConnectionPool:
     """Simple synchronous MySQL connection manager."""
 
-    def __init__(self, config: DatabaseConfig):
+    def __init__(self, config: DatabaseConfig, database: str | None = None):
         """Initialize MySQL connection manager."""
         self.config = config
+        self.database = database
+
+    @property
+    def connection_params(self) -> dict[str, Any]:
+        """Return connection parameters with any request-scoped database."""
+        params = self.config.connection_params
+        if self.database is not None:
+            params["database"] = self.database
+        return params
 
     @contextmanager
     def get_connection(self):
         """Get MySQL database connection (context manager)."""
         connection = pymysql.connect(
-            **self.config.connection_params,
+            **self.connection_params,
             cursorclass=pymysql.cursors.DictCursor,
             autocommit=True,
         )
@@ -212,6 +225,9 @@ def get_connection_pool() -> ConnectionPool:
     if _connection_pool is None:
         config = DatabaseConfig()
         _connection_pool = ConnectionPool(config)
+    override = _database_override.get()
+    if override is not None:
+        return ConnectionPool(_connection_pool.config, database=override)
     return _connection_pool
 
 
@@ -307,6 +323,21 @@ def safe_identifier(name: str) -> str:
             f"loudly to prevent DDL injection (bd-kh08)."
         )
     return name
+
+
+@contextmanager
+def database_override(database: str | None):
+    """Select a database for this execution context without global mutation."""
+    if database is None:
+        yield
+        return
+
+    validated = safe_identifier(database)
+    token = _database_override.set(validated)
+    try:
+        yield
+    finally:
+        _database_override.reset(token)
 
 
 def replace_rows(
@@ -424,9 +455,9 @@ def replace_rows(
     # the connect cost — it doesn't need to accept the config cost.
     # The pool's config is a module-level singleton; connection_params
     # is already correct (strips test_mode etc.).
-    pool_config = get_connection_pool().config
+    connection_params = get_connection_pool().connection_params
     conn = pymysql.connect(
-        **pool_config.connection_params,
+        **connection_params,
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,
     )
@@ -521,8 +552,7 @@ def init_database(auto_create: bool = None):
         logger.info("Skipping database/table creation (FMP_CACHE_AUTO_CREATE_DB=false)")
         return True
 
-    config = DatabaseConfig()
-    temp_config = config.connection_params.copy()
+    temp_config = get_connection_pool().connection_params.copy()
     database_name = temp_config.pop("database", "openbb_fmp_cache")
 
     # bd-9loj/o1oy: validate the database name BEFORE any DB work.

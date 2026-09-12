@@ -28,6 +28,12 @@ for _p in (
         sys.path.insert(0, _p)
 
 import refresh_etf_holdings_cache as tool  # noqa: E402
+from openbb_fmp_cached.utils import database as database_module  # noqa: E402
+from openbb_fmp_cached.utils.database import (  # noqa: E402
+    ConnectionPool,
+    DatabaseConfig,
+    get_connection_pool,
+)
 
 # ---------------------------------------------------------------------------
 # L9 regression: SPDR_SECTORS is derived from techtrade GICS_SECTOR_ETFS
@@ -59,6 +65,38 @@ def test_known_etfs_excludes_common_non_etfs():
     """Sanity: heavily-held single stocks must not look like ETFs to the filter."""
     for non_etf in ("AAPL", "MSFT", "GOOGL", "NVDA", "META"):
         assert non_etf not in tool.KNOWN_ETFS
+
+
+def test_run_warm_scopes_provider_call_to_explicit_database(monkeypatch):
+    """The explicit database must cover downstream fmp_cached reads and writes."""
+    config = DatabaseConfig.__new__(DatabaseConfig)
+    config.config = {
+        "host": "localhost",
+        "port": 3306,
+        "user": "tester",
+        "password": "secret",
+        "database": "configured_db",
+        "charset": "utf8mb4",
+        "test_mode": False,
+    }
+    monkeypatch.setattr(database_module, "_connection_pool", ConnectionPool(config))
+    observed: list[str] = []
+
+    def holdings(etf: str):
+        observed.append(get_connection_pool().connection_params["database"])
+        return MagicMock(results=[{"symbol": etf, "data_source": "fmp"}])
+
+    result = tool.run_etf_holdings_warm(
+        database="alternate_db",
+        skip_portfolio=True,
+        universe=["XLK"],
+        portfolio_etfs=[],
+        holdings_fn=holdings,
+    )
+
+    assert result.populated == 1
+    assert observed == ["alternate_db"]
+    assert get_connection_pool().connection_params["database"] == "configured_db"
 
 
 # ---------------------------------------------------------------------------
@@ -297,9 +335,9 @@ def test_refresh_universe_aggregates_stats_correctly():
 # already sat in env / user_settings.
 #
 # Fix (bead option a): set os.environ['FMP_API_KEY'] in main() before the
-# lazy ``from openbb import obb`` import fires, mirroring the --database →
-# os.environ['DB_NAME'] pattern that's already present. The obb provider's
-# own resolver picks up the env var.
+# lazy ``from openbb import obb`` import fires. The provider's own resolver
+# picks up the env var. Database selection now uses a request-scoped context
+# rather than process-global environment mutation (#2051).
 
 
 def test_main_sets_fmp_api_key_env_when_flag_provided(monkeypatch):
