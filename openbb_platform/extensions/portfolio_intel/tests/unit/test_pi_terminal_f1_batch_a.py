@@ -106,6 +106,33 @@ def _key_stats_metrics(symbol: str = "AAPL") -> dict[str, object]:
     return {row["metric"]: row["value"] for row in rows}
 
 
+def test_key_stats_no_tier_fallback_omits_source_dependent_metrics(
+    monkeypatch,
+) -> None:
+    """#2075 — the no-tier fallback must not invent provider-backed values."""
+    monkeypatch.setattr(
+        "openbb_portfolio_intel.providers.retrofit._TIER_CALLS",
+        {},
+    )
+    metrics = _key_stats_metrics()
+
+    assert "Shares Float" not in metrics
+    assert "Forward P/E" not in metrics
+
+
+def test_key_stats_docs_distinguish_no_tier_fallback_from_live_shape() -> None:
+    """#2075 — endpoint docs must describe the fallback's smaller metric set."""
+    operation = _client.get("/openapi.json").json()["paths"][
+        "/pi/equity/key-stats"
+    ]["get"]
+    description = " ".join(operation["description"].split())
+    assert (
+        "The no-tier fallback intentionally omits Shares Float and Forward P/E "
+        "because both require provider data."
+        in description
+    )
+
+
 def _patch_new_key_stats_sources(monkeypatch) -> None:
     monkeypatch.setitem(
         _TIER_CALLS,

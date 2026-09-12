@@ -982,14 +982,13 @@ def equity_key_stats(
 ) -> list[dict[str, str | float]]:
     """Equity Profile section 2 — key stats grid (table).
 
-    Offline preview shape MATCHES the live fmp_cached tier
-    (``tier_calls._shape_key_stats``): only fields with a real fmp_cached
-    source are emitted. Fabricated stub-only rows (Forward P/E, Shares Float,
-    Short Interest, Insider Ownership, Revenue/Net Income FY, 30d avg volume,
-    Next Earnings) were removed — they had no provider source and served the
-    same canned number for every symbol (area:fmp-cached-gap #1959). Aligning
-    the stub to the live shape keeps the widget's columns stable regardless of
-    cache state (anti-mock: stub shape == live shape -> deterministic).
+    The no-tier fallback preserves the live tier's ``metric``/``value`` row
+    schema, but not its complete metric set. The no-tier fallback intentionally
+    omits Shares Float and Forward P/E because both require provider data. The
+    live ``fmp_cached`` tier emits them only when share-statistics and quote/EPS
+    sources are available. Short Interest, Insider Ownership, Revenue/Net
+    Income FY, 30d average volume, and Next Earnings also remain absent rather
+    than being represented by canned values (area:fmp-cached-gap #1959).
     """
     _require_auth(request)
     sym = _validate_symbol(symbol)
