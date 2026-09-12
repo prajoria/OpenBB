@@ -16,7 +16,6 @@ os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 from fastapi.testclient import TestClient  # noqa: E402
 from openbb_portfolio_intel.widget_backend.main import app  # noqa: E402
 from openbb_portfolio_intel.widget_backend.widgets_endpoints import (  # noqa: E402
-    _T5_APPROVED_BATCHES,
     _build_t5_demo_batch,
     register_t5_approved_batch,
 )
@@ -46,7 +45,6 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         del app.state.t5_live_broker_client
     if hasattr(app.state, "t5_plan_approval_builder"):
         del app.state.t5_plan_approval_builder
-    _T5_APPROVED_BATCHES.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +300,11 @@ def test_approve_plan_registers_server_validated_batch(
     assert response.status_code == 200
     assert response.json()["plan_id"] == "validated-plan"
     assert response.json()["batch_sha"] == batch.sha256()
-    assert "validated-plan" in _T5_APPROVED_BATCHES
+    from openbb_techtrade.execution.broker_adapter import SqliteExecutionAuditStore
+
+    store = SqliteExecutionAuditStore(os.environ["PI_T5_EXECUTION_AUDIT_DB"])
+    assert store.get_approved_batch("validated-plan") == batch
+    store.close()
 
 
 def test_cancel_reports_missing_techtrade_dependency(
@@ -386,9 +388,12 @@ class TestPaperStatusMarkdown:
         from decimal import Decimal
 
         monkeypatch.setenv("PI_PAPER_ENGINE", "mysql")
-        monkeypatch.setattr(
-            paper_engine, "get_default_engine", lambda **kwargs: FakeEngine()
-        )
+
+        def strict_engine(**kwargs):
+            assert kwargs["allow_fallback"] is False
+            return FakeEngine()
+
+        monkeypatch.setattr(paper_engine, "get_default_engine", strict_engine)
 
         response = _client.get("/tt/execute/paper-status")
 

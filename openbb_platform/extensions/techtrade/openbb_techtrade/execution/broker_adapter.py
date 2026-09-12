@@ -11,6 +11,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -364,11 +365,105 @@ class SqliteExecutionAuditStore:
                     detail_json TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS pi_execution_approval (
+                    plan_id TEXT PRIMARY KEY,
+                    batch_sha256 TEXT NOT NULL,
+                    batch_json TEXT NOT NULL,
+                    approved_at TEXT NOT NULL
+                );
                 """)
 
     def close(self) -> None:
         """Close this store's owned SQLite connection."""
         self._conn.close()
+
+    def register_approved_batch(self, batch: OrderBatch) -> None:
+        """Persist a server-validated immutable batch for cross-worker use."""
+        if not batch.plan_id or not batch.verdict_gate_pass:
+            raise ExecutionGateError(
+                "approved batch requires plan_id and verdict_gate_pass=True"
+            )
+        payload = {
+            "plan_id": batch.plan_id,
+            "generated_at": _to_iso(batch.generated_at),
+            "tickets": [
+                {
+                    "symbol": ticket.symbol,
+                    "action": ticket.action,
+                    "quantity": str(ticket.quantity),
+                    "order_type": ticket.order_type,
+                    "limit_price": (
+                        str(ticket.limit_price)
+                        if ticket.limit_price is not None
+                        else None
+                    ),
+                    "tif": ticket.tif,
+                    "account_masked": ticket.account_masked,
+                    "notes": ticket.notes,
+                }
+                for ticket in batch.tickets
+            ],
+        }
+        with self._lock, self._conn:
+            existing = self._conn.execute(
+                "SELECT batch_sha256 FROM pi_execution_approval WHERE plan_id = ?",
+                (batch.plan_id,),
+            ).fetchone()
+            if existing is not None and existing["batch_sha256"] != batch.sha256():
+                raise ExecutionGateError(
+                    "approval plan_id is already bound to different batch content"
+                )
+            self._conn.execute(
+                "INSERT OR IGNORE INTO pi_execution_approval "
+                "(plan_id, batch_sha256, batch_json, approved_at) "
+                "VALUES (?, ?, ?, ?)",
+                (
+                    batch.plan_id,
+                    batch.sha256(),
+                    json.dumps(payload, sort_keys=True),
+                    _to_iso(_now()),
+                ),
+            )
+
+    def get_approved_batch(self, plan_id: str) -> OrderBatch | None:
+        """Restore a server-approved batch and verify its stored content hash."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT batch_sha256, batch_json FROM pi_execution_approval "
+                "WHERE plan_id = ?",
+                (plan_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = json.loads(row["batch_json"])
+        tickets = tuple(
+            OrderTicket(
+                symbol=item["symbol"],
+                action=item["action"],
+                quantity=Decimal(item["quantity"]),
+                order_type=item["order_type"],
+                limit_price=(
+                    Decimal(item["limit_price"])
+                    if item["limit_price"] is not None
+                    else None
+                ),
+                tif=item["tif"],
+                account_masked=item["account_masked"],
+                notes=item["notes"],
+            )
+            for item in payload["tickets"]
+        )
+        batch = OrderBatch(
+            tickets=tickets,
+            plan_id=payload["plan_id"],
+            verdict_gate_pass=True,
+            generated_at=_from_iso(payload["generated_at"]),
+        )
+        if batch.sha256() != row["batch_sha256"]:
+            raise ExecutionGateError(
+                "stored T4 approval content does not match its audit hash"
+            )
+        return batch
 
     def reserve(
         self,

@@ -343,35 +343,19 @@ class MysqlPaperEngine:
         )
         with self.transaction() as conn:
             cur = conn.cursor()
-            if plan_id:
-                where, scope_params = self._scope_where(
-                    "plan_id = %s AND batch_sha256 = %s"
-                )
-                cur.execute(
-                    f"SELECT order_id FROM pi_paper_order WHERE {where} FOR UPDATE",
-                    (*scope_params, plan_id, batch_sha),
-                )
-                existing_ids = {
-                    _row_values(row, ("order_id",))[0] for row in cur.fetchall()
-                }
-                if existing_ids:
-                    if existing_ids == set(order_ids):
-                        cur.close()
-                        return order_ids
-                    cur.close()
-                    raise PaperEngineError(
-                        "submit_batch: plan/batch idempotency key exists with "
-                        "a different order identity set; reconcile the audit rows"
-                    )
             for order_id, t in zip(order_ids, tickets, strict=True):
                 _validate_symbol(t.symbol)
                 side = _action_to_side(t.action)
+                duplicate_clause = (
+                    " ON DUPLICATE KEY UPDATE order_id = order_id" if plan_id else ""
+                )
                 cur.execute(
                     "INSERT INTO pi_paper_order "
                     "(order_id, run_id, strategy_id, account_id, symbol, "
                     "side, quantity, order_type, limit_price, status, "
                     "submitted_at, plan_id, batch_sha256) VALUES "
-                    "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    + duplicate_clause,
                     (
                         order_id,
                         self._run_id,
@@ -388,6 +372,23 @@ class MysqlPaperEngine:
                         batch_sha,
                     ),
                 )
+            if plan_id:
+                where, scope_params = self._scope_where(
+                    "plan_id = %s AND batch_sha256 = %s"
+                )
+                cur.execute(
+                    f"SELECT order_id FROM pi_paper_order WHERE {where}",
+                    (*scope_params, plan_id, batch_sha),
+                )
+                existing_ids = {
+                    _row_values(row, ("order_id",))[0] for row in cur.fetchall()
+                }
+                if existing_ids != set(order_ids):
+                    cur.close()
+                    raise PaperEngineError(
+                        "submit_batch: plan/batch idempotency key exists with "
+                        "a different order identity set; reconcile the audit rows"
+                    )
             cur.close()
         logger.info(
             "MysqlPaperEngine.submit_batch: %d orders PENDING (batch %s...)",

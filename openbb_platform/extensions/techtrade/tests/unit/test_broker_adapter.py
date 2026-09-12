@@ -195,6 +195,23 @@ class TestAdapterContract:
 
 
 class TestExecutionGateway:
+    def test_approved_batch_replays_across_store_instances(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "execution-audit.db"
+        batch = _batch("MSFT", "AAPL")
+        first = SqliteExecutionAuditStore(path)
+        first.register_approved_batch(batch)
+        first.close()
+
+        second = SqliteExecutionAuditStore(path)
+        restored = second.get_approved_batch(batch.plan_id)
+        second.close()
+
+        assert restored is not None
+        assert restored.sha256() == batch.sha256()
+        assert restored.tickets == batch.tickets
+
     def test_submission_requires_all_gates(
         self, audit: SqliteExecutionAuditStore
     ) -> None:

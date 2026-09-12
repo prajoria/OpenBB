@@ -22,7 +22,6 @@ import logging
 import math
 import os
 import re
-import threading
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
@@ -3386,12 +3385,14 @@ def _build_t5_demo_batch(plan_id: str):
     )
 
 
-_T5_APPROVED_BATCHES: dict[str, tuple[object, str]] = {}
-_T5_APPROVED_BATCHES_LOCK = threading.RLock()
-
-
 def register_t5_approved_batch(batch: object) -> None:
-    """Register an immutable, server-approved T4 batch for live execution."""
+    """Persist an immutable, server-approved T4 batch for live execution."""
+    from pathlib import Path  # noqa: PLC0415
+
+    from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
+        SqliteExecutionAuditStore,
+    )
+
     plan_id = getattr(batch, "plan_id", "")
     if not plan_id:
         raise ValueError("approved T5 batch requires a non-empty plan_id")
@@ -3400,20 +3401,40 @@ def register_t5_approved_batch(batch: object) -> None:
     batch_sha = getattr(batch, "sha256", lambda: "")()
     if not batch_sha:
         raise ValueError("approved T5 batch requires a content SHA")
-    with _T5_APPROVED_BATCHES_LOCK:
-        _T5_APPROVED_BATCHES[plan_id] = (batch, batch_sha)
+    store = SqliteExecutionAuditStore(
+        Path(
+            os.environ.get(
+                "PI_T5_EXECUTION_AUDIT_DB",
+                str(Path.home() / ".portfolio_intel" / "execution-audit.db"),
+            )
+        )
+    )
+    try:
+        store.register_approved_batch(batch)
+    finally:
+        store.close()
 
 
 def _resolve_t5_approved_batch(plan_id: str):
-    """Return a server-approved batch only while its content SHA is unchanged."""
-    with _T5_APPROVED_BATCHES_LOCK:
-        approved = _T5_APPROVED_BATCHES.get(plan_id)
-    if approved is None:
-        return None
-    batch, approved_sha = approved
-    if batch.sha256() != approved_sha:
-        return None
-    return batch
+    """Load a server-approved batch from the cross-worker audit database."""
+    from pathlib import Path  # noqa: PLC0415
+
+    from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
+        SqliteExecutionAuditStore,
+    )
+
+    store = SqliteExecutionAuditStore(
+        Path(
+            os.environ.get(
+                "PI_T5_EXECUTION_AUDIT_DB",
+                str(Path.home() / ".portfolio_intel" / "execution-audit.db"),
+            )
+        )
+    )
+    try:
+        return store.get_approved_batch(plan_id)
+    finally:
+        store.close()
 
 
 async def _build_server_approved_t5_batch(plan_payload: dict):

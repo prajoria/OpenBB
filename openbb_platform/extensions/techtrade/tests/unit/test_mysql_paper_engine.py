@@ -143,6 +143,10 @@ def _rewrite(sql: str) -> str:
         "ON DUPLICATE KEY UPDATE account_id = account_id",
         "ON CONFLICT(run_id, strategy_id, account_id) DO NOTHING",
     )
+    out = out.replace(
+        "ON DUPLICATE KEY UPDATE order_id = order_id",
+        "ON CONFLICT(run_id, strategy_id, account_id, order_id) DO NOTHING",
+    )
     # sqlite doesn't grok DATETIME/ENUM in generic SELECT/UPDATE; the DDLs
     # already mapped. Nothing else to rewrite.
     return out
@@ -621,7 +625,10 @@ class TestSubmitBatch:
         assert {o.symbol for o in pending} == {"MSFT", "AAPL"}
 
     def test_same_batch_submission_is_idempotent(
-        self, engine: MysqlPaperEngine, monkeypatch: pytest.MonkeyPatch
+        self,
+        engine: MysqlPaperEngine,
+        pool: _FakePool,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         batch = _batch(_tk("MSFT"), _tk("AAPL"))
 
@@ -640,6 +647,10 @@ class TestSubmitBatch:
 
         assert second == first
         assert len(engine.get_orders()) == 2
+        assert any(
+            "ON DUPLICATE KEY UPDATE order_id = order_id" in statement
+            for statement in pool.statements
+        )
 
     def test_batch_sha_stamped(self, engine: MysqlPaperEngine) -> None:
         """R7.11 twin: dropping batch_sha256 breaks reconciliation-by-batch."""
