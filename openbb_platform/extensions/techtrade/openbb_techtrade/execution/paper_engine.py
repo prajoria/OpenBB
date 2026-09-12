@@ -50,7 +50,6 @@ Non-goals for P3.a
 from __future__ import annotations
 
 import logging
-import os
 import re
 import sqlite3
 import uuid
@@ -62,6 +61,8 @@ from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
+
+from openbb_techtrade import config
 
 logger = logging.getLogger(__name__)
 
@@ -1023,7 +1024,7 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
     engine against the same account. Starting cash is honored only on
     account creation.
     """
-    backend = os.environ.get("PI_PAPER_ENGINE", "mysql").strip().lower()
+    backend = config.paper_engine()
 
     if backend == "mysql":
         try:
@@ -1046,15 +1047,7 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
             )
             # fall through to sqlite
 
-    resolved = (
-        Path(db_path)
-        if db_path is not None
-        else (
-            Path(os.environ.get("PI_PAPER_DB", ""))
-            if os.environ.get("PI_PAPER_DB")
-            else Path.home() / ".portfolio_intel" / "paper.db"
-        )
-    )
+    resolved = Path(db_path) if db_path is not None else config.paper_db_path()
     return SqlitePaperEngine(
         resolved, account_id=account_id, starting_cash=starting_cash
     )

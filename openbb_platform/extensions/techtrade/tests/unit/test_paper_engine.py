@@ -32,6 +32,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from openbb_techtrade.execution import paper_engine as paper_engine_module
 from openbb_techtrade.execution.order_sink import OrderBatch, OrderTicket
 from openbb_techtrade.execution.paper_engine import (
     OrderStatus,
@@ -437,6 +438,34 @@ class TestCancel:
 
 
 class TestFactory:
+    def test_factory_uses_central_config(self, tmp_path, monkeypatch) -> None:
+        target = tmp_path / "central-config.db"
+        monkeypatch.setattr(
+            paper_engine_module.config, "paper_engine", lambda: "sqlite"
+        )
+        monkeypatch.setattr(paper_engine_module.config, "paper_db_path", lambda: target)
+
+        get_default_engine()
+
+        assert target.exists()
+
+    def test_explicit_path_precedes_central_config_path(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        target = tmp_path / "explicit.db"
+        monkeypatch.setattr(
+            paper_engine_module.config, "paper_engine", lambda: "sqlite"
+        )
+        monkeypatch.setattr(
+            paper_engine_module.config,
+            "paper_db_path",
+            lambda: pytest.fail("config path must not be read"),
+        )
+
+        get_default_engine(db_path=target)
+
+        assert target.exists()
+
     def test_env_var_selects_db_path(
         self,
         tmp_path: Path,

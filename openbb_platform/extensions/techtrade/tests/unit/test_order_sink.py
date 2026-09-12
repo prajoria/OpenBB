@@ -31,6 +31,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from openbb_techtrade.execution import order_sink as order_sink_module
 from openbb_techtrade.execution.order_sink import (
     OrderBatch,
     OrderSink,
@@ -495,6 +496,31 @@ class TestOrderSinkProtocol:
 
 
 class TestGetDefaultSink:
+    def test_factory_uses_central_config(self, tmp_path, monkeypatch) -> None:
+        target = tmp_path / "central-config"
+        monkeypatch.setattr(order_sink_module.config, "order_sink", lambda: "paper")
+        monkeypatch.setattr(
+            order_sink_module.config, "order_sink_paper_dir", lambda: target
+        )
+
+        sink = get_default_sink()
+
+        assert sink.output_dir == target.resolve()
+
+    def test_explicit_dir_precedes_central_config_path(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(order_sink_module.config, "order_sink", lambda: "paper")
+        monkeypatch.setattr(
+            order_sink_module.config,
+            "order_sink_paper_dir",
+            lambda: pytest.fail("config path must not be read"),
+        )
+
+        sink = get_default_sink(paper_dir=tmp_path)
+
+        assert sink.output_dir == tmp_path.resolve()
+
     def test_paper_default(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

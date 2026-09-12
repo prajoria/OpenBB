@@ -52,6 +52,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
 
+from openbb_techtrade import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -637,10 +639,6 @@ def _write_xlsx(path: Path, batch: OrderBatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-_ENV_SINK_KIND = "PI_ORDER_SINK"
-_ENV_PAPER_DIR = "PI_ORDER_SINK_PAPER_DIR"
-
-
 def get_default_sink(paper_dir: Path | str | None = None) -> OrderSink:
     """Return the configured T5 order sink.
 
@@ -657,7 +655,7 @@ def get_default_sink(paper_dir: Path | str | None = None) -> OrderSink:
     constructor, which refuses a nonexistent path — the factory offers a
     friendlier default for callers who don't want to think about it).
     """
-    kind = os.environ.get(_ENV_SINK_KIND, "paper").strip().lower()
+    kind = config.order_sink()
     if kind == "fidelity_csv":
         raise NotImplementedError(
             "PI_ORDER_SINK=fidelity_csv is reserved for phase 3 (#1719 P3). "
@@ -668,16 +666,9 @@ def get_default_sink(paper_dir: Path | str | None = None) -> OrderSink:
             f"PI_ORDER_SINK must be one of 'paper' | 'fidelity_csv'; " f"got {kind!r}"
         )
 
-    resolved_dir: Path
-    if paper_dir is not None:
-        resolved_dir = Path(paper_dir)
-    else:
-        env_dir = os.environ.get(_ENV_PAPER_DIR)
-        resolved_dir = (
-            Path(env_dir)
-            if env_dir
-            else Path.home() / ".portfolio_intel" / "order_batches"
-        )
+    resolved_dir = (
+        Path(paper_dir) if paper_dir is not None else config.order_sink_paper_dir()
+    )
     resolved_dir.mkdir(parents=True, exist_ok=True)
     logger.info(
         "get_default_sink: PI_ORDER_SINK=%s → PaperOrderSink at %s "
