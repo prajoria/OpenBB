@@ -147,6 +147,7 @@ def test_look_through_normalizes_underlying_rounding_drift() -> None:
     "weights",
     [
         (Decimal("0.006"), Decimal("0.004")),
+        (Decimal("0.8"), Decimal("0.3")),
         (Decimal("-0.1"), Decimal("1.1")),
         (Decimal("0"), Decimal("0")),
         (Decimal("NaN"), Decimal("1")),

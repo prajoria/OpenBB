@@ -106,7 +106,9 @@ def look_through(
     Raises
     ------
     ValueError
-        If portfolio weights don't sum to 1.0 within tolerance.
+        If portfolio weights don't sum to 1.0 within tolerance, or if a
+        reachable non-empty provider vector has non-finite, negative, zero-total,
+        or materially unnormalized weights.
     """
     _validate_weights(portfolio, weight_tolerance)
 
