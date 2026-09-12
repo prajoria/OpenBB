@@ -13,6 +13,45 @@ _ORDER_SINKS = ("paper", "fidelity_csv")
 _USER_DATA_DIR = ".portfolio_intel"
 
 
+class ConfigError(ValueError):
+    """A configured local-data path violates a repository safety boundary."""
+
+
+def _repository_root() -> Path | None:
+    """Return the containing Git checkout, or ``None`` for an installed wheel."""
+    for parent in Path(__file__).resolve().parents:
+        if (parent / ".git").exists():
+            return parent
+    return None
+
+
+def _validate_outside_repo(
+    name: str, path: Path | str, repo_root: Path | str | None = None
+) -> Path:
+    """Resolve ``path`` and refuse the repository root or any descendant."""
+    resolved = Path(path).expanduser().resolve()
+    root = (
+        Path(repo_root).expanduser().resolve()
+        if repo_root is not None
+        else _repository_root()
+    )
+    if root is not None:
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            pass
+        else:
+            raise ConfigError(
+                f"{name} must resolve outside the repository; "
+                "choose a user-local data path"
+            )
+    if resolved.exists() and resolved.stat().st_nlink > 1:
+        raise ConfigError(
+            f"{name} must not be a hard link; choose a dedicated user-local file"
+        )
+    return resolved
+
+
 def _choice(env_name: str, default: str, allowed: tuple[str, ...]) -> str:
     value = os.environ.get(env_name, default).strip().lower()
     if value not in allowed:
@@ -61,4 +100,6 @@ def snapshot_engine(default: Engine = "mysql") -> Engine:
 
 def snapshot_db_path(default: Path | str | None = None) -> Path:
     """Return the configured SQLite EOD snapshot path."""
-    return _path("PI_SNAPSHOT_DB", default, "snapshot.db")
+    path = _path("PI_SNAPSHOT_DB", default, "snapshot.db")
+    _validate_outside_repo("PI_SNAPSHOT_DB", path)
+    return path

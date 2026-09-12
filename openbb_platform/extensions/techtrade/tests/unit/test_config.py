@@ -2,10 +2,14 @@
 
 # ruff: noqa: D103
 
+import os
 from pathlib import Path
 
 import pytest
+from openbb_techtrade import config as config_module
 from openbb_techtrade.config import (
+    ConfigError,
+    _validate_outside_repo,
     order_sink,
     order_sink_paper_dir,
     paper_db_path,
@@ -129,7 +133,6 @@ def test_path_getter_preserves_environment_override(monkeypatch, getter, env_nam
     ("getter", "env_name"),
     [
         (paper_db_path, "PI_PAPER_DB"),
-        (snapshot_db_path, "PI_SNAPSHOT_DB"),
         (order_sink_paper_dir, "PI_ORDER_SINK_PAPER_DIR"),
     ],
 )
@@ -137,3 +140,62 @@ def test_path_getter_treats_empty_environment_as_unset(monkeypatch, getter, env_
     monkeypatch.setenv(env_name, "")
 
     assert getter("relative/custom") == Path("relative/custom")
+
+
+def test_snapshot_path_rejects_relative_default_inside_repo(monkeypatch):
+    monkeypatch.setenv("PI_SNAPSHOT_DB", "")
+
+    with pytest.raises(ConfigError, match="outside"):
+        snapshot_db_path("relative/custom")
+
+
+def test_snapshot_guard_rejects_repository_path(tmp_path):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    with pytest.raises(ConfigError, match="outside"):
+        _validate_outside_repo(
+            "PI_SNAPSHOT_DB", repo_root / "data" / "snapshot.db", repo_root
+        )
+
+
+def test_snapshot_guard_accepts_sibling_path(tmp_path):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    outside = tmp_path / "user-data" / "snapshot.db"
+
+    assert (
+        _validate_outside_repo("PI_SNAPSHOT_DB", outside, repo_root)
+        == outside.resolve()
+    )
+
+
+def test_snapshot_guard_rejects_hard_link_to_repository_file(tmp_path):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    inside = repo_root / "snapshot.db"
+    inside.touch()
+    outside = tmp_path / "user-data" / "snapshot.db"
+    outside.parent.mkdir()
+    try:
+        os.link(inside, outside)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {type(exc).__name__}")
+
+    with pytest.raises(ConfigError, match="hard link"):
+        _validate_outside_repo("PI_SNAPSHOT_DB", outside, repo_root)
+
+
+def test_installed_package_without_checkout_marker_does_not_invent_repo_root(
+    tmp_path, monkeypatch
+):
+    installed = (
+        tmp_path / "Python" / "Lib" / "site-packages" / "openbb_techtrade" / "config.py"
+    )
+    monkeypatch.setattr(config_module, "__file__", str(installed))
+    destination = tmp_path / "user-data" / "snapshot.db"
+
+    assert config_module._repository_root() is None
+    assert (
+        _validate_outside_repo("PI_SNAPSHOT_DB", destination) == destination.resolve()
+    )

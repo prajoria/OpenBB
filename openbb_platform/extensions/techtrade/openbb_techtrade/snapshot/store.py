@@ -80,6 +80,7 @@ built on top of this contract.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -88,13 +89,23 @@ import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
 
 from openbb_techtrade import config
+from openbb_techtrade.snapshot.job import (
+    DEFAULT_STALE_AFTER,
+    SnapshotJob,
+    SnapshotJobAlreadyRunning,
+    SnapshotJobState,
+    SnapshotJobTransitionError,
+    job_from_mapping,
+    sanitized_error,
+    utc_datetime,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -303,6 +314,16 @@ class SnapshotStore(Protocol):
         """
         ...  # pylint: disable=unnecessary-ellipsis
 
+    def rollback(
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+    ) -> bool:
+        """Atomically repoint LIVE to an exact validated, successful row."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
     def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
         """Compute-free single-row read of ``state='live'``; ``None`` if absent."""
         ...  # pylint: disable=unnecessary-ellipsis
@@ -434,9 +455,17 @@ def _check_field_lengths(**fields: str | None) -> None:
     for name, value in fields.items():
         if value is None:
             continue
+        if name == "job_run_id":
+            _check_job_run_id(value)
         limit = FIELD_MAX_LENGTHS[name]
         if len(value) > limit:
             raise SnapshotFieldTooLong(name, value, limit)
+
+
+def _check_job_run_id(job_run_id: str) -> None:
+    """Reject empty or padded IDs so MySQL and SQLite compare them identically."""
+    if not job_run_id or job_run_id != job_run_id.strip():
+        raise ValueError("job_run_id must be non-empty and have no outer whitespace")
 
 
 def _check_limit(limit: int) -> None:
@@ -472,7 +501,8 @@ def _check_limit(limit: int) -> None:
 
 _SNAPSHOT_TABLE = "pi_eod_snapshot"
 
-SNAPSHOT_SCHEMA_VERSION = 1
+SNAPSHOT_SCHEMA_VERSION = 3
+_MIGRATABLE_SCHEMA_VERSIONS = frozenset({1, 2})
 
 _EXPECTED_COLUMNS = frozenset(
     {
@@ -492,6 +522,24 @@ _EXPECTED_COLUMNS = frozenset(
         "payload_schema_version",
     }
 )
+
+_LIVE_POINTER_TABLE = "pi_eod_live_pointer"
+_EXPECTED_LIVE_POINTER_COLUMNS = frozenset(
+    {"dataset", "entity_key", "as_of_session", "job_run_id", "updated_at"}
+)
+_EXPECTED_JOB_COLUMNS = frozenset(
+    {
+        "job_run_id",
+        "dataset",
+        "started_at",
+        "finished_at",
+        "state",
+        "n_ok",
+        "n_failed",
+        "error",
+    }
+)
+_EXPECTED_JOB_ERROR_COLUMNS = frozenset({"job_run_id", "entity_key", "error"})
 
 # The single-LIVE guard, by dialect.
 #
@@ -1016,12 +1064,63 @@ def _is_mysql_live_key_expression(expression: str | None) -> bool:
     )
 
 
+def _is_mysql_running_key_expression(expression: str | None) -> bool:
+    """Match only ``IF(state = 'running', dataset, NULL)``."""
+    tokens = _generation_expression_tokens(expression)
+    if not tokens:
+        return False
+    normalized = tuple(
+        _SqlToken(
+            token.kind,
+            (
+                "live"
+                if token.kind is _SqlTokenKind.STRING and token.value == "running"
+                else token.value
+            ),
+            token.start,
+            token.end,
+        )
+        for token in tokens
+    )
+    parser = _SqlTokenParser(normalized)
+
+    def _conditional() -> bool:
+        return (
+            parser.take_word("if", "iif")  # codespell:ignore
+            and parser.take(_SqlTokenKind.LEFT_PARENTHESIS)
+            and _parse_grouped(parser, lambda: _parse_live_equality(parser, mysql=True))
+            and parser.take(_SqlTokenKind.COMMA)
+            and parser.take_identifier("dataset")
+            and parser.take(_SqlTokenKind.COMMA)
+            and parser.take_word("null")
+            and parser.take(_SqlTokenKind.RIGHT_PARENTHESIS)
+        )
+
+    return _parse_grouped(parser, _conditional) and parser.done
+
+
 def _is_sqlite_live_predicate(expression: str | None) -> bool:
     """Match only ``state = 'live'`` (in either equality order)."""
     tokens = _sql_tokens(expression)
     if not tokens:
         return False
     parser = _SqlTokenParser(tokens)
+    return (
+        _parse_grouped(parser, lambda: _parse_live_equality(parser, mysql=False))
+        and parser.done
+    )
+
+
+def _is_sqlite_running_predicate(expression: str | None) -> bool:
+    """Match only ``state = 'running'`` (in either equality order)."""
+    tokens = _sql_tokens(expression)
+    if not tokens:
+        return False
+    values = tuple(
+        _SqlToken(token.kind, "live" if token.value == "running" else token.value, 0, 0)
+        for token in tokens
+    )
+    parser = _SqlTokenParser(values)
     return (
         _parse_grouped(parser, lambda: _parse_live_equality(parser, mysql=False))
         and parser.done
@@ -1630,6 +1729,23 @@ def _dumps_payload(payload: dict) -> str:
     return json.dumps(payload, sort_keys=True, default=str)
 
 
+def snapshot_input_hash(inputs: object, engine_version: str) -> str:
+    """Hash deterministic inputs together with the code version that consumes them."""
+    engine_version = engine_version.strip()
+    if not engine_version:
+        raise ValueError("engine_version must be non-empty")
+    try:
+        material = json.dumps(
+            {"engine_version": engine_version, "inputs": inputs},
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise TypeError("unsupported snapshot input type") from exc
+    return hashlib.sha256(material).hexdigest()
+
+
 # --- Dialect-agnostic lifecycle policy (#1963 Task 4) ----------------------
 #
 # The *decisions* — may this row be validated? may it be promoted? which
@@ -1672,6 +1788,8 @@ def _promotion_refusal(
         return "candidate is not validated"
     if candidate.state != SnapshotState.STAGING:
         return "candidate is not in STAGING state"
+    if candidate.status != SnapshotStatus.OK:
+        return "candidate status is not clean"
     if live is not None and _STATUS_RANK[candidate.status] < _STATUS_RANK[live.status]:
         return "candidate status is worse than LIVE"
     return None
@@ -1706,8 +1824,8 @@ class _RestampCapable(Protocol):
     obligation — only the backend can re-read LIVE inside the promoting
     transaction. Keeping it on this private Protocol rather than
     widening :class:`SnapshotStore` preserves the public contract's
-    signature parity: callers and the Terminal reader still see exactly
-    the ten spec'd methods.
+    signature parity: callers and the Terminal reader see the documented
+    public lifecycle methods.
     """
 
     def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
@@ -1957,9 +2075,85 @@ CREATE INDEX IF NOT EXISTS ix_pi_eod_snapshot_live
     ON pi_eod_snapshot(dataset, entity_key, state);
 CREATE INDEX IF NOT EXISTS ix_pi_eod_snapshot_latest
     ON pi_eod_snapshot(dataset, entity_key, as_of_session DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_pi_eod_snapshot_job_run
+    ON pi_eod_snapshot(job_run_id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_eod_snapshot_live
     ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'live';
+CREATE TABLE IF NOT EXISTS pi_eod_live_pointer (
+    dataset       TEXT NOT NULL,
+    entity_key    TEXT NOT NULL,
+    as_of_session TEXT NOT NULL,
+    job_run_id    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    PRIMARY KEY (dataset, entity_key),
+    FOREIGN KEY (dataset, entity_key, as_of_session, job_run_id)
+        REFERENCES pi_eod_snapshot(
+            dataset, entity_key, as_of_session, job_run_id
+        )
+);
+CREATE TABLE IF NOT EXISTS snapshot_job (
+    job_run_id TEXT PRIMARY KEY,
+    dataset TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    state TEXT NOT NULL,
+    n_ok INTEGER NOT NULL DEFAULT 0,
+    n_failed INTEGER NOT NULL DEFAULT 0,
+    error TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_snapshot_job_running
+    ON snapshot_job(dataset) WHERE state = 'running';
+CREATE TABLE IF NOT EXISTS snapshot_job_error (
+    job_run_id TEXT NOT NULL,
+    entity_key TEXT NOT NULL,
+    error TEXT NOT NULL,
+    PRIMARY KEY (job_run_id, entity_key),
+    FOREIGN KEY (job_run_id) REFERENCES snapshot_job(job_run_id) ON DELETE CASCADE
+);
 """
+
+_SQLITE_AUX_DDLS = (
+    """
+    CREATE TABLE IF NOT EXISTS pi_eod_live_pointer (
+        dataset TEXT NOT NULL,
+        entity_key TEXT NOT NULL,
+        as_of_session TEXT NOT NULL,
+        job_run_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (dataset, entity_key),
+        FOREIGN KEY (dataset, entity_key, as_of_session, job_run_id)
+            REFERENCES pi_eod_snapshot(
+                dataset, entity_key, as_of_session, job_run_id
+            )
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS snapshot_job (
+        job_run_id TEXT PRIMARY KEY,
+        dataset TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        state TEXT NOT NULL,
+        n_ok INTEGER NOT NULL DEFAULT 0,
+        n_failed INTEGER NOT NULL DEFAULT 0,
+        error TEXT
+    )
+    """,
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_snapshot_job_running
+        ON snapshot_job(dataset) WHERE state = 'running'
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS snapshot_job_error (
+        job_run_id TEXT NOT NULL,
+        entity_key TEXT NOT NULL,
+        error TEXT NOT NULL,
+        PRIMARY KEY (job_run_id, entity_key),
+        FOREIGN KEY (job_run_id)
+            REFERENCES snapshot_job(job_run_id) ON DELETE CASCADE
+    )
+    """,
+)
 
 
 def _iso_utc(moment: datetime) -> str:
@@ -2079,7 +2273,11 @@ class SqliteSnapshotStore:
         # directory. Re-applying the normalization here (it is a no-op
         # for already-normalized callers) makes the constructor safe on
         # its own, not merely safe when reached through the factory.
-        self._db_path = Path(db_path).expanduser().resolve()
+        self._db_path = (
+            config._validate_outside_repo(  # pylint: disable=protected-access
+                "PI_SNAPSHOT_DB", db_path
+            )
+        )
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(
             str(self._db_path), check_same_thread=False, isolation_level=None
@@ -2087,6 +2285,14 @@ class SqliteSnapshotStore:
         self._conn.row_factory = sqlite3.Row
         try:
             with _SQLITE_LOCK:
+                opened = self._conn.execute("PRAGMA database_list").fetchone()
+                if opened is None or not opened["file"]:
+                    raise config.ConfigError(
+                        "PI_SNAPSHOT_DB did not open as a durable local file"
+                    )
+                config._validate_outside_repo(  # pylint: disable=protected-access
+                    "PI_SNAPSHOT_DB", opened["file"]
+                )
                 self._configure_connection()
                 self._ensure_schema()
         except BaseException:
@@ -2123,6 +2329,7 @@ class SqliteSnapshotStore:
         readers proceed against the last committed snapshot instead.
         """
         self._conn.execute(f"PRAGMA busy_timeout = {_SQLITE_BUSY_TIMEOUT_MS}")
+        self._conn.execute("PRAGMA foreign_keys = ON")
         mode = self._conn.execute("PRAGMA journal_mode = WAL").fetchone()[0]
         if str(mode).lower() != "wal":
             logger.warning(
@@ -2174,8 +2381,145 @@ class SqliteSnapshotStore:
             record["name"] for record in self._pragma("table_info", _SNAPSHOT_TABLE)
         ]
 
-    def _table_indexes(self) -> list[_IndexShape]:
-        """Every index on ``pi_eod_snapshot``, as SQLite's catalogue sees it.
+    def _pointer_columns(self) -> list[str] | None:
+        """Column names of an existing LIVE pointer table, or ``None``."""
+        exists = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (_LIVE_POINTER_TABLE,),
+        ).fetchone()
+        if exists is None:
+            return None
+        return [
+            record["name"] for record in self._pragma("table_info", _LIVE_POINTER_TABLE)
+        ]
+
+    def _verify_pointer_schema(self) -> None:
+        """Require the exact pointer columns and no dangling pointer rows."""
+        info = (
+            []
+            if self._pointer_columns() is None
+            else self._pragma("table_info", _LIVE_POINTER_TABLE)
+        )
+        if frozenset(row["name"] for row in info) != _EXPECTED_LIVE_POINTER_COLUMNS:
+            raise SnapshotSchemaMismatch(
+                "sqlite: LIVE pointer table is absent or has the wrong columns"
+            )
+        primary_key = tuple(
+            row["name"] for row in sorted(info, key=lambda row: row["pk"]) if row["pk"]
+        )
+        if primary_key != ("dataset", "entity_key"):
+            raise SnapshotSchemaMismatch(
+                "sqlite: LIVE pointer table has the wrong primary key"
+            )
+        foreign_keys = self._pragma("foreign_key_list", _LIVE_POINTER_TABLE)
+        foreign_key = tuple(
+            (row["from"], row["to"])
+            for row in sorted(foreign_keys, key=lambda row: row["seq"])
+            if row["table"] == _SNAPSHOT_TABLE
+        )
+        expected_foreign_key = (
+            ("dataset", "dataset"),
+            ("entity_key", "entity_key"),
+            ("as_of_session", "as_of_session"),
+            ("job_run_id", "job_run_id"),
+        )
+        if foreign_key != expected_foreign_key:
+            raise SnapshotSchemaMismatch(
+                "sqlite: LIVE pointer table has the wrong snapshot foreign key"
+            )
+        dangling = self._conn.execute(
+            "SELECT 1 FROM pi_eod_live_pointer AS p "
+            "LEFT JOIN pi_eod_snapshot AS s "
+            "ON s.dataset = p.dataset AND s.entity_key = p.entity_key "
+            "AND s.as_of_session = p.as_of_session "
+            "AND s.job_run_id = p.job_run_id "
+            "WHERE s.job_run_id IS NULL LIMIT 1"
+        ).fetchone()
+        if dangling is not None:
+            raise SnapshotSchemaMismatch(
+                "sqlite: LIVE pointer table contains a dangling snapshot reference"
+            )
+
+    def _verify_job_schema(self) -> None:
+        """Require job tables and the database-enforced single-flight guard."""
+        job_info = self._pragma("table_info", "snapshot_job")
+        error_info = self._pragma("table_info", "snapshot_job_error")
+        if frozenset(row["name"] for row in job_info) != _EXPECTED_JOB_COLUMNS:
+            raise SnapshotSchemaMismatch(
+                "sqlite: snapshot job table is absent or has the wrong columns"
+            )
+        if frozenset(row["name"] for row in error_info) != _EXPECTED_JOB_ERROR_COLUMNS:
+            raise SnapshotSchemaMismatch(
+                "sqlite: snapshot job error table is absent or has the wrong columns"
+            )
+        job_primary_key = tuple(
+            row["name"]
+            for row in sorted(job_info, key=lambda row: row["pk"])
+            if row["pk"]
+        )
+        error_primary_key = tuple(
+            row["name"]
+            for row in sorted(error_info, key=lambda row: row["pk"])
+            if row["pk"]
+        )
+        if job_primary_key != ("job_run_id",):
+            raise SnapshotSchemaMismatch(
+                "sqlite: snapshot job table has the wrong primary key"
+            )
+        if error_primary_key != ("job_run_id", "entity_key"):
+            raise SnapshotSchemaMismatch(
+                "sqlite: snapshot job error table has the wrong primary key"
+            )
+        guards = self._table_indexes("snapshot_job")
+        if not any(
+            index.unique
+            and index.columns == ("dataset",)
+            and _is_sqlite_running_predicate(index.predicate)
+            for index in guards
+        ):
+            raise SnapshotSchemaMismatch(
+                "sqlite: snapshot job table has no partial UNIQUE running guard"
+            )
+        foreign_keys = self._pragma("foreign_key_list", "snapshot_job_error")
+        if not any(
+            row["table"] == "snapshot_job"
+            and row["from"] == "job_run_id"
+            and row["to"] == "job_run_id"
+            for row in foreign_keys
+        ):
+            raise SnapshotSchemaMismatch(
+                "sqlite: snapshot job error table has no job foreign key"
+            )
+
+    def _migrate_aux_schema(self) -> None:
+        """Create v3 support tables and seed the pointer in one transaction."""
+        with self._tx(immediate=True):
+            for ddl in _SQLITE_AUX_DDLS:
+                self._conn.execute(ddl)
+            self._conn.execute(
+                "INSERT OR IGNORE INTO pi_eod_live_pointer ("
+                "dataset, entity_key, as_of_session, job_run_id, updated_at"
+                ") SELECT dataset, entity_key, as_of_session, job_run_id, created_at "
+                "FROM pi_eod_snapshot WHERE state = ?",
+                (SnapshotState.LIVE.value,),
+            )
+            missing = self._conn.execute(
+                "SELECT 1 FROM pi_eod_snapshot AS s "
+                "LEFT JOIN pi_eod_live_pointer AS p "
+                "ON p.dataset = s.dataset AND p.entity_key = s.entity_key "
+                "AND p.as_of_session = s.as_of_session "
+                "AND p.job_run_id = s.job_run_id "
+                "WHERE s.state = ? AND p.job_run_id IS NULL LIMIT 1",
+                (SnapshotState.LIVE.value,),
+            ).fetchone()
+            if missing is not None:
+                raise SnapshotSchemaMismatch(
+                    "sqlite: could not seed every legacy LIVE row into the pointer"
+                )
+            self._conn.execute(f"PRAGMA user_version = {SNAPSHOT_SCHEMA_VERSION}")
+
+    def _table_indexes(self, table: str = _SNAPSHOT_TABLE) -> list[_IndexShape]:
+        """Every index on ``table``, as SQLite's catalogue sees it.
 
         ``PRAGMA index_list`` reports uniqueness and whether an index is
         partial but not *what* the partial predicate is, and ``PRAGMA
@@ -2203,11 +2547,11 @@ class SqliteSnapshotStore:
             for record in self._conn.execute(
                 "SELECT name, sql FROM sqlite_master WHERE type = 'index' "
                 "AND tbl_name = ?",
-                (_SNAPSHOT_TABLE,),
+                (table,),
             ).fetchall()
         }
         shapes: list[_IndexShape] = []
-        for record in self._pragma("index_list", _SNAPSHOT_TABLE):
+        for record in self._pragma("index_list", table):
             name = record["name"]
             columns = tuple(
                 column["name"] for column in self._pragma("index_info", name)
@@ -2255,7 +2599,12 @@ class SqliteSnapshotStore:
         version = int(self._conn.execute("PRAGMA user_version").fetchone()[0])
         if columns is not None:
             _check_schema_shape(columns, backend="sqlite")
-            _check_schema_version(version, backend="sqlite")
+            if version not in (
+                0,
+                *_MIGRATABLE_SCHEMA_VERSIONS,
+                SNAPSHOT_SCHEMA_VERSION,
+            ):
+                _check_schema_version(version, backend="sqlite")
         elif version != 0:
             raise SnapshotSchemaMismatch(
                 "sqlite: database has no "
@@ -2263,10 +2612,39 @@ class SqliteSnapshotStore:
                 f"{version}. PI_SNAPSHOT_DB must point to a dedicated database; "
                 "refusing to overwrite another component's version."
             )
-        self._conn.executescript(_SQLITE_SCHEMA)
+        fresh = columns is None
+        if fresh:
+            self._conn.executescript(_SQLITE_SCHEMA)
+        else:
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS ix_pi_eod_snapshot_live "
+                "ON pi_eod_snapshot(dataset, entity_key, state)"
+            )
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS ix_pi_eod_snapshot_latest "
+                "ON pi_eod_snapshot("
+                "dataset, entity_key, as_of_session DESC, created_at DESC)"
+            )
+            self._conn.execute(
+                "CREATE INDEX IF NOT EXISTS ix_pi_eod_snapshot_job_run "
+                "ON pi_eod_snapshot(job_run_id)"
+            )
+            self._conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_pi_eod_snapshot_live "
+                "ON pi_eod_snapshot(dataset, entity_key) WHERE state = 'live'"
+            )
         _check_sqlite_live_guard(self._table_indexes())
         _probe_sqlite_live_guard(self._conn)
-        self._conn.execute(f"PRAGMA user_version = {SNAPSHOT_SCHEMA_VERSION}")
+        if not fresh and version in (0, *_MIGRATABLE_SCHEMA_VERSIONS):
+            self._migrate_aux_schema()
+        elif not fresh and self._pointer_columns() is None:
+            raise SnapshotSchemaMismatch(
+                "sqlite: schema version 2 is missing the LIVE pointer table"
+            )
+        self._verify_pointer_schema()
+        self._verify_job_schema()
+        if fresh:
+            self._conn.execute(f"PRAGMA user_version = {SNAPSHOT_SCHEMA_VERSION}")
 
     @contextmanager
     def _tx(self, *, immediate: bool = False) -> Iterator[None]:
@@ -2297,7 +2675,7 @@ class SqliteSnapshotStore:
                 self._conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
                 yield
                 self._conn.execute("COMMIT")
-            except Exception:
+            except BaseException:
                 self._rollback_quietly()
                 raise
 
@@ -2413,6 +2791,7 @@ class SqliteSnapshotStore:
         """
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
+        _check_job_run_id(job_run_id)
         row = self._get_row(dataset, entity_key, as_of_session, job_run_id)
         refusal = _validation_refusal(row)
         if row is None or refusal is not None:
@@ -2513,36 +2892,17 @@ class SqliteSnapshotStore:
         """Shared promote body; ``expectation`` pins the incumbent LIVE row."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
+        _check_job_run_id(job_run_id)
         try:
             with self._tx(immediate=True):
-                candidate = self._get_row(
-                    dataset, entity_key, as_of_session, job_run_id
+                self._promote_locked(
+                    dataset,
+                    entity_key,
+                    as_of_session,
+                    job_run_id,
+                    expected_live=expected_live,
+                    expectation=expectation,
                 )
-                live = self.get_live(dataset, entity_key)
-                if expectation:
-                    moved = _restamp_race_refusal(expected_live, live)
-                    if moved is not None:
-                        raise _PromotionRefused(moved)
-                refusal = _promotion_refusal(candidate, live)
-                if refusal is not None:
-                    raise _PromotionRefused(refusal)
-                if live is not None:
-                    self._demote(dataset, entity_key, live)
-                promoted = self._conn.execute(
-                    "UPDATE pi_eod_snapshot SET state = ? "
-                    "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
-                    "AND job_run_id = ? AND state = ?",
-                    (
-                        SnapshotState.LIVE.value,
-                        dataset,
-                        entity_key,
-                        as_of_session.isoformat(),
-                        job_run_id,
-                        SnapshotState.STAGING.value,
-                    ),
-                ).rowcount
-                if promoted != 1:
-                    raise _PromotionRefused(_CANDIDATE_RACE_REASON)
         except _PromotionRefused as refused:
             logger.warning("snapshot promotion refused: %s", refused.reason)
             return False
@@ -2553,8 +2913,244 @@ class SqliteSnapshotStore:
             return False
         return True
 
+    def promote_many(self, candidates: Sequence[tuple[str, str, date, str]]) -> bool:
+        """Promote every candidate in one transaction or leave every pointer alone."""
+        normalized = [
+            (canonical_key(dataset), canonical_key(entity), session, run_id)
+            for dataset, entity, session, run_id in candidates
+        ]
+        for _dataset, _entity, _session, run_id in normalized:
+            _check_job_run_id(run_id)
+        try:
+            with self._tx(immediate=True):
+                for candidate in normalized:
+                    self._promote_locked(*candidate)
+        except _PromotionRefused as refused:
+            logger.warning("snapshot batch promotion refused: %s", refused.reason)
+            return False
+        except Exception as exc:  # noqa: BLE001
+            if not _is_integrity_error(exc):
+                raise
+            logger.warning(
+                "snapshot batch promotion refused: %s", _LIVE_COLLISION_REASON
+            )
+            return False
+        return True
+
+    def publish_job(
+        self,
+        job_run_id: str,
+        candidates: Sequence[tuple[str, str, date, str]],
+        *,
+        finished_at: datetime | None = None,
+        require_newer: bool = False,
+    ) -> SnapshotJob:
+        """Verify lease ownership, promote all candidates, and finish atomically."""
+        normalized = [
+            (canonical_key(dataset), canonical_key(entity), session, run_id)
+            for dataset, entity, session, run_id in candidates
+        ]
+        _check_job_run_id(job_run_id)
+        for _dataset, _entity, _session, run_id in normalized:
+            _check_job_run_id(run_id)
+        finished = utc_datetime(finished_at)
+        try:
+            with self._tx(immediate=True):
+                record = self._conn.execute(
+                    "SELECT job_run_id, dataset, started_at, finished_at, state, "
+                    "n_ok, n_failed, error FROM snapshot_job "
+                    "WHERE job_run_id = ? AND state = ?",
+                    (job_run_id, SnapshotJobState.RUNNING.value),
+                ).fetchone()
+                if record is None:
+                    raise SnapshotJobTransitionError(
+                        "snapshot job lease is no longer active"
+                    )
+                job = job_from_mapping(record)
+                if any(
+                    dataset != job.dataset or candidate_run != job_run_id
+                    for dataset, _entity, _session, candidate_run in normalized
+                ):
+                    raise SnapshotJobTransitionError(
+                        "snapshot candidates do not belong to the active job lease"
+                    )
+                for candidate in normalized:
+                    self._promote_locked(*candidate, require_newer=require_newer)
+                changed = self._conn.execute(
+                    "UPDATE snapshot_job SET finished_at = ?, state = ?, "
+                    "n_ok = ?, n_failed = 0, error = NULL "
+                    "WHERE job_run_id = ? AND state = ?",
+                    (
+                        _iso_utc(finished),
+                        SnapshotJobState.SUCCEEDED.value,
+                        len(normalized),
+                        job_run_id,
+                        SnapshotJobState.RUNNING.value,
+                    ),
+                ).rowcount
+                if changed != 1:
+                    raise SnapshotJobTransitionError(
+                        "snapshot job lease changed during publication"
+                    )
+        except _PromotionRefused as refused:
+            raise SnapshotJobTransitionError(refused.reason) from None
+        published = self.get_job(job_run_id)
+        if published is None:  # pragma: no cover - guarded by the UPDATE
+            raise SnapshotJobTransitionError("published job could not be read back")
+        return published
+
+    def _promote_locked(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+        *,
+        expected_live: SnapshotRow | None = None,
+        expectation: bool = False,
+        require_newer: bool = False,
+    ) -> None:
+        """Promote one canonical candidate inside an existing write transaction."""
+        candidate = self._get_row(dataset, entity_key, as_of_session, job_run_id)
+        live = self.get_live(dataset, entity_key)
+        if expectation:
+            moved = _restamp_race_refusal(expected_live, live)
+            if moved is not None:
+                raise _PromotionRefused(moved)
+        refusal = _promotion_refusal(candidate, live)
+        if refusal is not None:
+            raise _PromotionRefused(refusal)
+        if (
+            require_newer
+            and live is not None
+            and candidate is not None
+            and candidate.as_of_session <= live.as_of_session
+        ):
+            raise _PromotionRefused(
+                "candidate must be newer than LIVE; source is older or superseded"
+            )
+        if live is not None:
+            self._demote(dataset, entity_key, live)
+        promoted = self._conn.execute(
+            "UPDATE pi_eod_snapshot SET state = ? "
+            "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
+            "AND job_run_id = ? AND state = ?",
+            (
+                SnapshotState.LIVE.value,
+                dataset,
+                entity_key,
+                as_of_session.isoformat(),
+                job_run_id,
+                SnapshotState.STAGING.value,
+            ),
+        ).rowcount
+        if promoted != 1:
+            raise _PromotionRefused(_CANDIDATE_RACE_REASON)
+        self._conn.execute(
+            "INSERT INTO pi_eod_live_pointer ("
+            "dataset, entity_key, as_of_session, job_run_id, updated_at"
+            ") VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(dataset, entity_key) DO UPDATE SET "
+            "as_of_session = excluded.as_of_session, "
+            "job_run_id = excluded.job_run_id, "
+            "updated_at = excluded.updated_at",
+            (
+                dataset,
+                entity_key,
+                as_of_session.isoformat(),
+                job_run_id,
+                _now_iso(),
+            ),
+        )
+
+    def rollback(
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+    ) -> bool:
+        """Atomically repoint LIVE to an exact validated ``ok`` history row."""
+        dataset = canonical_key(dataset)
+        entity_key = canonical_key(entity_key)
+        _check_job_run_id(job_run_id)
+        try:
+            with self._tx(immediate=True):
+                target = self._get_row(dataset, entity_key, as_of_session, job_run_id)
+                if (
+                    target is None
+                    or not target.validated
+                    or target.status != SnapshotStatus.OK
+                    or target.state == SnapshotState.STAGING
+                ):
+                    raise _PromotionRefused(
+                        "rollback target is not validated successful history"
+                    )
+                live = self.get_live(dataset, entity_key)
+                if _live_identity(live) == _live_identity(target):
+                    return True
+                if live is not None:
+                    self._conn.execute(
+                        "UPDATE pi_eod_snapshot SET state = ? "
+                        "WHERE dataset = ? AND entity_key = ? "
+                        "AND as_of_session = ? AND job_run_id = ?",
+                        (
+                            SnapshotState.SUPERSEDED.value,
+                            dataset,
+                            entity_key,
+                            live.as_of_session.isoformat(),
+                            live.job_run_id,
+                        ),
+                    )
+                moved = self._conn.execute(
+                    "UPDATE pi_eod_snapshot SET state = ? "
+                    "WHERE dataset = ? AND entity_key = ? "
+                    "AND as_of_session = ? AND job_run_id = ? "
+                    "AND validated = 1 AND status = ? AND state != ?",
+                    (
+                        SnapshotState.LIVE.value,
+                        dataset,
+                        entity_key,
+                        as_of_session.isoformat(),
+                        job_run_id,
+                        SnapshotStatus.OK.value,
+                        SnapshotState.STAGING.value,
+                    ),
+                ).rowcount
+                if moved != 1:
+                    raise _PromotionRefused(
+                        "rollback target changed before it could be selected"
+                    )
+                self._conn.execute(
+                    "INSERT INTO pi_eod_live_pointer ("
+                    "dataset, entity_key, as_of_session, job_run_id, updated_at"
+                    ") VALUES (?, ?, ?, ?, ?) "
+                    "ON CONFLICT(dataset, entity_key) DO UPDATE SET "
+                    "as_of_session = excluded.as_of_session, "
+                    "job_run_id = excluded.job_run_id, "
+                    "updated_at = excluded.updated_at",
+                    (
+                        dataset,
+                        entity_key,
+                        as_of_session.isoformat(),
+                        job_run_id,
+                        _now_iso(),
+                    ),
+                )
+        except _PromotionRefused as refused:
+            logger.warning("snapshot rollback refused: %s", refused.reason)
+            return False
+        except Exception as exc:  # noqa: BLE001
+            if not _is_integrity_error(exc):
+                raise
+            logger.warning("snapshot rollback refused: %s", _LIVE_COLLISION_REASON)
+            return False
+        return True
+
     def _demote(self, dataset: str, entity_key: str, live: SnapshotRow) -> None:
         """Supersede the exact incumbent row that was read, or refuse."""
+        if live.state != SnapshotState.LIVE:
+            return
         demoted = self._conn.execute(
             "UPDATE pi_eod_snapshot SET state = ? "
             "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
@@ -2572,17 +3168,22 @@ class SqliteSnapshotStore:
             raise _PromotionRefused(_LIVE_RACE_REASON)
 
     def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
-        """Compute-free single-row read of ``state='live'``; ``None`` if absent."""
+        """Compute-free single-row read through the promoted LIVE pointer."""
         dataset = canonical_key(dataset)
         entity_key = canonical_key(entity_key)
         with _SQLITE_LOCK:
             record = self._conn.execute(
-                "SELECT dataset, entity_key, as_of_session, created_at, "
-                "job_run_id, status, state, validated, validation_reason, "
-                "payload_json, input_hash, row_count, engine_version, "
-                "payload_schema_version FROM pi_eod_snapshot "
-                "WHERE dataset = ? AND entity_key = ? AND state = ?",
-                (dataset, entity_key, SnapshotState.LIVE.value),
+                "SELECT s.dataset, s.entity_key, s.as_of_session, s.created_at, "
+                "s.job_run_id, s.status, s.state, s.validated, "
+                "s.validation_reason, s.payload_json, s.input_hash, s.row_count, "
+                "s.engine_version, s.payload_schema_version "
+                "FROM pi_eod_live_pointer AS p "
+                "JOIN pi_eod_snapshot AS s "
+                "ON s.dataset = p.dataset AND s.entity_key = p.entity_key "
+                "AND s.as_of_session = p.as_of_session "
+                "AND s.job_run_id = p.job_run_id "
+                "WHERE p.dataset = ? AND p.entity_key = ?",
+                (dataset, entity_key),
             ).fetchone()
         return _row_from_mapping(record) if record is not None else None
 
@@ -2654,6 +3255,172 @@ class SqliteSnapshotStore:
         """
         return _restamp_live(self, dataset, entity_key, as_of_session, job_run_id)
 
+    def start_job(
+        self,
+        dataset: str,
+        job_run_id: str,
+        *,
+        started_at: datetime | None = None,
+        stale_after: timedelta = DEFAULT_STALE_AFTER,
+    ) -> SnapshotJob:
+        """Acquire the dataset single-flight lease, reclaiming only stale work."""
+        if stale_after <= timedelta(0):
+            raise ValueError("stale_after must be positive")
+        dataset = canonical_key(dataset)
+        started = utc_datetime(started_at)
+        _check_field_lengths(dataset=dataset, job_run_id=job_run_id)
+        try:
+            with self._tx(immediate=True):
+                record = self._conn.execute(
+                    "SELECT job_run_id, dataset, started_at, finished_at, state, "
+                    "n_ok, n_failed, error FROM snapshot_job "
+                    "WHERE dataset = ? AND state = ?",
+                    (dataset, SnapshotJobState.RUNNING.value),
+                ).fetchone()
+                if record is not None:
+                    current = job_from_mapping(record)
+                    if started - current.started_at <= stale_after:
+                        raise SnapshotJobAlreadyRunning(
+                            "a snapshot job is already running for this dataset"
+                        )
+                    self._conn.execute(
+                        "UPDATE snapshot_job SET finished_at = ?, state = ?, error = ? "
+                        "WHERE job_run_id = ? AND state = ?",
+                        (
+                            _iso_utc(started),
+                            SnapshotJobState.FAILED.value,
+                            "stale_reclaimed",
+                            current.job_run_id,
+                            SnapshotJobState.RUNNING.value,
+                        ),
+                    )
+                self._conn.execute(
+                    "INSERT INTO snapshot_job ("
+                    "job_run_id, dataset, started_at, finished_at, state, "
+                    "n_ok, n_failed, error"
+                    ") VALUES (?, ?, ?, NULL, ?, 0, 0, NULL)",
+                    (
+                        job_run_id,
+                        dataset,
+                        _iso_utc(started),
+                        SnapshotJobState.RUNNING.value,
+                    ),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise SnapshotJobAlreadyRunning(
+                "a snapshot job is already running for this dataset"
+            ) from exc
+        job = self.get_job(job_run_id)
+        if job is None:  # pragma: no cover - guarded by the successful INSERT
+            raise SnapshotJobTransitionError("started job could not be read back")
+        return job
+
+    def finish_job(
+        self,
+        job_run_id: str,
+        state: SnapshotJobState,
+        *,
+        n_ok: int,
+        n_failed: int,
+        error: BaseException | str | None = None,
+        finished_at: datetime | None = None,
+    ) -> SnapshotJob:
+        """Finish one running job with exact, non-negative counts."""
+        if state == SnapshotJobState.RUNNING:
+            raise SnapshotJobTransitionError("finish_job requires a terminal state")
+        _check_job_run_id(job_run_id)
+        if n_ok < 0 or n_failed < 0:
+            raise ValueError("job counts must be non-negative")
+        finished = utc_datetime(finished_at)
+        category = sanitized_error(error)
+        with self._tx(immediate=True):
+            changed = self._conn.execute(
+                "UPDATE snapshot_job SET finished_at = ?, state = ?, "
+                "n_ok = ?, n_failed = ?, error = ? "
+                "WHERE job_run_id = ? AND state = ?",
+                (
+                    _iso_utc(finished),
+                    state.value,
+                    n_ok,
+                    n_failed,
+                    category,
+                    job_run_id,
+                    SnapshotJobState.RUNNING.value,
+                ),
+            ).rowcount
+            if changed != 1:
+                raise SnapshotJobTransitionError(
+                    "snapshot job is missing or is no longer running"
+                )
+        job = self.get_job(job_run_id)
+        if job is None:  # pragma: no cover - guarded by the successful UPDATE
+            raise SnapshotJobTransitionError("finished job could not be read back")
+        return job
+
+    def record_job_errors(
+        self, job_run_id: str, errors: Mapping[str, BaseException | str]
+    ) -> None:
+        """Replace a run's failed-key set with privacy-safe error categories."""
+        _check_job_run_id(job_run_id)
+        rows = []
+        for key, error in errors.items():
+            entity_key = canonical_key(key)
+            _check_field_lengths(job_run_id=job_run_id, entity_key=entity_key)
+            rows.append((job_run_id, entity_key, sanitized_error(error) or "error"))
+        with self._tx(immediate=True):
+            exists = self._conn.execute(
+                "SELECT 1 FROM snapshot_job WHERE job_run_id = ? AND state = ?",
+                (job_run_id, SnapshotJobState.RUNNING.value),
+            ).fetchone()
+            if exists is None:
+                raise SnapshotJobTransitionError(
+                    "snapshot job does not exist or is no longer running"
+                )
+            self._conn.execute(
+                "DELETE FROM snapshot_job_error WHERE job_run_id = ?", (job_run_id,)
+            )
+            self._conn.executemany(
+                "INSERT INTO snapshot_job_error (job_run_id, entity_key, error) "
+                "VALUES (?, ?, ?)",
+                rows,
+            )
+
+    def retry_entity_keys(self, job_run_id: str) -> list[str]:
+        """Return only the failed entity keys from a prior run."""
+        _check_job_run_id(job_run_id)
+        with _SQLITE_LOCK:
+            rows = self._conn.execute(
+                "SELECT entity_key FROM snapshot_job_error "
+                "WHERE job_run_id = ? ORDER BY entity_key",
+                (job_run_id,),
+            ).fetchall()
+        return [str(row["entity_key"]) for row in rows]
+
+    def get_job(self, job_run_id: str) -> SnapshotJob | None:
+        """Read one durable job record."""
+        _check_job_run_id(job_run_id)
+        with _SQLITE_LOCK:
+            record = self._conn.execute(
+                "SELECT job_run_id, dataset, started_at, finished_at, state, "
+                "n_ok, n_failed, error FROM snapshot_job WHERE job_run_id = ?",
+                (job_run_id,),
+            ).fetchone()
+        return None if record is None else job_from_mapping(record)
+
+    def rows_for_job(self, job_run_id: str) -> list[SnapshotRow]:
+        """Return snapshot rows staged by one durable job."""
+        _check_job_run_id(job_run_id)
+        with _SQLITE_LOCK:
+            records = self._conn.execute(
+                "SELECT dataset, entity_key, as_of_session, created_at, "
+                "job_run_id, status, state, validated, validation_reason, "
+                "payload_json, input_hash, row_count, engine_version, "
+                "payload_schema_version FROM pi_eod_snapshot "
+                "WHERE job_run_id = ? ORDER BY entity_key",
+                (job_run_id,),
+            ).fetchall()
+        return [_row_from_mapping(record) for record in records]
+
     def prune(
         self,
         policy: RetentionPolicy | None = None,
@@ -2724,7 +3491,13 @@ class SqliteSnapshotStore:
                     params.extend(triple)
                 deleted += self._conn.execute(
                     "DELETE FROM pi_eod_snapshot WHERE state != ? "  # noqa: S608
-                    f"AND (dataset, entity_key, as_of_session) IN ({tuples})",
+                    f"AND (dataset, entity_key, as_of_session) IN ({tuples}) "
+                    "AND NOT EXISTS ("
+                    "SELECT 1 FROM pi_eod_live_pointer AS p "
+                    "WHERE p.dataset = pi_eod_snapshot.dataset "
+                    "AND p.entity_key = pi_eod_snapshot.entity_key "
+                    "AND p.as_of_session = pi_eod_snapshot.as_of_session "
+                    "AND p.job_run_id = pi_eod_snapshot.job_run_id)",
                     params,
                 ).rowcount
         return deleted
@@ -2795,7 +3568,9 @@ def _make_mysql_store() -> SnapshotStore:
     return _build_mysql_store()
 
 
-def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotStore:
+def get_default_snapshot_store(
+    db_path: Path | str | None = None, *, allow_fallback: bool = True
+) -> SnapshotStore:
     """Return the configured EOD snapshot store.
 
     Backend selection (#1963 Task 5):
@@ -2838,10 +3613,6 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
     """
     backend = config.snapshot_engine()
 
-    # TODO(gh-1965): the resolved path is not yet checked against the
-    # `_validate_outside_repo` guard the portfolio importer uses. Design
-    # spec §8 requires an in-repo `PI_SNAPSHOT_DB` to raise; that guard
-    # lands with #1965, deliberately out of scope for #1963.
     resolved = (
         (Path(db_path) if db_path is not None else config.snapshot_db_path())
         .expanduser()
@@ -2852,6 +3623,8 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
         try:
             return _make_mysql_store()
         except Exception as exc:  # noqa: BLE001
+            if not allow_fallback:
+                raise
             # "unavailable", not "unreachable": the failure is just as
             # likely an `ImportError` (the optional MySQL dependency is
             # not installed) or a `SnapshotSchemaMismatch` (the server is
