@@ -7,7 +7,10 @@ from collections.abc import Mapping
 from datetime import date
 
 from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
-from openbb_techtrade.snapshot.semantics import validate_calendar_name
+from openbb_techtrade.snapshot.semantics import (
+    validate_calendar_name,
+    validate_exchange_session,
+)
 from openbb_techtrade.snapshot.store import (
     SnapshotRow,
     ValidationResult,
@@ -34,6 +37,7 @@ SURVIVORSHIP_UNCORRECTED = "in-sample · survivorship-uncorrected"
 DEFAULT_EXCHANGE_CALENDAR = "XNYS"
 MIN_PREVIOUS_ROWS_FOR_RATIO = 5
 MIN_PREVIOUS_ROW_RATIO = 0.70
+_ROW_RATIO_DATASETS = frozenset({"techtrade.movers"})
 _DATE_FIELDS = ("date", "bar_date", "as_of")
 _EXACT_PRICE_FIELDS = frozenset({"price", "open", "high", "low", "close"})
 _REQUIRED_PAYLOAD_FIELDS = frozenset(
@@ -117,7 +121,8 @@ def validate_techtrade_snapshot(  # noqa: PLR0911 - stable refusal reasons
             False, "payload session does not match snapshot session"
         )
     try:
-        validate_calendar_name(str(row.payload["exchange_calendar"]))
+        calendar_name = validate_calendar_name(str(row.payload["exchange_calendar"]))
+        validate_exchange_session(payload_session, calendar_name)
     except ValueError as exc:
         return ValidationResult(False, str(exc))
 
@@ -126,10 +131,19 @@ def validate_techtrade_snapshot(  # noqa: PLR0911 - stable refusal reasons
         return row_verdict
 
     previous_count = previous.row_count if previous is not None else None
+    excluded_count = len(
+        {
+            str(symbol).strip().upper()
+            for symbol in row.payload.get("excluded_symbols", [])
+            if str(symbol).strip()
+        }
+    )
     if (
-        previous_count is not None
+        row.dataset in _ROW_RATIO_DATASETS
+        and previous_count is not None
         and previous_count >= MIN_PREVIOUS_ROWS_FOR_RATIO
-        and len(rows) < math.ceil(previous_count * MIN_PREVIOUS_ROW_RATIO)
+        and len(rows) + excluded_count
+        < math.ceil(previous_count * MIN_PREVIOUS_ROW_RATIO)
     ):
         return ValidationResult(False, "row_count is below 70% of previous LIVE")
     return ValidationResult(True)

@@ -1713,8 +1713,10 @@ _PROTOCOL_METHODS = sorted(
 def test_protocol_surface_is_the_full_contract() -> None:
     assert _PROTOCOL_METHODS == [
         "close",
+        "delete_history",
         "get_as_of",
         "get_live",
+        "list_datasets",
         "list_history",
         "promote",
         "prune",

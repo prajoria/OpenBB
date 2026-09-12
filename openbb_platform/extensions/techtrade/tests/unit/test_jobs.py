@@ -50,8 +50,20 @@ def test_eod_schedule_is_weekday_1800_new_york(monkeypatch) -> None:
     assert (schedule.hour, schedule.minute) == (18, 0)
     assert schedule.timezone == "America/New_York"
     assert schedule.weekdays == (0, 1, 2, 3, 4)
-    assert definition.default_params == {"datasets": list(TECHTRADE_DATASETS)}
+    assert definition.default_params == {
+        "datasets": jobs_module._default_eod_datasets()
+    }
     assert definition.overlap_policy == "forbid"
+
+
+def test_default_fanout_excludes_unavailable_optional_workloads(monkeypatch) -> None:
+    monkeypatch.setattr(jobs_module, "find_spec", lambda _name: None)
+
+    defaults = jobs_module._default_eod_datasets()
+
+    assert "techtrade.validate" not in defaults
+    assert "techtrade.tune" not in defaults
+    assert "techtrade.audit" in defaults
 
 
 def test_timezone_env_override(monkeypatch) -> None:

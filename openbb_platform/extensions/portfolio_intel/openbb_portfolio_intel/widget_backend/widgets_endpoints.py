@@ -2333,6 +2333,7 @@ def _read_snapshot_rows(
     segments = (segment,) if segment else tuple(GICS_SECTOR_ETFS)
     rows: list[dict] = []
     snapshots: list[SnapshotRow] = []
+    empty_snapshots: list[SnapshotRow] = []
     definition = DEFAULT_DATASET_REGISTRY.require(dataset)
     normalized_symbol = symbol.strip().upper()
     for candidate in segments:
@@ -2343,7 +2344,7 @@ def _read_snapshot_rows(
         payload_rows = payload.get("rows")
         if not isinstance(payload_rows, list):
             continue
-        snapshots.append(snapshot)
+        matched = False
         for raw in payload_rows:
             if not isinstance(raw, dict):
                 continue
@@ -2353,6 +2354,21 @@ def _read_snapshot_rows(
             materialized = dict(raw)
             materialized.setdefault("segment", payload.get("segment"))
             rows.append(materialized)
+            matched = True
+        if not normalized_symbol or matched:
+            snapshots.append(snapshot)
+        elif not payload_rows:
+            empty_snapshots.append(snapshot)
+    if normalized_symbol and not snapshots and empty_snapshots:
+        snapshots.append(
+            max(
+                empty_snapshots,
+                key=lambda snapshot: (
+                    snapshot.as_of_session,
+                    snapshot.created_at,
+                ),
+            )
+        )
     return rows, snapshots
 
 
@@ -2625,7 +2641,13 @@ def tt_scan_trigger(request: Request) -> dict:
     try:
         run = service.enqueue(
             "techtrade.eod_snapshots",
-            {"datasets": ["techtrade.movers", "techtrade.scan"]},
+            {
+                "datasets": [
+                    "techtrade.movers",
+                    "techtrade.scan",
+                    "techtrade.plan",
+                ]
+            },
         )
     except KeyError:
         raise HTTPException(

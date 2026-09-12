@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import os
+import sqlite3
+from datetime import date, datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -12,7 +15,6 @@ from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
 from openbb_techtrade.snapshot.datasets import validate_techtrade_snapshot
 from openbb_techtrade.snapshot.job import SnapshotJobState
 from openbb_techtrade.snapshot.store import (
-    RetentionPolicy,
     SnapshotRow,
     SnapshotState,
     SnapshotStatus,
@@ -32,6 +34,11 @@ def default_scan_db_path() -> Path:
     """Return the compatibility path, defaulting to the canonical snapshot DB."""
     override = os.environ.get(SCAN_DB_ENV)
     return Path(override).expanduser() if override else config.snapshot_db_path()
+
+
+def legacy_scan_db_path() -> Path:
+    """Return the retired standalone scan-store path."""
+    return Path.home() / ".openbb_platform" / "techtrade_scan.db"
 
 
 def _dataset(kind: str) -> str:
@@ -103,6 +110,8 @@ class SqliteScanSnapshotStore:
             self._store._conn.execute(  # pylint: disable=protected-access
                 f"PRAGMA busy_timeout = {int(busy_timeout_ms)}"
             )
+        if path is None and legacy_override is None:
+            self._migrate_legacy_history()
 
     @property
     def path(self) -> Path:
@@ -113,6 +122,44 @@ class SqliteScanSnapshotStore:
 
     def initialize(self) -> None:
         """Retain the old no-op hook; construction initializes the schema."""
+
+    def _migrate_legacy_history(self) -> None:
+        source = legacy_scan_db_path()
+        if not source.is_file() or (
+            isinstance(self._store, SqliteSnapshotStore)
+            and source.resolve()
+            == self._store._db_path  # pylint: disable=protected-access
+        ):
+            return
+        with sqlite3.connect(
+            f"file:{source.as_posix()}?mode=ro", uri=True
+        ) as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='scan_snapshot'"
+            ).fetchone()
+            if exists is None:
+                return
+            rows = connection.execute(
+                "SELECT snapshot_id, kind, segment, as_of_session, computed_at, "
+                "preset, params_json, rows_json FROM scan_snapshot "
+                "ORDER BY computed_at"
+            ).fetchall()
+        for row in rows:
+            if self._store.get_job(str(row[0])) is not None:
+                continue
+            self.write_snapshot(
+                ScanSnapshot(
+                    snapshot_id=str(row[0]),
+                    kind=str(row[1]),
+                    segment=str(row[2]),
+                    as_of_session=date.fromisoformat(str(row[3])),
+                    computed_at=datetime.fromisoformat(str(row[4])),
+                    preset=row[5],
+                    params=json.loads(row[6]),
+                    rows=json.loads(row[7]),
+                )
+            )
 
     def close(self) -> None:
         """Close the canonical store connection."""
@@ -295,47 +342,30 @@ class SqliteScanSnapshotStore:
         """Keep the newest legacy-compatible rows per dataset and segment."""
         if keep < 1:
             raise ValueError("keep must be at least 1")
-        if not isinstance(self._store, SqliteSnapshotStore):
-            datasets = {_dataset(snapshot.kind) for snapshot in self.list_snapshots()}
-            return sum(
-                self._store.prune(
-                    RetentionPolicy(keep_sessions=keep),
-                    dataset=dataset,
-                )
-                for dataset in datasets
+        history_by_scope: dict[tuple[str, str], list[SnapshotRow]] = {}
+        for row in self._history_rows(None, None):
+            history_by_scope.setdefault((row.dataset, row.entity_key), []).append(row)
+        removable = [
+            (
+                row.dataset,
+                row.entity_key,
+                row.as_of_session,
+                row.job_run_id,
             )
-        deleted = 0
-        with self._store._tx(immediate=True):  # pylint: disable=protected-access
-            history_by_scope: dict[tuple[str, str], list[SnapshotRow]] = {}
-            for row in self._history_rows(None, None):
-                history_by_scope.setdefault((row.dataset, row.entity_key), []).append(
-                    row
-                )
-            for history in history_by_scope.values():
-                removable = [
-                    row
-                    for row in sorted(
-                        history,
-                        key=lambda item: _to_snapshot(item).computed_at,
-                        reverse=True,
-                    )[keep:]
-                    if row.state is not SnapshotState.LIVE
-                ]
-                for row in removable:
-                    cursor = self._store._conn.execute(  # pylint: disable=protected-access
-                        "DELETE FROM pi_eod_snapshot WHERE dataset = ? "
-                        "AND entity_key = ? AND as_of_session = ? AND job_run_id = ? "
-                        "AND state != ?",
-                        (
-                            row.dataset,
-                            row.entity_key,
-                            row.as_of_session.isoformat(),
-                            row.job_run_id,
-                            SnapshotState.LIVE.value,
-                        ),
-                    )
-                    deleted += cursor.rowcount
-        return deleted
+            for history in history_by_scope.values()
+            for row in sorted(
+                history,
+                key=lambda item: _to_snapshot(item).computed_at,
+                reverse=True,
+            )[keep:]
+            if row.state is not SnapshotState.LIVE
+        ]
+        return self._store.delete_history(removable)
 
 
-__all__ = ["SCAN_DB_ENV", "SqliteScanSnapshotStore", "default_scan_db_path"]
+__all__ = [
+    "SCAN_DB_ENV",
+    "SqliteScanSnapshotStore",
+    "default_scan_db_path",
+    "legacy_scan_db_path",
+]

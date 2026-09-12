@@ -33,12 +33,20 @@ There is no market-hours schedule.
 
 The OpenBB jobs extension also registers `techtrade.eod_snapshots`, scheduled
 for 18:00 `America/New_York` on weekdays. Its `datasets` parameter selects any
-subset of the nine registered datasets; the default refreshes all of them.
+subset of the nine registered datasets. The default includes validation and
+tuning only when their optional `openbb-backtest`/`tuneta` dependencies are
+installed. The legacy `techtrade.daily_scan` name remains as a post-close
+compatibility alias for durable schedules.
 
 Every payload stores an explicit `exchange_calendar`. The shipped US-equity
 adapters use `XNYS`; freshness and the `as_of` badge are calculated with the
 stored calendar. Unknown calendar identifiers fail validation rather than
 silently receiving an XNYS date.
+
+Earnings and delisting events come from the configured public `fmp_cached`
+provider. Until a provider-native halt feed is available, operators can supply
+a comma-separated public symbol list in `PI_TECHTRADE_HALTED_SYMBOLS`; those
+symbols are removed before validation and publication.
 
 `validate`, `tune`, and `audit` payloads are rendered as
 `in-sample · survivorship-uncorrected` unless their adapter supplies universe

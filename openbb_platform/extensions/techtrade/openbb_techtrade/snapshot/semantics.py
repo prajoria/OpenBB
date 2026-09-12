@@ -65,6 +65,15 @@ def validate_calendar_name(calendar_name: str) -> str:
     return normalized
 
 
+def validate_exchange_session(session: date, calendar_name: str) -> None:
+    """Reject a date that is not a session on the declared calendar."""
+    calendar = _calendar(calendar_name)
+    if not calendar.is_session(pd.Timestamp(session)):
+        raise ValueError(
+            f"{session.isoformat()} is not an exchange session on {calendar_name}"
+        )
+
+
 def _calendar(calendar_name: str):
     return xcals.get_calendar(validate_calendar_name(calendar_name))
 

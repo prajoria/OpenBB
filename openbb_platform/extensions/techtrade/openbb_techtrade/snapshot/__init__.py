@@ -71,6 +71,7 @@ from .semantics import (
     last_completed_session,
     snapshot_staleness,
     validate_calendar_name,
+    validate_exchange_session,
 )
 from .store import (
     FIELD_MAX_LENGTHS,
@@ -146,6 +147,7 @@ __all__ = [
     "techtrade_entity_key",
     "validate_techtrade_snapshot",
     "validate_calendar_name",
+    "validate_exchange_session",
 ]
 
 

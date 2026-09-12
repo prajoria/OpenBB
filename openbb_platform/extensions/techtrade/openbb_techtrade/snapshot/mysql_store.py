@@ -1790,6 +1790,26 @@ class MysqlSnapshotStore:
             for record in records
         ]
 
+    def delete_history(self, rows: Iterable[tuple[str, str, date, str]]) -> int:
+        """Atomically delete exact non-LIVE history rows."""
+        deleted = 0
+        with self.transaction() as conn, conn.cursor() as cur:
+            for dataset, entity_key, session, job_run_id in rows:
+                cur.execute(
+                    "DELETE FROM pi_eod_snapshot WHERE dataset = %s "
+                    "AND entity_key = %s AND as_of_session = %s AND job_run_id = %s "
+                    "AND state != %s",
+                    (
+                        canonical_key(dataset),
+                        canonical_key(entity_key),
+                        session,
+                        job_run_id,
+                        SnapshotState.LIVE.value,
+                    ),
+                )
+                deleted += cur.rowcount
+        return deleted
+
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
         """Report whether the LIVE row already carries this ``input_hash``.
 

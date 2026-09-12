@@ -344,6 +344,10 @@ class SnapshotStore(Protocol):
         """Return canonical dataset names, optionally restricted by prefix."""
         ...  # pylint: disable=unnecessary-ellipsis
 
+    def delete_history(self, rows: Iterable[tuple[str, str, date, str]]) -> int:
+        """Atomically delete exact non-LIVE history rows."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
         """Report whether the LIVE row already carries this ``input_hash``.
 
@@ -3250,6 +3254,26 @@ class SqliteSnapshotStore:
         with _SQLITE_LOCK:
             records = self._conn.execute(query, params).fetchall()
         return [str(record["dataset"]) for record in records]
+
+    def delete_history(self, rows: Iterable[tuple[str, str, date, str]]) -> int:
+        """Atomically delete exact non-LIVE history rows."""
+        deleted = 0
+        with self._tx(immediate=True):
+            for dataset, entity_key, session, job_run_id in rows:
+                cursor = self._conn.execute(
+                    "DELETE FROM pi_eod_snapshot WHERE dataset = ? "
+                    "AND entity_key = ? AND as_of_session = ? AND job_run_id = ? "
+                    "AND state != ?",
+                    (
+                        canonical_key(dataset),
+                        canonical_key(entity_key),
+                        session.isoformat(),
+                        job_run_id,
+                        SnapshotState.LIVE.value,
+                    ),
+                )
+                deleted += cursor.rowcount
+        return deleted
 
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
         """Report whether the LIVE row already carries this ``input_hash``.

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -159,6 +160,31 @@ def test_validator_rejects_unknown_exchange_calendar() -> None:
 
     assert not verdict.ok
     assert "unknown exchange calendar" in verdict.reason
+
+
+def test_validator_accounts_for_explicitly_excluded_rows() -> None:
+    previous = _row(
+        _payload([{"symbol": f"S{i}", "close": float(i + 1)} for i in range(10)]),
+        row_count=10,
+        state=SnapshotState.LIVE,
+    )
+    payload = _payload([{"symbol": f"S{i}", "close": float(i + 1)} for i in range(6)])
+    payload["excluded_symbols"] = ["S6", "S7", "S8", "S9"]
+
+    assert validate_techtrade_snapshot(_row(payload, row_count=6), previous).ok
+
+
+def test_validator_rejects_non_session_as_of_date() -> None:
+    saturday = date(2026, 9, 12)
+    payload = _payload([])
+    payload["as_of_session"] = saturday.isoformat()
+
+    verdict = validate_techtrade_snapshot(
+        replace(_row(payload, row_count=0), as_of_session=saturday)
+    )
+
+    assert not verdict.ok
+    assert "exchange session" in verdict.reason
 
 
 class _InvalidAdapter:

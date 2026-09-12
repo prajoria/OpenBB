@@ -91,12 +91,13 @@ def _seed(
     *,
     segment: str = SEGMENT,
     earnings_symbols: list[str] | None = None,
+    session: date = SESSION,
 ) -> None:
     key = f"segment={segment.casefold()}"
     payload = {
         "rows": rows,
         "segment": segment,
-        "as_of_session": SESSION.isoformat(),
+        "as_of_session": session.isoformat(),
         "exchange_calendar": "XNYS",
         "earnings_symbols": (
             ["NVDA"] if earnings_symbols is None else earnings_symbols
@@ -113,7 +114,7 @@ def _seed(
     store.stage(
         dataset,
         key,
-        SESSION,
+        session,
         run_id,
         payload,
         status=SnapshotStatus.OK,
@@ -125,11 +126,11 @@ def _seed(
     assert store.validate(
         dataset,
         key,
-        SESSION,
+        session,
         run_id,
         lambda row: definition.validator(row, None),
     ).ok
-    assert store.promote(dataset, key, SESSION, run_id)
+    assert store.promote(dataset, key, session, run_id)
 
 
 def _seeded_store(tmp_path: Path) -> SqliteSnapshotStore:
@@ -346,4 +347,29 @@ def test_tuning_inherits_symbol_scoped_earnings_annotation(tmp_path: Path) -> No
     ):
         rows = _client.get("/tt/tuning/report?symbol=NVDA").json()
     assert all(row["earnings_annotation"] == "Reports before next open" for row in rows)
+    store.close()
+
+
+def test_symbol_badge_ignores_unrelated_stale_segment(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "symbol-freshness.db")
+    _seed(
+        store,
+        "techtrade.signals",
+        [{"symbol": "NVDA", "direction": "long", "score": 0.8}],
+        earnings_symbols=[],
+    )
+    _seed(
+        store,
+        "techtrade.signals",
+        [{"symbol": "XOM", "direction": "long", "score": 0.4}],
+        segment="Energy",
+        earnings_symbols=[],
+        session=date(2026, 9, 9),
+    )
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        body = _client.get("/tt/position/signal-card?symbol=NVDA").json()
+    assert "As of 2026-09-11 XNYS close" in body
     store.close()

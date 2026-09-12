@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from datetime import date, datetime, time, timezone
+from importlib.util import find_spec
 from typing import Any, cast
 
 from openbb_core.app.jobs.models import (
@@ -41,12 +42,23 @@ def _bounded_warnings(messages: list[str]) -> list[str]:
     return [message[:MAX_WARNING_LENGTH] for message in messages[:MAX_WARNING_COUNT]]
 
 
+def _default_eod_datasets() -> list[str]:
+    """Return workloads supported by the currently installed optional extras."""
+    available = list(TECHTRADE_DATASETS)
+    if find_spec("openbb_backtest") is None:
+        available.remove("techtrade.validate")
+        available.remove("techtrade.tune")
+    elif find_spec("tuneta") is None:
+        available.remove("techtrade.tune")
+    return available
+
+
 class EodSnapshotsParams(BaseModel):
     """Datasets selected for one post-close refresh."""
 
     model_config = ConfigDict(extra="forbid")
 
-    datasets: list[str] = Field(default_factory=lambda: list(TECHTRADE_DATASETS))
+    datasets: list[str] = Field(default_factory=_default_eod_datasets)
 
     @field_validator("datasets")
     @classmethod
@@ -195,6 +207,12 @@ def get_job_definitions() -> list[JobDefinition]:
             params_model=DailyScanParams,
             handler=_run_daily_scan,
             default_params={"top_n": 3, "preset": "trend_follow"},
+            schedule=DailySchedule(
+                hour=18,
+                minute=5,
+                timezone=schedule_timezone,
+                weekdays=_TRADING_WEEKDAYS,
+            ),
             max_attempts=1,
             overlap_policy="forbid",
         ),
@@ -209,7 +227,7 @@ def get_job_definitions() -> list[JobDefinition]:
                 timezone=schedule_timezone,
                 weekdays=_TRADING_WEEKDAYS,
             ),
-            default_params={"datasets": list(TECHTRADE_DATASETS)},
+            default_params={"datasets": _default_eod_datasets()},
             max_attempts=1,
             overlap_policy="forbid",
         ),

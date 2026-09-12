@@ -12,6 +12,7 @@ import sqlite3
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
+from openbb_techtrade.snapshot.store import SqliteSnapshotStore
 from openbb_techtrade.snapshots import (
     ScanSnapshot,
     SqliteScanSnapshotStore,
@@ -391,6 +392,45 @@ def test_default_facade_uses_configured_canonical_backend(monkeypatch):
     store = SqliteScanSnapshotStore()
 
     assert store._store is backend
+
+
+def test_default_facade_migrates_existing_legacy_sqlite_history(monkeypatch, tmp_path):
+    """Upgrade keeps legacy rows reachable through the canonical backend."""
+    legacy_db = tmp_path / "legacy.db"
+    with sqlite3.connect(legacy_db) as connection:
+        connection.executescript("""
+            CREATE TABLE scan_snapshot (
+                snapshot_id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                segment TEXT NOT NULL,
+                as_of_session TEXT NOT NULL,
+                computed_at TEXT NOT NULL,
+                preset TEXT,
+                params_json TEXT NOT NULL,
+                rows_json TEXT NOT NULL,
+                row_count INTEGER NOT NULL
+            );
+            INSERT INTO scan_snapshot VALUES (
+                'legacy-id', 'daily_scan', 'Energy', '2024-01-12',
+                '2024-01-12T22:00:00+00:00', 'trend_follow',
+                '{\"top_n\":3}', '[{\"symbol\":\"XOM\"}]', 1
+            );
+            """)
+    canonical = SqliteSnapshotStore(tmp_path / "canonical.db")
+    monkeypatch.delenv(SCAN_DB_ENV, raising=False)
+    monkeypatch.setattr(
+        "openbb_techtrade.snapshots.sqlite.get_default_snapshot_store",
+        lambda: canonical,
+    )
+    monkeypatch.setattr(
+        "openbb_techtrade.snapshots.sqlite.legacy_scan_db_path",
+        lambda: legacy_db,
+    )
+
+    facade = SqliteScanSnapshotStore()
+
+    assert facade.read_by_id("legacy-id").rows == [{"symbol": "XOM"}]
+    facade.close()
 
 
 def test_canonical_multi_segment_job_round_trips_facade_ids(tmp_path):

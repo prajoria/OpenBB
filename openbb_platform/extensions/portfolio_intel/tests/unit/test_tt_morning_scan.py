@@ -378,7 +378,13 @@ def test_trigger_returns_202_and_does_not_execute() -> None:
     # Confirm enqueue was called, not any handler.
     mock_service.enqueue.assert_called_once_with(
         "techtrade.eod_snapshots",
-        {"datasets": ["techtrade.movers", "techtrade.scan"]},
+        {
+            "datasets": [
+                "techtrade.movers",
+                "techtrade.scan",
+                "techtrade.plan",
+            ]
+        },
     )
 
 
