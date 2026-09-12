@@ -3096,7 +3096,8 @@ def _render_engine_status() -> str:
         )
 
     import importlib  # noqa: PLC0415
-    from pathlib import Path  # noqa: PLC0415
+
+    from openbb_techtrade import config as techtrade_config  # noqa: PLC0415
 
     version = getattr(openbb_techtrade, "__version__", "unknown")
 
@@ -3136,7 +3137,7 @@ def _render_engine_status() -> str:
     # is no local file to stat, so we report the configured backend rather
     # than the misleading "NO SESSION" a bare paper.db check produced on
     # MySQL deployments.
-    backend = os.environ.get("PI_PAPER_ENGINE", "mysql").strip().lower()
+    backend = techtrade_config.paper_engine()
     if backend == "mysql":
         paper_line = (
             "- **Paper engine:** MySQL backend configured "
@@ -3144,12 +3145,7 @@ def _render_engine_status() -> str:
             "read via the Execute Bridge widgets"
         )
     else:
-        db_path = Path(
-            os.environ.get(
-                "PI_PAPER_DB",
-                str(Path.home() / ".portfolio_intel" / "paper.db"),
-            )
-        )
+        db_path = techtrade_config.paper_db_path()
         if db_path.exists():
             paper_line = (
                 f"- **Paper engine:** SQLite ACTIVE (`{db_path.name}` present — "
