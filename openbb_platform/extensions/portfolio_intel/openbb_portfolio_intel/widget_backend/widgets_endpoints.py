@@ -3224,11 +3224,14 @@ def tt_execute_bridge(request: Request, verdict: str = "PASS") -> str:
         f"Verdict gate: **PASS** — bridge ready to submit. {ready_signal}\n\n"
         "### Next steps\n\n"
         "1. **Write batch** — `POST /tt/execute/write-batch"
-        "?verdict=PASS&confirm=yes` (triple-gate: env + verdict + confirm).\n"
-        "2. **File orders manually** at Fidelity using the produced XLSX "
-        "as your cheat sheet.\n"
-        "3. **Record fills** into the paper engine via a widget action "
-        "or bulk-import a Fidelity Activity CSV (P5).\n\n"
+        "?verdict=PASS&confirm=yes` for paper mode (triple-gate: env + "
+        "verdict + confirm).\n"
+        "2. **Choose mode explicitly** — `PI_T5_BROKER_MODE=paper` is the "
+        "safe default. Live additionally requires `PI_ALLOW_T5_LIVE=true`, "
+        "`PI_T5_LIVE_ACCOUNT_ID`, an injected client, and the exact "
+        "batch-bound confirmation phrase.\n"
+        "3. **Cancel safely** — `POST /tt/execute/cancel` requires a separate "
+        "order-UUID-bound confirmation phrase.\n\n"
         "> See `docs/superpowers/specs/2026-08-03-t5-e2e-test-guide.md` "
         "for the E2E test guide."
     )
@@ -3253,7 +3256,7 @@ def tt_execute_paper_status_markdown(request: Request) -> str:
 
         from openbb_techtrade.execution.paper_engine import (  # noqa: PLC0415
             OrderStatus,
-            SqlitePaperEngine,
+            get_default_engine,
         )
     except ImportError:
         return (
@@ -3268,7 +3271,9 @@ def tt_execute_paper_status_markdown(request: Request) -> str:
             str(Path.home() / ".portfolio_intel" / "paper.db"),
         )
     )
-    if not db_path.exists():
+    if os.environ.get("PI_PAPER_ENGINE", "mysql").strip().lower() == "sqlite" and (
+        not db_path.exists()
+    ):
         return (
             "## Paper Trading Engine\n\n"
             "**No batches submitted yet.**\n\n"
@@ -3277,7 +3282,7 @@ def tt_execute_paper_status_markdown(request: Request) -> str:
             "and P&L here."
         )
 
-    engine = SqlitePaperEngine(db_path)
+    engine = get_default_engine(db_path=db_path)
     try:
         acct = engine.get_account()
         positions = engine.get_positions()
@@ -3340,10 +3345,48 @@ def _t5_execute_allowed() -> bool:
     return os.environ.get(_ENV_ALLOW_EXECUTE, "").strip().lower() == "true"
 
 
+def _build_t5_demo_batch(plan_id: str):
+    """Build the deterministic demo batch used by the T5 bridge."""
+    from decimal import Decimal  # noqa: PLC0415
+
+    from openbb_techtrade.execution.order_sink import (  # noqa: PLC0415
+        OrderBatch,
+        OrderTicket,
+    )
+
+    return OrderBatch(
+        tickets=(
+            OrderTicket(
+                symbol="MSFT",
+                action="Buy",
+                quantity=Decimal("10"),
+                order_type="Limit",
+                limit_price=Decimal("400.00"),
+            ),
+            OrderTicket(
+                symbol="AAPL",
+                action="Buy",
+                quantity=Decimal("25"),
+                order_type="Limit",
+                limit_price=Decimal("180.00"),
+            ),
+            OrderTicket(
+                symbol="NVDA",
+                action="Buy",
+                quantity=Decimal("5"),
+                order_type="Limit",
+                limit_price=Decimal("130.00"),
+            ),
+        ),
+        plan_id=plan_id or "widget-demo",
+        verdict_gate_pass=True,
+    )
+
+
 @app.post("/tt/execute/write-batch")
 def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
     request: Request,
-    verdict: str = "PASS",
+    verdict: str = "",
     confirm: str = "",
     plan_id: str = "",
 ) -> dict:
@@ -3386,13 +3429,16 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
                 "requires verdict=PASS. Rerun the plan validation first."
             ),
         )
-    if confirm != "yes":
+    if (
+        os.environ.get("PI_T5_BROKER_MODE", "paper").strip() == "paper"
+        and confirm != "yes"
+    ):
         raise HTTPException(
             status_code=400,
             detail=(
                 "explicit_confirm_required: pass confirm=yes to acknowledge "
-                "this write will persist to disk + the paper trading engine. "
-                "A stray reload without confirm=yes is intentionally rejected."
+                "this paper submission. A stray reload without confirm=yes "
+                "is intentionally rejected."
             ),
         )
 
@@ -3401,17 +3447,20 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
     # #1714).
     # pylint: disable=import-outside-toplevel
     try:
-        import tempfile  # noqa: PLC0415
-        from decimal import Decimal  # noqa: PLC0415
         from pathlib import Path  # noqa: PLC0415
 
-        from openbb_techtrade.execution.order_sink import (  # noqa: PLC0415
-            OrderBatch,
-            OrderTicket,
-            PaperOrderSink,
+        from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
+            ExecutionConfigurationError,
+            ExecutionGateError,
+            ExecutionGateway,
+            ExecutionMode,
+            ExecutionSubmissionError,
+            SqliteExecutionAuditStore,
+            UnknownSubmissionStateError,
+            get_default_broker_adapter,
         )
-        from openbb_techtrade.execution.paper_engine import (  # noqa: PLC0415
-            SqlitePaperEngine,
+        from openbb_techtrade.execution.order_sink import (  # noqa: PLC0415
+            PaperOrderSink,
         )
     except ImportError as exc:
         raise HTTPException(
@@ -3422,67 +3471,188 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
             ),
         ) from exc
 
-    # Demo batch. Real batch composition from a T4 plan is a follow-up.
-    batch = OrderBatch(
-        tickets=(
-            OrderTicket(
-                symbol="MSFT",
-                action="Buy",
-                quantity=Decimal("10"),
-                order_type="Limit",
-                limit_price=Decimal("400.00"),
+    try:
+        mode = ExecutionMode(os.environ.get("PI_T5_BROKER_MODE", "paper").strip())
+        if mode is ExecutionMode.LIVE:
+            approved_batches = getattr(
+                request.app.state, "t5_approved_order_batches", {}
+            )
+            batch = approved_batches.get(plan_id)
+            if batch is None or not batch.verdict_gate_pass:
+                raise ExecutionGateError(
+                    "live execution requires a server-side T4 approval "
+                    "bound to plan_id"
+                )
+        else:
+            batch = _build_t5_demo_batch(plan_id)
+        adapter = get_default_broker_adapter(
+            mode=mode,
+            account_id=(
+                os.environ.get("PI_T5_LIVE_ACCOUNT_ID")
+                if mode is ExecutionMode.LIVE
+                else "paper"
             ),
-            OrderTicket(
-                symbol="AAPL",
-                action="Buy",
-                quantity=Decimal("25"),
-                order_type="Limit",
-                limit_price=Decimal("180.00"),
-            ),
-            OrderTicket(
-                symbol="NVDA",
-                action="Buy",
-                quantity=Decimal("5"),
-                order_type="Limit",
-                limit_price=Decimal("130.00"),
-            ),
-        ),
-        plan_id=plan_id or "widget-demo",
-        verdict_gate_pass=True,
-    )
+            live_client=getattr(request.app.state, "t5_live_broker_client", None),
+        )
+    except ExecutionGateError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (ValueError, ExecutionConfigurationError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"t5_execution_configuration_error: {exc}",
+        ) from exc
 
     out_dir = Path(
         os.environ.get(
             "PI_T5_EXECUTE_OUTPUT_DIR",
-            str(Path(tempfile.gettempdir()) / "pi_t5_execute"),
+            str(Path.home() / ".portfolio_intel" / "order_batches"),
         )
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     sink = PaperOrderSink(out_dir)
     art = sink.write_batch(batch)
 
-    # Submit to the paper engine.
-    db_path = Path(
+    audit_path = Path(
         os.environ.get(
-            "PI_PAPER_DB",
-            str(Path.home() / ".portfolio_intel" / "paper.db"),
+            "PI_T5_EXECUTION_AUDIT_DB",
+            str(Path.home() / ".portfolio_intel" / "execution-audit.db"),
         )
     )
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = SqlitePaperEngine(db_path)
-    order_ids = engine.submit_batch(batch, plan_id=batch.plan_id)
-    engine.close()
+    audit_store = SqliteExecutionAuditStore(audit_path)
+    gateway = ExecutionGateway(
+        adapter=adapter,
+        audit_store=audit_store,
+        configured_mode=mode,
+        execute_enabled=_t5_execute_allowed(),
+        live_enabled=os.environ.get("PI_ALLOW_T5_LIVE", "").strip().lower() == "true",
+    )
+    resolved_confirmation = (
+        gateway.expected_confirmation(batch)
+        if mode is ExecutionMode.PAPER and confirm == "yes"
+        else confirm
+    )
+    try:
+        receipt = gateway.submit(
+            batch,
+            verdict=verdict,
+            confirmation=resolved_confirmation,
+        )
+    except ExecutionGateError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except UnknownSubmissionStateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ExecutionSubmissionError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": str(exc),
+                "submission_id": str(exc.receipt.submission_id),
+                "status": exc.receipt.status.value,
+            },
+        ) from exc
+    finally:
+        audit_store.close()
+        engine = getattr(adapter, "engine", None)
+        if engine is not None:
+            engine.close()
 
     return {
         "batch_sha": batch.sha_short(),
         "csv_path": str(art.csv_path),
         "xlsx_path": str(art.xlsx_path),
-        "order_ids": order_ids,
+        "submission_id": str(receipt.submission_id),
+        "mode": receipt.mode.value,
+        "status": receipt.status.value,
+        "order_uuids": [str(order.order_uuid) for order in receipt.orders],
+        "order_ids": [order.broker_order_id for order in receipt.orders],
         "next_step": (
-            "Review the XLSX workbook, then file orders manually at "
-            "Fidelity. Record fills via /tt/execute/record-fill or bulk-"
-            "import a Fidelity Activity CSV via the P5 module."
+            "Review the durable audit receipt and broker acknowledgements. "
+            "Paper fills remain operator-recorded; live status comes from the "
+            "injected broker client."
         ),
+    }
+
+
+@app.post("/tt/execute/cancel")
+def tt_execute_cancel(
+    request: Request,
+    order_uuid: str,
+    confirm: str = "",
+) -> dict:
+    """Cancel one audited paper/live order through the configured adapter."""
+    _require_auth(request)
+    from pathlib import Path  # noqa: PLC0415
+    from uuid import UUID  # noqa: PLC0415
+
+    from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
+        CancellationError,
+        ExecutionConfigurationError,
+        ExecutionError,
+        ExecutionGateError,
+        ExecutionGateway,
+        ExecutionMode,
+        SqliteExecutionAuditStore,
+        UnknownSubmissionStateError,
+        get_default_broker_adapter,
+    )
+
+    try:
+        parsed_uuid = UUID(order_uuid)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="invalid order UUID") from exc
+
+    try:
+        mode = ExecutionMode(os.environ.get("PI_T5_BROKER_MODE", "paper").strip())
+        adapter = get_default_broker_adapter(
+            mode=mode,
+            account_id=(
+                os.environ.get("PI_T5_LIVE_ACCOUNT_ID")
+                if mode is ExecutionMode.LIVE
+                else "paper"
+            ),
+            live_client=getattr(request.app.state, "t5_live_broker_client", None),
+        )
+    except (ValueError, ExecutionConfigurationError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"t5_execution_configuration_error: {exc}",
+        ) from exc
+
+    audit_store = SqliteExecutionAuditStore(
+        Path(
+            os.environ.get(
+                "PI_T5_EXECUTION_AUDIT_DB",
+                str(Path.home() / ".portfolio_intel" / "execution-audit.db"),
+            )
+        )
+    )
+    gateway = ExecutionGateway(
+        adapter=adapter,
+        audit_store=audit_store,
+        configured_mode=mode,
+        execute_enabled=_t5_execute_allowed(),
+        live_enabled=os.environ.get("PI_ALLOW_T5_LIVE", "").strip().lower() == "true",
+    )
+    try:
+        receipt = gateway.cancel(parsed_uuid, confirmation=confirm)
+    except ExecutionGateError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except UnknownSubmissionStateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except CancellationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ExecutionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    finally:
+        audit_store.close()
+        engine = getattr(adapter, "engine", None)
+        if engine is not None:
+            engine.close()
+    return {
+        "order_uuid": str(receipt.order_uuid),
+        "broker_order_id": receipt.broker_order_id,
+        "status": receipt.status,
+        "updated_at": receipt.updated_at.isoformat(),
     }
 
 
@@ -3510,7 +3680,7 @@ def tt_execute_paper_status(request: Request) -> dict:
 
         from openbb_techtrade.execution.paper_engine import (  # noqa: PLC0415
             OrderStatus,
-            SqlitePaperEngine,
+            get_default_engine,
         )
     except ImportError as exc:
         raise HTTPException(
@@ -3525,7 +3695,9 @@ def tt_execute_paper_status(request: Request) -> dict:
         )
     )
     # If the DB doesn't exist, return an empty snapshot (fresh install).
-    if not db_path.exists():
+    if os.environ.get("PI_PAPER_ENGINE", "mysql").strip().lower() == "sqlite" and (
+        not db_path.exists()
+    ):
         return {
             "account": None,
             "positions": [],
@@ -3534,7 +3706,7 @@ def tt_execute_paper_status(request: Request) -> dict:
             "note": "No paper.db yet — submit a batch via /tt/execute/write-batch",
         }
 
-    engine = SqlitePaperEngine(db_path)
+    engine = get_default_engine(db_path=db_path)
     try:
         acct = engine.get_account()
         positions = engine.get_positions()

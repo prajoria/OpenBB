@@ -1,0 +1,517 @@
+"""T5 paper/live broker adapter contract tests (#1719)."""
+
+# ruff: noqa: D101, D102, D103
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from decimal import Decimal
+from pathlib import Path
+from threading import Event, Thread
+from uuid import UUID
+
+import pytest
+from openbb_techtrade.execution.broker_adapter import (
+    BrokerAdapter,
+    BrokerBatchError,
+    CancellationError,
+    ExecutionConfigurationError,
+    ExecutionConfirmationError,
+    ExecutionGateError,
+    ExecutionGateway,
+    ExecutionMode,
+    ExecutionSubmissionError,
+    LiveBrokerAdapter,
+    PaperBrokerAdapter,
+    SqliteExecutionAuditStore,
+    SubmissionStatus,
+    UnknownSubmissionStateError,
+    get_default_broker_adapter,
+)
+from openbb_techtrade.execution.order_sink import OrderBatch, OrderTicket
+
+
+def _batch(*symbols: str) -> OrderBatch:
+    return OrderBatch(
+        tickets=tuple(
+            OrderTicket(symbol=symbol, action="Buy", quantity=Decimal("1"))
+            for symbol in symbols
+        ),
+        plan_id="plan-1719",
+        verdict_gate_pass=True,
+    )
+
+
+class _FakePaperEngine:
+    def __init__(self) -> None:
+        self.submissions = 0
+        self.cancelled: list[str] = []
+
+    def submit_batch(self, batch: OrderBatch, plan_id: str = "") -> list[str]:
+        self.submissions += 1
+        return [f"paper-{index}" for index, _ in enumerate(batch.tickets)]
+
+    def cancel_order(self, order_id: str, reason: str = "") -> None:
+        self.cancelled.append(order_id)
+
+
+@dataclass
+class _FakeLiveClient:
+    fail_at: int | None = None
+
+    def __post_init__(self) -> None:
+        self.calls: list[tuple[OrderTicket, str]] = []
+        self.cancelled: list[str] = []
+
+    def submit_order(self, ticket: OrderTicket, *, client_order_id: str) -> str:
+        if self.fail_at == len(self.calls):
+            raise RuntimeError("fake broker rejected order")
+        UUID(client_order_id)
+        self.calls.append((ticket, client_order_id))
+        return f"live-{len(self.calls)}"
+
+    def cancel_order(self, broker_order_id: str) -> None:
+        self.cancelled.append(broker_order_id)
+
+
+@pytest.fixture
+def audit(tmp_path: Path) -> SqliteExecutionAuditStore:
+    store = SqliteExecutionAuditStore(tmp_path / "execution-audit.db")
+    yield store
+    store.close()
+
+
+def _gateway(
+    adapter: BrokerAdapter,
+    audit: SqliteExecutionAuditStore,
+    *,
+    mode: ExecutionMode,
+    live_enabled: bool = False,
+) -> ExecutionGateway:
+    return ExecutionGateway(
+        adapter=adapter,
+        audit_store=audit,
+        configured_mode=mode,
+        execute_enabled=True,
+        live_enabled=live_enabled,
+    )
+
+
+class TestAdapterContract:
+    def test_paper_adapter_satisfies_protocol(self) -> None:
+        assert isinstance(PaperBrokerAdapter(_FakePaperEngine()), BrokerAdapter)
+
+    def test_live_adapter_satisfies_protocol(self) -> None:
+        assert isinstance(
+            LiveBrokerAdapter(_FakeLiveClient(), account_id="fake-live"),
+            BrokerAdapter,
+        )
+
+    @pytest.mark.parametrize("account_id", ["", " ", "live account", "../live"])
+    def test_live_adapter_rejects_unsafe_account_scope(self, account_id: str) -> None:
+        with pytest.raises(ExecutionConfigurationError, match="account_id"):
+            LiveBrokerAdapter(_FakeLiveClient(), account_id=account_id)
+
+    def test_live_adapter_propagates_order_uuids(self) -> None:
+        client = _FakeLiveClient()
+        adapter = LiveBrokerAdapter(client, account_id="fake-live")
+        batch = _batch("MSFT", "AAPL")
+        order_uuids = (
+            UUID("00000000-0000-4000-8000-000000000001"),
+            UUID("00000000-0000-4000-8000-000000000002"),
+        )
+
+        acks = adapter.submit_batch(batch, order_uuids)
+
+        assert [call[1] for call in client.calls] == [
+            str(value) for value in order_uuids
+        ]
+        assert [ack.broker_order_id for ack in acks] == ["live-1", "live-2"]
+
+    def test_live_adapter_preserves_partial_acknowledgements(self) -> None:
+        client = _FakeLiveClient(fail_at=1)
+        adapter = LiveBrokerAdapter(client, account_id="fake-live")
+        order_uuids = (
+            UUID("00000000-0000-4000-8000-000000000001"),
+            UUID("00000000-0000-4000-8000-000000000002"),
+        )
+
+        with pytest.raises(BrokerBatchError) as raised:
+            adapter.submit_batch(_batch("MSFT", "AAPL"), order_uuids)
+
+        assert len(raised.value.completed) == 1
+        assert raised.value.failed_order_uuid == order_uuids[1]
+
+    def test_live_adapter_does_not_expose_client_exception_text(self) -> None:
+        client = _FakeLiveClient(fail_at=0)
+        adapter = LiveBrokerAdapter(client, account_id="fake-live")
+
+        with pytest.raises(BrokerBatchError) as raised:
+            adapter.submit_batch(
+                _batch("MSFT"),
+                (UUID("00000000-0000-4000-8000-000000000001"),),
+            )
+
+        assert "fake broker rejected order" not in str(raised.value)
+        assert "RuntimeError" in str(raised.value)
+
+
+class TestExecutionGateway:
+    def test_submission_requires_all_gates(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        adapter = PaperBrokerAdapter(_FakePaperEngine())
+        batch = _batch("MSFT")
+        gateway = ExecutionGateway(
+            adapter=adapter,
+            audit_store=audit,
+            configured_mode=ExecutionMode.PAPER,
+            execute_enabled=False,
+        )
+        with pytest.raises(ExecutionGateError, match="PI_ALLOW_T5_EXECUTE"):
+            gateway.submit(batch, verdict="PASS", confirmation="anything")
+
+        gateway = _gateway(adapter, audit, mode=ExecutionMode.PAPER)
+        with pytest.raises(ExecutionGateError, match="verdict"):
+            gateway.submit(batch, verdict="FAIL", confirmation="anything")
+        with pytest.raises(
+            ExecutionConfirmationError, match="explicit confirmation did not match"
+        ) as raised:
+            gateway.submit(batch, verdict="PASS", confirmation="yes")
+        assert batch.sha256() not in str(raised.value)
+
+    def test_batch_verdict_must_be_persisted_pass(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        batch = OrderBatch(tickets=_batch("MSFT").tickets, verdict_gate_pass=False)
+        gateway = _gateway(
+            PaperBrokerAdapter(_FakePaperEngine()),
+            audit,
+            mode=ExecutionMode.PAPER,
+        )
+        with pytest.raises(ExecutionGateError, match="batch verdict"):
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+    def test_submit_is_durable_and_idempotent(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        engine = _FakePaperEngine()
+        gateway = _gateway(PaperBrokerAdapter(engine), audit, mode=ExecutionMode.PAPER)
+        batch = _batch("MSFT", "AAPL")
+        confirmation = gateway.expected_confirmation(batch)
+
+        first = gateway.submit(batch, verdict="PASS", confirmation=confirmation)
+        second = gateway.submit(batch, verdict="PASS", confirmation=confirmation)
+
+        assert second == first
+        assert engine.submissions == 1
+        assert first.status is SubmissionStatus.SUBMITTED
+        assert len(first.orders) == 2
+        assert len({order.order_uuid for order in first.orders}) == 2
+        assert all(order.order_uuid.version == 5 for order in first.orders)
+        assert {
+            event.event_type for event in audit.list_events(first.submission_id)
+        } >= {
+            "SUBMISSION_RESERVED",
+            "SUBMISSION_SUCCEEDED",
+        }
+
+    def test_audit_replays_after_store_reopen(self, tmp_path: Path) -> None:
+        path = tmp_path / "execution-audit.db"
+        engine = _FakePaperEngine()
+        batch = _batch("MSFT")
+        first_store = SqliteExecutionAuditStore(path)
+        first_gateway = _gateway(
+            PaperBrokerAdapter(engine), first_store, mode=ExecutionMode.PAPER
+        )
+        first = first_gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=first_gateway.expected_confirmation(batch),
+        )
+        first_store.close()
+
+        second_store = SqliteExecutionAuditStore(path)
+        second_gateway = _gateway(
+            PaperBrokerAdapter(engine), second_store, mode=ExecutionMode.PAPER
+        )
+        second = second_gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=second_gateway.expected_confirmation(batch),
+        )
+        second_store.close()
+
+        assert second == first
+        assert engine.submissions == 1
+
+    def test_concurrent_reservation_has_one_winner(self, tmp_path: Path) -> None:
+        path = tmp_path / "execution-audit.db"
+        stores = [SqliteExecutionAuditStore(path), SqliteExecutionAuditStore(path)]
+        outcomes: list[tuple[object, bool]] = []
+        errors: list[Exception] = []
+
+        def reserve(store: SqliteExecutionAuditStore) -> None:
+            try:
+                outcomes.append(
+                    store.reserve(
+                        mode=ExecutionMode.PAPER,
+                        account_id="paper",
+                        batch_sha256="a" * 64,
+                        order_count=1,
+                    )
+                )
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        workers = [Thread(target=reserve, args=(store,)) for store in stores]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=5)
+        for store in stores:
+            store.close()
+
+        assert errors == []
+        assert sorted(is_new for _receipt, is_new in outcomes) == [False, True]
+        assert len({receipt.submission_id for receipt, _is_new in outcomes}) == 1
+
+    def test_live_mode_requires_mode_gate_and_kill_switch(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        adapter = LiveBrokerAdapter(_FakeLiveClient(), account_id="fake-live")
+        batch = _batch("MSFT")
+        wrong_mode = _gateway(adapter, audit, mode=ExecutionMode.PAPER)
+        with pytest.raises(ExecutionGateError, match="configured mode"):
+            wrong_mode.submit(
+                batch,
+                verdict="PASS",
+                confirmation=wrong_mode.expected_confirmation(batch),
+            )
+        live_disabled = _gateway(adapter, audit, mode=ExecutionMode.LIVE)
+        with pytest.raises(ExecutionGateError, match="PI_ALLOW_T5_LIVE"):
+            live_disabled.submit(
+                batch,
+                verdict="PASS",
+                confirmation=live_disabled.expected_confirmation(batch),
+            )
+
+    def test_live_mode_requires_exact_batch_bound_confirmation(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        client = _FakeLiveClient()
+        gateway = _gateway(
+            LiveBrokerAdapter(client, account_id="fake-live"),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        with pytest.raises(
+            ExecutionConfirmationError, match="explicit confirmation did not match"
+        ):
+            gateway.submit(_batch("MSFT"), verdict="PASS", confirmation="yes")
+        assert client.calls == []
+
+    def test_live_partial_failure_is_audited_and_not_retried(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        client = _FakeLiveClient(fail_at=1)
+        gateway = _gateway(
+            LiveBrokerAdapter(client, account_id="fake-live"),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT", "AAPL")
+        confirmation = gateway.expected_confirmation(batch)
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(batch, verdict="PASS", confirmation=confirmation)
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+        assert raised.value.receipt.orders[1].status == "UNKNOWN"
+        assert {
+            event.event_type
+            for event in audit.list_events(raised.value.receipt.submission_id)
+        } >= {"ORDER_SUBMITTED", "ORDER_UNKNOWN", "SUBMISSION_FAILED"}
+
+        with pytest.raises(UnknownSubmissionStateError, match="reconcile"):
+            gateway.submit(batch, verdict="PASS", confirmation=confirmation)
+        assert len(client.calls) == 1
+
+    def test_reserved_unknown_outcome_fails_closed(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        engine = _FakePaperEngine()
+        gateway = _gateway(PaperBrokerAdapter(engine), audit, mode=ExecutionMode.PAPER)
+        batch = _batch("MSFT")
+        audit.reserve(
+            mode=ExecutionMode.PAPER,
+            account_id="paper",
+            batch_sha256=batch.sha256(),
+            order_count=1,
+        )
+
+        with pytest.raises(UnknownSubmissionStateError, match="reconcile"):
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert engine.submissions == 0
+
+    def test_cancel_requires_confirmation_and_is_idempotent(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        engine = _FakePaperEngine()
+        gateway = _gateway(PaperBrokerAdapter(engine), audit, mode=ExecutionMode.PAPER)
+        batch = _batch("MSFT")
+        receipt = gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(batch),
+        )
+        order_uuid = receipt.orders[0].order_uuid
+
+        with pytest.raises(ExecutionConfirmationError):
+            gateway.cancel(order_uuid, confirmation="yes")
+        confirmation = gateway.expected_cancel_confirmation(order_uuid)
+        first = gateway.cancel(order_uuid, confirmation=confirmation)
+        second = gateway.cancel(order_uuid, confirmation=confirmation)
+
+        assert second == first
+        assert engine.cancelled == ["paper-0"]
+        assert first.status == "CANCELLED"
+
+    def test_cancel_replay_keeps_its_order_timestamp(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        engine = _FakePaperEngine()
+        gateway = _gateway(PaperBrokerAdapter(engine), audit, mode=ExecutionMode.PAPER)
+        batch = _batch("MSFT", "AAPL")
+        receipt = gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(batch),
+        )
+        first_uuid, second_uuid = (order.order_uuid for order in receipt.orders)
+        first = gateway.cancel(
+            first_uuid,
+            confirmation=gateway.expected_cancel_confirmation(first_uuid),
+        )
+        gateway.cancel(
+            second_uuid,
+            confirmation=gateway.expected_cancel_confirmation(second_uuid),
+        )
+
+        replay = gateway.cancel(
+            first_uuid,
+            confirmation=gateway.expected_cancel_confirmation(first_uuid),
+        )
+
+        assert replay == first
+
+    def test_cancel_failure_is_audited(self, audit: SqliteExecutionAuditStore) -> None:
+        class FailingCancelEngine(_FakePaperEngine):
+            def cancel_order(self, order_id: str, reason: str = "") -> None:
+                raise RuntimeError("fake cancel failure")
+
+        gateway = _gateway(
+            PaperBrokerAdapter(FailingCancelEngine()),
+            audit,
+            mode=ExecutionMode.PAPER,
+        )
+        batch = _batch("MSFT")
+        receipt = gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(batch),
+        )
+        order_uuid = receipt.orders[0].order_uuid
+
+        with pytest.raises(CancellationError, match="RuntimeError"):
+            gateway.cancel(
+                order_uuid,
+                confirmation=gateway.expected_cancel_confirmation(order_uuid),
+            )
+        assert "fake cancel failure" not in audit.get_order(order_uuid).error
+        assert audit.get_order(order_uuid).status == "CANCEL_RECONCILIATION_REQUIRED"
+
+    def test_concurrent_cancel_reserves_single_broker_call(
+        self, tmp_path: Path
+    ) -> None:
+        class SlowCancelEngine(_FakePaperEngine):
+            def __init__(self) -> None:
+                super().__init__()
+                self.entered = Event()
+                self.release = Event()
+
+            def cancel_order(self, order_id: str, reason: str = "") -> None:
+                self.cancelled.append(order_id)
+                self.entered.set()
+                self.release.wait(timeout=5)
+
+        engine = SlowCancelEngine()
+        first_store = SqliteExecutionAuditStore(tmp_path / "audit.db")
+        first = _gateway(
+            PaperBrokerAdapter(engine), first_store, mode=ExecutionMode.PAPER
+        )
+        batch = _batch("MSFT")
+        receipt = first.submit(
+            batch,
+            verdict="PASS",
+            confirmation=first.expected_confirmation(batch),
+        )
+        order_uuid = receipt.orders[0].order_uuid
+        confirmation = first.expected_cancel_confirmation(order_uuid)
+        result: list[object] = []
+
+        worker = Thread(
+            target=lambda: result.append(
+                first.cancel(order_uuid, confirmation=confirmation)
+            )
+        )
+        worker.start()
+        assert engine.entered.wait(timeout=5)
+
+        second_store = SqliteExecutionAuditStore(tmp_path / "audit.db")
+        second = _gateway(
+            PaperBrokerAdapter(engine), second_store, mode=ExecutionMode.PAPER
+        )
+        with pytest.raises(UnknownSubmissionStateError, match="reconcile"):
+            second.cancel(order_uuid, confirmation=confirmation)
+
+        engine.release.set()
+        worker.join(timeout=5)
+        first_store.close()
+        second_store.close()
+        assert len(engine.cancelled) == 1
+        assert len(result) == 1
+
+
+class TestFactory:
+    def test_paper_factory_uses_default_engine(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = _FakePaperEngine()
+        monkeypatch.setattr(
+            "openbb_techtrade.execution.paper_engine.get_default_engine",
+            lambda **kwargs: engine,
+        )
+        adapter = get_default_broker_adapter(
+            mode=ExecutionMode.PAPER,
+            account_id="paper",
+        )
+        assert isinstance(adapter, PaperBrokerAdapter)
+        assert adapter.engine is engine
+
+    def test_live_factory_requires_injected_client(self) -> None:
+        with pytest.raises(ExecutionConfigurationError, match="injected"):
+            get_default_broker_adapter(
+                mode=ExecutionMode.LIVE,
+                account_id="fake-live",
+            )

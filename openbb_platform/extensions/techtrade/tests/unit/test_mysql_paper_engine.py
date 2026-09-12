@@ -28,6 +28,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
+from uuid import UUID
 
 import pytest
 from openbb_fmp_cached.utils import database
@@ -378,8 +379,7 @@ class TestAccountLifecycle:
         assert acct.starting_cash == Decimal("50000")
         assert any("ON DUPLICATE KEY UPDATE" in sql for sql in pool.statements)
         assert not any(
-            "SELECT account_id FROM pi_paper_account" in sql
-            for sql in pool.statements
+            "SELECT account_id FROM pi_paper_account" in sql for sql in pool.statements
         )
 
     def test_protocol_conformance(self, engine: MysqlPaperEngine) -> None:
@@ -441,7 +441,9 @@ class TestConnectionPoolContract:
             statement for statement in pool.statements if "FOR UPDATE" in statement
         ]
         assert any("FROM pi_paper_account" in statement for statement in locking_reads)
-        assert sum("FROM pi_paper_order" in statement for statement in locking_reads) == 2
+        assert (
+            sum("FROM pi_paper_order" in statement for statement in locking_reads) == 2
+        )
         assert any("FROM _pi_paper_lot" in statement for statement in locking_reads)
         assert any("FROM pi_paper_position" in statement for statement in locking_reads)
 
@@ -614,8 +616,30 @@ class TestSubmitBatch:
         ids = engine.submit_batch(_batch(_tk("MSFT", qty="10"), _tk("AAPL", qty="20")))
         assert len(ids) == 2
         assert all(i.startswith("ord_") for i in ids)
+        assert all(UUID(i.removeprefix("ord_")).version == 4 for i in ids)
         pending = engine.get_orders(status=OrderStatus.PENDING)
         assert {o.symbol for o in pending} == {"MSFT", "AAPL"}
+
+    def test_same_batch_submission_is_idempotent(
+        self, engine: MysqlPaperEngine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        batch = _batch(_tk("MSFT"), _tk("AAPL"))
+
+        first = engine.submit_batch(batch, plan_id="plan-retry")
+        original_fetchall = _CursorShim.fetchall
+
+        def dict_cursor_fetchall(cursor: _CursorShim):
+            rows = original_fetchall(cursor)
+            columns = [item[0] for item in (cursor._real.description or ())]
+            if columns == ["order_id"]:
+                return [{"order_id": row[0]} for row in rows]
+            return rows
+
+        monkeypatch.setattr(_CursorShim, "fetchall", dict_cursor_fetchall)
+        second = engine.submit_batch(batch, plan_id="plan-retry")
+
+        assert second == first
+        assert len(engine.get_orders()) == 2
 
     def test_batch_sha_stamped(self, engine: MysqlPaperEngine) -> None:
         """R7.11 twin: dropping batch_sha256 breaks reconciliation-by-batch."""

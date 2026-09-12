@@ -493,12 +493,32 @@ class SqlitePaperEngine:
             )
         batch_sha = getattr(batch, "sha256", lambda: "")()
         submitted_at = _now_iso()
-        order_ids: list[str] = []
+        order_ids = (
+            [
+                _new_order_id(f"{self._account_id}:{plan_id}:{batch_sha}:{ordinal}")
+                for ordinal, _ticket in enumerate(tickets)
+            ]
+            if plan_id
+            else [_new_id("ord") for _ticket in tickets]
+        )
         with self._tx():
-            for t in tickets:
+            if plan_id:
+                existing = self._conn.execute(
+                    "SELECT order_id FROM pi_paper_order "
+                    "WHERE account_id = ? AND plan_id = ? AND batch_sha256 = ?",
+                    (self._account_id, plan_id, batch_sha),
+                ).fetchall()
+                if existing:
+                    existing_ids = {row["order_id"] for row in existing}
+                    if existing_ids == set(order_ids):
+                        return order_ids
+                    raise PaperEngineError(
+                        "submit_batch: plan/batch idempotency key exists with "
+                        "a different order identity set; reconcile the audit rows"
+                    )
+            for order_id, t in zip(order_ids, tickets, strict=True):
                 _validate_symbol(t.symbol)
                 side = _action_to_side(t.action)
-                order_id = _new_id("ord")
                 self._conn.execute(
                     "INSERT INTO pi_paper_order "
                     "(order_id, account_id, symbol, side, quantity, "
@@ -519,7 +539,6 @@ class SqlitePaperEngine:
                         batch_sha,
                     ),
                 )
-                order_ids.append(order_id)
         logger.info(
             "SqlitePaperEngine.submit_batch: %d orders PENDING (batch %s...)",
             len(order_ids),
@@ -1084,8 +1103,16 @@ def orders_from_batch_shape(tickets: Iterable) -> list[dict]:  # noqa: ANN001
 
 
 def _new_id(prefix: str) -> str:
-    """Short unique-per-row identifier — prefix + 12-char uuid tail."""
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+    """Return a unique row identifier with a full canonical RFC 4122 UUID."""
+    return f"{prefix}_{uuid.uuid4()}"
+
+
+_ORDER_ID_NAMESPACE = uuid.UUID("2b5b9db9-9e57-46d6-bc90-cb2ae341fe15")
+
+
+def _new_order_id(identity: str) -> str:
+    """Deterministic UUID for an idempotent account/batch/ordinal identity."""
+    return f"ord_{uuid.uuid5(_ORDER_ID_NAMESPACE, identity)}"
 
 
 def _now_iso() -> str:

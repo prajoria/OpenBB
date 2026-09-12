@@ -30,6 +30,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from openbb_techtrade.execution import paper_engine as paper_engine_module
@@ -124,8 +125,20 @@ class TestSubmitBatch:
         ids = engine.submit_batch(_batch(_tk("MSFT", qty="10"), _tk("AAPL", qty="20")))
         assert len(ids) == 2
         assert all(i.startswith("ord_") for i in ids)
+        assert all(UUID(i.removeprefix("ord_")).version == 4 for i in ids)
         pending = engine.get_orders(status=OrderStatus.PENDING)
         assert {o.symbol for o in pending} == {"MSFT", "AAPL"}
+
+    def test_same_batch_submission_is_idempotent(
+        self, engine: SqlitePaperEngine
+    ) -> None:
+        batch = _batch(_tk("MSFT"), _tk("AAPL"))
+
+        first = engine.submit_batch(batch, plan_id="plan-retry")
+        second = engine.submit_batch(batch, plan_id="plan-retry")
+
+        assert second == first
+        assert len(engine.get_orders()) == 2
 
     def test_batch_sha_stamped_on_orders(self, engine: SqlitePaperEngine) -> None:
         """R7.11 twin: dropping batch_sha256 from the INSERT breaks the

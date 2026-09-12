@@ -76,6 +76,7 @@ from openbb_techtrade.execution.paper_engine import (
     PaperPosition,
     PaperPositionMarked,
     Side,
+    _new_order_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -329,13 +330,42 @@ class MysqlPaperEngine:
             )
         batch_sha = getattr(batch, "sha256", lambda: "")()
         submitted_at = _now_utc()
-        order_ids: list[str] = []
+        order_ids = (
+            [
+                _new_order_id(
+                    f"{self._run_id}:{self._strategy_id}:{self._account_id}:"
+                    f"{plan_id}:{batch_sha}:{ordinal}"
+                )
+                for ordinal, _ticket in enumerate(tickets)
+            ]
+            if plan_id
+            else [_new_id("ord") for _ticket in tickets]
+        )
         with self.transaction() as conn:
             cur = conn.cursor()
-            for t in tickets:
+            if plan_id:
+                where, scope_params = self._scope_where(
+                    "plan_id = %s AND batch_sha256 = %s"
+                )
+                cur.execute(
+                    f"SELECT order_id FROM pi_paper_order WHERE {where} FOR UPDATE",
+                    (*scope_params, plan_id, batch_sha),
+                )
+                existing_ids = {
+                    _row_values(row, ("order_id",))[0] for row in cur.fetchall()
+                }
+                if existing_ids:
+                    if existing_ids == set(order_ids):
+                        cur.close()
+                        return order_ids
+                    cur.close()
+                    raise PaperEngineError(
+                        "submit_batch: plan/batch idempotency key exists with "
+                        "a different order identity set; reconcile the audit rows"
+                    )
+            for order_id, t in zip(order_ids, tickets, strict=True):
                 _validate_symbol(t.symbol)
                 side = _action_to_side(t.action)
-                order_id = _new_id("ord")
                 cur.execute(
                     "INSERT INTO pi_paper_order "
                     "(order_id, run_id, strategy_id, account_id, symbol, "
@@ -358,7 +388,6 @@ class MysqlPaperEngine:
                         batch_sha,
                     ),
                 )
-                order_ids.append(order_id)
             cur.close()
         logger.info(
             "MysqlPaperEngine.submit_batch: %d orders PENDING (batch %s...)",
@@ -911,7 +940,7 @@ class MysqlPaperEngine:
 
 
 def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+    return f"{prefix}_{uuid.uuid4()}"
 
 
 def _now_utc() -> datetime:
