@@ -135,12 +135,32 @@ class TestAdapterContract:
                 account_id="confirmed-account",
             )
 
+    def test_live_adapter_rejects_non_string_initial_identity(self) -> None:
+        client = _FakeLiveClient()
+        client.account_id = None  # type: ignore[assignment]
+
+        with pytest.raises(ExecutionConfigurationError, match="must be strings"):
+            LiveBrokerAdapter(client, account_id="None")
+
     def test_live_adapter_rechecks_client_identity_before_submit(self) -> None:
         client = _FakeLiveClient()
         adapter = LiveBrokerAdapter(client, account_id="fake-live")
         client.account_id = "different-account"
 
         with pytest.raises(ExecutionConfigurationError, match="identity changed"):
+            adapter.submit_batch(
+                _batch("MSFT"),
+                (UUID("00000000-0000-4000-8000-000000000001"),),
+            )
+
+        assert client.calls == []
+
+    def test_live_adapter_rejects_non_string_identity_before_submit(self) -> None:
+        client = _FakeLiveClient()
+        adapter = LiveBrokerAdapter(client, account_id="fake-live")
+        client.broker_id = 123  # type: ignore[assignment]
+
+        with pytest.raises(ExecutionConfigurationError, match="must be strings"):
             adapter.submit_batch(
                 _batch("MSFT"),
                 (UUID("00000000-0000-4000-8000-000000000001"),),

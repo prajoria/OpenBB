@@ -19,6 +19,16 @@ from openbb_techtrade.execution.paper_engine import PaperEngine
 _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
+def _client_identity(client: LiveBrokerClient) -> tuple[str, str]:
+    account_id = client.account_id
+    broker_id = client.broker_id
+    if not isinstance(account_id, str) or not isinstance(broker_id, str):
+        raise ExecutionConfigurationError(
+            "live broker client identity values must be strings"
+        )
+    return account_id, broker_id
+
+
 class PaperBrokerAdapter:
     """Adapt the existing transactional paper engine to the broker contract."""
 
@@ -77,12 +87,11 @@ class LiveBrokerAdapter:
                 "live broker adapter account_id must match "
                 f"{_ACCOUNT_ID_RE.pattern!r}"
             )
-        client_account = str(client.account_id)
+        client_account, client_broker = _client_identity(client)
         if client_account != account_id:
             raise ExecutionConfigurationError(
                 "live broker client account does not match configured account_id"
             )
-        client_broker = str(client.broker_id)
         if not _ACCOUNT_ID_RE.fullmatch(client_broker):
             raise ExecutionConfigurationError(
                 "live broker client broker_id must match " f"{_ACCOUNT_ID_RE.pattern!r}"
@@ -160,10 +169,8 @@ class LiveBrokerAdapter:
         self._verify_identity()
 
     def _verify_identity(self) -> None:
-        if (
-            str(self._client.account_id) != self._account_id
-            or str(self._client.broker_id) != self._broker_id
-        ):
+        client_account, client_broker = _client_identity(self._client)
+        if client_account != self._account_id or client_broker != self._broker_id:
             raise ExecutionConfigurationError(
                 "live broker client identity changed after adapter construction"
             )
