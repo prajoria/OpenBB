@@ -3401,7 +3401,7 @@ def register_t5_approved_batch(
     *,
     mode: str = "paper",
     principal_id: str = "paper",
-    broker_id: str = "paper-engine",
+    broker_id: str | None = None,
     account_id: str = "paper",
     request_sha256: str = "",
 ) -> None:
@@ -3411,8 +3411,14 @@ def register_t5_approved_batch(
     from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
         ExecutionMode,
         SqliteExecutionAuditStore,
+        get_default_paper_broker_id,
     )
 
+    execution_mode = ExecutionMode(mode)
+    if broker_id is None:
+        if execution_mode is ExecutionMode.LIVE:
+            raise ValueError("live approval registration requires broker_id")
+        broker_id = get_default_paper_broker_id()
     plan_id = getattr(batch, "plan_id", "")
     if not plan_id:
         raise ValueError("approved T5 batch requires a non-empty plan_id")
@@ -3432,7 +3438,7 @@ def register_t5_approved_batch(
     try:
         store.register_approved_batch(
             batch,
-            mode=ExecutionMode(mode),
+            mode=execution_mode,
             principal_id=principal_id,
             broker_id=broker_id,
             account_id=account_id,
@@ -3447,7 +3453,7 @@ def _resolve_t5_approved_batch(
     *,
     mode: str = "paper",
     principal_id: str = "paper",
-    broker_id: str = "paper-engine",
+    broker_id: str | None = None,
     account_id: str = "paper",
     request_sha256: str | None = None,
 ):
@@ -3457,8 +3463,14 @@ def _resolve_t5_approved_batch(
     from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
         ExecutionMode,
         SqliteExecutionAuditStore,
+        get_default_paper_broker_id,
     )
 
+    execution_mode = ExecutionMode(mode)
+    if broker_id is None:
+        if execution_mode is ExecutionMode.LIVE:
+            raise ValueError("live approval lookup requires broker_id")
+        broker_id = get_default_paper_broker_id()
     store = SqliteExecutionAuditStore(
         Path(
             os.environ.get(
@@ -3470,7 +3482,7 @@ def _resolve_t5_approved_batch(
     try:
         return store.get_approved_batch(
             plan_id,
-            mode=ExecutionMode(mode),
+            mode=execution_mode,
             principal_id=principal_id,
             broker_id=broker_id,
             account_id=account_id,
@@ -3526,11 +3538,21 @@ async def _build_server_approved_t5_batch(
             status_code=400,
             detail="T4 validation did not produce a robust verdict",
         )
-    tickets = tuple(tickets_from_orders(validated_plan.orders))
+    entry_orders = tuple(
+        order
+        for order in validated_plan.orders
+        if getattr(order, "intent", "entry") == "entry"
+    )
+    tickets = tuple(tickets_from_orders(entry_orders))
     if not tickets:
         raise HTTPException(
             status_code=400,
             detail="validated T4 plan contains no executable entry orders",
+        )
+    if len(tickets) != len(entry_orders):
+        raise HTTPException(
+            status_code=400,
+            detail="validated T4 plan entry orders are not fully convertible",
         )
     return OrderBatch(
         tickets=tickets,

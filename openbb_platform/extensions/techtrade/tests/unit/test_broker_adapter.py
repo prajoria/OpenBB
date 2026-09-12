@@ -325,6 +325,17 @@ class TestExecutionGateway:
         with pytest.raises(PermissionError, match="must not contain links"):
             SqliteExecutionAuditStore(linked / "audit.db")
 
+    def test_audit_store_rejects_unrelated_file_after_initialization(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "private" / "audit.db"
+        store = SqliteExecutionAuditStore(path)
+        store.close()
+        (path.parent / "unrelated.txt").write_text("not audit data", encoding="utf-8")
+
+        with pytest.raises(PermissionError, match="dedicated private directory"):
+            SqliteExecutionAuditStore(path)
+
     def test_audit_store_rejects_relative_path_without_touching_cwd(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -1245,6 +1256,37 @@ class TestExecutionGateway:
 
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert raised.value.receipt.orders[0].status == "UNKNOWN"
+
+    def test_definite_batch_failure_marks_all_unacknowledged_orders_failed(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        class DefiniteFailureAdapter:
+            mode = ExecutionMode.PAPER
+            broker_id = "paper-engine-definite-failure"
+            account_id = "paper"
+
+            def submit_batch(self, batch, order_uuids):
+                raise BrokerBatchError("definite batch rejection")
+
+            def cancel_order(self, broker_order_id):
+                return None
+
+        gateway = _gateway(
+            DefiniteFailureAdapter(),
+            audit,
+            mode=ExecutionMode.PAPER,
+        )
+        batch = _batch("MSFT", "AAPL")
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.FAILED
+        assert {order.status for order in raised.value.receipt.orders} == {"FAILED"}
 
     def test_reserved_unknown_outcome_fails_closed(
         self, audit: SqliteExecutionAuditStore

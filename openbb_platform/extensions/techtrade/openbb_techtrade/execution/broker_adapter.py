@@ -345,42 +345,29 @@ class SqliteExecutionAuditStore:
                     {"broker_order_id": ack.broker_order_id},
                     ack.order_uuid,
                 )
-            if failed_order_uuid is not None:
+            remaining_status = "UNKNOWN" if outcome_unknown else "FAILED"
+            remaining_rows = self._conn.execute(
+                "SELECT order_uuid FROM pi_execution_order "
+                "WHERE submission_id = ? AND status = 'PLANNED'",
+                (str(submission_id),),
+            ).fetchall()
+            for row in remaining_rows:
+                order_uuid = uuid.UUID(row["order_uuid"])
                 self._conn.execute(
                     "UPDATE pi_execution_order SET status = ?, error = ? "
-                    "WHERE submission_id = ? AND order_uuid = ?",
+                    "WHERE order_uuid = ?",
                     (
-                        "UNKNOWN" if outcome_unknown else "FAILED",
+                        remaining_status,
                         error,
-                        str(submission_id),
-                        str(failed_order_uuid),
+                        str(order_uuid),
                     ),
                 )
                 self._append_event(
                     submission_id,
                     "ORDER_UNKNOWN" if outcome_unknown else "ORDER_FAILED",
                     {"error": error},
-                    failed_order_uuid,
+                    order_uuid,
                 )
-            if outcome_unknown:
-                unknown_rows = self._conn.execute(
-                    "SELECT order_uuid FROM pi_execution_order "
-                    "WHERE submission_id = ? AND status = 'PLANNED'",
-                    (str(submission_id),),
-                ).fetchall()
-                for row in unknown_rows:
-                    order_uuid = uuid.UUID(row["order_uuid"])
-                    self._conn.execute(
-                        "UPDATE pi_execution_order SET status = 'UNKNOWN', "
-                        "error = ? WHERE order_uuid = ?",
-                        (error, str(order_uuid)),
-                    )
-                    self._append_event(
-                        submission_id,
-                        "ORDER_UNKNOWN",
-                        {"error": error},
-                        order_uuid,
-                    )
             self._update_submission(submission_id, status, error=error)
             self._append_event(
                 submission_id,

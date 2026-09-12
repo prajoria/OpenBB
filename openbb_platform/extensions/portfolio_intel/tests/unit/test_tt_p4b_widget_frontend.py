@@ -20,6 +20,7 @@ from openbb_portfolio_intel.widget_backend.main import app  # noqa: E402
 from openbb_portfolio_intel.widget_backend.widgets_endpoints import (  # noqa: E402
     _build_server_approved_t5_batch,
     _build_t5_demo_batch,
+    _resolve_t5_approved_batch,
     register_t5_approved_batch,
 )
 
@@ -612,6 +613,66 @@ def test_default_approval_builder_uses_server_generated_orders(
     assert batch.tickets[0].symbol == "MSFT"
     assert batch.tickets[0].quantity == Decimal("3")
     assert batch.plan_id == "t4-server-generated"
+
+
+def test_default_approval_builder_rejects_partially_dropped_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from decimal import Decimal
+
+    from fastapi import HTTPException
+    from openbb_techtrade.engine import plan as plan_module
+    from openbb_techtrade.models import Order
+    from openbb_techtrade.validation import backtest_bridge
+
+    server_plan = SimpleNamespace(
+        orders=[
+            Order(
+                symbol="MSFT",
+                side="buy",
+                quantity=Decimal("3"),
+                order_type="market",
+                intent="entry",
+            ),
+            SimpleNamespace(
+                symbol="AAPL",
+                side="unsupported",
+                quantity=Decimal("2"),
+                order_type="market",
+                intent="entry",
+            ),
+        ]
+    )
+    monkeypatch.setattr(plan_module, "build_plans", lambda **_kwargs: [server_plan])
+
+    async def validate_plan(plan, **_kwargs):
+        return plan, SimpleNamespace(verdict="robust")
+
+    monkeypatch.setattr(backtest_bridge, "validate_plan", validate_plan)
+
+    with pytest.raises(HTTPException, match="not fully convertible"):
+        asyncio.run(
+            _build_server_approved_t5_batch(
+                {"symbol": "MSFT"},
+                "t4-partial-drop",
+            )
+        )
+
+
+def test_register_approved_batch_default_uses_configured_paper_broker(
+    clean_env,
+) -> None:
+    from openbb_techtrade.execution.broker_adapter import get_default_paper_broker_id
+
+    batch = _build_t5_demo_batch("default-paper-broker")
+    register_t5_approved_batch(batch)
+
+    restored = _resolve_t5_approved_batch(
+        batch.plan_id,
+        broker_id=get_default_paper_broker_id(),
+    )
+    assert restored is not None
+    assert restored.sha256() == batch.sha256()
 
 
 def test_default_approval_builder_rejects_validation_policy_overrides() -> None:

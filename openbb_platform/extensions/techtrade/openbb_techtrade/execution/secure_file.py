@@ -46,6 +46,7 @@ def prepare_private_audit_directory(path: Path, audit_filename: str) -> None:
         if component.exists() and _is_link(component):
             raise PermissionError("execution audit path must not contain links")
     allowed = {
+        marker.name,
         audit_filename,
         f"{audit_filename}-journal",
         f"{audit_filename}-shm",
@@ -53,7 +54,7 @@ def prepare_private_audit_directory(path: Path, audit_filename: str) -> None:
     }
     unrelated = (
         [item for item in path.iterdir() if item.name not in allowed]
-        if path.exists() and not marker.exists()
+        if path.exists()
         else []
     )
     if unrelated:
