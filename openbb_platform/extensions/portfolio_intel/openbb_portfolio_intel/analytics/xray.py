@@ -174,7 +174,9 @@ def _normalize_underlying_weights(
     tolerance: Decimal = DEFAULT_UNDERLYING_WEIGHT_TOLERANCE,
 ) -> list[Holding]:
     """Validate and normalize one non-empty provider holdings vector."""
-    if any(not holding.weight.is_finite() or holding.weight < 0 for holding in holdings):
+    if any(
+        not holding.weight.is_finite() or holding.weight < 0 for holding in holdings
+    ):
         raise ValueError(
             f"{parent_symbol}: holdings weights must be finite and non-negative"
         )
