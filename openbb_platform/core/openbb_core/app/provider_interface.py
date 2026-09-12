@@ -733,9 +733,13 @@ class ProviderInterface(metaclass=SingletonMeta):
             outer = {model["results_type"] for model in models.values()}
             inner = self._get_annotated_union(models)
             full = Union[tuple((o[inner] if o else inner) for o in outer)]  # type: ignore  # noqa
-            annotations[name] = create_model(
-                f"OBBject_{name}",
+            annotation_name = f"OBBject_{name}"
+            annotation = create_model(
+                annotation_name,
                 __base__=OBBject[full],  # type: ignore
+                __module__=__name__,
                 __doc__=f"OBBject with results of type {name}",
             )
+            annotations[name] = annotation
+            globals()[annotation_name] = annotation
         return annotations
