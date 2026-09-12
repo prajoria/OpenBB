@@ -1117,6 +1117,27 @@ class TestScopeIsolation:
 
         assert first.execution_scope_id != second.execution_scope_id
 
+    def test_execution_scope_normalizes_mysql_case_insensitivity(
+        self, pool: _FakePool
+    ) -> None:
+        upper = MysqlPaperEngine(
+            connection_pool=pool,
+            run_id="LIVE",
+            strategy_id="Mean_Reversion",
+            account_id="Paper",
+            initialize=False,
+        )
+        lower = MysqlPaperEngine(
+            connection_pool=pool,
+            run_id="live",
+            strategy_id="mean_reversion",
+            account_id="paper",
+            initialize=False,
+        )
+
+        assert upper.execution_scope_id == lower.execution_scope_id
+        assert upper.account_id == lower.account_id == "paper"
+
     def test_execution_scope_id_includes_database(self, tmp_path: Path) -> None:
         first_pool = _FakePool(tmp_path / "first.db")
         first_pool.database = "first"

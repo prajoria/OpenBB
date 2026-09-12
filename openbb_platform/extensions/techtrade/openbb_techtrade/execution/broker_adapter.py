@@ -968,6 +968,7 @@ def get_default_broker_adapter(
                 allow_fallback=False,
                 initialize=initialize,
             )
+            resolved_account = paper_engine.account_id
         return PaperBrokerAdapter(paper_engine, account_id=resolved_account)
 
     resolved_account = account_id or os.environ.get("PI_T5_LIVE_ACCOUNT_ID", "")

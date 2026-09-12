@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import uuid
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
@@ -89,6 +90,15 @@ _VALID_FILL_MODES: frozenset[str] = frozenset(
     {"OPERATOR_RECORDED", "BAR_SIMULATED", "ACTIVITY_CSV_IMPORTED"}
 )
 _EXECUTION_SCOPE_NAMESPACE = uuid.UUID("cd6ea134-5078-4f4b-9794-a2b36017f60f")
+_SCOPE_COMPONENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def _normalize_scope_component(value: str, name: str) -> str:
+    if not isinstance(value, str) or not _SCOPE_COMPONENT_RE.fullmatch(value):
+        raise PaperEngineError(
+            f"{name} must match {_SCOPE_COMPONENT_RE.pattern!r} for MySQL scope safety"
+        )
+    return value.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -230,9 +240,9 @@ class MysqlPaperEngine:
 
             connection_pool = get_connection_pool()
         self._pool = connection_pool
-        self._run_id = run_id
-        self._strategy_id = strategy_id
-        self._account_id = account_id
+        self._run_id = _normalize_scope_component(run_id, "run_id")
+        self._strategy_id = _normalize_scope_component(strategy_id, "strategy_id")
+        self._account_id = _normalize_scope_component(account_id, "account_id")
         if initialize:
             self._ensure_schema()
             self._ensure_account(starting_cash)
