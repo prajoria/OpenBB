@@ -48,7 +48,8 @@ roll back before re-raising any exception.
 
 The existing operation boundaries remain unchanged:
 
-- schema creation and account bootstrap remain atomic write scopes;
+- schema creation remains idempotent but is not atomic because MySQL DDL
+  implicitly commits; account bootstrap remains an atomic DML write scope;
 - order submission, fill processing, and cancellation each remain one atomic
   transaction;
 - fill and cancellation transactions lock the order rows they validate, while
@@ -83,7 +84,10 @@ SQLite paper-engine regression tests will verify behavioral preservation.
 
 ## Error handling and scope
 
-The pool continues to close connections on all exits. Engine exceptions are
-not translated: write failures roll back and propagate exactly as before.
+The pool continues to close connections on all exits. Expected
+`PaperEngineError` rejections are rolled back inside the borrow and re-raised
+unchanged after the pool context exits, preventing the shared pool from
+misreporting domain refusals as connection failures. Driver errors still cross
+the pool context and retain its connection-error logging.
 Changes are limited to issue #2059; unrelated execution and snapshot work,
 including #1719, is out of scope.

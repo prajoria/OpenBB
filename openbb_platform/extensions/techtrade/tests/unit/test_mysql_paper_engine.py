@@ -17,6 +17,7 @@ R7.11 mutation-twin notes on every load-bearing assertion.
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from collections.abc import Iterator
@@ -165,11 +166,17 @@ class _CursorShim:
 
 class _SqliteConn:
     def __init__(
-        self, conn: sqlite3.Connection, events: list[str], statements: list[str]
+        self,
+        conn: sqlite3.Connection,
+        events: list[str],
+        statements: list[str],
+        *,
+        owns_raw: bool = False,
     ) -> None:
         self._conn = conn
         self._events = events
         self._statements = statements
+        self._owns_raw = owns_raw
 
     def cursor(self) -> Any:
         return _CursorShim(self._conn.cursor(), self._statements)
@@ -188,6 +195,8 @@ class _SqliteConn:
 
     def close(self) -> None:
         self._events.append("close")
+        if self._owns_raw:
+            self._conn.close()
 
 
 class _FakePool:
@@ -331,14 +340,23 @@ class TestConnectionPoolContract:
         assert any("FROM pi_paper_position" in statement for statement in locking_reads)
 
     def test_real_connection_pool_context_manager_contract(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         events: list[str] = []
         statements: list[str] = []
-        sqlite_conn = sqlite3.connect(":memory:")
-        sqlite_conn.row_factory = sqlite3.Row
-        connection = _SqliteConn(sqlite_conn, events, statements)
-        connect = MagicMock(return_value=connection)
+        database_path = tmp_path / "real_pool_contract.db"
+
+        def open_connection(**_kwargs: Any) -> _SqliteConn:
+            sqlite_conn = sqlite3.connect(database_path)
+            sqlite_conn.row_factory = sqlite3.Row
+            return _SqliteConn(
+                sqlite_conn,
+                events,
+                statements,
+                owns_raw=True,
+            )
+
+        connect = MagicMock(side_effect=open_connection)
         monkeypatch.setattr(database.pymysql, "connect", connect)
         config = MagicMock()
         config.connection_params = {}
@@ -365,6 +383,42 @@ class TestConnectionPoolContract:
             call.kwargs["cursorclass"] is database.pymysql.cursors.DictCursor
             for call in connect.call_args_list
         )
+
+    def test_domain_rejection_does_not_log_connection_error(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        events: list[str] = []
+        statements: list[str] = []
+        database_path = tmp_path / "domain_rejection.db"
+
+        def open_connection(**_kwargs: Any) -> _SqliteConn:
+            sqlite_conn = sqlite3.connect(database_path)
+            sqlite_conn.row_factory = sqlite3.Row
+            return _SqliteConn(
+                sqlite_conn,
+                events,
+                statements,
+                owns_raw=True,
+            )
+
+        monkeypatch.setattr(database.pymysql, "connect", open_connection)
+        config = MagicMock()
+        config.connection_params = {}
+        pool = database.ConnectionPool(config)
+        engine = MysqlPaperEngine(connection_pool=pool)
+        [order_id] = engine.submit_batch(_batch(_tk("MSFT", qty="1000")))
+        caplog.clear()
+
+        with (
+            caplog.at_level(logging.ERROR, logger=database.__name__),
+            pytest.raises(PaperEngineError, match="cash negative"),
+        ):
+            engine.record_fill(order_id, Decimal("200"), Decimal("1000"), _t())
+
+        assert "MySQL connection error" not in caplog.text
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 
 **Goal:** Make `MysqlPaperEngine` correctly borrow shared PyMySQL connections and preserve atomic writes under the pool's autocommit default.
 
-**Architecture:** Keep the public engine and SQL unchanged. Model the production context-manager contract in tests, delegate connection cleanup to `ConnectionPool`, and explicitly begin every engine write transaction before commit or rollback.
+**Architecture:** Keep the public engine and schema unchanged while adding transactional locking clauses to mutation reads. Model the production context-manager contract in tests, delegate connection cleanup to `ConnectionPool`, and explicitly begin every engine write transaction before commit or rollback.
 
 **Tech Stack:** Python, PyMySQL, SQLite test shim, pytest, Ruff
 

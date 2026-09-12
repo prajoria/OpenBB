@@ -244,14 +244,20 @@ class MysqlPaperEngine:
     @contextmanager
     def transaction(self) -> Iterator[Any]:
         """Explicit BEGIN/COMMIT (rollback on any exception)."""
+        held: PaperEngineError | None = None
         with self._acquire() as conn:
             conn.begin()
             try:
                 yield conn
                 conn.commit()
+            except PaperEngineError as exc:
+                conn.rollback()
+                held = exc
             except Exception:
                 conn.rollback()
                 raise
+        if held is not None:
+            raise held
 
     # ------------------------------------------------------------------
     # schema + account bootstrap
