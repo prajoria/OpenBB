@@ -130,7 +130,7 @@ def test_look_through_normalizes_underlying_rounding_drift() -> None:
     provider = {
         "SPY": [
             Holding("AAPL", Decimal("0.6")),
-            Holding("MSFT", Decimal("0.397")),
+            Holding("MSFT", Decimal("0.385")),
         ]
     }
 
@@ -138,8 +138,8 @@ def test_look_through_normalizes_underlying_rounding_drift() -> None:
 
     assert sum(result.effective.values()) == Decimal("1")
     assert result.effective == {
-        "AAPL": Decimal("0.6") / Decimal("0.997"),
-        "MSFT": Decimal("0.397") / Decimal("0.997"),
+        "AAPL": Decimal("0.6") / Decimal("0.985"),
+        "MSFT": Decimal("0.385") / Decimal("0.985"),
     }
 
 

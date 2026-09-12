@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Preserve public response schemas and valid single-security behavior.
-- Accept underlying provider rounding drift up to exactly `0.01`.
+- Accept underlying provider rounding drift up to exactly `0.02`, matching `fmp_cached`.
 - Reject non-finite, negative, zero-total, and materially under/over-normalized child vectors.
 - Normalize accepted child vectors before recursive multiplication.
 
@@ -55,7 +55,7 @@ Expected: new cases fail because child vectors are not validated.
 
 - [x] **Step 3: Add minimal validation and normalization**
 
-Add a `0.01` child-vector tolerance and a private helper that returns immutable replacement
+Add a `0.02` child-vector tolerance and a private helper that returns immutable replacement
 `Holding` rows with `weight / total`. Call it lazily from recursive look-through and cache the
 normalized vector by parent symbol.
 

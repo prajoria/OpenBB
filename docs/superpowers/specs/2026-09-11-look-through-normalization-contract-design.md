@@ -23,9 +23,10 @@ composition boundary used by X-Ray, concentration, and What-If.
 
 - Top-level portfolio weights retain their existing `0.0001` tolerance.
 - Every non-empty underlying holdings vector must contain finite, non-negative weights.
-- Its total must be positive and within `0.01` of one. This accepts the observed live SPY
-  issuer total (`0.99775977`) and ordinary source rounding, while rejecting percent/fraction
-  double-conversion and materially truncated datasets.
+- Its total must be positive and within `0.02` of one, matching the existing `fmp_cached`
+  provider contract. This accepts the observed live SPY issuer total (`0.99775977`) and
+  ordinary source rounding, while rejecting percent/fraction double-conversion and materially
+  truncated datasets.
 - Accepted child weights are divided by their total before recursion. This makes effective
   weights sum to the parent allocation within Decimal arithmetic precision rather than
   carrying provider rounding drift.

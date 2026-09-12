@@ -41,8 +41,9 @@ DEFAULT_MAX_DEPTH = 5
 DEFAULT_WEIGHT_TOLERANCE = Decimal("0.0001")
 
 # Provider holdings commonly omit a small cash residual or carry rounded
-# percentages. Accept at most 1% drift, then normalize before composition.
-DEFAULT_UNDERLYING_WEIGHT_TOLERANCE = Decimal("0.01")
+# percentages. Accept at most 2% drift, matching the provider contract,
+# then normalize before composition.
+DEFAULT_UNDERLYING_WEIGHT_TOLERANCE = Decimal("0.02")
 
 
 @dataclass(frozen=True)
