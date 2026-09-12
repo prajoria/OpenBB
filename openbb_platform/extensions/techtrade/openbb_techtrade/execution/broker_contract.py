@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
@@ -161,6 +161,30 @@ class ExecutionSubmissionError(ExecutionError):
 
 class CancellationError(ExecutionError):
     """Cancellation failed and the failure was written to the audit."""
+
+
+def reconciliation_receipt(
+    receipt: SubmissionReceipt,
+    acknowledgements: Sequence[BrokerOrderAck],
+    error: str,
+) -> SubmissionReceipt:
+    """Build a fail-closed receipt when the durable audit itself is unavailable."""
+    ack_by_uuid = {ack.order_uuid: ack.broker_order_id for ack in acknowledgements}
+    return replace(
+        receipt,
+        status=SubmissionStatus.RECONCILIATION_REQUIRED,
+        orders=tuple(
+            replace(
+                order,
+                broker_order_id=ack_by_uuid.get(order.order_uuid),
+                status="UNKNOWN",
+                error=error,
+            )
+            for order in receipt.orders
+        ),
+        updated_at=datetime.now(timezone.utc),
+        error=error,
+    )
 
 
 @runtime_checkable

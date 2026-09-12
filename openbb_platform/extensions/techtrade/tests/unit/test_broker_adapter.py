@@ -435,6 +435,7 @@ class TestExecutionGateway:
         batch = _batch("MSFT")
         audit.register_approved_batch(
             batch,
+            mode=ExecutionMode.LIVE,
             principal_id="alice",
             broker_id="fake-broker",
             account_id="account-a",
@@ -443,6 +444,7 @@ class TestExecutionGateway:
         with pytest.raises(ExecutionGateError, match="broker account"):
             audit.get_approved_batch(
                 batch.plan_id,
+                mode=ExecutionMode.LIVE,
                 principal_id="alice",
                 broker_id="fake-broker",
                 account_id="account-b",
@@ -450,6 +452,7 @@ class TestExecutionGateway:
         with pytest.raises(ExecutionGateError, match="principal"):
             audit.get_approved_batch(
                 batch.plan_id,
+                mode=ExecutionMode.LIVE,
                 principal_id="mallory",
                 broker_id="fake-broker",
                 account_id="account-a",
@@ -824,6 +827,37 @@ class TestExecutionGateway:
 
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
 
+    def test_post_submit_audit_failure_returns_reconciliation_receipt(
+        self,
+        audit: SqliteExecutionAuditStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        client = _FakeLiveClient()
+        gateway = _gateway(
+            LiveBrokerAdapter(client, account_id="fake-live"),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT")
+        monkeypatch.setattr(
+            audit,
+            "record_success",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                sqlite3.OperationalError("disk full")
+            ),
+        )
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+        assert raised.value.receipt.orders[0].broker_order_id == "live-1"
+
     def test_malformed_live_acknowledgements_require_reconciliation(
         self, audit: SqliteExecutionAuditStore
     ) -> None:
@@ -1148,6 +1182,41 @@ class TestExecutionGateway:
 
         with pytest.raises(UnknownSubmissionStateError, match="audit event"):
             gateway.cancel(order_uuid, confirmation=confirmation)
+
+    def test_post_cancel_audit_failure_is_typed_reconciliation(
+        self,
+        audit: SqliteExecutionAuditStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        client = _FakeLiveClient()
+        gateway = _gateway(
+            LiveBrokerAdapter(client, account_id="fake-live"),
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT")
+        receipt = gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(batch),
+        )
+        order_uuid = receipt.orders[0].order_uuid
+        monkeypatch.setattr(
+            audit,
+            "record_cancel",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                sqlite3.OperationalError("disk full")
+            ),
+        )
+
+        with pytest.raises(CancellationError, match="audit persistence"):
+            gateway.cancel(
+                order_uuid,
+                confirmation=gateway.expected_cancel_confirmation(order_uuid),
+            )
+
+        assert client.cancelled == ["live-1"]
 
     def test_cancel_failure_is_audited(self, audit: SqliteExecutionAuditStore) -> None:
         class FailingCancelEngine(_FakePaperEngine):

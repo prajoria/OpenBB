@@ -141,6 +141,7 @@ class TestBrokerExecutionGateway:
         )
         register_t5_approved_batch(
             batch,
+            mode="live",
             principal_id="alice",
             broker_id="fake-broker",
             account_id="fake-live",
@@ -171,6 +172,7 @@ class TestBrokerExecutionGateway:
         batch = _build_t5_demo_batch("")
         register_t5_approved_batch(
             batch,
+            mode="live",
             principal_id="alice",
             broker_id="fake-broker",
             account_id="fake-live",
@@ -233,6 +235,7 @@ class TestBrokerExecutionGateway:
         batch = _build_t5_demo_batch("")
         register_t5_approved_batch(
             batch,
+            mode="live",
             principal_id="alice",
             broker_id="fake-broker",
             account_id="fake-live",
@@ -302,6 +305,7 @@ class TestBrokerExecutionGateway:
         batch = _build_t5_demo_batch("")
         register_t5_approved_batch(
             batch,
+            mode="live",
             principal_id="alice",
             broker_id="fake-broker",
             account_id="fake-live",

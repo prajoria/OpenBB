@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS pi_execution_schema_meta (
 _APPROVAL_DDL = """
 CREATE TABLE IF NOT EXISTS pi_execution_approval (
     plan_id TEXT PRIMARY KEY,
+    mode TEXT NOT NULL,
     principal_id TEXT NOT NULL,
     broker_id TEXT NOT NULL,
     account_id TEXT NOT NULL,
@@ -108,6 +109,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             "principal_id",
             "broker_id",
             "account_id",
+            "mode",
         }.issubset(approval_columns):
             _migrate_approval(conn, approval_columns)
         for ddl in (
@@ -199,9 +201,10 @@ def _migrate_approval(
     if "request_sha256" in columns:
         conn.execute(
             "INSERT INTO pi_execution_approval "
-            "(plan_id, principal_id, broker_id, account_id, request_sha256, "
+            "(plan_id, mode, principal_id, broker_id, account_id, request_sha256, "
             "batch_sha256, batch_json, approved_at) "
             "SELECT plan_id, 'legacy-unassigned', 'legacy-unassigned', "
+            "'legacy-unassigned', "
             "'legacy-unassigned', request_sha256, "
             "batch_sha256, batch_json, approved_at "
             "FROM _pi_execution_approval_v1"
@@ -209,9 +212,10 @@ def _migrate_approval(
     else:
         conn.execute(
             "INSERT INTO pi_execution_approval "
-            "(plan_id, principal_id, broker_id, account_id, request_sha256, "
+            "(plan_id, mode, principal_id, broker_id, account_id, request_sha256, "
             "batch_sha256, batch_json, approved_at) "
             "SELECT plan_id, 'legacy-unassigned', 'legacy-unassigned', "
+            "'legacy-unassigned', "
             "'legacy-unassigned', '', batch_sha256, "
             "batch_json, approved_at FROM _pi_execution_approval_v1"
         )

@@ -35,6 +35,7 @@ from openbb_techtrade.execution.broker_contract import (
     SubmissionReceipt,
     SubmissionStatus,
     UnknownSubmissionStateError,
+    reconciliation_receipt,
 )
 from openbb_techtrade.execution.execution_audit_schema import (
     deserialize_approved_batch,
@@ -75,6 +76,7 @@ class SqliteExecutionAuditStore:
         self,
         batch: OrderBatch,
         *,
+        mode: ExecutionMode = ExecutionMode.PAPER,
         principal_id: str = "paper",
         broker_id: str = "paper-engine",
         account_id: str = "paper",
@@ -90,11 +92,12 @@ class SqliteExecutionAuditStore:
         with self._lock, self._conn:
             self._conn.execute(
                 "INSERT OR IGNORE INTO pi_execution_approval "
-                "(plan_id, principal_id, broker_id, account_id, request_sha256, "
-                "batch_sha256, batch_json, approved_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "(plan_id, mode, principal_id, broker_id, account_id, "
+                "request_sha256, batch_sha256, batch_json, approved_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     batch.plan_id,
+                    mode.value,
                     principal_id,
                     broker_id,
                     account_id,
@@ -105,13 +108,14 @@ class SqliteExecutionAuditStore:
                 ),
             )
             stored = self._conn.execute(
-                "SELECT principal_id, broker_id, account_id, request_sha256, "
+                "SELECT mode, principal_id, broker_id, account_id, request_sha256, "
                 "batch_sha256, batch_json "
                 "FROM pi_execution_approval WHERE plan_id = ?",
                 (batch.plan_id,),
             ).fetchone()
             actual_binding = tuple(stored)[:-1]
             expected_binding = (
+                mode.value,
                 principal_id,
                 broker_id,
                 account_id,
@@ -135,6 +139,7 @@ class SqliteExecutionAuditStore:
         self,
         plan_id: str,
         *,
+        mode: ExecutionMode = ExecutionMode.PAPER,
         principal_id: str = "paper",
         broker_id: str = "paper-engine",
         account_id: str = "paper",
@@ -143,13 +148,15 @@ class SqliteExecutionAuditStore:
         """Restore a server-approved batch and verify its stored content hash."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT principal_id, broker_id, account_id, request_sha256, "
+                "SELECT mode, principal_id, broker_id, account_id, request_sha256, "
                 "batch_sha256, batch_json "
                 "FROM pi_execution_approval WHERE plan_id = ?",
                 (plan_id,),
             ).fetchone()
         if row is None:
             return None
+        if row["mode"] != mode.value:
+            raise ExecutionGateError("approval belongs to a different execution mode")
         if row["principal_id"] != principal_id:
             raise ExecutionGateError("approval belongs to a different principal")
         if row["broker_id"] != broker_id or row["account_id"] != account_id:
@@ -831,6 +838,26 @@ class ExecutionGateway:
                 outcome_unknown=True,
             )
             raise ExecutionSubmissionError(str(exc), failed) from exc
+        except Exception as exc:
+            safe_error = (
+                "broker submission succeeded but audit persistence failed "
+                f"({type(exc).__name__})"
+            )
+            try:
+                failed = self.audit_store.record_failure(
+                    receipt.submission_id,
+                    error=safe_error,
+                    completed=acknowledgements,
+                    failed_order_uuid=None,
+                    outcome_unknown=True,
+                )
+            except Exception:
+                failed = reconciliation_receipt(
+                    receipt,
+                    acknowledgements,
+                    safe_error,
+                )
+            raise ExecutionSubmissionError(safe_error, failed) from exc
 
     def cancel(
         self,
@@ -873,7 +900,13 @@ class ExecutionGateway:
                 error=safe_error,
             )
             raise CancellationError(safe_error) from exc
-        return self.audit_store.record_cancel(order_uuid, status="CANCELLED")
+        try:
+            return self.audit_store.record_cancel(order_uuid, status="CANCELLED")
+        except Exception as exc:
+            raise CancellationError(
+                "broker cancellation succeeded but audit persistence failed; "
+                "reconciliation required"
+            ) from exc
 
     def _validate_common_gates(self) -> None:
         if not self.execute_enabled:

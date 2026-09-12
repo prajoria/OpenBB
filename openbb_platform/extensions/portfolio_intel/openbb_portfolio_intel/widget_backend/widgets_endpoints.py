@@ -3399,6 +3399,7 @@ def _build_t5_demo_batch(plan_id: str):
 def register_t5_approved_batch(
     batch: object,
     *,
+    mode: str = "paper",
     principal_id: str = "paper",
     broker_id: str = "paper-engine",
     account_id: str = "paper",
@@ -3408,6 +3409,7 @@ def register_t5_approved_batch(
     from pathlib import Path  # noqa: PLC0415
 
     from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
+        ExecutionMode,
         SqliteExecutionAuditStore,
     )
 
@@ -3430,6 +3432,7 @@ def register_t5_approved_batch(
     try:
         store.register_approved_batch(
             batch,
+            mode=ExecutionMode(mode),
             principal_id=principal_id,
             broker_id=broker_id,
             account_id=account_id,
@@ -3442,6 +3445,7 @@ def register_t5_approved_batch(
 def _resolve_t5_approved_batch(
     plan_id: str,
     *,
+    mode: str = "paper",
     principal_id: str = "paper",
     broker_id: str = "paper-engine",
     account_id: str = "paper",
@@ -3451,6 +3455,7 @@ def _resolve_t5_approved_batch(
     from pathlib import Path  # noqa: PLC0415
 
     from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
+        ExecutionMode,
         SqliteExecutionAuditStore,
     )
 
@@ -3465,6 +3470,7 @@ def _resolve_t5_approved_batch(
     try:
         return store.get_approved_batch(
             plan_id,
+            mode=ExecutionMode(mode),
             principal_id=principal_id,
             broker_id=broker_id,
             account_id=account_id,
@@ -3598,6 +3604,7 @@ async def tt_execute_approve_plan(
     try:
         batch = _resolve_t5_approved_batch(
             approval_id,
+            mode=configured_mode.value,
             principal_id=principal_id,
             broker_id=broker_id,
             account_id=account_id,
@@ -3631,6 +3638,7 @@ async def tt_execute_approve_plan(
         try:
             register_t5_approved_batch(
                 batch,
+                mode=configured_mode.value,
                 principal_id=principal_id,
                 broker_id=broker_id,
                 account_id=account_id,
@@ -3758,6 +3766,7 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
             )
             batch = _resolve_t5_approved_batch(
                 plan_id,
+                mode=mode.value,
                 principal_id=principal_id,
                 broker_id=adapter.broker_id,
                 account_id=adapter.account_id,
@@ -3776,6 +3785,7 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
             batch = (
                 _resolve_t5_approved_batch(
                     plan_id,
+                    mode=mode.value,
                     broker_id=adapter.broker_id,
                     account_id=adapter.account_id,
                 )
