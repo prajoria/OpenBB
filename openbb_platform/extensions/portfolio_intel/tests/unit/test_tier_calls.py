@@ -2993,7 +2993,9 @@ def test_fetch_forward_eps_uses_annual_fmp_cached(
                 {
                     "results": [
                         {"date": "1900-01-01", "mean": 1.0},
+                        {"date": "2998-01-01", "mean": 0.0},
                         {"date": "2999-01-01", "mean": 10.0},
+                        {"date": "3000-01-01", "mean": 20.0},
                     ]
                 },
             )()
