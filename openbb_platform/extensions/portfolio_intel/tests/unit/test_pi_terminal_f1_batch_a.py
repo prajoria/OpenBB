@@ -25,6 +25,8 @@ from pathlib import Path
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
 from fastapi.testclient import TestClient
+from openbb_portfolio_intel.providers.retrofit import _TIER_CALLS
+from openbb_portfolio_intel.widget_backend import tier_calls
 from openbb_portfolio_intel.widget_backend.main import app
 
 _client = TestClient(app)
@@ -90,11 +92,10 @@ def test_overview_tab_contains_key_stats() -> None:
 
 
 # ---------------------------------------------------------------------------
-# #1647 — Share Statistics rows: NO fmp_cached source (area:fmp-cached-gap
-# #1959). These were fabricated stub-only rows serving the same canned number
-# for every symbol; #1958 dropped them from BOTH the live tier and the stub so
-# the two shapes match (deterministic). These guards lock in that we do NOT
-# re-fabricate them until a real provider source lands.
+# #1647 — Share Statistics rows. #1959 wires Shares Float from the real
+# fmp_cached share-statistics response. Short Interest and Insider Ownership
+# remain omitted because the provider does not expose them; no constants or
+# proxies may be substituted.
 # ---------------------------------------------------------------------------
 
 
@@ -105,10 +106,33 @@ def _key_stats_metrics(symbol: str = "AAPL") -> dict[str, object]:
     return {row["metric"]: row["value"] for row in rows}
 
 
-def test_key_stats_omits_shares_float_no_source() -> None:
-    """#1959 — Shares Float has no fmp_cached source; must NOT be fabricated."""
+def _patch_new_key_stats_sources(monkeypatch) -> None:
+    monkeypatch.setitem(
+        _TIER_CALLS,
+        ("equity/key-stats", "fmp_cached"),
+        tier_calls._key_stats_fmp_cached,
+    )
+    monkeypatch.setattr(tier_calls, "_fetch_profile", lambda symbol: {})
+    monkeypatch.setattr(
+        tier_calls, "_fetch_quote", lambda symbol: {"last_price": 200.0}
+    )
+    monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda symbol: {})
+    monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda symbol: {})
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_share_statistics",
+        lambda symbol: {"float_shares": 1_250_000_000},
+    )
+    monkeypatch.setattr(
+        tier_calls, "_fetch_forward_eps", lambda symbol: {"mean": 10.0}
+    )
+
+
+def test_key_stats_includes_provider_backed_shares_float(monkeypatch) -> None:
+    """#1959 — Shares Float is served from fmp_cached share statistics."""
+    _patch_new_key_stats_sources(monkeypatch)
     m = _key_stats_metrics()
-    assert "Shares Float" not in m, f"re-fabricated Shares Float; got {list(m)!r}"
+    assert "Shares Float" in m, f"missing sourced Shares Float; got {list(m)!r}"
 
 
 def test_key_stats_omits_short_interest_no_source() -> None:
@@ -127,19 +151,20 @@ def test_key_stats_omits_insider_ownership_no_source() -> None:
 
 
 # ---------------------------------------------------------------------------
-# #1651 — Valuation Multiples rows in key_stats. Forward P/E has no fmp_cached
-# source (area:fmp-cached-gap #1959); trailing multiples (P/E TTM, EV/EBITDA,
-# P/S) ARE sourced live and must stay.
+# #1651 — Valuation Multiples rows in key_stats. Forward P/E is derived from
+# the live quote and annual fmp_cached consensus EPS (#1959); trailing multiples
+# (P/E TTM, EV/EBITDA, P/S) remain sourced live.
 # ---------------------------------------------------------------------------
 
 
-def test_key_stats_omits_forward_pe_no_source() -> None:
-    """#1959 — Forward P/E has no fmp_cached source; must NOT be fabricated."""
+def test_key_stats_includes_provider_backed_forward_pe(monkeypatch) -> None:
+    """#1959 — Forward P/E is derived only from live fmp_cached inputs."""
+    _patch_new_key_stats_sources(monkeypatch)
     m = _key_stats_metrics()
     keys = {k.lower() for k in m}
-    assert not any(
+    assert any(
         "forward p/e" in k or "p/e (fwd)" in k for k in keys
-    ), f"re-fabricated Forward P/E; got {list(m)!r}"
+    ), f"missing sourced Forward P/E; got {list(m)!r}"
 
 
 def test_key_stats_includes_ev_ebitda() -> None:

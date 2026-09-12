@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from datetime import date as _date
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -1597,16 +1598,24 @@ def _header_fmp_cached(*, symbol: str) -> str:
 
 
 def _shape_key_stats(
-    symbol: str, profile: dict, quote: dict, metrics: dict, ratios: dict
+    symbol: str,
+    profile: dict,
+    quote: dict,
+    metrics: dict,
+    ratios: dict,
+    *,
+    share_statistics: dict | None = None,
+    forward_eps: dict | None = None,
 ) -> list[dict]:
     """Compose the key-stats {metric, value} grid (pure, no I/O).
 
     Emits only fields fmp_cached sources live — never fabricates. The Symbol
     row is always appended but is NOT counted as a data row by the caller's
-    loud-empty check. Fields with no fmp_cached source (forward P/E, short
-    interest, insider ownership, shares float, next earnings) are dropped
-    rather than faked (area:fmp-cached-gap follow-up).
+    loud-empty check. Short interest, insider ownership, and next earnings are
+    dropped rather than faked because fmp_cached does not provide those fields.
     """
+    share_statistics = share_statistics or {}
+    forward_eps = forward_eps or {}
     out: list[dict] = []
 
     def add(metric: str, value: Any) -> None:
@@ -1616,6 +1625,14 @@ def _shape_key_stats(
     add("Market Cap", _human_usd(profile.get("market_cap") or quote.get("market_cap")))
     pe = _as_float(ratios.get("price_to_earnings"))
     add("P/E (TTM)", None if pe is None else round(pe, 2))
+    price = _as_float(quote.get("last_price") or profile.get("last_price"))
+    next_eps = _as_float(forward_eps.get("mean"))
+    forward_pe = (
+        None
+        if price is None or price <= 0 or next_eps is None or next_eps <= 0
+        else round(price / next_eps, 2)
+    )
+    add("Forward P/E", forward_pe)
     ev_ebitda = _as_float(metrics.get("ev_to_ebitda"))
     add("EV/EBITDA", None if ev_ebitda is None else round(ev_ebitda, 2))
     ps = _as_float(ratios.get("price_to_sales"))
@@ -1627,6 +1644,7 @@ def _shape_key_stats(
     div_yield = _as_float(ratios.get("dividend_yield"))
     add("Dividend Yield", None if div_yield is None else f"{div_yield * 100:.2f}%")
     add("Volume", _human_int(quote.get("volume")))
+    add("Shares Float", _human_int(share_statistics.get("float_shares")))
     yh = _as_float(profile.get("year_high") or quote.get("year_high"))
     add("52-Week High", None if yh is None else round(yh, 2))
     yl = _as_float(profile.get("year_low") or quote.get("year_low"))
@@ -1655,8 +1673,50 @@ def _fetch_ratios(symbol: str) -> dict:
     )
 
 
+def _fetch_share_statistics(symbol: str) -> dict:
+    """Fetch the fmp_cached share-statistics row for ``symbol``."""
+    return _safe_first_row(
+        lambda: _obb().equity.ownership.share_statistics(
+            symbol=symbol, provider="fmp_cached"
+        ),
+        label="share statistics",
+        symbol=symbol,
+    )
+
+
+def _fetch_forward_eps(symbol: str) -> dict:
+    """Fetch the nearest annual fmp_cached consensus EPS row for ``symbol``."""
+
+    def _future_estimates() -> list[dict]:
+        result = _obb().equity.estimates.forward_eps(
+            symbol=symbol,
+            provider="fmp_cached",
+            fiscal_period="annual",
+            limit=5,
+        )
+        raw_rows = getattr(result, "results", result)
+        rows = raw_rows if isinstance(raw_rows, list) else [raw_rows]
+        today = _date.today().isoformat()
+        candidates = []
+        for row in rows:
+            dumped = row.model_dump() if hasattr(row, "model_dump") else row
+            if not isinstance(dumped, dict):
+                continue
+            row_date = _iso_date(dumped.get("date"))
+            mean = _as_float(dumped.get("mean"))
+            if row_date and row_date >= today and mean is not None and mean > 0:
+                candidates.append((row_date, dumped))
+        return [row for _, row in sorted(candidates, key=lambda item: item[0])]
+
+    return _safe_first_row(
+        _future_estimates,
+        label="forward EPS",
+        symbol=symbol,
+    )
+
+
 def _key_stats_fmp_cached(*, symbol: str) -> list[dict]:
-    """Tier call: live key-stats grid from fmp_cached profile/quote/metrics/ratios.
+    """Build the live key-stats grid from fmp_cached source rows.
 
     Loud-empty: when no live data row (other than Symbol) can be built, returns
     ``[]`` so the chain transitions to the next tier / the endpoint stub.
@@ -1665,7 +1725,17 @@ def _key_stats_fmp_cached(*, symbol: str) -> list[dict]:
     quote = _fetch_quote(symbol)
     metrics = _fetch_metrics(symbol)
     ratios = _fetch_ratios(symbol)
-    shaped = _shape_key_stats(symbol, profile, quote, metrics, ratios)
+    share_statistics = _fetch_share_statistics(symbol)
+    forward_eps = _fetch_forward_eps(symbol)
+    shaped = _shape_key_stats(
+        symbol,
+        profile,
+        quote,
+        metrics,
+        ratios,
+        share_statistics=share_statistics,
+        forward_eps=forward_eps,
+    )
     data_rows = [r for r in shaped if r["metric"] != "Symbol"]
     if not data_rows:
         logger.warning(
