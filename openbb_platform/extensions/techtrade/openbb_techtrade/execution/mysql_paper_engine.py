@@ -18,10 +18,12 @@ Design deltas vs. SqlitePaperEngine
 2. **fill_mode on pi_paper_fill.** Enum column tags the fill provenance:
    ``OPERATOR_RECORDED`` (P3.a default), ``BAR_SIMULATED`` (backtest
    replay, T5 P4), ``ACTIVITY_CSV_IMPORTED`` (P5 Fidelity reconcile).
-3. **Placeholders + storage types.** ``%s`` (mysql-connector) instead
+3. **PyMySQL pool contract + storage types.** ``%s`` placeholders instead
    of ``?``; Decimals persist as ``VARCHAR(64)`` to preserve precision
    (matches the ``mysql_store.py`` convention for money fields — see
-   #1744).
+   #1744). Connections are borrowed through the shared pool's context
+   manager, which owns cleanup. Because pooled sessions use autocommit,
+   every write scope starts an explicit transaction with ``begin()``.
 4. **Composite PKs.** ``pi_paper_account`` PK is
    ``(run_id, strategy_id, account_id)``; ``pi_paper_position`` PK adds
    ``symbol``. Order/fill/lot rows use surrogate string PKs but every
@@ -236,22 +238,34 @@ class MysqlPaperEngine:
 
     @contextmanager
     def _acquire(self) -> Iterator[Any]:
-        conn = self._pool.get_connection()
-        try:
+        with self._pool.get_connection() as conn:
             yield conn
-        finally:
-            conn.close()
 
     @contextmanager
     def transaction(self) -> Iterator[Any]:
         """Explicit BEGIN/COMMIT (rollback on any exception)."""
+        held: PaperEngineError | None = None
         with self._acquire() as conn:
+            conn.begin()
+            committed = False
             try:
                 yield conn
                 conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
+                committed = True
+            except PaperEngineError as exc:
+                held = exc
+            finally:
+                if not committed:
+                    self._restore(conn)
+        if held is not None:
+            raise held
+
+    @staticmethod
+    def _restore(conn: Any) -> None:
+        try:
+            conn.rollback()
+        except Exception:  # pylint: disable=broad-except
+            logger.warning("MysqlPaperEngine rollback failed", exc_info=True)
 
     # ------------------------------------------------------------------
     # schema + account bootstrap
@@ -266,38 +280,24 @@ class MysqlPaperEngine:
 
     def _ensure_account(self, starting_cash: Decimal) -> None:
         """Idempotent: second call with a different starting_cash is a no-op."""
-        where, params = self._scope_where()
         with self.transaction() as conn:
             cur = conn.cursor()
             cur.execute(
-                f"SELECT account_id FROM pi_paper_account WHERE {where}",
-                params,
-            )
-            row = cur.fetchone()
-            if row is None:
-                cur.execute(
-                    "INSERT INTO pi_paper_account "
-                    "(run_id, strategy_id, account_id, starting_cash, "
-                    "cash, realized_pl, created_at) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                    (
-                        self._run_id,
-                        self._strategy_id,
-                        self._account_id,
-                        str(starting_cash),
-                        str(starting_cash),
-                        "0",
-                        _now_utc(),
-                    ),
-                )
-                logger.info(
-                    "MysqlPaperEngine: created account (run=%s, strat=%s, "
-                    "acct=%s) with starting cash %s",
+                "INSERT INTO pi_paper_account "
+                "(run_id, strategy_id, account_id, starting_cash, "
+                "cash, realized_pl, created_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE account_id = account_id",
+                (
                     self._run_id,
                     self._strategy_id,
                     self._account_id,
-                    starting_cash,
-                )
+                    str(starting_cash),
+                    str(starting_cash),
+                    "0",
+                    _now_utc(),
+                ),
+            )
             cur.close()
 
     # ------------------------------------------------------------------
@@ -398,7 +398,7 @@ class MysqlPaperEngine:
             where, params = self._scope_where("order_id = %s")
             cur.execute(
                 f"SELECT order_id, symbol, side, quantity, status "
-                f"FROM pi_paper_order WHERE {where}",
+                f"FROM pi_paper_order WHERE {where} FOR UPDATE",
                 params + (order_id,),
             )
             order_row = cur.fetchone()
@@ -490,7 +490,7 @@ class MysqlPaperEngine:
             cur = conn.cursor()
             where, params = self._scope_where("order_id = %s")
             cur.execute(
-                f"SELECT status FROM pi_paper_order WHERE {where}",
+                f"SELECT status FROM pi_paper_order WHERE {where} FOR UPDATE",
                 params + (order_id,),
             )
             row = cur.fetchone()
@@ -741,7 +741,7 @@ class MysqlPaperEngine:
     def _adjust_cash(self, cur: Any, delta: Decimal) -> None:
         where, params = self._scope_where()
         cur.execute(
-            f"SELECT cash FROM pi_paper_account WHERE {where}",
+            f"SELECT cash FROM pi_paper_account WHERE {where} FOR UPDATE",
             params,
         )
         row = cur.fetchone()
@@ -788,7 +788,7 @@ class MysqlPaperEngine:
         where, params = self._scope_where("symbol = %s AND closed_at IS NULL")
         cur.execute(
             f"SELECT lot_id, qty, cost_per_unit FROM _pi_paper_lot "
-            f"WHERE {where} ORDER BY opened_at",
+            f"WHERE {where} ORDER BY opened_at FOR UPDATE",
             params + (fill.symbol,),
         )
         open_lots = cur.fetchall()
@@ -829,7 +829,7 @@ class MysqlPaperEngine:
         # Roll realized P&L into scoped account row.
         where3, params3 = self._scope_where()
         cur.execute(
-            f"SELECT realized_pl FROM pi_paper_account WHERE {where3}",
+            f"SELECT realized_pl FROM pi_paper_account WHERE {where3} FOR UPDATE",
             params3,
         )
         row = cur.fetchone()
@@ -847,7 +847,7 @@ class MysqlPaperEngine:
         where, params = self._scope_where("symbol = %s")
         cur.execute(
             f"SELECT quantity, avg_cost, realized_pl FROM pi_paper_position "
-            f"WHERE {where}",
+            f"WHERE {where} FOR UPDATE",
             params + (fill.symbol,),
         )
         row = cur.fetchone()
