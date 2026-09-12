@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 _database_override: ContextVar[str | None] = ContextVar(
     "fmp_cached_database_override", default=None
 )
+_connection_config_override: ContextVar[Any] = ContextVar(
+    "fmp_cached_connection_config_override", default=None
+)
 
 
 class DatabaseConfig:
@@ -222,6 +225,9 @@ _connection_pool: ConnectionPool | None = None
 def get_connection_pool() -> ConnectionPool:
     """Get global connection pool instance."""
     global _connection_pool  # noqa: PLW0603  # pylint: disable=global-statement
+    scoped_config = _connection_config_override.get()
+    if scoped_config is not None:
+        return ConnectionPool(scoped_config, database=_database_override.get())
     if _connection_pool is None:
         config = DatabaseConfig()
         _connection_pool = ConnectionPool(config)
@@ -555,7 +561,8 @@ def init_database(auto_create: bool = None):
     # Initialization intentionally resolves fresh process configuration on
     # every call. Caching a failed configuration here would make later retries
     # ignore repaired settings. Apply only the context-local database choice.
-    temp_config = DatabaseConfig().connection_params
+    config = DatabaseConfig()
+    temp_config = config.connection_params
     override = _database_override.get()
     if override is not None:
         temp_config["database"] = override
@@ -578,7 +585,11 @@ def init_database(auto_create: bool = None):
     # Now create tables in the target database
     from .cache_schema import create_all_tables
 
-    result = create_all_tables()
+    token = _connection_config_override.set(config)
+    try:
+        result = create_all_tables()
+    finally:
+        _connection_config_override.reset(token)
     logger.info("Database initialization complete")
     return result
 

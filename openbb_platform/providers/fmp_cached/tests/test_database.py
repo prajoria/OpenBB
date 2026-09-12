@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from openbb_fmp_cached.utils import database
@@ -72,6 +72,44 @@ def test_database_override_isolated_between_async_tasks(monkeypatch):
 
     assert asyncio.run(gather_results()) == ["request_a", "request_b"]
     assert get_connection_pool().connection_params["database"] == "configured_db"
+
+
+def test_init_database_scopes_fresh_config_through_table_creation(monkeypatch):
+    """Schema creation must not fall back to a stale global connection pool."""
+    stale_pool = _configured_pool("stale_db")
+    fresh_config = DatabaseConfig.__new__(DatabaseConfig)
+    fresh_config.config = {
+        **stale_pool.config.config,
+        "user": "fresh_user",
+        "database": "fresh_db",
+    }
+    monkeypatch.setattr(database, "_connection_pool", stale_pool)
+    monkeypatch.setattr(database, "DatabaseConfig", lambda: fresh_config)
+    monkeypatch.setattr(database.pymysql, "connect", MagicMock())
+
+    observed: list[dict] = []
+
+    def fake_create_all_tables():
+        observed.append(get_connection_pool().connection_params)
+        return True
+
+    monkeypatch.setattr(
+        "openbb_fmp_cached.utils.cache_schema.create_all_tables",
+        fake_create_all_tables,
+    )
+
+    assert database.init_database(auto_create=True) is True
+    assert observed == [
+        {
+            "host": "localhost",
+            "port": 3306,
+            "user": "fresh_user",
+            "password": "secret",
+            "database": "fresh_db",
+            "charset": "utf8mb4",
+        }
+    ]
+    assert get_connection_pool() is stale_pool
 
 
 class TestDatabaseConfig:
