@@ -29,6 +29,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+import threading
 
 import pytest
 from openbb_techtrade.execution import order_sink as order_sink_module
@@ -695,6 +696,55 @@ class TestTicketsFromOrders:
 
 
 class TestPartialBatchHardening:
+    def test_concurrent_atomic_writes_use_unique_temp_paths(
+        self, tmp_path: Path
+    ) -> None:
+        final_path = tmp_path / "batch.csv"
+        barrier = threading.Barrier(2)
+        temp_paths: list[Path] = []
+        errors: list[Exception] = []
+
+        def writer(path: Path) -> None:
+            temp_paths.append(path)
+            path.write_text("complete", encoding="utf-8")
+            barrier.wait(timeout=5)
+
+        def publish() -> None:
+            try:
+                PaperOrderSink._atomic_write(final_path, writer)  # noqa: SLF001
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        workers = [threading.Thread(target=publish) for _ in range(2)]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=5)
+
+        assert errors == []
+        assert len(set(temp_paths)) == 2
+        assert final_path.read_text(encoding="utf-8") == "complete"
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_atomic_publish_failure_removes_unique_temp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from openbb_techtrade.execution import order_sink as os_mod
+
+        monkeypatch.setattr(
+            os_mod.os,
+            "replace",
+            lambda *_args: (_ for _ in ()).throw(PermissionError("locked")),
+        )
+
+        with pytest.raises(PermissionError, match="locked"):
+            PaperOrderSink._atomic_write(  # noqa: SLF001
+                tmp_path / "batch.csv",
+                lambda path: path.write_text("complete", encoding="utf-8"),
+            )
+
+        assert list(tmp_path.glob("*.tmp")) == []
+
     """Post-review regressions: partial-batch detection + write order."""
 
     def test_write_order_is_xlsx_before_csv(

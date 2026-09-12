@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import uuid
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
@@ -76,6 +77,9 @@ from openbb_techtrade.execution.paper_engine import (
     PaperPosition,
     PaperPositionMarked,
     Side,
+    _identity_key,
+    _legacy_order_ids_in_ticket_order,
+    _new_order_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,6 +89,16 @@ FillMode = Literal["OPERATOR_RECORDED", "BAR_SIMULATED", "ACTIVITY_CSV_IMPORTED"
 _VALID_FILL_MODES: frozenset[str] = frozenset(
     {"OPERATOR_RECORDED", "BAR_SIMULATED", "ACTIVITY_CSV_IMPORTED"}
 )
+_EXECUTION_SCOPE_NAMESPACE = uuid.UUID("cd6ea134-5078-4f4b-9794-a2b36017f60f")
+_SCOPE_COMPONENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def _normalize_scope_component(value: str, name: str) -> str:
+    if not isinstance(value, str) or not _SCOPE_COMPONENT_RE.fullmatch(value):
+        raise PaperEngineError(
+            f"{name} must match {_SCOPE_COMPONENT_RE.pattern!r} for MySQL scope safety"
+        )
+    return value.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +158,13 @@ CREATE TABLE IF NOT EXISTS pi_paper_fill (
     INDEX ix_pi_paper_fill_order (run_id, strategy_id, account_id, order_id),
     INDEX ix_pi_paper_fill_symbol (run_id, strategy_id, account_id, symbol)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+"""
+
+_PI_PAPER_ORDER_IDEMPOTENCY_INDEX_DDL = """
+CREATE INDEX ix_pi_paper_order_idempotency
+ON pi_paper_order (
+    run_id, strategy_id, account_id, plan_id, batch_sha256, order_id
+)
 """
 
 _PI_PAPER_POSITION_DDL = """
@@ -208,6 +229,8 @@ class MysqlPaperEngine:
         strategy_id: str = "default",
         account_id: str = "paper",
         starting_cash: Decimal = Decimal("100000"),
+        *,
+        initialize: bool = True,
     ) -> None:
         if connection_pool is None:
             # pylint: disable=import-outside-toplevel
@@ -217,11 +240,12 @@ class MysqlPaperEngine:
 
             connection_pool = get_connection_pool()
         self._pool = connection_pool
-        self._run_id = run_id
-        self._strategy_id = strategy_id
-        self._account_id = account_id
-        self._ensure_schema()
-        self._ensure_account(starting_cash)
+        self._run_id = _normalize_scope_component(run_id, "run_id")
+        self._strategy_id = _normalize_scope_component(strategy_id, "strategy_id")
+        self._account_id = _normalize_scope_component(account_id, "account_id")
+        if initialize:
+            self._ensure_schema()
+            self._ensure_account(starting_cash)
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -276,6 +300,12 @@ class MysqlPaperEngine:
             cur = conn.cursor()
             for ddl in _ALL_DDLS:
                 cur.execute(ddl)
+            try:
+                cur.execute(_PI_PAPER_ORDER_IDEMPOTENCY_INDEX_DDL)
+            except Exception as exc:
+                error_code = exc.args[0] if exc.args else None
+                if error_code != 1061 and "already exists" not in str(exc).lower():
+                    raise
             cur.close()
 
     def _ensure_account(self, starting_cash: Decimal) -> None:
@@ -319,6 +349,61 @@ class MysqlPaperEngine:
     # Protocol methods
     # ------------------------------------------------------------------
 
+    @property
+    def account_id(self) -> str:
+        """Return this engine's scoped ledger account identity."""
+        return self._account_id
+
+    @property
+    def execution_scope_id(self) -> str:
+        """Return the MySQL run/strategy ledger identity."""
+        try:
+            params = self._pool.connection_params
+        except (AttributeError, TypeError):
+            params = {}
+        database_scope = (
+            str(params.get("host", "")),
+            str(params.get("port", "")),
+            str(
+                params.get(
+                    "database",
+                    getattr(
+                        self._pool,
+                        "database",
+                        getattr(self._pool, "path", ""),
+                    ),
+                )
+            ),
+        )
+        identity = (
+            f"{database_scope!r}:{len(self._run_id)}:{self._run_id}"
+            f"{len(self._strategy_id)}:{self._strategy_id}"
+        )
+        return f"mysql-{uuid.uuid5(_EXECUTION_SCOPE_NAMESPACE, identity)}"
+
+    def is_initialized(self) -> bool:
+        """Check table and scoped-account presence without creating either."""
+        with self._acquire() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*) AS table_count FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_name = %s",
+                ("pi_paper_account",),
+            )
+            (table_count,) = _row_values(cur.fetchone(), ("table_count",))
+            if not table_count:
+                cur.close()
+                return False
+            where, params = self._scope_where()
+            cur.execute(
+                f"SELECT 1 AS account_exists FROM pi_paper_account "
+                f"WHERE {where} LIMIT 1",
+                params,
+            )
+            exists = cur.fetchone() is not None
+            cur.close()
+            return exists
+
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Insert every ticket as a PENDING order; returns order_ids."""
         tickets = getattr(batch, "tickets", None)
@@ -329,19 +414,91 @@ class MysqlPaperEngine:
             )
         batch_sha = getattr(batch, "sha256", lambda: "")()
         submitted_at = _now_utc()
-        order_ids: list[str] = []
+        order_ids = (
+            [
+                _new_order_id(
+                    _identity_key(
+                        self._run_id,
+                        self._strategy_id,
+                        self._account_id,
+                        plan_id,
+                        batch_sha,
+                        str(ordinal),
+                    )
+                )
+                for ordinal, _ticket in enumerate(tickets)
+            ]
+            if plan_id
+            else [_new_id("ord") for _ticket in tickets]
+        )
         with self.transaction() as conn:
             cur = conn.cursor()
-            for t in tickets:
+            if plan_id:
+                where, scope_params = self._scope_where(
+                    "plan_id = %s AND batch_sha256 = %s"
+                )
+                cur.execute(
+                    f"SELECT order_id, symbol, side, quantity, order_type, "
+                    f"limit_price FROM pi_paper_order WHERE {where}",
+                    (*scope_params, plan_id, batch_sha),
+                )
+                existing = cur.fetchall()
+                if existing:
+                    existing_ids = {
+                        _row_values(row, ("order_id",))[0] for row in existing
+                    }
+                    if existing_ids == set(order_ids):
+                        cur.close()
+                        return order_ids
+                    normalized = [
+                        dict(
+                            zip(
+                                (
+                                    "order_id",
+                                    "symbol",
+                                    "side",
+                                    "quantity",
+                                    "order_type",
+                                    "limit_price",
+                                ),
+                                _row_values(
+                                    row,
+                                    (
+                                        "order_id",
+                                        "symbol",
+                                        "side",
+                                        "quantity",
+                                        "order_type",
+                                        "limit_price",
+                                    ),
+                                ),
+                                strict=True,
+                            )
+                        )
+                        for row in existing
+                    ]
+                    legacy_ids = _legacy_order_ids_in_ticket_order(normalized, tickets)
+                    if legacy_ids is not None:
+                        cur.close()
+                        return legacy_ids
+                    cur.close()
+                    raise PaperEngineError(
+                        "submit_batch: plan/batch idempotency key exists with "
+                        "an unexpected order count; reconcile the audit rows"
+                    )
+            for order_id, t in zip(order_ids, tickets, strict=True):
                 _validate_symbol(t.symbol)
                 side = _action_to_side(t.action)
-                order_id = _new_id("ord")
+                duplicate_clause = (
+                    " ON DUPLICATE KEY UPDATE order_id = order_id" if plan_id else ""
+                )
                 cur.execute(
                     "INSERT INTO pi_paper_order "
                     "(order_id, run_id, strategy_id, account_id, symbol, "
                     "side, quantity, order_type, limit_price, status, "
                     "submitted_at, plan_id, batch_sha256) VALUES "
-                    "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    + duplicate_clause,
                     (
                         order_id,
                         self._run_id,
@@ -358,7 +515,23 @@ class MysqlPaperEngine:
                         batch_sha,
                     ),
                 )
-                order_ids.append(order_id)
+            if plan_id:
+                where, scope_params = self._scope_where(
+                    "plan_id = %s AND batch_sha256 = %s"
+                )
+                cur.execute(
+                    f"SELECT order_id FROM pi_paper_order WHERE {where} FOR UPDATE",
+                    (*scope_params, plan_id, batch_sha),
+                )
+                existing_ids = {
+                    _row_values(row, ("order_id",))[0] for row in cur.fetchall()
+                }
+                if existing_ids != set(order_ids):
+                    cur.close()
+                    raise PaperEngineError(
+                        "submit_batch: plan/batch idempotency key exists with "
+                        "a different order identity set; reconcile the audit rows"
+                    )
             cur.close()
         logger.info(
             "MysqlPaperEngine.submit_batch: %d orders PENDING (batch %s...)",
@@ -911,7 +1084,7 @@ class MysqlPaperEngine:
 
 
 def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+    return f"{prefix}_{uuid.uuid4()}"
 
 
 def _now_utc() -> datetime:

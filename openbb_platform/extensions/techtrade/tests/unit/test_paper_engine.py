@@ -27,9 +27,12 @@ R7.11 mutation-twin notes on every load-bearing assertion.
 
 from __future__ import annotations
 
+import sqlite3
+import threading
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from openbb_techtrade.execution import paper_engine as paper_engine_module
@@ -39,6 +42,7 @@ from openbb_techtrade.execution.paper_engine import (
     PaperEngine,
     PaperEngineError,
     SqlitePaperEngine,
+    _identity_key,
     get_default_engine,
 )
 
@@ -88,6 +92,18 @@ def _t(hour: int = 12, minute: int = 0) -> datetime:
 
 
 class TestAccountLifecycle:
+    def test_read_only_open_does_not_initialize_schema(self, db_path: Path) -> None:
+        db_path.touch()
+        eng = SqlitePaperEngine(db_path, initialize=False)
+        eng.close()
+
+        with sqlite3.connect(db_path) as conn:
+            tables = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' "
+                "AND name LIKE 'pi_paper_%'"
+            ).fetchall()
+        assert tables == []
+
     def test_account_seeded_on_first_open(self, engine: SqlitePaperEngine) -> None:
         acct = engine.get_account()
         assert acct.account_id == "paper"
@@ -120,12 +136,130 @@ class TestAccountLifecycle:
 
 
 class TestSubmitBatch:
+    def test_submission_reserves_sqlite_writer_before_idempotency_read(
+        self, engine: SqlitePaperEngine
+    ) -> None:
+        statements: list[str] = []
+        engine._conn.set_trace_callback(statements.append)  # noqa: SLF001
+
+        engine.submit_batch(_batch(_tk("MSFT")), plan_id="serialized")
+
+        assert "BEGIN IMMEDIATE" in statements
+
+    def test_shared_engine_serializes_concurrent_transactions(
+        self, engine: SqlitePaperEngine
+    ) -> None:
+        barrier = threading.Barrier(2)
+        errors: list[Exception] = []
+
+        def submit(plan_id: str, symbol: str) -> None:
+            barrier.wait(timeout=5)
+            try:
+                engine.submit_batch(_batch(_tk(symbol)), plan_id=plan_id)
+            except Exception as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        workers = [
+            threading.Thread(target=submit, args=("plan-a", "MSFT")),
+            threading.Thread(target=submit, args=("plan-b", "AAPL")),
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=5)
+
+        assert errors == []
+        assert len(engine.get_orders()) == 2
+
+    def test_shared_engine_blocks_reads_during_write_transaction(
+        self, engine: SqlitePaperEngine
+    ) -> None:
+        writer_started = threading.Event()
+        release_writer = threading.Event()
+        reader_finished = threading.Event()
+
+        def hold_write() -> None:
+            with engine._tx():  # noqa: SLF001
+                writer_started.set()
+                release_writer.wait(timeout=5)
+
+        writer = threading.Thread(target=hold_write)
+        reader = threading.Thread(
+            target=lambda: (engine.get_orders(), reader_finished.set())
+        )
+        writer.start()
+        assert writer_started.wait(timeout=5)
+        reader.start()
+        assert not reader_finished.wait(timeout=0.1)
+        release_writer.set()
+        writer.join(timeout=5)
+        reader.join(timeout=5)
+        assert reader_finished.is_set()
+
+    def test_order_identity_encoding_is_unambiguous(self) -> None:
+        assert _identity_key("a:b", "c") != _identity_key("a", "b:c")
+
     def test_batch_creates_pending_orders(self, engine: SqlitePaperEngine) -> None:
         ids = engine.submit_batch(_batch(_tk("MSFT", qty="10"), _tk("AAPL", qty="20")))
         assert len(ids) == 2
         assert all(i.startswith("ord_") for i in ids)
+        assert all(UUID(i.removeprefix("ord_")).version == 4 for i in ids)
         pending = engine.get_orders(status=OrderStatus.PENDING)
         assert {o.symbol for o in pending} == {"MSFT", "AAPL"}
+
+    def test_same_batch_submission_is_idempotent(
+        self, engine: SqlitePaperEngine
+    ) -> None:
+        batch = _batch(_tk("MSFT"), _tk("AAPL"))
+
+        first = engine.submit_batch(batch, plan_id="plan-retry")
+        second = engine.submit_batch(batch, plan_id="plan-retry")
+
+        assert second == first
+        assert len(engine.get_orders()) == 2
+
+    def test_retry_accepts_legacy_random_order_ids(
+        self,
+        engine: SqlitePaperEngine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        batch = _batch(_tk("MSFT"), _tk("AAPL"))
+        engine.submit_batch(batch, plan_id="legacy-plan")
+        expected = [
+            "ord_ffffffff-ffff-4fff-8fff-ffffffffffff",
+            "ord_00000000-0000-4000-8000-000000000001",
+        ]
+        engine._conn.execute(  # noqa: SLF001
+            "UPDATE pi_paper_order SET order_id = ? WHERE symbol = 'MSFT'",
+            (expected[0],),
+        )
+        engine._conn.execute(  # noqa: SLF001
+            "UPDATE pi_paper_order SET order_id = ? WHERE symbol = 'AAPL'",
+            (expected[1],),
+        )
+        monkeypatch.setattr(
+            paper_engine_module,
+            "_new_order_id",
+            lambda _identity: "ord_00000000-0000-4000-8000-000000000999",
+        )
+
+        assert engine.submit_batch(batch, plan_id="legacy-plan") == expected
+
+    def test_legacy_duplicate_tickets_fail_closed(
+        self,
+        engine: SqlitePaperEngine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        batch = _batch(_tk("MSFT"), _tk("MSFT"))
+        engine.submit_batch(batch, plan_id="legacy-duplicates")
+        monkeypatch.setattr(
+            paper_engine_module,
+            "_new_order_id",
+            lambda _identity: "ord_00000000-0000-4000-8000-000000000999",
+        )
+
+        with pytest.raises(PaperEngineError, match="identity set"):
+            engine.submit_batch(batch, plan_id="legacy-duplicates")
 
     def test_batch_sha_stamped_on_orders(self, engine: SqlitePaperEngine) -> None:
         """R7.11 twin: dropping batch_sha256 from the INSERT breaks the
@@ -438,6 +572,21 @@ class TestCancel:
 
 
 class TestFactory:
+    def test_strict_mysql_mode_does_not_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from openbb_techtrade.execution import mysql_paper_engine
+
+        monkeypatch.setattr(paper_engine_module.config, "paper_engine", lambda: "mysql")
+        monkeypatch.setattr(
+            mysql_paper_engine,
+            "MysqlPaperEngine",
+            lambda **kwargs: (_ for _ in ()).throw(RuntimeError("mysql unavailable")),
+        )
+
+        with pytest.raises(RuntimeError, match="mysql unavailable"):
+            get_default_engine(allow_fallback=False)
+
     def test_factory_uses_central_config(self, tmp_path, monkeypatch) -> None:
         target = tmp_path / "central-config.db"
         monkeypatch.setattr(

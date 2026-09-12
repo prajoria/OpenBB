@@ -17,11 +17,15 @@ T13.2 (shipped as #1718).
   Playwright + Workspace-in-CI is #1713.
 """
 
+# ruff: noqa: D103
+
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
+
+import pytest
 
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
@@ -240,6 +244,17 @@ def test_engine_status_sqlite_backend_reports_file_state(monkeypatch, tmp_path) 
     db_file.write_text("", encoding="utf-8")
     body_present = _client.get("/tt/engine/status").json()
     assert "SQLite ACTIVE" in body_present
+
+
+def test_engine_status_rejects_invalid_typed_backend(monkeypatch) -> None:
+    """#2072: status and execution use the same strict backend selector."""
+    monkeypatch.setenv("PI_PAPER_ENGINE", "oracle")
+
+    with pytest.raises(
+        ValueError,
+        match=r"PI_PAPER_ENGINE must be one of 'mysql' \| 'sqlite'; got 'oracle'",
+    ):
+        _client.get("/tt/engine/status")
 
 
 def test_execute_bridge_widget_declared() -> None:

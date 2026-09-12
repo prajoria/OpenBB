@@ -49,18 +49,22 @@ Non-goals for P3.a
 
 from __future__ import annotations
 
+import hashlib
+import importlib
 import logging
 import re
 import sqlite3
+import threading
 import uuid
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
+from functools import wraps
 from pathlib import Path
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, TypeVar, cast, runtime_checkable
 
 from openbb_techtrade import config
 
@@ -106,6 +110,18 @@ _ACTION_TO_SIDE: dict[str, Side] = {
 }
 
 _SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9./\-]{0,15}$")
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _with_connection_lock(method: _F) -> _F:
+    """Serialize access to the engine's shared SQLite connection."""
+
+    @wraps(method)
+    def wrapped(self, *args: Any, **kwargs: Any) -> Any:
+        with self.connection_lock:
+            return method(self, *args, **kwargs)
+
+    return cast(_F, wrapped)
 
 
 class PaperEngineError(RuntimeError):
@@ -264,6 +280,20 @@ class PaperEngine(Protocol):
     Mirrors :class:`OrderSink` from P1 — the widget code depends on
     this Protocol, not on the concrete SQLite class.
     """
+
+    @property
+    def account_id(self) -> str:
+        """Return the ledger account identity."""
+        raise NotImplementedError
+
+    @property
+    def execution_scope_id(self) -> str:
+        """Return a stable backend/ledger identity without exposing paths."""
+        raise NotImplementedError
+
+    def is_initialized(self) -> bool:
+        """Return whether the schema and scoped account already exist."""
+        raise NotImplementedError
 
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Persist every ticket in ``batch`` as a PENDING order.
@@ -425,17 +455,21 @@ class SqlitePaperEngine:
         db_path: Path | str,
         account_id: str = "paper",
         starting_cash: Decimal = Decimal("100000"),
+        *,
+        initialize: bool = True,
     ) -> None:
         self._db_path = Path(db_path).resolve()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._account_id = account_id
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(
             str(self._db_path), check_same_thread=False, isolation_level=None
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON;")
-        self._conn.executescript(_SCHEMA)
-        self._ensure_account(starting_cash)
+        if initialize:
+            self._conn.executescript(_SCHEMA)
+            self._ensure_account(starting_cash)
 
     # --- lifecycle helpers ------------------------------------------------
 
@@ -467,19 +501,52 @@ class SqlitePaperEngine:
     @contextmanager
     def _tx(self) -> Iterator[None]:
         """Transaction scope — all-or-nothing for multi-row updates."""
-        try:
-            self._conn.execute("BEGIN")
-            yield
-            self._conn.execute("COMMIT")
-        except Exception:
-            self._conn.execute("ROLLBACK")
-            raise
+        with self._lock:
+            try:
+                self._conn.execute("BEGIN IMMEDIATE")
+                yield
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
 
+    @_with_connection_lock
     def close(self) -> None:
         """Release the SQLite connection."""
         self._conn.close()
 
     # --- Protocol methods -------------------------------------------------
+
+    @property
+    def account_id(self) -> str:
+        """Return this engine's ledger account identity."""
+        return self._account_id
+
+    @property
+    def connection_lock(self) -> threading.RLock:
+        """Return the reentrant lock guarding the shared connection."""
+        return self._lock
+
+    @property
+    def execution_scope_id(self) -> str:
+        """Return a non-sensitive identity for this SQLite ledger."""
+        digest = hashlib.sha256(str(self._db_path).encode("utf-8")).hexdigest()[:16]
+        return f"sqlite-{digest}"
+
+    @_with_connection_lock
+    def is_initialized(self) -> bool:
+        """Check schema/account presence without creating either."""
+        table = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'pi_paper_account'"
+        ).fetchone()
+        if table is None:
+            return False
+        account = self._conn.execute(
+            "SELECT 1 FROM pi_paper_account WHERE account_id = ?",
+            (self._account_id,),
+        ).fetchone()
+        return account is not None
 
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Insert every ticket as a PENDING order. Returns order_ids."""
@@ -493,12 +560,38 @@ class SqlitePaperEngine:
             )
         batch_sha = getattr(batch, "sha256", lambda: "")()
         submitted_at = _now_iso()
-        order_ids: list[str] = []
+        order_ids = (
+            [
+                _new_order_id(
+                    _identity_key(self._account_id, plan_id, batch_sha, str(ordinal))
+                )
+                for ordinal, _ticket in enumerate(tickets)
+            ]
+            if plan_id
+            else [_new_id("ord") for _ticket in tickets]
+        )
         with self._tx():
-            for t in tickets:
+            if plan_id:
+                existing = self._conn.execute(
+                    "SELECT order_id, symbol, side, quantity, order_type, "
+                    "limit_price FROM pi_paper_order "
+                    "WHERE account_id = ? AND plan_id = ? AND batch_sha256 = ?",
+                    (self._account_id, plan_id, batch_sha),
+                ).fetchall()
+                if existing:
+                    existing_ids = {row["order_id"] for row in existing}
+                    if existing_ids == set(order_ids):
+                        return order_ids
+                    legacy_ids = _legacy_order_ids_in_ticket_order(existing, tickets)
+                    if legacy_ids is not None:
+                        return legacy_ids
+                    raise PaperEngineError(
+                        "submit_batch: plan/batch idempotency key exists with "
+                        "a different order identity set; reconcile the audit rows"
+                    )
+            for order_id, t in zip(order_ids, tickets, strict=True):
                 _validate_symbol(t.symbol)
                 side = _action_to_side(t.action)
-                order_id = _new_id("ord")
                 self._conn.execute(
                     "INSERT INTO pi_paper_order "
                     "(order_id, account_id, symbol, side, quantity, "
@@ -519,7 +612,6 @@ class SqlitePaperEngine:
                         batch_sha,
                     ),
                 )
-                order_ids.append(order_id)
         logger.info(
             "SqlitePaperEngine.submit_batch: %d orders PENDING (batch %s...)",
             len(order_ids),
@@ -655,6 +747,7 @@ class SqlitePaperEngine:
             )
         logger.info("cancel_order: order %r CANCELLED (reason=%r)", order_id, reason)
 
+    @_with_connection_lock
     def get_account(self) -> PaperAccount:
         """Return the current single-account snapshot (cash + realized_pl)."""
         row = self._conn.execute(
@@ -674,6 +767,7 @@ class SqlitePaperEngine:
             created_at=_from_iso(row["created_at"]),
         )
 
+    @_with_connection_lock
     def get_positions(self) -> list[PaperPosition]:
         """Return every non-zero materialized position for this account."""
         rows = self._conn.execute(
@@ -693,6 +787,7 @@ class SqlitePaperEngine:
             for r in rows
         ]
 
+    @_with_connection_lock
     def get_orders(self, status: OrderStatus | None = None) -> list[PaperOrder]:
         """Return this account's orders, optionally filtered by status."""
         if status is None:
@@ -709,6 +804,7 @@ class SqlitePaperEngine:
             ).fetchall()
         return [_row_to_order(r) for r in rows]
 
+    @_with_connection_lock
     def get_fills(self, since: datetime | None = None) -> list[PaperFill]:
         """Return recorded fills, optionally filtered by ``filled_at >= since``."""
         if since is None:
@@ -730,6 +826,7 @@ class SqlitePaperEngine:
 
     # -- P3.b unrealized P&L -------------------------------------------
 
+    @_with_connection_lock
     def get_positions_with_unrealized(
         self, pricing: Mapping[str, Decimal]
     ) -> list[PaperPositionMarked]:
@@ -792,6 +889,7 @@ class SqlitePaperEngine:
             )
         return results
 
+    @_with_connection_lock
     def get_account_equity(self, pricing: Mapping[str, Decimal]) -> PaperEquity:
         """See :class:`PaperEngine` for the contract."""
         acct = self.get_account()
@@ -1005,6 +1103,9 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
     starting_cash: Decimal = Decimal("100000"),
     run_id: str = "live",
     strategy_id: str = "default",
+    *,
+    allow_fallback: bool = True,
+    initialize: bool = True,
 ) -> PaperEngine:
     """Return the configured paper engine.
 
@@ -1012,10 +1113,10 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
 
     - ``PI_PAPER_ENGINE=mysql`` (default) — return
       :class:`~openbb_techtrade.execution.mysql_paper_engine.MysqlPaperEngine`
-      against the shared FMP-cache MySQL pool. On MySQL-unreachable
-      (import fails or pool raises), we emit a WARNING and fall back
-      to SQLite — matches the ``MySqlPortfolioStore`` graceful-fallback
-      pattern from #1744.
+      against the shared FMP-cache MySQL pool. On MySQL-unreachable,
+      ``allow_fallback=True`` emits a warning and falls back to SQLite.
+      Audited execution passes ``allow_fallback=False`` so a transient
+      outage cannot switch the backend underneath an existing order.
     - ``PI_PAPER_ENGINE=sqlite`` — force the file-backed
       :class:`SqlitePaperEngine` under ``~/.portfolio_intel/paper.db``
       (or ``PI_PAPER_DB``).
@@ -1038,8 +1139,11 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
                 strategy_id=strategy_id,
                 account_id=account_id,
                 starting_cash=starting_cash,
+                initialize=initialize,
             )
         except Exception as exc:  # noqa: BLE001
+            if not allow_fallback:
+                raise
             logger.warning(
                 "get_default_engine: MySQL backend unreachable (%s); "
                 "falling back to SQLite at ~/.portfolio_intel/paper.db",
@@ -1049,8 +1153,35 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
 
     resolved = Path(db_path) if db_path is not None else config.paper_db_path()
     return SqlitePaperEngine(
-        resolved, account_id=account_id, starting_cash=starting_cash
+        resolved,
+        account_id=account_id,
+        starting_cash=starting_cash,
+        initialize=initialize,
     )
+
+
+def get_default_execution_scope_id(
+    db_path: Path | str | None = None,
+    *,
+    run_id: str = "live",
+    strategy_id: str = "default",
+) -> str:
+    """Resolve the configured paper-ledger identity without initializing it."""
+    if config.paper_engine() == "mysql":
+        database_module = importlib.import_module("openbb_fmp_cached.utils.database")
+        mysql_module = importlib.import_module(
+            "openbb_techtrade.execution.mysql_paper_engine"
+        )
+        engine = mysql_module.MysqlPaperEngine(
+            connection_pool=database_module.get_connection_pool(),
+            run_id=run_id,
+            strategy_id=strategy_id,
+            initialize=False,
+        )
+        return engine.execution_scope_id
+    resolved = Path(db_path) if db_path is not None else config.paper_db_path()
+    digest = hashlib.sha256(str(resolved.resolve()).encode("utf-8")).hexdigest()[:16]
+    return f"sqlite-{digest}"
 
 
 # ---------------------------------------------------------------------------
@@ -1084,8 +1215,53 @@ def orders_from_batch_shape(tickets: Iterable) -> list[dict]:  # noqa: ANN001
 
 
 def _new_id(prefix: str) -> str:
-    """Short unique-per-row identifier — prefix + 12-char uuid tail."""
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+    """Return a unique row identifier with a full canonical RFC 4122 UUID."""
+    return f"{prefix}_{uuid.uuid4()}"
+
+
+_ORDER_ID_NAMESPACE = uuid.UUID("2b5b9db9-9e57-46d6-bc90-cb2ae341fe15")
+
+
+def _new_order_id(identity: str) -> str:
+    """Deterministic UUID for an idempotent account/batch/ordinal identity."""
+    return f"ord_{uuid.uuid5(_ORDER_ID_NAMESPACE, identity)}"
+
+
+def _identity_key(*parts: str) -> str:
+    """Encode variable-length identity components without delimiter ambiguity."""
+    return "".join(f"{len(part)}:{part}" for part in parts)
+
+
+def _legacy_order_ids_in_ticket_order(
+    rows, tickets
+) -> list[str] | None:  # noqa: ANN001
+    """Map legacy random IDs back to ticket order using persisted fields."""
+    by_signature: dict[tuple[str, ...], list[str]] = {}
+    for row in rows:
+        signature = (
+            row["symbol"],
+            row["side"],
+            row["quantity"],
+            row["order_type"],
+            row["limit_price"] or "",
+        )
+        by_signature.setdefault(signature, []).append(row["order_id"])
+    if any(len(order_ids) > 1 for order_ids in by_signature.values()):
+        return None
+    ordered: list[str] = []
+    for ticket in tickets:
+        signature = (
+            ticket.symbol,
+            _action_to_side(ticket.action).value,
+            str(ticket.quantity),
+            ticket.order_type,
+            str(ticket.limit_price) if ticket.limit_price is not None else "",
+        )
+        candidates = by_signature.get(signature)
+        if not candidates:
+            return None
+        ordered.append(candidates.pop())
+    return ordered if not any(by_signature.values()) else None
 
 
 def _now_iso() -> str:

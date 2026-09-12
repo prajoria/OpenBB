@@ -81,12 +81,17 @@ jobs:
           # own auth-safety check (P0-3) doesn't refuse to run.
           PI_WIDGET_BACKEND_AUTH_MODE: ""
           PI_WIDGET_BACKEND_TOKEN: ""
+          # Harness execution must stay local and deterministic.
+          PI_PAPER_ENGINE: "sqlite"
+          PI_PAPER_DB: "${{ runner.temp }}/pi-paper-unit.db"
         run: pytest tests/ -v --tb=short
 
       - name: Run ${{ matrix.story }} story (standalone mode)
         env:
           PI_WIDGET_BACKEND_AUTH_MODE: ""
           PI_WIDGET_BACKEND_TOKEN: ""
+          PI_PAPER_ENGINE: "sqlite"
+          PI_PAPER_DB: "${{ runner.temp }}/pi-paper-story.db"
         run: |
           python -m openbb_browser_test_harness.run \
             --story ${{ matrix.story }} \
@@ -131,6 +136,8 @@ jobs:
           BROWSER_HARNESS_LIVE: "1"
           PI_WIDGET_BACKEND_AUTH_MODE: ""
           PI_WIDGET_BACKEND_TOKEN: ""
+          PI_PAPER_ENGINE: "sqlite"
+          PI_PAPER_DB: "${{ runner.temp }}/pi-paper-fixtures.db"
         run: |
           pytest tests/test_fixtures_are_current.py -v --tb=short
 
