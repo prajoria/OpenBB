@@ -52,7 +52,7 @@ def _synthetic_returns(seed: int, length: int) -> list[float]:
     return rng.normal(loc=0.0005, scale=0.012, size=length).tolist()
 
 
-def _assert_valid_concentration(result: ConcentrationSummary) -> None:
+def _assert_valid_spy_concentration(result: ConcentrationSummary) -> None:
     values = (
         result.hhi,
         result.effective_n,
@@ -61,7 +61,7 @@ def _assert_valid_concentration(result: ConcentrationSummary) -> None:
         result.top10,
     )
     assert all(isfinite(value) for value in values)
-    assert 0.0 < result.hhi <= 1.0
+    assert 0.0 < result.hhi < 1.0
     assert result.effective_n == pytest.approx(1.0 / result.hhi)
     assert 0.0 < result.top1 <= result.top5 <= result.top10 <= 1.0
     assert result.hhi <= result.top1 <= sqrt(result.hhi) + 1e-12
@@ -300,6 +300,7 @@ def test_concentration_determinism() -> None:
         {"hhi": 0.0},
         {"effective_n": float("inf")},
         {"effective_n": 10.0},
+        {"hhi": 1.0, "effective_n": 1.0, "top1": 1.0, "top5": 1.0, "top10": 1.0},
         {"top1": 0.0},
         {"hhi": 0.2, "effective_n": 5.0},
         {"top1": 0.25},
@@ -307,8 +308,8 @@ def test_concentration_determinism() -> None:
         {"top10": 1.1},
     ],
 )
-def test_concentration_invariants_reject_malformed_output(overrides) -> None:
-    """Non-finite, inconsistent, or impossible concentration values fail."""
+def test_spy_concentration_invariants_reject_malformed_output(overrides) -> None:
+    """Non-finite, unresolved, inconsistent, or impossible SPY output fails."""
     values = {
         "hhi": 0.04,
         "effective_n": 25.0,
@@ -319,7 +320,7 @@ def test_concentration_invariants_reject_malformed_output(overrides) -> None:
     values.update(overrides)
 
     with pytest.raises(AssertionError):
-        _assert_valid_concentration(ConcentrationSummary(**values))
+        _assert_valid_spy_concentration(ConcentrationSummary(**values))
 
 
 @pytest.mark.integration
@@ -332,4 +333,4 @@ def test_live_concentration_spy_via_obb() -> None:
         provider="fmp_cached",
     )
     res = obj.results
-    _assert_valid_concentration(res)
+    _assert_valid_spy_concentration(res)

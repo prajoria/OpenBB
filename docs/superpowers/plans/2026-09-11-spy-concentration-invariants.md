@@ -33,7 +33,7 @@ from math import isfinite, sqrt
 
 values = (res.hhi, res.effective_n, res.top1, res.top5, res.top10)
 assert all(isfinite(value) for value in values)
-assert 0.0 < res.hhi <= 1.0
+assert 0.0 < res.hhi < 1.0
 assert res.effective_n == pytest.approx(1.0 / res.hhi)
 assert 0.0 < res.top1 <= res.top5 <= res.top10 <= 1.0
 assert res.hhi <= res.top1 <= sqrt(res.hhi) + 1e-12
