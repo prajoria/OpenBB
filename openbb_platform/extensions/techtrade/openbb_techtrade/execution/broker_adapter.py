@@ -895,6 +895,7 @@ def get_default_broker_adapter(
     account_id: str | None = None,
     paper_engine: PaperEngine | None = None,
     live_client: LiveBrokerClient | None = None,
+    initialize: bool = True,
 ) -> BrokerAdapter:
     """Build the explicitly selected adapter; paper is the safe default."""
     resolved_mode = ExecutionMode(
@@ -906,6 +907,7 @@ def get_default_broker_adapter(
             paper_engine = paper_engine_module.get_default_engine(
                 account_id=resolved_account,
                 allow_fallback=False,
+                initialize=initialize,
             )
         return PaperBrokerAdapter(paper_engine, account_id=resolved_account)
 

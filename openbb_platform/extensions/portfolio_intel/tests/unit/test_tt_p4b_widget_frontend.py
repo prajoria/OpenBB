@@ -464,7 +464,12 @@ def test_approve_plan_registers_server_validated_batch(
     from openbb_techtrade.execution.broker_adapter import SqliteExecutionAuditStore
 
     store = SqliteExecutionAuditStore(os.environ["PI_T5_EXECUTION_AUDIT_DB"])
-    restored = store.get_approved_batch(f"t4-{request_id}")
+    restored = store.get_approved_batch(
+        f"t4-{request_id}",
+        broker_id=response.json()["broker_id"],
+        account_id=response.json()["account_id"],
+        principal_id=response.json()["principal_id"],
+    )
     assert restored is not None
     assert restored.sha256() == batch.sha256()
     store.close()
@@ -474,7 +479,7 @@ def test_approve_plan_registers_server_validated_batch(
         "/tt/execute/write-batch",
         params={
             "verdict": "PASS",
-            "confirm": "yes",
+            "confirm": response.json()["confirmation"],
             "plan_id": f"t4-{request_id}",
         },
     )
