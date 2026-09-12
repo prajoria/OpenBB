@@ -297,6 +297,23 @@ class TestExecutionGateway:
         assert ("private", 0o700) in modes
         assert ("audit.db", 0o600) in modes
 
+    def test_owner_only_permissions_reject_foreign_owned_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from openbb_techtrade.execution import secure_file
+
+        path = tmp_path / "foreign-owned"
+        path.mkdir()
+        monkeypatch.setattr(
+            secure_file,
+            "_path_owned_by_current_user",
+            lambda _path: False,
+            raising=False,
+        )
+
+        with pytest.raises(PermissionError, match="owned by the current"):
+            secure_file.secure_owner_only(path, directory=True)
+
     def test_audit_store_rejects_symlinked_directory(self, tmp_path: Path) -> None:
         if os.name == "nt":
             pytest.skip("symlink creation requires elevated Windows privileges")
@@ -686,7 +703,14 @@ class TestExecutionGateway:
     def test_distinct_approvals_with_same_tickets_execute_independently(
         self, audit: SqliteExecutionAuditStore
     ) -> None:
-        engine = _FakePaperEngine()
+        class PlanScopedPaperEngine(_FakePaperEngine):
+            def submit_batch(self, batch: OrderBatch, plan_id: str = "") -> list[str]:
+                self.submissions += 1
+                return [
+                    f"{plan_id}-paper-{index}" for index, _ in enumerate(batch.tickets)
+                ]
+
+        engine = PlanScopedPaperEngine()
         gateway = _gateway(PaperBrokerAdapter(engine), audit, mode=ExecutionMode.PAPER)
         first_batch = _batch("MSFT")
         second_batch = OrderBatch(
@@ -741,6 +765,41 @@ class TestExecutionGateway:
                     receipt.orders[0].order_uuid
                 ),
             )
+
+    def test_paper_broker_order_cannot_alias_across_principals(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        adapter = PaperBrokerAdapter(_FakePaperEngine())
+        alice = ExecutionGateway(
+            adapter=adapter,
+            audit_store=audit,
+            configured_mode=ExecutionMode.PAPER,
+            execute_enabled=True,
+            principal_id="alice",
+        )
+        mallory = ExecutionGateway(
+            adapter=adapter,
+            audit_store=audit,
+            configured_mode=ExecutionMode.PAPER,
+            execute_enabled=True,
+            principal_id="mallory",
+        )
+        batch = _batch("MSFT")
+        alice.submit(
+            batch,
+            verdict="PASS",
+            confirmation=alice.expected_confirmation(batch),
+        )
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            mallory.submit(
+                batch,
+                verdict="PASS",
+                confirmation=mallory.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+        assert raised.value.receipt.orders[0].broker_order_id is None
 
     def test_audit_replays_after_store_reopen(self, tmp_path: Path) -> None:
         path = tmp_path / "execution-audit.db"

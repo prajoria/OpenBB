@@ -286,7 +286,7 @@ class SqliteExecutionAuditStore:
         acknowledgements: Sequence[BrokerOrderAck],
     ) -> SubmissionReceipt:
         """Record all broker acknowledgements and terminal success."""
-        self._reserve_live_broker_ids(submission_id, acknowledgements)
+        self._reserve_broker_ids(submission_id, acknowledgements)
         with self._lock, self._conn:
             for ack in acknowledgements:
                 self._conn.execute(
@@ -320,7 +320,7 @@ class SqliteExecutionAuditStore:
     ) -> SubmissionReceipt:
         """Persist terminal failure while retaining partial acknowledgements."""
         try:
-            self._reserve_live_broker_ids(submission_id, completed)
+            self._reserve_broker_ids(submission_id, completed)
         except BrokerBatchError as exc:
             error = str(exc)
             completed = ()
@@ -390,12 +390,12 @@ class SqliteExecutionAuditStore:
             )
             return self._read_submission(submission_id)
 
-    def _reserve_live_broker_ids(
+    def _reserve_broker_ids(
         self,
         submission_id: uuid.UUID,
         acknowledgements: Sequence[BrokerOrderAck],
     ) -> None:
-        """Atomically prevent broker IDs from aliasing within a live scope."""
+        """Atomically prevent broker IDs from aliasing within an execution scope."""
         if not acknowledgements:
             return
         with self._lock, self._conn:
@@ -404,23 +404,24 @@ class SqliteExecutionAuditStore:
                 "WHERE submission_id = ?",
                 (str(submission_id),),
             ).fetchone()
-            if scope is None or scope["mode"] != ExecutionMode.LIVE.value:
+            if scope is None:
                 return
             for ack in acknowledgements:
-                legacy = self._conn.execute(
-                    "SELECT 1 FROM pi_execution_order o "
-                    "JOIN pi_execution_submission s "
-                    "ON o.submission_id = s.submission_id "
-                    "WHERE s.mode = 'live' "
-                    "AND s.principal_id = 'legacy-unassigned' "
-                    "AND s.account_id = ? AND o.broker_order_id = ? LIMIT 1",
-                    (scope["account_id"], ack.broker_order_id),
-                ).fetchone()
-                if legacy is not None:
-                    raise BrokerBatchError(
-                        "legacy broker order ownership requires reconciliation",
-                        outcome_unknown=True,
-                    )
+                if scope["mode"] == ExecutionMode.LIVE.value:
+                    legacy = self._conn.execute(
+                        "SELECT 1 FROM pi_execution_order o "
+                        "JOIN pi_execution_submission s "
+                        "ON o.submission_id = s.submission_id "
+                        "WHERE s.mode = 'live' "
+                        "AND s.principal_id = 'legacy-unassigned' "
+                        "AND s.account_id = ? AND o.broker_order_id = ? LIMIT 1",
+                        (scope["account_id"], ack.broker_order_id),
+                    ).fetchone()
+                    if legacy is not None:
+                        raise BrokerBatchError(
+                            "legacy broker order ownership requires reconciliation",
+                            outcome_unknown=True,
+                        )
                 self._conn.execute(
                     "INSERT OR IGNORE INTO pi_execution_broker_order "
                     "(mode, broker_id, account_id, broker_order_id, order_uuid, "

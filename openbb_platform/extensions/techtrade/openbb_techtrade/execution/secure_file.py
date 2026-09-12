@@ -9,8 +9,20 @@ from contextlib import suppress
 from pathlib import Path
 
 
+class _SidAndAttributes(ctypes.Structure):
+    _fields_ = [("sid", ctypes.c_void_p), ("attributes", ctypes.c_uint32)]
+
+
+class _TokenUser(ctypes.Structure):
+    _fields_ = [("user", _SidAndAttributes)]
+
+
 def secure_owner_only(path: Path, *, directory: bool) -> None:
     """Apply owner-only access, raising when the platform cannot enforce it."""
+    if not _path_owned_by_current_user(path):
+        raise PermissionError(
+            f"execution audit path {path.name!r} is not owned by the current identity"
+        )
     if os.name == "nt":
         _set_windows_owner_dacl(path, directory=directory)
         return
@@ -79,6 +91,82 @@ def _is_link(path: Path) -> bool:
     except (AttributeError, FileNotFoundError):
         return False
     return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _path_owned_by_current_user(path: Path) -> bool:
+    if os.name != "nt":
+        get_effective_user_id = getattr(os, "geteuid")
+        return path.stat(follow_symlinks=False).st_uid == get_effective_user_id()
+    return _windows_path_owned_by_current_user(path)
+
+
+def _windows_path_owned_by_current_user(path: Path) -> bool:
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    owner_sid = ctypes.c_void_p()
+    descriptor = ctypes.c_void_p()
+    get_owner = advapi32.GetNamedSecurityInfoW
+    get_owner.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    get_owner.restype = ctypes.c_uint32
+    result = get_owner(
+        str(path),
+        1,
+        0x00000001,
+        ctypes.byref(owner_sid),
+        None,
+        None,
+        None,
+        ctypes.byref(descriptor),
+    )
+    if result:
+        raise ctypes.WinError(result)
+    token = ctypes.c_void_p()
+    try:
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        open_token = advapi32.OpenProcessToken
+        open_token.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_void_p),
+        ]
+        open_token.restype = ctypes.c_int
+        if not open_token(kernel32.GetCurrentProcess(), 0x0008, ctypes.byref(token)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        token_info = advapi32.GetTokenInformation
+        token_info.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_uint32),
+        ]
+        token_info.restype = ctypes.c_int
+        required = ctypes.c_uint32()
+        token_info(token, 1, None, 0, ctypes.byref(required))
+        if not required.value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        buffer = ctypes.create_string_buffer(required.value)
+        if not token_info(token, 1, buffer, required.value, ctypes.byref(required)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        token_user = ctypes.cast(buffer, ctypes.POINTER(_TokenUser)).contents
+        equal_sid = advapi32.EqualSid
+        equal_sid.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        equal_sid.restype = ctypes.c_int
+        return bool(equal_sid(owner_sid, token_user.user.sid))
+    finally:
+        if token:
+            kernel32.CloseHandle(token)
+        if descriptor:
+            kernel32.LocalFree(descriptor)
 
 
 def _set_windows_owner_dacl(path: Path, *, directory: bool) -> None:
