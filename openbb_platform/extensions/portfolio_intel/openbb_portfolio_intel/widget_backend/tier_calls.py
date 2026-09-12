@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import date
+from datetime import date as _date
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -1696,7 +1696,7 @@ def _fetch_forward_eps(symbol: str) -> dict:
         )
         raw_rows = getattr(result, "results", result)
         rows = raw_rows if isinstance(raw_rows, list) else [raw_rows]
-        today = date.today().isoformat()
+        today = _date.today().isoformat()
         candidates = []
         for row in rows:
             dumped = row.model_dump() if hasattr(row, "model_dump") else row
