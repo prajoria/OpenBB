@@ -482,6 +482,25 @@ def test_approve_plan_rejects_unvalidated_injected_batch(
     assert "verdict" in response.json()["detail"]
 
 
+def test_approve_plan_rejects_invalid_broker_mode(
+    monkeypatch: pytest.MonkeyPatch, clean_env
+) -> None:
+    monkeypatch.setenv("PI_T5_BROKER_MODE", "oracle")
+
+    async def must_not_build(_plan, _approval_id):
+        pytest.fail("invalid mode must be rejected before planning")
+
+    app.state.t5_plan_approval_builder = must_not_build
+    response = _client.post(
+        "/tt/execute/approve-plan",
+        params={"approval_request_id": "00000000-0000-4000-8000-000000000173"},
+        json={"symbol": "MSFT"},
+    )
+
+    assert response.status_code == 503
+    assert "PI_T5_BROKER_MODE" in response.json()["detail"]
+
+
 def test_default_approval_builder_uses_server_generated_orders(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

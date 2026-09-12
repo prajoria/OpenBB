@@ -287,6 +287,25 @@ class SqliteExecutionAuditStore:
     ) -> tuple[SubmissionReceipt, bool]:
         """Reserve the idempotency key before any broker side effect."""
         with self._lock, self._conn:
+            if mode is ExecutionMode.LIVE:
+                legacy = self._conn.execute(
+                    "SELECT submission_id FROM pi_execution_submission "
+                    "WHERE mode = ? AND broker_id = ? AND account_id = ? "
+                    "AND principal_id = 'legacy-unassigned' "
+                    "AND plan_id = ? AND batch_sha256 = ?",
+                    (
+                        mode.value,
+                        broker_id,
+                        account_id,
+                        plan_id,
+                        batch_sha256,
+                    ),
+                ).fetchone()
+                if legacy is not None:
+                    raise UnknownSubmissionStateError(
+                        "legacy live submission ownership is unknown; reconcile "
+                        "before submitting this approval"
+                    )
             submission_id = uuid.uuid4()
             now = _now()
             inserted = self._conn.execute(
@@ -428,6 +447,25 @@ class SqliteExecutionAuditStore:
                     {"error": error},
                     failed_order_uuid,
                 )
+            elif outcome_unknown:
+                unknown_rows = self._conn.execute(
+                    "SELECT order_uuid FROM pi_execution_order "
+                    "WHERE submission_id = ? AND status = 'PLANNED'",
+                    (str(submission_id),),
+                ).fetchall()
+                for row in unknown_rows:
+                    order_uuid = uuid.UUID(row["order_uuid"])
+                    self._conn.execute(
+                        "UPDATE pi_execution_order SET status = 'UNKNOWN', "
+                        "error = ? WHERE order_uuid = ?",
+                        (error, str(order_uuid)),
+                    )
+                    self._append_event(
+                        submission_id,
+                        "ORDER_UNKNOWN",
+                        {"error": error},
+                        order_uuid,
+                    )
             self._update_submission(submission_id, status, error=error)
             self._append_event(
                 submission_id,

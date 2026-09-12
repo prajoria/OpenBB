@@ -298,6 +298,19 @@ class TestExecutionGateway:
         assert {"principal_id", "broker_id", "account_id"} <= columns
         assert foreign_parent == "pi_execution_submission"
 
+        reopened = SqliteExecutionAuditStore(path)
+        with pytest.raises(UnknownSubmissionStateError, match="legacy live"):
+            reopened.reserve(
+                mode=ExecutionMode.LIVE,
+                broker_id="fake-broker",
+                account_id="fake-live",
+                principal_id="alice",
+                plan_id="legacy-plan",
+                batch_sha256="a" * 64,
+                order_count=1,
+            )
+        reopened.close()
+
     def test_approved_batch_replays_across_store_instances(
         self, tmp_path: Path
     ) -> None:
@@ -719,6 +732,7 @@ class TestExecutionGateway:
 
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert raised.value.receipt.orders[0].broker_order_id is None
+        assert raised.value.receipt.orders[0].status == "UNKNOWN"
 
     def test_reserved_unknown_outcome_fails_closed(
         self, audit: SqliteExecutionAuditStore

@@ -3533,6 +3533,7 @@ async def tt_execute_approve_plan(
 
     from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
         ExecutionGateError,
+        ExecutionMode,
     )
 
     try:
@@ -3542,11 +3543,19 @@ async def tt_execute_approve_plan(
             status_code=400,
             detail="approval_request_id must be a canonical UUID",
         ) from exc
+    try:
+        configured_mode = ExecutionMode(
+            os.environ.get("PI_T5_BROKER_MODE", "paper").strip()
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"PI_T5_BROKER_MODE is invalid: {exc}",
+        ) from exc
     request_sha256 = hashlib.sha256(
         json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    mode = os.environ.get("PI_T5_BROKER_MODE", "paper").strip()
-    if mode == "live":
+    if configured_mode is ExecutionMode.LIVE:
         client = getattr(request.app.state, "t5_live_broker_client", None)
         account_id = os.environ.get("PI_T5_LIVE_ACCOUNT_ID", "")
         if (
@@ -3564,7 +3573,6 @@ async def tt_execute_approve_plan(
             account_id=account_id,
         ).principal_id
     else:
-        mode = "paper"
         broker_id = "paper-engine"
         account_id = "paper"
         principal_id = "paper"
@@ -3616,7 +3624,7 @@ async def tt_execute_approve_plan(
         "batch_sha": batch.sha256(),
         "verdict": "PASS",
         "confirmation": (
-            f"SUBMIT {mode.upper()} {broker_id} {account_id} "
+            f"SUBMIT {configured_mode.value.upper()} {broker_id} {account_id} "
             f"{principal_id} {batch.plan_id} {batch.sha256()}"
         ),
     }
