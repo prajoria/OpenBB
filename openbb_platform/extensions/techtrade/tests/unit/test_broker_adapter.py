@@ -4,13 +4,15 @@
 
 from __future__ import annotations
 
+import json
+import os
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-import json
-import sqlite3
 from threading import Event, Thread
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -32,8 +34,12 @@ from openbb_techtrade.execution.broker_adapter import (
     UnknownSubmissionStateError,
     get_default_broker_adapter,
 )
-from openbb_techtrade.execution.order_sink import OrderBatch, OrderTicket
-from openbb_techtrade.execution.order_sink import PlanContext, VerdictGate
+from openbb_techtrade.execution.order_sink import (
+    OrderBatch,
+    OrderTicket,
+    PlanContext,
+    VerdictGate,
+)
 
 
 def _batch(*symbols: str) -> OrderBatch:
@@ -233,6 +239,20 @@ class TestAdapterContract:
 
 
 class TestExecutionGateway:
+    def test_windows_reparse_points_are_treated_as_links(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from openbb_techtrade.execution import secure_file
+
+        monkeypatch.setattr(Path, "is_symlink", lambda _path: False)
+        monkeypatch.setattr(
+            secure_file.os,
+            "lstat",
+            lambda _path: SimpleNamespace(st_file_attributes=0x400),
+        )
+
+        assert secure_file._is_link(tmp_path) is True  # noqa: SLF001
+
     def test_audit_store_enforces_owner_only_permissions(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -256,6 +276,17 @@ class TestExecutionGateway:
 
         assert ("private", 0o700) in modes
         assert ("audit.db", 0o600) in modes
+
+    def test_audit_store_rejects_symlinked_directory(self, tmp_path: Path) -> None:
+        if os.name == "nt":
+            pytest.skip("symlink creation requires elevated Windows privileges")
+        target = tmp_path / "target"
+        target.mkdir()
+        linked = tmp_path / "linked"
+        linked.symlink_to(target, target_is_directory=True)
+
+        with pytest.raises(PermissionError, match="must not contain links"):
+            SqliteExecutionAuditStore(linked / "audit.db")
 
     def test_reserved_legacy_principal_is_rejected(
         self, audit: SqliteExecutionAuditStore

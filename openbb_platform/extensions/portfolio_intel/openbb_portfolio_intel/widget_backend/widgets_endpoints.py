@@ -3844,30 +3844,22 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
             verdict=verdict,
             confirmation=resolved_confirmation,
         )
-    except ExecutionGateError as exc:
-        audit_store.close()
-        engine = getattr(adapter, "engine", None)
-        if engine is not None:
-            engine.close()
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-
-    out_dir = Path(
-        os.environ.get(
-            "PI_T5_EXECUTE_OUTPUT_DIR",
-            str(Path.home() / ".portfolio_intel" / "order_batches"),
+        out_dir = Path(
+            os.environ.get(
+                "PI_T5_EXECUTE_OUTPUT_DIR",
+                str(Path.home() / ".portfolio_intel" / "order_batches"),
+            )
         )
-    )
-    out_dir.mkdir(parents=True, exist_ok=True)
-    artifact_dir = (
-        out_dir / f"approval-{hashlib.sha256(batch.plan_id.encode()).hexdigest()[:16]}"
-        if plan_id
-        else out_dir
-    )
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    sink = PaperOrderSink(artifact_dir)
-    art = sink.write_batch(batch)
-
-    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        artifact_dir = (
+            out_dir
+            / f"approval-{hashlib.sha256(batch.plan_id.encode()).hexdigest()[:16]}"
+            if plan_id
+            else out_dir
+        )
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        sink = PaperOrderSink(artifact_dir)
+        art = sink.write_batch(batch)
         receipt = gateway.submit(
             batch,
             verdict=verdict,
