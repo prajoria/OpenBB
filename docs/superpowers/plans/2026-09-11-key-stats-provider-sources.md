@@ -43,7 +43,9 @@ accept or emit the new sourced fields.
 
 Use `equity.ownership.share_statistics(..., provider="fmp_cached")` and
 `equity.estimates.forward_eps(..., provider="fmp_cached",
-fiscal_period="annual", limit=1)`. Route both through `_safe_first_row`.
+fiscal_period="annual", limit=5)`. The provider returns the selected window
+oldest-first after transformation, so use its first row. Route both through
+`_safe_first_row`.
 
 - [ ] **Step 4: Verify GREEN**
 

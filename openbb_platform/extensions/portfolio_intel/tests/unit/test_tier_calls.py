@@ -2910,16 +2910,111 @@ def _ks_metrics() -> dict:
 
 
 def test_shape_key_stats_only_sourced_fields() -> None:
-    """Only fields with a live source are emitted; unsourced ones dropped."""
+    """Optional enrichment fields are omitted when no source rows are supplied."""
     rows = tier_calls._shape_key_stats(
         "MSFT", _header_profile(), _header_quote(), _ks_metrics(), _ks_ratios()
     )
     metrics = {r["metric"] for r in rows}
     assert {"Market Cap", "P/E (TTM)", "EV/EBITDA", "Beta", "Symbol"} <= metrics
-    # Fabricated stub-only fields must NOT appear (no fmp_cached source).
+    # Optional enrichments and unsupported fields stay absent without inputs.
     assert "Forward P/E" not in metrics
     assert "Short Interest" not in metrics
     assert "Insider Ownership" not in metrics
+
+
+def test_shape_key_stats_adds_provider_backed_float_and_forward_pe() -> None:
+    """Share float and forward consensus EPS produce truthful key-stat rows."""
+    rows = tier_calls._shape_key_stats(
+        "MSFT",
+        _header_profile(),
+        _header_quote(),
+        _ks_metrics(),
+        _ks_ratios(),
+        share_statistics={"float_shares": 1_250_000_000},
+        forward_eps={"mean": 10.0},
+    )
+    values = {row["metric"]: row["value"] for row in rows}
+
+    assert values["Shares Float"] == "1.2B"
+    assert values["Forward P/E"] == 50.0
+    assert "Short Interest" not in values
+    assert "Insider Ownership" not in values
+
+
+@pytest.mark.parametrize("mean", [None, 0, -1])
+def test_shape_key_stats_omits_forward_pe_without_positive_estimate(mean) -> None:
+    """Missing or non-positive forward EPS cannot produce a meaningful multiple."""
+    rows = tier_calls._shape_key_stats(
+        "MSFT",
+        _header_profile(),
+        _header_quote(),
+        _ks_metrics(),
+        _ks_ratios(),
+        forward_eps={"mean": mean},
+    )
+
+    assert "Forward P/E" not in {row["metric"] for row in rows}
+
+
+def test_fetch_share_statistics_uses_fmp_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The share-statistics enrichment must preserve fmp_cached provenance."""
+    seen: dict = {}
+
+    class _Ownership:
+        @staticmethod
+        def share_statistics(**kwargs):
+            seen.update(kwargs)
+            return type("_Result", (), {"results": [{"float_shares": 123}]})()
+
+    class _Equity:
+        ownership = _Ownership()
+
+    monkeypatch.setattr(
+        tier_calls, "_obb", lambda: type("_OBB", (), {"equity": _Equity()})()
+    )
+
+    assert tier_calls._fetch_share_statistics("MSFT") == {"float_shares": 123}
+    assert seen == {"symbol": "MSFT", "provider": "fmp_cached"}
+
+
+def test_fetch_forward_eps_uses_annual_fmp_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The forward-P/E denominator must be annual fmp_cached consensus EPS."""
+    seen: dict = {}
+
+    class _Estimates:
+        @staticmethod
+        def forward_eps(**kwargs):
+            seen.update(kwargs)
+            return type(
+                "_Result",
+                (),
+                {
+                    "results": [
+                        {"date": "1900-01-01", "mean": 1.0},
+                        {"date": "2999-01-01", "mean": 10.0},
+                    ]
+                },
+            )()
+
+    class _Equity:
+        estimates = _Estimates()
+
+    monkeypatch.setattr(
+        tier_calls, "_obb", lambda: type("_OBB", (), {"equity": _Equity()})()
+    )
+
+    assert tier_calls._fetch_forward_eps("MSFT") == {
+        "date": "2999-01-01",
+        "mean": 10.0,
+    }
+    assert seen == {
+        "symbol": "MSFT",
+        "provider": "fmp_cached",
+        "fiscal_period": "annual",
+        "limit": 5,
+    }
 
 
 def test_shape_key_stats_dividend_yield_is_fraction_times_100() -> None:
@@ -2946,11 +3041,19 @@ def test_key_stats_tier_call_composes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
     monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda s: _ks_metrics())
     monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda s: _ks_ratios())
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_share_statistics",
+        lambda s: {"float_shares": 1_250_000_000},
+    )
+    monkeypatch.setattr(tier_calls, "_fetch_forward_eps", lambda s: {"mean": 10.0})
     call = _TIER_CALLS[("equity/key-stats", "fmp_cached")]
     rows = call(symbol="MSFT")
     metrics = {r["metric"] for r in rows}
     assert "EV/EBITDA" in metrics
     assert "Dividend Yield" in metrics
+    assert "Shares Float" in metrics
+    assert "Forward P/E" in metrics
 
 
 def test_key_stats_tier_call_loud_empty_returns_list(
@@ -2961,6 +3064,8 @@ def test_key_stats_tier_call_loud_empty_returns_list(
     monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: {})
     monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda s: {})
     monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda s: {})
+    monkeypatch.setattr(tier_calls, "_fetch_share_statistics", lambda s: {})
+    monkeypatch.setattr(tier_calls, "_fetch_forward_eps", lambda s: {})
     call = _TIER_CALLS[("equity/key-stats", "fmp_cached")]
     with caplog.at_level(logging.WARNING, logger=tier_calls.logger.name):
         out = call(symbol="MSFT")
@@ -3003,18 +3108,25 @@ def test_key_stats_endpoint_serves_from_tier_not_stub(
 ) -> None:
     """With the tier registered, the endpoint serves the live grid, not stub.
 
-    The stub grid contains the fabricated ``Forward P/E`` row and ``$3.47T``
-    market cap; the live grid has neither.
+    The stub grid lacks the two provider-backed enrichments and carries a
+    canned ``$3.47T`` market cap; the live grid has sourced values instead.
     """
     monkeypatch.setattr(tier_calls, "_fetch_profile", lambda s: _header_profile())
     monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
     monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda s: _ks_metrics())
     monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda s: _ks_ratios())
+    monkeypatch.setattr(
+        tier_calls,
+        "_fetch_share_statistics",
+        lambda s: {"float_shares": 1_250_000_000},
+    )
+    monkeypatch.setattr(tier_calls, "_fetch_forward_eps", lambda s: {"mean": 10.0})
     resp = _client.get("/pi/equity/key-stats?symbol=MSFT")
     assert resp.status_code == 200
     rows = resp.json()
     metrics = {r["metric"] for r in rows}
-    assert "Forward P/E" not in metrics, "served the stub!"
+    assert "Forward P/E" in metrics, "live provider enrichment missing!"
+    assert "Shares Float" in metrics, "live provider enrichment missing!"
     mc = next(r["value"] for r in rows if r["metric"] == "Market Cap")
     assert mc != "$3.47T", "served the stub!"
 
@@ -3033,6 +3145,8 @@ def test_key_stats_endpoint_forwards_normalized_symbol_to_tier(
     monkeypatch.setattr(tier_calls, "_fetch_quote", lambda s: _header_quote())
     monkeypatch.setattr(tier_calls, "_fetch_metrics", lambda s: _ks_metrics())
     monkeypatch.setattr(tier_calls, "_fetch_ratios", lambda s: _ks_ratios())
+    monkeypatch.setattr(tier_calls, "_fetch_share_statistics", lambda s: {})
+    monkeypatch.setattr(tier_calls, "_fetch_forward_eps", lambda s: {})
     resp = _client.get("/pi/equity/key-stats?symbol=+msft+")
     assert resp.status_code == 200
     assert seen["symbol"] == "MSFT", f"raw symbol leaked: {seen['symbol']!r}"
@@ -3054,5 +3168,8 @@ def test_key_stats_fmp_cached_live() -> None:
     assert rows, "empty live grid — wiring broken"
     metrics = {r["metric"] for r in rows}
     assert "Market Cap" in metrics
-    assert "Forward P/E" not in metrics  # no fmp_cached source
+    assert "Forward P/E" in metrics
+    assert "Shares Float" in metrics
+    assert "Short Interest" not in metrics
+    assert "Insider Ownership" not in metrics
     assert {"metric", "value"} == set(rows[0])
