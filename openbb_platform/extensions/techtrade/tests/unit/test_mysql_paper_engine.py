@@ -566,6 +566,43 @@ class TestConnectionPoolContract:
 
         assert "MySQL connection error" not in caplog.text
 
+    def test_rollback_failure_does_not_mask_domain_rejection(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        class RollbackFailingConnection:
+            def begin(self) -> None:
+                pass
+
+            def rollback(self) -> None:
+                raise RuntimeError("connection lost during rollback")
+
+        class SingleConnectionPool:
+            exited = False
+
+            @contextmanager
+            def get_connection(self) -> Iterator[RollbackFailingConnection]:
+                try:
+                    yield RollbackFailingConnection()
+                finally:
+                    self.exited = True
+
+        pool = SingleConnectionPool()
+        engine = object.__new__(MysqlPaperEngine)
+        engine._pool = pool
+
+        with (
+            caplog.at_level(
+                logging.WARNING,
+                logger="openbb_techtrade.execution.mysql_paper_engine",
+            ),
+            pytest.raises(PaperEngineError, match="original rejection"),
+            engine.transaction(),
+        ):
+            raise PaperEngineError("original rejection")
+
+        assert pool.exited
+        assert "rollback failed" in caplog.text
+
 
 # ---------------------------------------------------------------------------
 # submit_batch

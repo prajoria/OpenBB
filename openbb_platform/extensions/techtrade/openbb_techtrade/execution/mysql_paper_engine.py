@@ -247,17 +247,25 @@ class MysqlPaperEngine:
         held: PaperEngineError | None = None
         with self._acquire() as conn:
             conn.begin()
+            committed = False
             try:
                 yield conn
                 conn.commit()
+                committed = True
             except PaperEngineError as exc:
-                conn.rollback()
                 held = exc
-            except Exception:
-                conn.rollback()
-                raise
+            finally:
+                if not committed:
+                    self._restore(conn)
         if held is not None:
             raise held
+
+    @staticmethod
+    def _restore(conn: Any) -> None:
+        try:
+            conn.rollback()
+        except Exception:  # pylint: disable=broad-except
+            logger.warning("MysqlPaperEngine rollback failed", exc_info=True)
 
     # ------------------------------------------------------------------
     # schema + account bootstrap

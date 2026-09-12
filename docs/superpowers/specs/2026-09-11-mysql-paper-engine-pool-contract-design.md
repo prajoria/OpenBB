@@ -93,6 +93,8 @@ The pool continues to close connections on all exits. Expected
 `PaperEngineError` rejections are rolled back inside the borrow and re-raised
 unchanged after the pool context exits, preventing the shared pool from
 misreporting domain refusals as connection failures. Driver errors still cross
-the pool context and retain its connection-error logging.
+the pool context and retain its connection-error logging. Rollback is
+best-effort: a rollback failure is logged but never masks the original domain
+or driver exception, and the pool still closes the broken connection.
 Changes are limited to issue #2059; unrelated execution and snapshot work,
 including #1719, is out of scope.
