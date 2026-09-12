@@ -962,6 +962,11 @@ def get_default_broker_adapter(
     return LiveBrokerAdapter(live_client, account_id=resolved_account)
 
 
+def get_default_paper_broker_id() -> str:
+    """Return the configured paper broker/ledger identity without writes."""
+    return f"paper-engine-{paper_engine_module.get_default_execution_scope_id()}"
+
+
 def _order_from_row(row: sqlite3.Row) -> OrderReceipt:
     return OrderReceipt(
         order_uuid=uuid.UUID(row["order_uuid"]),

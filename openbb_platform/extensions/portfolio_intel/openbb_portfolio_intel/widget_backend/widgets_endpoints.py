@@ -3552,7 +3552,7 @@ async def tt_execute_approve_plan(
     from openbb_techtrade.execution.broker_adapter import (  # noqa: PLC0415
         ExecutionGateError,
         ExecutionMode,
-        get_default_broker_adapter,
+        get_default_paper_broker_id,
     )
 
     try:
@@ -3592,14 +3592,8 @@ async def tt_execute_approve_plan(
             account_id=account_id,
         ).principal_id
     else:
-        paper_adapter = get_default_broker_adapter(
-            mode=ExecutionMode.PAPER,
-            account_id="paper",
-            initialize=False,
-        )
-        broker_id = paper_adapter.broker_id
-        account_id = paper_adapter.account_id
-        getattr(paper_adapter, "engine").close()
+        broker_id = get_default_paper_broker_id()
+        account_id = "paper"
         principal_id = "paper"
     try:
         batch = _resolve_t5_approved_batch(
@@ -3733,6 +3727,7 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
             SqliteExecutionAuditStore,
             UnknownSubmissionStateError,
             get_default_broker_adapter,
+            get_default_paper_broker_id,
         )
         from openbb_techtrade.execution.order_sink import (  # noqa: PLC0415
             PaperOrderSink,
@@ -3764,6 +3759,7 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
                 account_id=account_id,
                 live_client=live_client,
             )
+            broker_id = adapter.broker_id
             batch = _resolve_t5_approved_batch(
                 plan_id,
                 mode=mode.value,
@@ -3778,16 +3774,14 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
                 )
         else:
             principal_id = "paper"
-            adapter = get_default_broker_adapter(
-                mode=mode,
-                account_id="paper",
-            )
+            broker_id = get_default_paper_broker_id()
+            account_id = "paper"
             batch = (
                 _resolve_t5_approved_batch(
                     plan_id,
                     mode=mode.value,
-                    broker_id=adapter.broker_id,
-                    account_id=adapter.account_id,
+                    broker_id=broker_id,
+                    account_id=account_id,
                 )
                 if plan_id
                 else _build_t5_demo_batch("")
@@ -3804,6 +3798,31 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
             detail=f"t5_execution_configuration_error: {exc}",
         ) from exc
 
+    expected_confirmation = (
+        f"SUBMIT {mode.value.upper()} {broker_id} {account_id} "
+        f"{principal_id} {batch.plan_id} {batch.sha256()}"
+    )
+    if mode is ExecutionMode.PAPER and confirm not in {"yes", expected_confirmation}:
+        raise HTTPException(
+            status_code=400,
+            detail="explicit_confirm_required: confirmation does not match approval",
+        )
+    resolved_confirmation = (
+        expected_confirmation
+        if mode is ExecutionMode.PAPER and confirm == "yes"
+        else confirm
+    )
+    if resolved_confirmation != expected_confirmation:
+        raise HTTPException(
+            status_code=403,
+            detail="explicit confirmation did not match the approved batch",
+        )
+    if mode is ExecutionMode.PAPER:
+        adapter = get_default_broker_adapter(
+            mode=mode,
+            account_id=account_id,
+        )
+
     audit_path = Path(
         os.environ.get(
             "PI_T5_EXECUTION_AUDIT_DB",
@@ -3819,28 +3838,6 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
         live_enabled=os.environ.get("PI_ALLOW_T5_LIVE", "").strip().lower() == "true",
         principal_id=principal_id,
     )
-    expected_confirmation = gateway.expected_confirmation(batch)
-    if mode is ExecutionMode.PAPER and confirm not in {"yes", expected_confirmation}:
-        audit_store.close()
-        adapter.engine.close()
-        raise HTTPException(
-            status_code=400,
-            detail="explicit_confirm_required: confirmation does not match approval",
-        )
-    resolved_confirmation = (
-        expected_confirmation
-        if mode is ExecutionMode.PAPER and confirm == "yes"
-        else confirm
-    )
-    if resolved_confirmation != expected_confirmation:
-        audit_store.close()
-        engine = getattr(adapter, "engine", None)
-        if engine is not None:
-            engine.close()
-        raise HTTPException(
-            status_code=403,
-            detail="explicit confirmation did not match the approved batch",
-        )
 
     out_dir = Path(
         os.environ.get(

@@ -50,6 +50,7 @@ Non-goals for P3.a
 from __future__ import annotations
 
 import hashlib
+import importlib
 import logging
 import re
 import sqlite3
@@ -1157,6 +1158,30 @@ def get_default_engine(  # pylint: disable=too-many-arguments,too-many-positiona
         starting_cash=starting_cash,
         initialize=initialize,
     )
+
+
+def get_default_execution_scope_id(
+    db_path: Path | str | None = None,
+    *,
+    run_id: str = "live",
+    strategy_id: str = "default",
+) -> str:
+    """Resolve the configured paper-ledger identity without initializing it."""
+    if config.paper_engine() == "mysql":
+        database_module = importlib.import_module("openbb_fmp_cached.utils.database")
+        mysql_module = importlib.import_module(
+            "openbb_techtrade.execution.mysql_paper_engine"
+        )
+        engine = mysql_module.MysqlPaperEngine(
+            connection_pool=database_module.get_connection_pool(),
+            run_id=run_id,
+            strategy_id=strategy_id,
+            initialize=False,
+        )
+        return engine.execution_scope_id
+    resolved = Path(db_path) if db_path is not None else config.paper_db_path()
+    digest = hashlib.sha256(str(resolved.resolve()).encode("utf-8")).hexdigest()[:16]
+    return f"sqlite-{digest}"
 
 
 # ---------------------------------------------------------------------------
