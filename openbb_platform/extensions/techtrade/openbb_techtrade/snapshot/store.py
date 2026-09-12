@@ -82,7 +82,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import sqlite3
 import threading
@@ -94,6 +93,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
+
+from openbb_techtrade import config
 
 logger = logging.getLogger(__name__)
 
@@ -2756,9 +2757,6 @@ class SqliteSnapshotStore:
 # value raises `ValueError` loudly (mirrors `get_default_sink`'s stricter
 # convention) rather than being silently treated as "sqlite".
 
-_ENV_SNAPSHOT_ENGINE = "PI_SNAPSHOT_ENGINE"
-_ENV_SNAPSHOT_DB = "PI_SNAPSHOT_DB"
-
 
 def _exception_label(exc: BaseException) -> str:
     """Name an exception's *type* for a log line, without its message.
@@ -2838,28 +2836,14 @@ def get_default_snapshot_store(db_path: Path | str | None = None) -> SnapshotSto
     constructs :class:`SqliteSnapshotStore` directly, bypassing this
     factory, is protected too.
     """
-    backend = os.environ.get(_ENV_SNAPSHOT_ENGINE, "mysql").strip().lower()
-
-    if backend not in ("mysql", "sqlite"):
-        raise ValueError(
-            f"{_ENV_SNAPSHOT_ENGINE} must be one of 'mysql' | 'sqlite'; "
-            f"got {backend!r}"
-        )
+    backend = config.snapshot_engine()
 
     # TODO(gh-1965): the resolved path is not yet checked against the
     # `_validate_outside_repo` guard the portfolio importer uses. Design
     # spec §8 requires an in-repo `PI_SNAPSHOT_DB` to raise; that guard
     # lands with #1965, deliberately out of scope for #1963.
     resolved = (
-        (
-            Path(db_path)
-            if db_path is not None
-            else (
-                Path(os.environ[_ENV_SNAPSHOT_DB])
-                if os.environ.get(_ENV_SNAPSHOT_DB)
-                else Path.home() / ".portfolio_intel" / "snapshot.db"
-            )
-        )
+        (Path(db_path) if db_path is not None else config.snapshot_db_path())
         .expanduser()
         .resolve()
     )

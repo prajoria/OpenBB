@@ -1384,6 +1384,33 @@ def test_selector_uses_sqlite_when_requested(monkeypatch, tmp_path) -> None:
     store.close()
 
 
+def test_selector_uses_central_config(monkeypatch, tmp_path) -> None:
+    target = tmp_path / "central-config.db"
+    monkeypatch.setattr(store_module.config, "snapshot_engine", lambda: "sqlite")
+    monkeypatch.setattr(store_module.config, "snapshot_db_path", lambda: target)
+
+    store = get_default_snapshot_store()
+
+    assert isinstance(store, SqliteSnapshotStore)
+    assert target.exists()
+    store.close()
+
+
+def test_explicit_path_precedes_central_config_path(monkeypatch, tmp_path) -> None:
+    target = tmp_path / "explicit.db"
+    monkeypatch.setattr(store_module.config, "snapshot_engine", lambda: "sqlite")
+    monkeypatch.setattr(
+        store_module.config,
+        "snapshot_db_path",
+        lambda: pytest.fail("config path must not be read"),
+    )
+
+    store = get_default_snapshot_store(target)
+
+    assert target.exists()
+    store.close()
+
+
 def test_mysql_failure_warns_and_falls_back(monkeypatch, tmp_path, caplog) -> None:
     monkeypatch.setenv("PI_SNAPSHOT_ENGINE", "mysql")
     monkeypatch.setenv("PI_SNAPSHOT_DB", str(tmp_path / "fallback.db"))

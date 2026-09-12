@@ -581,14 +581,15 @@ python -m venv .venv_portfolio
 
 # Install the extensions portfolio-intel work depends on (editable).
 # The `dev_install.py` path via poetry doesn't populate a fresh pip venv;
-# use direct pip -e for reliability.
+# use direct pip -e for the independent packages, then the guarded helper
+# for the coupled portfolio-intel + techtrade pair.
 .venv_portfolio/Scripts/python.exe -m pip install \
   -e openbb_platform/core \
   -e openbb_platform/extensions/backtest \
-  -e openbb_platform/extensions/portfolio_intel \
   -e openbb_platform/providers/fmp_cached \
   -e openbb_platform/providers/fmp \
   -e openbb_platform/providers/yfinance
+.venv_portfolio/Scripts/python.exe scripts/pi_install.py
 .venv_portfolio/Scripts/python.exe -m pip install pytest pytest-asyncio pytest-mock
 
 # Smoke test — should print portfolio_intel + backtest in the extension list.
@@ -598,26 +599,23 @@ python -m venv .venv_portfolio
 .\.venv_portfolio\Scripts\Activate.ps1
 ```
 
-**Editable-install ordering (after #1971 (Phase A1 — declare openbb-techtrade dep)).**
+**Guarded paired editable install (#1973 (pip clobbers editable techtrade)).**
 `portfolio_intel/pyproject.toml` declares `openbb-techtrade` as a Poetry
 `{ path = "../techtrade", develop = true }` dependency. When
 `portfolio_intel` is installed via **pip** (not Poetry), pip ignores
 Poetry's `develop = true` and re-installs `openbb-techtrade` as a
-non-editable copy into `site-packages`. Consequence: any standalone
-`pip install -e openbb_platform/extensions/portfolio_intel` will clobber
-a previously-editable `openbb_techtrade` install.
-
-The batched command above (`pip install -e core -e backtest -e
-portfolio_intel -e fmp_cached -e fmp -e yfinance`) is safe as long as
-`techtrade` is installed **after** `portfolio_intel` — the last `-e`
-wins. If you run `pip install -e portfolio_intel` alone (e.g. to pick up
-a pyproject change), follow it with:
+non-editable copy into `site-packages`. Pip wheel metadata has no way to
+mark a transitive dependency editable, so do not install portfolio-intel
+alone. Use the guarded installer:
 
 ```bash
-.venv_portfolio\Scripts\python.exe -m pip install -e openbb_platform/extensions/techtrade
+.venv_portfolio\Scripts\python.exe scripts/pi_install.py
 ```
 
-Longer-term fix tracked in #1973 (Follow-up from #1971: pip install -e portfolio_intel clobbers editable techtrade install).
+It installs portfolio-intel first, restores techtrade as the final explicit
+editable requirement, and fails unless both distributions' PEP 610 metadata
+reports `editable: true`. Use `scripts/pi_install.py --dry-run` to preview the
+two pip commands without changing the environment.
 
 **Legacy `.venv_win` note:** older instructions and scripts (`openbb.sh`,
 `start_desktop_dev.ps1`) still reference
