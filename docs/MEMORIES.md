@@ -1422,3 +1422,18 @@ Harness-verified :6130 from clean committed state (first requests, zero rebuild)
 all four F2 -> `x-pi-data-source: fmp_cached` with real MSFT figures; Provider
 Health "Currently serving" lists all four -> fmp_cached. Shipped 484b310bd on
 portfolio_validations (direct-commit, PUSHED f82b9b05c..484b310bd); #1962 CLOSED.
+
+## provider-response-model-import-contract-2026-09-11
+
+Pydantic models created by `ProviderInterface._generate_return_annotations`
+advertise `openbb_core.app.provider_interface` as their `__module__`. They must
+also be bound there under `OBBject_<StandardModel>` so generated OpenBB modules
+can import them normally. Do not rely on Ruff removing speculative imports:
+that leaves independently generated or installed consumers incompatible.
+
+The regression contract lives in
+`openbb_platform/core/tests/app/test_provider_interface.py` and checks every
+generated annotation by its declared module and name, including
+`OBBject_EtfCountries` when the ETF model is installed. TechTrade's universe
+resolution fallback remains separate: provider failures still log and widen to
+no filter.

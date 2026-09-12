@@ -2,6 +2,7 @@
 
 # pylint: disable=redefined-outer-name
 
+import importlib
 from typing import Literal, Optional
 
 import pytest
@@ -81,6 +82,20 @@ def test_models(provider_interface):
     assert isinstance(models, list)
     assert len(models) > 0
     assert "EquityHistorical" in models
+
+
+def test_return_annotations_are_importable_from_their_declared_module(
+    provider_interface,
+):
+    """Generated response models must honor their module/name import contract."""
+    for model_name, annotation in provider_interface.return_annotations.items():
+        module = importlib.import_module(annotation.__module__)
+        assert getattr(module, annotation.__name__, None) is annotation, model_name
+
+    etf_countries = provider_interface.return_annotations.get("EtfCountries")
+    if etf_countries is not None:
+        module = importlib.import_module("openbb_core.app.provider_interface")
+        assert module.OBBject_EtfCountries is etf_countries
 
 
 # --- _create_field: Literal → choices auto-derivation ---
