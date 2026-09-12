@@ -320,6 +320,7 @@ def test_spy_concentration_invariants_reject_malformed_output(overrides) -> None
         "top5": 0.3,
         "top10": 0.5,
     }
+    _assert_valid_spy_concentration(ConcentrationSummary(**values))
     values.update(overrides)
 
     with pytest.raises(AssertionError):
