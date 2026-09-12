@@ -111,7 +111,10 @@ def require_live_trading_principal(
         )
     else:
         raise HTTPException(status_code=403, detail="live principal unavailable")
-    if not _ACCOUNT_ID_RE.fullmatch(principal.principal_id):
+    if (
+        not _ACCOUNT_ID_RE.fullmatch(principal.principal_id)
+        or principal.principal_id == "legacy-unassigned"
+    ):
         raise HTTPException(status_code=403, detail="live principal unavailable")
     if _LIVE_TRADER_ROLE not in principal.roles:
         raise HTTPException(status_code=403, detail="live-trader role required")

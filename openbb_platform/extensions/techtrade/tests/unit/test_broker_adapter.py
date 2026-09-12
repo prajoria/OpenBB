@@ -235,6 +235,22 @@ class TestAdapterContract:
 
 
 class TestExecutionGateway:
+    def test_reserved_legacy_principal_is_rejected(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        with pytest.raises(ExecutionConfigurationError, match="reserved principal"):
+            ExecutionGateway(
+                adapter=LiveBrokerAdapter(
+                    _FakeLiveClient(),
+                    account_id="fake-live",
+                ),
+                audit_store=audit,
+                configured_mode=ExecutionMode.LIVE,
+                execute_enabled=True,
+                live_enabled=True,
+                principal_id="legacy-unassigned",
+            )
+
     def test_legacy_audit_schema_migrates_with_fail_closed_principal(
         self, tmp_path: Path
     ) -> None:
@@ -325,28 +341,9 @@ class TestExecutionGateway:
                 broker_id="fake-broker",
                 account_id="fake-live",
                 principal_id="alice",
-                plan_id="legacy-plan",
-                batch_sha256="a" * 64,
+                plan_id="different-plan",
+                batch_sha256="b" * 64,
                 order_count=1,
-            )
-        fresh, _ = reopened.reserve(
-            mode=ExecutionMode.LIVE,
-            broker_id="fake-broker",
-            account_id="fake-live",
-            principal_id="alice",
-            plan_id="new-plan",
-            batch_sha256="b" * 64,
-            order_count=1,
-        )
-        with pytest.raises(BrokerBatchError, match="legacy broker order"):
-            reopened.record_success(
-                fresh.submission_id,
-                (
-                    BrokerOrderAck(
-                        fresh.orders[0].order_uuid,
-                        "legacy-broker-order",
-                    ),
-                ),
             )
         reopened.close()
 

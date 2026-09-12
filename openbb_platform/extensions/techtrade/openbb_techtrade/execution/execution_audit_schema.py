@@ -69,6 +69,11 @@ CREATE TABLE IF NOT EXISTS pi_execution_broker_order (
 )
 """
 
+_BROKER_ORDER_INDEX_DDL = """
+CREATE INDEX IF NOT EXISTS ix_pi_execution_order_broker_id
+ON pi_execution_order(broker_order_id)
+"""
+
 _META_DDL = """
 CREATE TABLE IF NOT EXISTS pi_execution_schema_meta (
     key TEXT PRIMARY KEY,
@@ -110,6 +115,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             _ORDER_DDL,
             _EVENT_DDL,
             _BROKER_ORDER_DDL,
+            _BROKER_ORDER_INDEX_DDL,
             _APPROVAL_DDL,
             _META_DDL,
         ):

@@ -181,16 +181,10 @@ class SqliteExecutionAuditStore:
                 legacy = self._conn.execute(
                     "SELECT submission_id FROM pi_execution_submission "
                     "WHERE mode = ? AND account_id = ? "
-                    "AND principal_id = 'legacy-unassigned' "
-                    "AND batch_sha256 = ? "
-                    "AND (broker_id = ? OR broker_id = 'legacy-unassigned') "
-                    "AND (plan_id = ? OR plan_id = 'legacy-unassigned')",
+                    "AND principal_id = 'legacy-unassigned' LIMIT 1",
                     (
                         mode.value,
                         account_id,
-                        batch_sha256,
-                        broker_id,
-                        plan_id,
                     ),
                 ).fetchone()
                 if legacy is not None:
@@ -393,9 +387,12 @@ class SqliteExecutionAuditStore:
                 return
             for ack in acknowledgements:
                 legacy = self._conn.execute(
-                    "SELECT 1 FROM pi_execution_broker_order "
-                    "WHERE mode = 'live' AND broker_id = 'legacy-unassigned' "
-                    "AND account_id = ? AND broker_order_id = ?",
+                    "SELECT 1 FROM pi_execution_order o "
+                    "JOIN pi_execution_submission s "
+                    "ON o.submission_id = s.submission_id "
+                    "WHERE s.mode = 'live' "
+                    "AND s.principal_id = 'legacy-unassigned' "
+                    "AND s.account_id = ? AND o.broker_order_id = ? LIMIT 1",
                     (scope["account_id"], ack.broker_order_id),
                 ).fetchone()
                 if legacy is not None:
@@ -684,6 +681,10 @@ class ExecutionGateway:
         self.configured_mode = configured_mode
         self.execute_enabled = execute_enabled
         self.live_enabled = live_enabled
+        if principal_id == "legacy-unassigned":
+            raise ExecutionConfigurationError(
+                "legacy-unassigned is a reserved principal identity"
+            )
         self.principal_id = principal_id
 
     def expected_confirmation(self, batch: OrderBatch) -> str:
