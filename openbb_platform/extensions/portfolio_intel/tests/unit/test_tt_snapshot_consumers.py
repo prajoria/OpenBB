@@ -84,13 +84,23 @@ def _rows_by_dataset() -> dict[str, list[dict]]:
     }
 
 
-def _seed(store: SqliteSnapshotStore, dataset: str, rows: list[dict]) -> None:
+def _seed(
+    store: SqliteSnapshotStore,
+    dataset: str,
+    rows: list[dict],
+    *,
+    segment: str = SEGMENT,
+    earnings_symbols: list[str] | None = None,
+) -> None:
+    key = f"segment={segment.casefold()}"
     payload = {
         "rows": rows,
-        "segment": SEGMENT,
+        "segment": segment,
         "as_of_session": SESSION.isoformat(),
         "exchange_calendar": "XNYS",
-        "earnings_symbols": ["NVDA"],
+        "earnings_symbols": (
+            ["NVDA"] if earnings_symbols is None else earnings_symbols
+        ),
         "excluded_symbols": [],
         "survivorship": (
             SURVIVORSHIP_UNCORRECTED
@@ -99,10 +109,10 @@ def _seed(store: SqliteSnapshotStore, dataset: str, rows: list[dict]) -> None:
         ),
         "universe_membership": [],
     }
-    run_id = dataset.replace(".", "-")
+    run_id = f"{dataset.replace('.', '-')}-{segment.replace(' ', '-')}"
     store.stage(
         dataset,
-        KEY,
+        key,
         SESSION,
         run_id,
         payload,
@@ -114,12 +124,12 @@ def _seed(store: SqliteSnapshotStore, dataset: str, rows: list[dict]) -> None:
     definition = DEFAULT_DATASET_REGISTRY.require(dataset)
     assert store.validate(
         dataset,
-        KEY,
+        key,
         SESSION,
         run_id,
         lambda row: definition.validator(row, None),
     ).ok
-    assert store.promote(dataset, KEY, SESSION, run_id)
+    assert store.promote(dataset, key, SESSION, run_id)
 
 
 def _seeded_store(tmp_path: Path) -> SqliteSnapshotStore:
@@ -204,3 +214,100 @@ def test_sensitive_widgets_display_survivorship_warning(tmp_path: Path) -> None:
 
 def test_every_registered_dataset_has_a_seed_fixture() -> None:
     assert tuple(_rows_by_dataset()) == TECHTRADE_DATASETS
+
+
+def test_unknown_segment_is_a_client_error(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "empty.db")
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        response = _client.get("/tt/scan/table?segment=Technology")
+    assert response.status_code == 400
+    store.close()
+
+
+def test_completed_empty_snapshot_is_not_reported_as_missing(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "empty-result.db")
+    _seed(store, "techtrade.orders", [])
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        row = _client.get("/tt/position/order-legs?symbol=NVDA").json()[0]
+    assert "Latest EOD snapshot completed" in row["note"]
+    assert "No EOD snapshot available" not in row["note"]
+    store.close()
+
+
+def test_symbol_earnings_annotation_is_not_inherited_from_other_symbol(
+    tmp_path: Path,
+) -> None:
+    store = SqliteSnapshotStore(tmp_path / "earnings.db")
+    _seed(
+        store,
+        "techtrade.signals",
+        [{"symbol": "AAPL", "score": 0.5, "direction": "long"}],
+        earnings_symbols=["NVDA"],
+    )
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        body = _client.get("/tt/position/signal-card?symbol=AAPL").json()
+    assert "Reports before next open" not in body
+    store.close()
+
+
+def test_tuning_resolves_symbol_to_one_scan_segment(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "tuning.db")
+    _seed(
+        store,
+        "techtrade.scan",
+        [{"symbol": "NVDA", "segment": SEGMENT}],
+        earnings_symbols=[],
+    )
+    _seed(
+        store,
+        "techtrade.tune",
+        [{"param": "tech-param"}],
+        earnings_symbols=[],
+    )
+    _seed(
+        store,
+        "techtrade.tune",
+        [{"param": "energy-param"}],
+        segment="Energy",
+        earnings_symbols=[],
+    )
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        rows = _client.get("/tt/tuning/report?symbol=NVDA").json()
+    assert [row["param"] for row in rows] == ["tech-param"]
+    store.close()
+
+
+def test_export_reads_materialized_plans_not_scan_rows(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "export.db")
+    _seed(
+        store,
+        "techtrade.scan",
+        [{"symbol": "SCAN_ONLY"}],
+        earnings_symbols=[],
+    )
+    _seed(
+        store,
+        "techtrade.plan",
+        [{"symbol": "PLAN_ONLY"}],
+        earnings_symbols=[],
+    )
+    with patch(
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
+        return_value=store,
+    ):
+        body = _client.get("/tt/scan/export").json()
+    assert "PLAN_ONLY" in body
+    assert "SCAN_ONLY" not in body
+    store.close()

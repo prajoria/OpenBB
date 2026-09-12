@@ -13,7 +13,7 @@ from openbb_core.app.jobs.models import (
     JobResult,
 )
 from openbb_core.app.jobs.schedules import DailySchedule
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from openbb_techtrade.snapshot.adapters import get_snapshot_adapters
 from openbb_techtrade.snapshot.datasets import TECHTRADE_DATASETS
@@ -63,16 +63,32 @@ class EodSnapshotsParams(BaseModel):
 class PruneSnapshotsParams(BaseModel):
     """Retention settings for the canonical snapshot store."""
 
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    keep_sessions: int = Field(
+        default=10,
+        ge=0,
+        le=1000,
+        validation_alias=AliasChoices("keep_sessions", "keep"),
+    )
+
+
+class DailyScanParams(BaseModel):
+    """Compatibility parameters accepted by the retired daily-scan job name."""
+
     model_config = ConfigDict(extra="forbid")
 
-    keep_sessions: int = Field(default=10, ge=0, le=1000)
+    segments: list[str] | None = None
+    top_n: int = Field(default=3, ge=1, le=50)
+    preset: str = "trend_follow"
+    as_of: str | None = None
 
 
-def _run_eod_snapshots(context: JobContext, params: BaseModel) -> JobResult:
-    del context
-    params = cast(EodSnapshotsParams, params)
+def _execute_datasets(
+    datasets_to_run: list[str],
+    adapters: dict[str, Any],
+) -> JobResult:
     store = get_default_snapshot_store()
-    adapters = get_snapshot_adapters()
     orchestrator = SnapshotRefreshOrchestrator(
         SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY),
         DEFAULT_DATASET_REGISTRY,
@@ -80,8 +96,9 @@ def _run_eod_snapshots(context: JobContext, params: BaseModel) -> JobResult:
     )
     datasets: dict[str, dict[str, Any]] = {}
     warnings: list[str] = []
+    published = 0
     try:
-        for name in params.datasets:
+        for name in datasets_to_run:
             try:
                 job = orchestrator.run(name)
             except Exception as exc:  # noqa: BLE001 - continue independent datasets
@@ -93,19 +110,40 @@ def _run_eod_snapshots(context: JobContext, params: BaseModel) -> JobResult:
                 "n_ok": job.n_ok,
                 "n_failed": job.n_failed,
             }
+            if job.state.value == "succeeded":
+                published += 1
             if job.n_failed:
                 warnings.append(f"{name}: {job.n_failed} entity refresh failures")
     finally:
         store.close()
+    if published == 0:
+        raise RuntimeError("all selected snapshot datasets failed")
     return JobResult(
         summary={"datasets": datasets},
         warnings=_bounded_warnings(warnings),
     )
 
 
-def _run_prune_snapshots(
-    context: JobContext, params: BaseModel
-) -> JobResult:
+def _run_eod_snapshots(context: JobContext, params: BaseModel) -> JobResult:
+    del context
+    selected = cast(EodSnapshotsParams, params)
+    return _execute_datasets(selected.datasets, get_snapshot_adapters())
+
+
+def _run_daily_scan(context: JobContext, params: BaseModel) -> JobResult:
+    del context
+    legacy = cast(DailyScanParams, params)
+    adapters = get_snapshot_adapters(
+        segments=legacy.segments,
+        movers_top_n=legacy.top_n,
+    )
+    return _execute_datasets(
+        ["techtrade.movers", "techtrade.scan"],
+        adapters,
+    )
+
+
+def _run_prune_snapshots(context: JobContext, params: BaseModel) -> JobResult:
     del context
     params = cast(PruneSnapshotsParams, params)
     store = get_default_snapshot_store()
@@ -123,6 +161,15 @@ def get_job_definitions() -> list[JobDefinition]:
     """Return post-close refresh and retention job definitions."""
     timezone = _default_timezone()
     return [
+        JobDefinition(
+            name="techtrade.daily_scan",
+            description="Compatibility alias for the canonical EOD movers and scan refresh.",
+            params_model=DailyScanParams,
+            handler=_run_daily_scan,
+            default_params={"top_n": 3, "preset": "trend_follow"},
+            max_attempts=1,
+            overlap_policy="forbid",
+        ),
         JobDefinition(
             name="techtrade.eod_snapshots",
             description="Compute, validate, and atomically publish TechTrade EOD snapshots.",

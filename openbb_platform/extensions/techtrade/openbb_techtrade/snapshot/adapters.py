@@ -102,39 +102,34 @@ class PublicEventRiskProvider:
         self._earnings_fetcher = earnings_fetcher
         self._delisted_fetcher = delisted_fetcher
         self._halted_fetcher = halted_fetcher
-        self._cache: dict[date, tuple[MarketEvent, ...]] = {}
 
     def __call__(self, session: date, symbols: list[str]) -> list[MarketEvent]:
-        """Return cached public events restricted to the requested symbols."""
-        if session not in self._cache:
-            events: list[MarketEvent] = []
-            for value in self._earnings_fetcher(session):
-                row = _event_row(value)
-                symbol = _event_symbol(row)
-                event_date = row.get("date") or row.get("report_date")
-                if symbol and (
-                    event_date is None or date.fromisoformat(str(event_date)) == session
-                ):
-                    events.append(MarketEvent(symbol, EventKind.EARNINGS))
-            for value in self._delisted_fetcher(session):
-                row = _event_row(value)
-                symbol = _event_symbol(row)
-                event_date = (
-                    row.get("delisted_date")
-                    or row.get("delistedDate")
-                    or row.get("date")
-                )
-                if symbol and (
-                    event_date is None or date.fromisoformat(str(event_date)) <= session
-                ):
-                    events.append(MarketEvent(symbol, EventKind.DELISTED))
-            for value in self._halted_fetcher(session):
-                symbol = _event_symbol(_event_row(value))
-                if symbol:
-                    events.append(MarketEvent(symbol, EventKind.HALTED))
-            self._cache[session] = tuple(dict.fromkeys(events))
+        """Return freshly fetched public events for the requested symbols."""
+        events: list[MarketEvent] = []
+        for value in self._earnings_fetcher(session):
+            row = _event_row(value)
+            symbol = _event_symbol(row)
+            event_date = row.get("date") or row.get("report_date")
+            if symbol and (
+                event_date is None or date.fromisoformat(str(event_date)) == session
+            ):
+                events.append(MarketEvent(symbol, EventKind.EARNINGS))
+        for value in self._delisted_fetcher(session):
+            row = _event_row(value)
+            symbol = _event_symbol(row)
+            event_date = (
+                row.get("delisted_date") or row.get("delistedDate") or row.get("date")
+            )
+            if symbol and (
+                event_date is None or date.fromisoformat(str(event_date)) <= session
+            ):
+                events.append(MarketEvent(symbol, EventKind.DELISTED))
+        for value in self._halted_fetcher(session):
+            symbol = _event_symbol(_event_row(value))
+            if symbol:
+                events.append(MarketEvent(symbol, EventKind.HALTED))
         target = {symbol.strip().upper() for symbol in symbols}
-        return [event for event in self._cache[session] if event.symbol in target]
+        return [event for event in dict.fromkeys(events) if event.symbol in target]
 
 
 def _no_events(_session: date, _symbols: list[str]) -> tuple[()]:
@@ -419,18 +414,35 @@ def _orders(segment: str, session: date) -> list[dict[str, Any]]:
 
 
 def _simulations(segment: str, session: date) -> list[dict[str, Any]]:
+    return _planned_trajectories(_plans(segment, session))
+
+
+def _planned_trajectories(plans: Iterable[TradePlan]) -> list[dict[str, Any]]:
+    """Build an explicit stop/entry/target P&L scenario for each plan."""
     rows: list[dict[str, Any]] = []
-    for plan in _result_rows(_plans(segment, session)):
-        for fill in plan.get("simulated_fills", []):
-            row = dict(fill)
-            row.setdefault("symbol", plan.get("symbol"))
-            row.setdefault("segment", segment)
-            rows.append(row)
+    for plan in plans:
+        recommendation = plan.recommendation
+        entry = float(recommendation.entry_price)
+        quantity = float(plan.position_size)
+        direction = -1.0 if recommendation.action == "SELL_SHORT" else 1.0
+        for day, (scenario, price) in enumerate(
+            (
+                ("stop", float(recommendation.stop_price)),
+                ("entry", entry),
+                ("target", float(recommendation.target_price)),
+            )
+        ):
+            rows.append(
+                {
+                    "symbol": plan.symbol,
+                    "segment": plan.segment,
+                    "day": day,
+                    "scenario": scenario,
+                    "price": price,
+                    "pnl": round((price - entry) * quantity * direction, 8),
+                }
+            )
     return rows
-
-
-def _scan(segment: str, session: date) -> object:
-    return _plans(segment, session)
 
 
 def _validations(segment: str, session: date) -> list[dict[str, Any]]:
@@ -451,24 +463,41 @@ def _validations(segment: str, session: date) -> list[dict[str, Any]]:
 def _tuning(segment: str, session: date) -> object:
     from openbb_techtrade.tuning.tune_router import tune
 
-    return asyncio.run(tune(segment=segment, as_of=session)).results
+    return asyncio.run(tune(segment=segment, as_of=session, persist=False)).results
 
 
 def _audit(segment: str, session: date) -> list[dict[str, Any]]:
+    return _audit_rows(_plans(segment, session), session)
+
+
+def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any]]:
+    """Compare planned target P&L with persisted forward simulation fills."""
     rows: list[dict[str, Any]] = []
-    for plan in _result_rows(_plans(segment, session)):
-        signal = plan.get("signal") or {}
-        recommendation = plan.get("recommendation") or {}
+    for plan in plans:
+        recommendation = plan.recommendation
+        quantity = float(plan.position_size)
+        entry = float(recommendation.entry_price)
+        direction = -1.0 if recommendation.action == "SELL_SHORT" else 1.0
+        replay_pnl = (float(recommendation.target_price) - entry) * quantity * direction
+        forward_pnl = 0.0
+        for fill in plan.simulated_fills:
+            cash_sign = 1.0 if fill.side in ("sell", "sell_short") else -1.0
+            forward_pnl += cash_sign * float(fill.quantity) * float(fill.price) - float(
+                fill.commission
+            )
+        notional = abs(entry * quantity)
+        deviation_bps = (
+            (forward_pnl - replay_pnl) / notional * 10_000 if notional else 0.0
+        )
         rows.append(
             {
-                "symbol": plan.get("symbol"),
-                "segment": segment,
-                "as_of": plan.get("as_of", session.isoformat()),
-                "direction": signal.get("direction"),
-                "score": signal.get("score"),
-                "action": recommendation.get("action"),
-                "order_count": len(plan.get("orders", [])),
-                "filled": bool(plan.get("simulated_fills")),
+                "symbol": plan.symbol,
+                "segment": plan.segment,
+                "bar_date": session.isoformat(),
+                "replay_pnl": round(replay_pnl, 8),
+                "forward_pnl": round(forward_pnl, 8),
+                "deviation_bps": round(deviation_bps, 8),
+                "fill_count": len(plan.simulated_fills),
             }
         )
     return rows
@@ -477,9 +506,34 @@ def _audit(segment: str, session: date) -> list[dict[str, Any]]:
 class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
     """Materialize the cross-segment scan rows."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        segments: Iterable[str] | None = None,
+        scan_fetcher: Callable[..., list[TradePlan]] | None = None,
+        event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
+    ) -> None:
+        from openbb_techtrade.engine.scan import scan_segments
+        from openbb_techtrade.snapshots.models import plan_to_row
+
+        fetcher = scan_fetcher or scan_segments
+        cached_session: date | None = None
+        cached_rows: dict[str, list[dict[str, Any]]] = {}
+
+        def compute_scan(segment: str, session: date) -> list[dict[str, Any]]:
+            nonlocal cached_session, cached_rows
+            if cached_session != session:
+                cached_rows = {}
+                for plan in fetcher(as_of=session):
+                    cached_rows.setdefault(plan.segment, []).append(plan_to_row(plan))
+                cached_session = session
+            return list(cached_rows.get(segment, ()))
+
         super().__init__(
-            "techtrade.scan", compute_fn=_scan, event_fetcher=_PUBLIC_EVENT_RISK
+            "techtrade.scan",
+            compute_fn=compute_scan,
+            segments=segments,
+            event_fetcher=event_fetcher,
         )
 
 
@@ -515,11 +569,20 @@ class OrdersSnapshotAdapter(TechTradeSnapshotAdapter):
 class SimulateSnapshotAdapter(TechTradeSnapshotAdapter):
     """Materialize available simulation fills."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        segments: Iterable[str] | None = None,
+        plans_fetcher: Callable[[str, date], list[TradePlan]] = _plans,
+        event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
+    ) -> None:
         super().__init__(
             "techtrade.simulate",
-            compute_fn=_simulations,
-            event_fetcher=_PUBLIC_EVENT_RISK,
+            compute_fn=lambda segment, session: _planned_trajectories(
+                plans_fetcher(segment, session)
+            ),
+            segments=segments,
+            event_fetcher=event_fetcher,
         )
 
 
@@ -546,17 +609,32 @@ class TuneSnapshotAdapter(TechTradeSnapshotAdapter):
 class AuditSnapshotAdapter(TechTradeSnapshotAdapter):
     """Materialize auditable plan-state rows."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        segments: Iterable[str] | None = None,
+        plans_fetcher: Callable[[str, date], list[TradePlan]] = _plans,
+        event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
+    ) -> None:
         super().__init__(
-            "techtrade.audit", compute_fn=_audit, event_fetcher=_PUBLIC_EVENT_RISK
+            "techtrade.audit",
+            compute_fn=lambda segment, session: _audit_rows(
+                plans_fetcher(segment, session), session
+            ),
+            segments=segments,
+            event_fetcher=event_fetcher,
         )
 
 
-def get_snapshot_adapters() -> dict[str, TechTradeSnapshotAdapter]:
+def get_snapshot_adapters(
+    *,
+    segments: Iterable[str] | None = None,
+    movers_top_n: int = 10,
+) -> dict[str, TechTradeSnapshotAdapter]:
     """Return the installed TechTrade snapshot adapters by dataset name."""
     adapters: tuple[TechTradeSnapshotAdapter, ...] = (
-        MoversSnapshotAdapter(),
-        ScanSnapshotAdapter(),
+        MoversSnapshotAdapter(segments=segments, top_n=movers_top_n),
+        ScanSnapshotAdapter(segments=segments),
         SignalsSnapshotAdapter(),
         PlanSnapshotAdapter(),
         OrdersSnapshotAdapter(),

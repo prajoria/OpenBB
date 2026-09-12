@@ -269,3 +269,87 @@ def test_legacy_facade_uses_only_canonical_snapshot_tables(tmp_path):
     assert "pi_eod_snapshot" in tables
     assert "pi_eod_live_pointer" in tables
     assert "scan_snapshot" not in tables
+
+
+def test_snapshot_id_is_globally_unique_across_segments(store):
+    """One legacy snapshot ID must resolve to exactly one segment."""
+    first = _snapshot(segment="Energy")
+    store.write_snapshot(first)
+
+    duplicate = _snapshot(segment="Financials").model_copy(
+        update={"snapshot_id": first.snapshot_id}
+    )
+
+    with pytest.raises(ValueError, match="snapshot_id already exists"):
+        store.write_snapshot(duplicate)
+
+
+def test_rejected_staging_row_is_not_listed(store):
+    """A failed validation candidate must stay invisible to legacy readers."""
+    good = _snapshot(rows=[{"symbol": f"S{i}", "close": i + 1.0} for i in range(10)])
+    store.write_snapshot(good)
+    rejected = _snapshot(
+        computed_at=good.computed_at + timedelta(minutes=1),
+        rows=[{"symbol": "BAD", "close": None}],
+    )
+
+    with pytest.raises(ValueError, match="validation failed"):
+        store.write_snapshot(rejected)
+
+    listed = store.list_snapshots(kind="daily_scan", segment="Energy")
+    assert [snapshot.snapshot_id for snapshot in listed] == [good.snapshot_id]
+    assert store.read_by_id(rejected.snapshot_id) is None
+
+
+def test_list_snapshots_is_not_silently_capped_at_fifty(store):
+    """Compatibility history must include every retained canonical row."""
+    base = datetime(2024, 1, 12, 8, 0, tzinfo=UTC)
+    for index in range(55):
+        store.write_snapshot(
+            _snapshot(
+                computed_at=base + timedelta(seconds=index),
+                rows=_rows(f"S{index}"),
+            )
+        )
+
+    assert len(store.list_snapshots(kind="daily_scan", segment="Energy")) == 55
+
+
+def test_busy_timeout_constructor_argument_remains_compatible(tmp_path):
+    """The retired store's public constructor still accepts its timeout."""
+    store = SqliteScanSnapshotStore(
+        tmp_path / "busy.db",
+        busy_timeout_ms=1234,
+    )
+    try:
+        assert store._store._conn.execute("PRAGMA busy_timeout").fetchone()[0] == 1234
+    finally:
+        store.close()
+
+
+def test_prune_rolls_back_all_scopes_when_one_delete_fails(store):
+    """Compatibility pruning is atomic across every legacy scope."""
+    base = datetime(2024, 1, 12, 8, 0, tzinfo=UTC)
+    for segment in ("Energy", "Financials"):
+        for index in range(3):
+            store.write_snapshot(
+                _snapshot(
+                    segment=segment,
+                    computed_at=base + timedelta(seconds=index),
+                    rows=_rows(f"{segment[0]}{index}"),
+                )
+            )
+    store._store._conn.execute("""
+        CREATE TRIGGER reject_financial_prune
+        BEFORE DELETE ON pi_eod_snapshot
+        WHEN OLD.entity_key = 'segment=financials'
+        BEGIN
+            SELECT RAISE(ABORT, 'reject prune');
+        END
+        """)
+
+    with pytest.raises(sqlite3.IntegrityError, match="reject prune"):
+        store.prune_snapshots(keep=1)
+
+    assert len(store.list_snapshots(kind="daily_scan", segment="Energy")) == 3
+    assert len(store.list_snapshots(kind="daily_scan", segment="Financials")) == 3

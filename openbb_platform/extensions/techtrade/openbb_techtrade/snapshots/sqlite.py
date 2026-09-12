@@ -9,8 +9,10 @@ from openbb_techtrade import config
 from openbb_techtrade.snapshot.datasets import validate_techtrade_snapshot
 from openbb_techtrade.snapshot.store import (
     SnapshotRow,
+    SnapshotState,
     SnapshotStatus,
     SqliteSnapshotStore,
+    _row_from_mapping,
     canonical_key,
     snapshot_input_hash,
 )
@@ -77,8 +79,16 @@ def _to_snapshot(row: SnapshotRow) -> ScanSnapshot:
 class SqliteScanSnapshotStore:
     """Legacy API backed exclusively by :class:`SqliteSnapshotStore` tables."""
 
-    def __init__(self, path: Path | str | None = None, **kwargs) -> None:
-        self._store = SqliteSnapshotStore(path or default_scan_db_path(), **kwargs)
+    def __init__(
+        self,
+        path: Path | str | None = None,
+        *,
+        busy_timeout_ms: int = 5_000,
+    ) -> None:
+        self._store = SqliteSnapshotStore(path or default_scan_db_path())
+        self._store._conn.execute(  # pylint: disable=protected-access
+            f"PRAGMA busy_timeout = {int(busy_timeout_ms)}"
+        )
 
     @property
     def path(self) -> Path:
@@ -97,6 +107,13 @@ class SqliteScanSnapshotStore:
         dataset = _dataset(snapshot.kind)
         entity_key = _entity_key(snapshot.segment)
         payload = _payload(snapshot)
+        duplicate = self._store._conn.execute(  # pylint: disable=protected-access
+            "SELECT 1 FROM pi_eod_snapshot WHERE dataset LIKE ? "
+            "AND job_run_id = ? LIMIT 1",
+            (f"{_DATASET_PREFIX}%", snapshot.snapshot_id),
+        ).fetchone()
+        if duplicate is not None:
+            raise ValueError("snapshot_id already exists")
         self._store.stage(
             dataset,
             entity_key,
@@ -110,19 +127,35 @@ class SqliteScanSnapshotStore:
             payload_schema_version="1",
         )
         previous = self._store.get_live(dataset, entity_key)
-        verdict = self._store.validate(
-            dataset,
-            entity_key,
-            snapshot.as_of_session,
-            snapshot.snapshot_id,
-            lambda row: validate_techtrade_snapshot(row, previous),
-        )
-        if not verdict.ok:
-            raise ValueError(f"snapshot validation failed: {verdict.reason}")
-        if not self._store.promote(
-            dataset, entity_key, snapshot.as_of_session, snapshot.snapshot_id
-        ):
-            raise ValueError("snapshot promotion refused")
+        try:
+            verdict = self._store.validate(
+                dataset,
+                entity_key,
+                snapshot.as_of_session,
+                snapshot.snapshot_id,
+                lambda row: validate_techtrade_snapshot(row, previous),
+            )
+            if not verdict.ok:
+                raise ValueError(f"snapshot validation failed: {verdict.reason}")
+            if not self._store.promote(
+                dataset, entity_key, snapshot.as_of_session, snapshot.snapshot_id
+            ):
+                raise ValueError("snapshot promotion refused")
+        except BaseException:
+            with self._store._tx(immediate=True):  # pylint: disable=protected-access
+                self._store._conn.execute(  # pylint: disable=protected-access
+                    "DELETE FROM pi_eod_snapshot WHERE dataset = ? "
+                    "AND entity_key = ? AND as_of_session = ? AND job_run_id = ? "
+                    "AND state = ?",
+                    (
+                        dataset,
+                        entity_key,
+                        snapshot.as_of_session.isoformat(),
+                        snapshot.snapshot_id,
+                        SnapshotState.STAGING.value,
+                    ),
+                )
+            raise
         return snapshot
 
     def read_latest(self, *, kind: str, segment: str) -> ScanSnapshot | None:
@@ -132,49 +165,61 @@ class SqliteScanSnapshotStore:
 
     def read_by_id(self, snapshot_id: str) -> ScanSnapshot | None:
         """Return one historical legacy DTO by its snapshot identifier."""
-        record = self._store._conn.execute(  # pylint: disable=protected-access
-            "SELECT dataset, entity_key FROM pi_eod_snapshot "
-            "WHERE dataset LIKE ? AND job_run_id = ? LIMIT 1",
-            (f"{_DATASET_PREFIX}%", snapshot_id),
-        ).fetchone()
-        if record is None:
+        records = self._store._conn.execute(  # pylint: disable=protected-access
+            "SELECT dataset, entity_key, as_of_session, created_at, job_run_id, "
+            "status, state, validated, validation_reason, payload_json, "
+            "input_hash, row_count, engine_version, payload_schema_version "
+            "FROM pi_eod_snapshot WHERE dataset LIKE ? AND job_run_id = ? "
+            "AND state != ?",
+            (
+                f"{_DATASET_PREFIX}%",
+                snapshot_id,
+                SnapshotState.STAGING.value,
+            ),
+        ).fetchall()
+        if not records:
             return None
-        matching = [
-            row
-            for row in self._store.list_history(
-                str(record["dataset"]), str(record["entity_key"]), limit=10_000
-            )
-            if row.job_run_id == snapshot_id
-        ]
-        return None if not matching else _to_snapshot(matching[0])
+        if len(records) != 1:
+            raise ValueError("snapshot_id is ambiguous")
+        return _to_snapshot(_row_from_mapping(records[0]))
 
-    def _scopes(self, kind: str | None, segment: str | None) -> list[tuple[str, str]]:
+    def _history_rows(self, kind: str | None, segment: str | None) -> list[SnapshotRow]:
+        select = (
+            "SELECT dataset, entity_key, as_of_session, created_at, job_run_id, "
+            "status, state, validated, validation_reason, payload_json, "
+            "input_hash, row_count, engine_version, payload_schema_version "
+            "FROM pi_eod_snapshot WHERE state != ?"
+        )
         connection = self._store._conn  # pylint: disable=protected-access
         if kind is not None and segment is not None:
             records = connection.execute(
-                "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot "
-                "WHERE dataset = ? AND entity_key = ?",
-                (_dataset(kind), _entity_key(segment)),
+                select + " AND dataset = ? AND entity_key = ?",
+                (
+                    SnapshotState.STAGING.value,
+                    _dataset(kind),
+                    _entity_key(segment),
+                ),
             ).fetchall()
         elif kind is not None:
             records = connection.execute(
-                "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot "
-                "WHERE dataset = ?",
-                (_dataset(kind),),
+                select + " AND dataset = ?",
+                (SnapshotState.STAGING.value, _dataset(kind)),
             ).fetchall()
         elif segment is not None:
             records = connection.execute(
-                "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot "
-                "WHERE dataset LIKE ? AND entity_key = ?",
-                (f"{_DATASET_PREFIX}%", _entity_key(segment)),
+                select + " AND dataset LIKE ? AND entity_key = ?",
+                (
+                    SnapshotState.STAGING.value,
+                    f"{_DATASET_PREFIX}%",
+                    _entity_key(segment),
+                ),
             ).fetchall()
         else:
             records = connection.execute(
-                "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot "
-                "WHERE dataset LIKE ?",
-                (f"{_DATASET_PREFIX}%",),
+                select + " AND dataset LIKE ?",
+                (SnapshotState.STAGING.value, f"{_DATASET_PREFIX}%"),
             ).fetchall()
-        return [(str(row["dataset"]), str(row["entity_key"])) for row in records]
+        return [_row_from_mapping(record) for record in records]
 
     def list_snapshots(
         self,
@@ -186,11 +231,7 @@ class SqliteScanSnapshotStore:
         """List legacy DTOs newest-first with optional filters."""
         if limit is not None and limit < 0:
             raise ValueError("limit must be non-negative")
-        rows = [
-            row
-            for dataset, entity_key in self._scopes(kind, segment)
-            for row in self._store.list_history(dataset, entity_key)
-        ]
+        rows = self._history_rows(kind, segment)
         snapshots = sorted(
             (_to_snapshot(row) for row in rows),
             key=lambda snapshot: snapshot.computed_at,
@@ -203,27 +244,33 @@ class SqliteScanSnapshotStore:
         if keep < 0:
             raise ValueError("keep must be non-negative")
         deleted = 0
-        for dataset, entity_key in self._scopes(None, None):
-            history = self._store.list_history(dataset, entity_key)
-            removable = [
-                row
-                for row in sorted(
-                    history,
-                    key=lambda item: _to_snapshot(item).computed_at,
-                    reverse=True,
-                )[keep:]
-                if row.state.value != "live"
-            ]
-            with self._store._tx(immediate=True):  # pylint: disable=protected-access
+        with self._store._tx(immediate=True):  # pylint: disable=protected-access
+            history_by_scope: dict[tuple[str, str], list[SnapshotRow]] = {}
+            for row in self._history_rows(None, None):
+                history_by_scope.setdefault((row.dataset, row.entity_key), []).append(
+                    row
+                )
+            for history in history_by_scope.values():
+                removable = [
+                    row
+                    for row in sorted(
+                        history,
+                        key=lambda item: _to_snapshot(item).computed_at,
+                        reverse=True,
+                    )[keep:]
+                    if row.state is not SnapshotState.LIVE
+                ]
                 for row in removable:
                     cursor = self._store._conn.execute(  # pylint: disable=protected-access
                         "DELETE FROM pi_eod_snapshot WHERE dataset = ? "
-                        "AND entity_key = ? AND as_of_session = ? AND job_run_id = ?",
+                        "AND entity_key = ? AND as_of_session = ? AND job_run_id = ? "
+                        "AND state != ?",
                         (
                             row.dataset,
                             row.entity_key,
                             row.as_of_session.isoformat(),
                             row.job_run_id,
+                            SnapshotState.LIVE.value,
                         ),
                     )
                     deleted += cursor.rowcount

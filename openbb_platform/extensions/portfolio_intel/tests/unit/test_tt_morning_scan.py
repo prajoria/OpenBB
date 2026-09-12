@@ -253,7 +253,7 @@ def test_scan_table_distinguishes_fresh_segment_without_matches() -> None:
         response = _client.get("/tt/scan/table?segment=Health%20Care")
     body = response.json()
     assert body["computed_at"] is not None
-    assert "latest scan completed" in body["rows"][0]["note"].lower()
+    assert "latest eod snapshot completed" in body["rows"][0]["note"].lower()
     assert "run a scan first" not in body["rows"][0]["note"].lower()
 
 

@@ -14,6 +14,7 @@ from openbb_core.app.jobs.models import JobContext, JobDefinition, JobResult
 from openbb_core.app.jobs.registry import JobRegistry
 from openbb_core.app.jobs.schedules import DailySchedule
 from openbb_techtrade.jobs import (
+    DailyScanParams,
     EodSnapshotsParams,
     PruneSnapshotsParams,
     get_job_definitions,
@@ -33,6 +34,7 @@ def _context(job_name: str) -> JobContext:
 
 def test_get_job_definitions_returns_post_close_and_prune_jobs() -> None:
     assert set(_by_name()) == {
+        "techtrade.daily_scan",
         "techtrade.eod_snapshots",
         "techtrade.prune_snapshots",
     }
@@ -66,6 +68,22 @@ def test_params_reject_unknown_or_duplicate_datasets() -> None:
         PruneSnapshotsParams(unknown_keep=10)
 
 
+def test_prune_accepts_legacy_keep_alias() -> None:
+    assert PruneSnapshotsParams(keep=3).keep_sessions == 3
+
+
+def test_legacy_daily_scan_definition_accepts_durable_schedule_params() -> None:
+    definition = _by_name()["techtrade.daily_scan"]
+    params = DailyScanParams(
+        segments=["Information Technology"],
+        top_n=5,
+        preset="trend_follow",
+        as_of="2026-09-11",
+    )
+    assert definition.params_model is DailyScanParams
+    assert params.top_n == 5
+
+
 class _Adapter:
     name = "techtrade.movers"
 
@@ -85,6 +103,11 @@ class _Adapter:
             payload_schema_version="1",
             row_count=1,
         )
+
+
+class _FailingAdapter(_Adapter):
+    def compute(self, entity_key: str, as_of_session: date) -> ComputedSnapshot:
+        raise RuntimeError("private provider detail")
 
 
 def test_eod_handler_runs_generic_orchestrator(monkeypatch, tmp_path: Path) -> None:
@@ -126,6 +149,25 @@ def test_prune_handler_uses_generic_store(monkeypatch, tmp_path: Path) -> None:
     )
 
     assert result.summary == {"deleted": 0, "keep_sessions": 2}
+
+
+def test_eod_handler_raises_when_every_dataset_fails(
+    monkeypatch, tmp_path: Path
+) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshots.db")
+    monkeypatch.setattr(jobs_module, "get_default_snapshot_store", lambda: store)
+    monkeypatch.setattr(
+        jobs_module,
+        "get_snapshot_adapters",
+        lambda: {"techtrade.movers": _FailingAdapter()},
+    )
+    definition = _by_name()["techtrade.eod_snapshots"]
+
+    with pytest.raises(RuntimeError, match="all selected snapshot datasets failed"):
+        definition.handler(
+            _context(definition.name),
+            EodSnapshotsParams(datasets=["techtrade.movers"]),
+        )
 
 
 def test_jobs_module_has_no_legacy_snapshot_store_dependency() -> None:

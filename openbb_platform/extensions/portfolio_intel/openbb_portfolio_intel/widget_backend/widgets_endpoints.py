@@ -2354,7 +2354,7 @@ def _read_snapshot_rows(
     return rows, snapshots
 
 
-def _snapshot_meta(snapshots: list[SnapshotRow]) -> dict:
+def _snapshot_meta(snapshots: list[SnapshotRow], *, symbol: str = "") -> dict:
     """Build exchange-aware, conservative metadata for a snapshot response."""
     if not snapshots:
         display = build_eod_display(None, datetime.now(timezone.utc))
@@ -2381,7 +2381,19 @@ def _snapshot_meta(snapshots: list[SnapshotRow]) -> dict:
             status_code=503, detail="snapshot calendars are inconsistent"
         )
     calendar = calendars.pop()
-    earnings = any(snapshot.payload.get("earnings_symbols") for snapshot in snapshots)
+    requested_symbol = symbol.strip().upper()
+    earnings = any(
+        (
+            requested_symbol
+            in {
+                str(item).strip().upper()
+                for item in snapshot.payload.get("earnings_symbols", [])
+            }
+            if requested_symbol
+            else bool(snapshot.payload.get("earnings_symbols"))
+        )
+        for snapshot in snapshots
+    )
     display = build_eod_display(
         as_of_session,
         now,
@@ -2420,7 +2432,10 @@ def _validate_segment(segment: str) -> str:
             status_code=400,
             detail=f"segment must match [A-Za-z][A-Za-z0-9 &_-]{{0,63}}; got {segment!r}",
         )
-    return segment
+    normalized = " ".join(segment.split())
+    if normalized not in GICS_SECTOR_ETFS:
+        raise HTTPException(status_code=400, detail="unsupported TechTrade segment")
+    return normalized
 
 
 def _loud_empty_rows(context: str) -> list[dict]:
@@ -2437,7 +2452,20 @@ def _loud_empty_rows(context: str) -> list[dict]:
 
 def _fresh_empty_rows(context: str) -> list[dict]:
     """Return a marker for a completed scan with no actionable rows."""
-    return [{"note": f"Latest scan completed with no actionable plans ({context})."}]
+    return [{"note": f"Latest EOD snapshot completed with no result ({context})."}]
+
+
+def _segment_for_symbol(symbol: str) -> tuple[str, list[SnapshotRow]]:
+    """Resolve a symbol's segment only from materialized scan rows."""
+    rows, snapshots = _read_snapshot_rows("techtrade.scan", symbol=symbol)
+    segments = sorted(
+        {
+            str(row["segment"])
+            for row in rows
+            if isinstance(row.get("segment"), str) and row["segment"]
+        }
+    )
+    return (segments[0] if len(segments) == 1 else ""), snapshots
 
 
 def _decorate_rows(rows: list[dict], meta: dict) -> list[dict]:
@@ -2514,7 +2542,7 @@ def tt_scan_table(request: Request, segment: str = "") -> dict:
     """
     _require_auth(request)
     if segment:
-        _validate_segment(segment)
+        segment = _validate_segment(segment)
     rows, snapshots = _read_snapshot_rows("techtrade.scan", segment=segment)
     meta = _snapshot_meta(snapshots)
     if not rows:
@@ -2964,11 +2992,16 @@ def tt_position_signal_card(request: Request, symbol: str = "AAPL") -> str:
     _require_auth(request)
     sym = _validate_symbol(symbol)
     rows, snapshots = _read_snapshot_rows("techtrade.signals", symbol=sym)
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(snapshots, symbol=sym)
     if not rows:
+        message = (
+            _fresh_empty_rows(f"signal symbol={sym}")[0]["note"]
+            if snapshots
+            else "No EOD snapshot available — run the post-close snapshot job."
+        )
         return (
             f"## {sym} — Active Signal\n\n{_snapshot_markdown_header(meta)}\n\n"
-            "> No EOD snapshot available — run the post-close snapshot job."
+            f"> {message}"
         )
     signal = rows[0]
     return (
@@ -2986,11 +3019,16 @@ def tt_position_plan_card(request: Request, symbol: str = "AAPL") -> str:
     _require_auth(request)
     sym = _validate_symbol(symbol)
     rows, snapshots = _read_snapshot_rows("techtrade.plan", symbol=sym)
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(snapshots, symbol=sym)
     if not rows:
+        message = (
+            _fresh_empty_rows(f"plan symbol={sym}")[0]["note"]
+            if snapshots
+            else "No EOD snapshot available — run the post-close snapshot job."
+        )
         return (
             f"## {sym} — Trading Plan\n\n{_snapshot_markdown_header(meta)}\n\n"
-            "> No EOD snapshot available — run the post-close snapshot job."
+            f"> {message}"
         )
     plan = rows[0]
     recommendation = plan.get("recommendation")
@@ -3013,9 +3051,13 @@ def tt_position_order_legs(
     _require_auth(request)
     sym = _validate_symbol(symbol)
     rows, snapshots = _read_snapshot_rows("techtrade.orders", symbol=sym)
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(snapshots, symbol=sym)
     if not rows:
-        rows = _loud_empty_rows(f"order legs symbol={sym}")
+        rows = (
+            _fresh_empty_rows(f"order legs symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"order legs symbol={sym}")
+        )
     return _decorate_rows(rows, meta)
 
 
@@ -3027,9 +3069,13 @@ def tt_position_simulate(
     _require_auth(request)
     sym = _validate_symbol(symbol)
     rows, snapshots = _read_snapshot_rows("techtrade.simulate", symbol=sym)
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(snapshots, symbol=sym)
     if not rows:
-        rows = _loud_empty_rows(f"simulation symbol={sym}")
+        rows = (
+            _fresh_empty_rows(f"simulation symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"simulation symbol={sym}")
+        )
     return _decorate_rows(rows, meta)
 
 
@@ -3046,9 +3092,13 @@ def tt_validation_verdict(
     _require_auth(request)
     sym = _validate_symbol(symbol)
     rows, snapshots = _read_snapshot_rows("techtrade.validate", symbol=sym)
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(snapshots, symbol=sym)
     if not rows:
-        rows = _loud_empty_rows(f"validation symbol={sym}")
+        rows = (
+            _fresh_empty_rows(f"validation symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"validation symbol={sym}")
+        )
     return _decorate_rows(rows, meta)
 
 
@@ -3057,10 +3107,19 @@ def tt_tuning_report(request: Request, symbol: str = "AAPL") -> list[dict[str, o
     """Return the persisted tuning report rows (#1698)."""
     _require_auth(request)
     sym = _validate_symbol(symbol)
-    rows, snapshots = _read_snapshot_rows("techtrade.tune", symbol=sym)
-    meta = _snapshot_meta(snapshots)
+    segment, scan_snapshots = _segment_for_symbol(sym)
+    rows, snapshots = (
+        _read_snapshot_rows("techtrade.tune", segment=segment)
+        if segment
+        else ([], scan_snapshots)
+    )
+    meta = _snapshot_meta(snapshots, symbol=sym)
     if not rows:
-        rows = _loud_empty_rows(f"tuning symbol={sym}")
+        rows = (
+            _fresh_empty_rows(f"tuning symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"tuning symbol={sym}")
+        )
     return _decorate_rows(rows, meta)
 
 
@@ -3070,9 +3129,13 @@ def tt_audit_journal(request: Request, symbol: str = "AAPL") -> list[dict[str, o
     _require_auth(request)
     sym = _validate_symbol(symbol)
     rows, snapshots = _read_snapshot_rows("techtrade.audit", symbol=sym)
-    meta = _snapshot_meta(snapshots)
+    meta = _snapshot_meta(snapshots, symbol=sym)
     if not rows:
-        rows = _loud_empty_rows(f"audit symbol={sym}")
+        rows = (
+            _fresh_empty_rows(f"audit symbol={sym}")
+            if snapshots
+            else _loud_empty_rows(f"audit symbol={sym}")
+        )
     return _decorate_rows(rows, meta)
 
 
