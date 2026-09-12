@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -28,6 +29,7 @@ MoverFetcher = Callable[..., object]
 EventFetcher = Callable[[date, list[str]], Iterable["MarketEvent"]]
 ComputeFunction = Callable[[str, date], object]
 MembershipFetcher = Callable[[str, date], "MembershipSnapshot | None"]
+EventSource = Callable[[date], Iterable[object]]
 
 
 class EventKind(str, Enum):
@@ -71,6 +73,66 @@ class MembershipSnapshot:
         object.__setattr__(self, "symbols", symbols)
 
 
+def _event_row(value: object) -> dict[str, Any]:
+    row = _jsonable(value)
+    if not isinstance(row, dict):
+        raise TypeError("event source rows must be JSON objects")
+    return row
+
+
+def _event_symbol(row: Mapping[str, object]) -> str:
+    return str(row.get("symbol") or row.get("ticker") or "").strip().upper()
+
+
+class PublicEventRiskProvider:
+    """Combine public earnings, delisting, and halt sources for target symbols."""
+
+    def __init__(
+        self,
+        *,
+        earnings_fetcher: EventSource,
+        delisted_fetcher: EventSource,
+        halted_fetcher: EventSource,
+    ) -> None:
+        self._earnings_fetcher = earnings_fetcher
+        self._delisted_fetcher = delisted_fetcher
+        self._halted_fetcher = halted_fetcher
+        self._cache: dict[date, tuple[MarketEvent, ...]] = {}
+
+    def __call__(self, session: date, symbols: list[str]) -> list[MarketEvent]:
+        if session not in self._cache:
+            events: list[MarketEvent] = []
+            for value in self._earnings_fetcher(session):
+                row = _event_row(value)
+                symbol = _event_symbol(row)
+                event_date = row.get("date") or row.get("report_date")
+                if symbol and (
+                    event_date is None
+                    or date.fromisoformat(str(event_date)) == session
+                ):
+                    events.append(MarketEvent(symbol, EventKind.EARNINGS))
+            for value in self._delisted_fetcher(session):
+                row = _event_row(value)
+                symbol = _event_symbol(row)
+                event_date = (
+                    row.get("delisted_date")
+                    or row.get("delistedDate")
+                    or row.get("date")
+                )
+                if symbol and (
+                    event_date is None
+                    or date.fromisoformat(str(event_date)) <= session
+                ):
+                    events.append(MarketEvent(symbol, EventKind.DELISTED))
+            for value in self._halted_fetcher(session):
+                symbol = _event_symbol(_event_row(value))
+                if symbol:
+                    events.append(MarketEvent(symbol, EventKind.HALTED))
+            self._cache[session] = tuple(dict.fromkeys(events))
+        target = {symbol.strip().upper() for symbol in symbols}
+        return [event for event in self._cache[session] if event.symbol in target]
+
+
 def _no_events(_session: date, _symbols: list[str]) -> tuple[()]:
     return ()
 
@@ -98,6 +160,46 @@ def _jsonable(value: object) -> Any:
     if isinstance(value, date):
         return value.isoformat()
     raise TypeError(f"snapshot value is not JSON-safe: {type(value).__name__}")
+
+
+def _fetch_earnings(session: date) -> Iterable[object]:
+    from openbb import obb
+
+    result = obb.equity.calendar.earnings(
+        start_date=session.isoformat(),
+        end_date=session.isoformat(),
+        provider="fmp_cached",
+    )
+    return result.results or ()
+
+
+def _fetch_delisted(_session: date) -> Iterable[object]:
+    from openbb_core.app.service.user_service import UserService
+    from openbb_fmp_cached.models.w5_w6_w8_extras import (
+        FMPCachedDelistedCompaniesFetcher,
+    )
+
+    credentials = UserService().default_user_settings.credentials.model_dump(
+        mode="json"
+    )
+    return asyncio.run(
+        FMPCachedDelistedCompaniesFetcher.fetch_data({}, credentials)
+    )
+
+
+def _configured_halts(_session: date) -> Iterable[object]:
+    return [
+        {"symbol": symbol}
+        for symbol in os.environ.get("PI_TECHTRADE_HALTED_SYMBOLS", "").split(",")
+        if symbol.strip()
+    ]
+
+
+_PUBLIC_EVENT_RISK = PublicEventRiskProvider(
+    earnings_fetcher=_fetch_earnings,
+    delisted_fetcher=_fetch_delisted,
+    halted_fetcher=_configured_halts,
+)
 
 
 def _segment_from_key(entity_key: str) -> str:
@@ -255,7 +357,7 @@ class MoversSnapshotAdapter(TechTradeSnapshotAdapter):
         top_n: int = 10,
         calendar: str = DEFAULT_EXCHANGE_CALENDAR,
         mover_fetcher: MoverFetcher = list_movers,
-        event_fetcher: EventFetcher = _no_events,
+        event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
     ) -> None:
         def compute_movers(segment: str, session: date) -> list[dict[str, Any]]:
             result = mover_fetcher(
@@ -371,42 +473,64 @@ def _audit(segment: str, session: date) -> list[dict[str, Any]]:
 
 class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(self) -> None:
-        super().__init__("techtrade.scan", compute_fn=_scan)
+        super().__init__(
+            "techtrade.scan", compute_fn=_scan, event_fetcher=_PUBLIC_EVENT_RISK
+        )
 
 
 class SignalsSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(self) -> None:
-        super().__init__("techtrade.signals", compute_fn=_signals)
+        super().__init__(
+            "techtrade.signals",
+            compute_fn=_signals,
+            event_fetcher=_PUBLIC_EVENT_RISK,
+        )
 
 
 class PlanSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(self) -> None:
-        super().__init__("techtrade.plan", compute_fn=_plans)
+        super().__init__(
+            "techtrade.plan", compute_fn=_plans, event_fetcher=_PUBLIC_EVENT_RISK
+        )
 
 
 class OrdersSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(self) -> None:
-        super().__init__("techtrade.orders", compute_fn=_orders)
+        super().__init__(
+            "techtrade.orders", compute_fn=_orders, event_fetcher=_PUBLIC_EVENT_RISK
+        )
 
 
 class SimulateSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(self) -> None:
-        super().__init__("techtrade.simulate", compute_fn=_simulations)
+        super().__init__(
+            "techtrade.simulate",
+            compute_fn=_simulations,
+            event_fetcher=_PUBLIC_EVENT_RISK,
+        )
 
 
 class ValidateSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(self) -> None:
-        super().__init__("techtrade.validate", compute_fn=_validations)
+        super().__init__(
+            "techtrade.validate",
+            compute_fn=_validations,
+            event_fetcher=_PUBLIC_EVENT_RISK,
+        )
 
 
 class TuneSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(self) -> None:
-        super().__init__("techtrade.tune", compute_fn=_tuning)
+        super().__init__(
+            "techtrade.tune", compute_fn=_tuning, event_fetcher=_PUBLIC_EVENT_RISK
+        )
 
 
 class AuditSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(self) -> None:
-        super().__init__("techtrade.audit", compute_fn=_audit)
+        super().__init__(
+            "techtrade.audit", compute_fn=_audit, event_fetcher=_PUBLIC_EVENT_RISK
+        )
 
 
 def get_snapshot_adapters() -> dict[str, TechTradeSnapshotAdapter]:

@@ -12,6 +12,7 @@ from openbb_techtrade.snapshot.adapters import (
     MarketEvent,
     MembershipSnapshot,
     MoversSnapshotAdapter,
+    PublicEventRiskProvider,
     TechTradeSnapshotAdapter,
     get_snapshot_adapters,
 )
@@ -62,6 +63,7 @@ def test_movers_computes_once_for_one_public_segment() -> None:
         segments=[TECH],
         top_n=2,
         mover_fetcher=fetcher,
+        event_fetcher=lambda _session, _symbols: [],
     )
 
     computed = adapter.compute("segment=information technology", SESSION)
@@ -107,6 +109,7 @@ def test_successful_movers_run_publishes_live_snapshot(tmp_path: Path) -> None:
         mover_fetcher=lambda *, segment, as_of, **_kwargs: _movers(
             segment, as_of, ("NVDA",)
         ),
+        event_fetcher=lambda _session, _symbols: [],
     )
     orchestrator = SnapshotRefreshOrchestrator(
         SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY),
@@ -174,6 +177,7 @@ def test_partial_movers_run_keeps_all_last_good_and_records_failed_key(
     adapter = MoversSnapshotAdapter(
         segments=[TECH, ENERGY],
         mover_fetcher=fetcher,
+        event_fetcher=lambda _session, _symbols: [],
     )
     orchestrator = SnapshotRefreshOrchestrator(
         SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY),
@@ -206,6 +210,7 @@ def test_validation_rejection_keeps_last_good(tmp_path: Path) -> None:
                 "movers": [{"symbol": "NVDA", "close": None}],
             }
         ],
+        event_fetcher=lambda _session, _symbols: [],
     )
     orchestrator = SnapshotRefreshOrchestrator(
         SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY),
@@ -303,3 +308,36 @@ def test_wrong_session_membership_does_not_claim_correction() -> None:
     computed = adapter.compute("segment=information technology", SESSION)
 
     assert computed.payload["survivorship"] == SURVIVORSHIP_UNCORRECTED
+
+
+def test_public_event_provider_combines_earnings_delists_and_halts() -> None:
+    provider = PublicEventRiskProvider(
+        earnings_fetcher=lambda _session: [
+            {"symbol": "NVDA", "date": SESSION.isoformat()},
+            {"symbol": "OTHER", "date": SESSION.isoformat()},
+        ],
+        delisted_fetcher=lambda _session: [
+            {"symbol": "OLD", "delisted_date": "2026-09-10"}
+        ],
+        halted_fetcher=lambda _session: [{"symbol": "HALT"}],
+    )
+
+    events = provider(SESSION, ["NVDA", "OLD", "HALT"])
+
+    assert events == [
+        MarketEvent("NVDA", EventKind.EARNINGS),
+        MarketEvent("OLD", EventKind.DELISTED),
+        MarketEvent("HALT", EventKind.HALTED),
+    ]
+
+
+def test_public_event_provider_ignores_future_delisting() -> None:
+    provider = PublicEventRiskProvider(
+        earnings_fetcher=lambda _session: [],
+        delisted_fetcher=lambda _session: [
+            {"symbol": "OLD", "delisted_date": "2026-09-12"}
+        ],
+        halted_fetcher=lambda _session: [],
+    )
+
+    assert provider(SESSION, ["OLD"]) == []
