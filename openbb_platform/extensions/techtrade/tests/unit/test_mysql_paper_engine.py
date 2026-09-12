@@ -38,6 +38,7 @@ from openbb_techtrade.execution.mysql_paper_engine import (
     _PI_PAPER_FILL_DDL,
     _PI_PAPER_LOT_DDL,
     _PI_PAPER_ORDER_DDL,
+    _PI_PAPER_ORDER_IDEMPOTENCY_INDEX_DDL,
     _PI_PAPER_POSITION_DDL,
     MysqlPaperEngine,
 )
@@ -130,6 +131,11 @@ _DDL_MAP: dict[str, str] = {
         " closing_fill_id TEXT,"
         " PRIMARY KEY (run_id, strategy_id, account_id, lot_id)"
         ")"
+    ),
+    _PI_PAPER_ORDER_IDEMPOTENCY_INDEX_DDL: (
+        "CREATE INDEX IF NOT EXISTS ix_pi_paper_order_idempotency "
+        "ON pi_paper_order "
+        "(run_id, strategy_id, account_id, plan_id, batch_sha256, order_id)"
     ),
 }
 
@@ -366,6 +372,15 @@ def _t(hour: int = 12, minute: int = 0) -> datetime:
 
 
 class TestAccountLifecycle:
+    def test_idempotency_index_is_created(self, pool: _FakePool) -> None:
+        MysqlPaperEngine(connection_pool=pool)
+        with pool.get_connection() as conn:
+            row = conn._conn.execute(  # noqa: SLF001
+                "SELECT name FROM sqlite_master WHERE type = 'index' "
+                "AND name = 'ix_pi_paper_order_idempotency'"
+            ).fetchone()
+        assert row is not None
+
     def test_read_only_open_does_not_initialize_schema(self, pool: _FakePool) -> None:
         MysqlPaperEngine(connection_pool=pool, initialize=False)
         assert not any(
@@ -656,6 +671,11 @@ class TestSubmitBatch:
         assert len(engine.get_orders()) == 2
         assert any(
             "ON DUPLICATE KEY UPDATE order_id = order_id" in statement
+            for statement in pool.statements
+        )
+        assert any(
+            "SELECT order_id FROM pi_paper_order" in statement
+            and "FOR UPDATE" in statement
             for statement in pool.statements
         )
 

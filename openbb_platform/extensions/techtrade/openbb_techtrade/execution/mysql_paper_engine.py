@@ -150,6 +150,13 @@ CREATE TABLE IF NOT EXISTS pi_paper_fill (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 """
 
+_PI_PAPER_ORDER_IDEMPOTENCY_INDEX_DDL = """
+CREATE INDEX ix_pi_paper_order_idempotency
+ON pi_paper_order (
+    run_id, strategy_id, account_id, plan_id, batch_sha256, order_id
+)
+"""
+
 _PI_PAPER_POSITION_DDL = """
 CREATE TABLE IF NOT EXISTS pi_paper_position (
     run_id          VARCHAR(64) NOT NULL DEFAULT 'live',
@@ -283,6 +290,12 @@ class MysqlPaperEngine:
             cur = conn.cursor()
             for ddl in _ALL_DDLS:
                 cur.execute(ddl)
+            try:
+                cur.execute(_PI_PAPER_ORDER_IDEMPOTENCY_INDEX_DDL)
+            except Exception as exc:
+                error_code = exc.args[0] if exc.args else None
+                if error_code != 1061 and "already exists" not in str(exc).lower():
+                    raise
             cur.close()
 
     def _ensure_account(self, starting_cash: Decimal) -> None:
@@ -497,7 +510,7 @@ class MysqlPaperEngine:
                     "plan_id = %s AND batch_sha256 = %s"
                 )
                 cur.execute(
-                    f"SELECT order_id FROM pi_paper_order WHERE {where}",
+                    f"SELECT order_id FROM pi_paper_order WHERE {where} FOR UPDATE",
                     (*scope_params, plan_id, batch_sha),
                 )
                 existing_ids = {
