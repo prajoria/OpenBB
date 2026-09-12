@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -43,10 +44,19 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("PI_ALLOW_T5_EXECUTE", raising=False)
     monkeypatch.delenv("PI_ALLOW_T5_LIVE", raising=False)
     monkeypatch.delenv("PI_T5_LIVE_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("PI_T5_LIVE_PRINCIPAL", raising=False)
+    monkeypatch.delenv("PI_T5_LIVE_ROLES", raising=False)
+    monkeypatch.delenv("PI_T5_LIVE_ACCOUNTS", raising=False)
     if hasattr(app.state, "t5_live_broker_client"):
         del app.state.t5_live_broker_client
     if hasattr(app.state, "t5_plan_approval_builder"):
         del app.state.t5_plan_approval_builder
+
+
+def _authorize_live(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PI_T5_LIVE_PRINCIPAL", "alice")
+    monkeypatch.setenv("PI_T5_LIVE_ROLES", "live-trader")
+    monkeypatch.setenv("PI_T5_LIVE_ACCOUNTS", "fake-live")
 
 
 # ---------------------------------------------------------------------------
@@ -118,10 +128,19 @@ class TestBrokerExecutionGateway:
         monkeypatch.setenv("PI_ALLOW_T5_EXECUTE", "true")
         monkeypatch.setenv("PI_T5_BROKER_MODE", "live")
         monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
+        _authorize_live(monkeypatch)
         app.state.t5_live_broker_client = _WidgetFakeLiveClient()
         batch = _build_t5_demo_batch("")
-        confirm = f"SUBMIT LIVE fake-broker fake-live {batch.plan_id} {batch.sha256()}"
-        register_t5_approved_batch(batch)
+        confirm = (
+            f"SUBMIT LIVE fake-broker fake-live alice "
+            f"{batch.plan_id} {batch.sha256()}"
+        )
+        register_t5_approved_batch(
+            batch,
+            principal_id="alice",
+            broker_id="fake-broker",
+            account_id="fake-live",
+        )
 
         response = _client.post(
             "/tt/execute/write-batch",
@@ -142,11 +161,20 @@ class TestBrokerExecutionGateway:
         monkeypatch.setenv("PI_ALLOW_T5_LIVE", "true")
         monkeypatch.setenv("PI_T5_BROKER_MODE", "live")
         monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
+        _authorize_live(monkeypatch)
         fake = _WidgetFakeLiveClient()
         app.state.t5_live_broker_client = fake
         batch = _build_t5_demo_batch("")
-        register_t5_approved_batch(batch)
-        confirm = f"SUBMIT LIVE fake-broker fake-live {batch.plan_id} {batch.sha256()}"
+        register_t5_approved_batch(
+            batch,
+            principal_id="alice",
+            broker_id="fake-broker",
+            account_id="fake-live",
+        )
+        confirm = (
+            f"SUBMIT LIVE fake-broker fake-live alice "
+            f"{batch.plan_id} {batch.sha256()}"
+        )
 
         response = _client.post(
             "/tt/execute/write-batch",
@@ -168,6 +196,7 @@ class TestBrokerExecutionGateway:
         monkeypatch.setenv("PI_ALLOW_T5_LIVE", "true")
         monkeypatch.setenv("PI_T5_BROKER_MODE", "live")
         monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
+        _authorize_live(monkeypatch)
         fake = _WidgetFakeLiveClient()
         app.state.t5_live_broker_client = fake
         batch = _build_t5_demo_batch("")
@@ -179,13 +208,88 @@ class TestBrokerExecutionGateway:
                 "plan_id": batch.plan_id,
                 "confirm": (
                     f"SUBMIT LIVE fake-broker fake-live "
-                    f"{batch.plan_id} {batch.sha256()}"
+                    f"alice {batch.plan_id} {batch.sha256()}"
                 ),
             },
         )
 
         assert response.status_code == 403
         assert "server-side T4 approval" in response.json()["detail"]
+        assert fake.calls == []
+
+    def test_live_mode_requires_authorized_principal(
+        self, monkeypatch: pytest.MonkeyPatch, clean_env
+    ) -> None:
+        monkeypatch.setenv("PI_ALLOW_T5_EXECUTE", "true")
+        monkeypatch.setenv("PI_ALLOW_T5_LIVE", "true")
+        monkeypatch.setenv("PI_T5_BROKER_MODE", "live")
+        monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
+        fake = _WidgetFakeLiveClient()
+        app.state.t5_live_broker_client = fake
+        batch = _build_t5_demo_batch("")
+        register_t5_approved_batch(
+            batch,
+            principal_id="alice",
+            broker_id="fake-broker",
+            account_id="fake-live",
+        )
+
+        response = _client.post(
+            "/tt/execute/write-batch",
+            params={
+                "verdict": "PASS",
+                "plan_id": batch.plan_id,
+                "confirm": "irrelevant",
+            },
+        )
+
+        assert response.status_code == 403
+        assert "principal" in response.json()["detail"]
+        assert fake.calls == []
+
+    @pytest.mark.parametrize(
+        ("roles", "accounts", "expected"),
+        [
+            ("viewer", "fake-live", "live-trader role"),
+            ("live-trader", "other-account", "account authorization"),
+        ],
+    )
+    def test_live_mode_enforces_role_and_account_scope(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        clean_env,
+        roles: str,
+        accounts: str,
+        expected: str,
+    ) -> None:
+        monkeypatch.setenv("PI_ALLOW_T5_EXECUTE", "true")
+        monkeypatch.setenv("PI_ALLOW_T5_LIVE", "true")
+        monkeypatch.setenv("PI_T5_BROKER_MODE", "live")
+        monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
+        monkeypatch.setenv("PI_T5_LIVE_PRINCIPAL", "alice")
+        monkeypatch.setenv("PI_T5_LIVE_ROLES", roles)
+        monkeypatch.setenv("PI_T5_LIVE_ACCOUNTS", accounts)
+        fake = _WidgetFakeLiveClient()
+        app.state.t5_live_broker_client = fake
+        batch = _build_t5_demo_batch("")
+        register_t5_approved_batch(
+            batch,
+            principal_id="alice",
+            broker_id="fake-broker",
+            account_id="fake-live",
+        )
+
+        response = _client.post(
+            "/tt/execute/write-batch",
+            params={
+                "verdict": "PASS",
+                "plan_id": batch.plan_id,
+                "confirm": "irrelevant",
+            },
+        )
+
+        assert response.status_code == 403
+        assert expected in response.json()["detail"]
         assert fake.calls == []
 
     def test_unknown_submission_returns_reconciliation_conflict(
@@ -203,6 +307,7 @@ class TestBrokerExecutionGateway:
             mode=ExecutionMode.PAPER,
             broker_id="paper-engine",
             account_id="paper",
+            principal_id="paper",
             plan_id=batch.plan_id,
             batch_sha256=batch.sha256(),
             order_count=len(batch.tickets),
@@ -236,7 +341,7 @@ class TestBrokerExecutionGateway:
             "/tt/execute/cancel",
             params={
                 "order_uuid": str(order_uuid),
-                "confirm": f"CANCEL PAPER paper-engine paper {order_uuid}",
+                "confirm": f"CANCEL PAPER paper-engine paper paper {order_uuid}",
             },
         )
 
@@ -260,14 +365,14 @@ class TestBrokerExecutionGateway:
             "/tt/execute/cancel",
             params={
                 "order_uuid": order_uuid,
-                "confirm": f"CANCEL PAPER paper-engine paper {order_uuid}",
+                "confirm": f"CANCEL PAPER paper-engine paper paper {order_uuid}",
             },
         )
         replay = _client.post(
             "/tt/execute/cancel",
             params={
                 "order_uuid": order_uuid,
-                "confirm": f"CANCEL PAPER paper-engine paper {order_uuid}",
+                "confirm": f"CANCEL PAPER paper-engine paper paper {order_uuid}",
             },
         )
 
@@ -370,9 +475,11 @@ def test_default_approval_builder_uses_server_generated_orders(
         ]
     )
     captured: dict = {}
+    caller_thread = threading.current_thread()
 
     def build_plans(**kwargs):
         captured.update(kwargs)
+        captured["thread"] = threading.current_thread()
         return [server_plan]
 
     async def validate_plan(plan, **kwargs):
@@ -390,6 +497,7 @@ def test_default_approval_builder_uses_server_generated_orders(
 
     assert captured["symbols"] == ["MSFT"]
     assert captured["risk"] == 0.01
+    assert captured["thread"] is not caller_thread
     assert batch.tickets[0].symbol == "MSFT"
     assert batch.tickets[0].quantity == Decimal("3")
     assert batch.plan_id == "t4-server-generated"

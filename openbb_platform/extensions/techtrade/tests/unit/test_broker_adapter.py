@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+import sqlite3
 from threading import Event, Thread
 from uuid import UUID
 
@@ -97,6 +98,7 @@ def _gateway(
         configured_mode=mode,
         execute_enabled=True,
         live_enabled=live_enabled,
+        principal_id=("paper" if mode is ExecutionMode.PAPER else "alice"),
     )
 
 
@@ -223,6 +225,72 @@ class TestAdapterContract:
 
 
 class TestExecutionGateway:
+    def test_legacy_audit_schema_migrates_with_fail_closed_principal(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "legacy-audit.db"
+        conn = sqlite3.connect(path)
+        conn.executescript("""
+            CREATE TABLE pi_execution_submission (
+                submission_id TEXT PRIMARY KEY, mode TEXT NOT NULL,
+                broker_id TEXT NOT NULL, account_id TEXT NOT NULL,
+                plan_id TEXT NOT NULL, batch_sha256 TEXT NOT NULL,
+                status TEXT NOT NULL, error TEXT, created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(mode, broker_id, account_id, plan_id, batch_sha256)
+            );
+            CREATE TABLE pi_execution_approval (
+                plan_id TEXT PRIMARY KEY, request_sha256 TEXT NOT NULL,
+                batch_sha256 TEXT NOT NULL, batch_json TEXT NOT NULL,
+                approved_at TEXT NOT NULL
+            );
+            CREATE TABLE pi_execution_order (
+                order_uuid TEXT PRIMARY KEY, submission_id TEXT NOT NULL,
+                ordinal INTEGER NOT NULL, broker_order_id TEXT,
+                status TEXT NOT NULL, error TEXT,
+                FOREIGN KEY(submission_id)
+                    REFERENCES pi_execution_submission(submission_id),
+                UNIQUE(submission_id, ordinal)
+            );
+            """)
+        conn.execute(
+            "INSERT INTO pi_execution_submission VALUES "
+            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "00000000-0000-4000-8000-000000000001",
+                "live",
+                "fake-broker",
+                "fake-live",
+                "legacy-plan",
+                "a" * 64,
+                "FAILED",
+                None,
+                "2026-01-01T00:00:00+00:00",
+                "2026-01-01T00:00:00+00:00",
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        store = SqliteExecutionAuditStore(path)
+        row = store._conn.execute(  # noqa: SLF001
+            "SELECT principal_id FROM pi_execution_submission"
+        ).fetchone()
+        columns = {
+            item[1]
+            for item in store._conn.execute(  # noqa: SLF001
+                "PRAGMA table_info(pi_execution_approval)"
+            ).fetchall()
+        }
+        foreign_parent = store._conn.execute(  # noqa: SLF001
+            "PRAGMA foreign_key_list(pi_execution_order)"
+        ).fetchone()[2]
+        store.close()
+
+        assert row["principal_id"] == "legacy-unassigned"
+        assert {"principal_id", "broker_id", "account_id"} <= columns
+        assert foreign_parent == "pi_execution_submission"
+
     def test_approved_batch_replays_across_store_instances(
         self, tmp_path: Path
     ) -> None:
@@ -239,6 +307,73 @@ class TestExecutionGateway:
         assert restored is not None
         assert restored.sha256() == batch.sha256()
         assert restored.tickets == batch.tickets
+
+    def test_approval_is_bound_to_broker_account_and_principal(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        batch = _batch("MSFT")
+        audit.register_approved_batch(
+            batch,
+            principal_id="alice",
+            broker_id="fake-broker",
+            account_id="account-a",
+        )
+
+        with pytest.raises(ExecutionGateError, match="broker account"):
+            audit.get_approved_batch(
+                batch.plan_id,
+                principal_id="alice",
+                broker_id="fake-broker",
+                account_id="account-b",
+            )
+        with pytest.raises(ExecutionGateError, match="principal"):
+            audit.get_approved_batch(
+                batch.plan_id,
+                principal_id="mallory",
+                broker_id="fake-broker",
+                account_id="account-a",
+            )
+
+    def test_concurrent_approval_uuid_cannot_bind_different_requests(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "execution-audit.db"
+        stores = [SqliteExecutionAuditStore(path), SqliteExecutionAuditStore(path)]
+        first = _batch("MSFT")
+        second = OrderBatch(
+            tickets=_batch("AAPL").tickets,
+            plan_id=first.plan_id,
+            verdict_gate_pass=True,
+        )
+        outcomes: list[str] = []
+
+        def register(
+            store: SqliteExecutionAuditStore,
+            batch: OrderBatch,
+            request_sha: str,
+        ) -> None:
+            try:
+                store.register_approved_batch(
+                    batch,
+                    principal_id="alice",
+                    request_sha256=request_sha,
+                )
+                outcomes.append("registered")
+            except ExecutionGateError:
+                outcomes.append("rejected")
+
+        workers = [
+            Thread(target=register, args=(stores[0], first, "a" * 64)),
+            Thread(target=register, args=(stores[1], second, "b" * 64)),
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=5)
+        for store in stores:
+            store.close()
+
+        assert sorted(outcomes) == ["registered", "rejected"]
 
     def test_submission_requires_all_gates(
         self, audit: SqliteExecutionAuditStore
@@ -294,6 +429,7 @@ class TestExecutionGateway:
         assert engine.submissions == 1
         assert first.status is SubmissionStatus.SUBMITTED
         assert first.broker_id == "paper-engine"
+        assert first.principal_id == "paper"
         assert len(first.orders) == 2
         assert len({order.order_uuid for order in first.orders}) == 2
         assert all(order.order_uuid.version == 5 for order in first.orders)
@@ -329,6 +465,39 @@ class TestExecutionGateway:
 
         assert first.submission_id != second.submission_id
         assert engine.submissions == 2
+
+    def test_principal_is_part_of_submission_and_cancel_scope(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        adapter = LiveBrokerAdapter(_FakeLiveClient(), account_id="fake-live")
+        alice = _gateway(
+            adapter,
+            audit,
+            mode=ExecutionMode.LIVE,
+            live_enabled=True,
+        )
+        batch = _batch("MSFT")
+        receipt = alice.submit(
+            batch,
+            verdict="PASS",
+            confirmation=alice.expected_confirmation(batch),
+        )
+        mallory = ExecutionGateway(
+            adapter=adapter,
+            audit_store=audit,
+            configured_mode=ExecutionMode.LIVE,
+            execute_enabled=True,
+            live_enabled=True,
+            principal_id="mallory",
+        )
+
+        with pytest.raises(ExecutionGateError, match="scope"):
+            mallory.cancel(
+                receipt.orders[0].order_uuid,
+                confirmation=mallory.expected_cancel_confirmation(
+                    receipt.orders[0].order_uuid
+                ),
+            )
 
     def test_audit_replays_after_store_reopen(self, tmp_path: Path) -> None:
         path = tmp_path / "execution-audit.db"
@@ -372,6 +541,7 @@ class TestExecutionGateway:
                         mode=ExecutionMode.PAPER,
                         broker_id="paper-engine",
                         account_id="paper",
+                        principal_id="paper",
                         plan_id="plan-concurrent",
                         batch_sha256="a" * 64,
                         order_count=1,
@@ -496,6 +666,7 @@ class TestExecutionGateway:
             mode=ExecutionMode.PAPER,
             broker_id="paper-engine",
             account_id="paper",
+            principal_id="paper",
             plan_id=batch.plan_id,
             batch_sha256=batch.sha256(),
             order_count=1,

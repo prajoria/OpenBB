@@ -9,196 +9,37 @@ import sqlite3
 import threading
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from enum import Enum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
 
+from openbb_techtrade.execution import paper_engine as paper_engine_module
+from openbb_techtrade.execution.broker_contract import (
+    AuditEvent,
+    BrokerAdapter,
+    BrokerBatchError,
+    BrokerOrderAck,
+    CancellationError,
+    CancellationReceipt,
+    ExecutionConfigurationError,
+    ExecutionConfirmationError,
+    ExecutionError,
+    ExecutionGateError,
+    ExecutionMode,
+    ExecutionScope,
+    ExecutionSubmissionError,
+    LiveBrokerClient,
+    OrderReceipt,
+    SubmissionReceipt,
+    SubmissionStatus,
+    UnknownSubmissionStateError,
+)
+from openbb_techtrade.execution.execution_audit_schema import ensure_schema
 from openbb_techtrade.execution.order_sink import OrderBatch, OrderTicket
 from openbb_techtrade.execution.paper_engine import PaperEngine
 
 _ORDER_NAMESPACE = uuid.UUID("f55055b1-f9c6-4e9c-8f77-3cf6704f26e6")
 _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-
-
-class ExecutionMode(str, Enum):
-    """Supported execution modes."""
-
-    PAPER = "paper"
-    LIVE = "live"
-
-
-class SubmissionStatus(str, Enum):
-    """Durable submission lifecycle."""
-
-    SUBMITTING = "SUBMITTING"
-    SUBMITTED = "SUBMITTED"
-    FAILED = "FAILED"
-    PARTIAL = "PARTIAL"
-    RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED"
-
-
-class ExecutionError(RuntimeError):
-    """Base error for the T5 execution gateway."""
-
-
-class ExecutionGateError(ExecutionError):
-    """A safety gate rejected the request before any broker call."""
-
-
-class ExecutionConfirmationError(ExecutionGateError):
-    """The explicit confirmation phrase did not match."""
-
-
-class ExecutionConfigurationError(ExecutionError):
-    """Execution mode or adapter configuration is unsafe/incomplete."""
-
-
-class UnknownSubmissionStateError(ExecutionError):
-    """A prior attempt may have made side effects and needs reconciliation."""
-
-
-@dataclass(frozen=True)
-class BrokerOrderAck:
-    """One adapter acknowledgement."""
-
-    order_uuid: uuid.UUID
-    broker_order_id: str
-
-
-class BrokerBatchError(ExecutionError):
-    """Adapter failed after zero or more orders were acknowledged."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        completed: Sequence[BrokerOrderAck] = (),
-        failed_order_uuid: uuid.UUID | None = None,
-        outcome_unknown: bool = False,
-    ) -> None:
-        super().__init__(message)
-        self.completed = tuple(completed)
-        self.failed_order_uuid = failed_order_uuid
-        self.outcome_unknown = outcome_unknown
-
-
-@dataclass(frozen=True)
-class OrderReceipt:
-    """Durable state for one submitted order."""
-
-    order_uuid: uuid.UUID
-    broker_order_id: str | None
-    status: str
-    error: str | None = None
-
-
-@dataclass(frozen=True)
-class SubmissionReceipt:
-    """Durable result for an idempotent batch submission."""
-
-    submission_id: uuid.UUID
-    mode: ExecutionMode
-    broker_id: str
-    account_id: str
-    plan_id: str
-    batch_sha256: str
-    status: SubmissionStatus
-    orders: tuple[OrderReceipt, ...]
-    created_at: datetime
-    updated_at: datetime
-    error: str | None = None
-
-
-@dataclass(frozen=True)
-class CancellationReceipt:
-    """Durable result of cancelling one order."""
-
-    order_uuid: uuid.UUID
-    broker_order_id: str
-    status: str
-    updated_at: datetime
-
-
-@dataclass(frozen=True)
-class AuditEvent:
-    """One append-only execution audit event."""
-
-    event_id: uuid.UUID
-    submission_id: uuid.UUID
-    order_uuid: uuid.UUID | None
-    event_type: str
-    detail: dict[str, object]
-    created_at: datetime
-
-
-class ExecutionSubmissionError(ExecutionError):
-    """Submission failed; ``receipt`` is the durable terminal state."""
-
-    def __init__(self, message: str, receipt: SubmissionReceipt) -> None:
-        super().__init__(message)
-        self.receipt = receipt
-
-
-class CancellationError(ExecutionError):
-    """Cancellation failed and the failure was written to the audit."""
-
-
-@runtime_checkable
-class BrokerAdapter(Protocol):
-    """Backend-neutral order submission and cancellation contract."""
-
-    @property
-    def mode(self) -> ExecutionMode:
-        """Execution mode implemented by this adapter."""
-        ...
-
-    @property
-    def broker_id(self) -> str:
-        """Stable broker/provider identity used by the audit scope."""
-        ...
-
-    @property
-    def account_id(self) -> str:
-        """Backend account scope (never a credential)."""
-        ...
-
-    def submit_batch(
-        self,
-        batch: OrderBatch,
-        order_uuids: Sequence[uuid.UUID],
-    ) -> tuple[BrokerOrderAck, ...]:
-        """Submit the batch using UUIDs as client idempotency keys."""
-        ...
-
-    def cancel_order(self, broker_order_id: str) -> None:
-        """Cancel a backend order by its acknowledged identifier."""
-        ...
-
-
-@runtime_checkable
-class LiveBrokerClient(Protocol):
-    """Injected vendor client boundary; implementations may perform I/O."""
-
-    @property
-    def broker_id(self) -> str:
-        """Return the broker-verified provider identifier."""
-        ...
-
-    @property
-    def account_id(self) -> str:
-        """Return the account identity verified by the broker session."""
-        ...
-
-    def submit_order(self, ticket: OrderTicket, *, client_order_id: str) -> str:
-        """Submit one ticket and return the vendor order identifier."""
-        ...
-
-    def cancel_order(self, broker_order_id: str) -> None:
-        """Cancel one vendor order."""
-        ...
 
 
 class PaperBrokerAdapter:
@@ -333,48 +174,8 @@ class SqliteExecutionAuditStore:
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
-        with self._lock, self._conn:
-            self._conn.executescript("""
-                CREATE TABLE IF NOT EXISTS pi_execution_submission (
-                    submission_id TEXT PRIMARY KEY,
-                    mode TEXT NOT NULL,
-                    broker_id TEXT NOT NULL,
-                    account_id TEXT NOT NULL,
-                    plan_id TEXT NOT NULL,
-                    batch_sha256 TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    error TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(mode, broker_id, account_id, plan_id, batch_sha256)
-                );
-                CREATE TABLE IF NOT EXISTS pi_execution_order (
-                    order_uuid TEXT PRIMARY KEY,
-                    submission_id TEXT NOT NULL,
-                    ordinal INTEGER NOT NULL,
-                    broker_order_id TEXT,
-                    status TEXT NOT NULL,
-                    error TEXT,
-                    FOREIGN KEY(submission_id)
-                        REFERENCES pi_execution_submission(submission_id),
-                    UNIQUE(submission_id, ordinal)
-                );
-                CREATE TABLE IF NOT EXISTS pi_execution_audit_event (
-                    event_id TEXT PRIMARY KEY,
-                    submission_id TEXT NOT NULL,
-                    order_uuid TEXT,
-                    event_type TEXT NOT NULL,
-                    detail_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS pi_execution_approval (
-                    plan_id TEXT PRIMARY KEY,
-                    request_sha256 TEXT NOT NULL,
-                    batch_sha256 TEXT NOT NULL,
-                    batch_json TEXT NOT NULL,
-                    approved_at TEXT NOT NULL
-                );
-                """)
+        with self._lock:
+            ensure_schema(self._conn)
 
     def close(self) -> None:
         """Close this store's owned SQLite connection."""
@@ -384,6 +185,9 @@ class SqliteExecutionAuditStore:
         self,
         batch: OrderBatch,
         *,
+        principal_id: str = "paper",
+        broker_id: str = "paper-engine",
+        account_id: str = "paper",
         request_sha256: str = "",
     ) -> None:
         """Persist a server-validated immutable batch for cross-worker use."""
@@ -412,49 +216,68 @@ class SqliteExecutionAuditStore:
                 for ticket in batch.tickets
             ],
         }
+        expected_sha = batch.sha256()
+        expected_json = json.dumps(payload, sort_keys=True)
         with self._lock, self._conn:
-            existing = self._conn.execute(
-                "SELECT request_sha256, batch_sha256 FROM pi_execution_approval "
-                "WHERE plan_id = ?",
-                (batch.plan_id,),
-            ).fetchone()
-            if existing is not None:
-                if existing["request_sha256"] != request_sha256:
-                    raise ExecutionGateError(
-                        "approval UUID is bound to a different approval request"
-                    )
-                if existing["batch_sha256"] != batch.sha256():
-                    raise ExecutionGateError(
-                        "approval plan_id is already bound to different batch content"
-                    )
             self._conn.execute(
                 "INSERT OR IGNORE INTO pi_execution_approval "
-                "(plan_id, request_sha256, batch_sha256, batch_json, approved_at) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "(plan_id, principal_id, broker_id, account_id, request_sha256, "
+                "batch_sha256, batch_json, approved_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     batch.plan_id,
+                    principal_id,
+                    broker_id,
+                    account_id,
                     request_sha256,
-                    batch.sha256(),
-                    json.dumps(payload, sort_keys=True),
+                    expected_sha,
+                    expected_json,
                     _to_iso(_now()),
                 ),
             )
+            stored = self._conn.execute(
+                "SELECT principal_id, broker_id, account_id, request_sha256, "
+                "batch_sha256, batch_json "
+                "FROM pi_execution_approval WHERE plan_id = ?",
+                (batch.plan_id,),
+            ).fetchone()
+            actual_binding = tuple(stored)
+            expected_binding = (
+                principal_id,
+                broker_id,
+                account_id,
+                request_sha256,
+                expected_sha,
+                expected_json,
+            )
+            if actual_binding != expected_binding:
+                raise ExecutionGateError(
+                    "approval UUID is already bound to different content or owner"
+                )
 
     def get_approved_batch(
         self,
         plan_id: str,
         *,
+        principal_id: str = "paper",
+        broker_id: str = "paper-engine",
+        account_id: str = "paper",
         request_sha256: str | None = None,
     ) -> OrderBatch | None:
         """Restore a server-approved batch and verify its stored content hash."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT request_sha256, batch_sha256, batch_json "
+                "SELECT principal_id, broker_id, account_id, request_sha256, "
+                "batch_sha256, batch_json "
                 "FROM pi_execution_approval WHERE plan_id = ?",
                 (plan_id,),
             ).fetchone()
         if row is None:
             return None
+        if row["principal_id"] != principal_id:
+            raise ExecutionGateError("approval belongs to a different principal")
+        if row["broker_id"] != broker_id or row["account_id"] != account_id:
+            raise ExecutionGateError("approval belongs to a different broker account")
         if request_sha256 is not None and row["request_sha256"] != request_sha256:
             raise ExecutionGateError(
                 "approval UUID is bound to a different approval request"
@@ -495,6 +318,7 @@ class SqliteExecutionAuditStore:
         mode: ExecutionMode,
         broker_id: str,
         account_id: str,
+        principal_id: str,
         plan_id: str,
         batch_sha256: str,
         order_count: int,
@@ -505,14 +329,15 @@ class SqliteExecutionAuditStore:
             now = _now()
             inserted = self._conn.execute(
                 "INSERT OR IGNORE INTO pi_execution_submission "
-                "(submission_id, mode, broker_id, account_id, plan_id, "
-                "batch_sha256, status, error, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(submission_id, mode, broker_id, account_id, principal_id, "
+                "plan_id, batch_sha256, status, error, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     str(submission_id),
                     mode.value,
                     broker_id,
                     account_id,
+                    principal_id,
                     plan_id,
                     batch_sha256,
                     SubmissionStatus.SUBMITTING.value,
@@ -525,8 +350,15 @@ class SqliteExecutionAuditStore:
                 row = self._conn.execute(
                     "SELECT submission_id FROM pi_execution_submission "
                     "WHERE mode = ? AND broker_id = ? AND account_id = ? "
-                    "AND plan_id = ? AND batch_sha256 = ?",
-                    (mode.value, broker_id, account_id, plan_id, batch_sha256),
+                    "AND principal_id = ? AND plan_id = ? AND batch_sha256 = ?",
+                    (
+                        mode.value,
+                        broker_id,
+                        account_id,
+                        principal_id,
+                        plan_id,
+                        batch_sha256,
+                    ),
                 ).fetchone()
                 return self._read_submission(uuid.UUID(row["submission_id"])), False
             for ordinal in range(order_count):
@@ -553,6 +385,7 @@ class SqliteExecutionAuditStore:
                 {
                     "mode": mode.value,
                     "broker_id": broker_id,
+                    "principal_id": principal_id,
                     "plan_id": plan_id,
                     "batch_sha256": batch_sha256,
                 },
@@ -699,11 +532,11 @@ class SqliteExecutionAuditStore:
 
     def get_order_context(
         self, order_uuid: uuid.UUID
-    ) -> tuple[OrderReceipt, ExecutionMode, str, str]:
+    ) -> tuple[OrderReceipt, ExecutionMode, str, str, str]:
         """Return order plus its submission mode/account scope."""
         with self._lock:
             row = self._conn.execute(
-                "SELECT o.*, s.mode, s.broker_id, s.account_id "
+                "SELECT o.*, s.mode, s.broker_id, s.account_id, s.principal_id "
                 "FROM pi_execution_order o JOIN pi_execution_submission s "
                 "ON o.submission_id = s.submission_id WHERE o.order_uuid = ?",
                 (str(order_uuid),),
@@ -715,6 +548,7 @@ class SqliteExecutionAuditStore:
             ExecutionMode(row["mode"]),
             row["broker_id"],
             row["account_id"],
+            row["principal_id"],
         )
 
     def record_cancel(
@@ -725,7 +559,7 @@ class SqliteExecutionAuditStore:
         error: str | None = None,
     ) -> CancellationReceipt:
         """Record cancellation success/failure and append an event."""
-        order, _mode, _broker, _account = self.get_order_context(order_uuid)
+        order, _mode, _broker, _account, _principal = self.get_order_context(order_uuid)
         if order.broker_order_id is None:
             raise ExecutionError(f"order {order_uuid} has no broker acknowledgement")
         with self._lock, self._conn:
@@ -853,9 +687,12 @@ class SqliteExecutionAuditStore:
         ).fetchall()
         return SubmissionReceipt(
             submission_id=submission_id,
-            mode=ExecutionMode(submission["mode"]),
-            broker_id=submission["broker_id"],
-            account_id=submission["account_id"],
+            scope=ExecutionScope(
+                mode=ExecutionMode(submission["mode"]),
+                broker_id=submission["broker_id"],
+                account_id=submission["account_id"],
+                principal_id=submission["principal_id"],
+            ),
             plan_id=submission["plan_id"],
             batch_sha256=submission["batch_sha256"],
             status=SubmissionStatus(submission["status"]),
@@ -877,26 +714,29 @@ class ExecutionGateway:
         configured_mode: ExecutionMode,
         execute_enabled: bool,
         live_enabled: bool = False,
+        principal_id: str = "paper",
     ) -> None:
         self.adapter = adapter
         self.audit_store = audit_store
         self.configured_mode = configured_mode
         self.execute_enabled = execute_enabled
         self.live_enabled = live_enabled
+        self.principal_id = principal_id
 
     def expected_confirmation(self, batch: OrderBatch) -> str:
         """Return the exact batch/account/mode-bound submission phrase."""
         return (
             f"SUBMIT {self.adapter.mode.value.upper()} "
             f"{self.adapter.broker_id} {self.adapter.account_id} "
-            f"{batch.plan_id} {batch.sha256()}"
+            f"{self.principal_id} {batch.plan_id} {batch.sha256()}"
         )
 
     def expected_cancel_confirmation(self, order_uuid: uuid.UUID) -> str:
         """Return the exact order/account/mode-bound cancellation phrase."""
         return (
             f"CANCEL {self.adapter.mode.value.upper()} "
-            f"{self.adapter.broker_id} {self.adapter.account_id} {order_uuid}"
+            f"{self.adapter.broker_id} {self.adapter.account_id} "
+            f"{self.principal_id} {order_uuid}"
         )
 
     def submit(
@@ -923,6 +763,7 @@ class ExecutionGateway:
             mode=self.adapter.mode,
             broker_id=self.adapter.broker_id,
             account_id=self.adapter.account_id,
+            principal_id=self.principal_id,
             plan_id=batch.plan_id,
             batch_sha256=batch.sha256(),
             order_count=len(batch.tickets),
@@ -994,13 +835,14 @@ class ExecutionGateway:
                 "explicit confirmation did not match the configured mode, "
                 "account, and order"
             )
-        order, mode, broker_id, account_id = self.audit_store.get_order_context(
-            order_uuid
+        order, mode, broker_id, account_id, principal_id = (
+            self.audit_store.get_order_context(order_uuid)
         )
         if (
             mode is not self.adapter.mode
             or broker_id != self.adapter.broker_id
             or account_id != self.adapter.account_id
+            or principal_id != self.principal_id
         ):
             raise ExecutionGateError(
                 "audited order does not belong to the configured adapter scope"
@@ -1052,11 +894,7 @@ def get_default_broker_adapter(
     if resolved_mode is ExecutionMode.PAPER:
         resolved_account = account_id or "paper"
         if paper_engine is None:
-            from openbb_techtrade.execution.paper_engine import (  # noqa: PLC0415
-                get_default_engine,
-            )
-
-            paper_engine = get_default_engine(
+            paper_engine = paper_engine_module.get_default_engine(
                 account_id=resolved_account,
                 allow_fallback=False,
             )

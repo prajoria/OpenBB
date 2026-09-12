@@ -49,6 +49,7 @@ from openbb_portfolio_intel.widget_backend._app import app
 from openbb_portfolio_intel.widget_backend._shared import (
     _SYMBOL_RE,
     require_auth,
+    require_live_trading_principal,
     validate_account,
 )
 
@@ -3386,6 +3387,9 @@ def _build_t5_demo_batch(plan_id: str):
 def register_t5_approved_batch(
     batch: object,
     *,
+    principal_id: str = "paper",
+    broker_id: str = "paper-engine",
+    account_id: str = "paper",
     request_sha256: str = "",
 ) -> None:
     """Persist an immutable, server-approved T4 batch for live execution."""
@@ -3412,7 +3416,13 @@ def register_t5_approved_batch(
         )
     )
     try:
-        store.register_approved_batch(batch, request_sha256=request_sha256)
+        store.register_approved_batch(
+            batch,
+            principal_id=principal_id,
+            broker_id=broker_id,
+            account_id=account_id,
+            request_sha256=request_sha256,
+        )
     finally:
         store.close()
 
@@ -3420,6 +3430,9 @@ def register_t5_approved_batch(
 def _resolve_t5_approved_batch(
     plan_id: str,
     *,
+    principal_id: str = "paper",
+    broker_id: str = "paper-engine",
+    account_id: str = "paper",
     request_sha256: str | None = None,
 ):
     """Load a server-approved batch from the cross-worker audit database."""
@@ -3438,7 +3451,13 @@ def _resolve_t5_approved_batch(
         )
     )
     try:
-        return store.get_approved_batch(plan_id, request_sha256=request_sha256)
+        return store.get_approved_batch(
+            plan_id,
+            principal_id=principal_id,
+            broker_id=broker_id,
+            account_id=account_id,
+            request_sha256=request_sha256,
+        )
     finally:
         store.close()
 
@@ -3470,7 +3489,8 @@ async def _build_server_approved_t5_batch(
             detail=f"unsupported approval fields: {sorted(unknown)}",
         )
     symbol = _validate_symbol(str(plan_request.get("symbol", "")))
-    plans = build_plans(
+    plans = await asyncio.to_thread(
+        build_plans,
         symbols=[symbol],
         segment=plan_request.get("segment"),
         preset=plan_request.get("preset", "trend_follow"),
@@ -3525,9 +3545,35 @@ async def tt_execute_approve_plan(
     request_sha256 = hashlib.sha256(
         json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+    mode = os.environ.get("PI_T5_BROKER_MODE", "paper").strip()
+    if mode == "live":
+        client = getattr(request.app.state, "t5_live_broker_client", None)
+        account_id = os.environ.get("PI_T5_LIVE_ACCOUNT_ID", "")
+        if (
+            client is None
+            or str(getattr(client, "account_id", "")) != account_id
+            or not getattr(client, "broker_id", "")
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail="live broker identity is not configured for this approval",
+            )
+        broker_id = str(client.broker_id)
+        principal_id = require_live_trading_principal(
+            request,
+            account_id=account_id,
+        ).principal_id
+    else:
+        mode = "paper"
+        broker_id = "paper-engine"
+        account_id = "paper"
+        principal_id = "paper"
     try:
         batch = _resolve_t5_approved_batch(
             approval_id,
+            principal_id=principal_id,
+            broker_id=broker_id,
+            account_id=account_id,
             request_sha256=request_sha256,
         )
     except ExecutionGateError as exc:
@@ -3550,33 +3596,20 @@ async def tt_execute_approve_plan(
             pre_execution_positions=built.pre_execution_positions,
             plan_context=built.plan_context,
         )
-        register_t5_approved_batch(batch, request_sha256=request_sha256)
-
-    mode = os.environ.get("PI_T5_BROKER_MODE", "paper").strip()
-    if mode == "live":
-        client = getattr(request.app.state, "t5_live_broker_client", None)
-        account_id = os.environ.get("PI_T5_LIVE_ACCOUNT_ID", "")
-        if (
-            client is None
-            or str(getattr(client, "account_id", "")) != account_id
-            or not getattr(client, "broker_id", "")
-        ):
-            raise HTTPException(
-                status_code=503,
-                detail="live broker identity is not configured for this approval",
-            )
-        broker_id = str(client.broker_id)
-    else:
-        mode = "paper"
-        broker_id = "paper-engine"
-        account_id = "paper"
+        register_t5_approved_batch(
+            batch,
+            principal_id=principal_id,
+            broker_id=broker_id,
+            account_id=account_id,
+            request_sha256=request_sha256,
+        )
     return {
         "plan_id": batch.plan_id,
         "batch_sha": batch.sha256(),
         "verdict": "PASS",
         "confirmation": (
             f"SUBMIT {mode.upper()} {broker_id} {account_id} "
-            f"{batch.plan_id} {batch.sha256()}"
+            f"{principal_id} {batch.plan_id} {batch.sha256()}"
         ),
     }
 
@@ -3672,13 +3705,38 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
     try:
         mode = ExecutionMode(os.environ.get("PI_T5_BROKER_MODE", "paper").strip())
         if mode is ExecutionMode.LIVE:
-            batch = _resolve_t5_approved_batch(plan_id)
+            account_id = os.environ.get("PI_T5_LIVE_ACCOUNT_ID", "")
+            live_client = getattr(request.app.state, "t5_live_broker_client", None)
+            if live_client is None:
+                raise ExecutionConfigurationError(
+                    "live mode requires an injected broker client"
+                )
+            principal_id = require_live_trading_principal(
+                request,
+                account_id=account_id,
+            ).principal_id
+            adapter = get_default_broker_adapter(
+                mode=mode,
+                account_id=account_id,
+                live_client=live_client,
+            )
+            batch = _resolve_t5_approved_batch(
+                plan_id,
+                principal_id=principal_id,
+                broker_id=adapter.broker_id,
+                account_id=adapter.account_id,
+            )
             if batch is None or not batch.verdict_gate_pass:
                 raise ExecutionGateError(
                     "live execution requires a server-side T4 approval "
                     "bound to plan_id"
                 )
         else:
+            principal_id = "paper"
+            adapter = get_default_broker_adapter(
+                mode=mode,
+                account_id="paper",
+            )
             batch = (
                 _resolve_t5_approved_batch(plan_id)
                 if plan_id
@@ -3688,15 +3746,6 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
                 raise ExecutionGateError(
                     "paper execution plan_id has no server-side T4 approval"
                 )
-        adapter = get_default_broker_adapter(
-            mode=mode,
-            account_id=(
-                os.environ.get("PI_T5_LIVE_ACCOUNT_ID")
-                if mode is ExecutionMode.LIVE
-                else "paper"
-            ),
-            live_client=getattr(request.app.state, "t5_live_broker_client", None),
-        )
     except ExecutionGateError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except (ValueError, ExecutionConfigurationError) as exc:
@@ -3728,6 +3777,7 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
         configured_mode=mode,
         execute_enabled=_t5_execute_allowed(),
         live_enabled=os.environ.get("PI_ALLOW_T5_LIVE", "").strip().lower() == "true",
+        principal_id=principal_id,
     )
     resolved_confirmation = (
         gateway.expected_confirmation(batch)
@@ -3815,13 +3865,19 @@ def tt_execute_cancel(
 
     try:
         mode = ExecutionMode(os.environ.get("PI_T5_BROKER_MODE", "paper").strip())
+        account_id = (
+            os.environ.get("PI_T5_LIVE_ACCOUNT_ID", "")
+            if mode is ExecutionMode.LIVE
+            else "paper"
+        )
+        principal_id = (
+            require_live_trading_principal(request, account_id=account_id).principal_id
+            if mode is ExecutionMode.LIVE
+            else "paper"
+        )
         adapter = get_default_broker_adapter(
             mode=mode,
-            account_id=(
-                os.environ.get("PI_T5_LIVE_ACCOUNT_ID")
-                if mode is ExecutionMode.LIVE
-                else "paper"
-            ),
+            account_id=account_id,
             live_client=getattr(request.app.state, "t5_live_broker_client", None),
         )
     except (ValueError, ExecutionConfigurationError) as exc:
@@ -3844,6 +3900,7 @@ def tt_execute_cancel(
         configured_mode=mode,
         execute_enabled=_t5_execute_allowed(),
         live_enabled=os.environ.get("PI_ALLOW_T5_LIVE", "").strip().lower() == "true",
+        principal_id=principal_id,
     )
     try:
         receipt = gateway.cancel(parsed_uuid, confirmation=confirm)

@@ -81,7 +81,15 @@ Live mode additionally requires:
 1. `PI_T5_BROKER_MODE=live`;
 2. `PI_ALLOW_T5_LIVE=true`;
 3. a non-empty configured account identifier matching the adapter;
-4. confirmation containing `LIVE`, the account identifier, and the batch SHA.
+4. a server-resolved principal carrying the `live-trader` role and explicit
+   authorization for that account;
+5. confirmation containing the mode, broker, account, principal, approval ID,
+   and batch SHA.
+
+The principal is supplied by a trusted application resolver or server-owned
+`PI_T5_LIVE_PRINCIPAL`, `PI_T5_LIVE_ROLES`, and `PI_T5_LIVE_ACCOUNTS`
+configuration, never by a caller-controlled identity header. Approval,
+submission, cancellation, and audit lookup all bind to that principal.
 
 Paper remains the default. There is no fallback from live to paper: a missing
 client, gate, account, or confirmation fails closed.
@@ -97,9 +105,12 @@ are derived deterministically from the submission UUID and ordinal so retries
 use the same client-order IDs.
 
 The audit store reserves the
-`(mode, broker_id, account_id, plan_id, batch_sha256)` idempotency key before
-any broker side effect. Retries of one approval are idempotent, while a later
-approval for intentionally identical tickets remains independently executable.
+`(mode, broker_id, account_id, principal_id, plan_id, batch_sha256)`
+idempotency key before any broker side effect. Retries of one approval are
+idempotent, while a later approval for intentionally identical tickets remains
+independently executable. Approval registration atomically inserts and then
+verifies the persisted principal, request hash, batch hash, and serialized
+payload, preventing concurrent workers from rebinding an approval UUID.
 Terminal retries return the stored receipt without invoking the adapter.
 Retries against an in-progress/unknown-outcome submission fail closed for
 operator reconciliation rather than risking a duplicate.
@@ -129,3 +140,7 @@ idempotent retries, durable audit replay, partial failures, cancellation, live
 fail-closed behavior, adapter protocol conformance, and the #2059 default paper
 factory path. A Phase-6 harness will drive paper and fake-live flows end to end;
 it must never use brokerage credentials or contact a brokerage.
+
+The async approval endpoint delegates synchronous planning/provider work to a
+worker thread. CI browser harnesses explicitly select the SQLite paper backend,
+so status checks remain deterministic and offline.

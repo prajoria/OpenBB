@@ -10,6 +10,8 @@ import hmac
 import logging
 import os
 import re
+from collections.abc import Mapping
+from dataclasses import dataclass
 
 from fastapi import HTTPException, Request
 
@@ -54,6 +56,7 @@ if _AUTH_MODE == "loopback-dev":
 _SYMBOL_RE = re.compile(r"^[A-Z0-9.\-]{1,10}$")
 # Account-id allowlist — reasonable identifier shape; no metacharacters.
 _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
+_LIVE_TRADER_ROLE = "live-trader"
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +79,58 @@ def require_auth(request: Request) -> None:
     supplied = header.split(" ", 1)[1].strip()
     if not hmac.compare_digest(supplied.encode("utf-8"), _AUTH_TOKEN.encode("utf-8")):
         raise HTTPException(status_code=401, detail="invalid bearer token")
+
+
+@dataclass(frozen=True)
+class TradingPrincipal:
+    """Server-authenticated identity and its live-trading authorization."""
+
+    principal_id: str
+    roles: frozenset[str]
+    account_ids: frozenset[str]
+
+
+def require_live_trading_principal(
+    request: Request,
+    *,
+    account_id: str,
+) -> TradingPrincipal:
+    """Resolve a server-trusted principal and authorize a live account."""
+    require_auth(request)
+    resolver = getattr(request.app.state, "t5_execution_principal_resolver", None)
+    if resolver is not None:
+        raw = resolver(request)
+        if isinstance(raw, TradingPrincipal):
+            principal = raw
+        elif isinstance(raw, Mapping):
+            principal = TradingPrincipal(
+                principal_id=str(raw.get("principal_id", "")),
+                roles=frozenset(raw.get("roles", ())),
+                account_ids=frozenset(raw.get("account_ids", ())),
+            )
+        else:
+            raise HTTPException(status_code=403, detail="live principal unavailable")
+    else:
+        principal = TradingPrincipal(
+            principal_id=os.environ.get("PI_T5_LIVE_PRINCIPAL", "").strip(),
+            roles=frozenset(
+                value.strip()
+                for value in os.environ.get("PI_T5_LIVE_ROLES", "").split(",")
+                if value.strip()
+            ),
+            account_ids=frozenset(
+                value.strip()
+                for value in os.environ.get("PI_T5_LIVE_ACCOUNTS", "").split(",")
+                if value.strip()
+            ),
+        )
+    if not _ACCOUNT_ID_RE.fullmatch(principal.principal_id):
+        raise HTTPException(status_code=403, detail="live principal unavailable")
+    if _LIVE_TRADER_ROLE not in principal.roles:
+        raise HTTPException(status_code=403, detail="live-trader role required")
+    if account_id not in principal.account_ids:
+        raise HTTPException(status_code=403, detail="live account authorization denied")
+    return principal
 
 
 def validate_account(account_id: str) -> None:
