@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+import json
 import sqlite3
 from threading import Event, Thread
 from uuid import UUID
@@ -348,6 +349,26 @@ class TestExecutionGateway:
         assert restored.pricing == batch.pricing
         assert restored.pre_execution_positions == batch.pre_execution_positions
         assert restored.plan_context == batch.plan_context
+
+    def test_approved_batch_rejects_tampered_plan_identity(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        batch = _batch("MSFT")
+        audit.register_approved_batch(batch)
+        row = audit._conn.execute(  # noqa: SLF001
+            "SELECT batch_json FROM pi_execution_approval WHERE plan_id = ?",
+            (batch.plan_id,),
+        ).fetchone()
+        payload = json.loads(row["batch_json"])
+        payload["plan_id"] = "tampered-plan"
+        audit._conn.execute(  # noqa: SLF001
+            "UPDATE pi_execution_approval SET batch_json = ? WHERE plan_id = ?",
+            (json.dumps(payload, sort_keys=True), batch.plan_id),
+        )
+        audit._conn.commit()  # noqa: SLF001
+
+        with pytest.raises(ExecutionGateError, match="plan identity"):
+            audit.get_approved_batch(batch.plan_id)
 
     def test_approval_is_bound_to_broker_account_and_principal(
         self, audit: SqliteExecutionAuditStore
@@ -721,6 +742,29 @@ class TestExecutionGateway:
             gateway.submit(batch, verdict="PASS", confirmation=confirmation)
         assert len(client.calls) == 1
 
+    def test_paper_transport_failure_requires_reconciliation(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        class AmbiguousPaperEngine(_FakePaperEngine):
+            def submit_batch(self, batch: OrderBatch, plan_id: str = "") -> list[str]:
+                raise ConnectionError("commit response lost")
+
+        gateway = _gateway(
+            PaperBrokerAdapter(AmbiguousPaperEngine()),
+            audit,
+            mode=ExecutionMode.PAPER,
+        )
+        batch = _batch("MSFT")
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
+
     def test_malformed_live_acknowledgements_require_reconciliation(
         self, audit: SqliteExecutionAuditStore
     ) -> None:
@@ -752,6 +796,30 @@ class TestExecutionGateway:
 
         assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert raised.value.receipt.orders[0].broker_order_id is None
+        assert raised.value.receipt.orders[0].status == "UNKNOWN"
+
+    def test_malformed_paper_acknowledgements_require_reconciliation(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        class MalformedPaperEngine(_FakePaperEngine):
+            def submit_batch(self, batch: OrderBatch, plan_id: str = "") -> list[str]:
+                return []
+
+        gateway = _gateway(
+            PaperBrokerAdapter(MalformedPaperEngine()),
+            audit,
+            mode=ExecutionMode.PAPER,
+        )
+        batch = _batch("MSFT")
+
+        with pytest.raises(ExecutionSubmissionError) as raised:
+            gateway.submit(
+                batch,
+                verdict="PASS",
+                confirmation=gateway.expected_confirmation(batch),
+            )
+
+        assert raised.value.receipt.status is SubmissionStatus.RECONCILIATION_REQUIRED
         assert raised.value.receipt.orders[0].status == "UNKNOWN"
 
     def test_reserved_unknown_outcome_fails_closed(
@@ -829,6 +897,29 @@ class TestExecutionGateway:
         )
 
         assert replay == first
+
+    def test_cancel_replay_without_audit_event_fails_closed(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        engine = _FakePaperEngine()
+        gateway = _gateway(PaperBrokerAdapter(engine), audit, mode=ExecutionMode.PAPER)
+        batch = _batch("MSFT")
+        receipt = gateway.submit(
+            batch,
+            verdict="PASS",
+            confirmation=gateway.expected_confirmation(batch),
+        )
+        order_uuid = receipt.orders[0].order_uuid
+        confirmation = gateway.expected_cancel_confirmation(order_uuid)
+        gateway.cancel(order_uuid, confirmation=confirmation)
+        audit._conn.execute(  # noqa: SLF001
+            "DELETE FROM pi_execution_audit_event WHERE order_uuid = ?",
+            (str(order_uuid),),
+        )
+        audit._conn.commit()  # noqa: SLF001
+
+        with pytest.raises(UnknownSubmissionStateError, match="audit event"):
+            gateway.cancel(order_uuid, confirmation=confirmation)
 
     def test_cancel_failure_is_audited(self, audit: SqliteExecutionAuditStore) -> None:
         class FailingCancelEngine(_FakePaperEngine):

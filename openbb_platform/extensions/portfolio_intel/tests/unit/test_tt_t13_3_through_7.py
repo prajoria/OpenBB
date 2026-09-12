@@ -252,7 +252,7 @@ def test_engine_status_rejects_invalid_typed_backend(monkeypatch) -> None:
 
     with pytest.raises(
         ValueError,
-        match=r"PI_PAPER_ENGINE must be one of 'mysql' \\| 'sqlite'; got 'oracle'",
+        match=r"PI_PAPER_ENGINE must be one of 'mysql' \| 'sqlite'; got 'oracle'",
     ):
         _client.get("/tt/engine/status")
 

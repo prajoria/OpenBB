@@ -15,7 +15,8 @@
 - No fallback from live to paper.
 - `MysqlPaperEngine` access continues through `get_default_engine()` and its corrected #2059 pool contract.
 - Every order and audit event has a full RFC 4122 UUID.
-- The durable idempotency key is `(mode, account_id, batch_sha256)`.
+- The durable idempotency key is
+  `(mode, broker_id, account_id, principal_id, plan_id, batch_sha256)`.
 
 ---
 

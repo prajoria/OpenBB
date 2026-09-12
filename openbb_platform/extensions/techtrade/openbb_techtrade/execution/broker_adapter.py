@@ -74,7 +74,8 @@ class PaperBrokerAdapter:
         if len(broker_ids) != len(order_uuids):
             raise BrokerBatchError(
                 "paper engine returned an acknowledgement count that does not "
-                "match the submitted batch"
+                "match the submitted batch",
+                outcome_unknown=True,
             )
         return tuple(
             BrokerOrderAck(order_uuid=order_uuid, broker_order_id=broker_id)
@@ -279,6 +280,10 @@ class SqliteExecutionAuditStore:
         if batch.sha256() != row["batch_sha256"]:
             raise ExecutionGateError(
                 "stored T4 approval content does not match its audit hash"
+            )
+        if batch.plan_id != plan_id:
+            raise ExecutionGateError(
+                "stored T4 approval plan identity does not match its lookup key"
             )
         return batch
 
@@ -616,6 +621,11 @@ class SqliteExecutionAuditStore:
             ).fetchone()
         if order.broker_order_id is None:
             raise ExecutionError(f"order {order_uuid} has no broker acknowledgement")
+        if row is None:
+            raise UnknownSubmissionStateError(
+                f"cancelled order {order_uuid} has no cancellation audit event; "
+                "reconcile before relying on its timestamp"
+            )
         return CancellationReceipt(
             order_uuid=order_uuid,
             broker_order_id=order.broker_order_id,
@@ -803,7 +813,7 @@ class ExecutionGateway:
                 raise BrokerBatchError(
                     "adapter acknowledgements do not match reserved order UUIDs",
                     completed=validated,
-                    outcome_unknown=self.adapter.mode is ExecutionMode.LIVE,
+                    outcome_unknown=True,
                 )
         except BrokerBatchError as exc:
             failed = self.audit_store.record_failure(
@@ -821,7 +831,7 @@ class ExecutionGateway:
                 error=safe_error,
                 completed=(),
                 failed_order_uuid=None,
-                outcome_unknown=self.adapter.mode is ExecutionMode.LIVE,
+                outcome_unknown=True,
             )
             raise ExecutionSubmissionError(safe_error, failed) from exc
         return self.audit_store.record_success(
