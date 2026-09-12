@@ -1,6 +1,6 @@
 # Provider Model Compatibility Design
 
-**Issue:** #2079  
+**Issue:** #2079
 **Status:** Approved for autonomous execution by the issue request
 
 ## Problem
