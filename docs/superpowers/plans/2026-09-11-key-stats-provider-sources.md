@@ -14,6 +14,8 @@
 - Short Interest and Insider Ownership remain omitted because current `fmp_cached` capabilities do not supply them.
 - Forward P/E is current live price divided by a positive annual consensus EPS `mean`.
 - Do not modify execution, configuration, snapshot, viewer frontend, or risk files.
+- Fallback endpoint documentation and a no-tier shape assertion are tracked
+  separately in #2075 because endpoint/viewer files are excluded from this cycle.
 
 ---
 
