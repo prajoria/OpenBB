@@ -191,8 +191,19 @@ class SnapshotRefreshOrchestrator:
                     engine_version=computed.engine_version,
                     payload_schema_version=computed.payload_schema_version,
                 )
+                previous = store.get_live(definition.name, raw_key)
                 verdict = store.validate(
-                    definition.name, raw_key, as_of_session, job_run_id
+                    definition.name,
+                    raw_key,
+                    as_of_session,
+                    job_run_id,
+                    (
+                        None
+                        if definition.validator is None
+                        else lambda row, validator=definition.validator, prior=previous: validator(
+                            row, prior
+                        )
+                    ),
                 )
                 if not verdict.ok:
                     failures[raw_key] = "validation_failed"

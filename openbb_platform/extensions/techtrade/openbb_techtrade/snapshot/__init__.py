@@ -42,6 +42,14 @@ from .job import (
     SnapshotJobStore,
     SnapshotJobTransitionError,
 )
+from .datasets import (
+    DEFAULT_EXCHANGE_CALENDAR,
+    SURVIVORSHIP_SENSITIVE_DATASETS,
+    SURVIVORSHIP_UNCORRECTED,
+    TECHTRADE_DATASETS,
+    techtrade_entity_key,
+    validate_techtrade_snapshot,
+)
 from .registry import (
     DEFAULT_DATASET_REGISTRY,
     DatasetDefinition,
@@ -120,6 +128,10 @@ __all__ = [
     "SqliteSnapshotStore",
     "StalenessColor",
     "ValidationResult",
+    "DEFAULT_EXCHANGE_CALENDAR",
+    "SURVIVORSHIP_SENSITIVE_DATASETS",
+    "SURVIVORSHIP_UNCORRECTED",
+    "TECHTRADE_DATASETS",
     "canonical_key",
     "build_eod_display",
     "default_validator",
@@ -130,6 +142,8 @@ __all__ = [
     "snapshot_input_hash",
     "UnknownSnapshotDataset",
     "UnsupportedPayloadSchema",
+    "techtrade_entity_key",
+    "validate_techtrade_snapshot",
 ]
 
 

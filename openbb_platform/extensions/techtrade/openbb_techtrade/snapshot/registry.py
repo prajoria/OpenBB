@@ -8,12 +8,15 @@ from types import MappingProxyType
 from typing import Any
 
 from openbb_techtrade.snapshot.store import (
+    SnapshotRow,
     SnapshotStore,
     SqliteSnapshotStore,
+    ValidationResult,
     canonical_key,
 )
 
 PayloadReader = Callable[[dict], Any]
+PayloadValidator = Callable[[SnapshotRow, SnapshotRow | None], ValidationResult]
 
 
 class SnapshotDatasetError(ValueError):
@@ -44,6 +47,7 @@ class DatasetDefinition:
     pii_scoped: bool
     payload_schema_version: str
     readers: Mapping[str, PayloadReader]
+    validator: PayloadValidator | None = None
 
     def __post_init__(self) -> None:
         """Canonicalize and freeze the definition."""
@@ -109,20 +113,22 @@ def _identity_reader(payload: dict) -> dict:
     return payload
 
 
+from openbb_techtrade.snapshot.datasets import (  # noqa: E402
+    TECHTRADE_DATASETS,
+    validate_techtrade_snapshot,
+)
+
+
 DEFAULT_DATASET_REGISTRY = SnapshotDatasetRegistry(
     [
         DatasetDefinition(
-            name="techtrade.movers",
+            name=name,
             pii_scoped=False,
             payload_schema_version="1",
             readers={"1": _identity_reader},
-        ),
-        DatasetDefinition(
-            name="techtrade.scan",
-            pii_scoped=False,
-            payload_schema_version="1",
-            readers={"1": _identity_reader},
-        ),
+            validator=validate_techtrade_snapshot,
+        )
+        for name in TECHTRADE_DATASETS
     ]
 )
 

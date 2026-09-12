@@ -53,10 +53,13 @@ class _Adapter:
         self.threads.append(threading.current_thread())
         if entity_key in self.fail:
             raise RuntimeError("provider response must not persist")
+        symbol = entity_key.split("=", 1)[1]
         return ComputedSnapshot(
             payload={
-                "symbol": entity_key.split("=", 1)[1],
-                "session": str(as_of_session),
+                "rows": [{"symbol": symbol}],
+                "segment": symbol,
+                "as_of_session": str(as_of_session),
+                "exchange_calendar": "XNYS",
             },
             inputs={"entity_key": entity_key, "session": str(as_of_session)},
             engine_version="engine-1",
