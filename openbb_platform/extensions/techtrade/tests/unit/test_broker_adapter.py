@@ -31,6 +31,7 @@ from openbb_techtrade.execution.broker_adapter import (
     get_default_broker_adapter,
 )
 from openbb_techtrade.execution.order_sink import OrderBatch, OrderTicket
+from openbb_techtrade.execution.order_sink import PlanContext, VerdictGate
 
 
 def _batch(*symbols: str) -> OrderBatch:
@@ -48,6 +49,7 @@ class _FakePaperEngine:
     def __init__(self) -> None:
         self.submissions = 0
         self.cancelled: list[str] = []
+        self.account_id = "paper"
 
     def submit_batch(self, batch: OrderBatch, plan_id: str = "") -> list[str]:
         self.submissions += 1
@@ -105,6 +107,10 @@ def _gateway(
 class TestAdapterContract:
     def test_paper_adapter_satisfies_protocol(self) -> None:
         assert isinstance(PaperBrokerAdapter(_FakePaperEngine()), BrokerAdapter)
+
+    def test_paper_adapter_rejects_engine_account_mismatch(self) -> None:
+        with pytest.raises(ExecutionConfigurationError, match="account"):
+            PaperBrokerAdapter(_FakePaperEngine(), account_id="different")
 
     def test_live_adapter_satisfies_protocol(self) -> None:
         assert isinstance(
@@ -295,7 +301,25 @@ class TestExecutionGateway:
         self, tmp_path: Path
     ) -> None:
         path = tmp_path / "execution-audit.db"
-        batch = _batch("MSFT", "AAPL")
+        batch = OrderBatch(
+            tickets=_batch("MSFT", "AAPL").tickets,
+            plan_id="plan-1719",
+            verdict_gate_pass=True,
+            pricing={"MSFT": Decimal("400")},
+            pre_execution_positions={"MSFT": Decimal("0.25")},
+            plan_context=PlanContext(
+                verdict_gates=(
+                    VerdictGate(
+                        name="robustness",
+                        threshold="PASS",
+                        actual="PASS",
+                        passed=True,
+                    ),
+                ),
+                generator_version="test",
+                git_sha="abc123",
+            ),
+        )
         first = SqliteExecutionAuditStore(path)
         first.register_approved_batch(batch)
         first.close()
@@ -307,6 +331,9 @@ class TestExecutionGateway:
         assert restored is not None
         assert restored.sha256() == batch.sha256()
         assert restored.tickets == batch.tickets
+        assert restored.pricing == batch.pricing
+        assert restored.pre_execution_positions == batch.pre_execution_positions
+        assert restored.plan_context == batch.plan_context
 
     def test_approval_is_bound_to_broker_account_and_principal(
         self, audit: SqliteExecutionAuditStore

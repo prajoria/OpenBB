@@ -10,7 +10,6 @@ import threading
 import uuid
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from decimal import Decimal
 from pathlib import Path
 
 from openbb_techtrade.execution import paper_engine as paper_engine_module
@@ -34,8 +33,12 @@ from openbb_techtrade.execution.broker_contract import (
     SubmissionStatus,
     UnknownSubmissionStateError,
 )
-from openbb_techtrade.execution.execution_audit_schema import ensure_schema
-from openbb_techtrade.execution.order_sink import OrderBatch, OrderTicket
+from openbb_techtrade.execution.execution_audit_schema import (
+    deserialize_approved_batch,
+    ensure_schema,
+    serialize_approved_batch,
+)
+from openbb_techtrade.execution.order_sink import OrderBatch
 from openbb_techtrade.execution.paper_engine import PaperEngine
 
 _ORDER_NAMESPACE = uuid.UUID("f55055b1-f9c6-4e9c-8f77-3cf6704f26e6")
@@ -49,6 +52,10 @@ class PaperBrokerAdapter:
     broker_id = "paper-engine"
 
     def __init__(self, engine: PaperEngine, account_id: str = "paper") -> None:
+        if engine.account_id != account_id:
+            raise ExecutionConfigurationError(
+                "paper engine account does not match configured account_id"
+            )
         self.engine = engine
         self._account_id = account_id
 
@@ -195,29 +202,8 @@ class SqliteExecutionAuditStore:
             raise ExecutionGateError(
                 "approved batch requires plan_id and verdict_gate_pass=True"
             )
-        payload = {
-            "plan_id": batch.plan_id,
-            "generated_at": _to_iso(batch.generated_at),
-            "tickets": [
-                {
-                    "symbol": ticket.symbol,
-                    "action": ticket.action,
-                    "quantity": str(ticket.quantity),
-                    "order_type": ticket.order_type,
-                    "limit_price": (
-                        str(ticket.limit_price)
-                        if ticket.limit_price is not None
-                        else None
-                    ),
-                    "tif": ticket.tif,
-                    "account_masked": ticket.account_masked,
-                    "notes": ticket.notes,
-                }
-                for ticket in batch.tickets
-            ],
-        }
         expected_sha = batch.sha256()
-        expected_json = json.dumps(payload, sort_keys=True)
+        expected_json = serialize_approved_batch(batch)
         with self._lock, self._conn:
             self._conn.execute(
                 "INSERT OR IGNORE INTO pi_execution_approval "
@@ -282,30 +268,7 @@ class SqliteExecutionAuditStore:
             raise ExecutionGateError(
                 "approval UUID is bound to a different approval request"
             )
-        payload = json.loads(row["batch_json"])
-        tickets = tuple(
-            OrderTicket(
-                symbol=item["symbol"],
-                action=item["action"],
-                quantity=Decimal(item["quantity"]),
-                order_type=item["order_type"],
-                limit_price=(
-                    Decimal(item["limit_price"])
-                    if item["limit_price"] is not None
-                    else None
-                ),
-                tif=item["tif"],
-                account_masked=item["account_masked"],
-                notes=item["notes"],
-            )
-            for item in payload["tickets"]
-        )
-        batch = OrderBatch(
-            tickets=tickets,
-            plan_id=payload["plan_id"],
-            verdict_gate_pass=True,
-            generated_at=_from_iso(payload["generated_at"]),
-        )
+        batch = deserialize_approved_batch(row["batch_json"])
         if batch.sha256() != row["batch_sha256"]:
             raise ExecutionGateError(
                 "stored T4 approval content does not match its audit hash"

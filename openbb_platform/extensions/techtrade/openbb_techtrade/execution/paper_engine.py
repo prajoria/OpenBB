@@ -265,6 +265,11 @@ class PaperEngine(Protocol):
     this Protocol, not on the concrete SQLite class.
     """
 
+    @property
+    def account_id(self) -> str:
+        """Return the ledger account identity."""
+        raise NotImplementedError
+
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Persist every ticket in ``batch`` as a PENDING order.
 
@@ -480,6 +485,11 @@ class SqlitePaperEngine:
         self._conn.close()
 
     # --- Protocol methods -------------------------------------------------
+
+    @property
+    def account_id(self) -> str:
+        """Return this engine's ledger account identity."""
+        return self._account_id
 
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Insert every ticket as a PENDING order. Returns order_ids."""

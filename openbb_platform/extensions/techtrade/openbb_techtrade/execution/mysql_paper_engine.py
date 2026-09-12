@@ -320,6 +320,11 @@ class MysqlPaperEngine:
     # Protocol methods
     # ------------------------------------------------------------------
 
+    @property
+    def account_id(self) -> str:
+        """Return this engine's scoped ledger account identity."""
+        return self._account_id
+
     def submit_batch(self, batch, plan_id: str = "") -> list[str]:  # noqa: ANN001
         """Insert every ticket as a PENDING order; returns order_ids."""
         tickets = getattr(batch, "tickets", None)

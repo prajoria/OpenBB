@@ -454,6 +454,31 @@ def test_approve_plan_registers_server_validated_batch(
     assert "different approval request" in mismatched_retry.json()["detail"]
 
 
+def test_approve_plan_rejects_unvalidated_injected_batch(
+    monkeypatch: pytest.MonkeyPatch, clean_env
+) -> None:
+    from decimal import Decimal
+
+    from openbb_techtrade.execution.order_sink import OrderBatch, OrderTicket
+
+    async def unapproved_builder(_plan, _approval_id):
+        return OrderBatch(
+            tickets=(OrderTicket("MSFT", "Buy", Decimal("1")),),
+            plan_id="untrusted",
+            verdict_gate_pass=False,
+        )
+
+    app.state.t5_plan_approval_builder = unapproved_builder
+    response = _client.post(
+        "/tt/execute/approve-plan",
+        params={"approval_request_id": "00000000-0000-4000-8000-000000000172"},
+        json={"symbol": "MSFT"},
+    )
+
+    assert response.status_code == 403
+    assert "verdict" in response.json()["detail"]
+
+
 def test_default_approval_builder_uses_server_generated_orders(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

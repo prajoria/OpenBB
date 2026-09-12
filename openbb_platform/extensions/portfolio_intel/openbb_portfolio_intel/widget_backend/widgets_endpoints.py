@@ -3585,6 +3585,11 @@ async def tt_execute_approve_plan(
             _build_server_approved_t5_batch,
         )
         built = await builder(plan, approval_id)
+        if getattr(built, "verdict_gate_pass", False) is not True:
+            raise HTTPException(
+                status_code=403,
+                detail="server approval builder returned a non-passing verdict",
+            )
         from openbb_techtrade.execution.order_sink import OrderBatch  # noqa: PLC0415
 
         batch = OrderBatch(

@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from datetime import datetime, timezone
+from decimal import Decimal
+
+from openbb_techtrade.execution.order_sink import (
+    OrderBatch,
+    OrderTicket,
+    PlanContext,
+    VerdictGate,
+)
 
 _SUBMISSION_DDL = """
 CREATE TABLE IF NOT EXISTS pi_execution_submission (
@@ -147,3 +157,110 @@ def _migrate_approval(
             "batch_json, approved_at FROM _pi_execution_approval_v1"
         )
     conn.execute("DROP TABLE _pi_execution_approval_v1")
+
+
+def serialize_approved_batch(batch: OrderBatch) -> str:
+    """Serialize all execution and workbook context deterministically."""
+    payload = {
+        "plan_id": batch.plan_id,
+        "generated_at": batch.generated_at.astimezone(timezone.utc).isoformat(),
+        "pricing": (
+            {key: str(value) for key, value in batch.pricing.items()}
+            if batch.pricing is not None
+            else None
+        ),
+        "pre_execution_positions": (
+            {key: str(value) for key, value in batch.pre_execution_positions.items()}
+            if batch.pre_execution_positions is not None
+            else None
+        ),
+        "plan_context": (
+            {
+                "verdict_gates": [
+                    {
+                        "name": gate.name,
+                        "threshold": gate.threshold,
+                        "actual": gate.actual,
+                        "passed": gate.passed,
+                        "notes": gate.notes,
+                    }
+                    for gate in batch.plan_context.verdict_gates
+                ],
+                "generator_version": batch.plan_context.generator_version,
+                "git_sha": batch.plan_context.git_sha,
+            }
+            if batch.plan_context is not None
+            else None
+        ),
+        "tickets": [
+            {
+                "symbol": ticket.symbol,
+                "action": ticket.action,
+                "quantity": str(ticket.quantity),
+                "order_type": ticket.order_type,
+                "limit_price": (
+                    str(ticket.limit_price) if ticket.limit_price is not None else None
+                ),
+                "tif": ticket.tif,
+                "account_masked": ticket.account_masked,
+                "notes": ticket.notes,
+            }
+            for ticket in batch.tickets
+        ],
+    }
+    return json.dumps(payload, sort_keys=True)
+
+
+def deserialize_approved_batch(payload_json: str) -> OrderBatch:
+    """Restore an approved batch from its deterministic JSON representation."""
+    payload = json.loads(payload_json)
+    tickets = tuple(
+        OrderTicket(
+            symbol=item["symbol"],
+            action=item["action"],
+            quantity=Decimal(item["quantity"]),
+            order_type=item["order_type"],
+            limit_price=(
+                Decimal(item["limit_price"])
+                if item["limit_price"] is not None
+                else None
+            ),
+            tif=item["tif"],
+            account_masked=item["account_masked"],
+            notes=item["notes"],
+        )
+        for item in payload["tickets"]
+    )
+    context = payload["plan_context"]
+    return OrderBatch(
+        tickets=tickets,
+        plan_id=payload["plan_id"],
+        verdict_gate_pass=True,
+        generated_at=datetime.fromisoformat(payload["generated_at"]).astimezone(
+            timezone.utc
+        ),
+        pricing=(
+            {key: Decimal(value) for key, value in payload["pricing"].items()}
+            if payload["pricing"] is not None
+            else None
+        ),
+        pre_execution_positions=(
+            {
+                key: Decimal(value)
+                for key, value in payload["pre_execution_positions"].items()
+            }
+            if payload["pre_execution_positions"] is not None
+            else None
+        ),
+        plan_context=(
+            PlanContext(
+                verdict_gates=tuple(
+                    VerdictGate(**gate) for gate in context["verdict_gates"]
+                ),
+                generator_version=context["generator_version"],
+                git_sha=context["git_sha"],
+            )
+            if context is not None
+            else None
+        ),
+    )
