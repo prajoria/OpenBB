@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, cast
 
 from openbb_core.app.jobs.models import (
     MAX_WARNING_COUNT,
@@ -68,8 +68,9 @@ class PruneSnapshotsParams(BaseModel):
     keep_sessions: int = Field(default=10, ge=0, le=1000)
 
 
-def _run_eod_snapshots(context: JobContext, params: EodSnapshotsParams) -> JobResult:
+def _run_eod_snapshots(context: JobContext, params: BaseModel) -> JobResult:
     del context
+    params = cast(EodSnapshotsParams, params)
     store = get_default_snapshot_store()
     adapters = get_snapshot_adapters()
     orchestrator = SnapshotRefreshOrchestrator(
@@ -103,14 +104,13 @@ def _run_eod_snapshots(context: JobContext, params: EodSnapshotsParams) -> JobRe
 
 
 def _run_prune_snapshots(
-    context: JobContext, params: PruneSnapshotsParams
+    context: JobContext, params: BaseModel
 ) -> JobResult:
     del context
+    params = cast(PruneSnapshotsParams, params)
     store = get_default_snapshot_store()
     try:
-        deleted = store.prune(
-            RetentionPolicy(keep_sessions=params.keep_sessions)
-        )
+        deleted = store.prune(RetentionPolicy(keep_sessions=params.keep_sessions))
     finally:
         store.close()
     return JobResult(

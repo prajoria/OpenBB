@@ -1,5 +1,7 @@
 """Compute adapters that materialize TechTrade results into EOD snapshots."""
 
+# pylint: disable=import-outside-toplevel
+
 from __future__ import annotations
 
 import asyncio
@@ -15,6 +17,7 @@ from pydantic import BaseModel
 
 from openbb_techtrade.engine.movers import list_movers
 from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
+from openbb_techtrade.models import TradePlan
 from openbb_techtrade.snapshot.datasets import (
     DEFAULT_EXCHANGE_CALENDAR,
     SURVIVORSHIP_SENSITIVE_DATASETS,
@@ -48,6 +51,7 @@ class MarketEvent:
     kind: EventKind
 
     def __post_init__(self) -> None:
+        """Normalize the public symbol identifier."""
         symbol = self.symbol.strip().upper()
         if not symbol:
             raise ValueError("event symbol must be non-empty")
@@ -63,6 +67,7 @@ class MembershipSnapshot:
     symbols: tuple[str, ...]
 
     def __post_init__(self) -> None:
+        """Normalize and de-duplicate membership symbols."""
         if not self.exchange_calendar.strip():
             raise ValueError("membership exchange_calendar must be non-empty")
         symbols = tuple(
@@ -100,6 +105,7 @@ class PublicEventRiskProvider:
         self._cache: dict[date, tuple[MarketEvent, ...]] = {}
 
     def __call__(self, session: date, symbols: list[str]) -> list[MarketEvent]:
+        """Return cached public events restricted to the requested symbols."""
         if session not in self._cache:
             events: list[MarketEvent] = []
             for value in self._earnings_fetcher(session):
@@ -107,8 +113,7 @@ class PublicEventRiskProvider:
                 symbol = _event_symbol(row)
                 event_date = row.get("date") or row.get("report_date")
                 if symbol and (
-                    event_date is None
-                    or date.fromisoformat(str(event_date)) == session
+                    event_date is None or date.fromisoformat(str(event_date)) == session
                 ):
                     events.append(MarketEvent(symbol, EventKind.EARNINGS))
             for value in self._delisted_fetcher(session):
@@ -120,8 +125,7 @@ class PublicEventRiskProvider:
                     or row.get("date")
                 )
                 if symbol and (
-                    event_date is None
-                    or date.fromisoformat(str(event_date)) <= session
+                    event_date is None or date.fromisoformat(str(event_date)) <= session
                 ):
                     events.append(MarketEvent(symbol, EventKind.DELISTED))
             for value in self._halted_fetcher(session):
@@ -165,7 +169,8 @@ def _jsonable(value: object) -> Any:
 def _fetch_earnings(session: date) -> Iterable[object]:
     from openbb import obb
 
-    result = obb.equity.calendar.earnings(
+    equity = getattr(obb, "equity")
+    result = equity.calendar.earnings(
         start_date=session.isoformat(),
         end_date=session.isoformat(),
         provider="fmp_cached",
@@ -182,9 +187,7 @@ def _fetch_delisted(_session: date) -> Iterable[object]:
     credentials = UserService().default_user_settings.credentials.model_dump(
         mode="json"
     )
-    return asyncio.run(
-        FMPCachedDelistedCompaniesFetcher.fetch_data({}, credentials)
-    )
+    return asyncio.run(FMPCachedDelistedCompaniesFetcher.fetch_data({}, credentials))
 
 
 def _configured_halts(_session: date) -> Iterable[object]:
@@ -253,7 +256,7 @@ class TechTradeSnapshotAdapter:
         name: str,
         *,
         compute_fn: ComputeFunction,
-        segments: Iterable[str] = GICS_SECTOR_ETFS,
+        segments: Iterable[str] | None = None,
         calendar: str = DEFAULT_EXCHANGE_CALENDAR,
         event_fetcher: EventFetcher = _no_events,
         membership_fetcher: MembershipFetcher = _no_membership,
@@ -262,7 +265,7 @@ class TechTradeSnapshotAdapter:
             raise ValueError("unknown TechTrade snapshot dataset")
         self.name = name
         self._compute_fn = compute_fn
-        self._segments = tuple(segments)
+        self._segments = tuple(GICS_SECTOR_ETFS if segments is None else segments)
         self._calendar = calendar
         self._event_fetcher = event_fetcher
         self._membership_fetcher = membership_fetcher
@@ -270,15 +273,15 @@ class TechTradeSnapshotAdapter:
             techtrade_entity_key(segment)
 
     def entity_keys(self) -> list[str]:
+        """Return one canonical key per configured GICS segment."""
         return [techtrade_entity_key(segment) for segment in self._segments]
 
     def compute(self, entity_key: str, as_of_session: date) -> ComputedSnapshot:
+        """Compute and envelope one segment without persistence side effects."""
         segment = _segment_from_key(entity_key)
         rows = _result_rows(self._compute_fn(segment, as_of_session))
         symbols = [
-            str(row["symbol"]).strip().upper()
-            for row in rows
-            if row.get("symbol")
+            str(row["symbol"]).strip().upper() for row in rows if row.get("symbol")
         ]
         events = list(self._event_fetcher(as_of_session, symbols))
         inactive = {
@@ -287,11 +290,7 @@ class TechTradeSnapshotAdapter:
             if event.kind in (EventKind.DELISTED, EventKind.HALTED)
         }
         earnings = sorted(
-            {
-                event.symbol
-                for event in events
-                if event.kind is EventKind.EARNINGS
-            }
+            {event.symbol for event in events if event.kind is EventKind.EARNINGS}
         )
         rows = [
             row
@@ -353,7 +352,7 @@ class MoversSnapshotAdapter(TechTradeSnapshotAdapter):
     def __init__(
         self,
         *,
-        segments: Iterable[str] = GICS_SECTOR_ETFS,
+        segments: Iterable[str] | None = None,
         top_n: int = 10,
         calendar: str = DEFAULT_EXCHANGE_CALENDAR,
         mover_fetcher: MoverFetcher = list_movers,
@@ -379,8 +378,12 @@ class MoversSnapshotAdapter(TechTradeSnapshotAdapter):
         self._top_n = top_n
 
     def compute(self, entity_key: str, as_of_session: date) -> ComputedSnapshot:
+        """Compute movers and add the configured ranking limit to provenance."""
         computed = super().compute(entity_key, as_of_session)
-        inputs = dict(computed.inputs)
+        inputs_value = _jsonable(computed.inputs)
+        if not isinstance(inputs_value, dict):
+            raise TypeError("movers inputs must be a JSON object")
+        inputs = dict(inputs_value)
         inputs["top_n"] = self._top_n
         return ComputedSnapshot(
             payload=computed.payload,
@@ -397,7 +400,7 @@ def _signals(segment: str, session: date) -> object:
     return build_signals(segment=segment, as_of=session)
 
 
-def _plans(segment: str, session: date) -> object:
+def _plans(segment: str, session: date) -> list[TradePlan]:
     from openbb_techtrade.engine.plan import build_plans
 
     return build_plans(segment=segment, as_of=session)
@@ -472,6 +475,8 @@ def _audit(segment: str, session: date) -> list[dict[str, Any]]:
 
 
 class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize the cross-segment scan rows."""
+
     def __init__(self) -> None:
         super().__init__(
             "techtrade.scan", compute_fn=_scan, event_fetcher=_PUBLIC_EVENT_RISK
@@ -479,6 +484,8 @@ class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
 
 
 class SignalsSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize ranked confluence signals."""
+
     def __init__(self) -> None:
         super().__init__(
             "techtrade.signals",
@@ -488,6 +495,8 @@ class SignalsSnapshotAdapter(TechTradeSnapshotAdapter):
 
 
 class PlanSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize full trading plans."""
+
     def __init__(self) -> None:
         super().__init__(
             "techtrade.plan", compute_fn=_plans, event_fetcher=_PUBLIC_EVENT_RISK
@@ -495,6 +504,8 @@ class PlanSnapshotAdapter(TechTradeSnapshotAdapter):
 
 
 class OrdersSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize broker-ready order legs."""
+
     def __init__(self) -> None:
         super().__init__(
             "techtrade.orders", compute_fn=_orders, event_fetcher=_PUBLIC_EVENT_RISK
@@ -502,6 +513,8 @@ class OrdersSnapshotAdapter(TechTradeSnapshotAdapter):
 
 
 class SimulateSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize available simulation fills."""
+
     def __init__(self) -> None:
         super().__init__(
             "techtrade.simulate",
@@ -511,6 +524,8 @@ class SimulateSnapshotAdapter(TechTradeSnapshotAdapter):
 
 
 class ValidateSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize validation reports with survivorship labeling."""
+
     def __init__(self) -> None:
         super().__init__(
             "techtrade.validate",
@@ -520,6 +535,8 @@ class ValidateSnapshotAdapter(TechTradeSnapshotAdapter):
 
 
 class TuneSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize tuning reports with survivorship labeling."""
+
     def __init__(self) -> None:
         super().__init__(
             "techtrade.tune", compute_fn=_tuning, event_fetcher=_PUBLIC_EVENT_RISK
@@ -527,6 +544,8 @@ class TuneSnapshotAdapter(TechTradeSnapshotAdapter):
 
 
 class AuditSnapshotAdapter(TechTradeSnapshotAdapter):
+    """Materialize auditable plan-state rows."""
+
     def __init__(self) -> None:
         super().__init__(
             "techtrade.audit", compute_fn=_audit, event_fetcher=_PUBLIC_EVENT_RISK

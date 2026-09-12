@@ -9,6 +9,8 @@ techtrade-desk app. All stub-shaped; real wiring is per-widget TODOs.
 - **tt_simulate_result** (chart raw) — simulated P&L trajectory
 """
 
+# ruff: noqa: D103, PLW0108
+
 from __future__ import annotations
 
 import json
@@ -20,8 +22,8 @@ import pytest
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
 from fastapi.testclient import TestClient
-from openbb_portfolio_intel.widget_backend.main import app
 from openbb_portfolio_intel.widget_backend import widgets_endpoints
+from openbb_portfolio_intel.widget_backend.main import app
 
 _client = TestClient(app)
 

@@ -1,5 +1,7 @@
 """Post-close jobs for canonical TechTrade EOD snapshots."""
 
+# ruff: noqa: D103
+
 from __future__ import annotations
 
 import inspect
@@ -106,9 +108,9 @@ def test_eod_handler_runs_generic_orchestrator(monkeypatch, tmp_path: Path) -> N
     }
     reopened = SqliteSnapshotStore(tmp_path / "snapshots.db")
     assert (
-        reopened.get_live(
-            "techtrade.movers", "segment=information technology"
-        ).payload["rows"][0]["symbol"]
+        reopened.get_live("techtrade.movers", "segment=information technology").payload[
+            "rows"
+        ][0]["symbol"]
         == "NVDA"
     )
     reopened.close()

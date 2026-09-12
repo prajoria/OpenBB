@@ -1,5 +1,7 @@
 """Dataset adapters for the canonical TechTrade EOD snapshot store."""
 
+# ruff: noqa: D103
+
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
@@ -224,18 +226,16 @@ def test_validation_rejection_keeps_last_good(tmp_path: Path) -> None:
 
     assert job.state is SnapshotJobState.FAILED
     assert store.get_live(adapter.name, f"segment={TECH}").job_run_id == "old"
-    assert store.retry_entity_keys(job.job_run_id) == [
-        "segment=information technology"
-    ]
+    assert store.retry_entity_keys(job.job_run_id) == ["segment=information technology"]
     store.close()
 
 
 def test_pyproject_advertises_movers_snapshot_adapter() -> None:
     pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
     text = pyproject.read_text(encoding="utf-8")
-    assert 'openbb_snapshot_dataset' in text
+    assert "openbb_snapshot_dataset" in text
     assert (
-        'techtrade_movers = '
+        "techtrade_movers = "
         '"openbb_techtrade.snapshot.adapters:MoversSnapshotAdapter"'
     ) in text
     for suffix, adapter in (
@@ -249,8 +249,7 @@ def test_pyproject_advertises_movers_snapshot_adapter() -> None:
         ("audit", "AuditSnapshotAdapter"),
     ):
         assert (
-            f'techtrade_{suffix} = '
-            f'"openbb_techtrade.snapshot.adapters:{adapter}"'
+            f"techtrade_{suffix} = " f'"openbb_techtrade.snapshot.adapters:{adapter}"'
         ) in text
 
 

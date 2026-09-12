@@ -8,8 +8,8 @@ committed snapshot).
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
 import sqlite3
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from openbb_techtrade.snapshots import (
@@ -91,8 +91,12 @@ def test_read_latest_missing_returns_none(store):
 
 def test_read_latest_returns_newest_per_segment(store):
     """read_latest returns the most recently computed snapshot for the segment."""
-    old = _snapshot(computed_at=datetime(2024, 1, 12, 8, 0, tzinfo=UTC), rows=_rows("OLD"))
-    new = _snapshot(computed_at=datetime(2024, 1, 12, 9, 0, tzinfo=UTC), rows=_rows("NEW"))
+    old = _snapshot(
+        computed_at=datetime(2024, 1, 12, 8, 0, tzinfo=UTC), rows=_rows("OLD")
+    )
+    new = _snapshot(
+        computed_at=datetime(2024, 1, 12, 9, 0, tzinfo=UTC), rows=_rows("NEW")
+    )
     store.write_snapshot(old)
     store.write_snapshot(new)
 
@@ -105,7 +109,9 @@ def test_read_latest_is_scoped_by_kind_and_segment(store):
     """Latest reads never cross kind or segment boundaries."""
     store.write_snapshot(_snapshot(segment="Energy", rows=_rows("ENE")))
     store.write_snapshot(_snapshot(segment="Financials", rows=_rows("FIN")))
-    store.write_snapshot(_snapshot(kind="other_scan", segment="Energy", rows=_rows("OTH")))
+    store.write_snapshot(
+        _snapshot(kind="other_scan", segment="Energy", rows=_rows("OTH"))
+    )
 
     energy = store.read_latest(kind="daily_scan", segment="Energy")
     fin = store.read_latest(kind="daily_scan", segment="Financials")
@@ -130,7 +136,11 @@ def test_list_snapshots_newest_first_and_filters(store):
     base = datetime(2024, 1, 12, 8, 0, tzinfo=UTC)
     for i in range(3):
         store.write_snapshot(
-            _snapshot(segment="Energy", computed_at=base + timedelta(minutes=i), rows=_rows(f"E{i}"))
+            _snapshot(
+                segment="Energy",
+                computed_at=base + timedelta(minutes=i),
+                rows=_rows(f"E{i}"),
+            )
         )
     store.write_snapshot(_snapshot(segment="Financials", rows=_rows("FIN")))
 
@@ -149,11 +159,19 @@ def test_prune_keeps_newest_per_kind_and_segment(store):
     base = datetime(2024, 1, 12, 8, 0, tzinfo=UTC)
     for i in range(5):
         store.write_snapshot(
-            _snapshot(segment="Energy", computed_at=base + timedelta(minutes=i), rows=_rows(f"E{i}"))
+            _snapshot(
+                segment="Energy",
+                computed_at=base + timedelta(minutes=i),
+                rows=_rows(f"E{i}"),
+            )
         )
     for i in range(4):
         store.write_snapshot(
-            _snapshot(segment="Financials", computed_at=base + timedelta(minutes=i), rows=_rows(f"F{i}"))
+            _snapshot(
+                segment="Financials",
+                computed_at=base + timedelta(minutes=i),
+                rows=_rows(f"F{i}"),
+            )
         )
 
     deleted = store.prune_snapshots(keep=2)
@@ -175,7 +193,9 @@ def test_prune_noop_when_within_retention(store):
 
 def test_last_good_survives_a_failed_later_write(store):
     """A failed later write leaves the previous committed snapshot intact (last-good)."""
-    good = _snapshot(computed_at=datetime(2024, 1, 12, 8, 0, tzinfo=UTC), rows=_rows("GOOD"))
+    good = _snapshot(
+        computed_at=datetime(2024, 1, 12, 8, 0, tzinfo=UTC), rows=_rows("GOOD")
+    )
     store.write_snapshot(good)
 
     # Simulate a later run that raises mid-write: reuse the same primary key so the
@@ -232,6 +252,7 @@ def test_computed_at_must_be_timezone_aware():
 
 
 def test_legacy_facade_uses_only_canonical_snapshot_tables(tmp_path):
+    """The compatibility API must not recreate its retired table."""
     db = tmp_path / "canonical.db"
     store = SqliteScanSnapshotStore(db)
     store.write_snapshot(_snapshot())

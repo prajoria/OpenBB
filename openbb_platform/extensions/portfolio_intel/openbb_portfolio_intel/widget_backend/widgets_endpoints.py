@@ -2315,6 +2315,7 @@ def equity_peer_multiples(
 # via ``JobService.enqueue`` and returns 202; it never calls
 # ``scan_segments()`` or any other computation directly.
 
+
 @lru_cache(maxsize=1)
 def _get_snapshot_store() -> SnapshotStore:
     """Return the module-level canonical EOD snapshot store."""
@@ -2338,9 +2339,7 @@ def _read_snapshot_rows(
         snapshot = store.get_live(dataset, techtrade_entity_key(candidate))
         if snapshot is None:
             continue
-        payload = definition.read(
-            snapshot.payload, snapshot.payload_schema_version
-        )
+        payload = definition.read(snapshot.payload, snapshot.payload_schema_version)
         payload_rows = payload.get("rows")
         if not isinstance(payload_rows, list):
             continue
@@ -2378,7 +2377,9 @@ def _snapshot_meta(snapshots: list[SnapshotRow]) -> dict:
         for snapshot in snapshots
     }
     if len(calendars) != 1:
-        raise HTTPException(status_code=503, detail="snapshot calendars are inconsistent")
+        raise HTTPException(
+            status_code=503, detail="snapshot calendars are inconsistent"
+        )
     calendar = calendars.pop()
     earnings = any(snapshot.payload.get("earnings_symbols") for snapshot in snapshots)
     display = build_eod_display(
@@ -2459,9 +2460,7 @@ def _snapshot_markdown_header(meta: dict) -> str:
         if meta.get("earnings_annotation")
         else ""
     )
-    survivorship = (
-        f"\n\n> {meta['survivorship']}" if meta.get("survivorship") else ""
-    )
+    survivorship = f"\n\n> {meta['survivorship']}" if meta.get("survivorship") else ""
     return (
         f"**{meta['badge']}** · `{meta['exchange_calendar']}`{annotation}\n\n"
         f"> {meta['disclaimer']}{survivorship}"
@@ -2569,7 +2568,7 @@ def tt_scan_trigger(request: Request) -> dict:
         ) from None
 
     try:
-        run =         service.enqueue(
+        run = service.enqueue(
             "techtrade.eod_snapshots",
             {"datasets": ["techtrade.movers", "techtrade.scan"]},
         )
@@ -3054,9 +3053,7 @@ def tt_validation_verdict(
 
 
 @app.get("/tt/tuning/report")
-def tt_tuning_report(
-    request: Request, symbol: str = "AAPL"
-) -> list[dict[str, object]]:
+def tt_tuning_report(request: Request, symbol: str = "AAPL") -> list[dict[str, object]]:
     """Return the persisted tuning report rows (#1698)."""
     _require_auth(request)
     sym = _validate_symbol(symbol)
@@ -3068,9 +3065,7 @@ def tt_tuning_report(
 
 
 @app.get("/tt/audit/journal")
-def tt_audit_journal(
-    request: Request, symbol: str = "AAPL"
-) -> list[dict[str, object]]:
+def tt_audit_journal(request: Request, symbol: str = "AAPL") -> list[dict[str, object]]:
     """Return persisted Audit Journal rows (#1699)."""
     _require_auth(request)
     sym = _validate_symbol(symbol)

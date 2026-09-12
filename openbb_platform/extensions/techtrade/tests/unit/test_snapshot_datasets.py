@@ -1,12 +1,13 @@
 """TechTrade snapshot dataset contracts and validation policy."""
 
+# ruff: noqa: D103
+
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
-
 from openbb_techtrade.snapshot.datasets import (
     TECHTRADE_DATASETS,
     techtrade_entity_key,
@@ -190,7 +191,5 @@ def test_orchestrator_uses_registered_dataset_validator(tmp_path: Path) -> None:
 
     assert job.state is SnapshotJobState.FAILED
     assert store.get_live(DATASET, KEY) is None
-    assert store.retry_entity_keys(job.job_run_id) == [
-        "segment=information technology"
-    ]
+    assert store.retry_entity_keys(job.job_run_id) == ["segment=information technology"]
     store.close()

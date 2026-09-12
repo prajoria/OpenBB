@@ -32,6 +32,7 @@ from openbb_techtrade.snapshot.store import (  # noqa: E402
     SnapshotStatus,
 )
 
+
 def _snapshot(dataset: str, segment: str, rows: list[dict]) -> SnapshotRow:
     session = date(2026, 9, 11)
     return SnapshotRow(
@@ -102,9 +103,7 @@ _EMPTY_HEALTH_CARE_SCAN = _snapshot("techtrade.scan", "Health Care", [])
 class _FakeStore:
     """In-memory fake implementing the generic LIVE-read protocol."""
 
-    def __init__(
-        self, snapshots: dict[tuple[str, str], SnapshotRow] | None = None
-    ):
+    def __init__(self, snapshots: dict[tuple[str, str], SnapshotRow] | None = None):
         self._snapshots = snapshots or {}
 
     def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:

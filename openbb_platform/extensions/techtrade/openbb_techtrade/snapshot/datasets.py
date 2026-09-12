@@ -92,7 +92,8 @@ def _validate_rows(rows: list[object]) -> ValidationResult:
     return ValidationResult(True)
 
 
-def validate_techtrade_snapshot(
+# pylint: disable=too-many-return-statements
+def validate_techtrade_snapshot(  # noqa: PLR0911 - stable refusal reasons
     row: SnapshotRow, previous: SnapshotRow | None = None
 ) -> ValidationResult:
     """Apply the common TechTrade envelope and row sanity policy."""
@@ -112,7 +113,9 @@ def validate_techtrade_snapshot(
     except ValueError:
         return ValidationResult(False, "as_of_session must be an ISO date")
     if payload_session != row.as_of_session:
-        return ValidationResult(False, "payload session does not match snapshot session")
+        return ValidationResult(
+            False, "payload session does not match snapshot session"
+        )
     try:
         validate_calendar_name(str(row.payload["exchange_calendar"]))
     except ValueError as exc:
@@ -130,3 +133,6 @@ def validate_techtrade_snapshot(
     ):
         return ValidationResult(False, "row_count is below 70% of previous LIVE")
     return ValidationResult(True)
+
+
+# pylint: enable=too-many-return-statements

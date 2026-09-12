@@ -9,6 +9,7 @@ import logging
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from functools import partial
 from importlib.metadata import entry_points
 from typing import Protocol, cast
 from uuid import uuid4
@@ -29,6 +30,7 @@ from openbb_techtrade.snapshot.store import (
     SnapshotRow,
     SnapshotStatus,
     SnapshotStore,
+    ValidationResult,
     canonical_key,
     get_default_snapshot_store,
     snapshot_input_hash,
@@ -36,6 +38,16 @@ from openbb_techtrade.snapshot.store import (
 
 ADAPTER_ENTRY_POINT_GROUP = "openbb_snapshot_dataset"
 logger = logging.getLogger(__name__)
+
+
+def _validate_with_previous(
+    row: SnapshotRow,
+    *,
+    validator: Callable[[SnapshotRow, SnapshotRow | None], ValidationResult],
+    previous: SnapshotRow | None,
+) -> ValidationResult:
+    """Bind the prior LIVE row to a dataset validator."""
+    return validator(row, previous)
 
 
 @dataclass(frozen=True)
@@ -200,8 +212,10 @@ class SnapshotRefreshOrchestrator:
                     (
                         None
                         if definition.validator is None
-                        else lambda row, validator=definition.validator, prior=previous: validator(
-                            row, prior
+                        else partial(
+                            _validate_with_previous,
+                            validator=definition.validator,
+                            previous=previous,
                         )
                     ),
                 )

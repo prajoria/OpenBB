@@ -1,5 +1,7 @@
 """Compute-free TechTrade widget reads from the canonical EOD snapshot store."""
 
+# ruff: noqa: D103
+
 from __future__ import annotations
 
 import os
@@ -58,9 +60,7 @@ def _rows_by_dataset() -> dict[str, list[dict]]:
                 "price": 100.0,
             }
         ],
-        "techtrade.simulate": [
-            {"symbol": "NVDA", "day": 1, "pnl": 12.5}
-        ],
+        "techtrade.simulate": [{"symbol": "NVDA", "day": 1, "pnl": 12.5}],
         "techtrade.validate": [
             {"symbol": "NVDA", "metric": "PBO", "value": 0.18, "gate": "PASS"}
         ],
@@ -198,9 +198,7 @@ def test_sensitive_widgets_display_survivorship_warning(tmp_path: Path) -> None:
         ):
             rows = _client.get(endpoint).json()
             assert rows
-            assert all(
-                row["survivorship"] == SURVIVORSHIP_UNCORRECTED for row in rows
-            )
+            assert all(row["survivorship"] == SURVIVORSHIP_UNCORRECTED for row in rows)
     store.close()
 
 

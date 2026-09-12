@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
+from openbb_techtrade.snapshot.datasets import (
+    TECHTRADE_DATASETS,
+    validate_techtrade_snapshot,
+)
 from openbb_techtrade.snapshot.store import (
     SnapshotRow,
     SnapshotStore,
@@ -111,12 +115,6 @@ class SnapshotDatasetRegistry:
 
 def _identity_reader(payload: dict) -> dict:
     return payload
-
-
-from openbb_techtrade.snapshot.datasets import (  # noqa: E402
-    TECHTRADE_DATASETS,
-    validate_techtrade_snapshot,
-)
 
 
 DEFAULT_DATASET_REGISTRY = SnapshotDatasetRegistry(

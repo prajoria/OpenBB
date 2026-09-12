@@ -17,7 +17,7 @@ T13.2 (shipped as #1718).
   Playwright + Workspace-in-CI is #1713.
 """
 
-# ruff: noqa: D103
+# ruff: noqa: D103, PLW0108
 
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ import pytest
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
 from fastapi.testclient import TestClient
-from openbb_portfolio_intel.widget_backend.main import app
 from openbb_portfolio_intel.widget_backend import widgets_endpoints
+from openbb_portfolio_intel.widget_backend.main import app
 
 _client = TestClient(app)
 

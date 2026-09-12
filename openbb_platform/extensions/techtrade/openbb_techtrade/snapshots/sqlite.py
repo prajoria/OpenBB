@@ -82,15 +82,18 @@ class SqliteScanSnapshotStore:
 
     @property
     def path(self) -> Path:
-        return self._store.path
+        """Return the canonical SQLite database path."""
+        return self._store._db_path  # pylint: disable=protected-access
 
     def initialize(self) -> None:
-        self._store.initialize()
+        """Retain the old no-op hook; construction initializes the schema."""
 
     def close(self) -> None:
+        """Close the canonical store connection."""
         self._store.close()
 
     def write_snapshot(self, snapshot: ScanSnapshot) -> ScanSnapshot:
+        """Validate and promote one legacy DTO through the canonical lifecycle."""
         dataset = _dataset(snapshot.kind)
         entity_key = _entity_key(snapshot.segment)
         payload = _payload(snapshot)
@@ -123,10 +126,12 @@ class SqliteScanSnapshotStore:
         return snapshot
 
     def read_latest(self, *, kind: str, segment: str) -> ScanSnapshot | None:
+        """Return the generic LIVE row translated to the legacy DTO."""
         row = self._store.get_live(_dataset(kind), _entity_key(segment))
         return None if row is None else _to_snapshot(row)
 
     def read_by_id(self, snapshot_id: str) -> ScanSnapshot | None:
+        """Return one historical legacy DTO by its snapshot identifier."""
         record = self._store._conn.execute(  # pylint: disable=protected-access
             "SELECT dataset, entity_key FROM pi_eod_snapshot "
             "WHERE dataset LIKE ? AND job_run_id = ? LIMIT 1",
@@ -144,19 +149,31 @@ class SqliteScanSnapshotStore:
         return None if not matching else _to_snapshot(matching[0])
 
     def _scopes(self, kind: str | None, segment: str | None) -> list[tuple[str, str]]:
-        clauses = ["dataset LIKE ?"]
-        params: list[str] = [f"{_DATASET_PREFIX}%"]
-        if kind is not None:
-            clauses.append("dataset = ?")
-            params.append(_dataset(kind))
-        if segment is not None:
-            clauses.append("entity_key = ?")
-            params.append(_entity_key(segment))
-        records = self._store._conn.execute(  # pylint: disable=protected-access
-            "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot WHERE "
-            + " AND ".join(clauses),
-            tuple(params),
-        ).fetchall()
+        connection = self._store._conn  # pylint: disable=protected-access
+        if kind is not None and segment is not None:
+            records = connection.execute(
+                "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot "
+                "WHERE dataset = ? AND entity_key = ?",
+                (_dataset(kind), _entity_key(segment)),
+            ).fetchall()
+        elif kind is not None:
+            records = connection.execute(
+                "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot "
+                "WHERE dataset = ?",
+                (_dataset(kind),),
+            ).fetchall()
+        elif segment is not None:
+            records = connection.execute(
+                "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot "
+                "WHERE dataset LIKE ? AND entity_key = ?",
+                (f"{_DATASET_PREFIX}%", _entity_key(segment)),
+            ).fetchall()
+        else:
+            records = connection.execute(
+                "SELECT DISTINCT dataset, entity_key FROM pi_eod_snapshot "
+                "WHERE dataset LIKE ?",
+                (f"{_DATASET_PREFIX}%",),
+            ).fetchall()
         return [(str(row["dataset"]), str(row["entity_key"])) for row in records]
 
     def list_snapshots(
@@ -166,6 +183,7 @@ class SqliteScanSnapshotStore:
         segment: str | None = None,
         limit: int | None = None,
     ) -> list[ScanSnapshot]:
+        """List legacy DTOs newest-first with optional filters."""
         if limit is not None and limit < 0:
             raise ValueError("limit must be non-negative")
         rows = [
@@ -181,6 +199,7 @@ class SqliteScanSnapshotStore:
         return snapshots if limit is None else snapshots[:limit]
 
     def prune_snapshots(self, *, keep: int = 10) -> int:
+        """Keep the newest legacy-compatible rows per dataset and segment."""
         if keep < 0:
             raise ValueError("keep must be non-negative")
         deleted = 0
