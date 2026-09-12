@@ -38,7 +38,10 @@ def _widgets() -> dict:
 def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("PI_PAPER_DB", str(tmp_path / "paper.db"))
     monkeypatch.setenv("PI_T5_EXECUTE_OUTPUT_DIR", str(tmp_path / "t5_out"))
-    monkeypatch.setenv("PI_T5_EXECUTION_AUDIT_DB", str(tmp_path / "execution-audit.db"))
+    monkeypatch.setenv(
+        "PI_T5_EXECUTION_AUDIT_DB",
+        str(tmp_path / "execution-audit" / "audit.db"),
+    )
     monkeypatch.setenv("PI_T5_BROKER_MODE", "paper")
     monkeypatch.setenv("PI_PAPER_ENGINE", "sqlite")
     monkeypatch.delenv("PI_ALLOW_T5_EXECUTE", raising=False)
@@ -318,7 +321,7 @@ class TestBrokerExecutionGateway:
         assert fake.calls == []
 
     def test_unknown_submission_returns_reconciliation_conflict(
-        self, monkeypatch: pytest.MonkeyPatch, clean_env, tmp_path: Path
+        self, monkeypatch: pytest.MonkeyPatch, clean_env
     ) -> None:
         from openbb_techtrade.execution.broker_adapter import (
             ExecutionMode,
@@ -328,10 +331,10 @@ class TestBrokerExecutionGateway:
 
         monkeypatch.setenv("PI_ALLOW_T5_EXECUTE", "true")
         batch = _build_t5_demo_batch("")
-        engine = SqlitePaperEngine(tmp_path / "paper.db")
+        engine = SqlitePaperEngine(Path(os.environ["PI_PAPER_DB"]))
         broker_id = f"paper-engine-{engine.execution_scope_id}"
         engine.close()
-        store = SqliteExecutionAuditStore(tmp_path / "execution-audit.db")
+        store = SqliteExecutionAuditStore(Path(os.environ["PI_T5_EXECUTION_AUDIT_DB"]))
         store.reserve(
             mode=ExecutionMode.PAPER,
             broker_id=broker_id,
@@ -349,7 +352,7 @@ class TestBrokerExecutionGateway:
         assert "reconcile" in response.json()["detail"]
 
     def test_unknown_cancellation_returns_reconciliation_conflict(
-        self, monkeypatch: pytest.MonkeyPatch, clean_env, tmp_path: Path
+        self, monkeypatch: pytest.MonkeyPatch, clean_env
     ) -> None:
         from uuid import UUID
 
@@ -362,7 +365,7 @@ class TestBrokerExecutionGateway:
             "/tt/execute/write-batch?verdict=PASS&confirm=yes"
         ).json()
         order_uuid = UUID(submitted["order_uuids"][0])
-        store = SqliteExecutionAuditStore(tmp_path / "execution-audit.db")
+        store = SqliteExecutionAuditStore(Path(os.environ["PI_T5_EXECUTION_AUDIT_DB"]))
         store.reserve_cancel(order_uuid)
         store.close()
 

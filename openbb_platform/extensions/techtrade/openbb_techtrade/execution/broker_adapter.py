@@ -43,6 +43,10 @@ from openbb_techtrade.execution.execution_audit_schema import (
 )
 from openbb_techtrade.execution.order_sink import OrderBatch
 from openbb_techtrade.execution.paper_engine import PaperEngine
+from openbb_techtrade.execution.secure_file import (
+    prepare_private_audit_directory,
+    secure_owner_only,
+)
 
 _ORDER_NAMESPACE = uuid.UUID("f55055b1-f9c6-4e9c-8f77-3cf6704f26e6")
 
@@ -52,8 +56,9 @@ class SqliteExecutionAuditStore:
 
     def __init__(self, path: Path | str) -> None:
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        prepare_private_audit_directory(self.path.parent, self.path.name)
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        secure_owner_only(self.path, directory=False)
         self._conn.row_factory = sqlite3.Row
         self._lock = threading.RLock()
         self._ensure_schema()

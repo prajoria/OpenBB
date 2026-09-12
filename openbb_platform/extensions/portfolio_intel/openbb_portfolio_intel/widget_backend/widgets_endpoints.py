@@ -3423,7 +3423,7 @@ def register_t5_approved_batch(
         Path(
             os.environ.get(
                 "PI_T5_EXECUTION_AUDIT_DB",
-                str(Path.home() / ".portfolio_intel" / "execution-audit.db"),
+                str(Path.home() / ".portfolio_intel" / "execution-audit" / "audit.db"),
             )
         )
     )
@@ -3458,7 +3458,7 @@ def _resolve_t5_approved_batch(
         Path(
             os.environ.get(
                 "PI_T5_EXECUTION_AUDIT_DB",
-                str(Path.home() / ".portfolio_intel" / "execution-audit.db"),
+                str(Path.home() / ".portfolio_intel" / "execution-audit" / "audit.db"),
             )
         )
     )
@@ -3797,7 +3797,7 @@ def tt_execute_write_batch(  # pylint: disable=too-many-return-statements
     audit_path = Path(
         os.environ.get(
             "PI_T5_EXECUTION_AUDIT_DB",
-            str(Path.home() / ".portfolio_intel" / "execution-audit.db"),
+            str(Path.home() / ".portfolio_intel" / "execution-audit" / "audit.db"),
         )
     )
     audit_store = SqliteExecutionAuditStore(audit_path)
@@ -3958,7 +3958,7 @@ def tt_execute_cancel(
         Path(
             os.environ.get(
                 "PI_T5_EXECUTION_AUDIT_DB",
-                str(Path.home() / ".portfolio_intel" / "execution-audit.db"),
+                str(Path.home() / ".portfolio_intel" / "execution-audit" / "audit.db"),
             )
         )
     )

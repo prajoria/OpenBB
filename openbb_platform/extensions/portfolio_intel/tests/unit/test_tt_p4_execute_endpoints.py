@@ -22,7 +22,10 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Isolate PI_ALLOW_T5_EXECUTE / PI_PAPER_DB / output dir per-test."""
     monkeypatch.setenv("PI_PAPER_DB", str(tmp_path / "paper.db"))
     monkeypatch.setenv("PI_T5_EXECUTE_OUTPUT_DIR", str(tmp_path / "t5_out"))
-    monkeypatch.setenv("PI_T5_EXECUTION_AUDIT_DB", str(tmp_path / "execution-audit.db"))
+    monkeypatch.setenv(
+        "PI_T5_EXECUTION_AUDIT_DB",
+        str(tmp_path / "execution-audit" / "audit.db"),
+    )
     monkeypatch.setenv("PI_T5_BROKER_MODE", "paper")
     monkeypatch.setenv("PI_PAPER_ENGINE", "sqlite")
     monkeypatch.delenv("PI_ALLOW_T5_EXECUTE", raising=False)

@@ -235,6 +235,30 @@ class TestAdapterContract:
 
 
 class TestExecutionGateway:
+    def test_audit_store_enforces_owner_only_permissions(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        modes: list[tuple[str, int]] = []
+
+        def prepare(path: Path, filename: str) -> None:
+            path.mkdir(parents=True)
+            modes.append((path.name, 0o700))
+
+        monkeypatch.setattr(
+            "openbb_techtrade.execution.broker_adapter.prepare_private_audit_directory",
+            prepare,
+        )
+        monkeypatch.setattr(
+            "openbb_techtrade.execution.broker_adapter.secure_owner_only",
+            lambda path, *, directory: modes.append((path.name, 0o600)),
+        )
+
+        store = SqliteExecutionAuditStore(tmp_path / "private" / "audit.db")
+        store.close()
+
+        assert ("private", 0o700) in modes
+        assert ("audit.db", 0o600) in modes
+
     def test_reserved_legacy_principal_is_rejected(
         self, audit: SqliteExecutionAuditStore
     ) -> None:
