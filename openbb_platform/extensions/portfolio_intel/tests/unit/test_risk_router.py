@@ -63,6 +63,7 @@ def _assert_valid_spy_concentration(result: ConcentrationSummary) -> None:
     assert all(isfinite(value) for value in values)
     assert 0.0 < result.hhi <= 1.0
     assert result.effective_n == pytest.approx(1.0 / result.hhi)
+    assert result.effective_n > 3.0
     assert 0.0 < result.top1 <= result.top5 <= result.top10 <= 1.0
     assert result.hhi <= result.top1 <= sqrt(result.hhi) + 1e-12
     assert result.top1 < result.top5  # SPY must unwrap beyond its fallback symbol.
@@ -302,6 +303,7 @@ def test_concentration_determinism() -> None:
         {"effective_n": float("inf")},
         {"effective_n": 10.0},
         {"hhi": 1.0, "effective_n": 1.0, "top1": 1.0, "top5": 1.0, "top10": 1.0},
+        {"hhi": 0.52, "effective_n": 1.0 / 0.52, "top1": 0.6, "top5": 1.0, "top10": 1.0},
         {"top1": 0.0},
         {"hhi": 0.2, "effective_n": 5.0},
         {"top1": 0.25},

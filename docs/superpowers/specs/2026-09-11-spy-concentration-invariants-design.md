@@ -25,6 +25,7 @@ assert:
 
 - `hhi` is finite and in `(0, 1]`;
 - `effective_n` is finite and equals `1 / hhi` within floating-point tolerance;
+- the existing conservative SPY breadth check, `effective_n > 3`, remains in place;
 - `top1`, `top5`, and `top10` are finite, positive, bounded by `1`, and monotonically
   non-decreasing;
 - `top1` lies between HHI and HHI's square root, as required for non-negative
