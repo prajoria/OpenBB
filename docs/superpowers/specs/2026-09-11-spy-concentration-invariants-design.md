@@ -20,17 +20,19 @@ behavior remains unchanged.
 
 Only `test_live_concentration_spy_via_obb` changes. The test will assert:
 
-- `hhi` is finite and in `(0, 1)`, proving that live SPY resolved to more than its
-  single-symbol fallback;
+- `hhi` is finite and in `(0, 1]`;
 - `effective_n` is finite and equals `1 / hhi` within floating-point tolerance;
 - `top1`, `top5`, and `top10` are finite, positive, bounded by `1`, and monotonically
   non-decreasing;
 - `top1` lies between HHI and HHI's square root, as required for non-negative
   normalized weights.
+- SPY's `top5` is strictly greater than `top1`, proving that the provider resolved
+  more than the route's single-symbol fallback without constraining live weights.
 
-Together these checks reject NaN, infinity, zero/negative or unit/over-unity SPY
-concentration, inconsistent effective-N, empty concentration aggregates, malformed ordering,
-and impossible largest-weight output without imposing market-sensitive SPY bounds.
+Together these checks reject NaN, infinity, zero/negative or over-unity concentration,
+inconsistent effective-N, empty concentration aggregates, malformed ordering, unresolved SPY
+fallback output, and impossible largest-weight output without imposing market-sensitive SPY
+bounds.
 
 ## Testing
 

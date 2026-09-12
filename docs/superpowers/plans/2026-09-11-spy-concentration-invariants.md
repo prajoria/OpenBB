@@ -26,27 +26,28 @@
 - Consumes: `ConcentrationSummary` fields `hhi`, `effective_n`, `top1`, `top5`, and `top10`.
 - Produces: A live integration assertion contract independent of SPY's current constituent weights.
 
-- [ ] **Step 1: Write the durable assertions**
+- [x] **Step 1: Write the durable assertions**
 
 ```python
 from math import isfinite, sqrt
 
 values = (res.hhi, res.effective_n, res.top1, res.top5, res.top10)
 assert all(isfinite(value) for value in values)
-assert 0.0 < res.hhi < 1.0
+assert 0.0 < res.hhi <= 1.0
 assert res.effective_n == pytest.approx(1.0 / res.hhi)
 assert 0.0 < res.top1 <= res.top5 <= res.top10 <= 1.0
 assert res.hhi <= res.top1 <= sqrt(res.hhi) + 1e-12
+assert res.top1 < res.top5
 ```
 
-- [ ] **Step 2: Verify RED against malformed concentration output**
+- [x] **Step 2: Verify RED against malformed concentration output**
 
 Run a focused Python/pytest harness that substitutes malformed metrics such as `hhi=float("nan")`
 and confirms the new invariant block raises `AssertionError`.
 
 Expected: malformed metrics are rejected.
 
-- [ ] **Step 3: Run the live integration test**
+- [x] **Step 3: Run the live integration test**
 
 Run:
 
@@ -56,7 +57,7 @@ Run:
 
 Expected: `1 passed`.
 
-- [ ] **Step 4: Run targeted risk tests**
+- [x] **Step 4: Run targeted risk tests**
 
 Run:
 
@@ -66,12 +67,12 @@ Run:
 
 Expected: all selected tests pass.
 
-- [ ] **Step 5: Run diagnostics and real-path harness**
+- [x] **Step 5: Run diagnostics and real-path harness**
 
 Run Ruff on the modified test and call the live route from a Python harness. Capture the route
 metrics and invariant results in `.dev-cycle/verify-phase6.log`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```text
 test(portfolio): make SPY concentration check resilient

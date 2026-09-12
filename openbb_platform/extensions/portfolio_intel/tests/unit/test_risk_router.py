@@ -61,10 +61,11 @@ def _assert_valid_spy_concentration(result: ConcentrationSummary) -> None:
         result.top10,
     )
     assert all(isfinite(value) for value in values)
-    assert 0.0 < result.hhi < 1.0
+    assert 0.0 < result.hhi <= 1.0
     assert result.effective_n == pytest.approx(1.0 / result.hhi)
     assert 0.0 < result.top1 <= result.top5 <= result.top10 <= 1.0
     assert result.hhi <= result.top1 <= sqrt(result.hhi) + 1e-12
+    assert result.top1 < result.top5  # SPY must unwrap beyond its fallback symbol.
 
 
 # ---------------------------------------------------------------------------
