@@ -552,7 +552,13 @@ def init_database(auto_create: bool = None):
         logger.info("Skipping database/table creation (FMP_CACHE_AUTO_CREATE_DB=false)")
         return True
 
-    temp_config = get_connection_pool().connection_params.copy()
+    # Initialization intentionally resolves fresh process configuration on
+    # every call. Caching a failed configuration here would make later retries
+    # ignore repaired settings. Apply only the context-local database choice.
+    temp_config = DatabaseConfig().connection_params
+    override = _database_override.get()
+    if override is not None:
+        temp_config["database"] = override
     database_name = temp_config.pop("database", "openbb_fmp_cache")
 
     # bd-9loj/o1oy: validate the database name BEFORE any DB work.
