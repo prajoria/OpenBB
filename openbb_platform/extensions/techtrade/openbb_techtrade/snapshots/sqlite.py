@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from openbb_techtrade import config
-from openbb_techtrade.engine.universe import GICS_SECTOR_ETFS
 from openbb_techtrade.snapshot.datasets import validate_techtrade_snapshot
 from openbb_techtrade.snapshot.job import SnapshotJobState
 from openbb_techtrade.snapshot.store import (
@@ -39,6 +38,19 @@ def default_scan_db_path() -> Path:
 def legacy_scan_db_path() -> Path:
     """Return the retired standalone scan-store path."""
     return Path.home() / ".openbb_platform" / "techtrade_scan.db"
+
+
+def _has_legacy_table(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    with sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True) as connection:
+        return (
+            connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='scan_snapshot'"
+            ).fetchone()
+            is not None
+        )
 
 
 def _dataset(kind: str) -> str:
@@ -100,7 +112,21 @@ class SqliteScanSnapshotStore:
         busy_timeout_ms: int = 5_000,
     ) -> None:
         legacy_override = os.environ.get(SCAN_DB_ENV)
-        sqlite_path = path if path is not None else legacy_override
+        requested_path = Path(path) if path is not None else None
+        migration_source = (
+            Path(legacy_override).expanduser()
+            if legacy_override
+            else (
+                requested_path
+                if requested_path is not None and _has_legacy_table(requested_path)
+                else None
+            )
+        )
+        sqlite_path = (
+            requested_path
+            if requested_path is not None and migration_source is None
+            else None
+        )
         self._store: Any = (
             SqliteSnapshotStore(sqlite_path)
             if sqlite_path is not None
@@ -110,8 +136,10 @@ class SqliteScanSnapshotStore:
             self._store._conn.execute(  # pylint: disable=protected-access
                 f"PRAGMA busy_timeout = {int(busy_timeout_ms)}"
             )
-        if path is None and legacy_override is None:
-            self._migrate_legacy_history()
+        if migration_source is not None:
+            self._migrate_legacy_history(migration_source)
+        elif path is None and legacy_override is None:
+            self._migrate_legacy_history(legacy_scan_db_path())
 
     @property
     def path(self) -> Path:
@@ -123,8 +151,7 @@ class SqliteScanSnapshotStore:
     def initialize(self) -> None:
         """Retain the old no-op hook; construction initializes the schema."""
 
-    def _migrate_legacy_history(self) -> None:
-        source = legacy_scan_db_path()
+    def _migrate_legacy_history(self, source: Path) -> None:
         if not source.is_file() or (
             isinstance(self._store, SqliteSnapshotStore)
             and source.resolve()
@@ -146,7 +173,7 @@ class SqliteScanSnapshotStore:
                 "ORDER BY computed_at"
             ).fetchall()
         for row in rows:
-            if self._store.get_job(str(row[0])) is not None:
+            if self.read_by_id(str(row[0])) is not None:
                 continue
             self.write_snapshot(
                 ScanSnapshot(
@@ -170,15 +197,24 @@ class SqliteScanSnapshotStore:
         dataset = _dataset(snapshot.kind)
         entity_key = _entity_key(snapshot.segment)
         payload = _payload(snapshot)
-        if self._store.get_job(snapshot.snapshot_id) is not None:
+        existing_job = self._store.get_job(snapshot.snapshot_id)
+        if (
+            existing_job is not None
+            and self.read_by_id(snapshot.snapshot_id) is not None
+        ):
             raise ValueError("snapshot_id already exists")
-        self._store.start_job(dataset, snapshot.snapshot_id)
+        job_run_id = (
+            snapshot.snapshot_id
+            if existing_job is None
+            else f"{snapshot.snapshot_id}~retry-{os.urandom(4).hex()}"
+        )
+        self._store.start_job(dataset, job_run_id)
         try:
             self._store.stage(
                 dataset,
                 entity_key,
                 snapshot.as_of_session,
-                snapshot.snapshot_id,
+                job_run_id,
                 payload,
                 status=SnapshotStatus.OK,
                 input_hash=snapshot_input_hash(payload, "legacy-compat-1"),
@@ -191,42 +227,37 @@ class SqliteScanSnapshotStore:
                 dataset,
                 entity_key,
                 snapshot.as_of_session,
-                snapshot.snapshot_id,
+                job_run_id,
                 lambda row: validate_techtrade_snapshot(row, previous),
             )
             if not verdict.ok:
                 raise ValueError(f"snapshot validation failed: {verdict.reason}")
+            if (
+                previous is not None
+                and snapshot.computed_at < _to_snapshot(previous).computed_at
+            ):
+                raise ValueError("snapshot is older than current LIVE")
             self._store.publish_job(
-                snapshot.snapshot_id,
+                job_run_id,
                 [
                     (
                         dataset,
                         entity_key,
                         snapshot.as_of_session,
-                        snapshot.snapshot_id,
+                        job_run_id,
                     )
                 ],
+                expected_live={(dataset, entity_key): previous},
             )
-            if (
-                previous is not None
-                and snapshot.computed_at < _to_snapshot(previous).computed_at
-                and not self._store.rollback(
-                    dataset,
-                    entity_key,
-                    previous.as_of_session,
-                    previous.job_run_id,
-                )
-            ):
-                raise RuntimeError("failed to preserve newer LIVE snapshot")
         except BaseException:
-            job = self._store.get_job(snapshot.snapshot_id)
+            job = self._store.get_job(job_run_id)
             if job is not None and job.state is SnapshotJobState.RUNNING:
                 self._store.record_job_errors(
-                    snapshot.snapshot_id,
+                    job_run_id,
                     {entity_key: "validation_failed"},
                 )
                 self._store.finish_job(
-                    snapshot.snapshot_id,
+                    job_run_id,
                     SnapshotJobState.FAILED,
                     n_ok=0,
                     n_failed=1,
@@ -259,6 +290,12 @@ class SqliteScanSnapshotStore:
             row for row in visible if _to_snapshot(row).snapshot_id == snapshot_id
         ]
         if not matching:
+            matching = [
+                row
+                for row in self._history_rows(None, None)
+                if _to_snapshot(row).snapshot_id == snapshot_id
+            ]
+        if not matching:
             return None
         if len(matching) != 1:
             raise ValueError("snapshot_id is ambiguous")
@@ -271,14 +308,17 @@ class SqliteScanSnapshotStore:
                 if kind is not None
                 else self._store.list_datasets(prefix=_DATASET_PREFIX)
             )
-            segments = [segment] if segment is not None else list(GICS_SECTOR_ETFS)
             return [
                 row
                 for dataset in datasets
-                for candidate in segments
+                for entity_key in (
+                    [_entity_key(segment)]
+                    if segment is not None
+                    else self._store.list_entity_keys(dataset)
+                )
                 for row in self._store.list_history(
                     dataset,
-                    _entity_key(candidate),
+                    entity_key,
                     limit=2_147_483_647,
                 )
                 if row.state is not SnapshotState.STAGING

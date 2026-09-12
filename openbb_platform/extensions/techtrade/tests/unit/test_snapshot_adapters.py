@@ -369,6 +369,7 @@ def _plan_stub(
     segment: str = TECH,
     *,
     simulated_fills: list | None = None,
+    validation: object | None = None,
 ):
     recommendation = SimpleNamespace(
         action="BUY",
@@ -396,6 +397,7 @@ def _plan_stub(
         position_size=Decimal("10"),
         orders=[SimpleNamespace()],
         simulated_fills=simulated_fills or [],
+        validation=validation,
     )
 
 
@@ -460,7 +462,12 @@ def test_simulation_adapter_materializes_actual_fill_pnl() -> None:
     ]
     adapter = SimulateSnapshotAdapter(
         segments=[TECH],
-        plans_fetcher=lambda _segment, _session: [_plan_stub(simulated_fills=fills)],
+        plans_fetcher=lambda _segment, _session: [
+            _plan_stub(
+                simulated_fills=fills,
+                validation={"replay_pnl": 100.0},
+            )
+        ],
         event_fetcher=lambda _session, _symbols: [],
     )
 
@@ -499,7 +506,12 @@ def test_audit_adapter_materializes_replay_forward_contract() -> None:
     ]
     adapter = AuditSnapshotAdapter(
         segments=[TECH],
-        plans_fetcher=lambda _segment, _session: [_plan_stub(simulated_fills=fills)],
+        plans_fetcher=lambda _segment, _session: [
+            _plan_stub(
+                simulated_fills=fills,
+                validation={"replay_pnl": 100.0},
+            )
+        ],
         event_fetcher=lambda _session, _symbols: [],
     )
 

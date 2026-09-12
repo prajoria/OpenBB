@@ -350,6 +350,10 @@ class SnapshotStore(Protocol):
         """Return canonical dataset names, optionally restricted by prefix."""
         ...  # pylint: disable=unnecessary-ellipsis
 
+    def list_entity_keys(self, dataset: str) -> list[str]:
+        """Return canonical entity keys persisted for one dataset."""
+        ...  # pylint: disable=unnecessary-ellipsis
+
     def delete_history(self, rows: Iterable[tuple[str, str, date, str]]) -> int:
         """Atomically delete exact non-LIVE history rows."""
         ...  # pylint: disable=unnecessary-ellipsis
@@ -2985,6 +2989,8 @@ class SqliteSnapshotStore:
         *,
         finished_at: datetime | None = None,
         require_newer: bool = False,
+        require_not_older: bool = False,
+        expected_live: Mapping[tuple[str, str], SnapshotRow | None] | None = None,
     ) -> SnapshotJob:
         """Verify lease ownership, promote all candidates, and finish atomically."""
         normalized = [
@@ -3017,7 +3023,17 @@ class SqliteSnapshotStore:
                         "snapshot candidates do not belong to the active job lease"
                     )
                 for candidate in normalized:
-                    self._promote_locked(*candidate, require_newer=require_newer)
+                    self._promote_locked(
+                        *candidate,
+                        expected_live=(
+                            expected_live.get(candidate[:2])
+                            if expected_live is not None
+                            else None
+                        ),
+                        expectation=expected_live is not None,
+                        require_newer=require_newer,
+                        require_not_older=require_not_older,
+                    )
                 changed = self._conn.execute(
                     "UPDATE snapshot_job SET finished_at = ?, state = ?, "
                     "n_ok = ?, n_failed = 0, error = NULL "
@@ -3051,6 +3067,7 @@ class SqliteSnapshotStore:
         expected_live: SnapshotRow | None = None,
         expectation: bool = False,
         require_newer: bool = False,
+        require_not_older: bool = False,
     ) -> None:
         """Promote one canonical candidate inside an existing write transaction."""
         candidate = self._get_row(dataset, entity_key, as_of_session, job_run_id)
@@ -3070,6 +3087,15 @@ class SqliteSnapshotStore:
         ):
             raise _PromotionRefused(
                 "candidate must be newer than LIVE; source is older or superseded"
+            )
+        if (
+            require_not_older
+            and live is not None
+            and candidate is not None
+            and candidate.as_of_session < live.as_of_session
+        ):
+            raise _PromotionRefused(
+                "candidate is older than LIVE; backfill cannot move the pointer"
             )
         if live is not None:
             self._demote(dataset, entity_key, live)
@@ -3287,6 +3313,17 @@ class SqliteSnapshotStore:
             records = self._conn.execute(query, params).fetchall()
         return [str(record["dataset"]) for record in records]
 
+    def list_entity_keys(self, dataset: str) -> list[str]:
+        """Return canonical entity keys persisted for one dataset."""
+        dataset = canonical_key(dataset)
+        with _SQLITE_LOCK:
+            records = self._conn.execute(
+                "SELECT DISTINCT entity_key FROM pi_eod_snapshot "
+                "WHERE dataset = ? ORDER BY entity_key",
+                (dataset,),
+            ).fetchall()
+        return [str(record["entity_key"]) for record in records]
+
     def delete_history(self, rows: Iterable[tuple[str, str, date, str]]) -> int:
         """Atomically delete exact non-LIVE history rows."""
         deleted = 0
@@ -3295,7 +3332,12 @@ class SqliteSnapshotStore:
                 cursor = self._conn.execute(
                     "DELETE FROM pi_eod_snapshot WHERE dataset = ? "
                     "AND entity_key = ? AND as_of_session = ? AND job_run_id = ? "
-                    "AND state != ?",
+                    "AND state != ? AND NOT EXISTS ("
+                    "SELECT 1 FROM pi_eod_live_pointer AS p "
+                    "WHERE p.dataset = pi_eod_snapshot.dataset "
+                    "AND p.entity_key = pi_eod_snapshot.entity_key "
+                    "AND p.as_of_session = pi_eod_snapshot.as_of_session "
+                    "AND p.job_run_id = pi_eod_snapshot.job_run_id)",
                     (
                         canonical_key(dataset),
                         canonical_key(entity_key),

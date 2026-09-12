@@ -4133,4 +4133,8 @@ def test_get_live_many_returns_only_requested_live_keys(tmp_path: Path) -> None:
 
     assert list(rows) == ["segment=energy"]
     assert rows["segment=energy"].payload["rows"][0]["symbol"] == "energy"
+    assert store.list_entity_keys("techtrade.scan") == [
+        "segment=energy",
+        "segment=financials",
+    ]
     store.close()

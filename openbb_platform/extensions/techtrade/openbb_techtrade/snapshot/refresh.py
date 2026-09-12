@@ -65,6 +65,7 @@ class SnapshotDatasetAdapter(Protocol):
     """Compute seam supplied by later dataset fan-out issues."""
 
     name: str
+    calendar_name: str
 
     def entity_keys(self) -> Iterable[str]:
         """Return the complete entity universe for a full refresh."""
@@ -115,7 +116,10 @@ class SnapshotRefreshOrchestrator:
         store.start_job(definition.name, job_run_id, started_at=now)
         completed = False
         try:
-            as_of_session = last_completed_session(now)
+            as_of_session = last_completed_session(
+                now,
+                getattr(adapter, "calendar_name", "XNYS"),
+            )
             successes: list[tuple[str, str, date, str]] = []
             if retry_job_run_id is None:
                 keys = list(
@@ -256,6 +260,7 @@ class SnapshotRefreshOrchestrator:
                 successes,
                 finished_at=utc_datetime(self._clock()),
                 require_newer=retry_job_run_id is not None,
+                require_not_older=True,
             )
             completed = True
             return job

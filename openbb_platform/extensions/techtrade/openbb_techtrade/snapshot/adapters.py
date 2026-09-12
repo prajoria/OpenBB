@@ -9,7 +9,8 @@ import os
 import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from enum import Enum
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
@@ -35,6 +36,7 @@ EventFetcher = Callable[[date, list[str]], Iterable["MarketEvent"]]
 ComputeFunction = Callable[[str, date], object]
 MembershipFetcher = Callable[[str, date], "MembershipSnapshot | None"]
 EventSource = Callable[[date], Iterable[object]]
+UniverseFetcher = Callable[[str, date], Iterable[str]]
 
 
 class EventKind(str, Enum):
@@ -142,6 +144,14 @@ def _no_membership(_segment: str, _session: date) -> None:
     return None
 
 
+def _segment_universe(segment: str, _session: date) -> Iterable[str]:
+    from openbb_techtrade.engine.screener import list_segments
+    from openbb_techtrade.engine.universe import resolve_universe
+
+    config = next(item for item in list_segments() if item.segment == segment)
+    return resolve_universe(config)
+
+
 def _engine_version() -> str:
     try:
         return version("openbb-techtrade")
@@ -151,13 +161,15 @@ def _engine_version() -> str:
 
 def _jsonable(value: object) -> Any:
     if isinstance(value, BaseModel):
-        return value.model_dump(mode="json", exclude_none=True)
+        return _jsonable(value.model_dump(mode="python", exclude_none=True))
     if isinstance(value, Mapping):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_jsonable(item) for item in value]
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
+    if isinstance(value, Decimal):
+        return float(value)
     if isinstance(value, date):
         return value.isoformat()
     raise TypeError(f"snapshot value is not JSON-safe: {type(value).__name__}")
@@ -248,7 +260,7 @@ def _result_rows(result: object) -> list[dict[str, Any]]:
 class TechTradeSnapshotAdapter:
     """Materialize one public TechTrade dataset for every configured segment."""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         name: str,
         *,
@@ -257,16 +269,23 @@ class TechTradeSnapshotAdapter:
         calendar: str = DEFAULT_EXCHANGE_CALENDAR,
         event_fetcher: EventFetcher = _no_events,
         membership_fetcher: MembershipFetcher = _no_membership,
+        universe_fetcher: UniverseFetcher | None = None,
         payload_metadata: Mapping[str, object] | None = None,
     ) -> None:
         if name not in TECHTRADE_DATASETS:
             raise ValueError("unknown TechTrade snapshot dataset")
         self.name = name
+        self.calendar_name = calendar
         self._compute_fn = compute_fn
         self._segments = tuple(GICS_SECTOR_ETFS if segments is None else segments)
         self._calendar = calendar
         self._event_fetcher = event_fetcher
         self._membership_fetcher = membership_fetcher
+        self._universe_fetcher = (
+            _segment_universe
+            if universe_fetcher is None and event_fetcher is _PUBLIC_EVENT_RISK
+            else universe_fetcher
+        )
         self._payload_metadata = dict(payload_metadata or {})
         for segment in self._segments:
             techtrade_entity_key(segment)
@@ -282,7 +301,13 @@ class TechTradeSnapshotAdapter:
         symbols = [
             str(row["symbol"]).strip().upper() for row in rows if row.get("symbol")
         ]
-        events = list(self._event_fetcher(as_of_session, symbols))
+        universe_symbols = (
+            list(self._universe_fetcher(segment, as_of_session))
+            if self._universe_fetcher is not None
+            else []
+        )
+        event_symbols = list(dict.fromkeys([*symbols, *universe_symbols]))
+        events = list(self._event_fetcher(as_of_session, event_symbols))
         inactive = {
             event.symbol
             for event in events
@@ -412,6 +437,35 @@ def _plans(segment: str, session: date) -> list[TradePlan]:
     return build_plans(segment=segment, as_of=session)
 
 
+def _forward_bars(symbol: str, session: date) -> list[object]:
+    from openbb import obb
+
+    equity = getattr(obb, "equity")
+    result = equity.price.historical(
+        symbol=symbol,
+        start_date=session.isoformat(),
+        end_date=session.isoformat(),
+        provider="fmp_cached",
+    )
+    return list(result.results or ())
+
+
+def _simulated_plans(segment: str, session: date) -> list[TradePlan]:
+    from openbb_techtrade.engine.movers import resolve_session
+    from openbb_techtrade.execution.broker import simulate
+
+    signal_session = resolve_session(session - timedelta(days=1), "XNYS")
+    simulated: list[TradePlan] = []
+    for plan in _plans(segment, signal_session):
+        bars = _forward_bars(plan.symbol, session)
+        if not bars or not plan.orders:
+            continue
+        fills = simulate(plan.orders, bars)
+        if fills:
+            simulated.append(plan.model_copy(update={"simulated_fills": fills}))
+    return simulated
+
+
 def _orders(segment: str, session: date) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for plan in _result_rows(_plans(segment, session)):
@@ -480,27 +534,40 @@ def _tuning(segment: str, session: date) -> object:
 
 
 def _audit(segment: str, session: date) -> list[dict[str, Any]]:
-    return _audit_rows(_plans(segment, session), session)
+    return _audit_rows(_simulated_plans(segment, session), session)
 
 
 def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any]]:
-    """Compare planned target P&L with persisted forward simulation fills."""
+    """Compare explicit replay evidence with marked forward simulation P&L."""
     rows: list[dict[str, Any]] = []
     for plan in plans:
         if not plan.simulated_fills:
             continue
-        recommendation = plan.recommendation
-        quantity = float(plan.position_size)
-        entry = float(recommendation.entry_price)
-        direction = -1.0 if recommendation.action == "SELL_SHORT" else 1.0
-        replay_pnl = (float(recommendation.target_price) - entry) * quantity * direction
-        forward_pnl = 0.0
+        validation = getattr(plan, "validation", None)
+        replay_value = (
+            validation.get("replay_pnl")
+            if isinstance(validation, Mapping)
+            else getattr(validation, "replay_pnl", None)
+        )
+        if replay_value is None:
+            continue
+        replay_pnl = float(replay_value)
+        cash = 0.0
+        position = 0.0
+        mark = 0.0
         for fill in plan.simulated_fills:
-            cash_sign = 1.0 if fill.side in ("sell", "sell_short") else -1.0
-            forward_pnl += cash_sign * float(fill.quantity) * float(fill.price) - float(
-                fill.commission
-            )
-        notional = abs(entry * quantity)
+            quantity = float(fill.quantity)
+            mark = float(fill.price)
+            if fill.side in ("sell", "sell_short"):
+                cash += quantity * mark - float(fill.commission)
+                position -= quantity
+            else:
+                cash -= quantity * mark + float(fill.commission)
+                position += quantity
+        forward_pnl = cash + position * mark
+        notional = abs(
+            float(plan.recommendation.entry_price) * float(plan.position_size)
+        )
         deviation_bps = (
             (forward_pnl - replay_pnl) / notional * 10_000 if notional else 0.0
         )
@@ -610,7 +677,7 @@ class SimulateSnapshotAdapter(TechTradeSnapshotAdapter):
         self,
         *,
         segments: Iterable[str] | None = None,
-        plans_fetcher: Callable[[str, date], list[TradePlan]] = _plans,
+        plans_fetcher: Callable[[str, date], list[TradePlan]] = _simulated_plans,
         event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
     ) -> None:
         super().__init__(
@@ -650,7 +717,7 @@ class AuditSnapshotAdapter(TechTradeSnapshotAdapter):
         self,
         *,
         segments: Iterable[str] | None = None,
-        plans_fetcher: Callable[[str, date], list[TradePlan]] = _plans,
+        plans_fetcher: Callable[[str, date], list[TradePlan]] = _simulated_plans,
         event_fetcher: EventFetcher = _PUBLIC_EVENT_RISK,
     ) -> None:
         super().__init__(

@@ -42,12 +42,12 @@ def test_get_job_definitions_returns_post_close_and_prune_jobs() -> None:
     assert "techtrade.eod_snapshots" in registry
 
 
-def test_eod_schedule_is_weekday_1800_new_york(monkeypatch) -> None:
+def test_eod_schedule_is_weekday_post_close_new_york(monkeypatch) -> None:
     monkeypatch.delenv("OPENBB_JOBS_TIMEZONE", raising=False)
     definition = _by_name()["techtrade.eod_snapshots"]
     schedule = definition.schedule
     assert isinstance(schedule, DailySchedule)
-    assert (schedule.hour, schedule.minute) == (18, 0)
+    assert (schedule.hour, schedule.minute) == (18, 5)
     assert schedule.timezone == "America/New_York"
     assert schedule.weekdays == (0, 1, 2, 3, 4)
     assert definition.default_params == {

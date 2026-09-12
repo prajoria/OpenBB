@@ -2333,7 +2333,7 @@ def _read_snapshot_rows(
     segments = (segment,) if segment else tuple(GICS_SECTOR_ETFS)
     rows: list[dict] = []
     snapshots: list[SnapshotRow] = []
-    empty_snapshots: list[SnapshotRow] = []
+    available_snapshots: list[SnapshotRow] = []
     definition = DEFAULT_DATASET_REGISTRY.require(dataset)
     normalized_symbol = symbol.strip().upper()
     keys = [techtrade_entity_key(candidate) for candidate in segments]
@@ -2385,12 +2385,12 @@ def _read_snapshot_rows(
             matched = True
         if not normalized_symbol or matched:
             snapshots.append(snapshot)
-        elif not payload_rows:
-            empty_snapshots.append(snapshot)
-    if normalized_symbol and not snapshots and empty_snapshots:
+        else:
+            available_snapshots.append(snapshot)
+    if normalized_symbol and not snapshots and available_snapshots:
         snapshots.append(
             max(
-                empty_snapshots,
+                available_snapshots,
                 key=lambda snapshot: (
                     snapshot.as_of_session,
                     snapshot.created_at,
@@ -3242,7 +3242,10 @@ def tt_tuning_report(
         )
         rows.extend(segment_rows)
         snapshots.extend(segment_snapshots)
-    meta = _snapshot_meta([*snapshots, *source_snapshots], symbol=sym)
+    meta = _snapshot_meta(snapshots, symbol=sym)
+    source_meta = _snapshot_meta(source_snapshots, symbol=sym)
+    if source_meta.get("earnings_annotation"):
+        meta["earnings_annotation"] = source_meta["earnings_annotation"]
     if not rows:
         rows = (
             _fresh_empty_rows(f"tuning symbol={sym}")

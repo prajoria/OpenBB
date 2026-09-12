@@ -1718,6 +1718,7 @@ def test_protocol_surface_is_the_full_contract() -> None:
         "get_live",
         "get_live_many",
         "list_datasets",
+        "list_entity_keys",
         "list_history",
         "promote",
         "prune",

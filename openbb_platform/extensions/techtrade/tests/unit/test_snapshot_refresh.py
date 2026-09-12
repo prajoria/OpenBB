@@ -288,6 +288,32 @@ def test_retry_cannot_replace_newer_refresh_from_same_session(tmp_path: Path) ->
     store.close()
 
 
+def test_normal_backfill_cannot_replace_newer_live_session(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    adapter = _Adapter()
+    registry = _registry()
+    times = [datetime(2026, 9, 14, 22, tzinfo=timezone.utc)]
+    ids = iter(["newer", "backfill"])
+    orchestrator = SnapshotRefreshOrchestrator(
+        SnapshotStoreRouter(store, None, registry),
+        registry,
+        {DATASET: adapter},
+        clock=lambda: times[0],
+        job_id_factory=lambda: next(ids),
+    )
+    assert orchestrator.run(DATASET).state is SnapshotJobState.SUCCEEDED
+    times[0] = NOW
+
+    with pytest.raises(SnapshotJobTransitionError, match="older"):
+        orchestrator.run(DATASET)
+
+    assert {
+        store.get_live(DATASET, key).job_run_id
+        for key in ("symbol=AAPL", "symbol=MSFT")
+    } == {"newer"}
+    store.close()
+
+
 def test_retry_refuses_prior_payload_without_registered_schema_reader(
     tmp_path: Path,
 ) -> None:

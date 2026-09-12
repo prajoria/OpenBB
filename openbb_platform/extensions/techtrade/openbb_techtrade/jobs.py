@@ -24,6 +24,7 @@ from openbb_techtrade.snapshot.registry import (
     DEFAULT_DATASET_REGISTRY,
     SnapshotStoreRouter,
 )
+from openbb_techtrade.snapshot.semantics import last_completed_session
 from openbb_techtrade.snapshot.store import (
     RetentionPolicy,
     get_default_snapshot_store,
@@ -44,7 +45,11 @@ def _bounded_warnings(messages: list[str]) -> list[str]:
 
 def _default_eod_datasets() -> list[str]:
     """Return workloads supported by the currently installed optional extras."""
-    available = list(TECHTRADE_DATASETS)
+    available = [
+        dataset
+        for dataset in TECHTRADE_DATASETS
+        if dataset not in {"techtrade.movers", "techtrade.scan"}
+    ]
     if find_spec("openbb_backtest") is None:
         available.remove("techtrade.validate")
         available.remove("techtrade.tune")
@@ -165,6 +170,10 @@ def _run_daily_scan(context: JobContext, params: BaseModel) -> JobResult:
         preset=legacy.preset,
     )
     requested_date = date.fromisoformat(legacy.as_of) if legacy.as_of else None
+    if requested_date is not None and requested_date > last_completed_session(
+        datetime.now(timezone.utc)
+    ):
+        raise ValueError("as_of cannot be after the last completed XNYS session")
     requested_now = (
         datetime.combine(requested_date, time(23, 59), tzinfo=timezone.utc)
         if requested_date is not None
@@ -209,7 +218,7 @@ def get_job_definitions() -> list[JobDefinition]:
             default_params={"top_n": 10, "preset": "trend_follow"},
             schedule=DailySchedule(
                 hour=18,
-                minute=5,
+                minute=0,
                 timezone=schedule_timezone,
                 weekdays=_TRADING_WEEKDAYS,
             ),
@@ -223,7 +232,7 @@ def get_job_definitions() -> list[JobDefinition]:
             handler=_run_eod_snapshots,
             schedule=DailySchedule(
                 hour=18,
-                minute=0,
+                minute=5,
                 timezone=schedule_timezone,
                 weekdays=_TRADING_WEEKDAYS,
             ),
