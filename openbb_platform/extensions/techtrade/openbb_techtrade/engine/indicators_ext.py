@@ -38,6 +38,7 @@ Full context:
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from openbb_techtrade.engine.indicators import (
     IndicatorConfig,
@@ -81,7 +82,8 @@ _ICHIMOKU_MIN_BARS: int = 78
 
 def _ichimoku_position_at_row(close: float, isa: float, isb: float) -> float | None:
     """Return +1 if close > max(isa,isb), −1 if close < min(isa,isb),
-    0 if inside the cloud. None on any NaN input."""
+    0 if inside the cloud. None on any NaN input.
+    """
     if not all(_is_finite(v) for v in (close, isa, isb)):
         return None
     top = max(isa, isb)
@@ -93,7 +95,7 @@ def _ichimoku_position_at_row(close: float, isa: float, isb: float) -> float | N
     return 0.0
 
 
-def _is_finite(v: object) -> bool:
+def _is_finite(v: Any) -> bool:
     """NaN/inf-safe finite check for a scalar (int, float, or None)."""
     if v is None:
         return False
@@ -103,8 +105,20 @@ def _is_finite(v: object) -> bool:
         return False
 
 
-def _compute_trend_ext(df: object, config: IndicatorConfig) -> dict[str, float]:
-    """Extended trend family: classic keys PLUS Aroon Up/Down/Osc PLUS Ichimoku Cloud.
+def _ichimoku_current_frame(result: Any) -> Any | None:
+    """Return current Ichimoku values from direct-frame or legacy tuple output."""
+    candidate = result[0] if isinstance(result, tuple) and result else result
+    if (
+        candidate is None
+        or not hasattr(candidate, "columns")
+        or not hasattr(candidate, "iloc")
+    ):
+        return None
+    return candidate
+
+
+def _compute_trend_ext(df: Any, config: IndicatorConfig) -> dict[str, float]:
+    """Compute classic trend keys plus Aroon Up/Down/Osc and Ichimoku Cloud.
 
     bd-luy Step 1 (bd-b6k5) added Aroon. Step 2 (bd-7gwh, this commit)
     adds Ichimoku Cloud with 3-bar-confirmation positional signal.
@@ -186,11 +200,9 @@ def _compute_trend_ext(df: object, config: IndicatorConfig) -> dict[str, float]:
         except (IndexError, ValueError):
             ichimoku_result = None
 
-        # pandas_ta returns a 2-tuple: (current_frame, forward_projection).
-        # We want part 0 (current-bar values) with cols ISA_9, ISB_26.
-        current = None
-        if isinstance(ichimoku_result, tuple) and len(ichimoku_result) >= 1:
-            current = ichimoku_result[0]
+        # pandas-ta-classic returns the current frame directly; older pandas-ta
+        # releases return (current_frame, forward_projection).
+        current = _ichimoku_current_frame(ichimoku_result)
 
         if current is not None and len(current) > 0 and len(df) > 0:
             # Compute confirmed position by scanning the last
@@ -227,7 +239,7 @@ def _compute_trend_ext(df: object, config: IndicatorConfig) -> dict[str, float]:
 
 
 def _ichimoku_confirmed_position(
-    close_series: object, ichimoku_current: object, window: int
+    close_series: Any, ichimoku_current: Any, window: int
 ) -> float | None:
     """Return the confirmed position (in {-1, 0, +1}) if the last `window`
     bars all show the same non-zero sign; else return the LAST bar's raw
@@ -281,7 +293,7 @@ def _ichimoku_confirmed_position(
     tail_isb = ichimoku_current[isb_col].iloc[-window:].tolist()
 
     positions: list[float] = []
-    for c, a, b in zip(tail_close, tail_isa, tail_isb):
+    for c, a, b in zip(tail_close, tail_isa, tail_isb, strict=True):
         pos = (
             _ichimoku_position_at_row(float(c), float(a), float(b))
             if (_is_finite(c) and _is_finite(a) and _is_finite(b))
@@ -300,7 +312,7 @@ def _ichimoku_confirmed_position(
     return 0.0
 
 
-def _first_col_starting_with(frame: object, prefix: str) -> str | None:
+def _first_col_starting_with(frame: Any, prefix: str) -> str | None:
     for col in frame.columns:
         if str(col).startswith(prefix):
             return str(col)

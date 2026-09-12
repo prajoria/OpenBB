@@ -17,9 +17,9 @@ rsi / adx ``scalar=100``), so those are left at their defaults.
 Graceful degradation is the safety net: when ``openbb_technical`` is not
 importable (as in this checkout), or any technical call raises,
 :func:`technical_panel` delegates wholesale to the #72
-:func:`~openbb_techtrade.engine.indicators.build_indicator_panel`, returning a
-panel byte-identical to classic. ``openbb`` is imported lazily inside the function
-body, never at module top level, matching the engine-wide lazy-import convention.
+:func:`~openbb_techtrade.engine.indicators.build_indicator_panel`, preserving the
+requested panel selector. ``openbb`` is imported lazily inside the function body,
+never at module top level, matching the engine-wide lazy-import convention.
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import date, timedelta
+from typing import Any
 
 from openbb_techtrade.engine.indicators import (
     DEFAULT_CONFIG,
@@ -59,7 +60,7 @@ def _obb_technical_available() -> bool:
     bool
         ``True`` when ``openbb_technical`` can be located, else ``False``.
     """
-    import importlib.util
+    import importlib.util  # pylint: disable=import-outside-toplevel
 
     try:
         return importlib.util.find_spec("openbb_technical") is not None
@@ -67,7 +68,7 @@ def _obb_technical_available() -> bool:
         return False
 
 
-def _load_obb() -> object:
+def _load_obb() -> Any:
     """Return the live ``openbb.obb`` application object (the injectable obb seam).
 
     Mirrors the engine-wide DI convention (cf. the ``candidate_fetcher`` /
@@ -81,12 +82,12 @@ def _load_obb() -> object:
     object
         The imported ``openbb.obb`` application object.
     """
-    from openbb import obb
+    from openbb import obb  # pylint: disable=import-outside-toplevel
 
     return obb
 
 
-def _to_data_records(df: object) -> list[dict]:
+def _to_data_records(df: Any) -> list[dict]:
     """Add a synthetic ascending ``date`` column and return ``data=[...]`` rows.
 
     OpenBB ``technical`` commands consume ``data: list[Data]`` and key off an
@@ -111,7 +112,7 @@ def _to_data_records(df: object) -> list[dict]:
     return out.to_dict("records")
 
 
-def _tech_df(result: object) -> object:
+def _tech_df(result: Any) -> Any:
     """Convert a ``technical`` command result (OBBject) to a ``pandas.DataFrame``.
 
     Reads ``result.results`` (a ``list[Data]``), dumps each row to a plain dict,
@@ -128,7 +129,7 @@ def _tech_df(result: object) -> object:
     pandas.DataFrame
         The result rows (original columns plus the appended indicator columns).
     """
-    import pandas as pd
+    import pandas as pd  # pylint: disable=import-outside-toplevel
 
     rows = getattr(result, "results", None) or []
     records = [r.model_dump() if hasattr(r, "model_dump") else dict(r) for r in rows]
@@ -136,7 +137,7 @@ def _tech_df(result: object) -> object:
 
 
 def _compute_technical_trend(
-    obb: object, records: list[dict], config: IndicatorConfig
+    obb: Any, records: list[dict], config: IndicatorConfig
 ) -> dict[str, float]:
     """Compute the trend family from ``obb.technical.*`` with explicit §11 periods.
 
@@ -196,7 +197,7 @@ def _compute_technical_trend(
 
 
 def _compute_technical_momentum(
-    obb: object, records: list[dict], config: IndicatorConfig
+    obb: Any, records: list[dict], config: IndicatorConfig
 ) -> dict[str, float]:
     """Compute the momentum family from ``obb.technical.*`` with explicit §11 periods.
 
@@ -246,7 +247,7 @@ def _compute_technical_momentum(
 
 
 def _compute_technical_volatility(
-    obb: object, records: list[dict], config: IndicatorConfig
+    obb: Any, records: list[dict], config: IndicatorConfig
 ) -> dict[str, float]:
     """Compute the volatility family from ``obb.technical.*`` with explicit §11 periods.
 
@@ -317,7 +318,8 @@ def technical_panel(
     periods), while ``volume`` (``obv_slope`` / ``cmf``) and ``candles`` are filled
     from the #72 classic helpers -- one source per indicator. When ``technical`` is
     absent, or any technical call raises, the whole panel is delegated to the #72
-    :func:`build_indicator_panel`, yielding a result byte-identical to classic.
+    :func:`build_indicator_panel`, preserving ``panel_config``. Classic requests
+    remain byte-identical to classic; extended requests retain their extended keys.
 
     The live ``obb`` object is obtained through the injectable ``obb_loader`` seam
     (default :func:`_load_obb`), mirroring the engine-wide DI convention so unit
@@ -400,7 +402,7 @@ def technical_panel(
     df = ohlcv_to_frame(ohlcv_rows)
 
     try:
-        import pandas_ta_classic  # noqa: F401 - registers the pandas ``.ta`` accessor for volume/candles
+        import pandas_ta_classic  # noqa: F401  # pylint: disable=import-outside-toplevel,unused-import
 
         obb = loader()
         records = _to_data_records(df)
@@ -422,4 +424,10 @@ def technical_panel(
             symbol,
             exc_info=True,
         )
-        return build_indicator_panel(symbol, as_of, ohlcv_rows, config=config)
+        return build_indicator_panel(
+            symbol,
+            as_of,
+            ohlcv_rows,
+            config=config,
+            panel_config=panel_config,
+        )

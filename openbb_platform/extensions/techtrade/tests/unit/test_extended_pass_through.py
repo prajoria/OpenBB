@@ -23,7 +23,6 @@ from datetime import date
 import numpy as np
 import pandas as pd
 import pytest
-
 from openbb_techtrade.engine import confluence, indicators
 from openbb_techtrade.engine.indicators import DEFAULT_CONFIG
 
@@ -453,16 +452,15 @@ class TestTechnicalPanelExtendedFallbackForwarding:
     ignored on the fallback path — a bug that would only surface once
     family PRs land."""
 
-    def test_extended_forwarded_to_fallback(self, ohlcv_df):
+    def test_extended_forwarded_to_fallback(self, ohlcv_df, monkeypatch):
         from openbb_techtrade.engine import indicators_technical
         from openbb_techtrade.engine.panel_config import PANEL_CLASSIC, PANEL_EXTENDED
 
         as_of = date(2024, 5, 20)
         records = _ohlcv_records(ohlcv_df)
-        # obb.technical is not installed in the test env, so both go
-        # through the fallback. They must be byte-identical TODAY (pass-
-        # through stubs) — but the fact that the extended call doesn't
-        # raise proves the kwarg is accepted + forwarded.
+        monkeypatch.setattr(
+            indicators_technical, "_obb_technical_available", lambda: False
+        )
         classic = indicators_technical.technical_panel(
             symbol="TEST", as_of=as_of, ohlcv_rows=records,
             panel_config=PANEL_CLASSIC,
@@ -471,11 +469,46 @@ class TestTechnicalPanelExtendedFallbackForwarding:
             symbol="TEST", as_of=as_of, ohlcv_rows=records,
             panel_config=PANEL_EXTENDED,
         )
-        assert classic == extended, (
-            "Fallback path with pass-through stubs must produce identical "
-            "panels for classic vs extended. When family PRs land, this "
-            "test flips to a subset assertion."
+        assert set(classic.trend).issubset(extended.trend)
+        for key, value in classic.trend.items():
+            assert extended.trend[key] == value
+        assert "aroon_osc" in extended.trend
+        assert classic.momentum == extended.momentum
+        assert classic.volatility == extended.volatility
+        assert classic.volume == extended.volume
+
+    def test_extended_forwarded_after_technical_failure(self, ohlcv_df):
+        """A runtime failure in the technical leg must preserve the selector."""
+        from types import SimpleNamespace
+
+        from openbb_techtrade.engine import indicators_technical
+        from openbb_techtrade.engine.panel_config import PANEL_EXTENDED
+
+        as_of = date(2024, 5, 20)
+        records = _ohlcv_records(ohlcv_df)
+
+        def fail_macd(**_kwargs):
+            raise RuntimeError("synthetic technical failure")
+
+        def loader():
+            return SimpleNamespace(technical=SimpleNamespace(macd=fail_macd))
+
+        expected = indicators.build_indicator_panel(
+            symbol="TEST",
+            as_of=as_of,
+            ohlcv_rows=records,
+            panel_config=PANEL_EXTENDED,
         )
+        actual = indicators_technical.technical_panel(
+            symbol="TEST",
+            as_of=as_of,
+            ohlcv_rows=records,
+            panel_config=PANEL_EXTENDED,
+            obb_loader=loader,
+        )
+
+        assert "aroon_osc" in actual.trend
+        assert actual == expected
 
 
 class TestTechnicalPanelTechLegExtendedWarns:
@@ -514,9 +547,11 @@ class TestTechnicalPanelTechLegExtendedWarns:
     ):
         import logging
         from types import SimpleNamespace
+
         from openbb_techtrade.engine import indicators_technical
         from openbb_techtrade.engine.panel_config import (
-            PANEL_CLASSIC, PANEL_EXTENDED,
+            PANEL_CLASSIC,
+            PANEL_EXTENDED,
         )
 
         as_of = date(2024, 5, 20)

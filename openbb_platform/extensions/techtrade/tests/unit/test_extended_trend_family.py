@@ -10,15 +10,11 @@ Full context:
 
 from __future__ import annotations
 
-from datetime import date
-
 import numpy as np
 import pandas as pd
 import pytest
-
-from openbb_techtrade.engine import indicators, indicators_ext, confluence, confluence_ext
+from openbb_techtrade.engine import confluence, confluence_ext, indicators, indicators_ext
 from openbb_techtrade.engine.indicators import DEFAULT_CONFIG
-
 
 # --------------------------------------------------------------------------- #
 # Fixture helpers
@@ -277,6 +273,26 @@ def _ohlcv_whipsaw(n_flat: int, spike_up_bars: int = 1) -> pd.DataFrame:
     )
     df.columns = [c.lower() for c in df.columns]
     return df
+
+
+class TestIchimokuResultNormalization:
+    """Support current pandas-ta-classic and legacy pandas-ta result shapes."""
+
+    def test_accepts_direct_current_frame(self):
+        """Use a direct current-value frame without discarding it."""
+        current = pd.DataFrame({"ISA_9": [1.0], "ISB_26": [2.0]})
+        assert indicators_ext._ichimoku_current_frame(current) is current
+
+    def test_accepts_legacy_tuple_result(self):
+        """Extract current values from the legacy two-frame tuple."""
+        current = pd.DataFrame({"ISA_9": [1.0], "ISB_26": [2.0]})
+        projection = pd.DataFrame({"ISA_9": [3.0], "ISB_26": [4.0]})
+        assert indicators_ext._ichimoku_current_frame((current, projection)) is current
+
+    @pytest.mark.parametrize("result", [None, ("invalid", object())])
+    def test_rejects_unsupported_result(self, result):
+        """Reject missing and non-frame current values."""
+        assert indicators_ext._ichimoku_current_frame(result) is None
 
 
 class TestIchimokuPanel:
