@@ -26,90 +26,104 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
-# Patch the snapshot store before importing the app so the module-level
-# singleton never touches a real database.
-from openbb_techtrade.snapshots.models import ScanSnapshot  # noqa: E402
+from openbb_techtrade.snapshot.store import (  # noqa: E402
+    SnapshotRow,
+    SnapshotState,
+    SnapshotStatus,
+)
 
-_TECHNOLOGY_SNAPSHOT = ScanSnapshot(
-    kind="daily_scan",
-    segment="Technology",
-    as_of_session=date(2026, 9, 5),
-    computed_at=datetime(2026, 9, 5, 10, 0, 0, tzinfo=timezone.utc),
-    preset="trend_follow",
-    rows=[
+def _snapshot(dataset: str, segment: str, rows: list[dict]) -> SnapshotRow:
+    session = date(2026, 9, 11)
+    return SnapshotRow(
+        dataset=dataset,
+        entity_key=f"segment={segment.casefold()}",
+        as_of_session=session,
+        created_at=datetime(2026, 9, 11, 22, 0, tzinfo=timezone.utc),
+        job_run_id=f"{dataset}-{segment}",
+        status=SnapshotStatus.OK,
+        state=SnapshotState.LIVE,
+        validated=True,
+        payload_schema_version="1",
+        payload={
+            "rows": rows,
+            "segment": segment,
+            "as_of_session": session.isoformat(),
+            "exchange_calendar": "XNYS",
+            "earnings_symbols": [],
+            "excluded_symbols": [],
+            "survivorship": "not-applicable",
+        },
+    )
+
+
+_TECHNOLOGY_MOVERS = _snapshot(
+    "techtrade.movers",
+    "Information Technology",
+    [
         {
             "symbol": "NVDA",
-            "segment": "Technology",
+            "segment": "Information Technology",
+            "pct_change": 4.2,
+        }
+    ],
+)
+_TECHNOLOGY_SCAN = _snapshot(
+    "techtrade.scan",
+    "Information Technology",
+    [
+        {
+            "symbol": "NVDA",
+            "segment": "Information Technology",
             "score": 0.94,
             "direction": "long",
         },
-        {"symbol": "AAPL", "segment": "Technology", "score": 0.82, "direction": "long"},
-    ],
-)
-
-_COMMUNICATION_SNAPSHOT = ScanSnapshot(
-    kind="daily_scan",
-    segment="Communication Services",
-    as_of_session=date(2026, 9, 5),
-    computed_at=datetime(2026, 9, 5, 10, 0, 0, tzinfo=timezone.utc),
-    preset="trend_follow",
-    rows=[
         {
-            "symbol": "META",
-            "segment": "Communication Services",
-            "score": -0.71,
-            "direction": "short",
+            "symbol": "AAPL",
+            "segment": "Information Technology",
+            "score": 0.82,
+            "direction": "long",
         },
     ],
 )
-
-_EMPTY_HEALTH_CARE_SNAPSHOT = ScanSnapshot(
-    kind="daily_scan",
-    segment="Health Care",
-    as_of_session=date(2026, 9, 5),
-    computed_at=datetime(2026, 9, 5, 10, 0, 0, tzinfo=timezone.utc),
-    rows=[],
+_COMMUNICATION_MOVERS = _snapshot(
+    "techtrade.movers",
+    "Communication Services",
+    [
+        {
+            "symbol": "META",
+            "segment": "Communication Services",
+            "pct_change": -3.1,
+        }
+    ],
 )
+_EMPTY_HEALTH_CARE_SCAN = _snapshot("techtrade.scan", "Health Care", [])
 
 
 class _FakeStore:
-    """In-memory fake implementing the ScanSnapshotStore protocol."""
+    """In-memory fake implementing the generic LIVE-read protocol."""
 
-    def __init__(self, snapshots: dict[tuple[str, str], ScanSnapshot] | None = None):
+    def __init__(
+        self, snapshots: dict[tuple[str, str], SnapshotRow] | None = None
+    ):
         self._snapshots = snapshots or {}
 
-    def initialize(self) -> None:
-        pass
-
-    def close(self) -> None:
-        pass
-
-    def write_snapshot(self, snapshot: ScanSnapshot) -> ScanSnapshot:
-        self._snapshots[(snapshot.kind, snapshot.segment)] = snapshot
-        return snapshot
-
-    def read_latest(self, *, kind: str, segment: str) -> ScanSnapshot | None:
-        return self._snapshots.get((kind, segment))
-
-    def read_by_id(self, snapshot_id: str) -> ScanSnapshot | None:
-        for s in self._snapshots.values():
-            if s.snapshot_id == snapshot_id:
-                return s
-        return None
-
-    def list_snapshots(self, *, kind=None, segment=None, limit=None):
-        return list(self._snapshots.values())[:limit]
-
-    def prune_snapshots(self, *, keep: int = 10) -> int:
-        return 0
+    def get_live(self, dataset: str, entity_key: str) -> SnapshotRow | None:
+        return self._snapshots.get((dataset, entity_key))
 
 
 # Build a populated and an empty store for reuse.
 _populated_store = _FakeStore(
     {
-        ("daily_scan", "Technology"): _TECHNOLOGY_SNAPSHOT,
-        ("daily_scan", "Communication Services"): _COMMUNICATION_SNAPSHOT,
-        ("daily_scan", "Health Care"): _EMPTY_HEALTH_CARE_SNAPSHOT,
+        (
+            "techtrade.movers",
+            "segment=information technology",
+        ): _TECHNOLOGY_MOVERS,
+        (
+            "techtrade.movers",
+            "segment=communication services",
+        ): _COMMUNICATION_MOVERS,
+        ("techtrade.scan", "segment=information technology"): _TECHNOLOGY_SCAN,
+        ("techtrade.scan", "segment=health care"): _EMPTY_HEALTH_CARE_SCAN,
     }
 )
 _empty_store = _FakeStore()
@@ -178,7 +192,7 @@ def test_tt_export_button_widget_declared() -> None:
 def test_segment_movers_shape() -> None:
     """Segment movers rows carry segment + change_pct + bucket."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_populated_store,
     ):
         r = _client.get("/tt/scan/segment-movers")
@@ -200,7 +214,7 @@ def test_segment_movers_shape() -> None:
 def test_scan_table_shape() -> None:
     """Scan-table rows carry the persisted symbol, score, and direction fields."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_populated_store,
     ):
         r = _client.get("/tt/scan/table")
@@ -217,24 +231,24 @@ def test_scan_table_shape() -> None:
 
 
 def test_scan_table_accepts_segment_filter() -> None:
-    """/tt/scan/table?segment=Technology filters rows."""
+    """/tt/scan/table?segment=Information Technology filters rows."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_populated_store,
     ):
-        r = _client.get("/tt/scan/table?segment=Technology")
+        r = _client.get("/tt/scan/table?segment=Information%20Technology")
     assert r.status_code == 200
     body = r.json()
     rows = body["rows"]
     assert rows
     for row in rows:
-        assert row.get("segment") == "Technology"
+        assert row.get("segment") == "Information Technology"
 
 
 def test_scan_table_distinguishes_fresh_segment_without_matches() -> None:
     """An empty persisted segment does not claim that no scan has run."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_populated_store,
     ):
         response = _client.get("/tt/scan/table?segment=Health%20Care")
@@ -253,7 +267,7 @@ def test_scan_table_rejects_malformed_segment() -> None:
 def test_export_button_returns_markdown() -> None:
     """Export widget returns a markdown link + guidance."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_populated_store,
     ):
         r = _client.get("/tt/scan/export")
@@ -271,7 +285,7 @@ def test_export_button_returns_markdown() -> None:
 def test_segment_movers_empty_loud() -> None:
     """When no snapshot exists, response rows contain a loud-empty note."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_empty_store,
     ):
         r = _client.get("/tt/scan/segment-movers")
@@ -280,14 +294,14 @@ def test_segment_movers_empty_loud() -> None:
     assert body["computed_at"] is None
     assert body["is_stale"] is True
     assert any(
-        "no scan snapshot" in str(row.get("note", "")).lower() for row in body["rows"]
+        "no eod snapshot" in str(row.get("note", "")).lower() for row in body["rows"]
     )
 
 
 def test_scan_table_empty_loud() -> None:
     """When no snapshot exists, response rows contain a loud-empty note."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_empty_store,
     ):
         r = _client.get("/tt/scan/table")
@@ -296,20 +310,20 @@ def test_scan_table_empty_loud() -> None:
     assert body["computed_at"] is None
     assert body["is_stale"] is True
     assert any(
-        "no scan snapshot" in str(row.get("note", "")).lower() for row in body["rows"]
+        "no eod snapshot" in str(row.get("note", "")).lower() for row in body["rows"]
     )
 
 
 def test_export_empty_loud() -> None:
     """When no snapshot exists, export returns guidance markdown."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_empty_store,
     ):
         r = _client.get("/tt/scan/export")
     assert r.status_code == 200
     body = r.json()
-    assert "no scan snapshot" in body.lower()
+    assert "no eod snapshot" in body.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +334,7 @@ def test_export_empty_loud() -> None:
 def test_computed_at_and_as_of_session_present() -> None:
     """All scan endpoints expose computed_at + as_of_session + is_stale."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_populated_store,
     ):
         for path in ("/tt/scan/segment-movers", "/tt/scan/table"):
@@ -340,7 +354,7 @@ def test_trigger_returns_202_and_does_not_execute() -> None:
     """POST /tt/scan/trigger enqueues a job but never calls scan_segments."""
     mock_run = MagicMock()
     mock_run.run_id = "test-run-id"
-    mock_run.job_name = "techtrade.daily_scan"
+    mock_run.job_name = "techtrade.eod_snapshots"
 
     mock_service = MagicMock()
     mock_service.enqueue.return_value = mock_run
@@ -363,7 +377,10 @@ def test_trigger_returns_202_and_does_not_execute() -> None:
     assert body["status"] == "accepted"
     assert body["run_id"] == "test-run-id"
     # Confirm enqueue was called, not any handler.
-    mock_service.enqueue.assert_called_once_with("techtrade.daily_scan", {})
+    mock_service.enqueue.assert_called_once_with(
+        "techtrade.eod_snapshots",
+        {"datasets": ["techtrade.movers", "techtrade.scan"]},
+    )
 
 
 def test_trigger_requires_auth() -> None:
@@ -382,7 +399,7 @@ _LATENCY_THRESHOLD_S = 0.5
 def test_populated_endpoint_latency() -> None:
     """Populated scan table and segment-movers respond in < 500 ms."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_populated_store,
     ):
         for path in ("/tt/scan/segment-movers", "/tt/scan/table"):
@@ -398,7 +415,7 @@ def test_populated_endpoint_latency() -> None:
 def test_empty_endpoint_latency() -> None:
     """Empty scan table and segment-movers respond in < 500 ms."""
     with patch(
-        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_scan_store",
+        "openbb_portfolio_intel.widget_backend.widgets_endpoints._get_snapshot_store",
         return_value=_empty_store,
     ):
         for path in ("/tt/scan/segment-movers", "/tt/scan/table"):
