@@ -44,19 +44,20 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("PI_ALLOW_T5_EXECUTE", raising=False)
     monkeypatch.delenv("PI_ALLOW_T5_LIVE", raising=False)
     monkeypatch.delenv("PI_T5_LIVE_ACCOUNT_ID", raising=False)
-    monkeypatch.delenv("PI_T5_LIVE_PRINCIPAL", raising=False)
-    monkeypatch.delenv("PI_T5_LIVE_ROLES", raising=False)
-    monkeypatch.delenv("PI_T5_LIVE_ACCOUNTS", raising=False)
     if hasattr(app.state, "t5_live_broker_client"):
         del app.state.t5_live_broker_client
     if hasattr(app.state, "t5_plan_approval_builder"):
         del app.state.t5_plan_approval_builder
+    if hasattr(app.state, "t5_execution_principal_resolver"):
+        del app.state.t5_execution_principal_resolver
 
 
 def _authorize_live(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PI_T5_LIVE_PRINCIPAL", "alice")
-    monkeypatch.setenv("PI_T5_LIVE_ROLES", "live-trader")
-    monkeypatch.setenv("PI_T5_LIVE_ACCOUNTS", "fake-live")
+    app.state.t5_execution_principal_resolver = lambda _request: {
+        "principal_id": "alice",
+        "roles": {"live-trader"},
+        "account_ids": {"fake-live"},
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -266,9 +267,11 @@ class TestBrokerExecutionGateway:
         monkeypatch.setenv("PI_ALLOW_T5_LIVE", "true")
         monkeypatch.setenv("PI_T5_BROKER_MODE", "live")
         monkeypatch.setenv("PI_T5_LIVE_ACCOUNT_ID", "fake-live")
-        monkeypatch.setenv("PI_T5_LIVE_PRINCIPAL", "alice")
-        monkeypatch.setenv("PI_T5_LIVE_ROLES", roles)
-        monkeypatch.setenv("PI_T5_LIVE_ACCOUNTS", accounts)
+        app.state.t5_execution_principal_resolver = lambda _request: {
+            "principal_id": "alice",
+            "roles": set(roles.split(",")),
+            "account_ids": set(accounts.split(",")),
+        }
         fake = _WidgetFakeLiveClient()
         app.state.t5_live_broker_client = fake
         batch = _build_t5_demo_batch("")

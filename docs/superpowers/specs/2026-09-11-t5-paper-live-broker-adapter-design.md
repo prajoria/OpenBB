@@ -51,8 +51,8 @@ The existing T5 stack is a partial execution path:
   configured scope before every submit/cancel. Client order UUIDs are passed
   to the client as idempotency keys.
 - `SqliteExecutionAuditStore` is a local durable journal with submission,
-  per-order, and append-only event rows. A unique `(mode, account,
-  batch_sha256)` key prevents a second execution of the same batch.
+  per-order, and append-only event rows. Its scoped uniqueness key prevents a
+  second execution of the same approved batch.
 
 The live client boundary is intentionally vendor-neutral. Alpaca, IBKR, or a
 safe fake can implement the same methods without changing the gateway.
@@ -86,10 +86,10 @@ Live mode additionally requires:
 5. confirmation containing the mode, broker, account, principal, approval ID,
    and batch SHA.
 
-The principal is supplied by a trusted application resolver or server-owned
-`PI_T5_LIVE_PRINCIPAL`, `PI_T5_LIVE_ROLES`, and `PI_T5_LIVE_ACCOUNTS`
-configuration, never by a caller-controlled identity header. Approval,
-submission, cancellation, and audit lookup all bind to that principal.
+The principal is supplied only by a trusted application resolver and never by
+caller-controlled headers or process-wide fallback identity. Live operations
+fail closed when no resolver is installed. Approval, submission, cancellation,
+and audit lookup all bind to that principal.
 
 Paper remains the default. There is no fallback from live to paper: a missing
 client, gate, account, or confirmation fails closed.

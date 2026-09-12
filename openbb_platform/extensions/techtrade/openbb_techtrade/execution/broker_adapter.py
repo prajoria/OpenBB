@@ -227,14 +227,13 @@ class SqliteExecutionAuditStore:
                 "FROM pi_execution_approval WHERE plan_id = ?",
                 (batch.plan_id,),
             ).fetchone()
-            actual_binding = tuple(stored)
+            actual_binding = tuple(stored)[:-1]
             expected_binding = (
                 principal_id,
                 broker_id,
                 account_id,
                 request_sha256,
                 expected_sha,
-                expected_json,
             )
             if actual_binding != expected_binding:
                 raise ExecutionGateError(

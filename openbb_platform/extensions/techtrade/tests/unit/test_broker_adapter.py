@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 import sqlite3
@@ -401,6 +402,42 @@ class TestExecutionGateway:
             store.close()
 
         assert sorted(outcomes) == ["registered", "rejected"]
+
+    def test_identical_approval_retry_ignores_generated_at(
+        self, audit: SqliteExecutionAuditStore
+    ) -> None:
+        first = _batch("MSFT")
+        second = OrderBatch(
+            tickets=first.tickets,
+            plan_id=first.plan_id,
+            verdict_gate_pass=True,
+            generated_at=datetime(2027, 1, 1, tzinfo=timezone.utc),
+        )
+
+        audit.register_approved_batch(
+            first,
+            principal_id="alice",
+            broker_id="fake-broker",
+            account_id="fake-live",
+            request_sha256="a" * 64,
+        )
+        audit.register_approved_batch(
+            second,
+            principal_id="alice",
+            broker_id="fake-broker",
+            account_id="fake-live",
+            request_sha256="a" * 64,
+        )
+
+        restored = audit.get_approved_batch(
+            first.plan_id,
+            principal_id="alice",
+            broker_id="fake-broker",
+            account_id="fake-live",
+            request_sha256="a" * 64,
+        )
+        assert restored is not None
+        assert restored.generated_at == first.generated_at
 
     def test_submission_requires_all_gates(
         self, audit: SqliteExecutionAuditStore

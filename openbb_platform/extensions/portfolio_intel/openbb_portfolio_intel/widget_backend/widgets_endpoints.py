@@ -3601,13 +3601,16 @@ async def tt_execute_approve_plan(
             pre_execution_positions=built.pre_execution_positions,
             plan_context=built.plan_context,
         )
-        register_t5_approved_batch(
-            batch,
-            principal_id=principal_id,
-            broker_id=broker_id,
-            account_id=account_id,
-            request_sha256=request_sha256,
-        )
+        try:
+            register_t5_approved_batch(
+                batch,
+                principal_id=principal_id,
+                broker_id=broker_id,
+                account_id=account_id,
+                request_sha256=request_sha256,
+            )
+        except ExecutionGateError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {
         "plan_id": batch.plan_id,
         "batch_sha": batch.sha256(),

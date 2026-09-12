@@ -98,32 +98,19 @@ def require_live_trading_principal(
     """Resolve a server-trusted principal and authorize a live account."""
     require_auth(request)
     resolver = getattr(request.app.state, "t5_execution_principal_resolver", None)
-    if resolver is not None:
-        raw = resolver(request)
-        if isinstance(raw, TradingPrincipal):
-            principal = raw
-        elif isinstance(raw, Mapping):
-            principal = TradingPrincipal(
-                principal_id=str(raw.get("principal_id", "")),
-                roles=frozenset(raw.get("roles", ())),
-                account_ids=frozenset(raw.get("account_ids", ())),
-            )
-        else:
-            raise HTTPException(status_code=403, detail="live principal unavailable")
-    else:
+    if resolver is None:
+        raise HTTPException(status_code=403, detail="live principal unavailable")
+    raw = resolver(request)
+    if isinstance(raw, TradingPrincipal):
+        principal = raw
+    elif isinstance(raw, Mapping):
         principal = TradingPrincipal(
-            principal_id=os.environ.get("PI_T5_LIVE_PRINCIPAL", "").strip(),
-            roles=frozenset(
-                value.strip()
-                for value in os.environ.get("PI_T5_LIVE_ROLES", "").split(",")
-                if value.strip()
-            ),
-            account_ids=frozenset(
-                value.strip()
-                for value in os.environ.get("PI_T5_LIVE_ACCOUNTS", "").split(",")
-                if value.strip()
-            ),
+            principal_id=str(raw.get("principal_id", "")),
+            roles=frozenset(raw.get("roles", ())),
+            account_ids=frozenset(raw.get("account_ids", ())),
         )
+    else:
+        raise HTTPException(status_code=403, detail="live principal unavailable")
     if not _ACCOUNT_ID_RE.fullmatch(principal.principal_id):
         raise HTTPException(status_code=403, detail="live principal unavailable")
     if _LIVE_TRADER_ROLE not in principal.roles:
