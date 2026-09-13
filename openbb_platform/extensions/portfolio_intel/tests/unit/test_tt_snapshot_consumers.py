@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 import time
 from datetime import date
@@ -147,8 +148,10 @@ def test_all_snapshot_widgets_render_seeded_content_without_compute(
     tmp_path: Path, monkeypatch
 ) -> None:
     store = _seeded_store(tmp_path)
+    movers_module = importlib.import_module("openbb_techtrade.engine.movers")
     monkeypatch.setattr(
-        "openbb_techtrade.engine.movers.list_movers",
+        movers_module,
+        "list_movers",
         lambda **_kwargs: (_ for _ in ()).throw(AssertionError("compute called")),
     )
     endpoints = (
