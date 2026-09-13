@@ -42,7 +42,7 @@ class EodDisplay:
     missed_sessions: int | None
     color: StalenessColor
     label: str
-    calendar_name: str
+    calendar_name: str = DEFAULT_CALENDAR
     disclaimer: str = EOD_DISCLAIMER
     earnings_annotation: str | None = None
 

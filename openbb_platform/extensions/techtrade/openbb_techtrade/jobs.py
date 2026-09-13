@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, timezone
 from importlib.util import find_spec
 from typing import Any, cast
 
@@ -107,23 +107,13 @@ def _execute_datasets(
     datasets_to_run: list[str],
     adapters: dict[str, Any],
     *,
-    now: datetime | None = None,
+    as_of_session: date | None = None,
 ) -> JobResult:
     store = get_default_snapshot_store()
-    router = SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY)
-    orchestrator = (
-        SnapshotRefreshOrchestrator(
-            router,
-            DEFAULT_DATASET_REGISTRY,
-            adapters,
-            clock=lambda: now,
-        )
-        if now is not None
-        else SnapshotRefreshOrchestrator(
-            router,
-            DEFAULT_DATASET_REGISTRY,
-            adapters,
-        )
+    orchestrator = SnapshotRefreshOrchestrator(
+        SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY),
+        DEFAULT_DATASET_REGISTRY,
+        adapters,
     )
     datasets: dict[str, dict[str, Any]] = {}
     warnings: list[str] = []
@@ -131,7 +121,7 @@ def _execute_datasets(
     try:
         for name in datasets_to_run:
             try:
-                job = orchestrator.run(name)
+                job = orchestrator.run(name, as_of_session=as_of_session)
             except Exception as exc:  # noqa: BLE001 - continue independent datasets
                 datasets[name] = {"state": "failed", "n_ok": 0, "n_failed": 1}
                 warnings.append(f"{name}: {type(exc).__name__}")
@@ -175,15 +165,10 @@ def _run_daily_scan(context: JobContext, params: BaseModel) -> JobResult:
         datetime.now(timezone.utc)
     ):
         raise ValueError("as_of cannot be after the last completed XNYS session")
-    requested_now = (
-        datetime.combine(requested_date, time(23, 59), tzinfo=timezone.utc)
-        if requested_date is not None
-        else None
-    )
     return _execute_datasets(
         ["techtrade.movers", "techtrade.scan"],
         adapters,
-        now=requested_now,
+        as_of_session=requested_date,
     )
 
 

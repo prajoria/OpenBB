@@ -104,7 +104,13 @@ class SnapshotRefreshOrchestrator:
         self._clock = clock
         self._job_id_factory = job_id_factory
 
-    def run(self, dataset: str, *, retry_job_run_id: str | None = None) -> SnapshotJob:
+    def run(
+        self,
+        dataset: str,
+        *,
+        retry_job_run_id: str | None = None,
+        as_of_session: date | None = None,
+    ) -> SnapshotJob:
         """Refresh a full dataset or only one prior run's failed keys."""
         definition = self._registry.require(dataset)
         adapter = self._adapters.get(definition.name)
@@ -116,9 +122,8 @@ class SnapshotRefreshOrchestrator:
         store.start_job(definition.name, job_run_id, started_at=now)
         completed = False
         try:
-            as_of_session = last_completed_session(
-                now,
-                getattr(adapter, "calendar_name", "XNYS"),
+            target_session = as_of_session or last_completed_session(
+                now, getattr(adapter, "calendar_name", "XNYS")
             )
             successes: list[tuple[str, str, date, str]] = []
             baselines: dict[tuple[str, str], SnapshotRow | None] = {}
@@ -135,7 +140,7 @@ class SnapshotRefreshOrchestrator:
                     not in (SnapshotJobState.PARTIAL, SnapshotJobState.FAILED)
                 ):
                     raise ValueError("retry source is not a job for this dataset")
-                as_of_session = last_completed_session(
+                target_session = last_completed_session(
                     prior.started_at,
                     getattr(adapter, "calendar_name", "XNYS"),
                 )
@@ -155,7 +160,7 @@ class SnapshotRefreshOrchestrator:
                 sessions = {row.as_of_session for row in prior_rows}
                 if len(sessions) > 1:
                     raise ValueError("retry source contains multiple session dates")
-                if sessions and sessions != {as_of_session}:
+                if sessions and sessions != {target_session}:
                     raise ValueError("retry source session lineage is inconsistent")
                 for row in prior_rows:
                     definition.read(row.payload, row.payload_schema_version)
@@ -164,7 +169,7 @@ class SnapshotRefreshOrchestrator:
                     store.stage(
                         definition.name,
                         row.entity_key,
-                        as_of_session,
+                        target_session,
                         job_run_id,
                         row.payload,
                         status=SnapshotStatus.OK,
@@ -176,7 +181,7 @@ class SnapshotRefreshOrchestrator:
                     verdict = store.validate(
                         definition.name,
                         row.entity_key,
-                        as_of_session,
+                        target_session,
                         job_run_id,
                     )
                     if not verdict.ok:
@@ -185,7 +190,7 @@ class SnapshotRefreshOrchestrator:
                         (
                             definition.name,
                             row.entity_key,
-                            as_of_session,
+                            target_session,
                             job_run_id,
                         )
                     )
@@ -196,7 +201,7 @@ class SnapshotRefreshOrchestrator:
                 baseline_key = (definition.name, canonical_entity)
                 baselines[baseline_key] = store.get_live(*baseline_key)
                 try:
-                    computed = adapter.compute(raw_key, as_of_session)
+                    computed = adapter.compute(raw_key, target_session)
                     definition.read(computed.payload, computed.payload_schema_version)
                     input_hash = snapshot_input_hash(
                         computed.inputs, computed.engine_version
@@ -207,7 +212,7 @@ class SnapshotRefreshOrchestrator:
                 store.stage(
                     definition.name,
                     raw_key,
-                    as_of_session,
+                    target_session,
                     job_run_id,
                     computed.payload,
                     status=SnapshotStatus.OK,
@@ -220,7 +225,7 @@ class SnapshotRefreshOrchestrator:
                 verdict = store.validate(
                     definition.name,
                     raw_key,
-                    as_of_session,
+                    target_session,
                     job_run_id,
                     (
                         None
@@ -239,7 +244,7 @@ class SnapshotRefreshOrchestrator:
                     (
                         definition.name,
                         canonical_entity,
-                        as_of_session,
+                        target_session,
                         job_run_id,
                     )
                 )

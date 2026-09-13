@@ -104,10 +104,10 @@ def test_legacy_daily_scan_forwards_all_supported_parameters(monkeypatch) -> Non
         captured["adapter_kwargs"] = kwargs
         return {"techtrade.movers": object(), "techtrade.scan": object()}
 
-    def execute(datasets, selected_adapters, *, now=None):
+    def execute(datasets, selected_adapters, *, as_of_session=None):
         captured["datasets"] = datasets
         captured["adapters"] = selected_adapters
-        captured["now"] = now
+        captured["as_of_session"] = as_of_session
         return JobResult(summary={"datasets": {}}, warnings=[])
 
     monkeypatch.setattr(jobs_module, "get_snapshot_adapters", adapters)
@@ -130,7 +130,7 @@ def test_legacy_daily_scan_forwards_all_supported_parameters(monkeypatch) -> Non
         "scan_top_n": 5,
         "preset": "breakout",
     }
-    assert captured["now"].date() == date(2026, 9, 11)
+    assert captured["as_of_session"] == date(2026, 9, 11)
 
 
 def test_legacy_daily_scan_rejects_future_as_of() -> None:
