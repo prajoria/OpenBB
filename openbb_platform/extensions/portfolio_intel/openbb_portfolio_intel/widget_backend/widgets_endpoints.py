@@ -24,10 +24,10 @@ import logging
 import math
 import os
 import re
+import threading
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
-from functools import lru_cache
 
 from fastapi import HTTPException, Query, Request
 from openbb_core.api.dependency.jobs import get_job_service
@@ -41,6 +41,7 @@ from openbb_techtrade.snapshot.semantics import build_eod_display
 from openbb_techtrade.snapshot.store import (
     SnapshotRow,
     SnapshotStore,
+    SqliteSnapshotStore,
     get_default_snapshot_store,
 )
 
@@ -2316,10 +2317,27 @@ def equity_peer_multiples(
 # ``scan_segments()`` or any other computation directly.
 
 
-@lru_cache(maxsize=1)
+_SNAPSHOT_STORE_CACHE: tuple[SnapshotStore, float] | None = None
+_SNAPSHOT_STORE_LOCK = threading.Lock()
+_SQLITE_FALLBACK_RETRY_SECONDS = 30.0
+
+
 def _get_snapshot_store() -> SnapshotStore:
-    """Return the module-level canonical EOD snapshot store."""
-    return get_default_snapshot_store(allow_fallback=False)
+    """Cache the canonical store, but retry a fallback backend periodically."""
+    global _SNAPSHOT_STORE_CACHE  # noqa: PLW0603
+    now = time.monotonic()
+    with _SNAPSHOT_STORE_LOCK:
+        cached = _SNAPSHOT_STORE_CACHE
+        if cached is not None and now < cached[1]:
+            return cached[0]
+        store = get_default_snapshot_store()
+        expires = (
+            now + _SQLITE_FALLBACK_RETRY_SECONDS
+            if isinstance(store, SqliteSnapshotStore)
+            else float("inf")
+        )
+        _SNAPSHOT_STORE_CACHE = (store, expires)
+        return store
 
 
 def _read_snapshot_rows(

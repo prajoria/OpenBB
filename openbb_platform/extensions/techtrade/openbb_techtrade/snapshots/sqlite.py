@@ -333,12 +333,9 @@ class SqliteScanSnapshotStore:
             )
             if not verdict.ok:
                 raise ValueError(f"snapshot validation failed: {verdict.reason}")
-            if (
-                previous is not None
-                and (
-                    snapshot.as_of_session < previous.as_of_session
-                    or snapshot.computed_at < _to_snapshot(previous).computed_at
-                )
+            if previous is not None and (
+                snapshot.as_of_session < previous.as_of_session
+                or snapshot.computed_at < _to_snapshot(previous).computed_at
             ):
                 self._store.archive_job(
                     job_run_id,
