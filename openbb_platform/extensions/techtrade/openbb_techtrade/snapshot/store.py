@@ -3094,6 +3094,61 @@ class SqliteSnapshotStore:
             raise SnapshotJobTransitionError("published job could not be read back")
         return published
 
+    def archive_job(
+        self,
+        job_run_id: str,
+        candidate: tuple[str, str, date, str],
+        *,
+        finished_at: datetime | None = None,
+    ) -> SnapshotJob:
+        """Atomically archive one validated row and finish its active job."""
+        dataset, entity_key, session, candidate_run = candidate
+        dataset = canonical_key(dataset)
+        entity_key = canonical_key(entity_key)
+        if candidate_run != job_run_id:
+            raise SnapshotJobTransitionError(
+                "snapshot candidate does not belong to the active job lease"
+            )
+        finished = utc_datetime(finished_at)
+        with self._tx(immediate=True):
+            archived = self._conn.execute(
+                "UPDATE pi_eod_snapshot SET state = ? "
+                "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
+                "AND job_run_id = ? AND state = ? AND validated = 1 AND status = ?",
+                (
+                    SnapshotState.SUPERSEDED.value,
+                    dataset,
+                    entity_key,
+                    session.isoformat(),
+                    job_run_id,
+                    SnapshotState.STAGING.value,
+                    SnapshotStatus.OK.value,
+                ),
+            ).rowcount
+            if archived != 1:
+                raise SnapshotJobTransitionError(
+                    "archive candidate is not validated staging data"
+                )
+            changed = self._conn.execute(
+                "UPDATE snapshot_job SET finished_at = ?, state = ?, "
+                "n_ok = 1, n_failed = 0, error = NULL "
+                "WHERE job_run_id = ? AND state = ?",
+                (
+                    _iso_utc(finished),
+                    SnapshotJobState.SUCCEEDED.value,
+                    job_run_id,
+                    SnapshotJobState.RUNNING.value,
+                ),
+            ).rowcount
+            if changed != 1:
+                raise SnapshotJobTransitionError(
+                    "snapshot job lease changed during archive"
+                )
+        archived_job = self.get_job(job_run_id)
+        if archived_job is None:  # pragma: no cover
+            raise SnapshotJobTransitionError("archived job could not be read back")
+        return archived_job
+
     def _promote_locked(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         dataset: str,

@@ -103,6 +103,16 @@ class SnapshotJobStore(Protocol):
         """Atomically verify the lease, promote all rows, and finish the job."""
         ...
 
+    def archive_job(
+        self,
+        job_run_id: str,
+        candidate: tuple[str, str, date, str],
+        *,
+        finished_at: datetime | None = None,
+    ) -> SnapshotJob:
+        """Atomically archive one validated row and finish its job."""
+        ...
+
 
 def utc_datetime(value: datetime | None = None) -> datetime:
     """Normalize an aware instant to UTC, defaulting to now."""

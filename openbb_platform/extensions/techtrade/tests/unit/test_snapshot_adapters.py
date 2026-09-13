@@ -462,9 +462,7 @@ def test_simulation_adapter_materializes_actual_fill_pnl() -> None:
     ]
     adapter = SimulateSnapshotAdapter(
         segments=[TECH],
-        plans_fetcher=lambda _segment, _session: [
-            _plan_stub(simulated_fills=fills)
-        ],
+        plans_fetcher=lambda _segment, _session: [_plan_stub(simulated_fills=fills)],
         event_fetcher=lambda _session, _symbols: [],
     )
 

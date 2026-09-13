@@ -339,6 +339,30 @@ def test_retry_uses_the_adapter_exchange_calendar(tmp_path: Path) -> None:
     store.close()
 
 
+def test_all_failed_backfill_retry_requires_and_reuses_original_session(
+    tmp_path: Path,
+) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    adapter = _Adapter()
+    adapter.fail = {"symbol=aapl", "symbol=msft"}
+    orchestrator = _orchestrator(store, adapter, ["failed", "bad-retry", "retry"])
+    target = date(2026, 9, 9)
+    failed = orchestrator.run(DATASET, as_of_session=target)
+    adapter.fail.clear()
+
+    with pytest.raises(ValueError, match="requires the original as_of_session"):
+        orchestrator.run(DATASET, retry_job_run_id=failed.job_run_id)
+    retried = orchestrator.run(
+        DATASET,
+        retry_job_run_id=failed.job_run_id,
+        as_of_session=target,
+    )
+
+    assert retried.state is SnapshotJobState.SUCCEEDED
+    assert store.get_live(DATASET, "symbol=AAPL").as_of_session == target
+    store.close()
+
+
 def test_retry_refuses_prior_payload_without_registered_schema_reader(
     tmp_path: Path,
 ) -> None:

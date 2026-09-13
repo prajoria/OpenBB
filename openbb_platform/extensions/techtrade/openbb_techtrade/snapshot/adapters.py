@@ -465,7 +465,7 @@ def _simulated_plans(segment: str, session: date) -> list[TradePlan]:
         required_bars = plan.recommendation.time_stop_bars or 1
         if len(bars) < required_bars or not plan.orders:
             continue
-        fills = simulate(plan.orders, bars)
+        fills = simulate(plan.orders, bars[:required_bars])
         if fills:
             simulated.append(plan.model_copy(update={"simulated_fills": fills}))
     return simulated

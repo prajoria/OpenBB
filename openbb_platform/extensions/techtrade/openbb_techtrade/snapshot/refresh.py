@@ -140,10 +140,6 @@ class SnapshotRefreshOrchestrator:
                     not in (SnapshotJobState.PARTIAL, SnapshotJobState.FAILED)
                 ):
                     raise ValueError("retry source is not a job for this dataset")
-                target_session = last_completed_session(
-                    prior.started_at,
-                    getattr(adapter, "calendar_name", "XNYS"),
-                )
                 keys = store.retry_entity_keys(retry_job_run_id)
                 if not keys:
                     raise ValueError("retry source has no failed entity keys")
@@ -160,6 +156,15 @@ class SnapshotRefreshOrchestrator:
                 sessions = {row.as_of_session for row in prior_rows}
                 if len(sessions) > 1:
                     raise ValueError("retry source contains multiple session dates")
+                if sessions:
+                    original_session = next(iter(sessions))
+                    if as_of_session is not None and as_of_session != original_session:
+                        raise ValueError("retry source session lineage is inconsistent")
+                    target_session = original_session
+                elif as_of_session is None:
+                    raise ValueError(
+                        "all-failed retry requires the original as_of_session"
+                    )
                 if sessions and sessions != {target_session}:
                     raise ValueError("retry source session lineage is inconsistent")
                 for row in prior_rows:
@@ -313,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--retry-job-run-id")
+    parser.add_argument("--as-of-session", type=date.fromisoformat)
     args = parser.parse_args(argv)
     adapters = _load_adapters()
     if args.dataset not in adapters:
@@ -325,7 +331,11 @@ def main(argv: list[str] | None = None) -> int:
             DEFAULT_DATASET_REGISTRY,
             adapters,
         )
-        job = orchestrator.run(args.dataset, retry_job_run_id=args.retry_job_run_id)
+        job = orchestrator.run(
+            args.dataset,
+            retry_job_run_id=args.retry_job_run_id,
+            as_of_session=args.as_of_session,
+        )
     finally:
         store.close()
     if job.state == SnapshotJobState.SUCCEEDED:

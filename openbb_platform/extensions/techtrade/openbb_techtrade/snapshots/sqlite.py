@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 from datetime import date, datetime
@@ -20,6 +21,7 @@ from openbb_techtrade.snapshot.store import (
     SqliteSnapshotStore,
     _row_from_mapping,
     canonical_key,
+    default_validator,
     get_default_snapshot_store,
     snapshot_input_hash,
 )
@@ -27,6 +29,7 @@ from openbb_techtrade.snapshots.models import DEFAULT_SCAN_KIND, ScanSnapshot
 
 SCAN_DB_ENV = "OPENBB_TECHTRADE_SCAN_DB"
 _DATASET_PREFIX = "techtrade.scan"
+logger = logging.getLogger(__name__)
 
 
 def default_scan_db_path() -> Path:
@@ -169,18 +172,25 @@ class SqliteScanSnapshotStore:
         for row in rows:
             if self.read_by_id(str(row[0])) is not None:
                 continue
-            self.write_snapshot(
-                ScanSnapshot(
-                    snapshot_id=str(row[0]),
-                    kind=str(row[1]),
-                    segment=str(row[2]),
-                    as_of_session=date.fromisoformat(str(row[3])),
-                    computed_at=datetime.fromisoformat(str(row[4])),
-                    preset=row[5],
-                    params=json.loads(row[6]),
-                    rows=json.loads(row[7]),
+            try:
+                self._write_snapshot(
+                    ScanSnapshot(
+                        snapshot_id=str(row[0]),
+                        kind=str(row[1]),
+                        segment=str(row[2]),
+                        as_of_session=date.fromisoformat(str(row[3])),
+                        computed_at=datetime.fromisoformat(str(row[4])),
+                        preset=row[5],
+                        params=json.loads(row[6]),
+                        rows=json.loads(row[7]),
+                    ),
+                    migration=True,
                 )
-            )
+            except Exception as exc:  # noqa: BLE001 - continue independent old rows
+                logger.warning(
+                    "legacy snapshot migration skipped one row (%s)",
+                    type(exc).__name__,
+                )
 
     def close(self) -> None:
         """Close the canonical store connection."""
@@ -188,6 +198,11 @@ class SqliteScanSnapshotStore:
 
     def write_snapshot(self, snapshot: ScanSnapshot) -> ScanSnapshot:
         """Validate and promote one legacy DTO through the canonical lifecycle."""
+        return self._write_snapshot(snapshot, migration=False)
+
+    def _write_snapshot(
+        self, snapshot: ScanSnapshot, *, migration: bool
+    ) -> ScanSnapshot:
         dataset = _dataset(snapshot.kind)
         entity_key = _entity_key(snapshot.segment)
         payload = _payload(snapshot)
@@ -219,7 +234,11 @@ class SqliteScanSnapshotStore:
                 entity_key,
                 snapshot.as_of_session,
                 job_run_id,
-                lambda row: validate_techtrade_snapshot(row, previous),
+                (
+                    default_validator
+                    if migration
+                    else lambda row: validate_techtrade_snapshot(row, previous)
+                ),
             )
             if not verdict.ok:
                 raise ValueError(f"snapshot validation failed: {verdict.reason}")
@@ -227,18 +246,14 @@ class SqliteScanSnapshotStore:
                 previous is not None
                 and snapshot.computed_at < _to_snapshot(previous).computed_at
             ):
-                if not self._store.archive(
-                    dataset,
-                    entity_key,
-                    snapshot.as_of_session,
+                self._store.archive_job(
                     job_run_id,
-                ):
-                    raise RuntimeError("failed to archive older snapshot")
-                self._store.finish_job(
-                    job_run_id,
-                    SnapshotJobState.SUCCEEDED,
-                    n_ok=1,
-                    n_failed=0,
+                    (
+                        dataset,
+                        entity_key,
+                        snapshot.as_of_session,
+                        job_run_id,
+                    ),
                 )
             else:
                 self._store.publish_job(
