@@ -10,6 +10,7 @@ packages = [{ include = "openbb_techtrade" }]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 openbb-core = "^1.6.10"
+openbb-fmp-cached = { path = "../../providers/fmp_cached", develop = true }
 exchange-calendars = "^4.13.2"
 pandas = "*"
 numpy = "*"
