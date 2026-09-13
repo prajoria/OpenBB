@@ -109,7 +109,7 @@ def _execute_datasets(
     *,
     as_of_session: date | None = None,
 ) -> JobResult:
-    store = get_default_snapshot_store()
+    store = get_default_snapshot_store(allow_fallback=False)
     orchestrator = SnapshotRefreshOrchestrator(
         SnapshotStoreRouter(store, None, DEFAULT_DATASET_REGISTRY),
         DEFAULT_DATASET_REGISTRY,
@@ -175,7 +175,7 @@ def _run_daily_scan(context: JobContext, params: BaseModel) -> JobResult:
 def _run_prune_snapshots(context: JobContext, params: BaseModel) -> JobResult:
     del context
     params = cast(PruneSnapshotsParams, params)
-    store = get_default_snapshot_store()
+    store = get_default_snapshot_store(allow_fallback=False)
     try:
         deleted = sum(
             store.prune(

@@ -136,7 +136,7 @@ class SqliteScanSnapshotStore:
         self._store: Any = (
             SqliteSnapshotStore(sqlite_path)
             if sqlite_path is not None
-            else get_default_snapshot_store()
+            else get_default_snapshot_store(allow_fallback=False)
         )
         if isinstance(self._store, SqliteSnapshotStore):
             self._store._conn.execute(  # pylint: disable=protected-access

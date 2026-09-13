@@ -171,7 +171,9 @@ class _FailingAdapter(_Adapter):
 
 def test_eod_handler_runs_generic_orchestrator(monkeypatch, tmp_path: Path) -> None:
     store = SqliteSnapshotStore(tmp_path / "snapshots.db")
-    monkeypatch.setattr(jobs_module, "get_default_snapshot_store", lambda: store)
+    monkeypatch.setattr(
+        jobs_module, "get_default_snapshot_store", lambda **_kwargs: store
+    )
     monkeypatch.setattr(
         jobs_module, "get_snapshot_adapters", lambda: {"techtrade.movers": _Adapter()}
     )
@@ -200,7 +202,9 @@ def test_eod_handler_runs_generic_orchestrator(monkeypatch, tmp_path: Path) -> N
 
 def test_prune_handler_uses_generic_store(monkeypatch, tmp_path: Path) -> None:
     store = SqliteSnapshotStore(tmp_path / "snapshots.db")
-    monkeypatch.setattr(jobs_module, "get_default_snapshot_store", lambda: store)
+    monkeypatch.setattr(
+        jobs_module, "get_default_snapshot_store", lambda **_kwargs: store
+    )
     definition = _by_name()["techtrade.prune_snapshots"]
 
     result = definition.handler(
@@ -223,7 +227,9 @@ def test_prune_handler_scopes_retention_to_techtrade_datasets(monkeypatch) -> No
             return None
 
     store = _Store()
-    monkeypatch.setattr(jobs_module, "get_default_snapshot_store", lambda: store)
+    monkeypatch.setattr(
+        jobs_module, "get_default_snapshot_store", lambda **_kwargs: store
+    )
     definition = _by_name()["techtrade.prune_snapshots"]
 
     result = definition.handler(
@@ -238,7 +244,9 @@ def test_eod_handler_raises_when_every_dataset_fails(
     monkeypatch, tmp_path: Path
 ) -> None:
     store = SqliteSnapshotStore(tmp_path / "snapshots.db")
-    monkeypatch.setattr(jobs_module, "get_default_snapshot_store", lambda: store)
+    monkeypatch.setattr(
+        jobs_module, "get_default_snapshot_store", lambda **_kwargs: store
+    )
     monkeypatch.setattr(
         jobs_module,
         "get_snapshot_adapters",

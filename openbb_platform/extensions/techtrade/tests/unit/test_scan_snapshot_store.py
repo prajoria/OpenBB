@@ -398,7 +398,7 @@ def test_default_facade_uses_configured_canonical_backend(monkeypatch):
     monkeypatch.delenv(SCAN_DB_ENV, raising=False)
     monkeypatch.setattr(
         "openbb_techtrade.snapshots.sqlite.get_default_snapshot_store",
-        lambda: backend,
+        lambda **_kwargs: backend,
     )
 
     store = SqliteScanSnapshotStore()
@@ -432,7 +432,7 @@ def test_default_facade_migrates_existing_legacy_sqlite_history(monkeypatch, tmp
     monkeypatch.delenv(SCAN_DB_ENV, raising=False)
     monkeypatch.setattr(
         "openbb_techtrade.snapshots.sqlite.get_default_snapshot_store",
-        lambda: canonical,
+        lambda **_kwargs: canonical,
     )
     monkeypatch.setattr(
         "openbb_techtrade.snapshots.sqlite.legacy_scan_db_path",

@@ -2319,7 +2319,7 @@ def equity_peer_multiples(
 @lru_cache(maxsize=1)
 def _get_snapshot_store() -> SnapshotStore:
     """Return the module-level canonical EOD snapshot store."""
-    return get_default_snapshot_store()
+    return get_default_snapshot_store(allow_fallback=False)
 
 
 def _read_snapshot_rows(
