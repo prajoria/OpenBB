@@ -2119,7 +2119,7 @@
       },
       {
         "paramName": "segment",
-        "value": "Information Technology",
+        "value": "",
         "label": "Segment",
         "type": "text",
         "description": "Canonical GICS segment"
