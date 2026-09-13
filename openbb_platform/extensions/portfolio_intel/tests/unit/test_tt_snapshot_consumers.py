@@ -78,7 +78,10 @@ def _rows_by_dataset() -> dict[str, list[dict]]:
             {
                 "symbol": "NVDA",
                 "bar_date": SESSION.isoformat(),
-                "event": "replayed",
+                "replay_cagr": 0.10,
+                "replay_sharpe": 1.25,
+                "forward_pnl": 80.0,
+                "forward_return": 0.08,
             }
         ],
     }

@@ -560,17 +560,21 @@ def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any
             if isinstance(validation, Mapping)
             else getattr(validation, "oos_metrics", None)
         )
-        replay_return = (
-            oos_metrics.get("total_return")
+        replay_cagr = (
+            oos_metrics.get("cagr")
             if isinstance(oos_metrics, Mapping)
-            else getattr(oos_metrics, "total_return", None)
+            else getattr(oos_metrics, "cagr", None)
         )
-        if replay_return is None:
+        replay_sharpe = (
+            oos_metrics.get("sharpe")
+            if isinstance(oos_metrics, Mapping)
+            else getattr(oos_metrics, "sharpe", None)
+        )
+        if replay_cagr is None or replay_sharpe is None:
             continue
         notional = abs(
             float(plan.recommendation.entry_price) * float(plan.position_size)
         )
-        replay_pnl = float(replay_return) * notional
         cash = 0.0
         position = 0.0
         mark = 0.0
@@ -584,17 +588,16 @@ def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any
                 cash -= quantity * mark + float(fill.commission)
                 position += quantity
         forward_pnl = cash + position * mark
-        deviation_bps = (
-            (forward_pnl - replay_pnl) / notional * 10_000 if notional else 0.0
-        )
+        forward_return = forward_pnl / notional if notional else 0.0
         rows.append(
             {
                 "symbol": plan.symbol,
                 "segment": plan.segment,
                 "bar_date": session.isoformat(),
-                "replay_pnl": round(replay_pnl, 8),
+                "replay_cagr": round(float(replay_cagr), 8),
+                "replay_sharpe": round(float(replay_sharpe), 8),
                 "forward_pnl": round(forward_pnl, 8),
-                "deviation_bps": round(deviation_bps, 8),
+                "forward_return": round(forward_return, 8),
                 "fill_count": len(plan.simulated_fills),
             }
         )

@@ -463,10 +463,7 @@ def test_simulation_adapter_materializes_actual_fill_pnl() -> None:
     adapter = SimulateSnapshotAdapter(
         segments=[TECH],
         plans_fetcher=lambda _segment, _session: [
-            _plan_stub(
-                simulated_fills=fills,
-                validation={"oos_metrics": {"total_return": 0.10}},
-            )
+            _plan_stub(simulated_fills=fills)
         ],
         event_fetcher=lambda _session, _symbols: [],
     )
@@ -525,7 +522,7 @@ def test_audit_adapter_materializes_replay_forward_contract() -> None:
         plans_fetcher=lambda _segment, _session: [
             _plan_stub(
                 simulated_fills=fills,
-                validation={"oos_metrics": {"total_return": 0.10}},
+                validation={"oos_metrics": {"cagr": 0.10, "sharpe": 1.25}},
             )
         ],
         event_fetcher=lambda _session, _symbols: [],
@@ -535,13 +532,15 @@ def test_audit_adapter_materializes_replay_forward_contract() -> None:
 
     assert {
         "bar_date",
-        "replay_pnl",
+        "replay_cagr",
+        "replay_sharpe",
         "forward_pnl",
-        "deviation_bps",
+        "forward_return",
     } <= row.keys()
-    assert row["replay_pnl"] == 100.0
+    assert row["replay_cagr"] == 0.10
+    assert row["replay_sharpe"] == 1.25
     assert row["forward_pnl"] == 80.0
-    assert row["deviation_bps"] == -200.0
+    assert row["forward_return"] == 0.08
 
 
 def test_audit_adapter_skips_plans_without_forward_fills() -> None:
