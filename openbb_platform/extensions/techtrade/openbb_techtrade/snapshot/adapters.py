@@ -106,34 +106,43 @@ class PublicEventRiskProvider:
         self._earnings_fetcher = earnings_fetcher
         self._delisted_fetcher = delisted_fetcher
         self._halted_fetcher = halted_fetcher
+        self._cached_events: tuple[MarketEvent, ...] | None = None
+
+    def begin_refresh(self, _as_of_session: date) -> None:
+        """Clear the bounded event cache before an orchestrated refresh."""
+        self._cached_events = None
 
     def __call__(self, session: date, symbols: list[str]) -> list[MarketEvent]:
-        """Return freshly fetched public events for the requested symbols."""
-        events: list[MarketEvent] = []
-        for value in self._earnings_fetcher(session):
-            row = _event_row(value)
-            symbol = _event_symbol(row)
-            event_date = row.get("date") or row.get("report_date")
-            if symbol and (
-                event_date is None or date.fromisoformat(str(event_date)) == session
-            ):
-                events.append(MarketEvent(symbol, EventKind.EARNINGS))
-        for value in self._delisted_fetcher(session):
-            row = _event_row(value)
-            symbol = _event_symbol(row)
-            event_date = (
-                row.get("delisted_date") or row.get("delistedDate") or row.get("date")
-            )
-            if symbol and (
-                event_date is None or date.fromisoformat(str(event_date)) <= session
-            ):
-                events.append(MarketEvent(symbol, EventKind.DELISTED))
-        for value in self._halted_fetcher(session):
-            symbol = _event_symbol(_event_row(value))
-            if symbol:
-                events.append(MarketEvent(symbol, EventKind.HALTED))
+        """Return per-refresh cached public events for requested symbols."""
+        if self._cached_events is None:
+            events: list[MarketEvent] = []
+            for value in self._earnings_fetcher(session):
+                row = _event_row(value)
+                symbol = _event_symbol(row)
+                event_date = row.get("date") or row.get("report_date")
+                if symbol and (
+                    event_date is None or date.fromisoformat(str(event_date)) == session
+                ):
+                    events.append(MarketEvent(symbol, EventKind.EARNINGS))
+            for value in self._delisted_fetcher(session):
+                row = _event_row(value)
+                symbol = _event_symbol(row)
+                event_date = (
+                    row.get("delisted_date")
+                    or row.get("delistedDate")
+                    or row.get("date")
+                )
+                if symbol and (
+                    event_date is None or date.fromisoformat(str(event_date)) <= session
+                ):
+                    events.append(MarketEvent(symbol, EventKind.DELISTED))
+            for value in self._halted_fetcher(session):
+                symbol = _event_symbol(_event_row(value))
+                if symbol:
+                    events.append(MarketEvent(symbol, EventKind.HALTED))
+            self._cached_events = tuple(dict.fromkeys(events))
         target = {symbol.strip().upper() for symbol in symbols}
-        return [event for event in dict.fromkeys(events) if event.symbol in target]
+        return [event for event in self._cached_events if event.symbol in target]
 
 
 def _no_events(_session: date, _symbols: list[str]) -> tuple[()]:
@@ -297,6 +306,9 @@ class TechTradeSnapshotAdapter:
 
     def begin_refresh(self, as_of_session: date) -> None:
         """Reset any adapter-local state before one orchestrated run."""
+        reset_events = getattr(self._event_fetcher, "begin_refresh", None)
+        if callable(reset_events):
+            reset_events(as_of_session)  # pylint: disable=not-callable
         if self._refresh_hook is not None:
             self._refresh_hook(as_of_session)
 

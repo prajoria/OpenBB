@@ -360,6 +360,7 @@ def test_public_event_provider_refreshes_sources_on_same_session() -> None:
     assert provider(SESSION, ["NVDA"]) == []
 
     earnings.append({"symbol": "NVDA", "date": SESSION.isoformat()})
+    provider.begin_refresh(SESSION)
 
     assert provider(SESSION, ["NVDA"]) == [MarketEvent("NVDA", EventKind.EARNINGS)]
 
