@@ -124,6 +124,29 @@ def test_out_of_order_write_does_not_move_legacy_live_backward(store):
     assert latest.snapshot_id == newer.snapshot_id
 
 
+def test_older_session_with_later_compute_time_is_archived(store):
+    """Session ordering wins over a later migration timestamp."""
+    newer = _snapshot(
+        computed_at=datetime(2024, 1, 12, 9, 0, tzinfo=UTC),
+        rows=_rows("NEW"),
+    )
+    older = _snapshot(
+        computed_at=datetime(2024, 1, 13, 9, 0, tzinfo=UTC),
+        rows=_rows("OLD"),
+    ).model_copy(update={"as_of_session": date(2024, 1, 11)})
+    store.write_snapshot(newer)
+    store.write_snapshot(older)
+
+    assert (
+        store.read_latest(kind="daily_scan", segment="Energy").snapshot_id
+        == newer.snapshot_id
+    )
+    assert {snapshot.snapshot_id for snapshot in store.list_snapshots()} == {
+        newer.snapshot_id,
+        older.snapshot_id,
+    }
+
+
 def test_read_latest_is_scoped_by_kind_and_segment(store):
     """Latest reads never cross kind or segment boundaries."""
     store.write_snapshot(_snapshot(segment="Energy", rows=_rows("ENE")))
