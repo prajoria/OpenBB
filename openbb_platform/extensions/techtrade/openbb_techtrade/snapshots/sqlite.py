@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sqlite3
+import uuid
 from datetime import date, datetime
 from hashlib import sha256
 from pathlib import Path
@@ -199,6 +200,75 @@ class SqliteScanSnapshotStore:
     def write_snapshot(self, snapshot: ScanSnapshot) -> ScanSnapshot:
         """Validate and promote one legacy DTO through the canonical lifecycle."""
         return self._write_snapshot(snapshot, migration=False)
+
+    def write_snapshots(self, snapshots: list[ScanSnapshot]) -> list[ScanSnapshot]:
+        """Atomically publish a complete same-kind multi-segment scan."""
+        if not snapshots:
+            return []
+        datasets = {_dataset(snapshot.kind) for snapshot in snapshots}
+        if len(datasets) != 1:
+            raise ValueError("batch snapshots must share one kind")
+        dataset = datasets.pop()
+        job_run_id = f"legacy-batch-{uuid.uuid4().hex}"
+        self._store.start_job(dataset, job_run_id)
+        successes: list[tuple[str, str, date, str]] = []
+        baselines: dict[tuple[str, str], SnapshotRow | None] = {}
+        try:
+            for snapshot in snapshots:
+                entity_key = _entity_key(snapshot.segment)
+                payload = _payload(snapshot)
+                baseline_key = (dataset, entity_key)
+                previous = self._store.get_live(*baseline_key)
+                baselines[baseline_key] = previous
+                self._store.stage(
+                    dataset,
+                    entity_key,
+                    snapshot.as_of_session,
+                    job_run_id,
+                    payload,
+                    status=SnapshotStatus.OK,
+                    input_hash=snapshot_input_hash(payload, "legacy-compat-1"),
+                    row_count=snapshot.row_count,
+                    engine_version="legacy-compat-1",
+                    payload_schema_version="1",
+                )
+                verdict = self._store.validate(
+                    dataset,
+                    entity_key,
+                    snapshot.as_of_session,
+                    job_run_id,
+                    lambda row, prior=previous: validate_techtrade_snapshot(row, prior),
+                )
+                if not verdict.ok:
+                    raise ValueError(f"snapshot validation failed: {verdict.reason}")
+                successes.append(
+                    (dataset, entity_key, snapshot.as_of_session, job_run_id)
+                )
+            self._store.publish_job(
+                job_run_id,
+                successes,
+                expected_live=baselines,
+                require_not_older=True,
+            )
+        except BaseException:
+            job = self._store.get_job(job_run_id)
+            if job is not None and job.state is SnapshotJobState.RUNNING:
+                self._store.record_job_errors(
+                    job_run_id,
+                    {
+                        _entity_key(snapshot.segment): "batch_failed"
+                        for snapshot in snapshots
+                    },
+                )
+                self._store.finish_job(
+                    job_run_id,
+                    SnapshotJobState.FAILED,
+                    n_ok=0,
+                    n_failed=len(snapshots),
+                    error="batch_failed",
+                )
+            raise
+        return snapshots
 
     def _write_snapshot(
         self, snapshot: ScanSnapshot, *, migration: bool

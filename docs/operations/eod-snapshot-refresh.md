@@ -31,12 +31,13 @@ The durable `snapshot_job` lease is the second line of defense: a fresh
 overlapping run is refused and a run stale for more than two hours is reclaimed.
 There is no market-hours schedule.
 
-The OpenBB jobs extension also registers `techtrade.eod_snapshots`, scheduled
-for 18:00 `America/New_York` on weekdays. Its `datasets` parameter selects any
-subset of the nine registered datasets. The default includes validation and
-tuning only when their optional `openbb-backtest`/`tuneta` dependencies are
-installed. The legacy `techtrade.daily_scan` name remains as a post-close
-compatibility alias for durable schedules.
+The OpenBB jobs extension registers `techtrade.daily_scan` at 18:00
+`America/New_York` for movers and scan, then `techtrade.eod_snapshots` at 18:05
+for the remaining fan-out. The latter's `datasets` parameter accepts any subset
+of the nine registered datasets. Its default includes validation, tuning, and
+audit only when their optional `openbb-backtest`/`tuneta` dependencies are
+installed. Keeping the legacy job name preserves durable schedules without
+running a second competing writer.
 
 Every payload stores an explicit `exchange_calendar`. The shipped US-equity
 adapters use `XNYS`; freshness and the `as_of` badge are calculated with the

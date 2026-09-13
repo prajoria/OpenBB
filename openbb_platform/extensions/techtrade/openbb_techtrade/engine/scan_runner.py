@@ -19,6 +19,8 @@ The module keeps its ``python -m openbb_techtrade.engine.scan_runner`` CLI so th
 direct entry point remains a compatibility wrapper around the same adapter.
 """
 
+# pylint: disable=no-member
+
 from __future__ import annotations
 
 import argparse
@@ -48,6 +50,7 @@ UTC = timezone.utc
 #: Canonical requested-segment default: every GICS sector, in canonical order.
 DEFAULT_SEGMENTS: tuple[str, ...] = tuple(GICS_SECTOR_ETFS.keys())
 
+
 #: A no-op cancellation check used when the caller supplies none.
 def _never_cancel() -> bool:
     """Return ``False`` -- the default cancellation seam is never triggered."""
@@ -71,7 +74,7 @@ class ScanRunResult(BaseModel):
     cancelled: bool = False
     warnings: list[str] = Field(default_factory=list)
 
-    def to_summary(self) -> dict[str, Any]:
+    def to_summary(self) -> dict[str, Any]:  # pylint: disable=no-member
         """Return a bounded, JSON-safe summary suitable for a ``JobResult``."""
         return {
             "kind": self.kind,
@@ -81,7 +84,9 @@ class ScanRunResult(BaseModel):
             "processed_segment_count": len(self.processed_segments),
             "failed_segment_count": len(self.failed_segments),
             "empty_segment_count": sum(
-                1 for seg in self.processed_segments if self.segment_counts.get(seg, 0) == 0
+                1
+                for seg in self.processed_segments
+                if self.segment_counts.get(seg, 0) == 0
             ),
             "total_rows": self.total_rows,
             "cancelled": self.cancelled,
@@ -178,6 +183,7 @@ def run_scan(
         snapshot_ids: dict[str, str] = {}
         segment_counts: dict[str, int] = {}
         processed: list[str] = []
+        pending_snapshots: list[ScanSnapshot] = []
         cancelled = False
         result_warnings = list(warning_messages)
 
@@ -203,10 +209,19 @@ def run_scan(
                 params={"top_n": top_n, "preset": preset},
                 rows=rows,
             )
-            active_store.write_snapshot(snapshot)
+            pending_snapshots.append(snapshot)
             snapshot_ids[segment] = snapshot.snapshot_id
             segment_counts[segment] = len(rows)
             processed.append(segment)
+
+        if not failed and not cancelled:
+            if hasattr(active_store, "write_snapshots"):
+                active_store.write_snapshots(pending_snapshots)
+            else:
+                for snapshot in pending_snapshots:
+                    active_store.write_snapshot(snapshot)
+        else:
+            snapshot_ids.clear()
 
         return ScanRunResult(
             kind=kind,
@@ -271,9 +286,13 @@ def main(argv: list[str] | None = None) -> int:
         if store is not None:
             store.close()
 
-    print(json.dumps(result.to_summary(), indent=2, sort_keys=True))  # noqa: T201 - CLI stdout is this entry point's interface
+    print(  # noqa: T201 - CLI stdout is this entry point's interface
+        json.dumps(result.to_summary(), indent=2, sort_keys=True)
+    )
     for message in result.warnings:
-        print(f"warning: {message}", file=sys.stderr)  # noqa: T201 - CLI stderr diagnostics
+        print(  # noqa: T201 - CLI stderr diagnostics
+            f"warning: {message}", file=sys.stderr
+        )
     return 0
 
 

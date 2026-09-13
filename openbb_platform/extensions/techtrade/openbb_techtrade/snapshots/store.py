@@ -28,6 +28,9 @@ class ScanSnapshotStore(Protocol):
     def write_snapshot(self, snapshot: ScanSnapshot) -> ScanSnapshot:
         """Append one immutable snapshot and return the persisted record."""
 
+    def write_snapshots(self, snapshots: list[ScanSnapshot]) -> list[ScanSnapshot]:
+        """Atomically publish a complete multi-segment scan."""
+
     def read_latest(self, *, kind: str, segment: str) -> ScanSnapshot | None:
         """Return the most recent snapshot for a ``(kind, segment)`` or ``None``."""
 

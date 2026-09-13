@@ -2100,7 +2100,7 @@
   },
   "tt_tuning_report": {
     "name": "Techtrade - Tuning Report",
-    "description": "tuneta proposal + per-param validate gate (#1698). Persist behavior is stub-only. Stub-shaped over openbb_techtrade.engine.tune_router.",
+    "description": "Persisted tuneta proposal + per-parameter validation gate (#1698).",
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/tuning/report",
