@@ -125,6 +125,9 @@ class SnapshotRefreshOrchestrator:
             target_session = as_of_session or last_completed_session(
                 now, getattr(adapter, "calendar_name", "XNYS")
             )
+            begin_refresh = getattr(adapter, "begin_refresh", None)
+            if callable(begin_refresh):
+                begin_refresh(target_session)
             successes: list[tuple[str, str, date, str]] = []
             baselines: dict[tuple[str, str], SnapshotRow | None] = {}
             if retry_job_run_id is None:

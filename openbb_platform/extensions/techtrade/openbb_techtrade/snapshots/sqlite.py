@@ -20,7 +20,6 @@ from openbb_techtrade.snapshot.store import (
     SnapshotState,
     SnapshotStatus,
     SqliteSnapshotStore,
-    _row_from_mapping,
     canonical_key,
     default_validator,
     get_default_snapshot_store,
@@ -104,6 +103,11 @@ def _to_snapshot(row: SnapshotRow) -> ScanSnapshot:
         params=legacy.get("params") or row.payload.get("params") or {},
         rows=row.payload.get("rows") or [],
     )
+
+
+def _batch_snapshot_id(job_run_id: str, dataset: str, entity_key: str) -> str:
+    digest = sha256(f"{dataset}\x1f{entity_key}".encode()).hexdigest()[:16]
+    return f"{job_run_id}~{digest}"
 
 
 class SqliteScanSnapshotStore:
@@ -217,12 +221,13 @@ class SqliteScanSnapshotStore:
             for snapshot in snapshots:
                 entity_key = _entity_key(snapshot.segment)
                 payload = _payload(snapshot)
+                payload["legacy"].pop("snapshot_id", None)
                 baseline_key = (dataset, entity_key)
                 previous = self._store.get_live(*baseline_key)
                 baselines[baseline_key] = previous
-                if (
-                    previous is not None
-                    and snapshot.computed_at < _to_snapshot(previous).computed_at
+                if previous is not None and (
+                    snapshot.as_of_session < previous.as_of_session
+                    or snapshot.computed_at < _to_snapshot(previous).computed_at
                 ):
                     raise ValueError("batch contains snapshot older than current LIVE")
                 self._store.stage(
@@ -273,7 +278,18 @@ class SqliteScanSnapshotStore:
                     error="batch_failed",
                 )
             raise
-        return snapshots
+        return [
+            snapshot.model_copy(
+                update={
+                    "snapshot_id": _batch_snapshot_id(
+                        job_run_id,
+                        dataset,
+                        _entity_key(snapshot.segment),
+                    )
+                }
+            )
+            for snapshot in snapshots
+        ]
 
     def _write_snapshot(
         self, snapshot: ScanSnapshot, *, migration: bool
@@ -342,6 +358,7 @@ class SqliteScanSnapshotStore:
                         )
                     ],
                     expected_live={(dataset, entity_key): previous},
+                    require_not_older=True,
                 )
         except BaseException:
             job = self._store.get_job(job_run_id)
@@ -405,78 +422,31 @@ class SqliteScanSnapshotStore:
         return _to_snapshot(matching[0])
 
     def _history_rows(self, kind: str | None, segment: str | None) -> list[SnapshotRow]:
-        if not isinstance(self._store, SqliteSnapshotStore):
-            datasets = (
-                [_dataset(kind)]
-                if kind is not None
-                else [
-                    dataset
-                    for dataset in self._store.list_datasets(prefix=_DATASET_PREFIX)
-                    if dataset == _DATASET_PREFIX
-                    or dataset.startswith(f"{_DATASET_PREFIX}.")
-                ]
-            )
-            return [
-                row
-                for dataset in datasets
-                for entity_key in (
-                    [_entity_key(segment)]
-                    if segment is not None
-                    else self._store.list_entity_keys(dataset)
-                )
-                for row in self._store.list_history(
-                    dataset,
-                    entity_key,
-                    limit=2_147_483_647,
-                )
-                if row.state is not SnapshotState.STAGING
+        datasets = (
+            [_dataset(kind)]
+            if kind is not None
+            else [
+                dataset
+                for dataset in self._store.list_datasets(prefix=_DATASET_PREFIX)
+                if dataset == _DATASET_PREFIX
+                or dataset.startswith(f"{_DATASET_PREFIX}.")
             ]
-        select = (
-            "SELECT dataset, entity_key, as_of_session, created_at, job_run_id, "
-            "status, state, validated, validation_reason, payload_json, "
-            "input_hash, row_count, engine_version, payload_schema_version "
-            "FROM pi_eod_snapshot WHERE state != ?"
         )
-        connection = self._store._conn  # pylint: disable=protected-access
-        if kind is not None and segment is not None:
-            records = connection.execute(
-                select + " AND dataset = ? AND entity_key = ?",
-                (
-                    SnapshotState.STAGING.value,
-                    _dataset(kind),
-                    _entity_key(segment),
-                ),
-            ).fetchall()
-        elif kind is not None:
-            records = connection.execute(
-                select + " AND dataset = ?",
-                (SnapshotState.STAGING.value, _dataset(kind)),
-            ).fetchall()
-        elif segment is not None:
-            namespace = f"{_DATASET_PREFIX}."
-            records = connection.execute(
-                select + " AND (dataset = ? OR substr(dataset, 1, ?) = ?) "
-                "AND entity_key = ?",
-                (
-                    SnapshotState.STAGING.value,
-                    _DATASET_PREFIX,
-                    len(namespace),
-                    namespace,
-                    _entity_key(segment),
-                ),
-            ).fetchall()
-        else:
-            namespace = f"{_DATASET_PREFIX}."
-            records = connection.execute(
-                select + " AND (dataset = ? OR substr(dataset, 1, ?) = ?)",
-                (
-                    SnapshotState.STAGING.value,
-                    _DATASET_PREFIX,
-                    len(namespace),
-                    namespace,
-                ),
-            ).fetchall()
-        return [_row_from_mapping(record) for record in records]
+        return [
+            row
+            for dataset in datasets
+            for entity_key in (
+                [_entity_key(segment)]
+                if segment is not None
+                else self._store.list_entity_keys(dataset)
+            )
+            for row in self._store.list_history(
+                dataset,
+                entity_key,
+                limit=2_147_483_647,
+            )
+            if row.state is not SnapshotState.STAGING
+        ]
 
     def list_snapshots(
         self,

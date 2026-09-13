@@ -287,12 +287,18 @@ class TechTradeSnapshotAdapter:
             else universe_fetcher
         )
         self._payload_metadata = dict(payload_metadata or {})
+        self._refresh_hook: Callable[[date], None] | None = None
         for segment in self._segments:
             techtrade_entity_key(segment)
 
     def entity_keys(self) -> list[str]:
         """Return one canonical key per configured GICS segment."""
         return [techtrade_entity_key(segment) for segment in self._segments]
+
+    def begin_refresh(self, as_of_session: date) -> None:
+        """Reset any adapter-local state before one orchestrated run."""
+        if self._refresh_hook is not None:
+            self._refresh_hook(as_of_session)
 
     def compute(self, entity_key: str, as_of_session: date) -> ComputedSnapshot:
         """Compute and envelope one segment without persistence side effects."""
@@ -462,10 +468,13 @@ def _simulated_plans(segment: str, session: date) -> list[TradePlan]:
             signal_session + timedelta(days=1),
             session,
         )
-        required_bars = plan.recommendation.time_stop_bars or 1
-        if len(bars) < required_bars or not plan.orders:
+        time_stop_bars = plan.recommendation.time_stop_bars
+        if (
+            time_stop_bars is not None and len(bars) < time_stop_bars
+        ) or not plan.orders:
             continue
-        fills = simulate(plan.orders, bars[:required_bars])
+        window = bars if time_stop_bars is None else bars[:time_stop_bars]
+        fills = simulate(plan.orders, window)
         if fills:
             simulated.append(plan.model_copy(update={"simulated_fills": fills}))
     return simulated
@@ -648,6 +657,12 @@ class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
                 raise RuntimeError("scan_segment_failed")
             return list(cached_rows.get(segment, ()))
 
+        def reset_scan_cache(_session: date) -> None:
+            nonlocal cached_session, cached_rows, failed_segments
+            cached_session = None
+            cached_rows = {}
+            failed_segments = set()
+
         super().__init__(
             "techtrade.scan",
             compute_fn=compute_scan,
@@ -658,6 +673,7 @@ class ScanSnapshotAdapter(TechTradeSnapshotAdapter):
                 "params": {"top_n": top_n, "preset": preset},
             },
         )
+        self._refresh_hook = reset_scan_cache
 
 
 class SignalsSnapshotAdapter(TechTradeSnapshotAdapter):

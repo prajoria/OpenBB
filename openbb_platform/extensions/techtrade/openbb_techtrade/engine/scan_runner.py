@@ -216,10 +216,14 @@ def run_scan(
 
         if not failed and not cancelled:
             if hasattr(active_store, "write_snapshots"):
-                active_store.write_snapshots(pending_snapshots)
+                persisted = active_store.write_snapshots(pending_snapshots)
             else:
+                persisted = []
                 for snapshot in pending_snapshots:
-                    active_store.write_snapshot(snapshot)
+                    persisted.append(active_store.write_snapshot(snapshot))
+            snapshot_ids = {
+                snapshot.segment: snapshot.snapshot_id for snapshot in persisted
+            }
         else:
             snapshot_ids.clear()
 

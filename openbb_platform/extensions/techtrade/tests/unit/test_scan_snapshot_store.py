@@ -309,6 +309,18 @@ def test_snapshot_id_is_globally_unique_across_segments(store):
         store.write_snapshot(duplicate)
 
 
+def test_batch_snapshot_ids_round_trip_uniquely(store):
+    """Atomic batch IDs resolve to their exact persisted segment."""
+    persisted = store.write_snapshots(
+        [_snapshot(segment="Energy"), _snapshot(segment="Financials")]
+    )
+
+    assert len({snapshot.snapshot_id for snapshot in persisted}) == 2
+    assert {
+        store.read_by_id(snapshot.snapshot_id).segment for snapshot in persisted
+    } == {"Energy", "Financials"}
+
+
 def test_rejected_staging_row_is_not_listed(store):
     """A failed validation candidate must stay invisible to legacy readers."""
     good = _snapshot(rows=[{"symbol": f"S{i}", "close": i + 1.0} for i in range(10)])
