@@ -596,6 +596,8 @@ def _audit_rows(plans: Iterable[TradePlan], session: date) -> list[dict[str, Any
             else:
                 cash -= quantity * mark + float(fill.commission)
                 position += quantity
+        if position != 0:
+            continue
         forward_pnl = cash + position * mark
         forward_return = forward_pnl / notional if notional else 0.0
         rows.append(

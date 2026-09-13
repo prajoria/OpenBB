@@ -122,9 +122,11 @@ class SnapshotRefreshOrchestrator:
         store.start_job(definition.name, job_run_id, started_at=now)
         completed = False
         try:
-            target_session = as_of_session or last_completed_session(
-                now, getattr(adapter, "calendar_name", "XNYS")
-            )
+            calendar_name = getattr(adapter, "calendar_name", "XNYS")
+            latest_completed = last_completed_session(now, calendar_name)
+            if as_of_session is not None and as_of_session > latest_completed:
+                raise ValueError("as_of_session is after the latest completed session")
+            target_session = as_of_session or latest_completed
             begin_refresh = getattr(adapter, "begin_refresh", None)
             if callable(begin_refresh):
                 begin_refresh(target_session)

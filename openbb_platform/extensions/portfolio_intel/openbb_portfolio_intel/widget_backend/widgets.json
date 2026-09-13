@@ -2116,6 +2116,13 @@
         "label": "Symbol",
         "type": "text",
         "description": "Ticker"
+      },
+      {
+        "paramName": "segment",
+        "value": "Information Technology",
+        "label": "Segment",
+        "type": "text",
+        "description": "Canonical GICS segment"
       }
     ]
   },
