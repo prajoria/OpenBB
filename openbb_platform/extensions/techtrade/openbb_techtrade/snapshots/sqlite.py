@@ -220,6 +220,11 @@ class SqliteScanSnapshotStore:
                 baseline_key = (dataset, entity_key)
                 previous = self._store.get_live(*baseline_key)
                 baselines[baseline_key] = previous
+                if (
+                    previous is not None
+                    and snapshot.computed_at < _to_snapshot(previous).computed_at
+                ):
+                    raise ValueError("batch contains snapshot older than current LIVE")
                 self._store.stage(
                     dataset,
                     entity_key,
@@ -368,7 +373,16 @@ class SqliteScanSnapshotStore:
             job_run_id = snapshot_id.rsplit("~", 1)[0]
             job = self._store.get_job(job_run_id)
         if job is None:
-            return None
+            matching = [
+                row
+                for row in self._history_rows(None, None)
+                if _to_snapshot(row).snapshot_id == snapshot_id
+            ]
+            if not matching:
+                return None
+            if len(matching) != 1:
+                raise ValueError("snapshot_id is ambiguous")
+            return _to_snapshot(matching[0])
         visible = [
             row
             for row in self._store.rows_for_job(job_run_id)

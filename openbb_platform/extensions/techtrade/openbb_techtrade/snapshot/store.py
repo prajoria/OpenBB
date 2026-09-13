@@ -2747,11 +2747,12 @@ class SqliteSnapshotStore:
         entity_key = canonical_key(entity_key)
         with self._tx(immediate=True):
             changed = self._conn.execute(
-                "UPDATE pi_eod_snapshot SET state = ? "
+                "UPDATE pi_eod_snapshot SET state = ?, status = ? "
                 "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
                 "AND job_run_id = ? AND state = ? AND validated = 1 AND status = ?",
                 (
                     SnapshotState.SUPERSEDED.value,
+                    SnapshotStatus.STALE.value,
                     dataset,
                     entity_key,
                     as_of_session.isoformat(),
@@ -3112,11 +3113,12 @@ class SqliteSnapshotStore:
         finished = utc_datetime(finished_at)
         with self._tx(immediate=True):
             archived = self._conn.execute(
-                "UPDATE pi_eod_snapshot SET state = ? "
+                "UPDATE pi_eod_snapshot SET state = ?, status = ? "
                 "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
                 "AND job_run_id = ? AND state = ? AND validated = 1 AND status = ?",
                 (
                     SnapshotState.SUPERSEDED.value,
+                    SnapshotStatus.STALE.value,
                     dataset,
                     entity_key,
                     session.isoformat(),
@@ -3360,12 +3362,14 @@ class SqliteSnapshotStore:
                 "payload_json, input_hash, row_count, engine_version, "
                 "payload_schema_version FROM pi_eod_snapshot "
                 "WHERE dataset = ? AND entity_key = ? AND as_of_session = ? "
-                "AND state != ? ORDER BY created_at DESC LIMIT 1",
+                "AND state != ? AND status = ? "
+                "ORDER BY created_at DESC LIMIT 1",
                 (
                     dataset,
                     entity_key,
                     as_of_session.isoformat(),
                     SnapshotState.STAGING.value,
+                    SnapshotStatus.OK.value,
                 ),
             ).fetchone()
         return _row_from_mapping(record) if record is not None else None

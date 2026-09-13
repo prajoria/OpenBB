@@ -357,7 +357,7 @@ _SELECT_LIVE_FOR_UPDATE = _SELECT_LIVE + " FOR UPDATE"
 _SELECT_AS_OF = (
     f"SELECT {_COLUMNS} FROM pi_eod_snapshot "
     "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
-    "AND state != %s ORDER BY created_at DESC LIMIT 1"
+    "AND state != %s AND status = %s ORDER BY created_at DESC LIMIT 1"
 )
 
 _SELECT_HISTORY = (
@@ -1560,11 +1560,12 @@ class MysqlSnapshotStore:
         finished = utc_datetime(finished_at).replace(tzinfo=None)
         with self.transaction() as conn, conn.cursor() as cur:
             cur.execute(
-                "UPDATE pi_eod_snapshot SET state = %s "
+                "UPDATE pi_eod_snapshot SET state = %s, status = %s "
                 "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
                 "AND job_run_id = %s AND state = %s AND validated = 1 AND status = %s",
                 (
                     SnapshotState.SUPERSEDED.value,
+                    SnapshotStatus.STALE.value,
                     dataset,
                     entity_key,
                     session,
@@ -1742,11 +1743,12 @@ class MysqlSnapshotStore:
         self._reject_pii(dataset)
         with self.transaction() as conn, conn.cursor() as cur:
             cur.execute(
-                "UPDATE pi_eod_snapshot SET state = %s "
+                "UPDATE pi_eod_snapshot SET state = %s, status = %s "
                 "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
                 "AND job_run_id = %s AND state = %s AND validated = 1 AND status = %s",
                 (
                     SnapshotState.SUPERSEDED.value,
+                    SnapshotStatus.STALE.value,
                     dataset,
                     entity_key,
                     as_of_session,
@@ -1889,6 +1891,7 @@ class MysqlSnapshotStore:
                     entity_key,
                     as_of_session,
                     SnapshotState.STAGING.value,
+                    SnapshotStatus.OK.value,
                 ),
             )
 
