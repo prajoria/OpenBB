@@ -1,24 +1,31 @@
 {
-  "body": [
-    {
-      "score": 0.94,
-      "segment": "Technology",
-      "signal": "BREAKOUT",
-      "symbol": "NVDA"
-    },
-    {
-      "score": 0.82,
-      "segment": "Technology",
-      "signal": "TREND",
-      "symbol": "AAPL"
-    },
-    {
-      "score": 0.78,
-      "segment": "Technology",
-      "signal": "TREND",
-      "symbol": "MSFT"
-    }
-  ],
+  "body": {
+    "as_of_session": null,
+    "badge": "No EOD snapshot available",
+    "computed_at": null,
+    "disclaimer": "EOD planning snapshot \u2014 not a live/intraday quote",
+    "earnings_annotation": null,
+    "exchange_calendar": "XNYS",
+    "freshness": "red",
+    "is_partial": false,
+    "is_stale": true,
+    "missing_segments": [
+      "Information Technology"
+    ],
+    "rows": [
+      {
+        "as_of_session": null,
+        "disclaimer": "EOD planning snapshot \u2014 not a live/intraday quote",
+        "earnings_annotation": null,
+        "exchange_calendar": "XNYS",
+        "freshness": "red",
+        "note": "No EOD snapshot available (scan table segment=Information Technology) \u2014 run the post-close snapshot job.",
+        "snapshot_badge": "No EOD snapshot available",
+        "survivorship": null
+      }
+    ],
+    "survivorship": null
+  },
   "endpoint": "tt/scan/table",
   "params": {
     "segment": "Technology"

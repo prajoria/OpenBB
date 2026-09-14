@@ -1,7 +1,7 @@
 {
   "body": [
     {
-      "latency_ms": 750,
+      "latency_ms": 797,
       "note": "",
       "role": "Primary (cache)",
       "serving": "",
@@ -9,7 +9,7 @@
       "tier": "fmp_cached"
     },
     {
-      "latency_ms": 438,
+      "latency_ms": 500,
       "note": "",
       "role": "Live fallback",
       "serving": "",
@@ -17,15 +17,15 @@
       "tier": "fmp"
     },
     {
-      "latency_ms": 0,
-      "note": "timeout",
+      "latency_ms": 282,
+      "note": "",
       "role": "Public",
       "serving": "",
-      "status": "\ud83d\udd34 down",
+      "status": "\ud83d\udfe2 healthy",
       "tier": "cboe"
     },
     {
-      "latency_ms": 172,
+      "latency_ms": 219,
       "note": "",
       "role": "Filings",
       "serving": "",
@@ -33,7 +33,7 @@
       "tier": "sec"
     },
     {
-      "latency_ms": 94,
+      "latency_ms": 250,
       "note": "",
       "role": "Last-resort",
       "serving": "",

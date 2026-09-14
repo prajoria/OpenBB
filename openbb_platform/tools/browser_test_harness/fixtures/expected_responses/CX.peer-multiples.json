@@ -1,32 +1,39 @@
 {
   "body": [
     {
-      "ev_ebitda": 24.8,
-      "pe_fwd": 29.4,
-      "pe_ttm": 32.1,
-      "ps_ttm": 8.7,
+      "ev_ebitda": 29.230504481796704,
+      "pe_fwd": null,
+      "pe_ttm": 37.93036529680365,
+      "ps_ttm": 10.45400029158803,
       "symbol": "AAPL"
     },
     {
-      "ev_ebitda": 26.1,
-      "pe_fwd": 31.2,
-      "pe_ttm": 34.9,
-      "ps_ttm": 12.4,
-      "symbol": "MSFT"
+      "ev_ebitda": 22.697338905365324,
+      "pe_fwd": null,
+      "pe_ttm": 27.45786163522012,
+      "ps_ttm": 17.451297294442668,
+      "symbol": "NVDA"
     },
     {
-      "ev_ebitda": 18.9,
-      "pe_fwd": 23.1,
-      "pe_ttm": 26.3,
-      "ps_ttm": 6.2,
+      "ev_ebitda": 12.729854308597316,
+      "pe_fwd": null,
+      "pe_ttm": 16.655908639523336,
+      "ps_ttm": 9.130520105868131,
       "symbol": "GOOGL"
     },
     {
-      "ev_ebitda": 17.2,
-      "pe_fwd": 24.7,
-      "pe_ttm": 27.6,
-      "ps_ttm": 9.1,
-      "symbol": "META"
+      "ev_ebitda": 18.25470750389121,
+      "pe_fwd": null,
+      "pe_ttm": 27.534999999999997,
+      "ps_ttm": 11.090695628000326,
+      "symbol": "MSFT"
+    },
+    {
+      "ev_ebitda": 18.51345021489235,
+      "pe_fwd": null,
+      "pe_ttm": 27.935551176538773,
+      "ps_ttm": 14.074360228551251,
+      "symbol": "TSM"
     }
   ],
   "endpoint": "pi/equity/peer-multiples",
