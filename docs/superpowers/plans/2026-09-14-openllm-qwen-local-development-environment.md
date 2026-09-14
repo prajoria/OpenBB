@@ -10,7 +10,7 @@ This is a development-environment bootstrap. It must not call an AI model while 
 
 ## Problem
 
-The current development workflow assumes hosted-agent tooling in places. That creates recurring cost and availability pressure. OpenBB already documents a LiteLLM/Ollama local fallback, but it does not provide a supported, reproducible, Windows-first setup path for local coding models or integrate that path into the `openbb-dev-cycle` workflow.
+The current development workflow assumes hosted-agent tooling in places. That creates recurring cost and availability pressure. OpenBB already documents a LiteLLM/Ollama local fallback, but it does not provide a supported, reproducible Windows and Linux setup path for local coding models or integrate that path into the `openbb-dev-cycle` workflow.
 
 ## Delivery Plan
 
@@ -48,7 +48,7 @@ The bootstrap must select a profile explicitly or recommend one after detecting 
 
 ### 2. Idempotent local bootstrap command
 
-- Add a Windows-first entry point such as `scripts/setup-local-llm.ps1`.
+- Add equivalent Windows and Linux entry points: `scripts/setup-local-llm.ps1` and `scripts/setup-local-llm.sh`. Both must resolve the same named hardware profiles and produce equivalent preflight output.
 - Detect prerequisites: Python, Git, GPU/runtime support, available disk and RAM, required ports, and an existing OpenLLM installation.
 - Install or update pinned runtime dependencies without administrator privileges where feasible.
 - Support `-Profile`, `-Runtime`, `-Model`, `-NoDownload`, `-Verify`, `-Uninstall`, and non-interactive flags.
@@ -78,6 +78,7 @@ The bootstrap must select a profile explicitly or recommend one after detecting 
 ## Acceptance Criteria
 
 - A fresh supported development machine completes setup through one documented command with no AI interaction.
+- Windows PowerShell and Linux Bash bootstrap entry points resolve the same named profiles and have equivalent no-download preflight behavior.
 - Setup uses an explicit Qwen profile and rejects unsupported hardware selections with an actionable remedy.
 - Re-running setup does not redownload healthy artifacts or modify repository-tracked files.
 - The local service binds to `127.0.0.1` by default and passes a deterministic health and completion smoke test.
