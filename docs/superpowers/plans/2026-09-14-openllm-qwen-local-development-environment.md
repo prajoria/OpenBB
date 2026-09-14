@@ -30,21 +30,22 @@ The bootstrap must select a profile explicitly or recommend one after detecting 
 | Hardware profile | Typical GPU | VRAM | Selected model | Quantization | Default context | Approx. model storage | Recommended use | Notes |
 |---|---:|---:|---|---|---:|---:|---|---|
 | `nvidia-3080` | RTX 3080 | 10 GB | Qwen2.5-Coder-7B-Instruct | GGUF `Q4_K_M` | 8K | 5 GB | Inline coding help, small focused edits, test/debug conversations | Supported baseline. Keep one active request; use `Q4_K_M`, not a larger model. |
-| `nvidia-3080-12gb` | RTX 3080 12 GB | 12 GB | Qwen2.5-Coder-7B-Instruct | GGUF `Q5_K_M` | 8K | 6 GB | Higher-quality 7B local coding | Use `Q4_K_M` when long prompts cause memory pressure. 14B is not a supported default on 12 GB. |
+| `nvidia-3080-12gb` | RTX 3080 12 GB | 12 GB | Qwen2.5-Coder-7B-Instruct | Ollama `Q4_K_M` | 8K | 5 GB | 7B local coding with extra context headroom | The selected Ollama tag is Q4; Q5 is deferred until a pinned, verified tag is available. |
 | `nvidia-3090` | RTX 3090 | 24 GB | Qwen2.5-Coder-14B-Instruct | GGUF `Q4_K_M` | 16K | 10 GB | Default full local development workflow | Recommended first-class profile. 32B `Q4_K_M` may fit only with reduced context and no concurrency, so it is opt-in rather than the default. |
-| `nvidia-24gb` | RTX 4090, RTX 5090 24 GB, RTX A5000 | 24 GB | Qwen2.5-Coder-14B-Instruct | GGUF `Q5_K_M` | 16K | 11 GB | Higher-quality interactive coding and review | Same capacity class as 3090. Prefer 14B quality and context headroom over forcing 32B. |
+| `nvidia-24gb` | RTX 4090, RTX 5090 24 GB, RTX A5000 | 24 GB | Qwen2.5-Coder-14B-Instruct | Ollama `Q4_K_M` | 16K | 10 GB | Interactive coding and review | Same capacity class as 3090. Prefer 14B quality and context headroom over forcing 32B. |
 | `nvidia-48gb` | RTX A6000, RTX 6000 Ada, RTX PRO 6000 | 48 GB+ | Qwen2.5-Coder-32B-Instruct | GGUF `Q4_K_M` | 32K | 20 GB | Complex multi-file changes, planning, and code review | First supported 32B profile. `Q5_K_M` may be selected only after a free-VRAM check. |
-| `nvidia-80gb-plus` | A100 80 GB, H100, H200, multi-GPU host | 80 GB+ | Qwen2.5-Coder-32B-Instruct | BF16 or GGUF `Q8_0` | 32K | 33-65 GB | Shared workstation or high-throughput local service | Experimental for multi-user serving; require explicit LAN exposure and capacity configuration. |
+| `nvidia-80gb-plus` | A100 80 GB, H100, H200, multi-GPU host | 80 GB+ | Qwen2.5-Coder-32B-Instruct | Ollama `Q4_K_M` | 32K | 20 GB | Shared workstation or high-throughput local service | BF16 and Q8 are deferred until the runtime and immutable artifacts are selected and tested. LAN exposure requires explicit configuration. |
 
 ### Model and Quantization Policy
 
 - **Version family:** Qwen2.5-Coder Instruct, initially 7B, 14B, and 32B. Pin each downloaded artifact to a tested Ollama model digest or immutable upstream revision in the local install manifest.
 - **License:** Apache License 2.0 for the selected upstream Qwen2.5-Coder model cards. The user guide must link the exact model card and license for every installed model; any community quantization must preserve the upstream license and publish its source/provenance.
-- **Default quantization:** GGUF `Q4_K_M`, which provides the best baseline balance of quality and memory use for local development. `Q5_K_M` is offered only where the selected profile has memory headroom. BF16 is reserved for 80 GB-plus profiles.
+- **Default quantization:** Ollama `Q4_K_M`, which provides the baseline balance of quality and memory use for local development. `Q5_K_M`, Q8, and BF16 are deferred until the bootstrap can select pinned, verified artifacts that match their declared quantization.
 - **Concurrency:** one active generation is the default for 10-24 GB profiles. The bootstrap must not enable parallel requests by default because concurrent KV caches can exhaust VRAM unpredictably.
 - **CPU fallback:** Qwen2.5-Coder-7B-Instruct `Q4_K_M` is supported as a slow, opt-in fallback on systems with at least 16 GB RAM and approximately 8 GB free SSD. It is suitable for setup verification and occasional edits, not interactive agent loops.
 - **Storage:** install model files in a configurable local SSD cache outside the repository. Default to a user-writable location; support an explicit shared-SSD path for workstations. Never store weights in Git, a wheel, CI cache, or release artifact.
 - **Context guard:** 8K, 16K, and 32K are profile defaults, not model limits. The bootstrap must expose an advanced override but warn that longer context raises KV-cache memory use and may force CPU offload or failure.
+- **Hosted-provider compatibility:** GPT-5.6 Terra remains a supported hosted development model through the existing Copilot/OpenAI-compatible provider configuration. It is not downloaded, configured, or selected by the local Qwen/Ollama bootstrap; users select it through their authenticated hosted-agent launcher when local capacity or quality is insufficient.
 
 ### 2. Idempotent local bootstrap command
 

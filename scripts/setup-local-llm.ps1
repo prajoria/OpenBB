@@ -38,7 +38,7 @@ $script:OpenBBLocalLlmProfiles = @{
     "nvidia-3080-12gb" = [pscustomobject]@{
         Name = "nvidia-3080-12gb"
         Model = "qwen2.5-coder:7b"
-        Quantization = "Q5_K_M"
+        Quantization = "Q4_K_M"
         ContextTokens = 8192
         MinimumVramGB = 12
         MinimumDiskGB = 9
@@ -54,7 +54,7 @@ $script:OpenBBLocalLlmProfiles = @{
     "nvidia-24gb" = [pscustomobject]@{
         Name = "nvidia-24gb"
         Model = "qwen2.5-coder:14b"
-        Quantization = "Q5_K_M"
+        Quantization = "Q4_K_M"
         ContextTokens = 16384
         MinimumVramGB = 24
         MinimumDiskGB = 15
@@ -70,7 +70,7 @@ $script:OpenBBLocalLlmProfiles = @{
     "nvidia-80gb-plus" = [pscustomobject]@{
         Name = "nvidia-80gb-plus"
         Model = "qwen2.5-coder:32b"
-        Quantization = "BF16"
+        Quantization = "Q4_K_M"
         ContextTokens = 32768
         MinimumVramGB = 80
         MinimumDiskGB = 72
@@ -91,13 +91,42 @@ function Get-OpenBBLocalLlmProfile {
 
 function Test-OpenBBLocalLlmPrerequisites {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)]$SelectedProfile)
+    param(
+        [Parameter(Mandatory = $true)]$SelectedProfile,
+        [Nullable[int]]$AvailableVramGB,
+        [Nullable[int]]$AvailableDiskGB
+    )
 
     $ollama = Get-Command ollama -ErrorAction SilentlyContinue
+    if ($null -eq $AvailableVramGB) {
+        $vramMiB = & nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>$null |
+            ForEach-Object { [int]$_.Trim() } |
+            Measure-Object -Maximum |
+            Select-Object -ExpandProperty Maximum
+        $AvailableVramGB = if ($null -eq $vramMiB) { 0 } else { [math]::Floor($vramMiB / 1024) }
+    }
+    if ($null -eq $AvailableDiskGB) {
+        $cacheRoot = [Environment]::GetFolderPath("LocalApplicationData")
+        $driveName = (Get-Item -LiteralPath $cacheRoot).PSDrive.Name
+        $AvailableDiskGB = [math]::Floor((Get-PSDrive -Name $driveName).Free / 1GB)
+    }
+
+    $failureReasons = @()
+    if ($AvailableVramGB -lt $SelectedProfile.MinimumVramGB) {
+        $failureReasons += "requires $($SelectedProfile.MinimumVramGB) GB VRAM; detected $AvailableVramGB GB"
+    }
+    if ($AvailableDiskGB -lt $SelectedProfile.MinimumDiskGB) {
+        $failureReasons += "requires $($SelectedProfile.MinimumDiskGB) GB free disk; detected $AvailableDiskGB GB"
+    }
+
     return [pscustomobject]@{
         Profile = $SelectedProfile.Name
         Model = $SelectedProfile.Model
         OllamaInstalled = $null -ne $ollama
+        AvailableVramGB = $AvailableVramGB
+        AvailableDiskGB = $AvailableDiskGB
+        IsCompatible = $failureReasons.Count -eq 0
+        FailureReasons = $failureReasons
         DownloadsSkipped = $NoDownload.IsPresent
     }
 }
@@ -107,12 +136,18 @@ if ($MyInvocation.InvocationName -ne ".") {
     $preflight = Test-OpenBBLocalLlmPrerequisites -SelectedProfile $selectedProfile
     $preflight | Format-List
 
-    if ($NoDownload) {
+    if (-not $preflight.IsCompatible) {
+        throw "Profile '$Profile' is not supported on this machine: $($preflight.FailureReasons -join '; ')."
+    }
+    if ($Verify) {
+        if (-not $preflight.OllamaInstalled) {
+            throw "Ollama is not installed, so verification cannot run."
+        }
+        throw "Verification-only mode is not implemented yet."
+    } elseif ($NoDownload) {
         Write-Host "NoDownload selected; no runtime or model was installed."
     } elseif (-not $preflight.OllamaInstalled) {
         throw "Ollama is not installed. Re-run with -NoDownload for preflight only."
-    } elseif ($Verify) {
-        Write-Host "Verification-only mode is not implemented yet."
     } else {
         throw "Model installation is not implemented yet. Re-run with -NoDownload for preflight only."
     }

@@ -20,6 +20,30 @@ Describe "OpenBB local LLM bootstrap profiles" {
         $profile.MinimumVramGB | Should Be 24
     }
 
+    It "reports a resource-gate failure for an undersized machine" {
+        $profile = Get-OpenBBLocalLlmProfile -Name "nvidia-3090"
+        $preflight = Test-OpenBBLocalLlmPrerequisites -SelectedProfile $profile -AvailableVramGB 10 -AvailableDiskGB 100
+
+        $preflight.IsCompatible | Should Be $false
+        $preflight.FailureReasons | Should Match "requires 24 GB VRAM"
+    }
+
+    It "reports a resource-gate success at the profile minimum" {
+        $profile = Get-OpenBBLocalLlmProfile -Name "nvidia-3090"
+        $preflight = Test-OpenBBLocalLlmPrerequisites -SelectedProfile $profile -AvailableVramGB 24 -AvailableDiskGB 14
+
+        $preflight.IsCompatible | Should Be $true
+    }
+
+    It "does not let no-download mode mask a verification request" {
+        $script = Join-Path $RepoRoot "scripts\setup-local-llm.ps1"
+        $pwsh = (Get-Command pwsh).Source
+        $output = & $pwsh -NoProfile -File $script -Profile "nvidia-3090" -NoDownload -Verify 2>&1
+
+        $LASTEXITCODE | Should Not Be 0
+        ($output -join "`n") | Should Match "verification cannot run|Verification-only mode"
+    }
+
     It "rejects unknown profiles with an actionable error" {
         $caught = $null
         try {
