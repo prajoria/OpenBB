@@ -1,24 +1,64 @@
 {
   "body": [
     {
-      "amount": 0.25,
-      "ex_date": "2026-05-10",
-      "payment_date": "2026-05-16"
+      "amount": 0.27,
+      "ex_date": "2026-08-10",
+      "payment_date": "2026-08-13"
     },
     {
-      "amount": 0.24,
+      "amount": 0.27,
+      "ex_date": "2026-05-11",
+      "payment_date": "2026-05-14"
+    },
+    {
+      "amount": 0.26,
       "ex_date": "2026-02-09",
-      "payment_date": "2026-02-15"
+      "payment_date": "2026-02-12"
     },
     {
-      "amount": 0.24,
+      "amount": 0.26,
       "ex_date": "2025-11-10",
-      "payment_date": "2025-11-16"
+      "payment_date": "2025-11-13"
+    },
+    {
+      "amount": 0.26,
+      "ex_date": "2025-08-11",
+      "payment_date": "2025-08-14"
+    },
+    {
+      "amount": 0.26,
+      "ex_date": "2025-05-12",
+      "payment_date": "2025-05-15"
+    },
+    {
+      "amount": 0.25,
+      "ex_date": "2025-02-10",
+      "payment_date": "2025-02-13"
+    },
+    {
+      "amount": 0.25,
+      "ex_date": "2024-11-08",
+      "payment_date": "2024-11-14"
+    },
+    {
+      "amount": 0.25,
+      "ex_date": "2024-08-12",
+      "payment_date": "2024-08-15"
+    },
+    {
+      "amount": 0.25,
+      "ex_date": "2024-05-10",
+      "payment_date": "2024-05-16"
     },
     {
       "amount": 0.24,
-      "ex_date": "2025-08-11",
-      "payment_date": "2025-08-17"
+      "ex_date": "2024-02-09",
+      "payment_date": "2024-02-15"
+    },
+    {
+      "amount": 0.24,
+      "ex_date": "2023-11-10",
+      "payment_date": "2023-11-16"
     }
   ],
   "endpoint": "pi/equity/dividend-payment",

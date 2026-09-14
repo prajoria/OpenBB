@@ -1,32 +1,179 @@
 {
   "body": [
     {
-      "date": "2026-05-01",
-      "name": "Cook Timothy D",
-      "price_usd": 173.45,
-      "shares": -223986,
+      "date": "2026-09-08",
+      "name": "Newstead Jennifer",
+      "price_usd": 317.23,
+      "shares": -1438.0,
       "transaction_type": "S-Sale"
     },
     {
-      "date": "2026-04-14",
-      "name": "Maestri Luca",
-      "price_usd": 169.85,
-      "shares": -50000,
+      "date": "2026-09-01",
+      "name": "Newstead Jennifer",
+      "price_usd": 317.01,
+      "shares": -1439.0,
       "transaction_type": "S-Sale"
     },
     {
-      "date": "2026-04-10",
-      "name": "Williams Jeff",
-      "price_usd": 168.1,
-      "shares": -25000,
+      "date": "2026-09-01",
+      "name": "Ternus John",
+      "price_usd": 0.0,
+      "shares": 7690.0,
+      "transaction_type": "A-Award"
+    },
+    {
+      "date": "2026-09-01",
+      "name": "Ternus John",
+      "price_usd": 0.0,
+      "shares": 0.0,
+      "transaction_type": ""
+    },
+    {
+      "date": "2026-09-01",
+      "name": "Ternus John",
+      "price_usd": 0.0,
+      "shares": 48932.0,
+      "transaction_type": ""
+    },
+    {
+      "date": "2026-08-25",
+      "name": "Newstead Jennifer",
+      "price_usd": 310.95,
+      "shares": -1439.0,
       "transaction_type": "S-Sale"
     },
     {
-      "date": "2026-03-15",
-      "name": "Adams Katherine",
-      "price_usd": 173.2,
-      "shares": -10000,
+      "date": "2026-08-18",
+      "name": "Newstead Jennifer",
+      "price_usd": 307.49,
+      "shares": -1439.0,
       "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-08-11",
+      "name": "Newstead Jennifer",
+      "price_usd": 307.75,
+      "shares": -1439.0,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-06-16",
+      "name": "Borders Ben",
+      "price_usd": 295.14,
+      "shares": -116.0,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-06-15",
+      "name": "Newstead Jennifer",
+      "price_usd": 0.0,
+      "shares": -30104.0,
+      "transaction_type": "M-Exempt"
+    },
+    {
+      "date": "2026-06-15",
+      "name": "Newstead Jennifer",
+      "price_usd": 0.0,
+      "shares": 30104.0,
+      "transaction_type": "M-Exempt"
+    },
+    {
+      "date": "2026-06-15",
+      "name": "Newstead Jennifer",
+      "price_usd": 296.42,
+      "shares": -16238.0,
+      "transaction_type": "F-InKind"
+    },
+    {
+      "date": "2026-06-15",
+      "name": "Borders Ben",
+      "price_usd": 0.0,
+      "shares": 240.0,
+      "transaction_type": "M-Exempt"
+    },
+    {
+      "date": "2026-06-15",
+      "name": "Borders Ben",
+      "price_usd": 296.42,
+      "shares": -124.0,
+      "transaction_type": "F-InKind"
+    },
+    {
+      "date": "2026-06-15",
+      "name": "Borders Ben",
+      "price_usd": 0.0,
+      "shares": -240.0,
+      "transaction_type": "M-Exempt"
+    },
+    {
+      "date": "2026-05-27",
+      "name": "LEVINSON ARTHUR D",
+      "price_usd": 311.02,
+      "shares": -50000.0,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-05-27",
+      "name": "LEVINSON ARTHUR D",
+      "price_usd": 0.0,
+      "shares": -65000.0,
+      "transaction_type": "G-Gift"
+    },
+    {
+      "date": "2026-05-08",
+      "name": "Borders Ben",
+      "price_usd": 290.0,
+      "shares": -1274.0,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-05-06",
+      "name": "LEVINSON ARTHUR D",
+      "price_usd": 284.57,
+      "shares": -149527.0,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-05-06",
+      "name": "LEVINSON ARTHUR D",
+      "price_usd": 285.04,
+      "shares": -100473.0,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-05-06",
+      "name": "LEVINSON ARTHUR D",
+      "price_usd": 0.0,
+      "shares": -5000.0,
+      "transaction_type": "G-Gift"
+    },
+    {
+      "date": "2026-04-23",
+      "name": "Parekh Kevan",
+      "price_usd": 275.0,
+      "shares": -1534.0,
+      "transaction_type": "S-Sale"
+    },
+    {
+      "date": "2026-04-15",
+      "name": "Borders Ben",
+      "price_usd": 0.0,
+      "shares": 1717.0,
+      "transaction_type": "M-Exempt"
+    },
+    {
+      "date": "2026-04-15",
+      "name": "Borders Ben",
+      "price_usd": 266.43,
+      "shares": -892.0,
+      "transaction_type": "F-InKind"
+    },
+    {
+      "date": "2026-04-15",
+      "name": "Borders Ben",
+      "price_usd": 0.0,
+      "shares": -331.0,
+      "transaction_type": "M-Exempt"
     }
   ],
   "endpoint": "pi/equity/insider-trading",
