@@ -8,10 +8,11 @@ set -euo pipefail
 profile="nvidia-3080"
 no_download=false
 verify=false
+what_if=false
 
 usage() {
     cat <<'EOF'
-Usage: scripts/setup-local-llm.sh [--profile NAME] [--no-download] [--verify]
+Usage: scripts/setup-local-llm.sh [--profile NAME] [--no-download] [--verify] [--what-if]
 
 Supported profiles:
   nvidia-3080, nvidia-3080-12gb, nvidia-3090, nvidia-24gb,
@@ -50,6 +51,9 @@ while (($# > 0)); do
         --verify)
             verify=true
             shift ;;
+        --what-if)
+            what_if=true
+            shift ;;
         --help|-h)
             usage
             exit 0 ;;
@@ -67,6 +71,12 @@ if command -v ollama >/dev/null 2>&1; then
 else
     ollama_installed=false
 fi
+
+runtime_command=""
+if [[ "$ollama_installed" == false ]]; then
+    runtime_command="curl -fsSL https://ollama.com/install.sh | sh"
+fi
+model_command="ollama pull $model"
 
 if command -v nvidia-smi >/dev/null 2>&1; then
     available_vram_gb="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk 'BEGIN { max = 0 } { if ($1 > max) max = $1 } END { print int(max / 1024) }')"
@@ -91,7 +101,10 @@ if ((${#failure_reasons[@]} > 0)); then
     exit 1
 fi
 
-if [[ "$verify" == true ]]; then
+if [[ "$what_if" == true ]]; then
+    [[ -z "$runtime_command" ]] || printf 'Would run: %s\n' "$runtime_command"
+    printf 'Would run: %s\n' "$model_command"
+elif [[ "$verify" == true ]]; then
     if [[ "$ollama_installed" == false ]]; then
         printf 'Ollama is not installed, so verification cannot run.\n' >&2
         exit 1
@@ -100,10 +113,13 @@ if [[ "$verify" == true ]]; then
     exit 1
 elif [[ "$no_download" == true ]]; then
     printf 'No-download selected; no runtime or model was installed.\n'
-elif [[ "$ollama_installed" == false ]]; then
-    printf 'Ollama is not installed. Re-run with --no-download for preflight only.\n' >&2
-    exit 1
 else
-    printf 'Model installation is not implemented yet. Re-run with --no-download for preflight only.\n' >&2
-    exit 1
+    if [[ -n "$runtime_command" ]]; then
+        printf 'Installing Ollama...\n'
+        curl -fsSL https://ollama.com/install.sh | sh
+    fi
+    command -v ollama >/dev/null 2>&1 || { printf 'Ollama was installed but is not available. Restart the shell and re-run this script.\n' >&2; exit 1; }
+    printf 'Downloading %s...\n' "$model"
+    ollama pull "$model"
+    printf 'Local LLM setup complete.\n'
 fi
