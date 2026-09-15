@@ -17,7 +17,7 @@ T13.2 (shipped as #1718).
   Playwright + Workspace-in-CI is #1713.
 """
 
-# ruff: noqa: D103
+# ruff: noqa: D103, PLW0108
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ import pytest
 os.environ.setdefault("PI_WIDGET_BACKEND_AUTH_MODE", "loopback-dev")
 
 from fastapi.testclient import TestClient
+from openbb_portfolio_intel.widget_backend import widgets_endpoints
 from openbb_portfolio_intel.widget_backend.main import app
 
 _client = TestClient(app)
@@ -37,6 +38,16 @@ _client = TestClient(app)
 _MANIFEST_DIR = (
     Path(__file__).resolve().parents[2] / "openbb_portfolio_intel" / "widget_backend"
 )
+
+
+class _EmptyStore:
+    def get_live(self, _dataset: str, _entity_key: str):
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _empty_snapshot_store(monkeypatch):
+    monkeypatch.setattr(widgets_endpoints, "_get_snapshot_store", lambda: _EmptyStore())
 
 
 def _widgets() -> dict:
@@ -66,27 +77,17 @@ def test_validation_verdict_widget_declared() -> None:
     assert w["endpoint"] == "tt/validation/verdict"
 
 
-def test_validation_verdict_returns_pbo_dsr_oos_sharpe() -> None:
+def test_validation_verdict_cold_start_is_loud() -> None:
     r = _client.get("/tt/validation/verdict?symbol=AAPL")
     assert r.status_code == 200
     rows = r.json()
-    metrics = {row["metric"] for row in rows}
-    assert "PBO" in metrics
-    assert "DSR" in metrics
-    assert any(
-        "OOS" in m and "Sharpe" in m for m in metrics
-    ), f"missing OOS Sharpe metric; got {metrics!r}"
-    assert any(row.get("metric") == "Verdict" for row in rows)
+    assert "No EOD snapshot available" in rows[0]["note"]
+    assert rows[0]["survivorship"] is None
 
 
-def test_validation_verdict_gate_is_pass_or_fail() -> None:
-    """The Verdict row must be a discrete gate: PASS or FAIL, never in-between."""
+def test_validation_verdict_cold_start_has_eod_disclaimer() -> None:
     rows = _client.get("/tt/validation/verdict?symbol=AAPL").json()
-    verdict_row = [r for r in rows if r["metric"] == "Verdict"][0]
-    assert verdict_row["value"] in (
-        "PASS",
-        "FAIL",
-    ), f"Verdict must be PASS or FAIL; got {verdict_row['value']!r}"
+    assert "EOD planning snapshot" in rows[0]["disclaimer"]
 
 
 # ===========================================================================
@@ -100,24 +101,17 @@ def test_tuning_report_widget_declared() -> None:
     assert w["endpoint"] == "tt/tuning/report"
 
 
-def test_tuning_report_returns_param_rows() -> None:
+def test_tuning_report_cold_start_is_loud() -> None:
     r = _client.get("/tt/tuning/report?symbol=AAPL")
     assert r.status_code == 200
     rows = r.json()
     assert rows
-    for row in rows:
-        for f in ("param", "current", "proposed", "delta", "validate_gate"):
-            assert f in row, f"missing {f} in {row!r}"
+    assert "No EOD snapshot available" in rows[0]["note"]
 
 
-def test_tuning_report_validate_gate_is_pass_or_fail_per_param() -> None:
-    """Each proposed param carries a validate_gate outcome (never silent)."""
+def test_tuning_report_cold_start_has_eod_disclaimer() -> None:
     rows = _client.get("/tt/tuning/report?symbol=AAPL").json()
-    for row in rows:
-        assert row["validate_gate"] in (
-            "PASS",
-            "FAIL",
-        ), f"validate_gate must be PASS/FAIL; got {row['validate_gate']!r}"
+    assert "EOD planning snapshot" in rows[0]["disclaimer"]
 
 
 # ===========================================================================
@@ -131,20 +125,17 @@ def test_audit_journal_widget_declared() -> None:
     assert w["endpoint"] == "tt/audit/journal"
 
 
-def test_audit_journal_returns_replay_vs_forward_rows() -> None:
+def test_audit_journal_cold_start_is_loud() -> None:
     r = _client.get("/tt/audit/journal?symbol=AAPL")
     assert r.status_code == 200
     rows = r.json()
     assert rows
-    for row in rows:
-        for f in ("bar_date", "replay_pnl", "forward_pnl", "deviation_bps"):
-            assert f in row, f"missing {f} in {row!r}"
+    assert "No EOD snapshot available" in rows[0]["note"]
 
 
-def test_audit_journal_deviation_is_numeric_bps() -> None:
+def test_audit_journal_cold_start_has_eod_disclaimer() -> None:
     rows = _client.get("/tt/audit/journal?symbol=AAPL").json()
-    for row in rows:
-        assert isinstance(row["deviation_bps"], (int, float))
+    assert "EOD planning snapshot" in rows[0]["disclaimer"]
 
 
 # ===========================================================================

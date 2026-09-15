@@ -30,8 +30,13 @@ def _signal(symbol: str, segment: str, score: float) -> MoverSignal:
     """Build a ranked MoverSignal with direction derived from the score sign."""
     direction = "long" if score >= 0.4 else "short" if score <= -0.4 else "flat"
     return MoverSignal(
-        symbol=symbol, segment=segment, as_of=_AS_OF, score=score,
-        direction=direction, votes=[], rank_in_segment=1,
+        symbol=symbol,
+        segment=segment,
+        as_of=_AS_OF,
+        score=score,
+        direction=direction,
+        votes=[],
+        rank_in_segment=1,
     )
 
 
@@ -39,7 +44,9 @@ def _signal_fetcher_for(signals: dict[tuple[str, str], MoverSignal]):
     """Offline signal_fetcher keyed by (symbol, segment)."""
 
     def _fetch(symbols=None, segment=None, *, preset="trend_follow", as_of=None):
-        return [signals[(s, segment)] for s in (symbols or []) if (s, segment) in signals]
+        return [
+            signals[(s, segment)] for s in (symbols or []) if (s, segment) in signals
+        ]
 
     return _fetch
 
@@ -55,7 +62,9 @@ def _plan(symbol: str, segment: str, score: float) -> TradePlan:
     """Build one real, actionable TradePlan for a score (recorded-realistic shape)."""
     sig = _signal(symbol, segment, score)
     plans = build_plans(
-        symbols=[symbol], segment=segment, as_of=_AS_OF,
+        symbols=[symbol],
+        segment=segment,
+        as_of=_AS_OF,
         signal_fetcher=_signal_fetcher_for({(symbol, segment): sig}),
         level_fetcher=_level_fetcher(),
     )
@@ -79,6 +88,10 @@ class _FakeStore:
         self.snapshots.append(snapshot)
         return snapshot
 
+    def write_snapshots(self, snapshots: list[ScanSnapshot]) -> list[ScanSnapshot]:
+        self.snapshots.extend(snapshots)
+        return snapshots
+
     def read_latest(self, *, kind: str, segment: str):
         matches = [s for s in self.snapshots if s.kind == kind and s.segment == segment]
         return matches[-1] if matches else None
@@ -88,10 +101,14 @@ class _FakeStore:
 
     def list_snapshots(self, *, kind=None, segment=None, limit=None):
         rows = [
-            s for s in self.snapshots
-            if (kind is None or s.kind == kind) and (segment is None or s.segment == segment)
+            s
+            for s in self.snapshots
+            if (kind is None or s.kind == kind)
+            and (segment is None or s.segment == segment)
         ]
-        return list(reversed(rows))[:limit] if limit is not None else list(reversed(rows))
+        return (
+            list(reversed(rows))[:limit] if limit is not None else list(reversed(rows))
+        )
 
     def prune_snapshots(self, *, keep=10) -> int:  # pragma: no cover - unused here
         return 0
@@ -175,7 +192,9 @@ def test_run_scan_skips_failed_segment_and_preserves_last_good():
     # Seed a prior good Energy snapshot.
     store.write_snapshot(
         ScanSnapshot(
-            kind="daily_scan", segment="Energy", as_of_session=date(2024, 1, 11),
+            kind="daily_scan",
+            segment="Energy",
+            as_of_session=date(2024, 1, 11),
             rows=[{"symbol": "OLD", "segment": "Energy"}],
         )
     )
@@ -191,9 +210,10 @@ def test_run_scan_skips_failed_segment_and_preserves_last_good():
     assert result.failed_segments == ["Energy"]
     assert "Energy" not in result.processed_segments
     assert "Financials" in result.processed_segments
-    # Energy still shows the old good snapshot, not a new empty one.
+    # The incomplete run publishes no segment, so the prior dataset stays coherent.
     energy = store.read_latest(kind="daily_scan", segment="Energy")
     assert [r["symbol"] for r in energy.rows] == ["OLD"]
+    assert store.read_latest(kind="daily_scan", segment="Financials") is None
 
 
 def test_run_scan_uses_structured_warning_from_real_scan_segments():
@@ -230,7 +250,7 @@ def test_run_scan_uses_structured_warning_from_real_scan_segments():
     assert store.read_latest(kind="daily_scan", segment="Energy").rows == [
         {"symbol": "OLD", "segment": "Energy"}
     ]
-    assert store.read_latest(kind="daily_scan", segment="Financials").rows == []
+    assert store.read_latest(kind="daily_scan", segment="Financials") is None
 
 
 def test_run_scan_surfaces_scan_warnings_in_result():
@@ -268,7 +288,8 @@ def test_run_scan_cancels_between_segments():
 
     assert result.cancelled is True
     assert result.processed_segments == ["Energy"]
-    assert "Financials" not in result.snapshot_ids
+    assert result.snapshot_ids == {}
+    assert store.snapshots == []
     assert any("cancelled" in w for w in result.warnings)
 
 
@@ -314,12 +335,16 @@ def test_run_scan_wraps_real_scan_segments_into_sqlite(tmp_path):
         ml.segment
         for ml in list_movers(
             segment=None,
-            candidate_fetcher=_candidate_fetcher({"symbol": "AAA", "pct_change": 0.05, "volume": 100}),
+            candidate_fetcher=_candidate_fetcher(
+                {"symbol": "AAA", "pct_change": 0.05, "volume": 100}
+            ),
             as_of=_AS_OF,
         )
     ]
     signals = {seg: _signal("AAA", seg, 0.90) for seg in segments}
-    signal_fetcher = _signal_fetcher_for({("AAA", seg): sig for seg, sig in signals.items()})
+    signal_fetcher = _signal_fetcher_for(
+        {("AAA", seg): sig for seg, sig in signals.items()}
+    )
 
     store = SqliteScanSnapshotStore(tmp_path / "scan.db")
     try:
@@ -328,7 +353,9 @@ def test_run_scan_wraps_real_scan_segments_into_sqlite(tmp_path):
             store=store,
             as_of=_AS_OF,
             simulate=False,
-            candidate_fetcher=_candidate_fetcher({"symbol": "AAA", "pct_change": 0.05, "volume": 100}),
+            candidate_fetcher=_candidate_fetcher(
+                {"symbol": "AAA", "pct_change": 0.05, "volume": 100}
+            ),
             signal_fetcher=signal_fetcher,
             level_fetcher=_level_fetcher(),
         )

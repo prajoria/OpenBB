@@ -9,6 +9,7 @@ import logging
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from functools import partial
 from importlib.metadata import entry_points
 from typing import Protocol, cast
 from uuid import uuid4
@@ -29,6 +30,7 @@ from openbb_techtrade.snapshot.store import (
     SnapshotRow,
     SnapshotStatus,
     SnapshotStore,
+    ValidationResult,
     canonical_key,
     get_default_snapshot_store,
     snapshot_input_hash,
@@ -36,6 +38,16 @@ from openbb_techtrade.snapshot.store import (
 
 ADAPTER_ENTRY_POINT_GROUP = "openbb_snapshot_dataset"
 logger = logging.getLogger(__name__)
+
+
+def _validate_with_previous(
+    row: SnapshotRow,
+    *,
+    validator: Callable[[SnapshotRow, SnapshotRow | None], ValidationResult],
+    previous: SnapshotRow | None,
+) -> ValidationResult:
+    """Bind the prior LIVE row to a dataset validator."""
+    return validator(row, previous)
 
 
 @dataclass(frozen=True)
@@ -53,6 +65,7 @@ class SnapshotDatasetAdapter(Protocol):
     """Compute seam supplied by later dataset fan-out issues."""
 
     name: str
+    calendar_name: str
 
     def entity_keys(self) -> Iterable[str]:
         """Return the complete entity universe for a full refresh."""
@@ -91,7 +104,13 @@ class SnapshotRefreshOrchestrator:
         self._clock = clock
         self._job_id_factory = job_id_factory
 
-    def run(self, dataset: str, *, retry_job_run_id: str | None = None) -> SnapshotJob:
+    def run(
+        self,
+        dataset: str,
+        *,
+        retry_job_run_id: str | None = None,
+        as_of_session: date | None = None,
+    ) -> SnapshotJob:
         """Refresh a full dataset or only one prior run's failed keys."""
         definition = self._registry.require(dataset)
         adapter = self._adapters.get(definition.name)
@@ -103,8 +122,16 @@ class SnapshotRefreshOrchestrator:
         store.start_job(definition.name, job_run_id, started_at=now)
         completed = False
         try:
-            as_of_session = last_completed_session(now)
+            calendar_name = getattr(adapter, "calendar_name", "XNYS")
+            latest_completed = last_completed_session(now, calendar_name)
+            if as_of_session is not None and as_of_session > latest_completed:
+                raise ValueError("as_of_session is after the latest completed session")
+            target_session = as_of_session or latest_completed
+            begin_refresh = getattr(adapter, "begin_refresh", None)
+            if callable(begin_refresh):
+                begin_refresh(target_session)
             successes: list[tuple[str, str, date, str]] = []
+            baselines: dict[tuple[str, str], SnapshotRow | None] = {}
             if retry_job_run_id is None:
                 keys = list(
                     dict.fromkeys(canonical_key(key) for key in adapter.entity_keys())
@@ -118,7 +145,6 @@ class SnapshotRefreshOrchestrator:
                     not in (SnapshotJobState.PARTIAL, SnapshotJobState.FAILED)
                 ):
                     raise ValueError("retry source is not a job for this dataset")
-                as_of_session = last_completed_session(prior.started_at)
                 keys = store.retry_entity_keys(retry_job_run_id)
                 if not keys:
                     raise ValueError("retry source has no failed entity keys")
@@ -135,14 +161,25 @@ class SnapshotRefreshOrchestrator:
                 sessions = {row.as_of_session for row in prior_rows}
                 if len(sessions) > 1:
                     raise ValueError("retry source contains multiple session dates")
-                if sessions and sessions != {as_of_session}:
+                if sessions:
+                    original_session = next(iter(sessions))
+                    if as_of_session is not None and as_of_session != original_session:
+                        raise ValueError("retry source session lineage is inconsistent")
+                    target_session = original_session
+                elif as_of_session is None:
+                    raise ValueError(
+                        "all-failed retry requires the original as_of_session"
+                    )
+                if sessions and sessions != {target_session}:
                     raise ValueError("retry source session lineage is inconsistent")
                 for row in prior_rows:
                     definition.read(row.payload, row.payload_schema_version)
+                    baseline_key = (definition.name, row.entity_key)
+                    baselines[baseline_key] = store.get_live(*baseline_key)
                     store.stage(
                         definition.name,
                         row.entity_key,
-                        as_of_session,
+                        target_session,
                         job_run_id,
                         row.payload,
                         status=SnapshotStatus.OK,
@@ -154,7 +191,7 @@ class SnapshotRefreshOrchestrator:
                     verdict = store.validate(
                         definition.name,
                         row.entity_key,
-                        as_of_session,
+                        target_session,
                         job_run_id,
                     )
                     if not verdict.ok:
@@ -163,15 +200,18 @@ class SnapshotRefreshOrchestrator:
                         (
                             definition.name,
                             row.entity_key,
-                            as_of_session,
+                            target_session,
                             job_run_id,
                         )
                     )
 
             failures: dict[str, BaseException | str] = {}
             for raw_key in keys:
+                canonical_entity = canonical_key(raw_key)
+                baseline_key = (definition.name, canonical_entity)
+                baselines[baseline_key] = store.get_live(*baseline_key)
                 try:
-                    computed = adapter.compute(raw_key, as_of_session)
+                    computed = adapter.compute(raw_key, target_session)
                     definition.read(computed.payload, computed.payload_schema_version)
                     input_hash = snapshot_input_hash(
                         computed.inputs, computed.engine_version
@@ -182,7 +222,7 @@ class SnapshotRefreshOrchestrator:
                 store.stage(
                     definition.name,
                     raw_key,
-                    as_of_session,
+                    target_session,
                     job_run_id,
                     computed.payload,
                     status=SnapshotStatus.OK,
@@ -191,8 +231,21 @@ class SnapshotRefreshOrchestrator:
                     engine_version=computed.engine_version,
                     payload_schema_version=computed.payload_schema_version,
                 )
+                previous = store.get_live(definition.name, raw_key)
                 verdict = store.validate(
-                    definition.name, raw_key, as_of_session, job_run_id
+                    definition.name,
+                    raw_key,
+                    target_session,
+                    job_run_id,
+                    (
+                        None
+                        if definition.validator is None
+                        else partial(
+                            _validate_with_previous,
+                            validator=definition.validator,
+                            previous=previous,
+                        )
+                    ),
                 )
                 if not verdict.ok:
                     failures[raw_key] = "validation_failed"
@@ -200,8 +253,8 @@ class SnapshotRefreshOrchestrator:
                 successes.append(
                     (
                         definition.name,
-                        canonical_key(raw_key),
-                        as_of_session,
+                        canonical_entity,
+                        target_session,
                         job_run_id,
                     )
                 )
@@ -231,6 +284,8 @@ class SnapshotRefreshOrchestrator:
                 successes,
                 finished_at=utc_datetime(self._clock()),
                 require_newer=retry_job_run_id is not None,
+                require_not_older=True,
+                expected_live=baselines,
             )
             completed = True
             return job
@@ -268,6 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--retry-job-run-id")
+    parser.add_argument("--as-of-session", type=date.fromisoformat)
     args = parser.parse_args(argv)
     adapters = _load_adapters()
     if args.dataset not in adapters:
@@ -280,7 +336,11 @@ def main(argv: list[str] | None = None) -> int:
             DEFAULT_DATASET_REGISTRY,
             adapters,
         )
-        job = orchestrator.run(args.dataset, retry_job_run_id=args.retry_job_run_id)
+        job = orchestrator.run(
+            args.dataset,
+            retry_job_run_id=args.retry_job_run_id,
+            as_of_session=args.as_of_session,
+        )
     finally:
         store.close()
     if job.state == SnapshotJobState.SUCCEEDED:

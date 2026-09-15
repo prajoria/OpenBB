@@ -336,7 +336,7 @@ _SELECT_BY_PK = (
 )
 
 _SELECT_LIVE = (
-    "SELECT s.dataset, s.entity_key, s.as_of_session, s.created_at, "
+    "SELECT s.dataset, s.entity_key, s.as_of_session, s.created_at, "  # noqa: S608
     "s.job_run_id, s.status, s.state, s.validated, s.validation_reason, "
     "s.payload_json, s.input_hash, s.row_count, s.engine_version, "
     "s.payload_schema_version FROM pi_eod_live_pointer AS p "
@@ -357,7 +357,7 @@ _SELECT_LIVE_FOR_UPDATE = _SELECT_LIVE + " FOR UPDATE"
 _SELECT_AS_OF = (
     f"SELECT {_COLUMNS} FROM pi_eod_snapshot "
     "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
-    "AND state != %s ORDER BY created_at DESC LIMIT 1"
+    "AND state != %s AND status = %s ORDER BY created_at DESC LIMIT 1"
 )
 
 _SELECT_HISTORY = (
@@ -1470,6 +1470,8 @@ class MysqlSnapshotStore:
         *,
         finished_at: datetime | None = None,
         require_newer: bool = False,
+        require_not_older: bool = False,
+        expected_live: Mapping[tuple[str, str], SnapshotRow | None] | None = None,
     ) -> SnapshotJob:
         """Verify lease ownership, promote all candidates, and finish atomically."""
         normalized = [
@@ -1504,7 +1506,18 @@ class MysqlSnapshotStore:
                         "snapshot candidates do not belong to the active job lease"
                     )
                 for candidate in normalized:
-                    self._promote_locked(conn, *candidate, require_newer=require_newer)
+                    self._promote_locked(
+                        conn,
+                        *candidate,
+                        expected_live=(
+                            expected_live.get(candidate[:2])
+                            if expected_live is not None
+                            else None
+                        ),
+                        expectation=expected_live is not None,
+                        require_newer=require_newer,
+                        require_not_older=require_not_older,
+                    )
                 cur.execute(
                     "UPDATE snapshot_job SET finished_at = %s, state = %s, "
                     "n_ok = %s, n_failed = 0, error = NULL "
@@ -1528,6 +1541,63 @@ class MysqlSnapshotStore:
             raise SnapshotJobTransitionError("published job could not be read back")
         return published
 
+    def archive_job(
+        self,
+        job_run_id: str,
+        candidate: tuple[str, str, date, str],
+        *,
+        finished_at: datetime | None = None,
+    ) -> SnapshotJob:
+        """Atomically archive one validated row and finish its active job."""
+        dataset, entity_key, session, candidate_run = candidate
+        dataset = canonical_key(dataset)
+        entity_key = canonical_key(entity_key)
+        if candidate_run != job_run_id:
+            raise SnapshotJobTransitionError(
+                "snapshot candidate does not belong to the active job lease"
+            )
+        self._reject_pii(dataset)
+        finished = utc_datetime(finished_at).replace(tzinfo=None)
+        with self.transaction() as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE pi_eod_snapshot SET state = %s, status = %s "
+                "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
+                "AND job_run_id = %s AND state = %s AND validated = 1 AND status = %s",
+                (
+                    SnapshotState.SUPERSEDED.value,
+                    SnapshotStatus.STALE.value,
+                    dataset,
+                    entity_key,
+                    session,
+                    job_run_id,
+                    SnapshotState.STAGING.value,
+                    SnapshotStatus.OK.value,
+                ),
+            )
+            if cur.rowcount != 1:
+                raise SnapshotJobTransitionError(
+                    "archive candidate is not validated staging data"
+                )
+            cur.execute(
+                "UPDATE snapshot_job SET finished_at = %s, state = %s, "
+                "n_ok = 1, n_failed = 0, error = NULL "
+                "WHERE job_run_id = %s AND state = %s",
+                (
+                    finished,
+                    SnapshotJobState.SUCCEEDED.value,
+                    job_run_id,
+                    SnapshotJobState.RUNNING.value,
+                ),
+            )
+            if cur.rowcount != 1:
+                raise SnapshotJobTransitionError(
+                    "snapshot job lease changed during archive"
+                )
+        archived_job = self.get_job(job_run_id)
+        if archived_job is None:  # pragma: no cover
+            raise SnapshotJobTransitionError("archived job could not be read back")
+        return archived_job
+
     @classmethod
     def _promote_locked(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         cls,
@@ -1540,6 +1610,7 @@ class MysqlSnapshotStore:
         expected_live: SnapshotRow | None = None,
         expectation: bool = False,
         require_newer: bool = False,
+        require_not_older: bool = False,
     ) -> None:
         """Locking read + guarded writes; raises :class:`_PromotionRefused`.
 
@@ -1578,6 +1649,15 @@ class MysqlSnapshotStore:
         ):
             raise _PromotionRefused(
                 "candidate must be newer than LIVE; source is older or superseded"
+            )
+        if (
+            require_not_older
+            and live is not None
+            and candidate is not None
+            and candidate.as_of_session < live.as_of_session
+        ):
+            raise _PromotionRefused(
+                "candidate is older than LIVE; backfill cannot move the pointer"
             )
         try:
             cls._apply_promotion(
@@ -1649,6 +1729,63 @@ class MysqlSnapshotStore:
         self._reject_pii(dataset)
         with self._read() as conn:
             return self._get_live(conn, dataset, entity_key)
+
+    def archive(
+        self,
+        dataset: str,
+        entity_key: str,
+        as_of_session: date,
+        job_run_id: str,
+    ) -> bool:
+        """Move a validated OK staging row to history without changing LIVE."""
+        dataset = canonical_key(dataset)
+        entity_key = canonical_key(entity_key)
+        self._reject_pii(dataset)
+        with self.transaction() as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE pi_eod_snapshot SET state = %s, status = %s "
+                "WHERE dataset = %s AND entity_key = %s AND as_of_session = %s "
+                "AND job_run_id = %s AND state = %s AND validated = 1 AND status = %s",
+                (
+                    SnapshotState.SUPERSEDED.value,
+                    SnapshotStatus.STALE.value,
+                    dataset,
+                    entity_key,
+                    as_of_session,
+                    job_run_id,
+                    SnapshotState.STAGING.value,
+                    SnapshotStatus.OK.value,
+                ),
+            )
+            return cur.rowcount == 1
+
+    def get_live_many(
+        self, dataset: str, entity_keys: Iterable[str]
+    ) -> dict[str, SnapshotRow]:
+        """Read multiple LIVE keys in one backend round trip."""
+        dataset = canonical_key(dataset)
+        keys = list(dict.fromkeys(canonical_key(key) for key in entity_keys))
+        if not keys:
+            return {}
+        self._reject_pii(dataset)
+        placeholders = ",".join("%s" for _ in keys)
+        query = (  # noqa: S608 - only generated placeholders are interpolated
+            "SELECT s.dataset, s.entity_key, s.as_of_session, s.created_at, "
+            "s.job_run_id, s.status, s.state, s.validated, "
+            "s.validation_reason, s.payload_json, s.input_hash, s.row_count, "
+            "s.engine_version, s.payload_schema_version "
+            "FROM pi_eod_live_pointer AS p "
+            "JOIN pi_eod_snapshot AS s "
+            "ON s.dataset = p.dataset AND s.entity_key = p.entity_key "
+            "AND s.as_of_session = p.as_of_session "
+            "AND s.job_run_id = p.job_run_id "
+            f"WHERE p.dataset = %s AND p.entity_key IN ({placeholders})"  # noqa: S608
+        )
+        with self._read() as conn, conn.cursor() as cur:
+            cur.execute(query, (dataset, *keys))
+            records = cur.fetchall()
+        rows = [_row_from_mapping(record) for record in records]
+        return {row.entity_key: row for row in rows}
 
     def rollback(
         self,
@@ -1754,6 +1891,7 @@ class MysqlSnapshotStore:
                     entity_key,
                     as_of_session,
                     SnapshotState.STAGING.value,
+                    SnapshotStatus.OK.value,
                 ),
             )
 
@@ -1769,6 +1907,67 @@ class MysqlSnapshotStore:
             cur.execute(_SELECT_HISTORY, (dataset, entity_key, limit))
             records = cur.fetchall()
         return [_row_from_mapping(record) for record in records]
+
+    def list_datasets(self, prefix: str | None = None) -> list[str]:
+        """Return canonical dataset names, optionally restricted by prefix."""
+        if prefix is None:
+            query = "SELECT DISTINCT dataset FROM pi_eod_snapshot ORDER BY dataset"
+            params: tuple = ()
+        else:
+            canonical_prefix = canonical_key(prefix)
+            query = (
+                "SELECT DISTINCT dataset FROM pi_eod_snapshot "
+                "WHERE LEFT(dataset, %s) = %s ORDER BY dataset"
+            )
+            params = (len(canonical_prefix), canonical_prefix)
+        with self._read() as conn, conn.cursor() as cur:
+            cur.execute(query, params)
+            records = cur.fetchall()
+        return [
+            str(record["dataset"] if isinstance(record, Mapping) else record[0])
+            for record in records
+        ]
+
+    def list_entity_keys(self, dataset: str) -> list[str]:
+        """Return canonical entity keys persisted for one dataset."""
+        dataset = canonical_key(dataset)
+        self._reject_pii(dataset)
+        with self._read() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT entity_key FROM pi_eod_snapshot "
+                "WHERE dataset = %s ORDER BY entity_key",
+                (dataset,),
+            )
+            records = cur.fetchall()
+        return [
+            str(record["entity_key"] if isinstance(record, Mapping) else record[0])
+            for record in records
+        ]
+
+    def delete_history(self, rows: Iterable[tuple[str, str, date, str]]) -> int:
+        """Atomically delete exact non-LIVE history rows."""
+        deleted = 0
+        with self.transaction() as conn, conn.cursor() as cur:
+            for dataset, entity_key, session, job_run_id in rows:
+                cur.execute(
+                    "DELETE FROM pi_eod_snapshot WHERE dataset = %s "
+                    "AND entity_key = %s AND as_of_session = %s AND job_run_id = %s "
+                    "AND state != %s AND NOT EXISTS ("
+                    "SELECT 1 FROM pi_eod_live_pointer AS p "
+                    "WHERE p.dataset = pi_eod_snapshot.dataset "
+                    "AND p.entity_key = pi_eod_snapshot.entity_key "
+                    "AND p.as_of_session = pi_eod_snapshot.as_of_session "
+                    "AND p.job_run_id = pi_eod_snapshot.job_run_id)",
+                    (
+                        canonical_key(dataset),
+                        canonical_key(entity_key),
+                        session,
+                        job_run_id,
+                        SnapshotState.LIVE.value,
+                    ),
+                )
+                deleted += cur.rowcount
+        return deleted
 
     def should_skip(self, dataset: str, entity_key: str, input_hash: str) -> bool:
         """Report whether the LIVE row already carries this ``input_hash``.

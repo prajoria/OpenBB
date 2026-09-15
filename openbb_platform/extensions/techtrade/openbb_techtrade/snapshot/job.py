@@ -9,7 +9,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from enum import Enum
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from openbb_techtrade.snapshot.store import SnapshotRow
 
 DEFAULT_STALE_AFTER = timedelta(hours=2)
 _ERROR_CODE_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,63}$")
@@ -94,8 +97,20 @@ class SnapshotJobStore(Protocol):
         *,
         finished_at: datetime | None = None,
         require_newer: bool = False,
+        require_not_older: bool = False,
+        expected_live: Mapping[tuple[str, str], SnapshotRow | None] | None = None,
     ) -> SnapshotJob:
         """Atomically verify the lease, promote all rows, and finish the job."""
+        ...
+
+    def archive_job(
+        self,
+        job_run_id: str,
+        candidate: tuple[str, str, date, str],
+        *,
+        finished_at: datetime | None = None,
+    ) -> SnapshotJob:
+        """Atomically archive one validated row and finish its job."""
         ...
 
 

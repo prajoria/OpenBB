@@ -1,10 +1,8 @@
-"""Persistence contract for TechTrade scan snapshots (issue #1934).
+"""Legacy compatibility contract for TechTrade scan snapshots (issue #1934).
 
 ``ScanSnapshotStore`` is a ``Protocol`` so neither ``run_scan`` nor the Morning
-Scan widgets depend on SQLite. The initial implementation is
-:class:`~openbb_techtrade.snapshots.sqlite.SqliteScanSnapshotStore`, but the seam
-leaves room for a MySQL/Postgres adapter when multi-host reads are required --
-exactly the same discipline the core ``JobStore`` protocol uses.
+Scan widgets depend on SQLite. The initial implementation is a facade over :mod:`openbb_techtrade.snapshot`; it does not
+own a second persistence schema or LIVE-selection policy.
 """
 
 from __future__ import annotations
@@ -29,6 +27,9 @@ class ScanSnapshotStore(Protocol):
 
     def write_snapshot(self, snapshot: ScanSnapshot) -> ScanSnapshot:
         """Append one immutable snapshot and return the persisted record."""
+
+    def write_snapshots(self, snapshots: list[ScanSnapshot]) -> list[ScanSnapshot]:
+        """Atomically publish a complete multi-segment scan."""
 
     def read_latest(self, *, kind: str, segment: str) -> ScanSnapshot | None:
         """Return the most recent snapshot for a ``(kind, segment)`` or ``None``."""

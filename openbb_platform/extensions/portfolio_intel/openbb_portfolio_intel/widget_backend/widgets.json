@@ -2100,7 +2100,7 @@
   },
   "tt_tuning_report": {
     "name": "Techtrade - Tuning Report",
-    "description": "tuneta proposal + per-param validate gate (#1698). Persist behavior is stub-only. Stub-shaped over openbb_techtrade.engine.tune_router.",
+    "description": "Persisted tuneta proposal + per-parameter validation gate (#1698).",
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/tuning/report",
@@ -2116,12 +2116,19 @@
         "label": "Symbol",
         "type": "text",
         "description": "Ticker"
+      },
+      {
+        "paramName": "segment",
+        "value": "",
+        "label": "Segment",
+        "type": "text",
+        "description": "Canonical GICS segment"
       }
     ]
   },
   "tt_audit_journal": {
     "name": "Techtrade - Audit Journal",
-    "description": "Replay vs forward P&L + deviation (bps) per bar (#1699). Stub-shaped over openbb_techtrade.reporting.audit.",
+    "description": "Validated replay CAGR/Sharpe beside realized forward simulation returns (#1699).",
     "category": "Techtrade",
     "type": "table",
     "endpoint": "tt/audit/journal",

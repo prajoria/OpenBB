@@ -32,7 +32,7 @@ from openbb_core.app.model.example import APIEx
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.router import Router
 
-from openbb_techtrade.engine.indicators import DEFAULT_CONFIG, IndicatorConfig
+from openbb_techtrade.engine.indicators import DEFAULT_CONFIG
 from openbb_techtrade.models import (
     EntryExitRule,
     MoverSignal,
@@ -56,19 +56,21 @@ logger = logging.getLogger(__name__)
 SEGMENT_BENCHMARK_ETFS: dict[str, str] = {
     "Communication Services": "XLC",
     "Consumer Discretionary": "XLY",
-    "Consumer Staples":       "XLP",
-    "Energy":                 "XLE",
-    "Financials":             "XLF",
-    "Health Care":            "XLV",
-    "Industrials":            "XLI",
+    "Consumer Staples": "XLP",
+    "Energy": "XLE",
+    "Financials": "XLF",
+    "Health Care": "XLV",
+    "Industrials": "XLI",
     "Information Technology": "XLK",
-    "Materials":              "XLB",
-    "Real Estate":            "XLRE",
-    "Utilities":              "XLU",
+    "Materials": "XLB",
+    "Real Estate": "XLRE",
+    "Utilities": "XLU",
 }
 
 
-router = Router(prefix="", description="Per-segment indicator-period tuning gated by validation.")
+router = Router(
+    prefix="", description="Per-segment indicator-period tuning gated by validation."
+)
 
 
 def _build_sample_plan(segment: str, as_of: date) -> TradePlan:
@@ -85,24 +87,45 @@ def _build_sample_plan(segment: str, as_of: date) -> TradePlan:
         )
     etf = SEGMENT_BENCHMARK_ETFS[segment]
     sig = MoverSignal(
-        symbol=etf, segment=segment, as_of=as_of,
-        score=0.5, direction="long", votes=[], rank_in_segment=1,
+        symbol=etf,
+        segment=segment,
+        as_of=as_of,
+        score=0.5,
+        direction="long",
+        votes=[],
+        rank_in_segment=1,
     )
     rec = Recommendation(
-        symbol=etf, segment=segment, as_of=as_of,
-        action="BUY", conviction="Medium", score=0.5,
-        entry_price=Decimal("100.00"), stop_price=Decimal("98.00"),
+        symbol=etf,
+        segment=segment,
+        as_of=as_of,
+        action="BUY",
+        conviction="Medium",
+        score=0.5,
+        entry_price=Decimal("100.00"),
+        stop_price=Decimal("98.00"),
         target_price=Decimal("104.00"),
-        stop_distance_pct=0.02, target_distance_pct=0.04,
-        risk_reward=2.0, atr=2.0,
-        position_size=Decimal("1"), risk_per_share=Decimal("2.00"),
-        risk_pct_of_notional=0.0, time_stop_bars=20,
-        reasoning="", top_factors=[], caveats="Tuneta sample plan (Q-A A1).",
+        stop_distance_pct=0.02,
+        target_distance_pct=0.04,
+        risk_reward=2.0,
+        atr=2.0,
+        position_size=Decimal("1"),
+        risk_per_share=Decimal("2.00"),
+        risk_pct_of_notional=0.0,
+        time_stop_bars=20,
+        reasoning="",
+        top_factors=[],
+        caveats="Tuneta sample plan (Q-A A1).",
     )
     return TradePlan(
-        symbol=etf, segment=segment, as_of=as_of,
-        signal=sig, rule=EntryExitRule(),
-        position_size=Decimal("1"), orders=[], simulated_fills=[],
+        symbol=etf,
+        segment=segment,
+        as_of=as_of,
+        signal=sig,
+        rule=EntryExitRule(),
+        position_size=Decimal("1"),
+        orders=[],
+        simulated_fills=[],
         recommendation=rec,
     )
 
@@ -134,7 +157,7 @@ def _reason_for(verdict: str, report: Any, *, no_op: bool) -> str:
         ),
     ],
 )
-async def tune(
+async def tune(  # pylint: disable=too-many-arguments
     segment: str,
     *,
     as_of: date | None = None,
@@ -145,6 +168,7 @@ async def tune(
     method: str = "wfo",
     thresholds: dict[str, float] | None = None,
     provider: str | None = None,
+    persist: bool = True,
 ) -> OBBject:
     """Tune indicator periods for a GICS segment, gated by #82's validate (PRD §12.4, §15).
 
@@ -160,7 +184,7 @@ async def tune(
     5. ``validate_plan(plan, method=method, thresholds=thresholds,
        horizon_years=horizon_years, provider=provider)`` -> verdict.
     6. Gate: if verdict == "robust" AND the candidate genuinely differs from
-       DEFAULT_CONFIG (Q-F guard 3) -> persist via write_tuned. Otherwise
+       DEFAULT_CONFIG (Q-F guard 3) and ``persist`` is true -> write_tuned. Otherwise
        persisted=False + a diagnostic reason string. Logged at WARNING on
        fragile/overfit so a long loop is visible without an exception.
     7. Return OBBject[TuningReport].
@@ -197,16 +221,19 @@ async def tune(
     with tune_override({segment: candidate}):
         _updated_plan, report = await validate_plan(
             plan,
-            method=method, thresholds=thresholds,
-            horizon_years=horizon_years, provider=provider,
+            method=method,
+            thresholds=thresholds,
+            horizon_years=horizon_years,
+            provider=provider,
         )
 
     verdict = getattr(report, "verdict", "unknown")
     no_op = candidate == DEFAULT_CONFIG
     persisted = False
-    if verdict == "robust" and not no_op:
+    if verdict == "robust" and not no_op and persist:
         write_tuned(
-            segment, candidate,
+            segment,
+            candidate,
             meta={
                 "verdict": verdict,
                 "pbo": getattr(report, "pbo", None),
@@ -214,8 +241,9 @@ async def tune(
                 "oos_sharpe": getattr(
                     getattr(report, "oos_metrics", None), "sharpe", None
                 ),
-                "tuned_at": datetime.now(timezone.utc).isoformat(timespec="seconds")
-                            .replace("+00:00", "Z"),
+                "tuned_at": datetime.now(timezone.utc)
+                .isoformat(timespec="seconds")
+                .replace("+00:00", "Z"),
                 "tuneta_version": meta["tuneta_version"],
                 "as_of": effective_as_of.isoformat(),
                 "horizon_years": horizon_years,
@@ -230,22 +258,29 @@ async def tune(
     elif verdict != "robust":
         logger.warning(
             "tune: segment %s verdict=%s -> not persisted (pbo=%s dsr=%s)",
-            segment, verdict,
+            segment,
+            verdict,
             getattr(report, "pbo", None),
             getattr(report, "deflated_sharpe", None),
         )
 
-    return OBBject(results=TuningReport(
-        segment=segment,
-        as_of=effective_as_of,
-        candidate=candidate,
-        persisted=persisted,
-        reason=_reason_for(verdict, report, no_op=no_op),
-        tuneta_version=meta["tuneta_version"],
-        fit_seconds=meta["fit_seconds"],
-        trials=trials,
-        early_stop=early_stop,
-    ).model_copy(update={"validation": report}))  # attach via model_copy to mirror #82 bridge
+    reason = _reason_for(verdict, report, no_op=no_op)
+    if verdict == "robust" and not no_op and not persist:
+        reason = f"persistence disabled; {reason}"
+
+    return OBBject(
+        results=TuningReport(
+            segment=segment,
+            as_of=effective_as_of,
+            candidate=candidate,
+            persisted=persisted,
+            reason=reason,
+            tuneta_version=meta["tuneta_version"],
+            fit_seconds=meta["fit_seconds"],
+            trials=trials,
+            early_stop=early_stop,
+        ).model_copy(update={"validation": report})
+    )  # attach via model_copy to mirror #82 bridge
     # (TuningReport.validation is typed Data|None to keep techtrade installable without
     # openbb-backtest; constructor would reject a SimpleNamespace fake, but model_copy
     # bypasses validation -- matching backtest_bridge.validate_plan line ~240.)

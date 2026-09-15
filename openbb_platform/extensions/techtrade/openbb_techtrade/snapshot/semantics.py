@@ -8,6 +8,7 @@ from enum import Enum
 
 import exchange_calendars as xcals
 import pandas as pd
+from exchange_calendars.errors import InvalidCalendarName
 
 EOD_DISCLAIMER = "EOD planning snapshot — not a live/intraday quote"
 EARNINGS_ANNOTATION = "Reports before next open"
@@ -41,6 +42,7 @@ class EodDisplay:
     missed_sessions: int | None
     color: StalenessColor
     label: str
+    calendar_name: str = DEFAULT_CALENDAR
     disclaimer: str = EOD_DISCLAIMER
     earnings_annotation: str | None = None
 
@@ -51,12 +53,37 @@ def _utc_timestamp(now: datetime) -> pd.Timestamp:
     return pd.Timestamp(now.astimezone(timezone.utc))
 
 
+def validate_calendar_name(calendar_name: str) -> str:
+    """Return a valid exchange-calendar identifier or raise a stable error."""
+    normalized = calendar_name.strip().upper()
+    if not normalized:
+        raise ValueError("unknown exchange calendar: empty")
+    try:
+        xcals.get_calendar(normalized)
+    except InvalidCalendarName as exc:
+        raise ValueError(f"unknown exchange calendar: {calendar_name}") from exc
+    return normalized
+
+
+def validate_exchange_session(session: date, calendar_name: str) -> None:
+    """Reject a date that is not a session on the declared calendar."""
+    calendar = _calendar(calendar_name)
+    if not calendar.is_session(pd.Timestamp(session)):
+        raise ValueError(
+            f"{session.isoformat()} is not an exchange session on {calendar_name}"
+        )
+
+
+def _calendar(calendar_name: str):
+    return xcals.get_calendar(validate_calendar_name(calendar_name))
+
+
 def last_completed_session(
     now: datetime, calendar_name: str = DEFAULT_CALENDAR
 ) -> date:
     """Return the newest exchange session whose actual close has passed."""
     instant = _utc_timestamp(now)
-    calendar = xcals.get_calendar(calendar_name)
+    calendar = _calendar(calendar_name)
     end = instant.tz_localize(None).normalize()
     start = end - pd.Timedelta(days=31)
     sessions = calendar.sessions_in_range(start, end)
@@ -79,7 +106,7 @@ def snapshot_staleness(
         return SnapshotStaleness(None, latest, None, StalenessColor.RED)
     if as_of_session > latest:
         raise ValueError("as_of_session cannot be after the last completed session")
-    calendar = xcals.get_calendar(calendar_name)
+    calendar = _calendar(calendar_name)
     as_of = pd.Timestamp(as_of_session)
     if not calendar.is_session(as_of):
         raise ValueError("as_of_session must be an exchange trading session")
@@ -101,11 +128,12 @@ def build_eod_display(
     calendar_name: str = DEFAULT_CALENDAR,
 ) -> EodDisplay:
     """Build the shared badge/disclaimer/earnings annotation payload."""
+    calendar_name = validate_calendar_name(calendar_name)
     stale = snapshot_staleness(as_of_session, now, calendar_name)
     label = (
         "No EOD snapshot available"
         if as_of_session is None
-        else f"As of {as_of_session.isoformat()} close"
+        else f"As of {as_of_session.isoformat()} {calendar_name} close"
     )
     return EodDisplay(
         as_of_session=stale.as_of_session,
@@ -113,5 +141,6 @@ def build_eod_display(
         missed_sessions=stale.missed_sessions,
         color=stale.color,
         label=label,
+        calendar_name=calendar_name,
         earnings_annotation=(EARNINGS_ANNOTATION if reports_before_next_open else None),
     )

@@ -53,10 +53,13 @@ class _Adapter:
         self.threads.append(threading.current_thread())
         if entity_key in self.fail:
             raise RuntimeError("provider response must not persist")
+        symbol = entity_key.split("=", 1)[1]
         return ComputedSnapshot(
             payload={
-                "symbol": entity_key.split("=", 1)[1],
-                "session": str(as_of_session),
+                "rows": [{"symbol": symbol}],
+                "segment": symbol,
+                "as_of_session": str(as_of_session),
+                "exchange_calendar": "XNYS",
             },
             inputs={"entity_key": entity_key, "session": str(as_of_session)},
             engine_version="engine-1",
@@ -282,6 +285,81 @@ def test_retry_cannot_replace_newer_refresh_from_same_session(tmp_path: Path) ->
         store.get_live(DATASET, key).job_run_id
         for key in ("symbol=AAPL", "symbol=MSFT")
     } == {"newer-full"}
+    store.close()
+
+
+def test_normal_backfill_cannot_replace_newer_live_session(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    adapter = _Adapter()
+    registry = _registry()
+    times = [datetime(2026, 9, 14, 22, tzinfo=timezone.utc)]
+    ids = iter(["newer", "backfill"])
+    orchestrator = SnapshotRefreshOrchestrator(
+        SnapshotStoreRouter(store, None, registry),
+        registry,
+        {DATASET: adapter},
+        clock=lambda: times[0],
+        job_id_factory=lambda: next(ids),
+    )
+    assert orchestrator.run(DATASET).state is SnapshotJobState.SUCCEEDED
+    times[0] = NOW
+
+    with pytest.raises(SnapshotJobTransitionError, match="older"):
+        orchestrator.run(DATASET)
+
+    assert {
+        store.get_live(DATASET, key).job_run_id
+        for key in ("symbol=AAPL", "symbol=MSFT")
+    } == {"newer"}
+    store.close()
+
+
+def test_retry_uses_the_adapter_exchange_calendar(tmp_path: Path) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    adapter = _Adapter()
+    adapter.calendar_name = "XLON"
+    adapter.fail = {"symbol=msft"}
+    london_after_close = datetime(2026, 9, 11, 18, tzinfo=timezone.utc)
+    registry = _registry()
+    ids = iter(["partial", "retry"])
+    orchestrator = SnapshotRefreshOrchestrator(
+        SnapshotStoreRouter(store, None, registry),
+        registry,
+        {DATASET: adapter},
+        clock=lambda: london_after_close,
+        job_id_factory=lambda: next(ids),
+    )
+    partial = orchestrator.run(DATASET)
+    adapter.fail.clear()
+
+    retried = orchestrator.run(DATASET, retry_job_run_id=partial.job_run_id)
+
+    assert retried.state is SnapshotJobState.SUCCEEDED
+    assert store.get_live(DATASET, "symbol=AAPL").as_of_session == date(2026, 9, 11)
+    store.close()
+
+
+def test_all_failed_backfill_retry_requires_and_reuses_original_session(
+    tmp_path: Path,
+) -> None:
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    adapter = _Adapter()
+    adapter.fail = {"symbol=aapl", "symbol=msft"}
+    orchestrator = _orchestrator(store, adapter, ["failed", "bad-retry", "retry"])
+    target = date(2026, 9, 9)
+    failed = orchestrator.run(DATASET, as_of_session=target)
+    adapter.fail.clear()
+
+    with pytest.raises(ValueError, match="requires the original as_of_session"):
+        orchestrator.run(DATASET, retry_job_run_id=failed.job_run_id)
+    retried = orchestrator.run(
+        DATASET,
+        retry_job_run_id=failed.job_run_id,
+        as_of_session=target,
+    )
+
+    assert retried.state is SnapshotJobState.SUCCEEDED
+    assert store.get_live(DATASET, "symbol=AAPL").as_of_session == target
     store.close()
 
 
