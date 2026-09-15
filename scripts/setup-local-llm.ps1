@@ -20,7 +20,8 @@ param(
     )]
     [string]$Profile = "nvidia-3080",
     [switch]$NoDownload,
-    [switch]$Verify
+    [switch]$Verify,
+    [switch]$WhatIf
 )
 
 Set-StrictMode -Version Latest
@@ -97,7 +98,7 @@ function Test-OpenBBLocalLlmPrerequisites {
         [Nullable[int]]$AvailableDiskGB
     )
 
-    $ollama = Get-Command ollama -ErrorAction SilentlyContinue
+    $ollamaCommand = Get-OpenBBLocalLlmCommand
     if ($null -eq $AvailableVramGB) {
         $vramMiB = & nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>$null |
             ForEach-Object { [int]$_.Trim() } |
@@ -122,13 +123,51 @@ function Test-OpenBBLocalLlmPrerequisites {
     return [pscustomobject]@{
         Profile = $SelectedProfile.Name
         Model = $SelectedProfile.Model
-        OllamaInstalled = $null -ne $ollama
+        OllamaInstalled = $null -ne $ollamaCommand
         AvailableVramGB = $AvailableVramGB
         AvailableDiskGB = $AvailableDiskGB
         IsCompatible = $failureReasons.Count -eq 0
         FailureReasons = $failureReasons
         DownloadsSkipped = $NoDownload.IsPresent
     }
+}
+
+function Get-OpenBBLocalLlmInstallPlan {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$SelectedProfile,
+        [ValidateSet("Windows", "Linux")][string]$Platform,
+        [Parameter(Mandatory = $true)][bool]$OllamaInstalled
+    )
+
+    $runtimeCommand = $null
+    if (-not $OllamaInstalled) {
+        $runtimeCommand = if ($Platform -eq "Windows") {
+            "winget install --id Ollama.Ollama --exact --accept-package-agreements --accept-source-agreements"
+        } else {
+            "curl -fsSL https://ollama.com/install.sh | sh"
+        }
+    }
+
+    return [pscustomobject]@{
+        RuntimeCommand = $runtimeCommand
+        ModelCommand = "ollama pull $($SelectedProfile.Model)"
+    }
+}
+
+function Get-OpenBBLocalLlmCommand {
+    $ollama = Get-Command ollama -ErrorAction SilentlyContinue
+    if ($null -ne $ollama) { return $ollama.Source }
+
+    $candidatePaths = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"),
+        (Join-Path $env:ProgramFiles "Ollama\ollama.exe")
+    )
+    foreach ($candidatePath in $candidatePaths) {
+        if (Test-Path -LiteralPath $candidatePath) { return $candidatePath }
+    }
+
+    return $null
 }
 
 if ($MyInvocation.InvocationName -ne ".") {
@@ -139,16 +178,28 @@ if ($MyInvocation.InvocationName -ne ".") {
     if (-not $preflight.IsCompatible) {
         throw "Profile '$Profile' is not supported on this machine: $($preflight.FailureReasons -join '; ')."
     }
-    if ($Verify) {
+    $plan = Get-OpenBBLocalLlmInstallPlan -SelectedProfile $selectedProfile -Platform "Windows" -OllamaInstalled $preflight.OllamaInstalled
+    if ($WhatIf) {
+        if ($null -ne $plan.RuntimeCommand) { Write-Host "Would run: $($plan.RuntimeCommand)" }
+        Write-Host "Would run: $($plan.ModelCommand)"
+    } elseif ($Verify) {
         if (-not $preflight.OllamaInstalled) {
             throw "Ollama is not installed, so verification cannot run."
         }
         throw "Verification-only mode is not implemented yet."
     } elseif ($NoDownload) {
         Write-Host "NoDownload selected; no runtime or model was installed."
-    } elseif (-not $preflight.OllamaInstalled) {
-        throw "Ollama is not installed. Re-run with -NoDownload for preflight only."
     } else {
-        throw "Model installation is not implemented yet. Re-run with -NoDownload for preflight only."
+        if ($null -ne $plan.RuntimeCommand) {
+            Write-Host "Installing Ollama..."
+            winget install --id Ollama.Ollama --exact --accept-package-agreements --accept-source-agreements
+            if ($LASTEXITCODE -ne 0) { throw "Ollama installation failed with exit code $LASTEXITCODE." }
+        }
+        $ollamaCommand = Get-OpenBBLocalLlmCommand
+        if ($null -eq $ollamaCommand) { throw "Ollama was installed but is not available. Restart the terminal and re-run this script." }
+        Write-Host "Downloading $($selectedProfile.Model)..."
+        & $ollamaCommand pull $selectedProfile.Model
+        if ($LASTEXITCODE -ne 0) { throw "Model download failed with exit code $LASTEXITCODE." }
+        Write-Host "Local LLM setup complete."
     }
 }
