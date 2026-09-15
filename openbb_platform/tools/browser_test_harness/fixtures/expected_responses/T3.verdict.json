@@ -1,28 +1,14 @@
 {
   "body": [
     {
-      "gate": "PASS",
-      "metric": "PBO",
-      "threshold": 0.3,
-      "value": 0.18
-    },
-    {
-      "gate": "PASS",
-      "metric": "DSR",
-      "threshold": 1.0,
-      "value": 1.47
-    },
-    {
-      "gate": "PASS",
-      "metric": "OOS Sharpe",
-      "threshold": 1.0,
-      "value": 1.62
-    },
-    {
-      "gate": "PASS",
-      "metric": "Verdict",
-      "threshold": "PASS",
-      "value": "PASS"
+      "as_of_session": null,
+      "disclaimer": "EOD planning snapshot \u2014 not a live/intraday quote",
+      "earnings_annotation": null,
+      "exchange_calendar": "XNYS",
+      "freshness": "red",
+      "note": "No EOD snapshot available (validation symbol=AAPL) \u2014 run the post-close snapshot job.",
+      "snapshot_badge": "No EOD snapshot available",
+      "survivorship": null
     }
   ],
   "endpoint": "tt/validation/verdict",

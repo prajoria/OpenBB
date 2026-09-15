@@ -1,5 +1,5 @@
 {
-  "body": "## Techtrade Engine Status\n\n- **Scheduler:** RUNNING (next tick in 47s)\n- **Signal engine:** READY (last signal: NVDA BREAKOUT at 09:32:14)\n- **Execution engine:** IDLE (verdict gate: PASS)\n- **Data feed:** LIVE (fmp_cached hit-rate 98.2%)\n\n> Stub \u2014 real wiring calls openbb_techtrade.engine.status.",
+  "body": "## Techtrade Engine Status\n\n**openbb_techtrade** v0.1.0 \u2014 9/9 engine capabilities available.\n\n### Capabilities\n\n- **scan:** AVAILABLE\n- **screener:** AVAILABLE\n- **signals:** AVAILABLE\n- **plan:** AVAILABLE\n- **execution:** AVAILABLE\n- **validation:** AVAILABLE\n- **tuning:** AVAILABLE\n- **reporting:** AVAILABLE\n- **paper_engine:** AVAILABLE\n\n### Configuration\n\n- **Default preset (trend_follow):** trend=0.4, momentum=0.25, volatility=0.2, volume=0.15\n- **Paper engine:** SQLite NO SESSION (no paper.db yet \u2014 submit a batch via the Execute Bridge to start one)\n\n> Observable engine state (no network). Data-bearing scan / signal / execution widgets require the async scan-snapshot layer (tracked separately) before they can render live.",
   "endpoint": "tt/engine/status",
   "params": {},
   "status_code": 200

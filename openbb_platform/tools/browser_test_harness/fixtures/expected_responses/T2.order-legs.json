@@ -1,28 +1,14 @@
 {
   "body": [
     {
-      "leg_type": "ENTRY",
-      "order_type": "LIMIT",
-      "price": 173.5,
-      "quantity": 100,
-      "side": "BUY",
-      "symbol": "NVDA"
-    },
-    {
-      "leg_type": "STOP",
-      "order_type": "STOP_LIMIT",
-      "price": 168.2,
-      "quantity": 100,
-      "side": "SELL",
-      "symbol": "NVDA"
-    },
-    {
-      "leg_type": "TARGET",
-      "order_type": "LIMIT",
-      "price": 189.0,
-      "quantity": 100,
-      "side": "SELL",
-      "symbol": "NVDA"
+      "as_of_session": null,
+      "disclaimer": "EOD planning snapshot \u2014 not a live/intraday quote",
+      "earnings_annotation": null,
+      "exchange_calendar": "XNYS",
+      "freshness": "red",
+      "note": "No EOD snapshot available (order legs symbol=NVDA) \u2014 run the post-close snapshot job.",
+      "snapshot_badge": "No EOD snapshot available",
+      "survivorship": null
     }
   ],
   "endpoint": "tt/position/order-legs",
