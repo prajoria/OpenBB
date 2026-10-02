@@ -468,6 +468,46 @@ def test_default_facade_migrates_existing_legacy_sqlite_history(monkeypatch, tmp
     facade.close()
 
 
+def test_migration_never_publishes_a_policy_refused_row(monkeypatch, tmp_path):
+    """A weekend-dated legacy row stays readable but never becomes LIVE."""
+    legacy_db = tmp_path / "legacy.db"
+    with sqlite3.connect(legacy_db) as connection:
+        connection.executescript("""
+            CREATE TABLE scan_snapshot (
+                snapshot_id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                segment TEXT NOT NULL,
+                as_of_session TEXT NOT NULL,
+                computed_at TEXT NOT NULL,
+                preset TEXT,
+                params_json TEXT NOT NULL,
+                rows_json TEXT NOT NULL,
+                row_count INTEGER NOT NULL
+            );
+            INSERT INTO scan_snapshot VALUES (
+                'weekend-id', 'daily_scan', 'Energy', '2024-01-13',
+                '2024-01-13T22:00:00+00:00', 'trend_follow',
+                '{\"top_n\":3}', '[{\"symbol\":\"XOM\"}]', 1
+            );
+            """)
+    canonical = SqliteSnapshotStore(tmp_path / "canonical.db")
+    monkeypatch.delenv(SCAN_DB_ENV, raising=False)
+    monkeypatch.setattr(
+        "openbb_techtrade.snapshots.sqlite.get_default_snapshot_store",
+        lambda **_kwargs: canonical,
+    )
+    monkeypatch.setattr(
+        "openbb_techtrade.snapshots.sqlite.legacy_scan_db_path",
+        lambda: legacy_db,
+    )
+
+    facade = SqliteScanSnapshotStore()
+
+    assert facade.read_by_id("weekend-id") is not None
+    assert facade.read_latest(kind="daily_scan", segment="Energy") is None
+    facade.close()
+
+
 def test_canonical_multi_segment_job_round_trips_facade_ids(tmp_path):
     """Facade IDs remain unique when canonical rows share one job ID."""
     from openbb_techtrade.snapshot.registry import DEFAULT_DATASET_REGISTRY

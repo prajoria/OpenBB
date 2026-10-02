@@ -2520,8 +2520,6 @@ def _validate_segment(segment: str) -> str:
             detail=f"segment must match [A-Za-z][A-Za-z0-9 &_-]{{0,63}}; got {segment!r}",
         )
     normalized = " ".join(segment.split())
-    if normalized == "Technology":
-        normalized = "Information Technology"
     if normalized not in GICS_SECTOR_ETFS:
         raise HTTPException(status_code=400, detail="unsupported TechTrade segment")
     return normalized

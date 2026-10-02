@@ -20,6 +20,7 @@ from openbb_techtrade.snapshot.store import (
     SnapshotState,
     SnapshotStatus,
     SqliteSnapshotStore,
+    ValidationResult,
     canonical_key,
     default_validator,
     get_default_snapshot_store,
@@ -320,22 +321,43 @@ class SqliteScanSnapshotStore:
                 payload_schema_version="1",
             )
             previous = self._store.get_live(dataset, entity_key)
+            techtrade_refusal: str | None = None
+
+            def _migration_validator(row: SnapshotRow) -> ValidationResult:
+                # Historical rows stay importable, but a row the TechTrade
+                # policy refuses is archived below instead of published LIVE.
+                nonlocal techtrade_refusal
+                strict = validate_techtrade_snapshot(row, previous)
+                if not strict.ok:
+                    techtrade_refusal = strict.reason
+                return default_validator(row)
+
             verdict = self._store.validate(
                 dataset,
                 entity_key,
                 snapshot.as_of_session,
                 job_run_id,
                 (
-                    default_validator
+                    _migration_validator
                     if migration
                     else lambda row: validate_techtrade_snapshot(row, previous)
                 ),
             )
             if not verdict.ok:
                 raise ValueError(f"snapshot validation failed: {verdict.reason}")
-            if previous is not None and (
-                snapshot.as_of_session < previous.as_of_session
-                or snapshot.computed_at < _to_snapshot(previous).computed_at
+            if techtrade_refusal is not None:
+                logger.warning(
+                    "archiving migrated snapshot %s/%s: %s",
+                    dataset,
+                    entity_key,
+                    techtrade_refusal,
+                )
+            if techtrade_refusal is not None or (
+                previous is not None
+                and (
+                    snapshot.as_of_session < previous.as_of_session
+                    or snapshot.computed_at < _to_snapshot(previous).computed_at
+                )
             ):
                 self._store.archive_job(
                     job_run_id,

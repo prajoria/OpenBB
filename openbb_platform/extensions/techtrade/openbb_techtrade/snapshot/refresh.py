@@ -175,7 +175,8 @@ class SnapshotRefreshOrchestrator:
                 for row in prior_rows:
                     definition.read(row.payload, row.payload_schema_version)
                     baseline_key = (definition.name, row.entity_key)
-                    baselines[baseline_key] = store.get_live(*baseline_key)
+                    previous = store.get_live(*baseline_key)
+                    baselines[baseline_key] = previous
                     store.stage(
                         definition.name,
                         row.entity_key,
@@ -193,6 +194,15 @@ class SnapshotRefreshOrchestrator:
                         row.entity_key,
                         target_session,
                         job_run_id,
+                        (
+                            None
+                            if definition.validator is None
+                            else partial(
+                                _validate_with_previous,
+                                validator=definition.validator,
+                                previous=previous,
+                            )
+                        ),
                     )
                     if not verdict.ok:
                         raise RuntimeError("retry_lineage_validation_failed")

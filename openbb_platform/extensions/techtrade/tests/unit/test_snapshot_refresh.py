@@ -30,6 +30,7 @@ from openbb_techtrade.snapshot.store import (
     RetentionPolicy,
     SnapshotStatus,
     SqliteSnapshotStore,
+    ValidationResult,
 )
 
 NOW = datetime(2026, 9, 11, 22, tzinfo=timezone.utc)
@@ -336,6 +337,50 @@ def test_retry_uses_the_adapter_exchange_calendar(tmp_path: Path) -> None:
 
     assert retried.state is SnapshotJobState.SUCCEEDED
     assert store.get_live(DATASET, "symbol=AAPL").as_of_session == date(2026, 9, 11)
+    store.close()
+
+
+def test_retry_revalidates_prior_rows_with_the_dataset_validator(
+    tmp_path: Path,
+) -> None:
+    """A retry re-applies the dataset policy, not just the store baseline."""
+    store = SqliteSnapshotStore(tmp_path / "snapshot.db")
+    adapter = _Adapter()
+    adapter.fail = {"symbol=msft"}
+    refuse = {"on": False}
+
+    def _validator(row, previous):  # noqa: ANN001, ARG001
+        if refuse["on"]:
+            return ValidationResult(False, "refused_by_dataset_policy")
+        return ValidationResult(True)
+
+    registry = SnapshotDatasetRegistry(
+        [
+            DatasetDefinition(
+                name=DATASET,
+                pii_scoped=False,
+                payload_schema_version="1",
+                readers={"1": lambda payload: payload},
+                validator=_validator,
+            )
+        ]
+    )
+    ids = iter(["partial", "retry"])
+    orchestrator = SnapshotRefreshOrchestrator(
+        SnapshotStoreRouter(store, None, registry),
+        registry,
+        {DATASET: adapter},
+        clock=lambda: NOW,
+        job_id_factory=lambda: next(ids),
+    )
+    partial = orchestrator.run(DATASET)
+    assert partial.state is SnapshotJobState.PARTIAL
+    adapter.fail.clear()
+    refuse["on"] = True
+
+    with pytest.raises(RuntimeError, match="retry_lineage_validation_failed"):
+        orchestrator.run(DATASET, retry_job_run_id=partial.job_run_id)
+
     store.close()
 
 
