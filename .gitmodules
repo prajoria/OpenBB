@@ -19,3 +19,15 @@
 [submodule "third_party/openfigi-api"]
 	path = third_party/openfigi-api
 	url = https://github.com/prajoria/openfigi-api.git
+[submodule "third_party/backends-for-openbb"]
+	path = third_party/backends-for-openbb
+	url = https://github.com/prajoria/backends-for-openbb.git
+	branch = main
+[submodule "third_party/agents-for-openbb"]
+	path = third_party/agents-for-openbb
+	url = https://github.com/prajoria/agents-for-openbb.git
+	branch = main
+[submodule "third_party/openbb-workspace-bench"]
+	path = third_party/openbb-workspace-bench
+	url = https://github.com/prajoria/openbb-workspace-bench.git
+	branch = main
