@@ -1,0 +1,23 @@
+{
+  "skill_name": "openbb-workspace-local-server",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just cloned this repo on my Windows laptop and want BQ/OpenBB Workspace running locally for the first time. Please set it up, start it, and tell me when it is actually ready.",
+      "expected_output": "Uses setup, run, then test scripts; reports HEALTHY only if verification passes; does not reconstruct Docker, Bun, env, credential, or process commands.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Is my local OpenBB Workspace stack healthy right now? Do a status check only; do not restart or modify anything.",
+      "expected_output": "Runs only the read-only test script, gives a sanitized verified status, and does not invoke setup, run, stop, raw Compose, or Bun.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Safely stop my local Workspace. The last start complained that a frontend PID file already existed, and Docker Desktop may currently be stopped. Recover only what is necessary and don't kill unrelated Bun or Docker processes.",
+      "expected_output": "Uses the stop script for owned cleanup, handles Docker-stopped or stale-PID failure without broad process kills, and provides one focused recovery action without printing secrets.",
+      "files": []
+    }
+  ]
+}

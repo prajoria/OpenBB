@@ -41,9 +41,10 @@ verified, reviewed, merged to `portfolio`, and marked Done.
 | 4 | [#2100](https://github.com/prajoria/OpenBB/issues/2100) | Privacy-safe smoke checks and operator runbook | `docs/workspace-dev-runbook-gh-2100` | P0 / QA / Feature |
 | 5 | [#2108](https://github.com/prajoria/OpenBB/issues/2108) | Pin and audit self-hosted Workspace source | `chore/self-hosted-workspace-source-gh-2108` | P1 / Workspace+Tools / Task |
 | 6 | [#2110](https://github.com/prajoria/OpenBB/issues/2110) | Deploy self-hosted Workspace development stack | `feat/self-hosted-workspace-deploy-gh-2110` | P1 / Workspace+Tools / Feature |
-| 7 | [#2101](https://github.com/prajoria/OpenBB/issues/2101) | Hosted Workspace and browser-harness validation | `test/workspace-hosted-browser-gh-2101` | P1 / QA / Task |
-| 8 | [#2102](https://github.com/prajoria/OpenBB/issues/2102) | Workspace Bench and hosted MCP certification | `test/workspace-bench-mcp-gh-2102` | P1 / QA / Task |
-| 9 | [#2103](https://github.com/prajoria/OpenBB/issues/2103) | Optional Portfolio Copilot proxy validation | `test/workspace-copilot-proxy-gh-2103` | P1 / B-Analytics / Task |
+| 7 | [#2111](https://github.com/prajoria/OpenBB/issues/2111) | Add authoritative verifier, report, and replay skill | `feat/workspace-replay-skill-gh-2111` | P1 / Workspace+Tools / Feature |
+| 8 | [#2101](https://github.com/prajoria/OpenBB/issues/2101) | Hosted Workspace and browser-harness validation | `test/workspace-hosted-browser-gh-2101` | P1 / QA / Task |
+| 9 | [#2102](https://github.com/prajoria/OpenBB/issues/2102) | Workspace Bench and hosted MCP certification | `test/workspace-bench-mcp-gh-2102` | P1 / QA / Task |
+| 10 | [#2103](https://github.com/prajoria/OpenBB/issues/2103) | Optional Portfolio Copilot proxy validation | `test/workspace-copilot-proxy-gh-2103` | P1 / B-Analytics / Task |
 
 For each issue:
 
@@ -91,7 +92,10 @@ For each issue:
 - Create: `scripts/test_workspace_dev.ps1` — endpoint and manifest smoke checks without printing response data.
 - Create: `scripts/setup_self_hosted_workspace.ps1` — secure ignored runtime configuration and locked Bun setup.
 - Create: `scripts/run_self_hosted_workspace.ps1` — SQLite Compose lifecycle, bootstrap, login, and Vite launcher.
+- Create: `scripts/test_self_hosted_workspace.ps1` — non-mutating exact-state, health, login, CORS, source, ignore, and lockfile verifier.
 - Create: `scripts/stop_self_hosted_workspace.ps1` — exact PID-tree and Compose-project shutdown.
+- Create: `.agents/skills/openbb-workspace-local-server/SKILL.md` — script-only state-aware replay and recovery contract.
+- Create: `docs/operations/workspace-self-hosted-implementation-report.md` — durable implementation and evidence record.
 - Create: `docs/operations/workspace-local-development.md` — operator runbook with local-only, hosted-integration, agent, and benchmark modes.
 - Modify: `openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/README.md` — replace stale launcher instructions with the supported script.
 

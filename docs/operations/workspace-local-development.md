@@ -75,6 +75,12 @@ Setup initializes the exact pinned submodule, verifies Docker/Compose/Bun,
 generates fresh ignored development secrets, creates a loopback Compose
 override, and installs the frontend with the checked-in lockfile:
 
+The durable architecture, evidence, limitations, and recovery record is the
+[self-hosted implementation report](workspace-self-hosted-implementation-report.md).
+AI-assisted and repeated operation must follow the
+[local-server skill](../../.agents/skills/openbb-workspace-local-server/SKILL.md)
+and invoke the checked-in scripts instead of reconstructing their commands.
+
 ```powershell
 .\scripts\setup_self_hosted_workspace.ps1
 ```
@@ -103,17 +109,11 @@ Start the stack:
 The launcher applies migrations, starts the exact Compose project
 `openbb-workspace-2110`, initializes the local entity and admin idempotently,
 checks login without printing its response, and starts Vite bound exactly to
-`127.0.0.1:1420`. Verify only status, never response bodies:
+`127.0.0.1:1420`. Use the authoritative read-only verifier; do not replace it
+with manual Docker, listener, login, CORS, or health commands:
 
 ```powershell
-(Invoke-WebRequest http://127.0.0.1:8000/health `
-    -ConnectionTimeoutSeconds 3 -OperationTimeoutSeconds 5).StatusCode
-(Invoke-WebRequest http://127.0.0.1:1420 `
-    -ConnectionTimeoutSeconds 3 -OperationTimeoutSeconds 5).StatusCode
-docker compose --project-name openbb-workspace-2110 `
-    --file third_party\workspace\backend-api\docker-compose-local-dev-sqlite.yml `
-    --file third_party\workspace\backend-api\backend\workspace-compose.secrets `
-    ps
+.\scripts\test_self_hosted_workspace.ps1
 ```
 
 The pinned backend deliberately configures `docs_url=None`; `/docs` returns
