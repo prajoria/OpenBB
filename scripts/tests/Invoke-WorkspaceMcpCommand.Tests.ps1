@@ -14,10 +14,7 @@ Describe "Workspace MCP child command wrapper" {
     }
 
     BeforeEach {
-        $script:RequestIndex = 0
-        $script:ChildToken = $null
-        $script:ChildUrl = $null
-        $script:ChildArgs = $null
+        $script:TokenListCalls = 0
         $credentialDirectory = Join-Path $TestDrive (
             "third_party\workspace\backend-api\backend"
         )
@@ -34,25 +31,30 @@ Describe "Workspace MCP child command wrapper" {
                 Email = "admin@example.invalid"
                 Password = "not-a-real-password"
             } | ConvertTo-Json
+        } -ParameterFilter {
+            $Path -like "*workspace-admin-credentials.secrets"
         }
         Mock Invoke-RestMethod {
-            $script:RequestIndex++
-            switch ($script:RequestIndex) {
-                1 { return [pscustomobject]@{ access_token = "session-token" } }
-                2 {
-                    return [pscustomobject]@{
-                        uuid = "11111111-1111-1111-1111-111111111111"
-                        token = "mcp-token"
-                    }
-                }
-                default { return $null }
+            if ($Uri -eq "http://127.0.0.1:8000/pro/login") {
+                return [pscustomobject]@{ access_token = "session-token" }
             }
-        }
-        Mock Invoke-WorkspaceMcpChildCommand {
-            $script:ChildToken = $env:WORKSPACE_MCP_TOKEN
-            $script:ChildUrl = $env:WORKSPACE_MCP_URL
-            $script:ChildArgs = @($ArgumentList)
-            return 0
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Get"
+            ) {
+                $script:TokenListCalls++
+                return @()
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Post"
+            ) {
+                return [pscustomobject]@{
+                    uuid = "11111111-1111-1111-1111-111111111111"
+                    token = "mcp-token"
+                }
+            }
+            return $null
         }
     }
 
@@ -66,41 +68,235 @@ Describe "Workspace MCP child command wrapper" {
         $ScriptText | Should Not Match 'Set-Content|Add-Content|Out-File|Tee-Object'
         $ScriptText | Should Not Match 'Write-(Host|Output|Verbose|Debug).*(token|credential|password)'
         $ScriptText | Should Not Match 'Start-Process'
+        $ScriptText | Should Not Match 'Stop-Process\s+-(Name|InputObject)'
     }
 
-    It "provides one token only through the child environment and restores prior state" {
-        $exitCode = Invoke-WorkspaceMcpChildWithToken `
-            -WorkspaceRoot $TestDrive `
-            -FilePath "workspace-bench" `
-            -ArgumentList @("live-parity", "--task", "example")
+    It "passes arguments literally and scopes MCP environment to the real child" {
+        $probePath = Join-Path $TestDrive "child-probe.ps1"
+        $resultPath = Join-Path $TestDrive "child-result.json"
+        @'
+param(
+    [string]$Value,
+    [string]$OutputPath
+)
+@{
+    value = $Value
+    token = $env:WORKSPACE_MCP_TOKEN
+    url = $env:WORKSPACE_MCP_URL
+} | ConvertTo-Json | Set-Content -Path $OutputPath
+'@ | Set-Content -Path $probePath
+        $unsafeArgument = 'literal; Write-Output "argument-injection"'
+
+        $exitCode = Invoke-WorkspaceMcpChildCommand `
+            -FilePath (Get-Command pwsh).Source `
+            -ArgumentList @(
+                "-NoProfile",
+                "-File",
+                $probePath,
+                "-Value",
+                $unsafeArgument,
+                "-OutputPath",
+                $resultPath
+            ) `
+            -WorkingDirectory $TestDrive `
+            -McpToken "child-token" `
+            -McpUrl "http://127.0.0.1:8000/mcp" `
+            -TimeoutSeconds 10
 
         $exitCode | Should Be 0
-        $script:ChildToken | Should Be "mcp-token"
-        $script:ChildUrl | Should Be "http://127.0.0.1:8000/mcp"
-        ($script:ChildArgs -join " ") | Should Not Match "mcp-token|session-token"
+        $result = Get-Content $resultPath -Raw | ConvertFrom-Json
+        $result.value | Should Be $unsafeArgument
+        $result.token | Should Be "child-token"
+        $result.url | Should Be "http://127.0.0.1:8000/mcp"
         $env:WORKSPACE_MCP_TOKEN | Should Be "prior-token"
         $env:WORKSPACE_MCP_URL | Should Be "prior-url"
-        Assert-MockCalled Invoke-RestMethod -Times 4 -Exactly -Scope It
     }
 
-    It "revokes the MCP token and logs out when the child fails" {
-        Mock Invoke-WorkspaceMcpChildCommand {
-            throw "child failure"
+    It "times out and terminates the exact real child process tree" {
+        $probePath = Join-Path $TestDrive "hanging-child.ps1"
+        $pidPath = Join-Path $TestDrive "child-pids.json"
+        @'
+param([string]$PidPath)
+$grandchild = Start-Process pwsh -ArgumentList @(
+    "-NoProfile",
+    "-Command",
+    "Start-Sleep -Seconds 60"
+) -PassThru
+@{
+    parent = $PID
+    grandchild = $grandchild.Id
+} | ConvertTo-Json | Set-Content -Path $PidPath
+Start-Sleep -Seconds 60
+'@ | Set-Content -Path $probePath
+
+        {
+            Invoke-WorkspaceMcpChildCommand `
+                -FilePath (Get-Command pwsh).Source `
+                -ArgumentList @("-NoProfile", "-File", $probePath, "-PidPath", $pidPath) `
+                -WorkingDirectory $TestDrive `
+                -McpToken "child-token" `
+                -McpUrl "http://127.0.0.1:8000/mcp" `
+                -TimeoutSeconds 1
+        } | Should Throw "Workspace MCP child command timed out."
+
+        $pids = Get-Content $pidPath -Raw | ConvertFrom-Json
+        Start-Sleep -Milliseconds 300
+        (Get-Process -Id $pids.parent -ErrorAction SilentlyContinue) | Should BeNullOrEmpty
+        (Get-Process -Id $pids.grandchild -ErrorAction SilentlyContinue) |
+            Should BeNullOrEmpty
+    }
+
+    It "uses an isolated session source and exact bearer-authenticated endpoints" {
+        $exitCode = Invoke-WorkspaceMcpChildWithToken `
+            -WorkspaceRoot $TestDrive `
+            -FilePath (Get-Command pwsh).Source `
+            -ArgumentList @("-NoProfile", "-Command", "exit 0") `
+            -ChildTimeoutSeconds 10
+
+        $exitCode | Should Be 0
+        $env:WORKSPACE_MCP_TOKEN | Should Be "prior-token"
+        $env:WORKSPACE_MCP_URL | Should Be "prior-url"
+        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Method -eq "Post" -and
+            $Uri -eq "http://127.0.0.1:8000/pro/login" -and
+            ($Body | ConvertFrom-Json).source -eq "excel"
+        }
+        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Method -eq "Post" -and
+            $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+            $Headers.Authorization -eq "Bearer session-token"
+        }
+        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Method -eq "Delete" -and
+            $Uri -eq (
+                "http://127.0.0.1:8000/pro/workspace-mcp/tokens/" +
+                "11111111-1111-1111-1111-111111111111"
+            ) -and
+            $Headers.Authorization -eq "Bearer session-token"
+        }
+        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Method -eq "Get" -and
+            $Uri -eq "http://127.0.0.1:8000/logout" -and
+            $Headers.Authorization -eq "Bearer session-token"
+        }
+        Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly -Scope It -ParameterFilter {
+            $Uri -eq "http://127.0.0.1:8000/pro/logout"
+        }
+    }
+
+    It "revokes and restores environment after a real nonzero child exit" {
+        {
+            Invoke-WorkspaceMcpChildWithToken `
+                -WorkspaceRoot $TestDrive `
+                -FilePath (Get-Command pwsh).Source `
+                -ArgumentList @("-NoProfile", "-Command", "exit 17") `
+                -ChildTimeoutSeconds 10
+        } | Should Throw "Workspace MCP child command failed."
+
+        $env:WORKSPACE_MCP_TOKEN | Should Be "prior-token"
+        $env:WORKSPACE_MCP_URL | Should Be "prior-url"
+        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Method -eq "Delete"
+        }
+        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Method -eq "Get" -and $Uri -eq "http://127.0.0.1:8000/logout"
+        }
+    }
+
+    It "recovers and revokes a created token after a malformed create response" {
+        Mock Invoke-RestMethod {
+            if ($Uri -eq "http://127.0.0.1:8000/pro/login") {
+                return [pscustomobject]@{ access_token = "session-token" }
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Get"
+            ) {
+                $script:TokenListCalls++
+                if ($script:TokenListCalls -eq 1) {
+                    return @(
+                        [pscustomobject]@{
+                            uuid = "22222222-2222-2222-2222-222222222222"
+                            name = "existing-token"
+                        }
+                    )
+                }
+                return @(
+                    [pscustomobject]@{
+                        uuid = "22222222-2222-2222-2222-222222222222"
+                        name = "existing-token"
+                    },
+                    [pscustomobject]@{
+                        uuid = "33333333-3333-3333-3333-333333333333"
+                        name = $script:CreatedTokenName
+                    }
+                )
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Post"
+            ) {
+                $script:CreatedTokenName = ($Body | ConvertFrom-Json).name
+                return [pscustomobject]@{ unexpected = "shape" }
+            }
+            return $null
         }
 
         {
             Invoke-WorkspaceMcpChildWithToken `
                 -WorkspaceRoot $TestDrive `
-                -FilePath "workspace-bench"
-        } | Should Throw "Workspace MCP child command failed."
+                -FilePath (Get-Command pwsh).Source `
+                -ArgumentList @("-NoProfile", "-Command", "exit 0") `
+                -ChildTimeoutSeconds 10
+        } | Should Throw "Workspace MCP token creation failed."
+
+        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Method -eq "Delete" -and
+            $Uri -eq (
+                "http://127.0.0.1:8000/pro/workspace-mcp/tokens/" +
+                "33333333-3333-3333-3333-333333333333"
+            )
+        }
+        $env:WORKSPACE_MCP_TOKEN | Should Be "prior-token"
+        $env:WORKSPACE_MCP_URL | Should Be "prior-url"
+    }
+
+    It "surfaces a sanitized cleanup failure after restoring environment" {
+        Mock Invoke-RestMethod {
+            if ($Uri -eq "http://127.0.0.1:8000/pro/login") {
+                return [pscustomobject]@{ access_token = "session-token" }
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Get"
+            ) {
+                return @()
+            }
+            if (
+                $Uri -eq "http://127.0.0.1:8000/pro/workspace-mcp/tokens" -and
+                $Method -eq "Post"
+            ) {
+                return [pscustomobject]@{
+                    uuid = "11111111-1111-1111-1111-111111111111"
+                    token = "mcp-token"
+                }
+            }
+            if ($Method -eq "Delete") {
+                throw "sensitive backend detail"
+            }
+            return $null
+        }
+
+        {
+            Invoke-WorkspaceMcpChildWithToken `
+                -WorkspaceRoot $TestDrive `
+                -FilePath (Get-Command pwsh).Source `
+                -ArgumentList @("-NoProfile", "-Command", "exit 0") `
+                -ChildTimeoutSeconds 10
+        } | Should Throw "Workspace MCP token revocation failed."
 
         $env:WORKSPACE_MCP_TOKEN | Should Be "prior-token"
         $env:WORKSPACE_MCP_URL | Should Be "prior-url"
-        Assert-MockCalled Invoke-RestMethod -Times 4 -Exactly -Scope It
-        Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
-            $Method -eq "Delete" -and
-            $Uri -like "*/pro/workspace-mcp/tokens/*"
-        }
         Assert-MockCalled Invoke-RestMethod -Times 1 -Exactly -Scope It -ParameterFilter {
             $Method -eq "Get" -and $Uri -eq "http://127.0.0.1:8000/logout"
         }

@@ -10,7 +10,9 @@ param(
     [string]$FilePath,
     [string[]]$ArgumentList = @(),
     [string]$WorkingDirectory = (Get-Location).Path,
-    [string]$BackendUrl = "http://127.0.0.1:8000"
+    [string]$BackendUrl = "http://127.0.0.1:8000",
+    [ValidateRange(1, 3600)]
+    [int]$ChildTimeoutSeconds = 300
 )
 
 Set-StrictMode -Version Latest
@@ -37,17 +39,90 @@ function Invoke-WorkspaceMcpChildCommand {
     param(
         [Parameter(Mandatory)][string]$FilePath,
         [string[]]$ArgumentList = @(),
-        [Parameter(Mandatory)][string]$WorkingDirectory
+        [Parameter(Mandatory)][string]$WorkingDirectory,
+        [Parameter(Mandatory)][string]$McpToken,
+        [Parameter(Mandatory)][string]$McpUrl,
+        [ValidateRange(1, 3600)]
+        [int]$TimeoutSeconds = 300
     )
 
     $command = Get-Command $FilePath -CommandType Application -ErrorAction Stop
-    Push-Location $WorkingDirectory
-    try {
-        & $command.Source @ArgumentList | Out-Host
-        return [int]$LASTEXITCODE
-    } finally {
-        Pop-Location
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $command.Source
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.UseShellExecute = $false
+    foreach ($argument in $ArgumentList) {
+        $startInfo.ArgumentList.Add($argument)
     }
+    $startInfo.Environment["WORKSPACE_MCP_TOKEN"] = $McpToken
+    $startInfo.Environment["WORKSPACE_MCP_URL"] = $McpUrl
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) {
+            throw "Workspace MCP child command failed."
+        }
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            try {
+                $process.Kill($true)
+                if (-not $process.WaitForExit(5000)) {
+                    throw "Workspace MCP child process cleanup failed."
+                }
+            } catch {
+                throw "Workspace MCP child process cleanup failed."
+            }
+            throw "Workspace MCP child command timed out."
+        }
+        return [int]$process.ExitCode
+    } finally {
+        $process.Dispose()
+    }
+}
+
+function Get-WorkspaceMcpTokenUuid {
+    param([object]$Token)
+
+    if ($null -eq $Token) {
+        return $null
+    }
+    $uuidProperty = $Token.PSObject.Properties["uuid"]
+    if ($null -eq $uuidProperty) {
+        return $null
+    }
+    $parsed = [guid]::Empty
+    if (-not [guid]::TryParse([string]$uuidProperty.Value, [ref]$parsed)) {
+        return $null
+    }
+    return $parsed.ToString()
+}
+
+function Find-CreatedWorkspaceMcpTokenUuid {
+    param(
+        [Parameter(Mandatory)][object[]]$Tokens,
+        [Parameter(Mandatory)][string]$TokenName,
+        [Parameter(Mandatory)]
+        [System.Collections.Generic.HashSet[string]]$ExistingTokenUuids
+    )
+
+    $matches = @(
+        foreach ($token in $Tokens) {
+            $nameProperty = $token.PSObject.Properties["name"]
+            $uuid = Get-WorkspaceMcpTokenUuid -Token $token
+            if (
+                $null -ne $nameProperty -and
+                [string]$nameProperty.Value -eq $TokenName -and
+                $uuid -and
+                -not $ExistingTokenUuids.Contains($uuid)
+            ) {
+                $uuid
+            }
+        }
+    )
+    if ($matches.Count -ne 1) {
+        throw "Workspace MCP token recovery failed."
+    }
+    return $matches[0]
 }
 
 function Invoke-WorkspaceMcpChildWithToken {
@@ -57,7 +132,9 @@ function Invoke-WorkspaceMcpChildWithToken {
         [Parameter(Mandatory)][string]$FilePath,
         [string[]]$ArgumentList = @(),
         [string]$WorkingDirectory = (Get-Location).Path,
-        [string]$BackendUrl = "http://127.0.0.1:8000"
+        [string]$BackendUrl = "http://127.0.0.1:8000",
+        [ValidateRange(1, 3600)]
+        [int]$ChildTimeoutSeconds = 300
     )
 
     if ($BackendUrl -ne "http://127.0.0.1:8000") {
@@ -101,7 +178,6 @@ function Invoke-WorkspaceMcpChildWithToken {
     )
     $sessionToken = $null
     $mcpTokenUuid = $null
-    $childFailure = $false
     $cleanupFailure = $null
 
     try {
@@ -109,6 +185,8 @@ function Invoke-WorkspaceMcpChildWithToken {
             email = $credential.Email
             password = $credential.Password
             remember = $false
+            ip_address = ""
+            source = "excel"
         } | ConvertTo-Json -Compress
         try {
             $login = Invoke-RestMethod `
@@ -131,52 +209,94 @@ function Invoke-WorkspaceMcpChildWithToken {
 
         $sessionHeaders = @{ Authorization = "Bearer $sessionToken" }
         try {
+            $tokensBeforeCreate = @(
+                Invoke-RestMethod `
+                    -Uri "$BackendUrl/pro/workspace-mcp/tokens" `
+                    -Method Get `
+                    -Headers $sessionHeaders `
+                    -ConnectionTimeoutSeconds 3 `
+                    -OperationTimeoutSeconds 10
+            )
+        } catch {
+            throw "Workspace MCP token creation failed."
+        }
+        $existingTokenUuids = [System.Collections.Generic.HashSet[string]]::new(
+            [System.StringComparer]::OrdinalIgnoreCase
+        )
+        foreach ($token in $tokensBeforeCreate) {
+            $existingUuid = Get-WorkspaceMcpTokenUuid -Token $token
+            if ($existingUuid) {
+                $null = $existingTokenUuids.Add($existingUuid)
+            }
+        }
+
+        $tokenName = "workspace-bench-$([guid]::NewGuid().ToString('N'))"
+        $createAttempted = $false
+        try {
+            $createAttempted = $true
             $created = Invoke-RestMethod `
                 -Uri "$BackendUrl/pro/workspace-mcp/tokens" `
                 -Method Post `
                 -Headers $sessionHeaders `
                 -ContentType "application/json" `
-                -Body (@{
-                    name = "workspace-bench-$([guid]::NewGuid().ToString('N'))"
-                } | ConvertTo-Json -Compress) `
+                -Body (@{ name = $tokenName } | ConvertTo-Json -Compress) `
                 -ConnectionTimeoutSeconds 3 `
                 -OperationTimeoutSeconds 10
+            $mcpTokenUuid = Get-WorkspaceMcpTokenUuid -Token $created
+            $tokenProperty = $created.PSObject.Properties["token"]
             if (
-                $null -eq $created.uuid -or
-                $created.token -isnot [string] -or
-                [string]::IsNullOrWhiteSpace($created.token)
+                -not $mcpTokenUuid -or
+                $null -eq $tokenProperty -or
+                $tokenProperty.Value -isnot [string] -or
+                [string]::IsNullOrWhiteSpace($tokenProperty.Value)
             ) {
                 throw "Invalid MCP token response."
             }
-            $mcpTokenUuid = [string]$created.uuid
         } catch {
+            if ($createAttempted -and -not $mcpTokenUuid) {
+                try {
+                    $tokensAfterCreate = @(
+                        Invoke-RestMethod `
+                            -Uri "$BackendUrl/pro/workspace-mcp/tokens" `
+                            -Method Get `
+                            -Headers $sessionHeaders `
+                            -ConnectionTimeoutSeconds 3 `
+                            -OperationTimeoutSeconds 10
+                    )
+                    $mcpTokenUuid = Find-CreatedWorkspaceMcpTokenUuid `
+                        -Tokens $tokensAfterCreate `
+                        -TokenName $tokenName `
+                        -ExistingTokenUuids $existingTokenUuids
+                } catch {
+                    throw "Workspace MCP token recovery failed."
+                }
+            }
             throw "Workspace MCP token creation failed."
         }
 
-        [Environment]::SetEnvironmentVariable(
-            "WORKSPACE_MCP_TOKEN",
-            $created.token,
-            "Process"
-        )
-        [Environment]::SetEnvironmentVariable(
-            "WORKSPACE_MCP_URL",
-            "$BackendUrl/mcp",
-            "Process"
-        )
         try {
-            return Invoke-WorkspaceMcpChildCommand `
+            $exitCode = Invoke-WorkspaceMcpChildCommand `
                 -FilePath $FilePath `
                 -ArgumentList $ArgumentList `
-                -WorkingDirectory $resolvedWorkingDirectory
+                -WorkingDirectory $resolvedWorkingDirectory `
+                -McpToken ([string]$created.token) `
+                -McpUrl "$BackendUrl/mcp" `
+                -TimeoutSeconds $ChildTimeoutSeconds
+            if ($exitCode -ne 0) {
+                throw "Workspace MCP child command returned a nonzero exit code."
+            }
+            return $exitCode
         } catch {
-            $childFailure = $true
-            throw
-        }
-    } catch {
-        if ($childFailure) {
+            if (
+                $_.Exception.Message -eq
+                    "Workspace MCP child command timed out." -or
+                $_.Exception.Message -eq
+                    "Workspace MCP child process cleanup failed."
+            ) {
+                throw $_.Exception.Message
+            }
             throw "Workspace MCP child command failed."
         }
-        throw
     } finally {
         [Environment]::SetEnvironmentVariable(
             "WORKSPACE_MCP_TOKEN",
@@ -233,6 +353,7 @@ if ($MyInvocation.InvocationName -ne ".") {
         -FilePath $FilePath `
         -ArgumentList $ArgumentList `
         -WorkingDirectory $WorkingDirectory `
-        -BackendUrl $BackendUrl
+        -BackendUrl $BackendUrl `
+        -ChildTimeoutSeconds $ChildTimeoutSeconds
     exit $exitCode
 }

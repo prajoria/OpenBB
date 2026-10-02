@@ -410,17 +410,28 @@ open. The integrated endpoint is `http://127.0.0.1:8000/mcp`.
 
 Use the checked-in wrapper to create one short-lived user-scoped token from the
 ignored managed administrator credential, expose it only to one child process,
-and revoke it in `finally`. `$WorkspaceDeploymentRoot` must be the worktree that
-owns the verified running deployment:
+and revoke it in `finally`. The wrapper logs in with the isolated `excel`
+session source; using `source=pro` would invalidate the browser's authenticated
+Pro session. It never reads browser cookies or profile files.
+
+`$WorkspaceDeploymentRoot` must be the worktree that owns the verified running
+deployment. These are the exact certification replay commands; do not add
+`--update-baseline` because `runs/hosted-surface` is the retained hosted
+contract, not a self-host capture:
 
 ```powershell
 $WorkspaceDeploymentRoot = (Resolve-Path ".").Path
 $BenchRoot = Join-Path $PWD "third_party\openbb-workspace-bench"
+$ReadOnlyTask = (
+  "smoke/list_available_widgets/" +
+  "smoke_list_available_widgets_level0"
+)
 
 .\scripts\invoke_workspace_mcp_command.ps1 `
   -WorkspaceRoot $WorkspaceDeploymentRoot `
   -WorkingDirectory $BenchRoot `
   -FilePath uv `
+  -ChildTimeoutSeconds 180 `
   -ArgumentList @(
     "run", "--extra", "live", "python",
     "scripts\audits\audit_hosted_surface.py"
@@ -430,19 +441,40 @@ $BenchRoot = Join-Path $PWD "third_party\openbb-workspace-bench"
   -WorkspaceRoot $WorkspaceDeploymentRoot `
   -WorkingDirectory $BenchRoot `
   -FilePath uv `
+  -ChildTimeoutSeconds 180 `
   -ArgumentList @(
     "run", "--extra", "live", "workspace-bench", "live-parity",
-    "--task",
-    "smoke/list_available_widgets/smoke_list_available_widgets_level0",
+    "--task", $ReadOnlyTask,
+    "--url", "http://127.0.0.1:8000/mcp"
+  )
+
+# A second bridge-backed replay starts only after the first wrapper invocation
+# revoked its MCP token and deleted its isolated automation login session.
+# Success proves the browser's source=pro bridge session stayed connected.
+.\scripts\invoke_workspace_mcp_command.ps1 `
+  -WorkspaceRoot $WorkspaceDeploymentRoot `
+  -WorkingDirectory $BenchRoot `
+  -FilePath uv `
+  -ChildTimeoutSeconds 180 `
+  -ArgumentList @(
+    "run", "--extra", "live", "workspace-bench", "live-parity",
+    "--task", $ReadOnlyTask,
     "--url", "http://127.0.0.1:8000/mcp"
   )
 ```
 
-The selected parity task is read-only and creates no Workspace artifacts.
+The selected parity task is on the explicit read-only no-dashboard allowlist
+and creates no Workspace artifacts. Navigation or mutating traces always seed
+an isolated marker dashboard even when their task has no initial dashboard.
 Delete its generated `parity.json` after recording only the sanitized grade
 counts. Never commit response transcripts, credentials, cookies, or token
 values. Do not install PyPI `workspace-mcp`; that unrelated package serves
 Google Workspace.
+
+The surface audit always compares with the original hosted baselines under
+`runs/hosted-surface`. A schema result of zero compatibility issues is distinct
+from resource-descriptor equality; report either independently. Self-host
+captures belong in session evidence, not `runs/hosted-surface`.
 
 ## 11. Enable the optional Portfolio Copilot
 
