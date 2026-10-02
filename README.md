@@ -58,7 +58,8 @@ AI Agents integration:
 
 ### Local Platform and Workspace MCP servers
 
-This fork keeps the MCP surfaces separate:
+This fork provides a Windows PowerShell launcher that keeps the MCP surfaces
+separate:
 
 - OpenBB Platform MCP exposes financial data and Platform API operations.
 - Workspace MCP controls Workspace dashboards, widgets, apps, and browser state.

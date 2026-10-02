@@ -6,6 +6,7 @@
 .DESCRIPTION
     Starts the OpenBB Platform MCP on port 8001 and the Workspace browser-control
     MCP on port 8787. Runtime state and logs are stored outside the repository.
+    This launcher requires Windows.
 
 .EXAMPLE
     .\scripts\start-dual-mcp.ps1
@@ -32,21 +33,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$OpenBBRoot = Split-Path $PSScriptRoot -Parent
-if (-not $WorkspaceRoot) {
-    $workspaceCandidates = @(
-        (Join-Path $OpenBBRoot "third_party\workspace"),
-        (Join-Path $OpenBBRoot "..\workspace")
-    )
-    $WorkspaceRoot = $workspaceCandidates |
-        Where-Object { Test-Path -LiteralPath (Join-Path $_ "backend-api\backend\workspace_mcp") } |
-        Select-Object -First 1
-    if (-not $WorkspaceRoot) {
-        throw "Workspace MCP source was not found. Initialize third_party/workspace or pass -WorkspaceRoot."
-    }
+if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
+    throw "start-dual-mcp.ps1 currently supports Windows only."
 }
-$WorkspaceRoot = [System.IO.Path]::GetFullPath($WorkspaceRoot)
-$WorkspaceBackend = Join-Path $WorkspaceRoot "backend-api\backend"
+
+$OpenBBRoot = Split-Path $PSScriptRoot -Parent
 $StateRoot = Join-Path $env:LOCALAPPDATA "OpenBB\mcp-stack"
 $StatePath = Join-Path $StateRoot "processes.json"
 $PlatformLog = Join-Path $StateRoot "openbb-platform-mcp.log"
@@ -61,9 +52,34 @@ function Read-State {
     Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json
 }
 
-function Test-ProcessRunning {
-    param([int]$ProcessId)
-    return $null -ne (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)
+function Get-ProcessIdentity {
+    param([System.Diagnostics.Process]$Process)
+    return @{
+        pid = $Process.Id
+        started_at = $Process.StartTime.ToUniversalTime().ToString("o")
+        executable = $Process.Path
+    }
+}
+
+function Test-ProcessIdentity {
+    param($Identity)
+
+    if ($null -eq $Identity -or -not $Identity.pid -or -not $Identity.started_at) {
+        return $false
+    }
+    $process = Get-Process -Id $Identity.pid -ErrorAction SilentlyContinue
+    if ($null -eq $process) {
+        return $false
+    }
+    $expectedStart = ([datetime]$Identity.started_at).ToUniversalTime()
+    $sameStart = $process.StartTime.ToUniversalTime() -eq $expectedStart
+    $sameExecutable = -not $Identity.executable -or
+        [string]::Equals(
+            $process.Path,
+            $Identity.executable,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )
+    return $sameStart -and $sameExecutable
 }
 
 function Test-PortListening {
@@ -103,14 +119,32 @@ function Get-DescendantProcessIds {
 }
 
 function Stop-ProcessTree {
-    param([int]$RootId)
+    param($Identity)
 
-    $descendants = @(Get-DescendantProcessIds -ParentId $RootId)
+    if (-not (Test-ProcessIdentity -Identity $Identity)) {
+        Write-Warning "Skipping stale or reused process ID $($Identity.pid)."
+        return
+    }
+    $descendants = @(Get-DescendantProcessIds -ParentId $Identity.pid)
     [array]::Reverse($descendants)
     foreach ($processId in $descendants) {
         Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
-    Stop-Process -Id $RootId -Force -ErrorAction SilentlyContinue
+    Stop-Process -Id $Identity.pid -Force -ErrorAction SilentlyContinue
+}
+
+function ConvertTo-NativeArguments {
+    param([string[]]$Arguments)
+
+    return $Arguments | ForEach-Object {
+        if ($_ -notmatch '[\s"]') {
+            $_
+        } elseif ($_ -match '"') {
+            throw "Native argument contains an unsupported quote: $_"
+        } else {
+            '"' + $_ + '"'
+        }
+    }
 }
 
 function Write-Status {
@@ -120,8 +154,8 @@ function Write-Status {
         return
     }
 
-    $platformRunning = Test-ProcessRunning -ProcessId $state.platform.pid
-    $workspaceRunning = Test-ProcessRunning -ProcessId $state.workspace.pid
+    $platformRunning = Test-ProcessIdentity -Identity $state.platform
+    $workspaceRunning = Test-ProcessIdentity -Identity $state.workspace
     [pscustomobject]@{
         Server = "OpenBB Platform MCP"
         PID = $state.platform.pid
@@ -143,27 +177,72 @@ function Write-Status {
 function Wait-ForServer {
     param(
         [string]$Name,
-        [int]$ProcessId,
+        $LauncherIdentity,
         [int]$Port,
         [string]$ErrorLog
     )
 
     $deadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        if (-not (Test-ProcessRunning -ProcessId $ProcessId)) {
-            $details = if (Test-Path -LiteralPath $ErrorLog) {
-                (Get-Content -LiteralPath $ErrorLog -Tail 30) -join [Environment]::NewLine
-            } else {
-                "No error log was created."
+        $connection = Get-NetTCPConnection -LocalPort $Port -State Listen `
+            -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -ne $connection) {
+            $launcherProcesses = @($LauncherIdentity.pid) +
+                @(Get-DescendantProcessIds -ParentId $LauncherIdentity.pid)
+            if ($connection.OwningProcess -notin $launcherProcesses) {
+                throw "$Name port $Port was claimed by an unrelated process."
             }
-            throw "$Name exited during startup.$([Environment]::NewLine)$details"
-        }
-        if (Test-PortListening -Port $Port) {
-            return
+            $serverProcess = Get-Process -Id $connection.OwningProcess -ErrorAction Stop
+            return Get-ProcessIdentity -Process $serverProcess
         }
         Start-Sleep -Milliseconds 500
     }
-    throw "$Name did not listen on port $Port within $StartupTimeoutSeconds seconds."
+    $launcherStatus = if (Test-ProcessIdentity -Identity $LauncherIdentity) {
+        "The uv launcher is still running."
+    } else {
+        "The uv launcher exited."
+    }
+    $details = if (Test-Path -LiteralPath $ErrorLog) {
+        (Get-Content -LiteralPath $ErrorLog -Tail 30) -join [Environment]::NewLine
+    } else {
+        "No error log was created."
+    }
+    throw "$Name did not listen on port $Port within $StartupTimeoutSeconds seconds. " +
+        "$launcherStatus$([Environment]::NewLine)$details"
+}
+
+function Assert-PlatformCatalog {
+    param([int]$Port)
+
+    $uri = "http://127.0.0.1:$Port/mcp"
+    $headers = @{ Accept = "application/json, text/event-stream" }
+    $initializeBody = @{
+        jsonrpc = "2.0"
+        id = 1
+        method = "initialize"
+        params = @{
+            protocolVersion = "2025-06-18"
+            capabilities = @{}
+            clientInfo = @{ name = "dual-mcp-readiness"; version = "1.0" }
+        }
+    } | ConvertTo-Json -Depth 5 -Compress
+    $initialize = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers `
+        -ContentType "application/json" -Body $initializeBody
+    $sessionId = [string]$initialize.Headers["Mcp-Session-Id"]
+    if (-not $sessionId) {
+        throw "OpenBB Platform MCP did not return an MCP session ID."
+    }
+    $headers["Mcp-Session-Id"] = $sessionId
+    Invoke-WebRequest -Uri $uri -Method Post -Headers $headers `
+        -ContentType "application/json" `
+        -Body '{"jsonrpc":"2.0","method":"notifications/initialized"}' | Out-Null
+    $catalog = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers `
+        -ContentType "application/json" `
+        -Body '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"available_categories","arguments":{}}}'
+    if ($catalog.Content -notmatch '"name":"equity"' -or
+        $catalog.Content -notmatch '"total_tools":[1-9]') {
+        throw "OpenBB Platform MCP started without the expected financial tool catalog."
+    }
 }
 
 if ($Action -eq "Status") {
@@ -177,15 +256,30 @@ if ($Action -eq "Stop") {
         Write-Host "No dual MCP processes are recorded."
         exit 0
     }
-    foreach ($processId in @($state.platform.pid, $state.workspace.pid)) {
-        if (Test-ProcessRunning -ProcessId $processId) {
-            Stop-ProcessTree -RootId $processId
+    foreach ($identity in @($state.platform, $state.workspace)) {
+        if (Test-ProcessIdentity -Identity $identity) {
+            Stop-ProcessTree -Identity $identity
         }
     }
     Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
     Write-Host "Stopped the OpenBB Platform and Workspace MCP servers."
     exit 0
 }
+
+if (-not $WorkspaceRoot) {
+    $workspaceCandidates = @(
+        (Join-Path $OpenBBRoot "third_party\workspace"),
+        (Join-Path $OpenBBRoot "..\workspace")
+    )
+    $WorkspaceRoot = $workspaceCandidates |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_ "backend-api\backend\workspace_mcp") } |
+        Select-Object -First 1
+    if (-not $WorkspaceRoot) {
+        throw "Workspace MCP source was not found. Initialize third_party/workspace or pass -WorkspaceRoot."
+    }
+}
+$WorkspaceRoot = [System.IO.Path]::GetFullPath($WorkspaceRoot)
+$WorkspaceBackend = Join-Path $WorkspaceRoot "backend-api\backend"
 
 if ($PlatformPort -eq $WorkspacePort) {
     throw "PlatformPort and WorkspacePort must be different."
@@ -202,8 +296,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $WorkspaceBackend "workspace_mcp")))
 
 $existing = Read-State
 if ($null -ne $existing) {
-    $running = @($existing.platform.pid, $existing.workspace.pid) |
-        Where-Object { Test-ProcessRunning -ProcessId $_ }
+    $running = @($existing.platform, $existing.workspace) |
+        Where-Object { Test-ProcessIdentity -Identity $_ }
     if ($running.Count -gt 0) {
         throw "A recorded MCP stack is still running. Use -Action Status or -Action Stop first."
     }
@@ -224,9 +318,10 @@ $platformArgs = @(
     "run",
     "--no-project",
     "--python", "3.13",
+    "--with-editable", (Join-Path $OpenBBRoot "openbb_platform"),
     "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\core"),
     "--with-editable", (Join-Path $OpenBBRoot "openbb_platform\extensions\mcp_server"),
-    "openbb-mcp",
+    "python", "-m", "openbb_mcp_server.app.app",
     "--host", "127.0.0.1",
     "--port", $PlatformPort,
     "--transport", "streamable-http",
@@ -248,29 +343,47 @@ $workspaceArgs = @(
     "--cors-allow", "https://pro.openbb.co"
 )
 
-$platformProcess = Start-Process -FilePath "uv" -ArgumentList $platformArgs -PassThru `
+$platformProcess = Start-Process -FilePath "uv" `
+    -ArgumentList (ConvertTo-NativeArguments -Arguments $platformArgs) -PassThru `
     -RedirectStandardOutput $PlatformLog -RedirectStandardError $PlatformErrorLog `
     -WindowStyle Hidden
+$platformLauncherIdentity = Get-ProcessIdentity -Process $platformProcess
 try {
-    $workspaceProcess = Start-Process -FilePath "uv" -ArgumentList $workspaceArgs -PassThru `
+    $platformIdentity = Wait-ForServer -Name "OpenBB Platform MCP" `
+        -LauncherIdentity $platformLauncherIdentity -Port $PlatformPort `
+        -ErrorLog $PlatformErrorLog
+    Assert-PlatformCatalog -Port $PlatformPort
+    $workspaceProcess = Start-Process -FilePath "uv" `
+        -ArgumentList (ConvertTo-NativeArguments -Arguments $workspaceArgs) -PassThru `
         -RedirectStandardOutput $WorkspaceLog -RedirectStandardError $WorkspaceErrorLog `
         -WindowStyle Hidden
+    $workspaceLauncherIdentity = Get-ProcessIdentity -Process $workspaceProcess
+    $workspaceIdentity = Wait-ForServer -Name "Workspace MCP" `
+        -LauncherIdentity $workspaceLauncherIdentity -Port $WorkspacePort `
+        -ErrorLog $WorkspaceErrorLog
 } catch {
-    Stop-ProcessTree -RootId $platformProcess.Id
+    if ($null -ne $workspaceIdentity) {
+        Stop-ProcessTree -Identity $workspaceIdentity
+    } elseif ($null -ne $workspaceLauncherIdentity) {
+        Stop-ProcessTree -Identity $workspaceLauncherIdentity
+    }
+    if ($null -ne $platformIdentity) {
+        Stop-ProcessTree -Identity $platformIdentity
+    } else {
+        Stop-ProcessTree -Identity $platformLauncherIdentity
+    }
     throw
 }
 
 $state = @{
     started_at = (Get-Date).ToString("o")
-    platform = @{
-        pid = $platformProcess.Id
+    platform = $platformIdentity + @{
         port = $PlatformPort
         endpoint = "http://127.0.0.1:$PlatformPort/mcp"
         log = $PlatformLog
         error_log = $PlatformErrorLog
     }
-    workspace = @{
-        pid = $workspaceProcess.Id
+    workspace = $workspaceIdentity + @{
         port = $WorkspacePort
         endpoint = "http://127.0.0.1:$WorkspacePort/mcp"
         health = "http://127.0.0.1:$WorkspacePort/health"
@@ -279,18 +392,6 @@ $state = @{
     }
 }
 $state | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $StatePath -Encoding UTF8
-
-try {
-    Wait-ForServer -Name "OpenBB Platform MCP" -ProcessId $platformProcess.Id `
-        -Port $PlatformPort -ErrorLog $PlatformErrorLog
-    Wait-ForServer -Name "Workspace MCP" -ProcessId $workspaceProcess.Id `
-        -Port $WorkspacePort -ErrorLog $WorkspaceErrorLog
-} catch {
-    Stop-ProcessTree -RootId $platformProcess.Id
-    Stop-ProcessTree -RootId $workspaceProcess.Id
-    Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
-    throw
-}
 
 Write-Host "OpenBB Platform MCP: http://127.0.0.1:$PlatformPort/mcp"
 Write-Host "Workspace MCP:       http://127.0.0.1:$WorkspacePort/mcp"
