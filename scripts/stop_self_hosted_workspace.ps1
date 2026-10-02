@@ -5,7 +5,10 @@
 #>
 
 [CmdletBinding()]
-param()
+param(
+    [Parameter(DontShow)]
+    [object]$FrontendProcess
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -146,51 +149,71 @@ function Invoke-WorkspaceComposeDown {
 }
 
 function Invoke-SelfHostedWorkspaceStop {
-    if (Test-Path $pidPath -PathType Leaf) {
+    param([object]$FrontendProcess)
+
+    $cleanupErrors = [System.Collections.Generic.List[string]]::new()
+    try {
         try {
             $state = $null
-            try {
-                $state = Get-Content $pidPath -Raw | ConvertFrom-Json
-                $parsedPid = 0
-                $parsedStartTicks = [long]0
-                if (
-                    -not [int]::TryParse(
-                        [string]$state.Pid, [ref]$parsedPid
-                    ) -or
-                    -not [long]::TryParse(
-                        [string]$state.StartTimeUtcTicks,
-                        [ref]$parsedStartTicks
-                    ) -or
-                    $parsedPid -le 0 -or
-                    $parsedStartTicks -le 0 -or
-                    $parsedStartTicks -gt [datetime]::MaxValue.Ticks
-                ) {
-                    throw "Invalid frontend PID state."
-                }
+            if ($null -ne $FrontendProcess) {
                 $state = [pscustomobject]@{
-                    Pid = $parsedPid
-                    StartTimeUtcTicks = $parsedStartTicks
+                    Pid = [int]$FrontendProcess.Id
+                    StartTimeUtcTicks =
+                        $FrontendProcess.StartTime.ToUniversalTime().Ticks
                 }
-            } catch {
-                $state = $null
-                Write-Warning "Frontend PID state was invalid and has been discarded."
+            } elseif (Test-Path $pidPath -PathType Leaf) {
+                try {
+                    $state = Get-Content $pidPath -Raw | ConvertFrom-Json
+                    $parsedPid = 0
+                    $parsedStartTicks = [long]0
+                    if (
+                        -not [int]::TryParse(
+                            [string]$state.Pid, [ref]$parsedPid
+                        ) -or
+                        -not [long]::TryParse(
+                            [string]$state.StartTimeUtcTicks,
+                            [ref]$parsedStartTicks
+                        ) -or
+                        $parsedPid -le 0 -or
+                        $parsedStartTicks -le 0 -or
+                        $parsedStartTicks -gt [datetime]::MaxValue.Ticks
+                    ) {
+                        throw "Invalid frontend PID state."
+                    }
+                    $state = [pscustomobject]@{
+                        Pid = $parsedPid
+                        StartTimeUtcTicks = $parsedStartTicks
+                    }
+                } catch {
+                    $state = $null
+                    Write-Warning "Frontend PID state was invalid and has been discarded."
+                }
             }
             if ($null -ne $state) {
                 Stop-WorkspaceFrontendProcess -State $state
             }
+        } catch {
+            $cleanupErrors.Add("Frontend cleanup failed.")
         } finally {
             Remove-Item $pidPath -Force -ErrorAction SilentlyContinue
         }
+    } finally {
+        try {
+            if ((Test-Path $composeFile -PathType Leaf) -and
+                (Test-Path $composeOverride -PathType Leaf)) {
+                Invoke-WorkspaceComposeDown
+            }
+        } catch {
+            $cleanupErrors.Add("Compose cleanup failed.")
+        }
     }
 
-    if ((Test-Path $composeFile -PathType Leaf) -and
-        (Test-Path $composeOverride -PathType Leaf)) {
-        Invoke-WorkspaceComposeDown
+    if ($cleanupErrors.Count -gt 0) {
+        throw ($cleanupErrors -join " ")
     }
-
     Write-Host "Self-hosted Workspace processes owned by this deployment are stopped."
 }
 
 if ($MyInvocation.InvocationName -ne ".") {
-    Invoke-SelfHostedWorkspaceStop
+    Invoke-SelfHostedWorkspaceStop -FrontendProcess $FrontendProcess
 }

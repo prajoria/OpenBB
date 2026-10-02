@@ -94,6 +94,13 @@ function Assert-WorkspaceLogin {
     }
 }
 
+function Invoke-WorkspaceOwnedCleanup {
+    param([object]$FrontendProcess)
+
+    & (Join-Path $PSScriptRoot "stop_self_hosted_workspace.ps1") `
+        -FrontendProcess $FrontendProcess | Out-Null
+}
+
 function Invoke-SelfHostedWorkspaceRun {
     foreach ($requiredPath in @(
         $composeFile, $composeOverride, $backendEnv, $adminCredentials,
@@ -109,6 +116,7 @@ function Invoke-SelfHostedWorkspaceRun {
 
     New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
 
+    $frontend = $null
     try {
         Push-Location $backendRoot
         try {
@@ -173,8 +181,9 @@ function Invoke-SelfHostedWorkspaceRun {
     } catch {
         $safeMessage = $_.Exception.Message
         try {
-            & (Join-Path $PSScriptRoot "stop_self_hosted_workspace.ps1") | Out-Null
+            Invoke-WorkspaceOwnedCleanup -FrontendProcess $frontend
         } catch {
+            throw "$safeMessage Workspace cleanup also failed."
         }
         throw $safeMessage
     }

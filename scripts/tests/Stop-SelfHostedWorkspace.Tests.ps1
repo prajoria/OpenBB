@@ -236,6 +236,159 @@ Describe "Self-hosted Workspace stop" {
         Assert-MockCalled Invoke-WorkspaceComposeDown -Times 3 -Exactly
     }
 
+    It "always stops Compose when frontend cleanup throws" {
+        Mock Test-Path { $true }
+        Mock Get-Content {
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        }
+        Mock Remove-Item {}
+        Mock Stop-WorkspaceFrontendProcess {
+            throw "sensitive frontend cleanup detail"
+        }
+        Mock Invoke-WorkspaceComposeDown {}
+        Mock Write-Host {}
+
+        $captured = ""
+        try {
+            Invoke-SelfHostedWorkspaceStop
+        } catch {
+            $captured = $_.Exception.Message
+        }
+
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+        Assert-MockCalled Remove-Item -Times 1 -Exactly -Scope It
+        $captured | Should Match "Frontend cleanup failed"
+        $captured | Should Not Match "sensitive frontend cleanup detail"
+    }
+
+    It "still stops Compose when frontend state inspection throws" {
+        Mock Test-Path { $true }
+        Mock Get-Content {
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        }
+        Mock Get-Process { throw "sensitive process inspection detail" }
+        Mock Remove-Item {}
+        Mock Invoke-WorkspaceComposeDown {}
+        Mock Write-Host {}
+
+        { Invoke-SelfHostedWorkspaceStop } | Should Throw "Frontend cleanup failed."
+
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+    }
+
+    It "still stops Compose when descendant enumeration throws" {
+        Mock Test-Path { $true }
+        Mock Get-Content {
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        }
+        Mock Get-WorkspaceDescendantProcessIds {
+            throw "sensitive descendant enumeration detail"
+        }
+        Mock Remove-Item {}
+        Mock Invoke-WorkspaceComposeDown {}
+        Mock Write-Host {}
+
+        { Invoke-SelfHostedWorkspaceStop } | Should Throw "Frontend cleanup failed."
+
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+    }
+
+    It "still stops Compose when descendant identity validation throws" {
+        Mock Test-Path { $true }
+        Mock Get-Content {
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        }
+        Mock Get-WorkspaceDescendantProcessIds {
+            [pscustomobject]@{
+                ProcessId = 42
+                ParentProcessId = 41
+                CreationDate = [datetime]::new(
+                    2026, 1, 1, 0, 0, 1, [DateTimeKind]::Utc
+                )
+            }
+        }
+        Mock Test-WorkspaceProcessIdentity {
+            throw "sensitive identity validation detail"
+        }
+        Mock Remove-Item {}
+        Mock Invoke-WorkspaceComposeDown {}
+        Mock Write-Host {}
+
+        { Invoke-SelfHostedWorkspaceStop } | Should Throw "Frontend cleanup failed."
+
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+    }
+
+    It "still stops Compose when frontend termination throws" {
+        Mock Test-Path { $true }
+        Mock Get-Content {
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        }
+        Mock Get-WorkspaceDescendantProcessIds { @() }
+        Mock Stop-Process { throw "sensitive frontend termination detail" }
+        Mock Remove-Item {}
+        Mock Invoke-WorkspaceComposeDown {}
+        Mock Write-Host {}
+
+        { Invoke-SelfHostedWorkspaceStop } | Should Throw "Frontend cleanup failed."
+
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+    }
+
+    It "reports both cleanup failures only after attempting Compose" {
+        Mock Test-Path { $true }
+        Mock Get-Content {
+            '{"Pid":41,"StartTimeUtcTicks":639028224000000000}'
+        }
+        Mock Remove-Item {}
+        Mock Stop-WorkspaceFrontendProcess {
+            throw "sensitive frontend cleanup detail"
+        }
+        Mock Invoke-WorkspaceComposeDown {
+            throw "sensitive Compose cleanup detail"
+        }
+        Mock Write-Host {}
+
+        $captured = ""
+        try {
+            Invoke-SelfHostedWorkspaceStop
+        } catch {
+            $captured = $_.Exception.Message
+        }
+
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+        $captured | Should Match "Frontend cleanup failed"
+        $captured | Should Match "Compose cleanup failed"
+        $captured | Should Not Match "sensitive"
+    }
+
+    It "uses an in-memory frontend process when PID state was not written" {
+        $frontend = [pscustomobject]@{
+            Id = 41
+            StartTime = [datetime]::new(
+                2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+            )
+        }
+        Mock Test-Path {
+            if ($Path -like "*frontend.pid.json") {
+                return $false
+            }
+            return $true
+        }
+        Mock Stop-WorkspaceFrontendProcess {}
+        Mock Invoke-WorkspaceComposeDown {}
+        Mock Write-Host {}
+
+        Invoke-SelfHostedWorkspaceStop -FrontendProcess $frontend
+
+        Assert-MockCalled Stop-WorkspaceFrontendProcess -Times 1 -Exactly -Scope It `
+            -ParameterFilter {
+                $State.Pid -eq 41 -and
+                $State.StartTimeUtcTicks -eq $frontend.StartTime.Ticks
+            }
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 1 -Exactly -Scope It
+    }
+
     It "does not use broad process-name termination" {
         $ScriptText | Should Not Match 'Stop-Process\s+-(Name|InputObject)'
         $ScriptText | Should Not Match 'taskkill.+/IM'
