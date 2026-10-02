@@ -40,9 +40,10 @@ verified, reviewed, merged to `portfolio`, and marked Done.
 | 3 | [#2099](https://github.com/prajoria/OpenBB/issues/2099) | Portfolio Intelligence launcher | `feat/workspace-intel-launcher-gh-2099` | P0 / D-Widgets+QA / Feature |
 | 4 | [#2100](https://github.com/prajoria/OpenBB/issues/2100) | Privacy-safe smoke checks and operator runbook | `docs/workspace-dev-runbook-gh-2100` | P0 / QA / Feature |
 | 5 | [#2108](https://github.com/prajoria/OpenBB/issues/2108) | Pin and audit self-hosted Workspace source | `chore/self-hosted-workspace-source-gh-2108` | P1 / Workspace+Tools / Task |
-| 6 | [#2101](https://github.com/prajoria/OpenBB/issues/2101) | Hosted Workspace and browser-harness validation | `test/workspace-hosted-browser-gh-2101` | P1 / QA / Task |
-| 7 | [#2102](https://github.com/prajoria/OpenBB/issues/2102) | Workspace Bench and hosted MCP certification | `test/workspace-bench-mcp-gh-2102` | P1 / QA / Task |
-| 8 | [#2103](https://github.com/prajoria/OpenBB/issues/2103) | Optional Portfolio Copilot proxy validation | `test/workspace-copilot-proxy-gh-2103` | P1 / B-Analytics / Task |
+| 6 | [#2110](https://github.com/prajoria/OpenBB/issues/2110) | Deploy self-hosted Workspace development stack | `feat/self-hosted-workspace-deploy-gh-2110` | P1 / Workspace+Tools / Feature |
+| 7 | [#2101](https://github.com/prajoria/OpenBB/issues/2101) | Hosted Workspace and browser-harness validation | `test/workspace-hosted-browser-gh-2101` | P1 / QA / Task |
+| 8 | [#2102](https://github.com/prajoria/OpenBB/issues/2102) | Workspace Bench and hosted MCP certification | `test/workspace-bench-mcp-gh-2102` | P1 / QA / Task |
+| 9 | [#2103](https://github.com/prajoria/OpenBB/issues/2103) | Optional Portfolio Copilot proxy validation | `test/workspace-copilot-proxy-gh-2103` | P1 / B-Analytics / Task |
 
 For each issue:
 
@@ -67,14 +68,16 @@ For each issue:
 | `uv` | `0.11.26` installed |
 | PowerShell | `7.4.20` installed |
 | Node | `24.17.0` installed |
-| Docker CLI | installed; Docker Desktop engine is not required for the source audit but is the recommended deployment target |
+| Docker CLI | Docker Desktop Linux engine `29.5.3`; required by the self-host deployment |
+| Bun | installed; frontend dependencies use checked-in `bun.lock` |
 | MySQL | `mysqld` is listening on port `3306` |
 | Portfolio venv | `.venv_portfolio` exists |
 | Root `.env` | absent |
 | Portfolio TLS certificate | absent; the existing launch script generates it |
 | Workspace browser profile | absent; first live browser run requires interactive login |
 | Ollama | installed, with no models currently present |
-| Workspace MCP | integrated and standalone source is pinned under `third_party/workspace`; dependencies and runtime are not yet validated |
+| Self-hosted Workspace | Dockerized SQLite backend and Bun/Vite frontend validated by #2110 on loopback |
+| Workspace MCP | integrated route starts with the backend; standalone package certification remains separate |
 
 ## File Structure
 
@@ -86,6 +89,9 @@ For each issue:
 - Create: `scripts/setup_workspace_dev.ps1` — idempotent machine/environment preflight and dependency setup.
 - Create: `scripts/run_widget_backend.ps1` — supported Portfolio Intelligence launcher for port `6120`.
 - Create: `scripts/test_workspace_dev.ps1` — endpoint and manifest smoke checks without printing response data.
+- Create: `scripts/setup_self_hosted_workspace.ps1` — secure ignored runtime configuration and locked Bun setup.
+- Create: `scripts/run_self_hosted_workspace.ps1` — SQLite Compose lifecycle, bootstrap, login, and Vite launcher.
+- Create: `scripts/stop_self_hosted_workspace.ps1` — exact PID-tree and Compose-project shutdown.
 - Create: `docs/operations/workspace-local-development.md` — operator runbook with local-only, hosted-integration, agent, and benchmark modes.
 - Modify: `openbb_platform/extensions/portfolio_intel/openbb_portfolio_intel/widget_backend/README.md` — replace stale launcher instructions with the supported script.
 
@@ -542,7 +548,73 @@ git add scripts/test_workspace_dev.ps1
 git commit -m "test: add Workspace development smoke checks" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
 
-### Task 6: Connect the hosted Workspace UI to local services
+### Task 6: Deploy the self-hosted Workspace development stack (#2110)
+
+**Files:**
+- Create: `scripts/setup_self_hosted_workspace.ps1`
+- Create: `scripts/run_self_hosted_workspace.ps1`
+- Create: `scripts/stop_self_hosted_workspace.ps1`
+- Create: focused Pester tests under `scripts/tests/`
+- Modify: `docs/operations/workspace-local-development.md`
+
+**Interfaces:**
+- Consumes: pinned `third_party/workspace`, Docker Desktop Linux engine, Compose, and Bun.
+- Produces: Redis/FastAPI/RQ/SQLite on an exact Compose project and Vite on `127.0.0.1:1420`.
+
+- [x] **Step 1: Verify focused lifecycle tests**
+
+```powershell
+Invoke-Pester -Path @(
+  "scripts/tests/Setup-SelfHostedWorkspace.Tests.ps1",
+  "scripts/tests/Run-SelfHostedWorkspace.Tests.ps1",
+  "scripts/tests/Stop-SelfHostedWorkspace.Tests.ps1"
+)
+```
+
+- [x] **Step 2: Generate ignored runtime configuration and install frontend dependencies**
+
+```powershell
+.\scripts\setup_self_hosted_workspace.ps1
+```
+
+- [x] **Step 3: Build and start the local stack**
+
+```powershell
+.\scripts\run_self_hosted_workspace.ps1
+```
+
+- [x] **Step 4: Verify readiness without printing bodies or credentials**
+
+```powershell
+(Invoke-WebRequest http://127.0.0.1:8000/health `
+  -ConnectionTimeoutSeconds 3 -OperationTimeoutSeconds 5).StatusCode
+(Invoke-WebRequest http://127.0.0.1:1420 `
+  -ConnectionTimeoutSeconds 3 -OperationTimeoutSeconds 5).StatusCode
+docker compose --project-name openbb-workspace-2110 `
+  --file third_party\workspace\backend-api\docker-compose-local-dev-sqlite.yml `
+  --file third_party\workspace\backend-api\backend\workspace-compose.secrets `
+  ps --status running --services
+```
+
+Expected and verified: both HTTP statuses are `200`; `fastapi`, `redis`, and
+`rq_worker` are running; ports `8000` and `1420` listen only on `127.0.0.1`.
+The launch script separately verifies admin login with generated credentials
+without printing the response. The pinned backend disables `/docs`, so readiness
+uses `/health`.
+
+- [x] **Step 5: Stop only owned processes and containers**
+
+```powershell
+.\scripts\stop_self_hosted_workspace.ps1
+git -C third_party/workspace status --short --untracked-files=no
+git status --short
+git diff --check
+```
+
+Expected and verified: no owned container remains and no tracked submodule file
+is modified.
+
+### Task 7: Connect the hosted Workspace UI to local services
 
 **Files:**
 - Runtime only: OpenBB Workspace account configuration.
@@ -602,7 +674,7 @@ $env:RUN_WORKSPACE_HARNESS = "1"
 
 Expected: Chromium opens visibly on first run; log in manually. Cookies persist under `%USERPROFILE%\.openbb_browser_test_harness\chrome_profile`.
 
-### Task 7: Validate Workspace Bench locally before enabling model calls
+### Task 8: Validate Workspace Bench locally before enabling model calls
 
 **Files:**
 - Runtime only: `third_party/openbb-workspace-bench/.venv`
@@ -664,7 +736,7 @@ try {
 
 Expected: all benchmark tests pass.
 
-### Task 8: Enable live MCP validation through the supported hosted path
+### Task 9: Enable live MCP validation through the supported hosted path
 
 **Files:**
 - Runtime only: process environment or ignored `third_party/openbb-workspace-bench/.env`.
@@ -727,7 +799,7 @@ is incompatible. Keep hosted MCP validation separate until the self-host stack
 is deployed and verified.
 ```
 
-### Task 9: Validate the optional custom-agent path
+### Task 10: Validate the optional custom-agent path
 
 **Files:**
 - Runtime only: an OpenAI-compatible proxy on `127.0.0.1:4141`, or environment overrides for another loopback endpoint.
@@ -780,7 +852,7 @@ Explain the fields in the Portfolio Summary widget without giving investment adv
 
 Expected: Workspace receives streamed text chunks; the response explains data and does not issue a buy, sell, or hold recommendation.
 
-### Task 10: Publish the operator runbook and perform final verification
+### Task 11: Publish the operator runbook and perform final verification
 
 **Files:**
 - Create: `docs/operations/workspace-local-development.md`

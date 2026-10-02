@@ -2,8 +2,8 @@
 
 This runbook covers both the pinned OpenBB Workspace source and the existing
 hosted integration path. **`http://127.0.0.1:6120/viewer` is a local preview;
-it is not OpenBB Workspace.** The source audit below does not yet prove that a
-self-hosted Workspace build or deployment succeeds.
+it is not OpenBB Workspace.** Issue #2110 adds and validates a loopback-only
+self-hosted development deployment for the pinned source.
 
 Run commands from the repository root in PowerShell 7 unless stated otherwise.
 Keep each long-running backend in its own terminal.
@@ -12,7 +12,8 @@ Keep each long-running backend in its own terminal.
 
 | Surface | Location | Purpose |
 | --- | --- | --- |
-| OpenBB Workspace source | [`third_party/workspace`](../../third_party/workspace) | Substantial but partial self-host source; build and runtime remain unvalidated. |
+| Self-hosted OpenBB Workspace | `http://127.0.0.1:1420` | Validated local development UI backed by the pinned source and loopback API. |
+| OpenBB Workspace source | [`third_party/workspace`](../../third_party/workspace) | Substantial but partial self-host source; Dockerized SQLite development path is validated. |
 | Hosted OpenBB Workspace | `https://pro.openbb.co` | Historical hosted integration target. It currently redirects to **BQ Workspace Coming Soon**; retain it only as a record until hosted validation is revisited. |
 | Portfolio backend | `https://127.0.0.1:6902` | Local widgets, apps, agent descriptor, and query endpoint. |
 | Portfolio Intelligence backend | `http://127.0.0.1:6120` | Local widgets, apps, and API. |
@@ -63,50 +64,89 @@ clean submodule status, no recursive submodule or LFS output, `False` for both
 commands verify source state only; they do not claim that Workspace builds or
 runs.
 
-### Corrected manual-development recipe (not yet executed)
+## Self-hosted SQLite development deployment (issue #2110)
 
-Do not follow a `pip install -r requirements.txt` recipe: backend
-`requirements.txt` does not exist. The backend uses Poetry and declares
-Python `~3.13` in `pyproject.toml`. Running Uvicorn alone is also incomplete:
-the stack needs ignored environment configuration, a database, Redis, an RQ
-worker, Alembic migrations, and `python -m scripts.init_users`. The source's
-Compose workflow expresses those dependencies; use Docker Desktop with WSL2
-for development and deployment rather than treating unsupported Windows-native
-processes as a production target.
+The supported local path uses Docker Desktop's Linux engine for Redis,
+FastAPI, RQ, Python 3.13, Alembic, and SQLite. Bun/Vite runs on the Windows
+host. Do not install Poetry or Python 3.13 on the host, and do not use the
+broken Lite Dockerfile path.
 
-For a future manual development attempt, the required sequence is:
+Setup initializes the exact pinned submodule, verifies Docker/Compose/Bun,
+generates fresh ignored development secrets, creates a loopback Compose
+override, and installs the frontend with the checked-in lockfile:
 
-1. Create ignored backend configuration from the provided templates and supply
-   local database/Redis settings without committing credentials.
-2. Provision the Poetry environment with Python ~3.13.
-3. Start the database and Redis, apply `alembic upgrade head`, and run
-   `python -m scripts.init_users`.
-4. Start both the RQ worker and FastAPI/Uvicorn process.
-5. In `terminalpro`, use Bun (`bun install`, then `bun run dev`) and explicitly
-   point only `VITE_PAYMENTS_URL` at the local backend API. Keep
-   `VITE_AI_API_URL` and `VITE_PLATFORM_URL` empty/disabled unless those
-   services are separately provisioned, matching
-   `third_party/workspace/lite/frontend.env`. Custom external agents remain
-   available through their independent `agents.json` integration; they do not
-   require the absent hosted AI service.
+```powershell
+.\scripts\setup_self_hosted_workspace.ps1
+```
 
-Vite development serves port `1420`; `bun run preview` serves port `4173`.
-Port `3000` belongs to the Lite nginx container, not the Vite development
-server. The checked-in frontend `.env` defaults to hosted `openbb.dev` URLs
-unless overridden.
+Setup always manages the single local administrator identity
+`workspace-admin@example.com`. Its generated password is rotated on every
+setup and is never printed. The next run applies that password to the existing
+SQLite user, invalidating the prior credentials without modifying other users.
+The backend accepts browser origins only from
+`http://127.0.0.1:1420`; both CORS middleware and authenticated origin checks
+consume that same backend allowlist.
 
-### Known build and access blockers
+An earlier development version generated a different administrator email on
+every setup. The deployment scripts do not delete those historical accounts,
+because an email-pattern deletion could remove an operator-created user. The
+disposable issue-validation database was reset once during the upgrade instead;
+existing non-disposable installations should review and remove only accounts
+they can independently confirm were generated by that earlier script.
 
-- `lite/Dockerfile` copies `terminalpro/package-lock.json` and runs `npm ci`,
-  but only `terminalpro/bun.lock` is tracked. Do not generate or commit a
-  replacement lockfile merely to hide this mismatch.
-- Published Docker image references, private AWS ECR repositories, and default
-  build mirrors are not usable without the corresponding credentials or
-  repository access.
-- TradingView Advanced Charts and hosted OpenBB AI are excluded from the
-  source snapshot.
-- A successful source audit is not a successful build. Resolve these contracts
-  in a later implementation issue before claiming deployment readiness.
+Start the stack:
+
+```powershell
+.\scripts\run_self_hosted_workspace.ps1
+```
+
+The launcher applies migrations, starts the exact Compose project
+`openbb-workspace-2110`, initializes the local entity and admin idempotently,
+checks login without printing its response, and starts Vite bound exactly to
+`127.0.0.1:1420`. Verify only status, never response bodies:
+
+```powershell
+(Invoke-WebRequest http://127.0.0.1:8000/health `
+    -ConnectionTimeoutSeconds 3 -OperationTimeoutSeconds 5).StatusCode
+(Invoke-WebRequest http://127.0.0.1:1420 `
+    -ConnectionTimeoutSeconds 3 -OperationTimeoutSeconds 5).StatusCode
+docker compose --project-name openbb-workspace-2110 `
+    --file third_party\workspace\backend-api\docker-compose-local-dev-sqlite.yml `
+    --file third_party\workspace\backend-api\backend\workspace-compose.secrets `
+    ps
+```
+
+The pinned backend deliberately configures `docs_url=None`; `/docs` returns
+404. Use `/health` for API readiness. This is a source contract, not a failed
+health check.
+
+Stop only the recorded Vite process tree and owned Compose project:
+
+```powershell
+.\scripts\stop_self_hosted_workspace.ps1
+```
+
+Descendants are validated by PID, parent PID, and creation time immediately
+before exact PID termination; the parent PID/start time is revalidated after
+descendant cleanup as well. PowerShell does not provide an atomic
+validate-and-terminate primitive, so a narrow PID-reuse race remains between
+the final identity check and `Stop-Process`. Eliminating it would require
+replacing the host launcher with Windows Job Object ownership. The scripts
+never broaden cleanup to process-name termination.
+
+Runtime configuration is ignored under the submodule and PID/log state is
+under the parent repository's ignored `.dev-cycle/workspace-2110` directory.
+Never print `.env.sqlite`, `.env.local`, the admin credential file, login
+responses, or application data. `user_create.json`, SQLite data, and folder
+storage also remain ignored.
+
+### Remaining source boundaries
+
+- `lite/Dockerfile` still expects `package-lock.json`; the supported path uses
+  `bun install --frozen-lockfile` and never creates that file.
+- TradingView Advanced Charts and hosted OpenBB AI are excluded. The local
+  frontend disables AI, Platform, telemetry, and registration integrations.
+- This is a development deployment, not a production hardening claim.
 
 ## 2. One-time setup
 
