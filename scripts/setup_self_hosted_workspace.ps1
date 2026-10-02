@@ -121,7 +121,8 @@ function New-WorkspaceBackendEnvironment {
         FOLDER_STORAGE_PATH = "/opt/code/local_storage"
         LOCAL_STORAGE_SECRET_KEY = $Secrets.Storage
         DISABLE_REGISTRATION = "1"
-        DISABLE_CORS = "1"
+        DISABLE_CORS = "0"
+        BACKEND_CORS_ORIGINS = "http://127.0.0.1:1420"
         HUBSPOT = "0"
         PROMETHEUS = "0"
         WORKERS = "1"
@@ -171,6 +172,37 @@ function New-WorkspaceFrontendEnvironment {
         'VITE_POSTHOG_URL=""'
         'VITE_MCP_DEFAULT_SERVER_ENABLED="false"'
     )
+}
+
+function Write-WorkspaceAdminArtifacts {
+    param(
+        [Parameter(Mandatory)][string]$ConfigPath,
+        [Parameter(Mandatory)][string]$CredentialsPath
+    )
+
+    $adminEmail = "workspace-admin@example.com"
+    $adminPassword = "{0}A1!" -f (New-WorkspaceRandomSecret -ByteCount 24)
+
+    @"
+[entity]
+name = "Local Development"
+seats = 10
+aum = 0
+company_type = "CORPORATION"
+organization_size = "SMALL"
+country = "DOM"
+
+[[admins]]
+email = "$adminEmail"
+first_name = "Local"
+last_name = "Admin"
+password = "$adminPassword"
+"@ | Set-Content -Path $ConfigPath -Encoding utf8NoBOM
+
+    [ordered]@{
+        Email = $adminEmail
+        Password = $adminPassword
+    } | ConvertTo-Json | Set-Content -Path $CredentialsPath -Encoding utf8NoBOM
 }
 
 function Assert-WorkspaceRuntimePathIgnored {
@@ -262,11 +294,6 @@ function Invoke-SelfHostedWorkspaceSetup {
         Aes = New-WorkspaceRandomSecret -ByteCount 32
         Storage = New-WorkspaceRandomSecret -ByteCount 48
     }
-    $adminEmail = "workspace-admin-{0}@example.com" -f (
-        New-WorkspaceRandomSecret -ByteCount 9
-    ).ToLowerInvariant()
-    $adminPassword = "{0}A1!" -f (New-WorkspaceRandomSecret -ByteCount 24)
-
     $templateLines = [System.IO.File]::ReadAllLines($backendTemplatePath)
     New-WorkspaceBackendEnvironment -TemplateLines $templateLines -Secrets $secrets |
         Set-Content -Path $backendEnvPath -Encoding utf8NoBOM
@@ -285,26 +312,8 @@ services:
       - ./backend/workspace-admin-config.secrets:/opt/code/scripts/cfgs/config.toml:ro
 "@ | Set-Content -Path $composeOverridePath -Encoding utf8NoBOM
 
-    @"
-[entity]
-name = "Local Development"
-seats = 10
-aum = 0
-company_type = "CORPORATION"
-organization_size = "SMALL"
-country = "DOM"
-
-[[admins]]
-email = "$adminEmail"
-first_name = "Local"
-last_name = "Admin"
-password = "$adminPassword"
-"@ | Set-Content -Path $adminConfigPath -Encoding utf8NoBOM
-
-    [ordered]@{
-        Email = $adminEmail
-        Password = $adminPassword
-    } | ConvertTo-Json | Set-Content -Path $adminCredentialsPath -Encoding utf8NoBOM
+    Write-WorkspaceAdminArtifacts -ConfigPath $adminConfigPath `
+        -CredentialsPath $adminCredentialsPath
 
     Write-Host "Installing frontend dependencies from bun.lock ..."
     Push-Location $frontendRoot

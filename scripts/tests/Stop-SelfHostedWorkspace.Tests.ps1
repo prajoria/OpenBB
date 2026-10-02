@@ -55,6 +55,187 @@ Describe "Self-hosted Workspace stop" {
         Assert-MockCalled Stop-Process -Times 0 -Scope It
     }
 
+    It "does not stop a descendant whose PID identity changed after discovery" {
+        Mock Get-CimInstance {
+            @(
+                [pscustomobject]@{
+                    ProcessId = 42
+                    ParentProcessId = 41
+                    CreationDate = [datetime]::new(
+                        2026, 1, 1, 0, 0, 1, [DateTimeKind]::Utc
+                    )
+                }
+            )
+        } -ParameterFilter { -not $Filter }
+        Mock Get-CimInstance {
+            [pscustomobject]@{
+                ProcessId = 42
+                ParentProcessId = 99
+                CreationDate = [datetime]::new(
+                    2026, 1, 1, 0, 0, 2, [DateTimeKind]::Utc
+                )
+            }
+        } -ParameterFilter { $Filter -eq "ProcessId = 42" }
+        $state = [pscustomobject]@{
+            Pid = 41
+            StartTimeUtcTicks = [datetime]::new(
+                2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+            ).Ticks
+        }
+
+        Stop-WorkspaceFrontendProcess -State $state
+
+        Assert-MockCalled Stop-Process -Times 0 -ParameterFilter { $Id -eq 42 }
+        Assert-MockCalled Stop-Process -Times 1 -ParameterFilter { $Id -eq 41 }
+    }
+
+    It "does not adopt a stale child relationship from before the parent started" {
+        Mock Get-CimInstance {
+            @(
+                [pscustomobject]@{
+                    ProcessId = 42
+                    ParentProcessId = 41
+                    CreationDate = [datetime]::new(
+                        2025, 12, 31, 23, 59, 59, [DateTimeKind]::Utc
+                    )
+                }
+            )
+        } -ParameterFilter { -not $Filter }
+        Mock Get-CimInstance {
+            [pscustomobject]@{
+                ProcessId = 42
+                ParentProcessId = 41
+                CreationDate = [datetime]::new(
+                    2025, 12, 31, 23, 59, 59, [DateTimeKind]::Utc
+                )
+            }
+        } -ParameterFilter { $Filter -eq "ProcessId = 42" }
+        $state = [pscustomobject]@{
+            Pid = 41
+            StartTimeUtcTicks = [datetime]::new(
+                2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+            ).Ticks
+        }
+
+        Stop-WorkspaceFrontendProcess -State $state
+
+        Assert-MockCalled Stop-Process -Times 0 -ParameterFilter { $Id -eq 42 }
+        Assert-MockCalled Stop-Process -Times 1 -ParameterFilter { $Id -eq 41 }
+    }
+
+    It "does not adopt descendants when the parent PID changed in the snapshot" {
+        Mock Get-CimInstance {
+            @(
+                [pscustomobject]@{
+                    ProcessId = 41
+                    ParentProcessId = 10
+                    CreationDate = [datetime]::new(
+                        2026, 1, 1, 0, 0, 2, [DateTimeKind]::Utc
+                    )
+                },
+                [pscustomobject]@{
+                    ProcessId = 42
+                    ParentProcessId = 41
+                    CreationDate = [datetime]::new(
+                        2026, 1, 1, 0, 0, 3, [DateTimeKind]::Utc
+                    )
+                }
+            )
+        } -ParameterFilter { -not $Filter }
+        Mock Get-CimInstance {
+            [pscustomobject]@{
+                ProcessId = 42
+                ParentProcessId = 41
+                CreationDate = [datetime]::new(
+                    2026, 1, 1, 0, 0, 3, [DateTimeKind]::Utc
+                )
+            }
+        } -ParameterFilter { $Filter -eq "ProcessId = 42" }
+        $state = [pscustomobject]@{
+            Pid = 41
+            StartTimeUtcTicks = [datetime]::new(
+                2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+            ).Ticks
+        }
+
+        Stop-WorkspaceFrontendProcess -State $state
+
+        Assert-MockCalled Stop-Process -Times 0 -ParameterFilter { $Id -eq 42 }
+        Assert-MockCalled Stop-Process -Times 1 -ParameterFilter { $Id -eq 41 }
+    }
+
+    It "stops a descendant from the matching parent snapshot" {
+        Mock Get-Process {
+            [pscustomobject]@{
+                Id = 41
+                StartTime = [datetime]::new(
+                    2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+                ).AddTicks(9)
+            }
+        }
+        Mock Get-CimInstance {
+            @(
+                [pscustomobject]@{
+                    ProcessId = 41
+                    ParentProcessId = 10
+                    CreationDate = [datetime]::new(
+                        2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+                    )
+                },
+                [pscustomobject]@{
+                    ProcessId = 42
+                    ParentProcessId = 41
+                    CreationDate = [datetime]::new(
+                        2026, 1, 1, 0, 0, 1, [DateTimeKind]::Utc
+                    )
+                }
+            )
+        } -ParameterFilter { -not $Filter }
+        Mock Get-CimInstance {
+            [pscustomobject]@{
+                ProcessId = 42
+                ParentProcessId = 41
+                CreationDate = [datetime]::new(
+                    2026, 1, 1, 0, 0, 1, [DateTimeKind]::Utc
+                )
+            }
+        } -ParameterFilter { $Filter -eq "ProcessId = 42" }
+        $state = [pscustomobject]@{
+            Pid = 41
+            StartTimeUtcTicks = [datetime]::new(
+                2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc
+            ).AddTicks(9).Ticks
+        }
+
+        Stop-WorkspaceFrontendProcess -State $state
+
+        Assert-MockCalled Stop-Process -Times 1 -ParameterFilter { $Id -eq 42 }
+        Assert-MockCalled Stop-Process -Times 1 -ParameterFilter { $Id -eq 41 }
+    }
+
+    It "removes malformed PID state and still performs exact Compose cleanup" {
+        Mock Test-Path { $true }
+        Mock Remove-Item {}
+        Mock Stop-WorkspaceFrontendProcess {}
+        Mock Invoke-WorkspaceComposeDown {}
+        Mock Write-Host {}
+
+        foreach ($badState in @(
+            '{"Pid":',
+            '{"Pid":"not-an-integer"}',
+            '{"Pid":0,"StartTimeUtcTicks":0}'
+        )) {
+            Mock Get-Content { $badState }
+            Invoke-SelfHostedWorkspaceStop
+        }
+
+        Assert-MockCalled Remove-Item -Times 3 -Exactly -ParameterFilter {
+            $Path -like "*frontend.pid.json"
+        }
+        Assert-MockCalled Stop-WorkspaceFrontendProcess -Times 0
+        Assert-MockCalled Invoke-WorkspaceComposeDown -Times 3 -Exactly
+    }
+
     It "does not use broad process-name termination" {
         $ScriptText | Should Not Match 'Stop-Process\s+-(Name|InputObject)'
         $ScriptText | Should Not Match 'taskkill.+/IM'

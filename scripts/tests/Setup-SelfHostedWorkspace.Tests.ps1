@@ -54,7 +54,8 @@ Describe "Self-hosted Workspace setup" {
             "FOLDER_STORAGE_PATH=/opt/code/local_storage",
             "LOCAL_STORAGE_SECRET_KEY=committed-example",
             "DISABLE_REGISTRATION=0",
-            "DISABLE_CORS=1"
+            "DISABLE_CORS=1",
+            "BACKEND_CORS_ORIGINS=http://host.example"
         )
         $secrets = @{
             Jwt = "fresh-jwt"
@@ -75,7 +76,43 @@ Describe "Self-hosted Workspace setup" {
         $text | Should Match "PROURL=http://127.0.0.1:1420"
         $text | Should Match "STORAGE_PROVIDER=folder"
         $text | Should Match "DISABLE_REGISTRATION=1"
-        $text | Should Match "DISABLE_CORS=1"
+        $text | Should Match "DISABLE_CORS=0"
+        $text | Should Match "BACKEND_CORS_ORIGINS=http://127.0.0.1:1420"
+    }
+
+    It "uses one exact CORS allowlist for middleware and auth origin checks" {
+        $secrets = @{
+            Jwt = "jwt"
+            Auth = "auth"
+            Aes = "aes"
+            Storage = "storage"
+        }
+        $environment = New-WorkspaceBackendEnvironment -TemplateLines @(
+            "DATABASE_TYPE=sqlite"
+            "DB_PATH=test.db"
+            "REDIS_HOST=localhost"
+            "JWT_SECRET=example"
+            "OPENBB_AUTH_TOKEN=example"
+            "OPENBB_AES_KEY=example"
+            "FRONTENDURL=http://localhost"
+            "SELFURL=http://localhost:8000"
+            "PROURL=http://localhost:1420"
+            "STORAGE_PROVIDER=folder"
+            "FOLDER_STORAGE_PATH=/data"
+            "LOCAL_STORAGE_SECRET_KEY=example"
+            "DISABLE_REGISTRATION=0"
+            "DISABLE_CORS=1"
+        ) -Secrets $secrets
+        $corsLines = @($environment | Where-Object {
+            $_ -match '^(DISABLE_CORS|BACKEND_CORS_ORIGINS)='
+        })
+
+        $corsLines.Count | Should Be 2
+        ($corsLines -contains "DISABLE_CORS=0") | Should Be $true
+        (
+            $corsLines -contains
+            "BACKEND_CORS_ORIGINS=http://127.0.0.1:1420"
+        ) | Should Be $true
     }
 
     It "disables unavailable hosted frontend services" {
@@ -96,9 +133,29 @@ Describe "Self-hosted Workspace setup" {
         $ScriptText | Should Not Match 'Get-Content.+\.env'
     }
 
-    It "generates an admin address accepted by strict email validation" {
-        $ScriptText | Should Match '@example\.com'
-        $ScriptText | Should Not Match '@localhost\.invalid'
+    It "keeps one managed admin identity while rotating credentials on repeated setup" {
+        $artifactRoot = Join-Path $RepoRoot ".dev-cycle\workspace-2110\setup-test"
+        $configPath = Join-Path $artifactRoot "admin-config.toml"
+        $credentialsPath = Join-Path $artifactRoot "admin-credentials.json"
+        New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+        try {
+            Write-WorkspaceAdminArtifacts -ConfigPath $configPath `
+                -CredentialsPath $credentialsPath
+            $first = Get-Content $credentialsPath -Raw | ConvertFrom-Json
+
+            Write-WorkspaceAdminArtifacts -ConfigPath $configPath `
+                -CredentialsPath $credentialsPath
+            $second = Get-Content $credentialsPath -Raw | ConvertFrom-Json
+            $config = Get-Content $configPath -Raw
+
+            $first.Email | Should Be "workspace-admin@example.com"
+            $second.Email | Should Be $first.Email
+            $second.Password | Should Not Be $first.Password
+            ([regex]::Matches($config, '\[\[admins\]\]')).Count | Should Be 1
+            $config | Should Match 'email = "workspace-admin@example\.com"'
+        } finally {
+            Remove-Item $artifactRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 
     It "generates a signed service JWT accepted by backend authentication" {
