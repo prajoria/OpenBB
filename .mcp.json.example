@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "openbb-platform": {
+      "type": "http",
+      "url": "http://127.0.0.1:8001/mcp"
+    },
+    "openbb-workspace": {
+      "type": "http",
+      "url": "http://127.0.0.1:8787/mcp"
+    },
     "openbb-agents": {
       "command": "python",
       "args": ["-m", "openbb_agents.mcp_server"],
