@@ -83,7 +83,7 @@ for this deployment.
 | #2098 | Issue | Adds the Windows setup preflight. |
 | #2099 | Issue | Adds the Portfolio Intelligence launcher. |
 | #2100 | Issue | Adds privacy-safe smoke checks and the operator runbook. |
-| #2101 | Issue | Next: hosted Workspace and browser-harness validation. |
+| #2101 | Issue | Completed self-hosted connector and browser-harness acceptance. |
 | #2102 | Issue | Later: Workspace Bench and hosted MCP certification. |
 | #2103 | Issue | Later: optional Portfolio Copilot proxy validation. |
 | #2104 | PR | Merges #2097 foundations. |
@@ -137,10 +137,27 @@ test, focused auth tests, production build, fresh login, and profile reuse all
 passed. The source-excluded TradingView UDF bundle still returns 404, but the
 shell renders while it is absent, proving it is not the shell blocker.
 
-Connector, six-tab, and rendered-widget validation remain tracked by #2101.
-Separately, the authoritative Portfolio
-launcher reported the exact expected data-path prerequisite blocker: no root
-`.env`, so `/portfolio/*` and `/espp/*` require the absent
+The remaining #2101 acceptance then completed through the self-hosted UI with
+the same persistent profile. The Connections flow validated Portfolio Local at
+`https://127.0.0.1:6902` and Portfolio Intelligence Local at
+`http://127.0.0.1:6120`. Portfolio Overview rendered Overview, Positions, Cost
+Basis & Tax, Trends, ESPP, and Stock Analysis. Portfolio Intelligence -
+Overview rendered a widget and caused
+`GET http://127.0.0.1:6120/pi/xray/sector` to return HTTP 200. The recorded
+evidence contains only control/tab names and origin/path/status metadata.
+
+The live run found and fixed two connector defects with focused regressions.
+Directly visiting the self-signed 6902 manifest could cache a response without
+CORS headers, so both backends now mark discovery manifests
+`Cache-Control: no-store`. The 6120 backend now allows the exact self-hosted
+Workspace origin as well as `https://pro.openbb.co`. Its three explicit app IDs
+also use the pinned Workspace `custom-` prefix contract. Focused suites passed
+152 tests for discovery/CORS headers and 293 tests for the app-ID contract and
+affected app layouts.
+
+The authoritative Portfolio launcher still reported the exact expected
+data-path prerequisite limitation: no root `.env`, so `/portfolio/*` and
+`/espp/*` require the absent
 `MYSQL_HOST`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DATABASE` binding. Discovery,
 stock, and API surfaces remained available; no database credentials were
 invented.

@@ -162,8 +162,22 @@ def test_apps_json_endpoint_serves_valid_app_list() -> None:
                 )
 
 
+def test_apps_json_ids_match_workspace_custom_app_contract() -> None:
+    """Pinned Workspace accepts explicit backend app IDs only with custom-."""
+    apps = _client.get("/apps.json").json()
+    assert all(app.get("id", "").startswith("custom-") for app in apps)
+
+
+def test_discovery_manifests_are_not_cacheable() -> None:
+    """A direct TLS/trust visit must not poison the later Workspace CORS fetch."""
+    for path in ("/widgets.json", "/apps.json"):
+        resp = _client.get(path)
+        assert resp.status_code == 200
+        assert resp.headers.get("cache-control") == "no-store"
+
+
 # ---------------------------------------------------------------------------
-# 4. CORS — only pro.openbb.co, never wildcard
+# 4. CORS — exact Workspace origins, never wildcard
 # ---------------------------------------------------------------------------
 
 
@@ -179,6 +193,19 @@ def test_cors_allows_pro_openbb_co() -> None:
     # FastAPI/starlette returns 200 on successful preflight.
     assert resp.status_code in (200, 204)
     assert resp.headers.get("access-control-allow-origin") == "https://pro.openbb.co"
+
+
+def test_cors_allows_self_hosted_workspace() -> None:
+    """The loopback Workspace shell must be able to discover this backend."""
+    resp = _client.options(
+        "/widgets.json",
+        headers={
+            "Origin": "http://127.0.0.1:1420",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert resp.status_code in (200, 204)
+    assert resp.headers.get("access-control-allow-origin") == "http://127.0.0.1:1420"
 
 
 def test_cors_does_NOT_use_wildcard() -> None:

@@ -41,7 +41,7 @@ _APPS_JSON = (
 
 def _terminal_overview_layout() -> list[dict]:
     apps = json.loads(_APPS_JSON.read_text(encoding="utf-8"))
-    term = [a for a in apps if a.get("id") == "portfolio-intelligence-terminal"][0]
+    term = [a for a in apps if a.get("id") == "custom-portfolio-intelligence-terminal"][0]
     return term["tabs"]["overview"]["layout"]
 
 

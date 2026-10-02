@@ -256,24 +256,38 @@ try {
 The preview is `http://127.0.0.1:6120/viewer`. It helps inspect local widget
 behavior, but it is not the hosted Workspace application.
 
-## 6. Connect pro.openbb.co to both loopback services
+## 6. Connect Workspace to both loopback services
 
 First visit `https://127.0.0.1:6902/widgets.json` in the same browser profile
 used for Workspace and explicitly accept the self-signed development
 certificate warning.
 
-Then open `https://pro.openbb.co` and use **Apps → Data connectors → Custom
-backend → Add**:
+Then open Workspace and use **Connections → Connect Backend**:
 
 | Name | URL |
 | --- | --- |
 | Portfolio Local | `https://127.0.0.1:6902` |
 | Portfolio Intelligence Local | `http://127.0.0.1:6120` |
 
-The hosted page calls loopback services through the browser; the services
+The Workspace page calls loopback services through the browser; the services
 remain local. Confirm that Portfolio Overview exposes Overview, Positions,
 Cost Basis & Tax, Trends, ESPP, and Stock Analysis. Confirm that a Portfolio
 Intelligence widget requests the `6120` origin.
+
+Issue #2101 acceptance on 2026-10-02 used the hardened persistent-profile
+`WorkspaceDriver` against `http://127.0.0.1:1420` with development TLS bypass
+enabled only for that exact self-hosted Workspace URL. It validated both
+connector names and origins, rendered all six Portfolio Overview tab names,
+opened Portfolio Intelligence - Overview, rendered a widget, and observed
+`GET http://127.0.0.1:6120/pi/xray/sector` return HTTP 200. Evidence contained
+only control/tab names and origin/path/status metadata.
+
+The acceptance run also fixed two browser-integration contracts. Discovery
+responses now send `Cache-Control: no-store`, preventing the required direct
+TLS trust visit from poisoning a later cross-origin manifest fetch in the
+persistent profile. Portfolio Intelligence now allows the exact self-hosted
+Workspace origin in addition to the hosted origin, and its three explicit app
+IDs use the pinned Workspace `custom-` prefix contract.
 
 ## 7. Run privacy-safe smoke checks
 
@@ -332,8 +346,9 @@ empty authenticated `/app` shell in `prajoria/workspace` PR #1: on-prem login
 had incorrectly required hosted onboarding data, causing `AuthGuard` to return
 `null`. The fixed source renders the app layout after both fresh login and
 profile reuse. The source-excluded TradingView UDF bundle still returns 404 but
-does not block the shell. Connector, six-tab, and rendered-widget proof remain
-separate #2101 acceptance steps.
+does not block the shell. The same #2101 acceptance subsequently validated
+both loopback connectors, all six Portfolio Overview tabs, and a rendered
+Portfolio Intelligence widget request to the 6120 origin.
 
 ## 9. Run deterministic Workspace Bench evaluations
 

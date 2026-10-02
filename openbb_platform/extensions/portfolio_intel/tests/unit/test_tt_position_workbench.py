@@ -53,7 +53,7 @@ def _apps() -> list:
 
 def _techtrade_app() -> dict:
     for a in _apps():
-        if a.get("id") == "techtrade-desk":
+        if a.get("id") == "custom-techtrade-desk":
             return a
     return {}
 

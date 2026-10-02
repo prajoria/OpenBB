@@ -46,7 +46,7 @@ def _apps() -> list:
 
 def _xray_tab_layout() -> list[dict]:
     for a in _apps():
-        if a.get("id") == "portfolio-intelligence-terminal":
+        if a.get("id") == "custom-portfolio-intelligence-terminal":
             return a["tabs"]["xray"]["layout"]
     return []
 
