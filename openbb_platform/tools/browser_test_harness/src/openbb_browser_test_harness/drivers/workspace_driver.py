@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 import socket
 import sys
@@ -32,6 +33,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from ..redact import assert_screenshot_clean
 from ..selectors import WidgetSelector, selector_for_endpoint
@@ -52,6 +54,65 @@ def _default_profile_dir() -> Path:
     users have a single conceptual location for browser state.
     """
     return Path.home() / ".openbb_browser_test_harness" / "chrome_profile"
+
+
+def _is_local_workspace_url(url: str) -> bool:
+    """Return whether *url* is the exact supported self-hosted base URL."""
+    parsed = urlparse(url)
+    return (
+        parsed.scheme == "http"
+        and parsed.netloc == "127.0.0.1:1420"
+        and parsed.path in {"", "/"}
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
+def _is_authenticated_workspace_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return (
+        parsed.scheme == "http"
+        and parsed.netloc == "127.0.0.1:1420"
+        and (parsed.path == "/app" or parsed.path.startswith("/app/"))
+    )
+
+
+def _require_local_workspace_origin(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme != "http" or parsed.netloc != "127.0.0.1:1420":
+        raise WorkspaceDriverError(
+            "Managed login refused because the live page left the exact "
+            "self-hosted Workspace origin."
+        )
+
+
+def _default_managed_credentials_path() -> Path:
+    return (
+        Path.cwd()
+        / "third_party"
+        / "workspace"
+        / "backend-api"
+        / "backend"
+        / "workspace-admin-credentials.secrets"
+    )
+
+
+def _read_managed_credentials(path: Path) -> tuple[str, str]:
+    """Read the ignored setup-managed credential file without logging values."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise WorkspaceDriverError(
+            "Unable to read the managed credential file for local Workspace."
+        ) from exc
+    email = payload.get("Email") if isinstance(payload, dict) else None
+    password = payload.get("Password") if isinstance(payload, dict) else None
+    if not isinstance(email, str) or not email or not isinstance(password, str) or not password:
+        raise WorkspaceDriverError(
+            "The managed credential file for local Workspace has an invalid shape."
+        )
+    return email, password
 
 
 def _pick_random_port() -> int:
@@ -85,6 +146,11 @@ class WorkspaceDriver:
     profile_dir: Path = field(default_factory=_default_profile_dir)
     screenshots_dir: Path | None = None  # if None, screenshots aren't saved
     headless: bool = False  # persistent-context defaults to visible for login
+    ignore_local_self_hosted_https_errors: bool = False
+    managed_credentials_path: Path = field(
+        default_factory=_default_managed_credentials_path
+    )
+    login_timeout_ms: float = 30_000
 
     #: If None, spawn a fresh uvicorn on a random ephemeral 127.0.0.1 port
     #: (#1789). If set, attach to an existing backend.
@@ -105,9 +171,17 @@ class WorkspaceDriver:
         default=None, init=False, repr=False
     )
     _resolved_backend_url: str | None = field(default=None, init=False, repr=False)
+    login_performed: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
         """Record spawn-vs-attach mode at construction (#1789)."""
+        if self.ignore_local_self_hosted_https_errors and not _is_local_workspace_url(
+            self.workspace_url
+        ):
+            raise WorkspaceDriverError(
+                "Development TLS bypass is permitted only for the exact "
+                "self-hosted Workspace URL."
+            )
         self._spawn_backend = self.backend_url is None
         self._resolved_backend_url = self.backend_url
 
@@ -187,6 +261,7 @@ class WorkspaceDriver:
             self._context = await self._playwright.chromium.launch_persistent_context(
                 user_data_dir=str(self.profile_dir),
                 headless=self.headless,
+                ignore_https_errors=self.ignore_local_self_hosted_https_errors,
             )
             self._owns_context = True
         elif self.mode == "cdp-attach":
@@ -216,6 +291,9 @@ class WorkspaceDriver:
                 f"{target_url}{sep}backend_url={self._resolved_backend_url}"
             )
         await self._page.goto(target_url, wait_until="load")
+        if _is_local_workspace_url(self.workspace_url):
+            _require_local_workspace_origin(self._page.url)
+            await self._ensure_local_login()
         # Wait for the widget grid selector, or fall through after 5s — the
         # grid may not exist on every route (e.g. login redirect page).
         import contextlib
@@ -224,6 +302,69 @@ class WorkspaceDriver:
             await self._page.wait_for_selector(
                 '[data-testid="widget-grid"]', timeout=5000
             )
+
+    async def _ensure_local_login(self) -> None:
+        """Log into local Workspace only when the persisted profile needs it."""
+        assert self._page is not None
+        _require_local_workspace_origin(self._page.url)
+        if _is_authenticated_workspace_url(self._page.url):
+            self.login_performed = False
+            return
+
+        email_input = self._page.get_by_label("Email", exact=True)
+        login_ready = asyncio.create_task(
+            email_input.wait_for(state="attached", timeout=0)
+        )
+        authenticated = asyncio.create_task(
+            self._page.wait_for_url(
+                lambda url: _is_authenticated_workspace_url(str(url)),
+                timeout=0,
+            )
+        )
+        done, pending = await asyncio.wait(
+            {login_ready, authenticated},
+            timeout=self.login_timeout_ms / 1000,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        if not done:
+            raise WorkspaceDriverError(
+                "Local Workspace did not reach a login or authenticated route."
+            )
+        _require_local_workspace_origin(self._page.url)
+        if _is_authenticated_workspace_url(self._page.url):
+            self.login_performed = False
+            return
+        if await email_input.count() == 0:
+            raise WorkspaceDriverError(
+                "Local Workspace did not expose the expected login form."
+            )
+
+        _require_local_workspace_origin(self._page.url)
+        email, password = _read_managed_credentials(self.managed_credentials_path)
+        _require_local_workspace_origin(self._page.url)
+        await email_input.fill(email)
+        _require_local_workspace_origin(self._page.url)
+        await self._page.get_by_label("Password", exact=True).fill(password)
+        await self._page.get_by_role("button", name="Login", exact=True).click()
+        try:
+            await self._page.wait_for_url(
+                lambda url: _is_authenticated_workspace_url(str(url)),
+                timeout=self.login_timeout_ms,
+            )
+        except Exception as exc:
+            raise WorkspaceDriverError(
+                "Local Workspace managed login did not complete."
+            ) from exc
+        _require_local_workspace_origin(self._page.url)
+        if not _is_authenticated_workspace_url(self._page.url):
+            raise WorkspaceDriverError(
+                "Local Workspace managed login reached an unexpected route."
+            )
+        self.login_performed = True
 
     async def teardown(self) -> None:
         """Close the page/context if we own them; otherwise leave them alive.
