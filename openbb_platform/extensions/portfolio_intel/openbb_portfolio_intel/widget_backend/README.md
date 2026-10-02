@@ -6,18 +6,30 @@ Follows the canonical Workspace custom-backend contract documented in [OpenBB-fi
 
 ## Run locally
 
-```bash
-# From repo root, with .venv_portfolio activated:
-.venv_portfolio/Scripts/python.exe -m uvicorn \
-  openbb_portfolio_intel.widget_backend.main:app \
-  --host 127.0.0.1 --port 6120 --reload
+From the repository root, use the supported PowerShell launcher:
+
+```powershell
+# Loopback-only development:
+.\scripts\run_widget_backend.ps1
+
+# Auto-reload:
+.\scripts\run_widget_backend.ps1 -Reload
+
+# Explicit bearer authentication:
+$token = Read-Host -MaskInput "Portfolio Intelligence bearer token"
+.\scripts\run_widget_backend.ps1 -AuthMode required -Token $token
 ```
 
-Confirm it's up:
+The launcher always binds to `127.0.0.1` (port `6120` by default), rejects
+port conflicts, and explicitly configures either `loopback-dev` or `required`
+authentication. Confirm it is up:
 
-```bash
-curl http://127.0.0.1:6120/widgets.json
+```powershell
+Invoke-RestMethod http://127.0.0.1:6120/widgets.json
 ```
+
+The local viewer at <http://127.0.0.1:6120/viewer> is only a preview harness.
+It is never a replacement for the real Workspace UI at <https://pro.openbb.co>.
 
 ## Connect to Workspace
 
@@ -74,18 +86,10 @@ Discovery endpoints (`/widgets.json`, `/apps.json`, `/`) are unauthenticated by 
 
 ### Running locally
 
-```bash
-# Dev (no auth, loopback only):
-PI_WIDGET_BACKEND_AUTH_MODE=loopback-dev \
-  .venv_portfolio/Scripts/python.exe -m uvicorn \
-  openbb_portfolio_intel.widget_backend.main:app --port 6120
+Use `.\scripts\run_widget_backend.ps1` for explicit loopback development, or
+pass `-AuthMode required -Token $token` as shown above. Configure Workspace's
+custom backend to send the same bearer token when required mode is enabled.
 
-# Production shape (auth required):
-export PI_WIDGET_BACKEND_TOKEN=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
-.venv_portfolio/Scripts/python.exe -m uvicorn \
-  openbb_portfolio_intel.widget_backend.main:app --port 6120
-# Configure Workspace's custom-backend to send Authorization: Bearer $PI_WIDGET_BACKEND_TOKEN
-```
 
 Reverse-proxy the backend behind Cloudflare Access / Tailscale / IAP if it's reachable off-host. The bearer token is a floor, not a moat.
 
