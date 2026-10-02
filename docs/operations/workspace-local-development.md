@@ -402,36 +402,47 @@ procedure. These runs prove that the grader separates valid behavior from no
 action. They use a simulator; they are not evidence that the hosted UI behaves
 identically. Keep generated run artifacts and response transcripts out of Git.
 
-## 10. Run hosted MCP surface and parity checks
+## 10. Run self-hosted MCP surface and parity checks
 
-Create a token in the hosted Workspace UI and keep it only in the current
-PowerShell process:
+First use the hardened persistent browser profile to open
+`http://127.0.0.1:1420`, enable **Workspace MCP Companion**, and keep that tab
+open. The integrated endpoint is `http://127.0.0.1:8000/mcp`.
+
+Use the checked-in wrapper to create one short-lived user-scoped token from the
+ignored managed administrator credential, expose it only to one child process,
+and revoke it in `finally`. `$WorkspaceDeploymentRoot` must be the worktree that
+owns the verified running deployment:
 
 ```powershell
-$env:WORKSPACE_MCP_TOKEN = Read-Host -MaskInput "OpenBB Workspace MCP token"
-$env:WORKSPACE_MCP_URL = "https://backend.openbb.co/mcp"
+$WorkspaceDeploymentRoot = (Resolve-Path ".").Path
+$BenchRoot = Join-Path $PWD "third_party\openbb-workspace-bench"
 
-Push-Location third_party\openbb-workspace-bench
-try {
-    uv run --extra live python scripts\audits\audit_hosted_surface.py
-    uv run --extra live workspace-bench live-parity `
-      --task smoke/get_widget_data/smoke_get_widget_data_level0
-} finally {
-    Pop-Location
-    Remove-Item Env:WORKSPACE_MCP_TOKEN
-    Remove-Item Env:WORKSPACE_MCP_URL
-}
+.\scripts\invoke_workspace_mcp_command.ps1 `
+  -WorkspaceRoot $WorkspaceDeploymentRoot `
+  -WorkingDirectory $BenchRoot `
+  -FilePath uv `
+  -ArgumentList @(
+    "run", "--extra", "live", "python",
+    "scripts\audits\audit_hosted_surface.py"
+  )
+
+.\scripts\invoke_workspace_mcp_command.ps1 `
+  -WorkspaceRoot $WorkspaceDeploymentRoot `
+  -WorkingDirectory $BenchRoot `
+  -FilePath uv `
+  -ArgumentList @(
+    "run", "--extra", "live", "workspace-bench", "live-parity",
+    "--task",
+    "smoke/list_available_widgets/smoke_list_available_widgets_level0",
+    "--url", "http://127.0.0.1:8000/mcp"
+  )
 ```
 
-Keep a logged-in Workspace tab open for live parity. Review cleanup results:
-the run should remove marker-named live artifacts and restore the previously
-active dashboard. Do not commit its report if it contains response data.
-
-> The pinned Workspace source contains integrated MCP routes and a standalone
-> `workspace_mcp` package, but neither path has been built or run locally. Do
-> not install PyPI `workspace-mcp`; that package serves Google Workspace and
-> is incompatible. Keep hosted MCP validation separate until the self-host
-> stack is deployed and verified.
+The selected parity task is read-only and creates no Workspace artifacts.
+Delete its generated `parity.json` after recording only the sanitized grade
+counts. Never commit response transcripts, credentials, cookies, or token
+values. Do not install PyPI `workspace-mcp`; that unrelated package serves
+Google Workspace.
 
 ## 11. Enable the optional Portfolio Copilot
 

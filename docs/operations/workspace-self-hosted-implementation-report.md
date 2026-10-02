@@ -236,13 +236,46 @@ The following evidence was recorded on 2026-10-01:
 No response bodies, credentials, tokens, environment values, or application
 data were captured as evidence.
 
+## Self-hosted Workspace MCP certification (#2102)
+
+Certification on 2026-10-02 kept simulator, transport, and real-browser
+evidence separate:
+
+| Layer | Sanitized result |
+| --- | --- |
+| Taskset validation | Smoke `80/80` oracle pass and `80/80` no-op fail; enterprise apps `138/138` and `138/138`; Workspace tasks `120/120` and `120/120` |
+| Workspace Bench suite | `222 passed, 1 skipped` |
+| Token wrapper Pester suite | `3 passed, 0 failed` |
+| Integrated MCP transport | `http://127.0.0.1:8000/mcp`; Workspace MCP `v3.4.7` |
+| Surface audit | 18 tools, 2 prompts, 16 resources; tool schemas and resource catalog compatible |
+| Browser-backed parity | Read-only `list_available_widgets` task: mocked `2/2`, live `2/2`, structural agreement true |
+| Cleanup | No task-created dashboard; marker-dashboard cleanup found `0`; token revoked and login session closed |
+
+The pinned source initially required hosted
+`X-OpenBB-Authorization` service authentication on user-scoped token and bridge
+bootstrap routes. The self-hosted frontend supplies the authenticated user
+session, not that hosted service credential. The source fix removes only the
+redundant service dependency; the existing `GetCurrentUser(..., pro=True)`
+dependency still scopes every route to the authenticated user.
+
+The pinned Bench also exposed two local-compatibility defects. Its Windows
+integration test used POSIX shell quoting for a `cmd.exe` child command, and
+live parity always created a dashboard even for a read-only task with no
+initial dashboard. The fixes use Windows-safe command construction and skip
+seeding for such tasks. The reviewed self-hosted schemas/resource descriptors
+are now the committed compatibility baseline.
+
+No MCP response body, browser cookie, credential, token, or parity transcript
+is retained in Git.
+
 ## Known limitations
 
 - This is a local development stack, not production deployment guidance.
 - TradingView assets and hosted OpenBB AI behavior are not locally reproduced.
-- Integrated and standalone Workspace MCP operation is not certified here.
-- Browser-level parity is separate from script verification and may require
-  interactive profile/login handling.
+- Standalone Workspace MCP operation is not certified; #2102 certifies the
+  integrated self-hosted endpoint and one eligible read-only browser task.
+- Browser parity still requires the hardened persistent profile and an
+  authenticated local Workspace tab.
 - PowerShell cannot atomically validate and terminate a PID. A narrow reuse race
   remains between the final identity check and exact-PID termination; a Windows
   Job Object launcher would be needed to remove it.
@@ -312,9 +345,8 @@ dirty.
 ## Next issue sequence
 
 1. Merge #2111 and retain this report as the replay source of truth.
-2. Execute #2101 hosted UI/browser-harness validation, keeping hosted and local
-   verdicts separate.
-3. Execute #2102 Workspace Bench and hosted MCP certification.
+2. Retain the completed #2101 local UI/browser-harness validation.
+3. Retain the completed #2102 Workspace Bench and self-hosted MCP certification.
 4. Execute optional #2103 model-proxy validation only with an approved
    loopback model service.
 5. Run human comparative evaluation of the three checked-in skill prompts and
