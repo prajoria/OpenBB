@@ -18,7 +18,7 @@ param(
     [ValidateSet("Start", "Status", "Stop")]
     [string]$Action = "Start",
 
-    [string]$WorkspaceRoot = (Join-Path (Split-Path $PSScriptRoot -Parent) "..\workspace"),
+    [string]$WorkspaceRoot,
 
     [ValidateRange(1, 65535)]
     [int]$PlatformPort = 8001,
@@ -33,6 +33,18 @@ param(
 $ErrorActionPreference = "Stop"
 
 $OpenBBRoot = Split-Path $PSScriptRoot -Parent
+if (-not $WorkspaceRoot) {
+    $workspaceCandidates = @(
+        (Join-Path $OpenBBRoot "third_party\workspace"),
+        (Join-Path $OpenBBRoot "..\workspace")
+    )
+    $WorkspaceRoot = $workspaceCandidates |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_ "backend-api\backend\workspace_mcp") } |
+        Select-Object -First 1
+    if (-not $WorkspaceRoot) {
+        throw "Workspace MCP source was not found. Initialize third_party/workspace or pass -WorkspaceRoot."
+    }
+}
 $WorkspaceRoot = [System.IO.Path]::GetFullPath($WorkspaceRoot)
 $WorkspaceBackend = Join-Path $WorkspaceRoot "backend-api\backend"
 $StateRoot = Join-Path $env:LOCALAPPDATA "OpenBB\mcp-stack"

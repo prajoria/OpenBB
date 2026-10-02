@@ -63,10 +63,11 @@ This fork keeps the MCP surfaces separate:
 - OpenBB Platform MCP exposes financial data and Platform API operations.
 - Workspace MCP controls Workspace dashboards, widgets, apps, and browser state.
 
-When the `OpenBB` and `workspace` repositories are sibling directories, start
-both servers from this repository:
+Initialize the Workspace source submodule, then start both servers from this
+repository:
 
 ```powershell
+git submodule update --init third_party/workspace
 .\scripts\start-dual-mcp.ps1
 .\scripts\start-dual-mcp.ps1 -Action Status
 .\scripts\start-dual-mcp.ps1 -Action Stop
@@ -76,7 +77,9 @@ The launcher uses `uv`, serves Platform MCP at
 `http://127.0.0.1:8001/mcp`, and serves Workspace MCP at
 `http://127.0.0.1:8787/mcp`. Copy `.mcp.json.example` to `.mcp.json` to
 register both endpoints with compatible MCP clients. Runtime state and logs are
-written under `%LOCALAPPDATA%\OpenBB\mcp-stack`, outside the repository.
+written under `%LOCALAPPDATA%\OpenBB\mcp-stack`, outside the repository. For
+older layouts, the launcher also discovers a sibling `workspace` checkout, or
+you can provide `-WorkspaceRoot`.
 
 ### Integrating Open Data Platform to the OpenBB Workspace
 
